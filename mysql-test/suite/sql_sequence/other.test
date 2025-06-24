@@ -176,11 +176,8 @@ drop sequence s1;
 CREATE SEQUENCE s;
 CREATE table t1 (a int);
 insert into t1 values (1),(2);
---error ER_ILLEGAL_HA
 DELETE s FROM s;
---error ER_ILLEGAL_HA
 delete t1,s from s,t1;
---error ER_ILLEGAL_HA
 delete s,t1 from t1,s;
 DROP SEQUENCE s;
 DROP TABLE t1;

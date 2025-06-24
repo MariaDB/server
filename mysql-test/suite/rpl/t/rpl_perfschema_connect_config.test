@@ -132,8 +132,8 @@ let $assert_cond= "$sss_value" = "$ps_value";
 source include/assert.inc;
 
 let $ps_value= query_get_value(select Connection_Retry_Count from performance_schema.replication_connection_configuration, Connection_Retry_Count, 1);
-let $assert_text= Value returned by PS table for Connection_Retry_Count should be 10.; # master-retry-count=10, as part of default my.cnf used by MTR
-let $assert_cond= "$ps_value" = 10;
+let $assert_text= Value returned by PS table for Connection_Retry_Count should be 30.; # master-retry-count=10, as part of default my.cnf used by MTR
+let $assert_cond= "$ps_value" = 30;
 source include/assert.inc;
 
 --echo
@@ -161,7 +161,6 @@ grant replication slave on *.* to replssl@localhost require ssl;
 # Setup slave to use SSL for connection to master
 --source include/stop_slave.inc
 replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR;
-replace_column 2 ####;
 eval change master to
   master_user= 'replssl',
   master_password= '',
@@ -232,7 +231,7 @@ CHANGE MASTER TO
  master_ssl_cert= '',
  master_ssl_key= '',
  master_ssl_verify_server_cert=0,
- master_ssl=0,
+ master_ssl=1,
  master_use_gtid=no;
 --source include/start_slave.inc
 
@@ -244,7 +243,6 @@ CHANGE MASTER TO
 --echo # 1) Test for MASTER_USE_GTID=NO
 --echo
 --source include/stop_slave.inc
-replace_column 2 ####;
 change master to
  master_user = 'root',
  master_use_gtid = NO;
@@ -258,7 +256,6 @@ source include/assert.inc;
 --echo
 --echo # 2) Test for Auto_position= CURRENT_POS.
 --echo
-replace_column 2 ####;
 change master to
  master_user = 'root',
  master_use_gtid= CURRENT_POS;
@@ -272,7 +269,6 @@ source include/assert.inc;
 --echo
 --echo # 3) Test for Auto_position= SLAVE_POS
 --echo
-replace_column 2 ####;
 change master to
  master_user = 'root',
  master_use_gtid= SLAVE_POS;

@@ -14,7 +14,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` inet6 DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 FOR i IN 0..255
 DO
 INSERT INTO t1 VALUES (CONCAT('::', HEX(i)));
@@ -85,7 +85,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	a	a	17	const	1	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::ff'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet6'::ff'
 DROP TABLE t1;
 #
 # MDEV-34922: Assertion `value.length() == FbtImpl::binary_length()' failed in
@@ -109,16 +109,16 @@ c
 ::2
 EXPLAIN SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	c	c	67	NULL	3	Using where; Using index
+1	SIMPLE	t1	index	c	c	259	NULL	3	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `c` part[0] for lookup: `test`.`t1`.`c` of type `varchar` > "cast('::1' as inet6)" of type `inet6`
 SELECT * FROM t1 WHERE c=CAST('::1' AS INET6);
 c
-0::1
 ::1
+0::1
 EXPLAIN SELECT * FROM t1 WHERE c=CAST('::1' AS INET6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	c	c	67	NULL	3	Using where; Using index
+1	SIMPLE	t1	index	c	c	259	NULL	3	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `c` part[0] for lookup: `test`.`t1`.`c` of type `varchar` = "cast('::1' as inet6)" of type `inet6`
 DROP TABLE t1;

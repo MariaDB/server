@@ -26,7 +26,7 @@ b	CREATE TABLE `b` (
   `c_cola` int(10) GENERATED ALWAYS AS (`cola` + 2) VIRTUAL,
   KEY `p_cola_fk` (`p_cola`),
   CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table b add constraint `v_cola_fk`
 foreign key (v_cola) references a (v_cola)
 on delete restrict
@@ -44,7 +44,7 @@ b	CREATE TABLE `b` (
   KEY `v_cola_fk` (`v_cola`),
   CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`),
   CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table b add constraint `c_cola_fk`
 foreign key (c_cola) references a (cola)
 on delete restrict
@@ -64,7 +64,7 @@ b	CREATE TABLE `b` (
   CONSTRAINT `c_cola_fk` FOREIGN KEY (`c_cola`) REFERENCES `a` (`cola`),
   CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`),
   CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into a(cola) values (12);
 select * from a;
 cola	v_cola	p_cola

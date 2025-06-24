@@ -1,0 +1,1157 @@
+'\" t
+.\"
+.TH "\fBMARIADB-CHECK\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-check
+.\" maintenance: tables
+.\" repair: tables
+.\" tables: maintenance
+.\" tables: repair
+.SH "NAME"
+mariadb-check \- a table maintenance program (mariadb-check is now a symlink to mariadb-check)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-check\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB\ [\fR\fB\fItbl_name\fR\fR\fB\ \&.\&.\&.]]\fR\ 'u
+\fBmariadb-check [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]]\fR
+.SH "DESCRIPTION"
+.PP
+The
+\fBmariadb-check\fR
+client performs table maintenance: It checks, repairs, optimizes, or analyzes tables\&.
+.PP
+Each table is locked and therefore unavailable to other sessions while it is being processed, although for check operations, the table is locked with a
+READ
+lock only\&. Table maintenance operations can be time\-consuming, particularly for large tables\&. If you use the
+\fB\-\-databases\fR
+or
+\fB\-\-all\-databases\fR
+option to process all tables in one or more databases, an invocation of
+\fBmariadb-check\fR
+might take a long time\&. (This is also true for
+\fBmariadb-upgrade\fR
+because that program invokes
+\fBmariadb-check\fR
+to check all tables and repair them if necessary\&.)
+.PP
+\fBmariadb-check\fR
+is similar in function to
+\fBmyisamchk\fR, but works differently\&. The main operational difference is that
+\fBmariadb-check\fR
+must be used when the
+\fBmariadbd\fR
+server is running, whereas
+\fBmyisamchk\fR
+should be used when it is not\&. The benefit of using
+\fBmariadb-check\fR
+is that you do not have to stop the server to perform table maintenance\&.
+.PP
+\fBmariadb-check\fR
+uses the SQL statements
+CHECK TABLE,
+REPAIR TABLE,
+ANALYZE TABLE, and
+OPTIMIZE TABLE
+in a convenient way for the user\&. It determines which statements to use for the operation you want to perform, and then sends the statements to the server to be executed\&.
+.PP
+The
+MyISAM
+storage engine supports all four maintenance operations, so
+\fBmariadb-check\fR
+can be used to perform any of them on
+MyISAM
+tables\&. Other storage engines do not necessarily support all operations\&. In such cases, an error message is displayed\&. For example, if
+test\&.t
+is a
+MEMORY
+table, an attempt to check it produces this result:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-check test t\fR
+test\&.t
+note     : The storage engine for the table doesn't support check
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+If
+\fBmariadb-check\fR
+is unable to repair a table, see the MariaDB Knowledge Base
+for manual table repair strategies\&. This will be the case, for example, for
+InnoDB
+tables, which can be checked with
+CHECK TABLE, but not repaired with
+REPAIR TABLE\&.
+.PP
+The use of
+\fBmariadb-check\fR
+with partitioned tables is not supported\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBCaution\fR
+.ps -1
+.br
+.PP
+It is best to make a backup of a table before performing a table repair operation; under some circumstances the operation might cause data loss\&. Possible causes include but are not limited to file system errors\&.
+.sp .5v
+.RE
+.PP
+There are three general ways to invoke
+\fBmariadb-check\fR:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-check [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]\fR
+shell> \fBmariadb-check [\fR\fB\fIoptions\fR\fR\fB] \-\-databases \fR\fB\fIdb_name\fR\fR\fB \&.\&.\&.\fR
+shell> \fBmariadb-check [\fR\fB\fIoptions\fR\fR\fB] \-\-all\-databases\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+If you do not name any tables following
+\fIdb_name\fR
+or if you use the
+\fB\-\-databases\fR
+or
+\fB\-\-all\-databases\fR
+option, entire databases are checked\&.
+.PP
+\fBmariadb-check\fR
+has a special feature compared to other client programs\&. The default behavior of checking tables (\fB\-\-check\fR) can be changed by renaming the binary\&. If you want to have a tool that repairs tables by default, you should just make a copy of
+\fBmariadb-check\fR
+named
+\fBmariadb-repair\fR, or make a symbolic link to
+\fBmariadb-check\fR
+named
+\fBmariadb-repair\fR\&. If you invoke
+\fBmariadb-repair\fR, it repairs tables\&.
+.PP
+The following names can be used to change
+\fBmariadb-check\fR
+default behavior\&.
+.TS
+allbox tab(:);
+l l
+l l
+l l.
+T{
+\fBmariadb-repair\fR
+T}:T{
+The default option is \fB\-\-repair\fR
+T}
+T{
+\fBmysqlanalyze\fR
+T}:T{
+The default option is \fB\-\-analyze\fR
+T}
+T{
+\fBmysqloptimize\fR
+T}:T{
+The default option is \fB\-\-optimize\fR
+T}
+.TE
+.sp 1
+.PP
+\fBmariadb-check\fR
+supports the following options, which can be specified on the command line or in the
+[mariadb-check]
+and
+[client]
+option file groups\&.
+The \fB-c\fR, \fB-r\fR, \fB-a\fR and \fB-o\fR options are exclusive to each other\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: help option
+.\" help option: mariadb-check
+\fB\-\-help\fR,
+\fB\-?\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: all-databases option
+.\" all-databases option: mariadb-check
+\fB\-\-all\-databases\fR,
+\fB\-A\fR
+.sp
+Check all tables in all databases\&. This is the same as using the
+\fB\-\-databases\fR
+option and naming all the databases on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: all-in-1 option
+.\" all-in-1 option: mariadb-check
+\fB\-\-all\-in\-1\fR,
+\fB\-1\fR
+.sp
+Instead of issuing a statement for each table, execute a single statement for each database that names all the tables from that database to be processed\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: analyze option
+.\" analyze option: mariadb-check
+\fB\-\-analyze\fR,
+\fB\-a\fR
+.sp
+Analyze the tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: auto-repair option
+.\" auto-repair option: mariadb-check
+\fB\-\-auto\-repair\fR
+.sp
+If a checked table is corrupted, automatically fix it\&. Any necessary repairs are done after all tables have been checked\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: character-sets-dir option
+.\" character-sets-dir option: mariadb-check
+\fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
+.sp
+The directory where character sets are installed\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: check option
+.\" check option: mariadb-check
+\fB\-\-check\fR,
+\fB\-c\fR
+.sp
+Check the tables for errors\&. This is the default operation\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: check-only-changed option
+.\" check-only-changed option: mariadb-check
+\fB\-\-check\-only\-changed\fR,
+\fB\-C\fR
+.sp
+Check only tables that have changed since the last check or that have not been closed properly\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: check-upgrade option
+.\" check-upgrade option: mariadb-check
+\fB\-\-check\-upgrade\fR,
+\fB\-g\fR
+.sp
+Invoke
+CHECK TABLE
+with the
+FOR UPGRADE
+option to check tables for incompatibilities with the current version of the server\&. This option automatically enables the
+\fB\-\-fix\-db\-names\fR
+and
+\fB\-\-fix\-table\-names\fR
+options\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: compress option
+.\" compress option: mariadb-check
+\fB\-\-compress\fR
+.sp
+Compress all information sent between the client and the server if both support compression\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: databases option
+.\" databases option: mariadb-check
+\fB\-\-databases\fR,
+\fB\-B\fR
+.sp
+Process all tables in the named databases\&. Normally,
+\fBmariadb-check\fR
+treats the first name argument on the command line as a database name and following names as table names\&. With this option, it treats all name arguments as database names\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: debug option
+.\" debug option: mariadb-check
+\fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
+\fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
+.sp
+Write a debugging log\&. A typical
+\fIdebug_options\fR
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o'.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: debug-check option
+.\" debug-check option: mariadb-check
+\fB\-\-debug\-check\fR
+.sp
+Print some debugging information when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: debug-info option
+.\" debug-info option: mariadb-check
+\fB\-\-debug\-info\fR
+.sp
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: default-auth option
+.\" default-auth option: mariadb-check
+\fB\-\-default\-auth=\fR\fB\fIname\fR\fR
+.sp
+Default authentication client-side plugin to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: default-character-set option
+.\" default-character-set option: mariadb-check
+\fB\-\-default\-character\-set=\fR\fB\fIcharset_name\fR\fR
+.sp
+Use
+\fIcharset_name\fR
+as the default character set\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-check
+\fB\-\-defaults\-extra\-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
+Must be given as first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: defaults-file option
+.\" defaults-file option: mariadb-check
+\fB\-\-defaults\-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&.
+Must be given as first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: extended option
+.\" extended option: mariadb-check
+\fB\-\-extended\fR,
+\fB\-e\fR
+.sp
+If you are using this option to check tables, it ensures that they are 100% consistent but takes a long time\&.
+.sp
+If you are using this option to repair tables, it will force using the old, slow, repair with keycache method,
+instead of the much faster repair by sorting.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: fast option
+.\" fast option: mariadb-check
+\fB\-\-fast\fR,
+\fB\-F\fR
+.sp
+Check only tables that have not been closed properly\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: fix-db-names option
+.\" fix-db-names option: mariadb-check
+\fB\-\-fix\-db\-names\fR
+.sp
+Convert database names to the format used since MySQL 5\&.1\&. Only database names that contain special characters are affected\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: fix-table-names option
+.\" fix-table-names option: mariadb-check
+\fB\-\-fix\-table\-names\fR
+.sp
+Convert table names (including views) to the format used since MySQL 5\&.1\&. Only table names that contain special characters are affected\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: flush option
+.\" flush option: mariadb-check
+\fB\-\-flush\fR,
+.sp
+Flush each table after check. This is useful if you don't
+want to have the checked tables take up space in the caches after the check\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: force option
+.\" force option: mariadb-check
+\fB\-\-force\fR,
+\fB\-f\fR
+.sp
+Continue even if an SQL error occurs\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: host option
+.\" host option: mariadb-check
+\fB\-\-host=\fR\fB\fIhost_name\fR\fR,
+\fB\-h \fR\fB\fIhost_name\fR\fR
+.sp
+Connect to the MariaDB server on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: medium-check option
+.\" medium-check option: mariadb-check
+\fB\-\-medium\-check\fR,
+\fB\-m\fR
+.sp
+Do a check that is faster than an
+\fB\-\-extended\fR
+operation\&. This finds only 99\&.99% of all errors, which should be good enough in most cases\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: no-defaults option
+.\" no-defaults option: mariadb-check
+\fB\-\-no\-defaults\fR
+.sp
+Do not read default options from any option file\&. This must be given as the first argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: optimize option
+.\" optimize option: mariadb-check
+\fB\-\-optimize\fR,
+\fB\-o\fR
+.sp
+Optimize the tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: password option
+.\" password option: mariadb-check
+\fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
+\fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
+.sp
+The password to use when connecting to the server\&. If you use the short option form (\fB\-p\fR), you
+\fIcannot\fR
+have a space between the option and the password\&. If you omit the
+\fIpassword\fR
+value following the
+\fB\-\-password\fR
+or
+\fB\-p\fR
+option on the command line,
+\fBmariadb-check\fR
+prompts for one\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: persistent option
+.\" persistent option: mariadb-check
+\fB\-\-persistent\fR,
+\fB\-Z\fR
+.sp
+Used with ANALYZE TABLE to append the option PERSISTENT FOR ALL.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: pipe option
+.\" pipe option: mariadb-check
+\fB\-\-pipe\fR,
+\fB\-W\fR
+.sp
+On Windows, connect to the server via a named pipe\&. This option applies only if the server supports named\-pipe connections\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: plugin-dir option
+.\" plugin-dir option: mariadb-check
+\fB\-\-plugin\-dir=\fR\fB\fIname\fR\fR
+.sp
+ Directory for client-side plugins\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: port option
+.\" port option: mariadb-check
+\fB\-\-port=\fR\fB\fIport_num\fR\fR,
+\fB\-P \fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use for the connection\&.
+Forces --protocol=tcp when specified on the command line without other connection properties\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: print-defaults option
+.\" print-defaults option: mariadb-check
+\fB\-\-print\-defaults\fR
+.sp
+Print the program argument list and exit\&.
+This must be given as the first argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: process-tables option
+.\" process-tables option: mariadb-check
+\fB\-\-process\-tables\fR
+.sp
+Perform the requested operation on tables. Defaults to on; use \fB--skip-process-tables\fR to disable\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: process-views option
+.\" process-views option: mariadb-check
+\fB\-\-process\-views=\fB\fIval\fR
+.sp
+Perform the requested operation (only CHECK VIEW or REPAIR VIEW). Possible values are NO, YES (correct the checksum, if necessary, add the mariadb-version field), UPGRADE_FROM_MYSQL (same as YES and toggle the algorithm MERGE<->TEMPTABLE\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: protocol option
+.\" protocol option: mariadb-check
+\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.sp
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: quick option
+.\" quick option: mariadb-check
+\fB\-\-quick\fR,
+\fB\-q\fR
+.sp
+If you are using this option to check tables, it prevents the check from scanning the rows to check for incorrect links\&. This is the fastest check method\&.
+.sp
+If you are using this option to repair tables, it tries to repair only the index tree\&. This is the fastest repair method\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: repair option
+.\" repair option: mariadb-check
+\fB\-\-repair\fR,
+\fB\-r\fR
+.sp
+Perform a repair that can fix almost anything except unique keys that are not unique\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: silent option
+.\" silent option: mariadb-check
+\fB\-\-silent\fR,
+\fB\-s\fR
+.sp
+Silent mode\&. Print only error messages\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: skip-database option
+.\" skip-database option: mariadb-check
+\fB\-\-skip\-database=\fB\fIdb_name\fR
+.sp
+Don't process the database (case-sensitive) specified as argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: socket option
+.\" socket option: mariadb-check
+\fB\-\-socket=\fR\fB\fIpath\fR\fR,
+\fB\-S \fR\fB\fIpath\fR\fR
+.sp
+For connections to
+localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&.
+Forces --protocol=socket when specified on the command line without other connection properties; on Windows, forces --protocol=pipe\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL options
+.\" SSL options: mariadb-check
+\fB\-\-ssl\fR
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL CA option
+.\" SSL CA option: mariadb-check
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL CA Path option
+.\" SSL CA Path option: mariadb-check
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL Cert option
+.\" SSL Cert option: mariadb-check
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL Cipher option
+.\" SSL Cipher option: mariadb-check
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL Key option
+.\" SSL Key option: mariadb-check
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL Crl option
+.\" SSL CRL option: mariadb-check
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-check
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-check
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: tables option
+.\" tables option: mariadb-check
+\fB\-\-tables\fR
+.sp
+Override the
+\fB\-\-databases\fR
+or
+\fB\-B\fR
+option\&. All name arguments following the option are regarded as table names\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: use-frm option
+.\" use-frm option: mariadb-check
+\fB\-\-use\-frm\fR
+.sp
+For repair operations on
+MyISAM
+tables, get the table structure from the
+\&.frm
+file so that the table can be repaired even if the
+\&.MYI
+header is corrupted\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: user option
+.\" user option: mariadb-check
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR,
+\fB\-u \fR\fB\fIuser_name\fR\fR
+.sp
+The MariaDB user name to use when connecting to the server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: verbose option
+.\" verbose option: mariadb-check
+\fB\-\-verbose\fR,
+\fB\-v\fR
+.sp
+Verbose mode\&. Print information about the various stages of program operation\&.
+Using one \fB--verbose\fR option will give you more information about what mariadb-check is
+doing\&.
+.sp
+Using two \fB--verbose\fR options will also give you connection information\&.
+.sp
+Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during
+the check phase\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: version option
+.\" version option: mariadb-check
+\fB\-\-version\fR,
+\fB\-V\fR
+.sp
+Display version information and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-check: write-binlog option
+.\" write-binlog option: mariadb-check
+\fB\-\-write\-binlog\fR
+.sp
+This option is enabled by default, so that
+ANALYZE TABLE,
+OPTIMIZE TABLE, and
+REPAIR TABLE
+statements generated by
+\fBmariadb-check\fR
+are written to the binary log\&. Use
+\fB\-\-skip\-write\-binlog\fR
+to cause
+NO_WRITE_TO_BINLOG
+to be added to the statements so that they are not logged\&. Use the
+\fB\-\-skip\-write\-binlog\fR
+when these statements should not be sent to replication slaves or run when using the binary logs for recovery from backup\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

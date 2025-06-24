@@ -1,0 +1,100 @@
+RESET MASTER;
+#
+# binlog cache file is created in #binlog_cache_files directory
+# and it is deleted at disconnect
+#
+connect con1,localhost,root,,;
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+# list binlog_cache_files/
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+# list #binlog_cache_files/
+ML_BINLOG_CACHE_FILE
+SET debug_sync = "thread_end SIGNAL signal.thread_end";
+disconnect con1;
+connection default;
+SET debug_sync = "now WAIT_FOR signal.thread_end";
+# binlog cache file is deleted at disconnection
+# list #binlog_cache_files/
+#
+# Reserved space is not big enough, rename will not happen. But rotate
+# will succeed.
+#
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+SET debug = 'd,simulate_required_size_too_big';
+UPDATE t1 SET c1 = repeat('2', 5242880);
+include/assert.inc [Binlog is rotated, but rename is not executed.]
+#
+# Error happens when renaming binlog cache to binlog file, rename will
+# not happen. Since the original binlog is delete, the rotate will failed
+# too. binlog will be closed.
+#
+SET debug = 'd,simulate_rename_binlog_cache_to_binlog_error';
+UPDATE t1 SET c1 = repeat('3', 5242880);
+ERROR HY000: Can't open file: './master-bin.000004' (errno: 1 "Operation not permitted")
+SELECT count(*) FROM t1 WHERE c1 like "3%";
+count(*)
+0
+# Binlog is closed
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+# restart
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000004	#	<Binlog_Do_DB>	<Binlog_Ignore_DB>
+#
+# Crash happens before rename the file
+#
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+SET debug = 'd,binlog_commit_by_rotate_crash_before_rename';
+UPDATE t1 SET c1 = repeat('4', 5242880);
+ERROR HY000: Lost connection to server during query
+# One cache file left after crash
+# list #binlog_cache_files/
+ML_BINLOG_CACHE_FILE
+non_binlog_cache
+# restart
+# The cache file is deleted at startup.
+# list #binlog_cache_files/
+non_binlog_cache
+include/assert_grep.inc [warning: non_binlog_cache file is in #binlog_cache_files/]
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000005	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000005	#	Gtid_list	#	#	[#-#-#]
+#
+# Crash happens just after rotation is finished, binlog commit is not
+# started yet, so there is no Xid_log_event in the log, no garbage at
+# the end of the file.
+#
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+BEGIN;
+UPDATE t1 SET c1 = repeat('5', 5242880);
+SAVEPOINT s1;
+UPDATE t1 SET c1 = repeat('6', 5242880);
+UPDATE t1 SET c1 = repeat('7', 5242880);
+ROLLBACK TO SAVEPOINT s1;
+INSERT INTO t1 VALUES('a');
+SET debug = 'd,binlog_commit_by_rotate_crash_after_rotate';
+COMMIT;
+ERROR HY000: Lost connection to server during query
+# No cache file left after crash
+# list #binlog_cache_files/
+# restart
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000006	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000006	#	Gtid_list	#	#	[#-#-#]
+master-bin.000006	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000006	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('5', 5242880)
+master-bin.000006	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000006	#	Update_rows_v1	#	#	table_id: #
+master-bin.000006	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000006	#	Query	#	#	SAVEPOINT `s1`
+master-bin.000006	#	Annotate_rows	#	#	INSERT INTO t1 VALUES('a')
+master-bin.000006	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000006	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+call mtr.add_suppression(".*Turning logging off for the whole duration.*");
+call mtr.add_suppression(".*non_binlog_cache is in #binlog_cache_files/.*");
+DROP TABLE t1;

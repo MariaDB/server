@@ -134,7 +134,7 @@ drop table t1;
 --exec echo "use"         >  $file
 --exec $MYSQL              < $file 2>&1
 
-# Test exceutable comments
+# Test executable comments
 --exec echo "SELECT 1 /*! +1 */;"       > $file
 --exec echo "SELECT 1 /*M! +1 */;"      >> $file
 --exec echo "SELECT 1 /*!00000 +1 */;"  >> $file
@@ -660,7 +660,7 @@ create table `a1\``b1` (a int);
 show tables;
 insert `a1\``b1` values (1),(2);
 show create table `a1\``b1`;
---exec $MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact test
 --exec $MYSQL_DUMP test > $MYSQLTEST_VARDIR/tmp/bug.sql
 insert `a1\``b1` values (4),(5);
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug.sql
@@ -674,8 +674,8 @@ create table "a1\""b1" (a int);
 show tables;
 insert "a1\""b1" values (1),(2);
 show create table "a1\""b1";
---exec $MYSQL_DUMP --compact --compatible=postgres test
---exec $MYSQL_DUMP --compatible=postgres test > $MYSQLTEST_VARDIR/tmp/bug.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --compatible=postgres test
+--exec $MYSQL_DUMP --no-autocommit=0 --compatible=postgres test > $MYSQLTEST_VARDIR/tmp/bug.sql
 insert "a1\""b1" values (4),(5);
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug.sql
 show create table "a1\""b1";
@@ -710,7 +710,6 @@ drop table t1;
 --echo # MDEV-15538 '-N' Produce html output wrong
 --echo #
 --exec $MYSQL -NHe "select 1 as a"
-
 
 #
 # Test obsolete option --enable-cleartext-plugin
@@ -763,7 +762,7 @@ source $MYSQL_TMP_DIR/mysql_in;" $MYSQL_TMP_DIR/mysql_in2;
 
 create table t1 (a int);
 
---exec $MYSQL_DUMP test t1 > $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
+--exec $MYSQL_DUMP --no-autocommit test t1 > $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
 
 drop table t1;
 
@@ -774,3 +773,34 @@ drop table t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/MDEV-34203.sql
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-30327 Client crashes in print_last_query_cost
+--echo #
+
+--disable_query_log
+--disable_result_log
+--exec $MYSQL --show-query-costs --port=$MASTER_MYPORT -e "show tables in mysql like 'foo'"
+--enable_result_log
+--enable_query_log
+
+--echo # End of 11.0 tests
+
+--echo #
+--echo # show whether server cert was verified
+--echo #
+create user ser@localhost identified by "ass";
+--echo MYSQL --disable-ssl-verify-server-cert -e "\\s"
+--replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
+--exec $MYSQL -user -pass --disable-ssl-verify-server-cert -e "\\s"
+--echo MYSQL --ssl-verify-server-cert -e "\\s"
+--replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
+--exec $MYSQL -user -pass --ssl-verify-server-cert -e "\\s"
+drop user ser@localhost;
+
+--echo #
+--echo # MDEV-32473 --disable-ssl doesn't disable it
+--echo #
+--echo MYSQL --ssl-verify-server-cert --disable-ssl -e "\\s"
+--replace_regex /^.[^S].*//
+--exec $MYSQL --ssl-verify-server-cert --disable-ssl -e "\\s"

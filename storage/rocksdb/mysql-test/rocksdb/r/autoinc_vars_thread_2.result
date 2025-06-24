@@ -92,7 +92,5 @@ disconnect con2;
 disconnect con1;
 disconnect con0;
 SELECT * FROM t1 ORDER BY pk INTO OUTFILE <output_file>;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 All pk values matched their expected values
 DROP TABLE t1;

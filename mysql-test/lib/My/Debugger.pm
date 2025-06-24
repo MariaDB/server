@@ -78,7 +78,7 @@ my %debuggers = (
     options => '-f -o {log} {exe} {args}',
   },
   rr => {
-    options => '_RR_TRACE_DIR={log} rr record {exe} {args} --loose-skip-innodb-use-native-aio --loose-innodb-flush-method=fsync',
+    options => '_RR_TRACE_DIR={log} rr record {exe} {args}',
     run => 'env',
     pre => sub {
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')

@@ -1,0 +1,50 @@
+CREATE TABLE t1(f1 INT NOT NULL,f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq from seq_1_to_131072;
+INSERT INTO t1 VALUES(131073, 131073), (131074, 131073);
+SELECT * INTO OUTFILE "VARDIR/tmp/t1.outfile" FROM t1;
+# successful load statement using bulk insert
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+f2 INT NOT NULL)ENGINE=InnoDB;
+SET unique_checks=0, foreign_key_checks=0;
+LOAD DATA INFILE 'VARDIR/tmp/t1.outfile' INTO TABLE t2;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+131074
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2;
+CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1 DESC),
+f2 INT NOT NULL)ENGINE=InnoDB;
+LOAD DATA INFILE 'VARDIR/tmp/t1.outfile' INTO TABLE t2;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+131074
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2;
+# load statement using bulk insert fails during secondary index
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+f2 INT NOT NULL UNIQUE KEY)ENGINE=InnoDB;
+LOAD DATA INFILE 'VARDIR/tmp/t1.outfile' INTO TABLE t2;
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+0
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2;
+# load statement using bulk insert fails during primary index
+CREATE TABLE t2(f1 INT NOT NULL,
+f2 INT NOT NULL PRIMARY KEY)ENGINE=InnoDB;
+LOAD DATA INFILE 'VARDIR/tmp/t1.outfile' INTO TABLE t2;
+ERROR 23000: Duplicate entry '131073' for key 'PRIMARY'
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+0
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2, t1;

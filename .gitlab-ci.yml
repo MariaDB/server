@@ -1,6 +1,6 @@
 ---
 # This Gitlab-CI pipeline offers basic validation that a commit did not
-# introduce easily detectable regressions. Builds run primairly on a new Fedora,
+# introduce easily detectable regressions. Builds run primarily on a new Fedora,
 # which has all the latest upstream build dependencies and thus is the primary
 # testing target, as eventually everything in Fedora becomes the next CentOS and
 # Red Hat releases.
@@ -40,10 +40,10 @@ default:
 # submodules (a commit in this repo does not affect their builds anyway) and
 # many components that are otherwise slow to build.
 variables:
-  CMAKE_FLAGS: "-DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF"
+  CMAKE_FLAGS: "-DCPACK_RPM_DEBUGINFO_PACKAGE=OFF -DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_TOKUDB=NO -DWITH_WSREP=OFF"
   # Major version dictates which branches share the same ccache. E.g. 10.6-abc
   # and 10.6-xyz will have the same cache.
-  MARIADB_MAJOR_VERSION: "10.6"
+  MARIADB_MAJOR_VERSION: "11.8"
   # NOTE! Currently ccache is only used on the Centos 9 build. As each job has
   # sufficiently different environments they are unable to benefit from each
   # other's ccaches. As each build generates about 1 GB of ccache, having
@@ -59,9 +59,6 @@ variables:
   #
   # Most steps don't need the source code, only artifacts
   GIT_STRATEGY: none
-  # Hack to satisfy directory name length requirement by CPackRPM in CMake 3.x
-  # https://cmake.org/cmake/help/v3.7/module/CPackRPM.html#variable:CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX
-  GIT_CLONE_PATH: $CI_BUILDS_DIR/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT
 
 # Define once, use many times
 .rpm_listfiles: &rpm_listfiles
@@ -183,7 +180,7 @@ fedora-sanitizer:
     GIT_SUBMODULE_STRATEGY: normal
   script:
     - yum install -y yum-utils rpm-build openssl-devel clang
-    - yum install -y libasan libtsan libubsan
+    - yum install -y libasan libtsan
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
     - yum-builddep -y mariadb-server
     - mkdir builddir; cd builddir
@@ -207,7 +204,9 @@ fedora-sanitizer:
       - builddir/_CPack_Packages/Linux/RPM/SPECS/
   parallel:
     matrix:
-      - SANITIZER: [-DWITH_ASAN=YES, -DWITH_TSAN=YES, -DWITH_UBSAN=YES]
+      - SANITIZER: [-DWITH_ASAN=YES, -DWITH_TSAN=YES]
+      # Removed in 2025 due to failing build: -DWITH_UBSAN=YES
+      # Removed in 2023 commit f4ce1e4: -DWITH_MSAN=YES
 
 centos9:
   stage: build
@@ -249,19 +248,20 @@ centos9:
     paths:
       - .ccache
 
-centos7:
+amazonlinux2:
   stage: build
-  image: centos:7
+  image: amazonlinux:2
   variables:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    # This repository does not have any .spec files, so install dependencies based on Fedora spec file
+    # This repository does not have any .spec files, so install dependencies
+    # based on Amazon Linux spec file with a few extra ones, as Amazon Linux 2
+    # is quite old and these are added in newer MariaDB releases.
+    - yum install -y yum-utils rpm-build gcc gcc-c++ bison libxml2-devel libevent-devel openssl-devel pcre2-devel cmake3
     - yum-builddep -y mariadb-server
-    # ..with a few extra ones, as CentOS 7 is very old and these are added in newer MariaDB releases
-    - yum install -y yum-utils rpm-build gcc gcc-c++ bison libxml2-devel libevent-devel openssl-devel pcre2-devel
     - mkdir builddir; cd builddir
-    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - cmake3 -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     # @TODO: Don't use -j without the limit of 2 on Gitlab.com as builds just
     # get stuck when running multi-proc and out of memory, see https://jira.mariadb.org/browse/MDEV-25968
@@ -277,33 +277,32 @@ centos7:
       - rpm
       - builddir/_CPack_Packages/Linux/RPM/SPECS/
 
-.mysql-test-run: &mysql-test-run-def
-  stage: test
-  script:
+.mysql-test-run: &mysql-test-run-def |
     # Install packages so tests and the dependencies install
     # @TODO: RPM missing 'patch' and 'diff' as dependency, so installing it manually for now
-    - yum install -y rpm/*.rpm patch diffutils
-    # @TODO: Fix on packaging level for /usr/share/mariadb to work and errormsg.sys be found
-    - rm -rf /usr/share/mariadb; ln -s /usr/share/mysql /usr/share/mariadb
+    yum install -y rpm/*.rpm patch diffutils
     # mtr expects to be launched in-place and with write access to it's own directories
-    - cd /usr/share/mysql-test
+    cd /usr/share/mariadb-test
     # Skip failing tests
-    - |
-      echo "
-      main.mysqldump : Field separator argument is not what is expected; check the manual when executing 'SELECT INTO OUTFILE'
+    echo "
       main.flush_logs_not_windows : query 'flush logs' succeeded - should have failed with error ER_CANT_CREATE_FILE (1004)
-      main.mysql_upgrade_noengine : upgrade output order does not match the expected
       main.func_math              : MDEV-20966 - Wrong error code
-      " > skiplist
-    - ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $RESTART_POLICY
+      main.mysql_upgrade_noengine : upgrade output order does not match the expected
+      main.mysqldump : Field separator argument is not what is expected; check the manual when executing 'SELECT INTO OUTFILE'
+      main.rpl_mysql_upgrade_slave_repo_check : skip for now as regression has gone unnoticed for a long time
+      main.rpl_mysqldump_slave : skip for now as regression has gone unnoticed for a long time
+      main.ssl_timeout : skip for now as regression has gone unnoticed for a long time
+      main.upgrade_MDEV-23102-1 : skip for now as regression has gone unnoticed for a long time
+      main.upgrade_MDEV-23102-2 : skip for now as regression has gone unnoticed for a long time
+    " > skiplist
+    $SIMULATE_TIME ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $MTR_FLAGS
 
 mysql-test-run:
   stage: test
-  dependencies:
-    - fedora
   needs:
     - fedora
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   artifacts:
     when: always  # Also show results when tests fail
     reports:
@@ -314,19 +313,18 @@ mysql-test-run:
 # sanitizer errors separate from functional test failures. Currently, there is no way to run the same
 # job for different dependencies.
 #
-# Additionally, for each sanitizer MTR job, we enable --force-restart so that 
-# sanitizer errors can be traced to individual tests. The difference in test 
-# suite runtime as a result of this flag is negligable (~30s for the entire test suite).
+# Additionally, for each sanitizer MTR job, we enable --force-restart so that
+# sanitizer errors can be traced to individual tests. The difference in test
+# suite runtime as a result of this flag is negligible (~30s for the entire test suite).
 # (see https://dev.mysql.com/doc/dev/mysql-server/latest/PAGE_MYSQL_TEST_RUN_PL.html)
 mysql-test-run-asan:
   stage: test
   variables:
-    RESTART_POLICY: "--force-restart"
-  dependencies:
-    - "fedora-sanitizer: [-DWITH_ASAN=YES]"
+    MTR_FLAGS: "--force-restart"
   needs:
     - "fedora-sanitizer: [-DWITH_ASAN=YES]"
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
@@ -337,28 +335,11 @@ mysql-test-run-asan:
 mysql-test-run-tsan:
   stage: test
   variables:
-    RESTART_POLICY: "--force-restart"
-  dependencies:
-    - "fedora-sanitizer: [-DWITH_TSAN=YES]"
+    MTR_FLAGS: "--force-restart"
   needs:
     - "fedora-sanitizer: [-DWITH_TSAN=YES]"
-  <<: *mysql-test-run-def
-  allow_failure: true
-  artifacts:
-    when: always  # Also show results when tests fail
-    reports:
-      junit:
-        - junit.xml
-
-mysql-test-run-ubsan:
-  stage: test
-  variables:
-    RESTART_POLICY: "--force-restart"
-  dependencies:
-    - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
-  needs:
-    - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
-  <<: *mysql-test-run-def
+  script:
+    - *mysql-test-run-def
   allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
@@ -368,8 +349,6 @@ mysql-test-run-ubsan:
 
 rpmlint:
   stage: test
-  dependencies:
-    - fedora
   needs:
     - fedora
   script:
@@ -387,8 +366,6 @@ rpmlint:
 
 fedora install:
   stage: test
-  dependencies:
-    - fedora
   needs:
     - fedora
   script:
@@ -432,15 +409,18 @@ cppcheck:
     # --template: output format
     # --force: check large directories without warning
     # -i<directory>: ignore this directory when scanning
-    # -I<directory>: include path, reduces false positives 
+    # -I<directory>: include path, reduces false positives
     #                related to inability to resolve symbols
     # -j: run multiple cppcheck threads
+    #
+    # Note: Scope reduced heavily with -i to keep cppcheck run under 3h
+    #
     # Use newline to escape colon in yaml
     - >
       cppcheck --template="{file}:{line}\n{code}\n{severity}: {message}" --force --check-level=exhaustive
       client dbug extra include libmariadb libmysqld libservices mysql-test mysys mysys_ssl pcre plugin
       strings tests unittest vio wsrep-lib sql sql-common storage
-      -istorage/mroonga -istorage/tokudb -istorage/spider -istorage/rocksdb -iextra/ -ilibmariadb/ -istorage/columnstore
+      -istorage/mroonga -istorage/tokudb -istorage/spider -istorage/rocksdb -iextra/ -ilibmariadb/ -istorage/columnstore -istorage/connect -istorage/myisam -istorage/perfschema
       -Iinclude -Istorage/innobase/include
       --output-file=initial-cppcheck_output.txt -j $(nproc)
     # when including {code} in the cppcheck template, some more pre-processing needs to be done
@@ -462,9 +442,9 @@ cppcheck:
       cat preprocessed-cppcheck_sorted.txt | grep -v "There is an unknown macro here somewhere" > results-cppcheck_all_findings.txt
       sed 's/:[0-9]\+//' results-cppcheck_all_findings.txt > preprocessed_final-cppcheck_no_line_nums.txt
     # Only print new issues not found in ignore list
-    - echo "Problems found in ignore list that were not discovered by cppcheck (may have been fixed)."
+    - echo "Problems found in ignore list that were not discovered by cppcheck (may have been fixed):"
     - diff --changed-group-format='%>' --unchanged-group-format='' preprocessed_final-cppcheck_no_line_nums.txt tests/code_quality/cppcheck_ignorelist.txt || true
-    - echo "Problems found by cppcheck that were not in ignore list."
+    - echo "Problems found by cppcheck that were not in ignore list:"
     - diff --changed-group-format='%<' --unchanged-group-format='' preprocessed_final-cppcheck_no_line_nums.txt tests/code_quality/cppcheck_ignorelist.txt > results-cppcheck_new_findings.txt || true
     - cat results-cppcheck_new_findings.txt && test ! -s results-cppcheck_new_findings.txt
   artifacts:
@@ -478,7 +458,7 @@ cppcheck:
       - results-cppcheck_all_findings.txt
       - results-cppcheck_new_findings.txt
 
-flawfinder: 
+flawfinder:
   allow_failure: true
   stage: sast
   needs: []
@@ -509,7 +489,71 @@ flawfinder:
       - flawfinder_new_findings.txt
       - flawfinder-all-vulnerabilities.html
       - flawfinder-min-level5.json
-      
+
+mini-benchmark:
+  stage: test
+  needs:
+    - fedora
+  script:
+    - ls -la rpm; rm -vf rpm/*.el?.*  # Delete artifacts from Centos builds
+    # Don't use cracklib, otherwise the Sysbench user password will be rejected
+    - rm -vf rpm/*cracklib*.rpm
+    # Nothing provides galera-4 on Fedora, so this step fails if built with wsrep
+    - yum install -y rpm/*.rpm
+    # Fedora does not support running services in Docker (like Debian packages do) so start it manually
+    - /usr/bin/mariadb-install-db -u mysql
+    - sudo -u mysql /usr/sbin/mariadbd & sleep 10
+    # Since we did a manual start, we also need to run upgrade manually
+    - /usr/bin/mariadb-upgrade -u root
+    - |
+      mariadb --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
+      grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't install properly"
+    - yum install -y sysbench procps-ng perf flamegraph flamegraph-stackcollapse-perf util-linux dnf-utils
+    - /usr/share/mariadb/mini-benchmark
+    - cp -av */sysbench-run-*.log */metrics.txt .  # Move files one level down so they can be saved as artifacts
+  artifacts:
+    when: always
+    paths:
+      - sysbench-run-*.log
+    reports:
+      metrics:
+        - metrics.txt
+
+fedora upgrade-from:
+  stage: test
+  image: fedora:latest
+  variables:
+    GIT_STRATEGY: pull
+  needs:
+    - fedora
+  parallel:
+    matrix:
+      # Get latest versions of all major versions
+      - UPGRADE_PATH:
+        - "10.6>11.4"
+        - "10.3"
+        - "10.4"
+        - "10.4.8" # Test unexpected table rebuilds as in https://jira.mariadb.org/browse/MDEV-28727
+        - "10.5"
+        - "10.6"
+        - "10.11"
+        - "11.4"
+  script:
+    - |
+      if [[ $UPGRADE_PATH == *">"* ]]; then
+        SOURCE=$(echo "$UPGRADE_PATH" | cut -d'>' -f1)
+        TARGET=$(echo "$UPGRADE_PATH" | cut -d'>' -f2)
+      else
+        SOURCE=$(echo "$UPGRADE_PATH")
+      fi
+
+    # Test upgrade from earlier minor version
+    - ./tests/upgrade_from/test_upgrade.sh $SOURCE $TARGET
+  artifacts:
+    paths:
+      - "*.sql"
+      - "test_upgrade*.log"
+
 # Once all RPM builds and tests have passed, also run the DEB builds and tests
 # @NOTE: This is likely to work well only on salsa.debian.org as the Gitlab.com
 # runners are too small for everything this stage does.

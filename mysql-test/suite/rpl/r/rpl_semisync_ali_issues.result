@@ -268,20 +268,20 @@ show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value
 Rpl_semi_sync_master_clients	1
 # Test failure of select error .
-SET GLOBAL debug = 'd,rpl_semisync_simulate_select_error';
+SET GLOBAL debug_dbug = 'd,rpl_semisync_simulate_select_error';
 INSERT INTO t1 VALUES(3);
 connection slave;
 connection con1;
 # Test failure of pthread_create
 SET GLOBAL rpl_semi_sync_master_enabled = 0;
-SET GLOBAL debug = 'd,rpl_semisync_simulate_create_thread_failure';
+SET GLOBAL debug_dbug = 'd,rpl_semisync_simulate_create_thread_failure';
 SET GLOBAL rpl_semi_sync_master_enabled= ON;
 # Test failure of pthread_join
 SET GLOBAL rpl_semi_sync_master_enabled= OFF;
 #
 # Failure on registering semisync slave
 #
-SET GLOBAL debug= 'd,rpl_semisync_simulate_add_slave_failure';
+SET GLOBAL debug_dbug= 'd,rpl_semisync_simulate_add_slave_failure';
 SET GLOBAL rpl_semi_sync_master_enabled= ON;
 connection slave;
 STOP SLAVE IO_THREAD;
@@ -289,7 +289,7 @@ include/wait_for_slave_io_to_stop.inc
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection con1;
-SET GLOBAL debug='';
+SET GLOBAL debug_dbug='';
 connection slave;
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
@@ -343,6 +343,4 @@ SET GLOBAL rpl_semi_sync_master_enabled = 0;
 DROP TABLE t1;
 connection slave;
 SET GLOBAL rpl_semi_sync_slave_enabled = 0;
-stop slave;
-start slave;
 include/rpl_end.inc

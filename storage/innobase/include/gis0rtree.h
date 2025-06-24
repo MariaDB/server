@@ -62,40 +62,45 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 
 /** Search for a spatial index leaf page record.
 @param cur         cursor
+@param thr         query thread
 @param tuple       search tuple
 @param latch_mode  latching mode
 @param mtr         mini-transaction
 @param mode        search mode */
-dberr_t rtr_search_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+dberr_t rtr_search_leaf(btr_cur_t *cur, que_thr_t *thr, const dtuple_t *tuple,
                         btr_latch_mode latch_mode, mtr_t *mtr,
                         page_cur_mode_t mode= PAGE_CUR_RTREE_LOCATE)
-  MY_ATTRIBUTE((nonnull, warn_unused_result));
+  MY_ATTRIBUTE((nonnull(1,3,5), warn_unused_result));
 
 /** Search for inserting a spatial index leaf page record.
 @param cur         cursor
 @param tuple       search tuple
 @param latch_mode  latching mode
 @param mtr         mini-transaction */
-inline dberr_t rtr_insert_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+inline dberr_t rtr_insert_leaf(btr_cur_t *cur, que_thr_t *thr,
+                               const dtuple_t *tuple,
                                btr_latch_mode latch_mode, mtr_t *mtr)
 {
-  return rtr_search_leaf(cur, tuple, latch_mode, mtr, PAGE_CUR_RTREE_INSERT);
+  return rtr_search_leaf(cur, thr, tuple, latch_mode, mtr,
+                         PAGE_CUR_RTREE_INSERT);
 }
 
 /** Search for a spatial index leaf page record.
-@param pcur         cursor
+@param pcur        cursor
+@param thr         query thread
 @param tuple       search tuple
 @param mode        search mode
 @param mtr         mini-transaction */
-dberr_t rtr_search_leaf(btr_pcur_t *pcur, const dtuple_t *tuple,
+dberr_t rtr_search_leaf(btr_pcur_t *pcur, que_thr_t *thr,
+                        const dtuple_t *tuple,
                         page_cur_mode_t mode, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
-                                page_cur_mode_t mode,
-                                btr_latch_mode latch_mode,
-                                btr_cur_t *cur, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull, warn_unused_result));
+dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
+                                const dtuple_t *tuple,
+                                btr_latch_mode latch_mode, mtr_t *mtr,
+                                page_cur_mode_t mode, ulint level)
+  MY_ATTRIBUTE((nonnull(1,3,5), warn_unused_result));
 
 /**********************************************************************//**
 Builds a Rtree node pointer out of a physical record and a page number.
@@ -132,7 +137,29 @@ rtr_page_split_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr,	/*!< in: mtr */
-	dberr_t*	err);	/*!< out: error code */
+	dberr_t*	err,	/*!< out: error code */
+	que_thr_t*	thr);	/*!< in: query thread */
+
+/*************************************************************//**
+Makes tree one level higher by splitting the root, and inserts the tuple.
+NOTE that the operation of this function must always succeed,
+we cannot reverse it: therefore enough free disk space must be
+guaranteed to be available before this function is called.
+@return inserted record */
+rec_t*
+rtr_root_raise_and_insert(
+	ulint		flags,	/*!< in: undo logging and locking flags */
+	btr_cur_t*	cursor,	/*!< in: cursor at which to insert: must be
+				on the root page; when the function returns,
+				the cursor is positioned on the predecessor
+				of the inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
+	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
+	const dtuple_t*	tuple,	/*!< in: tuple to insert */
+	ulint		n_ext,	/*!< in: number of externally stored columns */
+	mtr_t*		mtr,	/*!< in: mtr */
+	dberr_t*	err,	/*!< out: error code */
+	que_thr_t*	thr);	/*!< in: query thread */
 
 /**************************************************************//**
 Sets the child node mbr in a node pointer. */
@@ -243,8 +270,8 @@ rtr_create_rtr_info(
 	bool		init_matches,	/*!< in: Whether to initiate the
 					"matches" structure for collecting
 					matched leaf records */
-	btr_cur_t*	cursor,		/*!< in: tree search cursor */
-	dict_index_t*	index);		/*!< in: index struct */
+	que_thr_t*	thr,		/*!< in/out: query thread */
+	btr_cur_t*	cursor);	/*!< in: tree search cursor */
 
 /********************************************************************//**
 Update a btr_cur_t with rtr_info */
@@ -299,8 +326,10 @@ rtr_get_mbr_from_tuple(
 				about parent nodes in search
 @param[in,out]	cursor		cursor on node pointer record,
 				its page x-latched
+@param[in,out]	thr		query thread
 @return whether the cursor was successfully positioned */
-bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor)
+bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor,
+                         que_thr_t *thr)
   MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 
 /************************************************************//**
@@ -312,11 +341,12 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
 				about parent nodes in search */
-	btr_cur_t*	cursor);/*!< out: cursor on node pointer record,
+	btr_cur_t*	cursor,	/*!< out: cursor on node pointer record,
 				its page x-latched */
+	que_thr_t*	thr,	/*!< in/out: query thread */
+	mtr_t*		mtr);	/*!< in/out: mtr */
 /**************************************************************//**
 Store the parent path cursor
 @return number of cursor stored */
@@ -337,6 +367,7 @@ bool rtr_search(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	btr_latch_mode	latch_mode,/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
+	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((warn_unused_result));
 

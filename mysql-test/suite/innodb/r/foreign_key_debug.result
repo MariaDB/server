@@ -23,7 +23,7 @@ t2	CREATE TABLE `t2` (
   `f2` int(11) NOT NULL,
   PRIMARY KEY (`f2`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 disconnect con1;
 connection default;
 select * from t2 where f2 not in (select f1 from t1);

@@ -39,13 +39,13 @@
 #ifdef WITH_WSREP
 #include "wsrep_server_state.h"
 #include "wsrep_mysqld.h"
+#include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
 static const char *stage_names[]=
 {"START", "FLUSH", "BLOCK_DDL", "BLOCK_COMMIT", "END", 0};
 
-TYPELIB backup_stage_names=
-{ array_elements(stage_names)-1, "", stage_names, 0 };
+TYPELIB backup_stage_names= CREATE_TYPELIB_FOR(stage_names);
 
 static MDL_ticket *backup_flush_ticket;
 static File volatile backup_log= -1;
@@ -297,29 +297,40 @@ static bool backup_block_ddl(THD *thd)
 
 #ifdef WITH_WSREP
   DBUG_ASSERT(thd->wsrep_desynced_backup_stage == false);
-  /*
-    if user is specifically choosing to allow BF aborting for BACKUP STAGE BLOCK_DDL lock
-    holder, then do not desync and pause the node from cluster replication.
-    e.g. mariabackup uses BACKUP STATE BLOCK_DDL; and will be abortable by this.
-    But, If node is processing as SST donor or WSREP_MODE_BF_MARIABACKUP mode is not set,
-    we desync the node for BACKUP STAGE because applier threads
-    bypass backup MDL locks (see MDL_lock::can_grant_lock)
-  */
   if (WSREP_NNULL(thd))
   {
     Wsrep_server_state &server_state= Wsrep_server_state::instance();
 
-    if (!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP) ||
-        server_state.state() == Wsrep_server_state::s_donor)
+    /*
+      If user is specifically choosing to allow BF aborting for
+      BACKUP STAGE BLOCK_DDL lock holder, then do not desync and
+      pause the node from cluster replication. e.g. mariabackup
+      uses BACKUP STATE BLOCK_DDL; and will be abortable by this.
+    */
+    bool mariabackup= (server_state.state() == Wsrep_server_state::s_donor
+                       && !strcmp(wsrep_sst_method, "mariabackup"));
+    bool allow_bf= wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP);
+    bool pause_and_desync= true;
+
+    if ((allow_bf) || (mariabackup))
     {
-      if (server_state.desync_and_pause().is_undefined()) {
+      pause_and_desync= false;
+    }
+
+    if (pause_and_desync)
+    {
+      if (server_state.desync_and_pause().is_undefined())
         DBUG_RETURN(1);
-      }
+
+      WSREP_INFO("Server desynched from group during BACKUP STAGE BLOCK_DDL.");
       DEBUG_SYNC(thd, "wsrep_backup_stage_after_desync_and_pause");
       thd->wsrep_desynced_backup_stage= true;
     }
     else
-      WSREP_INFO("Server not desynched from group because WSREP_MODE_BF_MARIABACKUP used.");
+    {
+      WSREP_INFO("Server not desynched from group at BLOCK_DDL because %s is used.",
+                 allow_bf ? "WSREP_MODE_BF_MARIABACKUP" : wsrep_sst_method);
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -403,6 +414,28 @@ static bool backup_block_commit(THD *thd)
   }
   thd->clear_error();
 
+#ifdef WITH_WSREP
+  if (WSREP_NNULL(thd) && !thd->wsrep_desynced_backup_stage)
+  {
+    Wsrep_server_state &server_state= Wsrep_server_state::instance();
+    bool mariabackup= (server_state.state() == Wsrep_server_state::s_donor
+                       && !strcmp(wsrep_sst_method, "mariabackup"));
+
+    /* If this node is donor and mariabackup is not used
+       we desync and pause provider here if it is not yet done.
+    */
+    if (!mariabackup)
+    {
+      if (server_state.desync_and_pause().is_undefined())
+        DBUG_RETURN(1);
+
+      WSREP_INFO("Server desynched from group during BACKUP STAGE BLOCK_COMMIT.");
+      thd->wsrep_desynced_backup_stage= true;
+      DEBUG_SYNC(thd, "wsrep_backup_stage_commit_after_desync_and_pause");
+    }
+  }
+#endif /* WITH_WSREP */
+
   DBUG_RETURN(0);
 }
 
@@ -434,6 +467,9 @@ bool backup_end(THD *thd)
     if (thd->wsrep_desynced_backup_stage)
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
+      THD_STAGE_INFO(thd, stage_waiting_flow);
+      WSREP_DEBUG("backup_end: waiting for flow control for %s",
+                  wsrep_thd_query(thd));
       server_state.resume_and_resync();
       thd->wsrep_desynced_backup_stage= false;
       DEBUG_SYNC(thd, "wsrep_backup_stage_after_resume_and_resync");
@@ -586,7 +622,7 @@ static char *add_id_to_buffer(char *ptr, const LEX_CUSTRING *from)
 
   tmp.str= buff;
   tmp.length= MY_UUID_STRING_LENGTH;
-  my_uuid2str(from->str, buff);
+  my_uuid2str(from->str, buff, 1);
   return add_str_to_buffer(ptr, &tmp);
 }
 
@@ -647,7 +683,10 @@ void backup_log_ddl(const backup_log_info *info)
     ptr= add_name_to_buffer(ptr, &info->org_table);
     ptr= add_id_to_buffer(ptr,   &info->org_table_id);
 
-    /* The following fields are only set in case of rename */
+    /*
+      The following fields are only set in case of rename, repair or
+      alter table
+    */
     ptr= add_str_to_buffer(ptr,  &info->new_storage_engine_name);
     ptr= add_bool_to_buffer(ptr, info->new_partitioned);
     ptr= add_name_to_buffer(ptr, &info->new_database);

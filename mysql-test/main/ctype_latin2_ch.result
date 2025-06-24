@@ -55,7 +55,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET latin2 COLLATE latin2_czech_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT * FROM t1 WHERE CONCAT(c1)='a';
 c1
@@ -78,7 +78,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET latin2 COLLATE latin2_czech_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT * FROM t1 WHERE 'a'=CONCAT(c1);
 c1
@@ -101,7 +101,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET latin2 COLLATE latin2_czech_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('%'),('% ');
 SELECT * FROM t1 WHERE '% '=CONCAT(c1);
 c1
@@ -124,7 +124,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(10) CHARACTER SET latin2 COLLATE latin2_czech_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('%'),('% ');
 SELECT * FROM t1 WHERE '%'=CONCAT(c1);
 c1
@@ -150,7 +150,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET latin2 COLLATE latin2_czech_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
 a	LENGTH(a)
@@ -513,13 +513,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET latin2 COLLATE latin2_czech_cs NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 0301030103010300
@@ -533,13 +533,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET latin2 COLLATE latin2_czech_cs DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(24) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 030303030301030303030301030303030301030303030300
@@ -552,7 +552,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(24) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 030303030301030303030301030303030301030303030300
@@ -565,7 +565,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(24) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 030303030301030303030301030303030301030303030300
@@ -609,7 +609,7 @@ hex(weight_string('abc', 5, 2, 0xC0))
 0304050103
 select hex(weight_string('abc',25, 2, 0xC0));
 hex(weight_string('abc',25, 2, 0xC0))
-0304050103090A01030F1101030F1100202020202020202020
+0304050103090A01030F1101030F1100000000000000000000
 select hex(weight_string('abc', 1, 3, 0xC0));
 hex(weight_string('abc', 1, 3, 0xC0))
 03
@@ -627,7 +627,7 @@ hex(weight_string('abc', 5, 3, 0xC0))
 0304050103
 select hex(weight_string('abc',25, 3, 0xC0));
 hex(weight_string('abc',25, 3, 0xC0))
-0304050103090A01030F1101030F1100202020202020202020
+0304050103090A01030F1101030F1100000000000000000000
 select hex(weight_string('abc', 1, 4, 0xC0));
 hex(weight_string('abc', 1, 4, 0xC0))
 03
@@ -645,7 +645,7 @@ hex(weight_string('abc', 5, 4, 0xC0))
 0304050103
 select hex(weight_string('abc',25, 4, 0xC0));
 hex(weight_string('abc',25, 4, 0xC0))
-0304050103090A01030F1101030F1100202020202020202020
+0304050103090A01030F1101030F1100000000000000000000
 select @@collation_connection;
 @@collation_connection
 latin2_czech_cs
@@ -717,7 +717,7 @@ hex(weight_string(cast(_latin1 0x6368DF as char), 4, 2, 0xC0))
 0C011901
 select hex(weight_string(cast(_latin1 0x6368DF as char),25, 2, 0xC0));
 hex(weight_string(cast(_latin1 0x6368DF as char),25, 2, 0xC0))
-0C0119012F012FE20020202020202020202020202020202020
+0C0119012F012FE20000000000000000000000000000000000
 select hex(weight_string(cast(_latin1 0x6368DF as char), 1, 3, 0xC0));
 hex(weight_string(cast(_latin1 0x6368DF as char), 1, 3, 0xC0))
 0C
@@ -732,7 +732,7 @@ hex(weight_string(cast(_latin1 0x6368DF as char), 4, 3, 0xC0))
 0C011901
 select hex(weight_string(cast(_latin1 0x6368DF as char),25, 3, 0xC0));
 hex(weight_string(cast(_latin1 0x6368DF as char),25, 3, 0xC0))
-0C0119012F012FE20020202020202020202020202020202020
+0C0119012F012FE20000000000000000000000000000000000
 select hex(weight_string(cast(_latin1 0x6368DF as char), 1, 4, 0xC0));
 hex(weight_string(cast(_latin1 0x6368DF as char), 1, 4, 0xC0))
 0C
@@ -747,7 +747,7 @@ hex(weight_string(cast(_latin1 0x6368DF as char), 4, 4, 0xC0))
 0C011901
 select hex(weight_string(cast(_latin1 0x6368DF as char),25, 4, 0xC0));
 hex(weight_string(cast(_latin1 0x6368DF as char),25, 4, 0xC0))
-0C0119012F012FE20020202020202020202020202020202020
+0C0119012F012FE20000000000000000000000000000000000
 select hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 2,0xC0));
 hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 2,0xC0))
 0C
@@ -762,7 +762,7 @@ hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 2,0xC0))
 0C011901
 select hex(weight_string(cast(_latin1 0xDF6368 as char),25, 2,0xC0));
 hex(weight_string(cast(_latin1 0xDF6368 as char),25, 2,0xC0))
-0C0119012F01E22F0020202020202020202020202020202020
+0C0119012F01E22F0000000000000000000000000000000000
 select hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 3,0xC0));
 hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 3,0xC0))
 0C
@@ -777,7 +777,7 @@ hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 3,0xC0))
 0C011901
 select hex(weight_string(cast(_latin1 0xDF6368 as char),25, 3,0xC0));
 hex(weight_string(cast(_latin1 0xDF6368 as char),25, 3,0xC0))
-0C0119012F01E22F0020202020202020202020202020202020
+0C0119012F01E22F0000000000000000000000000000000000
 select hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 4,0xC0));
 hex(weight_string(cast(_latin1 0xDF6368 as char), 1, 4,0xC0))
 0C
@@ -792,7 +792,7 @@ hex(weight_string(cast(_latin1 0xDF6368 as char), 4, 4,0xC0))
 0C011901
 select hex(weight_string(cast(_latin1 0xDF6368 as char),25, 4,0xC0));
 hex(weight_string(cast(_latin1 0xDF6368 as char),25, 4,0xC0))
-0C0119012F01E22F0020202020202020202020202020202020
+0C0119012F01E22F0000000000000000000000000000000000
 select @@collation_connection;
 @@collation_connection
 latin2_czech_cs

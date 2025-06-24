@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 call mtr.add_suppression("Index for table 'tab' is corrupt; try to repair it");
 SET @row_format = @@GLOBAL.innodb_default_row_format;
 # ###########################################################
@@ -103,3 +104,4 @@ Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	I
 tab	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL	row_format=DYNAMIC		0	N
 DROP TABLE tab;
 SET GLOBAL innodb_default_row_format =  @row_format;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

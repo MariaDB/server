@@ -1,0 +1,87 @@
+-- source include/have_log_bin.inc
+
+# Set up environment variables for client programs
+# The environment variables for client programs have default options file
+# They interfere with the MTR test so I am creating new variables for them
+
+--let MARIADBADMIN = $EXE_MYSQL-admin
+--let MARIADBBINLOG = $EXE_MYSQL-binlog
+--let MARIADBCHECK = $EXE_MYSQL-check
+--let MARIADBDUMP = $EXE_MYSQL-dump
+--let MARIADBIMPORT = $EXE_MYSQL-import
+--let MARIADBSHOW = $EXE_MYSQL-show
+--let MARIADBSLAP = $EXE_MYSQL-slap
+
+# Creating a table for the client programs
+USE test;
+CREATE TABLE pet (name VARCHAR(20));
+
+# Creating a data file for mysqlimport
+write_file $MYSQL_TMP_DIR/pet;
+buster
+bob
+EOF
+
+# Options for client program
+--let $options = --user=root --port=$MASTER_MYPORT --disable-ssl-verify-server-cert
+
+# Positive test for client program with MARIADB_HOST
+--let MARIADB_HOST=localhost
+--let MYSQL_HOST=nonexistent-server
+--echo $MARIADB_HOST
+
+--exec $EXE_MYSQL $options -e "SHOW DATABASES;" > /dev/null 2>&1
+--exec $MARIADBADMIN $options processlist > /dev/null 2>&1
+--exec $MARIADBBINLOG $options --read-from-remote-server master-bin.000001 > /dev/null 2>&1
+--exec $MARIADBCHECK $options -c --databases test > /dev/null 2>&1
+--exec $MARIADBDUMP $options test > $MYSQL_TMP_DIR/tmp.sql > /dev/null 2>&1
+--exec $MARIADBIMPORT $options test --local $MYSQL_TMP_DIR/pet > /dev/null 2>&1
+--exec $MARIADBSHOW $options test > /dev/null 2>&1
+--exec $MARIADBSLAP $options > /dev/null 2>&1
+
+#Set up negative test with invalid server
+--echo ****************
+--let MARIADB_HOST=255.255.255.255
+--let MYSQL_HOST=localhost
+--echo $MARIADB_HOST
+
+# Now run the same command as in the positive test case
+# Client programs are expected to fail since the server does not exist
+# Some client program fails with error 1 and some fails wtih error 2
+
+--error 1
+--exec $EXE_MYSQL $options -e "SHOW DATABASES;" > /dev/null 2>&1
+
+--error 1
+--exec $MARIADBADMIN $options processlist > /dev/null 2>&1
+
+--error 1
+--exec $MARIADBBINLOG $options --read-from-remote-server master-bin.000001 > /dev/null 2>&1
+
+--error 2
+--exec $MARIADBCHECK $options -c --databases test > /dev/null 2>&1
+
+--error 2
+--exec $MARIADBDUMP $options test > $MYSQL_TMP_DIR/tmp.sql > /dev/null 2>&1
+
+--error 1
+--exec $MARIADBIMPORT $options test $MYSQL_TMP_DIR/pet > /dev/null 2>&1
+
+--error 1
+--exec $MARIADBSLAP $options > /dev/null 2>&1
+
+# Run the same command but with '--host' to verify command line input overrides env variable
+--exec $EXE_MYSQL $options --host localhost -e "SHOW DATABASES;" > /dev/null 2>&1
+--exec $MARIADBADMIN $options --host localhost processlist > /dev/null 2>&1
+--exec $MARIADBBINLOG $options --host localhost --read-from-remote-server master-bin.000001 > /dev/null 2>&1
+--exec $MARIADBCHECK $options --host localhost -c --databases test > /dev/null 2>&1
+--exec $MARIADBDUMP $options --host localhost test > $MYSQL_TMP_DIR/tmp.sql > /dev/null 2>&1
+--exec $MARIADBIMPORT $options --host localhost test --local $MYSQL_TMP_DIR/pet > /dev/null 2>&1
+--exec $MARIADBSHOW $options --host localhost test > /dev/null 2>&1
+--exec $MARIADBSLAP $options --host localhost > /dev/null 2>&1
+
+# Clean up
+--echo Done
+DROP TABLE pet;
+--remove_file $MYSQL_TMP_DIR/tmp.sql
+--remove_file $MYSQL_TMP_DIR/pet

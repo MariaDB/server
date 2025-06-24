@@ -114,19 +114,19 @@ template <class Elem> class Dynamic_array
 {
   DYNAMIC_ARRAY array;
 public:
-  Dynamic_array(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
+  Dynamic_array(PSI_memory_key psi_key, size_t prealloc=16, size_t increment=16)
   {
     init(psi_key, prealloc, increment);
   }
 
-  Dynamic_array(MEM_ROOT *root, uint prealloc=16, uint increment=16)
+  Dynamic_array(MEM_ROOT *root, size_t prealloc=16, size_t increment=16)
   {
     void *init_buffer= alloc_root(root, sizeof(Elem) * prealloc);
-    init_dynamic_array2(root->m_psi_key, &array, sizeof(Elem), init_buffer,
-                           prealloc, increment, MYF(0));
+    init_dynamic_array2(root->psi_key, &array, sizeof(Elem), init_buffer,
+                        prealloc, increment, MYF(0));
   }
 
-  void init(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
+  void init(PSI_memory_key psi_key, size_t prealloc=16, size_t increment=16)
   {
     init_dynamic_array2(psi_key, &array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
@@ -182,6 +182,19 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
+  static const size_t NOT_FOUND= (size_t)-1;
+
+  /// @returns index of the first element equal to el, or NOT_FOUND
+  size_t find_first(const Elem &el) const
+  {
+    for (size_t i=0; i < size() ; i++)
+    {
+      if (el == at(i))
+        return i;
+    }
+    return NOT_FOUND;
+  }
+
   size_t size() const { return array.elements; }
 
   const Elem *end() const
@@ -229,7 +242,7 @@ public:
   void del(size_t idx)
   {
     DBUG_ASSERT(idx <= array.max_element);
-    delete_dynamic_element(&array, (uint)idx);
+    delete_dynamic_element(&array, idx);
   }
 
   size_t elements() const
@@ -240,7 +253,7 @@ public:
   void elements(size_t num_elements)
   {
     DBUG_ASSERT(num_elements <= array.max_element);
-    array.elements= (uint)num_elements;
+    array.elements= num_elements;
   }
 
   void clear()
@@ -248,7 +261,7 @@ public:
     elements(0);
   }
 
-  void set(uint idx, const Elem &el)
+  void set(size_t idx, const Elem &el)
   {
     set_dynamic(&array, &el, idx);
   }
@@ -260,7 +273,7 @@ public:
 
   bool reserve(size_t new_size)
   {
-    return allocate_dynamic(&array, (uint)new_size);
+    return allocate_dynamic(&array, new_size);
   }
 
 
@@ -272,7 +285,7 @@ public:
     
     if (new_size > old_size)
     {
-      set_dynamic(&array, (uchar*)&default_val, (uint)(new_size - 1));
+      set_dynamic(&array, (uchar*)&default_val, new_size - 1);
       /*for (size_t i= old_size; i != new_size; i++)
       {
         at(i)= default_val;

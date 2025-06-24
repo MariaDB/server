@@ -23,7 +23,7 @@ update t1 set c = 'updated';
 #select * from t1;
 
 --connection default
-flush status;
+flush global status;
 show status like 'Qcache_hits';
 show global status like 'Qcache_hits';
 select * from t1;

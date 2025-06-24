@@ -696,7 +696,7 @@ else
 
 			print ("\t",$s_current_float);		#float
 
-			print ("\t",$u_current_float);		#float unsi	gned 
+			print ("\t",$u_current_float);		#float unsigned
 
 			print ("\t",$u_current_float);		#float zerofill 
 

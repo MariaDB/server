@@ -21,7 +21,7 @@ Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" int(11) DEFAULT NULL,
   "b" text DEFAULT NULL,
-  "c" char(1) DEFAULT NULL
+  "c" varchar(1) DEFAULT NULL
 )
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
@@ -129,3 +129,129 @@ t2	CREATE TABLE "t2" (
   "text0" text DEFAULT NULL
 )
 DROP TABLE t1;
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+CREATE FUNCTION f1 RETURN step1.step2.step3%ROWTYPE AS
+BEGIN
+RETURN ROW(1,2);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROWTYPE AS
+BEGIN
+RETURN ROW(1,2);
+END' at line 1
+CREATE FUNCTION f1 RETURN t1%ROWTYPE AS
+BEGIN
+RETURN ROW(1,2);
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN "test"."t1"%ROWTYPE
+AS
+BEGIN
+RETURN ROW(1,2);
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN ROW TYPE OF t1 AS
+BEGIN
+RETURN ROW(1,2);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TYPE OF t1 AS
+BEGIN
+RETURN ROW(1,2);
+END' at line 1
+CREATE FUNCTION f1 RETURN test.t1%ROWTYPE AS
+BEGIN
+RETURN ROW(1,2);
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN "test"."t1"%ROWTYPE
+AS
+BEGIN
+RETURN ROW(1,2);
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP FUNCTION f1;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE FUNCTION f1 RETURN test.t1%ROWTYPE AS
+BEGIN
+RETURN (SELECT * FROM t1);
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN "test"."t1"%ROWTYPE
+AS
+BEGIN
+RETURN (SELECT * FROM t1);
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CREATE PROCEDURE p1 AS
+r t1%ROWTYPE := f1();
+BEGIN
+SELECT r.a, r.b;
+END;
+$$
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
+AS
+r t1%ROWTYPE := f1();
+BEGIN
+SELECT r.a, r.b;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CALL p1;
+r.a	r.b
+NULL	NULL
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+c
+NULL
+SELECT f1()=ROW(NULL,NULL) AS c;
+c
+NULL
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1;
+r.a	r.b
+1	b1
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+c
+1
+SELECT f1()=ROW(1,'') AS c;
+c
+0
+SELECT f1()=ROW(2,'b1') AS c;
+c
+0
+SELECT f1()=ROW(1,NULL) AS c;
+c
+NULL
+SELECT f1()=ROW(NULL,'b1') AS c;
+c
+NULL
+INSERT INTO t1 VALUES (2,'b2');
+CALL p1();
+ERROR 21000: Subquery returns more than 1 row
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+ERROR 21000: Subquery returns more than 1 row
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

@@ -147,14 +147,10 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
   {
-    if (lex_string_cmp(system_charset_info, fk_info->referenced_db,
-                       &table->s->db) ||
-        lex_string_cmp(system_charset_info, fk_info->referenced_table,
-                       &table->s->table_name) ||
-        lex_string_cmp(system_charset_info, fk_info->foreign_db,
-                       &table->s->db) ||
-        lex_string_cmp(system_charset_info, fk_info->foreign_table,
-                       &table->s->table_name))
+    if (!table->s->db.streq(*fk_info->referenced_db) ||
+        !table->s->table_name.streq(*fk_info->referenced_table) ||
+        !table->s->db.streq(*fk_info->foreign_db) ||
+        !table->s->table_name.streq(*fk_info->foreign_table))
       break;
   }
 
@@ -274,7 +270,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
     /*
       If truncate method is not implemented then we don't binlog the
       statement. If truncation has failed in a transactional engine then also
-      we don't binlog the statment. Only in non transactional engine we binlog
+      we don't binlog the statement. Only in non transactional engine we binlog
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
@@ -461,8 +457,12 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* If it is a temporary table, no need to take locks. */
   if (is_temporary_table(table_ref))
   {
-    /* In RBR, the statement is not binlogged if the table is temporary. */
-    binlog_stmt= !thd->is_current_stmt_binlog_format_row();
+    /*
+      In RBR, the statement is not binlogged if the table is temporary or
+      table is not up to date in binlog.
+    */
+    binlog_stmt= (!thd->is_binlog_format_row() &&
+                  table_ref->table->s->using_binlog());
 
     thd->close_unused_temporary_table_instances(table_ref);
 
@@ -503,6 +503,14 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 
+    /*
+      This is mainly here for truncate_notembedded.test, but it is still
+      useful to check killed after we got the lock
+    */
+
+    if (thd->killed)
+      DBUG_RETURN(TRUE);
+
     if (hton_can_recreate)
     {
      /*
@@ -532,7 +540,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
            (HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
             HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE)))
       {
-        thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
+        thd->locked_tables_list.mark_table_for_reopen(table_ref->table);
         if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       }

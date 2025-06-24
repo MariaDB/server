@@ -16,6 +16,8 @@ static ST_FIELD_INFO user_stats_fields[]=
   Column("ROWS_DELETED",         SLonglong(), NOT_NULL, "Rows_deleted"),
   Column("ROWS_INSERTED",        SLonglong(), NOT_NULL, "Rows_inserted"),
   Column("ROWS_UPDATED",         SLonglong(), NOT_NULL, "Rows_updated"),
+  Column("KEY_READ_HITS",        SLonglong(), NOT_NULL, "Key_read_hits"),
+  Column("KEY_READ_MISSES",      SLonglong(), NOT_NULL, "Key_read_misses"),
   Column("SELECT_COMMANDS",      SLonglong(), NOT_NULL, "Select_commands"),
   Column("UPDATE_COMMANDS",      SLonglong(), NOT_NULL, "Update_commands"),
   Column("OTHER_COMMANDS",       SLonglong(), NOT_NULL, "Other_commands"),

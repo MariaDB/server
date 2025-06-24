@@ -59,7 +59,7 @@ SET GLOBAL gtid_slave_pos= '0-2-10';
 --connection server_1
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
-     master_user= 'root', master_use_gtid=CURRENT_POS;
+     master_user= 'root', master_ssl_verify_server_cert=0, master_use_gtid=CURRENT_POS;
 START SLAVE;
 
 --connection server_2

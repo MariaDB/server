@@ -19,17 +19,21 @@
 #include "sql_class.h"
 #include "opt_range.h"
 #include "rowid_filter.h"
+#include "optimizer_defaults.h"
 #include "sql_select.h"
 #include "opt_trace.h"
 
+/*
+  key_next_find_cost below is the cost of finding the next possible key
+  and calling handler_rowid_filter_check() to check it against the filter
+*/
 
-inline
-double Range_rowid_filter_cost_info::lookup_cost(
-                                     Rowid_filter_container_type cont_type)
+double Range_rowid_filter_cost_info::
+lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    return log(est_elements)*0.01;
+    return log2(est_elements) * rowid_compare_cost + base_lookup_cost;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -39,14 +43,16 @@ double Range_rowid_filter_cost_info::lookup_cost(
 
 /**
   @brief
-    The average gain in cost per row to use the range filter with this cost info
+    The average gain in cost per row to use the range filter with this cost
+    info
 */
 
 inline
-double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
-                                     Rowid_filter_container_type cont_type)
+double Range_rowid_filter_cost_info::
+avg_access_and_eval_gain_per_row(Rowid_filter_container_type cont_type,
+                                 double cost_of_row_fetch)
 {
-  return (1+1.0/TIME_FOR_COMPARE) * (1 - selectivity) -
+  return (cost_of_row_fetch + where_cost) * (1 - selectivity) -
          lookup_cost(cont_type);
 }
 
@@ -58,8 +64,9 @@ double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
   @param access_cost_factor the adjusted cost of access a row
 
   @details
-    The current code to estimate the cost of a ref access is quite inconsistent:
-    in some cases the effect of page buffers is taken into account, for others
+    The current code to estimate the cost of a ref access is quite
+    inconsistent:
+    In some cases the effect of page buffers is taken into account, for others
     just the engine dependent read_time() is employed. That's why the average
     cost of one random seek might differ from 1.
     The parameter access_cost_factor can be considered as the cost of a random
@@ -74,10 +81,11 @@ double Range_rowid_filter_cost_info::avg_access_and_eval_gain_per_row(
 */
 
 inline
-double Range_rowid_filter_cost_info::avg_adjusted_gain_per_row(
-				         double access_cost_factor)
+double Range_rowid_filter_cost_info::
+avg_adjusted_gain_per_row(double access_cost_factor)
 {
-  return a - (1 - access_cost_factor) * (1 - selectivity);
+  DBUG_ASSERT(access_cost_factor >= 0.0 && access_cost_factor <= 1.0);
+  return gain - (1 - access_cost_factor) * (1 - selectivity);
 }
 
 
@@ -91,10 +99,11 @@ double Range_rowid_filter_cost_info::avg_adjusted_gain_per_row(
 */
 
 inline void
-Range_rowid_filter_cost_info::set_adjusted_gain_param(double access_cost_factor)
+Range_rowid_filter_cost_info::
+set_adjusted_gain_param(double access_cost_factor)
 {
-  a_adj= avg_adjusted_gain_per_row(access_cost_factor);
-  cross_x_adj= b / a_adj;
+  gain_adj= avg_adjusted_gain_per_row(access_cost_factor);
+  cross_x_adj= cost_of_building_range_filter / gain_adj;
 }
 
 
@@ -116,13 +125,20 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   table= tab;
   key_no= idx;
   est_elements= (ulonglong) table->opt_range[key_no].rows;
-  b= build_cost(container_type);
+  cost_of_building_range_filter= build_cost(container_type);
+
+  where_cost= tab->in_use->variables.optimizer_where_cost;
+  base_lookup_cost=   (ROWID_FILTER_PER_CHECK_MODIFIER *
+                       tab->file->KEY_COPY_COST);
+  rowid_compare_cost= (ROWID_FILTER_PER_ELEMENT_MODIFIER *
+                       tab->file->ROWID_COMPARE_COST);
   selectivity= est_elements/((double) table->stat_records());
-  a= avg_access_and_eval_gain_per_row(container_type);
-  if (a > 0)
-    cross_x= b/a;
+  gain= avg_access_and_eval_gain_per_row(container_type,
+                                         tab->file->ROW_LOOKUP_COST);
+  if (gain > 0)
+    cross_x= cost_of_building_range_filter/gain;
   else
-    cross_x= b+1;
+    cross_x= cost_of_building_range_filter+1;
   abs_independent.clear_all();
 }
 
@@ -135,16 +151,19 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
 double
 Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
 {
-  double cost= 0;
+  double cost;
+  OPTIMIZER_COSTS *costs= &table->s->optimizer_costs;
   DBUG_ASSERT(table->opt_range_keys.is_set(key_no));
 
-  cost+= table->opt_range[key_no].index_only_cost;
+  /* Cost of fetching keys */
+  cost= table->opt_range[key_no].index_only_fetch_cost(table);
 
   switch (cont_type) {
-
   case SORTED_ARRAY_CONTAINER:
-    cost+= ARRAY_WRITE_COST * est_elements; /* cost filling the container */
-    cost+= ARRAY_SORT_C * est_elements * log(est_elements); /* sorting cost */
+    /* Add cost of filling container and cost of sorting */
+    cost+= (est_elements *
+            (costs->rowid_copy_cost +                      // Copying rowid
+             costs->rowid_cmp_cost * log2(est_elements))); // Sort
     break;
   default:
     DBUG_ASSERT(0);
@@ -177,7 +196,7 @@ static int compare_range_rowid_filter_cost_info_by_a(const void *p1_,
 {
   auto p1= static_cast<const Range_rowid_filter_cost_info *const *>(p1_);
   auto p2= static_cast<const Range_rowid_filter_cost_info *const *>(p2_);
-  double diff= (*p2)->get_a() - (*p1)->get_a();
+  double diff= (*p2)->get_gain() - (*p1)->get_gain();
   return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
 }
 
@@ -204,7 +223,8 @@ void TABLE::prune_range_rowid_filters()
     the elements if this bit matrix.
   */
 
-  Range_rowid_filter_cost_info **filter_ptr_1= range_rowid_filter_cost_info_ptr;
+  Range_rowid_filter_cost_info **filter_ptr_1=
+    range_rowid_filter_cost_info_ptr;
   for (uint i= 0;
        i < range_rowid_filter_cost_info_elems;
        i++, filter_ptr_1++)
@@ -243,7 +263,7 @@ void TABLE::prune_range_rowid_filters()
   */
 
   Range_rowid_filter_cost_info **cand_filter_ptr=
-                                   range_rowid_filter_cost_info_ptr;
+    range_rowid_filter_cost_info_ptr;
   for (uint i= 0;
        i < range_rowid_filter_cost_info_elems;
        i++, cand_filter_ptr++)
@@ -361,9 +381,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   */
   while ((key_no= it++) != key_map::Iterator::BITMAP_END)
   {
-    if (!(file->index_flags(key_no, 0, 1) & HA_DO_RANGE_FILTER_PUSHDOWN))  // !1
-      continue;
-    if (file->is_clustering_key(key_no))                              // !2
+  if (!can_use_rowid_filter(key_no))                                // 1 & 2
       continue;
    if (opt_range[key_no].rows >
        get_max_range_rowid_filter_elems_for_table(thd, this,
@@ -381,10 +399,8 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   if (!range_rowid_filter_cost_info_elems)
     return;
 
-  range_rowid_filter_cost_info_ptr=
-    (Range_rowid_filter_cost_info **)
-      thd->calloc(sizeof(Range_rowid_filter_cost_info *) *
-                  range_rowid_filter_cost_info_elems);
+  range_rowid_filter_cost_info_ptr= thd->calloc<Range_rowid_filter_cost_info*>
+                                      (range_rowid_filter_cost_info_elems);
   range_rowid_filter_cost_info=
     new (thd->mem_root)
       Range_rowid_filter_cost_info[range_rowid_filter_cost_info_elems];
@@ -418,6 +434,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 
 void TABLE::trace_range_rowid_filters(THD *thd) const
 {
+  DBUG_ASSERT(thd->trace_started());
   if (!range_rowid_filter_cost_info_elems)
     return;
 
@@ -435,45 +452,55 @@ void TABLE::trace_range_rowid_filters(THD *thd) const
 
 void Range_rowid_filter_cost_info::trace_info(THD *thd)
 {
+  DBUG_ASSERT(thd->trace_started());
   Json_writer_object js_obj(thd);
-  js_obj.add("key", table->key_info[key_no].name);
-  js_obj.add("build_cost", b);
-  js_obj.add("rows", est_elements);
+  js_obj.
+    add("key", table->key_info[key_no].name).
+    add("build_cost", cost_of_building_range_filter).
+    add("rows", est_elements);
 }
 
 /**
   @brief
     Choose the best range filter for the given access of the table
 
-  @param access_key_no    The index by which the table is accessed
-  @param records   The estimated total number of key tuples with this access
-  @param access_cost_factor the cost of a random seek to access the table
-
+  @param access_key_no      The index by which the table is accessed
+  @param records            The estimated total number of key tuples with
+                            this access
+  @param fetch_cost_factor  The cost of fetching 'records' rows
+  @param index_only_cost    The cost of fetching 'records' rows with
+                            index only reads
+  @param prev_records       How many index_read_calls() we expect to make
+  @parma records_out        Will be updated to the minimum result rows for any
+                            usable filter.
   @details
     The function looks through the array of cost info for range filters
     and chooses the element for the range filter that promise the greatest
     gain with the the ref or range access of the table by access_key_no.
-    As the array is sorted by cross_x in ascending order the function stops
-    the look through as soon as it reaches the first element with
-    cross_x_adj > records because the range filter for this element and the
-    range filters for all remaining elements do not promise positive gains.
 
-  @note
-    It is easy to see that if cross_x[i] > cross_x[j] then
-    cross_x_adj[i] > cross_x_adj[j]
+    The function assumes that caller has checked that the key is not a clustered
+    key. See best_access_path().
 
   @retval  Pointer to the cost info for the range filter that promises
            the greatest gain, NULL if there is no such range filter
 */
 
 Range_rowid_filter_cost_info *
-TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                                double records,
-                                                double access_cost_factor)
+TABLE::best_range_rowid_filter(uint access_key_no, double records,
+                               double fetch_cost, double index_only_cost,
+                               double prev_records, double *records_out)
 {
   if (range_rowid_filter_cost_info_elems == 0 ||
       covering_keys.is_set(access_key_no))
     return 0;
+  /*
+    Currently we do not support usage of range filters if the table
+    is accessed by the clustered primary key. It does not make sense
+    if a full key is used. If the table is accessed by a partial
+    clustered primary key it would, but the current InnoDB code does not
+    allow it. Later this limitation may be lifted.
+  */
+  DBUG_ASSERT(!file->is_clustering_key(access_key_no));
 
   // Disallow use of range filter if the key contains partially-covered
   // columns.
@@ -483,46 +510,38 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
       return 0;
   }
 
-  /*
-    Currently we do not support usage of range filters if the table
-    is accessed by the clustered primary key. It does not make sense
-    if a full key is used. If the table is accessed by a partial
-    clustered primary key it would, but the current InnoDB code does not
-    allow it. Later this limitation will be lifted
-  */
-  if (file->is_clustering_key(access_key_no))
-    return 0;
-
   Range_rowid_filter_cost_info *best_filter= 0;
-  double best_filter_gain= 0;
+  double best_filter_gain= DBL_MAX;
 
   key_map no_filter_usage= key_info[access_key_no].overlapped;
   no_filter_usage.merge(key_info[access_key_no].constraint_correlated);
+  no_filter_usage.set_bit(access_key_no);
   for (uint i= 0; i < range_rowid_filter_cost_info_elems ;  i++)
   {
-    double curr_gain = 0;
+    double new_cost, new_total_cost, new_records;
+    double cost_of_accepted_rows, cost_of_rejected_rows;
     Range_rowid_filter_cost_info *filter= range_rowid_filter_cost_info_ptr[i];
 
     /*
       Do not use a range filter that uses an in index correlated with
       the index by which the table is accessed
     */
-    if ((filter->key_no == access_key_no) ||
-        no_filter_usage.is_set(filter->key_no))
+    if (no_filter_usage.is_set(filter->key_no))
       continue;
 
-    filter->set_adjusted_gain_param(access_cost_factor);
+    new_records= records * filter->selectivity;
+    set_if_smaller(*records_out, new_records);
+    cost_of_accepted_rows= fetch_cost * filter->selectivity;
+    cost_of_rejected_rows= index_only_cost * (1 - filter->selectivity);
+    new_cost= (cost_of_accepted_rows + cost_of_rejected_rows +
+               records * filter->lookup_cost());
+    new_total_cost= ((new_cost + new_records *
+                      in_use->variables.optimizer_where_cost) *
+                     prev_records + filter->get_setup_cost());
 
-    if (records < filter->cross_x_adj)
+    if (best_filter_gain > new_total_cost)
     {
-      /* Does not make sense to look through the remaining filters */
-      break;
-    }
-
-    curr_gain= filter->get_adjusted_gain(records);
-    if (best_filter_gain < curr_gain)
-    {
-      best_filter_gain= curr_gain;
+      best_filter_gain= new_total_cost;
       best_filter= filter;
     }
   }
@@ -562,21 +581,22 @@ Rowid_filter::build_return_code Range_rowid_filter::build()
   handler *file= table->file;
   THD *thd= table->in_use;
   QUICK_RANGE_SELECT* quick= (QUICK_RANGE_SELECT*) select->quick;
-
   uint table_status_save= table->status;
   Item *pushed_idx_cond_save= file->pushed_idx_cond;
   uint pushed_idx_cond_keyno_save= file->pushed_idx_cond_keyno;
   bool in_range_check_pushed_down_save= file->in_range_check_pushed_down;
+  int org_keyread;
 
   table->status= 0;
   file->pushed_idx_cond= 0;
   file->pushed_idx_cond_keyno= MAX_KEY;
   file->in_range_check_pushed_down= false;
 
-  /* We're going to just read rowids / primary keys */
+  /* We're going to just read rowids / clustered primary keys */
   table->prepare_for_position();
 
-  table->file->ha_start_keyread(quick->index);
+  org_keyread= file->ha_end_active_keyread();
+  file->ha_start_keyread(quick->index);
 
   if (quick->init() || quick->reset())
     rc= FATAL_ERROR;
@@ -585,7 +605,7 @@ Rowid_filter::build_return_code Range_rowid_filter::build()
     for (;;)
     {
       int quick_get_next_result= quick->get_next();
-      if (thd->killed)
+      if (thd->check_killed())
       {
         rc= FATAL_ERROR;
         break;
@@ -607,22 +627,26 @@ Rowid_filter::build_return_code Range_rowid_filter::build()
         rc= NON_FATAL_ERROR;
         break;
       }
-      else
-        tracker->increment_container_elements_count();
     }
   }
 
   quick->range_end();
-  table->file->ha_end_keyread();
+  file->ha_end_keyread();
+  file->ha_restart_keyread(org_keyread);
 
   table->status= table_status_save;
   file->pushed_idx_cond= pushed_idx_cond_save;
   file->pushed_idx_cond_keyno= pushed_idx_cond_keyno_save;
   file->in_range_check_pushed_down= in_range_check_pushed_down_save;
-  tracker->report_container_buff_size(table->file->ref_length);
 
-  if (rc == SUCCESS)
-    table->file->rowid_filter_is_active= true;
+  tracker->set_container_elements_count(container->elements());
+  tracker->report_container_buff_size(file->ref_length);
+
+  if (rc != SUCCESS)
+    return rc;
+
+  container->sort(refpos_order_cmp, (void *) file);
+  table->file->rowid_filter_is_active= true;
   return rc;
 }
 
@@ -632,7 +656,7 @@ Rowid_filter::build_return_code Range_rowid_filter::build()
     Binary search in the sorted array of a rowid filter
 
   @param ctxt   context of the search
-  @parab elem   rowid / primary key to look for
+  @param elem   rowid / primary key to look for
 
   @details
     The function looks for the rowid / primary key ' elem' in this container
@@ -646,18 +670,13 @@ Rowid_filter::build_return_code Range_rowid_filter::build()
 
 bool Rowid_filter_sorted_array::check(void *ctxt, char *elem)
 {
-  TABLE *table= (TABLE *) ctxt;
-  if (!is_checked)
-  {
-    refpos_container.sort(refpos_order_cmp, (void *) (table->file));
-    is_checked= true;
-  }
+  handler *file= ((TABLE *) ctxt)->file;
   int l= 0;
   int r= refpos_container.elements()-1;
   while (l <= r)
   {
     int m= (l + r) / 2;
-    int cmp= refpos_order_cmp((void *) (table->file),
+    int cmp= refpos_order_cmp((void *) file,
                               refpos_container.get_pos(m), elem);
     if (cmp == 0)
       return true;
@@ -674,14 +693,6 @@ Range_rowid_filter::~Range_rowid_filter()
 {
   delete container;
   container= 0;
-  if (select)
-  {
-    if (select->quick)
-    {
-      delete select->quick;
-      select->quick= 0;
-    }
-    delete select;
-    select= 0;
-  }
+  delete select;
+  select= 0;
 }

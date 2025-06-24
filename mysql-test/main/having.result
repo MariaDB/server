@@ -524,7 +524,7 @@ ORDER BY t1.f2;
 MAX(t2.f2)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
 DROP TABLE t1,t2;
 End of 5.0 tests
 #
@@ -603,7 +603,7 @@ DROP TABLE t1,t2,t3;
 #
 # LP bug:806955 HAVING not observed with aggregate +subquery
 #
-CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10) );
+CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10)) CHARSET=latin1;
 INSERT INTO t1 VALUES (NULL,'a',0),(8,'b',0);
 CREATE TABLE t2 (f2 int);
 INSERT INTO t2 VALUES (7);

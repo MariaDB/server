@@ -9,7 +9,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `ENCRYPTED`=YES
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED `ENCRYPTED`=YES
 # Wait max 10 min for key encryption threads to encrypt all spaces
 db.opt
 t1.frm
@@ -35,5 +35,5 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `ENCRYPTED`=YES
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED `ENCRYPTED`=YES
 DROP TABLE t1;

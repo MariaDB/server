@@ -1,10 +1,10 @@
 CREATE TABLE tab(c1 int NOT NULL PRIMARY KEY,c2 POINT NOT NULL,
 c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL) 
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
-CREATE SPATIAL INDEX idx1 on tab(c2 ASC);
-CREATE SPATIAL INDEX idx2 on tab(c3 DESC) COMMENT 'wl6968';
-CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=8 ;
-CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=4 
+CREATE SPATIAL INDEX idx1 on tab(c2);
+CREATE SPATIAL INDEX idx2 on tab(c3) COMMENT 'wl6968';
+CREATE SPATIAL INDEX idx3 on tab(c4) KEY_BLOCK_SIZE=8 ;
+CREATE SPATIAL INDEX idx4 on tab(c5) KEY_BLOCK_SIZE=4
 COMMENT 'Spatial index on Geometry type column';
 SHOW INDEXES FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -57,10 +57,14 @@ ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
+# Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
-EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
+EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1+0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -74,7 +78,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 300 300,400 400)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 4	POLYGON((300 300,400 400,500 500,300 500,300 400,300 300))
@@ -85,10 +89,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRWithin
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -99,10 +104,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the ST_Crosses
 SET @g1 = ST_GeomFromText('POLYGON((100 200,200 300,400 500,500 300,300 200,100 300,100 200))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 4	POLYGON((300 300,400 400,500 500,300 500,300 400,300 300))
@@ -116,7 +122,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 10 10,30 30,40 40)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_CRosses(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  ST_Crosses(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -127,6 +133,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -145,14 +152,15 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
+# Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 10	POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))
@@ -166,7 +174,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -182,7 +190,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 30 30,40 40,50 50)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -194,10 +202,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the Overelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -218,14 +227,15 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where
+# Test  the ST_Touches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 2	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
@@ -239,7 +249,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 100 100,200 200,300 300)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  ST_Touches(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 4	POLYGON((300 300,400 400,500 500,300 500,300 400,300 300))
@@ -250,10 +260,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -267,7 +278,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -278,6 +289,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -296,14 +308,15 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
+# Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 10	POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))
@@ -314,10 +327,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -333,7 +347,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 30 30,40 40,50 50)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -345,10 +359,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBROverelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -359,10 +374,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRTouches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 2	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
@@ -373,6 +389,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRTouches(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where
+# Test  with Procedure
 CREATE PROCEDURE proc_wl6968()
 BEGIN
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
@@ -383,11 +400,12 @@ EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 END |
 CALL proc_wl6968();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the Delete & Update
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
@@ -431,10 +449,10 @@ DROP PROCEDURE proc_wl6968;
 CREATE TABLE tab(c1 int ,c2 POINT NOT NULL,
 c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL) 
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
-CREATE SPATIAL INDEX idx1 on tab(c2 ASC);
-CREATE SPATIAL INDEX idx2 on tab(c3 DESC) COMMENT 'wl6968';
-CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=2 ;
-CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=8 
+CREATE SPATIAL INDEX idx1 on tab(c2);
+CREATE SPATIAL INDEX idx2 on tab(c3) COMMENT 'wl6968';
+CREATE SPATIAL INDEX idx3 on tab(c4) KEY_BLOCK_SIZE=2 ;
+CREATE SPATIAL INDEX idx4 on tab(c5) KEY_BLOCK_SIZE=8
 COMMENT 'Spatial index on Geometry type column';
 SHOW INDEXES FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -486,6 +504,7 @@ ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
+# Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -514,6 +533,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRWithin
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -528,6 +548,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the ST_Crosses
 SET @g1 = ST_GeomFromText('POLYGON((100 200,200 300,400 500,500 300,300 200,100 300,100 200))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -556,10 +577,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where; Using filesort
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -574,10 +596,11 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
+# Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -592,6 +615,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -623,6 +647,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the Overelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -640,17 +665,18 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING(7 1,30 30,1010 3010,1010 2010,3010 3010,4010 4010,5010 5010 )');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where; Using filesort
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBROverlaps(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where
+# Test  the ST_Touches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -679,6 +705,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -707,10 +734,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where; Using filesort
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -725,10 +753,11 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
+# Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -743,6 +772,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -774,6 +804,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBROverelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -788,6 +819,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRTouches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -802,6 +834,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRTouches(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where
+# Test  with Procedure
 CREATE PROCEDURE proc_wl6968()
 BEGIN
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
@@ -817,6 +850,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the Delete & Update
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
@@ -848,10 +882,10 @@ DROP PROCEDURE proc_wl6968;
 CREATE TABLE tab(c1 int AUTO_INCREMENT PRIMARY KEY,c2 POINT NOT NULL,
 c3 LINESTRING NOT NULL,c4 POLYGON NOT NULL,c5 GEOMETRY NOT NULL) 
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
-CREATE SPATIAL INDEX idx1 on tab(c2 ASC);
-CREATE SPATIAL INDEX idx2 on tab(c3 DESC) COMMENT 'wl6968';
-CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=16 ;
-CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=16 
+CREATE SPATIAL INDEX idx1 on tab(c2);
+CREATE SPATIAL INDEX idx2 on tab(c3) COMMENT 'wl6968';
+CREATE SPATIAL INDEX idx3 on tab(c4) KEY_BLOCK_SIZE=16 ;
+CREATE SPATIAL INDEX idx4 on tab(c5) KEY_BLOCK_SIZE=16
 COMMENT 'Spatial index on Geometry type column';
 SHOW INDEXES FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -904,10 +938,11 @@ ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
+# Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -921,7 +956,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 300 300,400 400)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 4	POLYGON((300 300,400 400,500 500,300 500,300 400,300 300))
@@ -932,10 +967,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRContains(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRWithin
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -946,10 +982,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the ST_Crosses
 SET @g1 = ST_GeomFromText('POLYGON((100 200,200 300,400 500,500 300,300 200,100 300,100 200))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 4	POLYGON((300 300,400 400,500 500,300 500,300 400,300 300))
@@ -963,7 +1000,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 10 10,30 30,40 40)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_CRosses(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  ST_Crosses(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -974,6 +1011,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE ST_Crosses(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -992,14 +1030,15 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
+# Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 10	POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))
@@ -1010,10 +1049,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -1029,7 +1069,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 30 30,40 40,50 50)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -1041,10 +1081,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the Overelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -1065,14 +1106,15 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	8	Using where
+# Test  the ST_Touches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 2	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
@@ -1086,7 +1128,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 100 100,200 200,300 300)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE ST_Touches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  ST_Touches(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 4	POLYGON((300 300,400 400,500 500,300 500,300 400,300 300))
@@ -1097,10 +1139,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE ST_Touches(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRContains
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRContains(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -1114,7 +1157,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText( 'POLYGON((30 30,40 40,50 50,30 50,30 40,30 30)) ');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRWithin(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -1125,6 +1168,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRDisjoint
 SET @g1 = ST_GeomFromText('POLYGON((4 -2,5 -4,6 -5,7 -4,7 2,4 -2))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRDisjoint(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1143,14 +1187,15 @@ c1	ST_Astext(c4)
 EXPLAIN UPDATE tab SET C2 = ST_GeomFromText('POINT(0 0)') 
 WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
 EXPLAIN DELETE FROM tab WHERE MBRDisjoint(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	ALL	idx3	NULL	NULL	NULL	10	Using where
+1	SIMPLE	tab	range	idx3	idx3	34	NULL	9	Using where
+# Test  the MBREquals
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 10	POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))
@@ -1161,10 +1206,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBREquals(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRintersects
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -1180,7 +1226,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET @g1 = ST_GeomFromText('LINESTRING( 30 30,40 40,50 50)');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE  MBRIntersects(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 1	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -1192,10 +1238,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRintersects(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBROverelaps
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 2,4 5,5 5,7 1,0 0 ))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBROverlaps(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 3	POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))
@@ -1206,10 +1253,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBROverlaps(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	1	Using where
+# Test  the MBRTouches
 SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 EXPLAIN SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where; Using filesort
+1	SIMPLE	tab	index	idx3	PRIMARY	4	NULL	10	Using where
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRTouches(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
 2	POLYGON((40 50,40 70,50 100,70 100,80 80,70 50,40 50))
@@ -1220,6 +1268,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN DELETE FROM tab WHERE MBRTouches(tab.c4, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tab	range	idx3	idx3	34	NULL	2	Using where
+# Test  the Delete & Update
 SET @g1 = ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))');
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBREquals(tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c4)
@@ -1243,6 +1292,7 @@ CHECK TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	check	status	OK
 DROP TABLE tab;
+# Test  check constraint on spatial column
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(c1 > 0) ) ENGINE=InnoDB;
 ERROR HY000: Illegal parameter data types point and int for operation '>'
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(CAST(c1 AS BINARY) > 0) ) ENGINE=InnoDB;
@@ -1253,7 +1303,7 @@ tab	CREATE TABLE `tab` (
   `c1` point NOT NULL,
   SPATIAL KEY `idx1` (`c1`),
   CONSTRAINT `tab_const` CHECK (cast(`c1` as char charset binary) > 0)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	1	idx1	1	c1	A	NULL	32	NULL		SPATIAL			NO

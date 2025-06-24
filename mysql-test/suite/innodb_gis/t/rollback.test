@@ -464,8 +464,8 @@ rollback;
 
 # Test partial update rollback after recovered.
 # Crash the server in partial update.
---write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-set session debug="+d,row_mysql_crash_if_error";
+--write_line restart  $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+set session debug_dbug="+d,row_mysql_crash_if_error";
 --error 2013
 update t1 set a=point(5,5), b=point(5,5), c=5 where i < 3;
 

@@ -44,7 +44,6 @@ int maria_rnext_same(MARIA_HA *info, uchar *buf)
     mysql_rwlock_rdlock(&keyinfo->root_lock);
 
   switch (keyinfo->key_alg) {
-#ifdef HAVE_RTREE_KEYS
     case HA_KEY_ALG_RTREE:
       if ((error=maria_rtree_find_next(info,inx,
 				 maria_read_vec[info->last_key_func])))
@@ -55,7 +54,6 @@ int maria_rnext_same(MARIA_HA *info, uchar *buf)
 	break;
       }
       break;
-#endif
     case HA_KEY_ALG_BTREE:
     default:
       if (!(info->update & HA_STATE_RNEXT_SAME))

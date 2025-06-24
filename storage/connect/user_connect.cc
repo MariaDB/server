@@ -20,8 +20,8 @@
   Implements the user_connect class.
 
   @details
-  To support multi_threading, each query creates and use a PlugDB "user"
-  that is a connection with its personnal memory allocation.
+  To support multi_threading, each query creates and uses a PlugDB "user"
+  that is a connection with its private memory allocation.
 
   @note
 	Author Olivier Bertrand
@@ -30,9 +30,6 @@
 /****************************************************************************/
 /*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2020       */
 /****************************************************************************/
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
 
 #define DONT_DEFINE_VOID
 #define MYSQL_SERVER

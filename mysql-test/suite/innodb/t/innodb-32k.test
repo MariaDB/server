@@ -2,6 +2,7 @@
 # Tests for setting innodb-page-size=32k;
 --source include/have_innodb.inc
 --source include/have_innodb_32k.inc
+--source include/test_db_charset_latin1.inc
 
 SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
@@ -621,3 +622,5 @@ show create table t2;
 update t2 set col150=@a;
 update t2 set col145=@b;
 drop table t2;
+
+--source include/test_db_charset_restore.inc

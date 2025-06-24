@@ -103,7 +103,7 @@ drop table t1, t2, t3;
 #
 # Test of deadlock problem when doing FLUSH TABLE with read lock
 # (Bug was in NTPL threads in Linux when using different mutex while
-#  waiting for a condtion variable)
+#  waiting for a condition variable)
 
 create table t1 (c1 int);
 create table t2 (c1 int);

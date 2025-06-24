@@ -1,0 +1,167 @@
+'\" t
+.\"
+.TH "\fBMARIADB-SECURE-INSTALLATION\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-secure-installation
+.SH "NAME"
+mariadb-secure-installation \- improve MariaDB installation security (mariadb-secure-installation is now a symlink to mariadb-secure-installation)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-secure-installation\fR\ 'u
+\fBmariadb-secure-installation\fR
+.SH "DESCRIPTION"
+.PP
+This program enables you to improve the security of your MariaDB installation in the following ways:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You can set a password for
+root
+accounts\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You can remove
+root
+accounts that are accessible from outside the local host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You can remove anonymous\-user accounts\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You can remove the
+test
+database, which by default can be accessed by anonymous users\&.
+.RE
+.PP
+\fBmariadb-secure-installation\fR
+can be invoked without arguments:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-secure-installation\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The script will prompt you to determine which actions to perform\&.
+.PP
+\fBmariadb-secure-installation\fR
+accepts some options:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-secure-installation: basedir option
+.\" basedir option: mariadb-secure-installation
+\fB\-\-basedir=\fR\fB\fIdir_name\fR\fR
+.sp
+Base directory\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-secure-installation: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-secure-installation
+\fB\-\-defaults\-extra\-file=\fR\fB\fIfile_name\fR\fR
+.sp
+Additional option file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-secure-installation: defaults-file option
+.\" defaults-file option: mariadb-secure-installation
+\fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR
+.sp
+Option file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-secure-installation: no-defaults option
+.\" no-defaults option: mariadb-secure-installation
+\fB\-\-no\-defaults\fR
+.sp
+Don't read any defaults file\&.
+.RE
+.sp
+Other unrecognized options will be passed on to the server\&.
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

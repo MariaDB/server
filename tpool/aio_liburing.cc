@@ -19,12 +19,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include "mysqld_error.h"
 
 #include <liburing.h>
+#include <pthread.h>
 
 #include <algorithm>
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <stdexcept>
+#include <my_sys.h>
 
 namespace
 {
@@ -145,6 +147,7 @@ public:
 private:
   static void thread_routine(aio_uring *aio)
   {
+    my_thread_set_name("io_uring_wait");
     for (;;)
     {
       io_uring_cqe *cqe;

@@ -41,7 +41,7 @@ drop table t1;
 #
 
 set names latin1;
-create table t1 (a enum(0xE4, '1', '2') not null default 0xE4);
+create table t1 (a enum(0xE4, '1', '2') not null default 0xE4) charset=latin1;
 show columns from t1;
 show create table t1;
 drop table t1;
@@ -55,7 +55,7 @@ set names latin1;
 CREATE TABLE t1 (
   a INT  default 1,
   b ENUM('value','öäü_value','ÊÃÕ') character set latin1 NOT NULL
-);
+) charset=latin1;
 show create table t1;
 show columns from t1;
 drop table t1;
@@ -133,7 +133,7 @@ drop table t1;
 #
 # Bug#20922 mysql removes a name of first column in a table
 #
-create table t1 (f1 int);
+create table t1 (f1 int) charset=latin1;
 alter table t1 add f2 enum(0xFFFF);
 show create table t1;
 drop table t1;
@@ -141,22 +141,22 @@ drop table t1;
 #
 # Bug#24660 "enum" field type definition problem
 #
-create table t1(russian enum('E','F','EÿF','FÿE') NOT NULL DEFAULT'E');
+create table t1(russian enum('E','F','EÿF','FÿE') NOT NULL DEFAULT'E') CHARSET=latin1;
 show create table t1;
 drop table t1;
 
-create table t1(denormal enum('E','F','E,F','F,E') NOT NULL DEFAULT'E');
+create table t1(denormal enum('E','F','E,F','F,E') NOT NULL DEFAULT'E') CHARSET=latin1;
 show create table t1;
 drop table t1;
 
-create table t1(russian_deviant enum('E','F','EÿF','F,E') NOT NULL DEFAULT'E');
+create table t1(russian_deviant enum('E','F','EÿF','F,E') NOT NULL DEFAULT'E') CHARSET=latin1;
 show create table t1;
 drop table t1;
 
 # ER_WRONG_FIELD_TERMINATORS
 --error 1083
 create table t1(exhausting_charset enum('ABCDEFGHIJKLMNOPQRSTUVWXYZ','	
- !"','#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~','xx\','yy\€','zz‚ƒ„…†‡ˆ‰Š‹Œ‘’“”•–—˜™š›œŸ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖ×ØÙÚÛÜİŞßàáâãäåæçèéêëìíîïğñòóôõö÷øùúûüışÿ'));
+ !"','#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~','xx\','yy\€','zz‚ƒ„…†‡ˆ‰Š‹Œ‘’“”•–—˜™š›œŸ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖ×ØÙÚÛÜİŞßàáâãäåæçèéêëìíîïğñòóôõö÷øùúûüışÿ')) charset=latin1;
 
 #
 # Bug #29251: MySQL coerces special 0 enum values to normal '' value
@@ -559,7 +559,6 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 
-
 --echo #
 --echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
 --echo #
@@ -568,7 +567,7 @@ SET note_verbosity=unusable_keys;
 CREATE TABLE t1 (
   indexed_col ENUM('2001','2002','2003','2004','2005','2006','2007','2008','2009','2010'),
   KEY(indexed_col)
-);
+) CHARSET=latin1;
 DELIMITER $$;
 FOR i IN 1..10
 DO
@@ -580,3 +579,32 @@ DELIMITER ;$$
 --source unusable_keys_joins.inc
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+
+--echo #
+--echo # MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+--echo #
+
+CREATE TABLE t1
+(
+  c_int INT,
+  c_enum ENUM('1')
+);
+
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_enum)  FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+--disable_view_protocol
+--disable_ps_protocol
+--enable_metadata
+SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+SELECT COALESCE(c_int, c_enum)  FROM t1;
+--disable_metadata
+--enable_ps_protocol
+--enable_view_protocol
+
+DROP TABLE t1;

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 RESET MASTER;
 #
 # Verify that SET string values and character sets can be printed correctly
@@ -14,7 +15,7 @@ RESET MASTER;
 SET GLOBAL binlog_row_metadata = FULL;
 INSERT INTO t1 VALUES("set1_v1_Ã¥", "set2_v2_Ã¤");
 # Columns(`c_set_1` SET('set1_v1_å','set1_v2_ä','set1_v3_ö') CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c_set_2` SET('\0s\0e\0t\02\0_\0v\01\0_\0å','\0s\0e\0t\02\0_\0v\02\0_\0ä','\0s\0e\0t\02\0_\0v\03\0_\0ö') CHARSET ucs2 COLLATE ucs2_general_ci)
+#         `c_set_2` SET('\0s\0e\0t\02\0_\0v\01\0_\0å','\0s\0e\0t\02\0_\0v\02\0_\0ä','\0s\0e\0t\02\0_\0v\03\0_\0ö') CHARSET ucs2 COLLATE ucs2_uca1400_ai_ci)
 INSERT INTO t1 VALUES("set1_v3_Ã¶", "set2_v3_Ã¶");
 INSERT INTO t1 VALUES("set1_v1_Ã¥", "set2_v1_Ã¥");
 SELECT c_set_1, HEX(c_set_1) FROM t1;
@@ -45,7 +46,7 @@ RESET MASTER;
 SET GLOBAL binlog_row_metadata = FULL;
 INSERT INTO t1 VALUES("enum1_v1_Ã¥", "enum2_v2_Ã¤");
 # Columns(`c_enum_1` ENUM('enum1_v1_å','enum1_v2_ä','enum1_v3_ö') CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c_enum_2` ENUM('\0e\0n\0u\0m\02\0_\0v\01\0_\0å','\0e\0n\0u\0m\02\0_\0v\02\0_\0ä','\0e\0n\0u\0m\02\0_\0v\03\0_\0ö') CHARSET ucs2 COLLATE ucs2_general_ci)
+#         `c_enum_2` ENUM('\0e\0n\0u\0m\02\0_\0v\01\0_\0å','\0e\0n\0u\0m\02\0_\0v\02\0_\0ä','\0e\0n\0u\0m\02\0_\0v\03\0_\0ö') CHARSET ucs2 COLLATE ucs2_uca1400_ai_ci)
 INSERT INTO t1 VALUES("enum1_v3_Ã¶", "enum2_v3_Ã¶");
 INSERT INTO t1 VALUES("enum1_v1_Ã¥", "enum2_v1_Ã¥");
 SELECT c_enum_1, HEX(c_enum_1) FROM t1;
@@ -63,3 +64,4 @@ enum2_v1_Ã¥	0065006E0075006D0032005F00760031005F00E5
 DROP TABLE t1;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = NO_LOG;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

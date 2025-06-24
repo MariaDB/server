@@ -15,14 +15,14 @@ create view v2 as select a from t2;
 flush status;
 select * from v2;
 --disable_ps_protocol
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 --enable_ps_protocol
 
 explain select * from v2;
 
 select * from (select * from t2) T1;
 --disable_ps_protocol
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 --enable_ps_protocol
 --enable_cursor_protocol
 
@@ -46,16 +46,18 @@ flush status;
 CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
 --echo # Performance schema should be the same as "Created_tmp_tables" variable below
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 drop table t3;
 
+set @@optimizer_switch="firstmatch=off";
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
 truncate table performance_schema.events_statements_history_long;
 flush status;
 CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
 --echo # Performance schema should be the same as "Created_tmp_tables" variable below
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
+set @@optimizer_switch=default;
 
 drop table t1,t2,t3;
 
@@ -63,4 +65,4 @@ truncate table performance_schema.events_statements_history_long;
 flush status;
 --echo # Performance schema should be the same as "Created_tmp_tables" variable below
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';

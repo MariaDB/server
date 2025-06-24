@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
@@ -762,10 +763,12 @@ WHERE col_1_text = REPEAT("c", 4000) AND col_2_text = REPEAT("o", 4000);
 col_1_text = REPEAT("क", 4000)
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000),REPEAT("o", 4000));
 DELETE FROM worklog5743 WHERE col_1_text = REPEAT("b", 4000);
-SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743;
+SELECT col_1_text = REPEAT("क", 4000) FROM worklog5743 ORDER BY col_1_text;
 col_1_text = REPEAT("क", 4000)
-0
 1
+0
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743 (
 col_1_text TEXT(4000) , col_2_text TEXT(4000) ,
@@ -793,16 +796,16 @@ col_1_text = REPEAT("a", 200)	col_2_text  = REPEAT("o", 200)
 1	1
 0	1
 connection con1;
-select @@session.tx_isolation;
-@@session.tx_isolation
+select @@session.transaction_isolation;
+@@session.transaction_isolation
 REPEATABLE-READ
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
 col_1_text = REPEAT("b", 200)	col_2_text = REPEAT("o", 200)
 0	1
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-select @@session.tx_isolation;
-@@session.tx_isolation
+select @@session.transaction_isolation;
+@@session.transaction_isolation
 READ-UNCOMMITTED
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
@@ -864,8 +867,8 @@ col_1_text = REPEAT("a", 200)	col_2_text  = REPEAT("o", 200)
 COMMIT;
 connection con1;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-select @@session.tx_isolation;
-@@session.tx_isolation
+select @@session.transaction_isolation;
+@@session.transaction_isolation
 READ-UNCOMMITTED
 SELECT col_1_text = REPEAT("b", 200) , col_2_text = REPEAT("o", 200) FROM
 worklog5743;
@@ -1418,3 +1421,4 @@ worklog5743	CREATE TABLE `worklog5743` (
   KEY `prefix_idx` (`col_1_varchar`(1000))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE worklog5743;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

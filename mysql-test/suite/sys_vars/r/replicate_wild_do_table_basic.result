@@ -1,3 +1,4 @@
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 #
 # Basic testing of replicate_wild_do_table.
 #
@@ -24,6 +25,20 @@ SET @@GLOBAL.replicate_wild_do_table="test.t, t2";
 ERROR HY000: Incorrect arguments to SET
 SET @@GLOBAL.replicate_wild_do_table="test.,t1";
 ERROR HY000: Incorrect arguments to SET
+# Argument size acceptance.
+SELECT GROUP_CONCAT(CONCAT("database_name.long_table_name_", seq) SEPARATOR ",")
+INTO @name FROM seq_1_to_8;
+SELECT LENGTH(@name);
+LENGTH(@name)
+255
+SET @@GLOBAL.replicate_wild_do_table= @name;
+SELECT @@GLOBAL.replicate_wild_do_table;
+@@GLOBAL.replicate_wild_do_table
+database_name.long_table_name_1,database_name.long_table_name_2,database_name.long_table_name_3,database_name.long_table_name_4,database_name.long_table_name_5,database_name.long_table_name_6,database_name.long_table_name_7,database_name.long_table_name_8
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_wild_do_table';
+VARIABLE_VALUE
+database_name.long_table_name_1,database_name.long_table_name_2,database_name.long_table_name_3,database_name.long_table_name_4,database_name.long_table_name_5,database_name.long_table_name_6,database_name.long_table_name_7,database_name.long_table_name_8
+Replicate_Wild_Do_Table = 'database_name.long_table_name_1,database_name.long_table_name_2,database_name.long_table_name_3,database_name.long_table_name_4,database_name.long_table_name_5,database_name.long_table_name_6,database_name.long_table_name_7,database_name.long_table_name_8'
 # Argument syntax.
 SET @@GLOBAL.replicate_wild_do_table="test.%,,,,,test.t3";
 SELECT @@GLOBAL.replicate_wild_do_table;
@@ -32,6 +47,7 @@ test.%,test.t3
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_wild_do_table';
 VARIABLE_NAME	VARIABLE_VALUE
 REPLICATE_WILD_DO_TABLE	test.%,test.t3
+Replicate_Wild_Do_Table = 'test.%,test.t3'
 SET @@GLOBAL.replicate_wild_do_table="test.t1,,,test2.%,,,test.t3";
 SELECT @@GLOBAL.replicate_wild_do_table;
 @@GLOBAL.replicate_wild_do_table

@@ -1,0 +1,40 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('0.0.0.0');
+INSERT INTO t1 VALUES ('255.255.255.255');
+
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?)';
+EXECUTE stmt USING CAST('0.0.0.1' AS INET4);
+EXECUTE stmt USING CAST(CONCAT(REPEAT(0x00,3), 0x02) AS INET4);
+DEALLOCATE PREPARE stmt;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INET4 DEFAULT '0.0.0.3';
+  INSERT INTO t1 VALUES (a);
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

@@ -23,9 +23,9 @@ SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 1;
 SET SESSION gtid_domain_id= 1;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'b2a' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'b2a' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --replace_result $SERVER_MYPORT_3 MYPORT_3
-eval CHANGE MASTER 'c2a' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'c2a' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'b2a';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
@@ -42,9 +42,9 @@ SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 2;
 SET SESSION gtid_domain_id= 2;
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval CHANGE MASTER 'a2b' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'a2b' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --replace_result $SERVER_MYPORT_3 MYPORT_3
-eval CHANGE MASTER 'c2b' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'c2b' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'a2b';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
@@ -61,9 +61,9 @@ SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 3;
 SET SESSION gtid_domain_id= 3;
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval CHANGE MASTER 'a2c' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'a2c' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'b2c' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'b2c' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'a2c';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
@@ -80,7 +80,7 @@ SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 1;
 SET SESSION gtid_domain_id= 1;
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval CHANGE MASTER 'a2d' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'a2d' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'a2d';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc

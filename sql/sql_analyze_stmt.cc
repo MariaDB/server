@@ -14,10 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
@@ -33,7 +29,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   else
     writer->add_member("r_loops").add_ll(get_r_loops());
   
-  if (get_r_loops() && time_tracker.timed)
+  if (time_tracker.has_timed_statistics())
   {
     writer->add_member("r_total_time_ms").
             add_double(time_tracker.get_time_ms());

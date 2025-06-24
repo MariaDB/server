@@ -22,10 +22,6 @@
   This file defines all compare functions
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include <m_ctype.h>
@@ -392,6 +388,9 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
   This directly contradicts the manual (number and a string should
   be compared as doubles), but seems to provide more
   "intuitive" behavior in some cases (but less intuitive in others).
+
+  This method should be moved to Type_handler::convert_item_for_comparison()
+  eventually.
 */
 void Item_func::convert_const_compared_to_int_field(THD *thd)
 {
@@ -409,6 +408,43 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
         convert_const_to_int(thd, field_item, &args[!field]);
     }
   }
+}
+
+
+bool Item_func::aggregate_args2_for_comparison_with_conversion(
+                                            THD *thd,
+                                            Type_handler_hybrid_field_type *th)
+{
+  DBUG_ASSERT(arg_count >= 2);
+  for (bool done= false ; !done ; )
+  {
+    if (th->aggregate_for_comparison(func_name_cstring(), args, 2, false))
+      return true;
+    if (thd->lex->is_ps_or_view_context_analysis())
+      return false;
+    done= true;
+    for (uint subject= 0; subject < 2; subject++)
+    {
+      uint other_side= subject == 0 ? 1 : 0;
+      /* See comment in convert_const_to_int() */
+      if (!args[subject]->with_sum_func() &&
+          args[subject]->can_eval_in_optimize())
+      {
+        Item *item= th->type_handler()->convert_item_for_comparison(thd,
+                                                             args[subject],
+                                                             args[other_side]);
+        if (!item)
+          return true; // An error happened, e.g. EOM
+        if (item != args[subject])
+        {
+          thd->change_item_tree(&args[subject], item);
+          done= false; // Aggregate again, using the replacement item
+          break;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 
@@ -474,9 +510,8 @@ Item_bool_rowready_func2::value_depends_on_sql_mode() const
 }
 
 
-bool Item_bool_rowready_func2::fix_length_and_dec()
+bool Item_bool_rowready_func2::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   max_length= 1;				     // Function returns 0 or 1
 
   /*
@@ -488,7 +523,7 @@ bool Item_bool_rowready_func2::fix_length_and_dec()
   Item_args old_args(args[0], args[1]);
   convert_const_compared_to_int_field(thd);
   Type_handler_hybrid_field_type tmp;
-  if (tmp.aggregate_for_comparison(func_name_cstring(), args, 2, false) ||
+  if (aggregate_args2_for_comparison_with_conversion(thd, &tmp) ||
       tmp.type_handler()->Item_bool_rowready_func2_fix_length_and_dec(thd,
                                                                       this))
   {
@@ -571,7 +606,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     /*
       We must set cmp_collation here as we may be called from for an automatic
       generated item, like in natural join.
-      Allow reinterpted superset as subset.
+      Allow reinterpreted superset as subset.
       Use charset narrowing only for equalities, as that would allow
       to construct ref access.
       Non-equality comparisons with constants work without charset narrowing,
@@ -1128,14 +1163,14 @@ int Arg_comparator::compare_row()
       // NULL was compared
       switch (((Item_func*)owner)->functype()) {
       case Item_func::NE_FUNC:
-        break; // NE never aborts on NULL even if abort_on_null is set
+        break; // NE never aborts on NULL
       case Item_func::LT_FUNC:
       case Item_func::LE_FUNC:
       case Item_func::GT_FUNC:
       case Item_func::GE_FUNC:
         return -1; // <, <=, > and >= always fail on NULL
       case Item_func::EQ_FUNC:
-        if (((Item_func_eq*)owner)->abort_on_null)
+        if (owner->is_top_level_item())
           return -1; // We do not need correct NULL returning
         break;
       default:
@@ -1200,7 +1235,7 @@ int Arg_comparator::compare_e_str_json()
 }
 
 
-bool Item_func_truth::fix_length_and_dec()
+bool Item_func_truth::fix_length_and_dec(THD *thd)
 {
   base_flags&= ~item_base_t::MAYBE_NULL;
   null_value= 0;
@@ -1246,9 +1281,34 @@ bool Item_func_truth::val_bool()
 }
 
 
-bool Item_in_optimizer::is_top_level_item() const
+bool Item_func_truth::count_sargable_conds(void *arg)
 {
-  return args[1]->is_top_level_item();
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
+}
+
+
+Item *Item_func_istrue::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isnottrue(thd, args[0]);
+}
+
+
+Item *Item_func_isnottrue::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_istrue(thd, args[0]);
+}
+
+
+Item *Item_func_isfalse::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isnotfalse(thd, args[0]);
+}
+
+
+Item *Item_func_isnotfalse::negated_item(THD *thd) const
+{
+  return new (thd->mem_root) Item_func_isfalse(thd, args[0]);
 }
 
 
@@ -1455,7 +1515,8 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   }
 
   base_flags|= (item_base_t::FIXED |
-                (args[1]->base_flags & item_base_t::MAYBE_NULL));
+                (args[1]->base_flags & (item_base_t::MAYBE_NULL |
+                                        item_base_t::AT_TOP_LEVEL)));
   with_flags|= (item_with_t::SUBQUERY |
                 args[1]->with_flags |
                 (args[0]->with_flags &
@@ -1865,9 +1926,9 @@ Item *Item_func_eq::do_build_clone(THD *thd) const
 
 /** Same as Item_func_eq, but NULL = NULL. */
 
-bool Item_func_equal::fix_length_and_dec()
+bool Item_func_equal::fix_length_and_dec(THD *thd)
 {
-  bool rc= Item_bool_rowready_func2::fix_length_and_dec();
+  bool rc= Item_bool_rowready_func2::fix_length_and_dec(thd);
   base_flags&= ~item_base_t::MAYBE_NULL;
   null_value=0;
   return rc;
@@ -1951,7 +2012,7 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
 }
 
 
-bool Item_func_interval::fix_length_and_dec()
+bool Item_func_interval::fix_length_and_dec(THD *thd)
 {
   uint rows= row->cols();
 
@@ -1960,7 +2021,7 @@ bool Item_func_interval::fix_length_and_dec()
     if (row->element_index(i)->check_cols(1))
       return true;
   }
-  
+
   use_decimal_comparison= ((row->element_index(0)->result_type() ==
                             DECIMAL_RESULT) ||
                            (row->element_index(0)->result_type() ==
@@ -1977,10 +2038,9 @@ bool Item_func_interval::fix_length_and_dec()
 
     if (not_null_consts)
     {
-      intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
-                                                         (rows - 1));
+      intervals= thd->alloc<interval_range>(rows - 1);
       if (!intervals)
-        return TRUE;
+        return true;
 
       if (use_decimal_comparison)
       {
@@ -2020,7 +2080,7 @@ bool Item_func_interval::fix_length_and_dec()
   used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
   with_flags|= row->with_flags;
-  return FALSE;
+  return false;
 }
 
 
@@ -2152,7 +2212,7 @@ bool Item_func_between::eval_not_null_tables(void *opt_arg)
     return 1;
 
   /* not_null_tables_cache == union(T1(e),T1(e1),T1(e2)) */
-  if (pred_level && !negated)
+  if (is_top_level_item() && !negated)
     return 0;
 
   /* not_null_tables_cache == union(T1(e), intersection(T1(e1),T1(e2))) */
@@ -2191,10 +2251,9 @@ void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
   eval_not_null_tables(NULL);
 }
 
-bool Item_func_between::fix_length_and_dec()
+bool Item_func_between::fix_length_and_dec(THD *thd)
 {
   max_length= 1;
-  THD *thd= current_thd;
 
   /*
     As some compare functions are generated after sql_yacc,
@@ -2527,6 +2586,14 @@ bool Item_func_ifnull::time_op(THD *thd, MYSQL_TIME *ltime)
 }
 
 
+Type_ref_null Item_func_ifnull::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  const Type_ref_null res= args[0]->val_ref(thd);
+  return !res.is_null() ? res : args[1]->val_ref(thd);
+}
+
+
 /**
   Perform context analysis of an IF item tree.
 
@@ -2557,6 +2624,10 @@ bool
 Item_func_if::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
+  /*
+    Mark that we don't care if args[0] is NULL or FALSE, we regard both cases as
+    false.
+  */
   args[0]->top_level_item();
 
   if (Item_func::fix_fields(thd, ref))
@@ -2646,19 +2717,29 @@ void Item_func_nullif::update_used_tables()
 
 
 bool
-Item_func_nullif::fix_length_and_dec()
+Item_func_nullif::fix_length_and_dec(THD *thd)
 {
+  /*
+    The returned data type is determined only by args[0].
+    Check it here to be a valid returned type for a hybrid function.
+    args[1] will be checked below, to be comparable to args[0],
+    its data type does not affect the returned data type.
+  */
+  if (args[0]->type_handler()->
+         Item_hybrid_func_fix_attributes(current_thd, func_name_cstring(),
+                                         this, this, &args[0], 1))
+    return true;
+
   /*
     If this is the first invocation of fix_length_and_dec(), create the
     third argument as a copy of the first. This cannot be done before
     fix_fields(), because fix_fields() might replace items,
-    for exampe NOT x --> x==0, or (SELECT 1) --> 1.
+    for example NOT x --> x==0, or (SELECT 1) --> 1.
     See also class Item_func_nullif declaration.
   */
   if (arg_count == 2)
     args[arg_count++]= m_arg0 ? m_arg0 : args[0];
 
-  THD *thd= current_thd;
   /*
     At prepared statement EXECUTE time, args[0] can already
     point to a different Item, created during PREPARE time fix_length_and_dec().
@@ -2669,7 +2750,7 @@ Item_func_nullif::fix_length_and_dec()
                                          l_expr
       args[2]= >------------------------/
 
-    Otherwise (during PREPARE or convensional execution),
+    Otherwise (during PREPARE or conventional execution),
     args[0] and args[2] should still point to the same original l_expr.
   */
   DBUG_ASSERT(args[0] == args[2] || thd->stmt_arena->is_stmt_execute());
@@ -2752,7 +2833,7 @@ Item_func_nullif::fix_length_and_dec()
                    l_expr                            (Item_field for t1.a)
           args[2] /
 
-        d. Conversion of only args[0] happened (by equal field proparation):
+        d. Conversion of only args[0] happened (by equal field propagation):
 
            CREATE OR REPLACE TABLE t1 (
              a CHAR(10),
@@ -2811,7 +2892,10 @@ Item_func_nullif::fix_length_and_dec()
   set_maybe_null();
   m_arg0= args[0];
   convert_const_compared_to_int_field(thd);
-  if (cmp.set_cmp_func(thd, this, &args[0], &args[1], true/*set_null*/))
+  Type_handler_hybrid_field_type tmp;
+  if (aggregate_args2_for_comparison_with_conversion(thd, &tmp) ||
+      cmp.set_cmp_func(thd, this, tmp.type_handler(),
+                       &args[0], &args[1], true/*set_null*/))
     return true;
   /*
     A special code for EXECUTE..PREPARE.
@@ -3218,6 +3302,13 @@ bool Item_func_case::native_op(THD *thd, Native *to)
 }
 
 
+Type_ref_null Item_func_case::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  Item *item= find_item();
+  return item ? item->val_ref(thd) : Type_ref_null();
+}
+
 bool Item_func_case::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func::fix_fields(thd, ref);
@@ -3269,24 +3360,21 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
 }
 
 
-bool Item_func_case_searched::fix_length_and_dec()
+bool Item_func_case_searched::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   return aggregate_then_and_else_arguments(thd, when_count());
 }
 
 
-bool Item_func_case_simple::fix_length_and_dec()
+bool Item_func_case_simple::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   return (aggregate_then_and_else_arguments(thd, when_count() + 1) ||
           aggregate_switch_and_when_arguments(thd, false));
 }
 
 
-bool Item_func_decode_oracle::fix_length_and_dec()
+bool Item_func_decode_oracle::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
   return (aggregate_then_and_else_arguments(thd, when_count() + 1) ||
           aggregate_switch_and_when_arguments(thd, true));
 }
@@ -3341,7 +3429,7 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
       If we'll do string comparison, we also need to aggregate
       character set and collation for first/WHEN items and
       install converters for some of them to cmp_collation when necessary.
-      This is done because cmp_item compatators cannot compare
+      This is done because cmp_item comparators cannot compare
       strings in two different character sets.
       Some examples when we install converters:
 
@@ -3363,6 +3451,14 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
     */
     if (agg_arg_charsets_for_comparison(cmp_collation, args, ncases + 1))
       return true;
+  }
+
+  if (m_found_types & (1U << ROW_RESULT))
+  {
+    // ROWs are not supported yet in CASE ROW(..) WHEN ROW(..)
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             type_handler_row.name().ptr(), "CASE WHEN");
+    return true;
   }
 
   if (make_unique_cmp_items(thd, cmp_collation.collation))
@@ -3610,6 +3706,20 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
   null_value=1;
   return 0;
 }
+
+
+Type_ref_null Item_func_coalesce::ref_op(THD *thd)
+{
+  DBUG_ASSERT(fixed());
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    const Type_ref_null res= args[i]->val_ref(thd);
+    if (!res.is_null())
+      return res;
+  }
+  return Type_ref_null();
+}
+
 
 
 /****************************************************************************
@@ -4035,11 +4145,8 @@ Item *in_decimal::create_item(THD *thd)
 
 bool Predicant_to_list_comparator::alloc_comparators(THD *thd, uint nargs)
 {
-  size_t nbytes= sizeof(Predicant_to_value_comparator) * nargs;
-  if (!(m_comparators= (Predicant_to_value_comparator *) thd->alloc(nbytes)))
-    return true;
-  memset(m_comparators, 0, nbytes);
-  return false;
+  m_comparators= thd->calloc<Predicant_to_value_comparator>(nargs);
+  return m_comparators == NULL;
 }
 
 
@@ -4170,8 +4277,7 @@ bool cmp_item_row::alloc_comparators(THD *thd, uint cols)
     DBUG_ASSERT(cols == n);
     return false;
   }
-  return
-    !(comparators= (cmp_item **) thd->calloc(sizeof(cmp_item *) * (n= cols)));
+  return !(comparators= thd->calloc<cmp_item *>(n= cols));
 }
 
 
@@ -4202,7 +4308,7 @@ bool cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
   }
   n= tmpl->n;
   bool rc= false;
-  if ((comparators= (cmp_item **) thd->alloc(sizeof(cmp_item *)*n)))
+  if ((comparators= thd->alloc<cmp_item *>(n)))
   {
     item->bring_value();
     item->null_value= 0;
@@ -4507,7 +4613,7 @@ Item_func_in::eval_not_null_tables(void *opt_arg)
     return 1;
 
   /* not_null_tables_cache == union(T1(e),union(T1(ei))) */
-  if (pred_level && negated)
+  if (is_top_level_item() && negated)
     return 0;
 
   /* not_null_tables_cache = union(T1(e),intersection(T1(ei))) */
@@ -4560,10 +4666,9 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
 }
 
 
-bool Item_func_in::fix_length_and_dec()
+bool Item_func_in::fix_length_and_dec(THD *thd)
 {
   Item_args old_predicant(args[0]);
-  THD *thd= current_thd;
   uint found_types;
   m_comparator.set_handler(type_handler_varchar.type_handler_for_comparison());
   max_length= 1;
@@ -4652,7 +4757,7 @@ void Item_func_in::fix_in_vector()
     else
     {
       /*
-        We don't put NULL values in array, to avoid erronous matches in
+        We don't put NULL values in array, to avoid erroneous matches in
         bisection.
       */
       have_null= 1;
@@ -4703,7 +4808,7 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
         m_comparator.set_handler(&type_handler_slonglong);
     }
   }
-  return thd->is_fatal_error; // Catch errrors in convert_const_to_int
+  return thd->is_fatal_error; // Catch errors in convert_const_to_int
 }
 
 
@@ -4955,7 +5060,7 @@ public:
 };
 
 
-bool Item_func_bit_or::fix_length_and_dec()
+bool Item_func_bit_or::fix_length_and_dec(THD *thd)
 {
   static Func_handler_bit_or_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_or_dec_to_ulonglong ha_dec_to_ull;
@@ -4990,7 +5095,7 @@ public:
 };
 
 
-bool Item_func_bit_and::fix_length_and_dec()
+bool Item_func_bit_and::fix_length_and_dec(THD *thd)
 {
   static Func_handler_bit_and_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_and_dec_to_ulonglong ha_dec_to_ull;
@@ -4999,9 +5104,10 @@ bool Item_func_bit_and::fix_length_and_dec()
 
 Item_cond::Item_cond(THD *thd, Item_cond *item)
   :Item_bool_func(thd, item),
-   abort_on_null(item->abort_on_null),
    and_tables_cache(item->and_tables_cache)
 {
+  base_flags|= (item->base_flags & item_base_t::AT_TOP_LEVEL);
+
   /*
     item->list will be copied by copy_andor_arguments() call
   */
@@ -5009,7 +5115,7 @@ Item_cond::Item_cond(THD *thd, Item_cond *item)
 
 
 Item_cond::Item_cond(THD *thd, Item *i1, Item *i2):
-  Item_bool_func(thd), abort_on_null(0)
+  Item_bool_func(thd)
 {
   list.push_back(i1, thd->mem_root);
   list.push_back(i2, thd->mem_root);
@@ -5057,7 +5163,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   {
     merge_sub_condition(li);
     item= *li.ref();
-    if (abort_on_null)
+    if (is_top_level_item())
       item->top_level_item();
 
     /*
@@ -5094,7 +5200,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     fails in call cases.
   */
   base_flags|= item_base_t::FIXED;
-  if (fix_length_and_dec() || thd->is_error())
+  if (fix_length_and_dec(thd) || thd->is_error())
     return TRUE;
   return FALSE;
 }
@@ -5167,7 +5273,7 @@ Item_cond::eval_not_null_tables(void *opt_arg)
   {
     if (item->can_eval_in_optimize() &&
         !item->with_sp_var() && !item->with_param() &&
-        !cond_has_datetime_is_null(item) && top_level())
+        !cond_has_datetime_is_null(item) && is_top_level_item())
     {
       if (item->eval_const_cond() == is_and_cond)
       {
@@ -5377,7 +5483,7 @@ Item *Item_cond::do_transform(THD *thd, Item_transformer transformer, uchar *arg
   callback functions.
   
     First the function applies the analyzer to the root node of
-    the Item_func object. Then if the analyzer succeeeds (returns TRUE)
+    the Item_func object. Then if the analyzer succeeds (returns TRUE)
     the function recursively applies the compile method to member
     item of the condition list.
     If the call of the method for a member item returns a new item
@@ -5616,17 +5722,18 @@ void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
   Evaluation of AND(expr, expr, expr ...).
 
   @note
-    abort_if_null is set for AND expressions for which we don't care if the
-    result is NULL or 0. This is set for:
+    There are AND expressions for which we don't care if the
+    result is NULL or 0. This is the case for:
     - WHERE clause
     - HAVING clause
     - IF(expression)
+    For these we mark them as "top_level_items"
 
   @retval
     1  If all expressions are true
   @retval
-    0  If all expressions are false or if we find a NULL expression and
-       'abort_on_null' is set.
+    0  If any of the expressions are false or if we find a NULL expression and
+       this is a top_level_item.
   @retval
     NULL if all expression are either 1 or NULL
 */
@@ -5642,8 +5749,8 @@ bool Item_cond_and::val_bool()
   {
     if (!item->val_bool())
     {
-      if (abort_on_null || !(null_value= item->null_value))
-	return 0;				// return FALSE
+      if (is_top_level_item() || !(null_value= item->null_value))
+        return 0;
     }
   }
   return null_value ? 0 : 1;
@@ -6038,9 +6145,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         pattern_len = (int) len - 2;
         pattern     = thd->strmake(first + 1, pattern_len);
         DBUG_PRINT("info", ("Initializing pattern: '%s'", first));
-        int *suff = (int*) thd->alloc((int) (sizeof(int)*
-                                      ((pattern_len + 1)*2+
-                                      alphabet_size)));
+        int *suff = thd->alloc<int>((pattern_len + 1) * 2 + alphabet_size);
         bmGs      = suff + pattern_len + 1;
         bmBc      = bmGs + pattern_len + 1;
         turboBM_compute_good_suffix_shifts(suff);
@@ -6070,7 +6175,7 @@ bool Item_func_like::find_selective_predicates_list_processor(void *arg)
     THD *thd= data->table->in_use;
     COND_STATISTIC *stat;
     Item *arg0;
-    if (!(stat= (COND_STATISTIC *) thd->alloc(sizeof(COND_STATISTIC))))
+    if (!(stat= thd->alloc<COND_STATISTIC>(1)))
       return TRUE;
     stat->cond= this;
     arg0= args[0]->real_item();
@@ -6345,9 +6450,9 @@ bool Regexp_processor_pcre::fix_owner(Item_func *owner,
 
 
 bool
-Item_func_regex::fix_length_and_dec()
+Item_func_regex::fix_length_and_dec(THD *thd)
 {
-  if (Item_bool_func::fix_length_and_dec() ||
+  if (Item_bool_func::fix_length_and_dec(thd) ||
       agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return TRUE;
 
@@ -6370,7 +6475,7 @@ bool Item_func_regex::val_bool()
 
 
 bool
-Item_func_regexp_instr::fix_length_and_dec()
+Item_func_regexp_instr::fix_length_and_dec(THD *thd)
 {
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return TRUE;
@@ -7312,7 +7417,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
   }
   if (prev_equal_field && last_equal_field != first_equal_field)
     last_equal_field->next_equal_field= first_equal_field;
-  if (fix_length_and_dec())
+  if (fix_length_and_dec(thd))
     return TRUE;
   base_flags|= item_base_t::FIXED;
   return FALSE;
@@ -7441,11 +7546,11 @@ bool Item_equal::val_bool()
 }
 
 
-bool Item_equal::fix_length_and_dec()
+bool Item_equal::fix_length_and_dec(THD *thd)
 {
   Item *item= get_first(NO_PARTICULAR_TAB, NULL);
   const Type_handler *handler= item->type_handler();
-  eval_item= handler->make_cmp_item(current_thd, item->collation.collation);
+  eval_item= handler->make_cmp_item(thd, item->collation.collation);
   return eval_item == NULL;
 }
 
@@ -7681,7 +7786,7 @@ bool Item_func_dyncol_exists::val_bool()
     {
       uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= (char *) current_thd->alloc(strlen);
+      buf.str= current_thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=
@@ -7840,7 +7945,7 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
 
     2. After this all equalities of the form x=a (where x designates the first
        non-constant member for which checker returns true and a is some other
-       such member of the multiplle equality) are created. When constructing
+       such member of the multiple equality) are created. When constructing
        an equality item both its parts are taken as clones of x and a.
     
        Suppose in the examples above that for 'x', 'a', and 'b' the function
@@ -7981,3 +8086,4 @@ Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
     break;
   }
 }
+

@@ -138,7 +138,7 @@
 #   prepared statements cannot be invoked from other recursive
 #   constructs.
 #
-#   $CRC_RET_desc is a text string that describes the invokation of
+#   $CRC_RET_desc is a text string that describes the invocation of
 #   the recursive construct in a human-readable fashion.
 #
 # Assumptions

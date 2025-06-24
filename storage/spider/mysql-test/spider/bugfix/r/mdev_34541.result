@@ -12,10 +12,18 @@ CREATE TABLE t1 (c INT) ENGINE=InnoDB;
 CREATE TABLE t2 (c INT) ENGINE=InnoDB;
 CREATE TABLE t3 (c INT) ENGINE=InnoDB;
 CREATE TABLE ta (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t5 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t6 (c INT KEY) ENGINE=InnoDB PARTITION BY RANGE (c) (PARTITION p VALUES LESS THAN (5));
 CREATE TABLE t7 (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t8 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t8;
 ERROR HY000: Remote table 'test.t' is not found
 CREATE TEMPORARY TABLE t7 (c INT) ENGINE=InnoDB SELECT * FROM t7;

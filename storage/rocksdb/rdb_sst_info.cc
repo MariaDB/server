@@ -542,7 +542,7 @@ void Rdb_sst_info::init(const rocksdb::DB *const db) {
 
   // Scan through the files in the directory
   const struct fileinfo *file_info = dir_info->dir_entry;
-  for (uint ii= 0; ii < dir_info->number_of_files; ii++, file_info++) {
+  for (size_t ii= 0; ii < dir_info->number_of_files; ii++, file_info++) {
     // find any files ending with m_suffix ...
     const std::string name = file_info->name;
     const size_t pos = name.find(m_suffix);

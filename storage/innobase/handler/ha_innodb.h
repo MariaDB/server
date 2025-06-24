@@ -25,10 +25,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
-/** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
-system clustered index when there is no primary key. */
-extern const char innobase_index_reserve_name[];
-
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
@@ -69,8 +65,6 @@ public:
 
         const char* table_type() const override;
 
-	const char* index_type(uint key_number) override;
-
 	Table_flags table_flags() const override;
 
 	ulong index_flags(uint idx, uint part, bool all_parts) const override;
@@ -101,14 +95,17 @@ public:
 
 	int open(const char *name, int mode, uint test_if_locked) override;
 
+	/** Fetch or recalculate InnoDB table statistics */
+	dberr_t statistics_init(dict_table_t *table, bool recalc);
+
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;
 
-	double scan_time() override;
-
-	double read_time(uint index, uint ranges, ha_rows rows) override;
-
+#ifdef NOT_USED
+	IO_AND_CPU_COST scan_time() override;
+        double rnd_pos_time(ha_rows rows) override;
+#endif
 	int write_row(const uchar * buf) override;
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;
@@ -207,7 +204,6 @@ public:
 	int delete_table(const char *name) override;
 
 	int rename_table(const char* from, const char* to) override;
-	inline int defragment_table();
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
 	int check_for_upgrade(HA_CHECK_OPT* check_opt) override;
 
@@ -219,7 +215,7 @@ public:
                                  List<FOREIGN_KEY_INFO> *f_key_list) override;
 
 	int get_parent_foreign_key_list(
-		THD*			thd,
+		THD*		thd,
 		List<FOREIGN_KEY_INFO>*	f_key_list) override;
 
 	bool can_switch_engines() override;
@@ -384,6 +380,7 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
+                ha_rows                 limit,
 		Cost_estimate*		cost) override;
 
 	/** Initialize multi range read and get information.
@@ -517,10 +514,10 @@ protected:
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
 
-	/** Flags that specificy the handler instance (table) capability. */
+	/** Flags that specify the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 
-	/** Index into the server's primkary keye meta-data table->key_info{} */
+	/** Index into the server's primary key meta-data table->key_info{} */
 	uint			m_primary_key;
 
 	/** this is set to 1 when we are starting a table scan but have
@@ -533,6 +530,10 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+	/** If true, disable the Rowid Filter. It is disabled when
+	the engine is intialized for making rnd_pos() calls */
+	bool                    m_disable_rowid_filter;
 };
 
 
@@ -637,8 +638,6 @@ public:
 		THD*		thd,
 		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
-		char*		table_name,
-		char*		remote_path,
 		bool		file_per_table,
 		trx_t*		trx = NULL);
 
@@ -653,7 +652,7 @@ public:
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
-	int create_table(bool create_fk = true);
+	int create_table(bool create_fk = true, bool strict= true);
 
   static void create_table_update_dict(dict_table_t* table, THD* thd,
                                        const HA_CREATE_INFO& info,
@@ -713,6 +712,8 @@ public:
 	ulint flags2() const
 	{ return(m_flags2); }
 
+	bool creating_stub() const { return UNIV_UNLIKELY(m_creating_stub); }
+
 	/** Get trx. */
 	trx_t* trx() const
 	{ return(m_trx); }
@@ -750,13 +751,13 @@ private:
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
-	/** Table name */
-	char*		m_table_name;
+	/** Table name: {database}/{tablename} */
+	char		m_table_name[FN_REFLEN];
 	/** Table */
 	dict_table_t*	m_table;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
-	char*		m_remote_path;
+	char		m_remote_path[FN_REFLEN]; // Absolute path of the table
 
 	/** Local copy of srv_file_per_table. */
 	bool		m_innodb_file_per_table;
@@ -779,6 +780,9 @@ private:
 
 	/** Table flags2 */
 	ulint		m_flags2;
+
+	/** Whether we are creating a stub table for importing. */
+	const bool	m_creating_stub;
 };
 
 /**
@@ -800,7 +804,7 @@ enum fts_doc_id_index_enum {
 };
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column.
 @return the status of the FTS_DOC_ID index */
 fts_doc_id_index_enum
@@ -813,7 +817,7 @@ innobase_fts_check_doc_id_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column in MySQL create index definition.
 @return FTS_EXIST_DOC_ID_INDEX if there exists the FTS_DOC_ID index,
 FTS_INCORRECT_DOC_ID_INDEX if the FTS_DOC_ID index is of wrong format */

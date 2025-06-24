@@ -6,11 +6,11 @@
 
 --connection master_1
 --disable_warnings
-CREATE DATABASE auto_test_local;
+CREATE DATABASE auto_test_local CHARACTER SET latin1;
 USE auto_test_local;
 
 --connection child2_1
-CREATE DATABASE auto_test_remote;
+CREATE DATABASE auto_test_remote CHARACTER SET latin1;
 USE auto_test_remote;
 --enable_warnings
 
@@ -38,7 +38,9 @@ eval CREATE TABLE tbl_a (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a VALUES(10000, "  abcd   ");
+--enable_ps_protocol
 INSERT INTO tbl_a VALUES(10001, "  abcd   ");
 INSERT INTO tbl_a VALUES(10002, "  abcd   ");
 INSERT INTO tbl_a VALUES(10003, "[[[abcd][[");

@@ -10,8 +10,8 @@ SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
 SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 1;
 SET SESSION gtid_domain_id= 1;
-CHANGE MASTER 'b2a' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
-CHANGE MASTER 'c2a' TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'b2a' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
+CHANGE MASTER 'c2a' TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'b2a';
 START SLAVE;
 include/wait_for_slave_to_start.inc
@@ -26,8 +26,8 @@ SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
 SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 2;
 SET SESSION gtid_domain_id= 2;
-CHANGE MASTER 'a2b' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
-CHANGE MASTER 'c2b' TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'a2b' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
+CHANGE MASTER 'c2b' TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'a2b';
 START SLAVE;
 include/wait_for_slave_to_start.inc
@@ -42,8 +42,8 @@ SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
 SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 3;
 SET SESSION gtid_domain_id= 3;
-CHANGE MASTER 'a2c' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
-CHANGE MASTER 'b2c' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'a2c' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
+CHANGE MASTER 'b2c' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'a2c';
 START SLAVE;
 include/wait_for_slave_to_start.inc
@@ -58,7 +58,7 @@ SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
 SET GLOBAL gtid_ignore_duplicates=1;
 SET GLOBAL gtid_domain_id= 1;
 SET SESSION gtid_domain_id= 1;
-CHANGE MASTER 'a2d' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'a2d' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'a2d';
 START SLAVE;
 include/wait_for_slave_to_start.inc

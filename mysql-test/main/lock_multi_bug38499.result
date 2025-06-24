@@ -17,7 +17,7 @@ INSERT INTO t2 VALUES (1, 1), (2, 2), (3, 3), (4, 4);
 connection default;
 # 1.2.2. PS mode
 connection default;
-ALTER TABLE t1 ADD COLUMN a INT;
+ALTER TABLE t1 ADD COLUMN a INT, LOCK=SHARED;
 # 2. test UNIONs
 # 2.1. test altering of columns that multiupdate doesn't use
 # 2.1.1. normal mode

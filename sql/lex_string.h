@@ -25,26 +25,27 @@ typedef struct st_mysql_const_lex_string LEX_CSTRING;
 class Lex_cstring : public LEX_CSTRING
 {
   public:
-  Lex_cstring()
-  {
-    str= NULL;
-    length= 0;
-  }
-  Lex_cstring(const LEX_CSTRING &str)
-  {
-    LEX_CSTRING::operator=(str);
-  }
-  Lex_cstring(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
+  constexpr Lex_cstring()
+   :LEX_CSTRING({NULL, 0})
+  { }
+  constexpr Lex_cstring(const LEX_CSTRING &str)
+   :LEX_CSTRING(str)
+  { }
+  constexpr Lex_cstring(const char *_str, size_t _len)
+   :LEX_CSTRING({_str, _len})
+  { }
   Lex_cstring(const char *start, const char *end)
   {
     DBUG_ASSERT(start <= end);
     str= start;
     length= end - start;
   }
+
+  bool bin_eq(const LEX_CSTRING &rhs) const
+  {
+    return length == rhs.length && !memcmp(str, rhs.str, length);
+  }
+
   void set(const char *_str, size_t _len)
   {
     str= _str;
@@ -104,25 +105,44 @@ class Lex_cstring : public LEX_CSTRING
     return tmp.rtrim_whitespace(cs);
   }
 
+  /*
+    Return the "n" leftmost bytes if this[0] is longer than "n" bytes,
+    or return this[0] itself otherwise.
+  */
+  Lex_cstring left(size_t n) const
+  {
+    return Lex_cstring(str, MY_MIN(length, n));
+  }
+  /*
+    If this[0] is shorter than "pos" bytes, then return an empty string.
+    Otherwise, return a substring of this[0] starting from
+    the byte position "pos" until the end.
+  */
+  Lex_cstring substr(size_t pos) const
+  {
+    return length <= pos ? Lex_cstring(str + length, (size_t) 0) :
+                           Lex_cstring(str + pos, length - pos);
+  }
+  // Check if a prefix of this[0] is equal to "rhs".
+  bool starts_with(const LEX_CSTRING &rhs) const
+  {
+    DBUG_ASSERT(str);
+    DBUG_ASSERT(rhs.str);
+    return length >= rhs.length && !memcmp(str, rhs.str, rhs.length);
+  }
 };
 
 
 class Lex_cstring_strlen: public Lex_cstring
 {
 public:
-  Lex_cstring_strlen(const char *from)
+  explicit Lex_cstring_strlen(const char *from)
    :Lex_cstring(from, from ? strlen(from) : 0)
   { }
 };
 
 
 /* Functions to compare if two lex strings are equal */
-
-static inline bool lex_string_cmp(CHARSET_INFO *charset, const LEX_CSTRING *a,
-                                  const LEX_CSTRING *b)
-{
-  return my_strcasecmp(charset, a->str, b->str);
-}
 
 /*
   Compare to LEX_CSTRING's and return 0 if equal

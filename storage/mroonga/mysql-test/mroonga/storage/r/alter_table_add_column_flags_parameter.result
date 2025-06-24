@@ -8,7 +8,7 @@ tags	CREATE TABLE `tags` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(64) DEFAULT NULL `FLAGS`='COLUMN_VECTOR',
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SELECT mroonga_command("dump --dump_plugins no");
 mroonga_command("dump --dump_plugins no")
 table_create mroonga_operations TABLE_NO_KEY

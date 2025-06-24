@@ -39,6 +39,7 @@ std::vector<std::string> backup_plugins_args;
 const char *QUERY_PLUGIN =
 "SELECT plugin_name, plugin_library, @@plugin_dir"
 " FROM information_schema.plugins WHERE plugin_type='ENCRYPTION'"
+" OR (plugin_type = 'DAEMON' AND plugin_name LIKE 'provider\\_%')"
 " AND plugin_status='ACTIVE'";
 
 std::string encryption_plugin_config;
@@ -94,74 +95,82 @@ void encryption_plugin_backup_init(MYSQL *mysql)
   MYSQL_ROW row;
   std::ostringstream oss;
   char *argv[PLUGIN_MAX_ARGS];
+  char show_query[1024] = "";
+  std::string plugin_load;
   int argc;
 
   result = xb_mysql_query(mysql, QUERY_PLUGIN, true, true);
-  row = mysql_fetch_row(result);
-  if (!row)
-  {
-    mysql_free_result(result);
-    return;
-  }
-
-  char *name= row[0];
-  char *library= row[1];
-  char *dir= row[2];
-
-#ifdef _WIN32
-  for (char *p = dir; *p; p++)
-    if (*p == '\\') *p = '/';
-#endif
-
-  std::string plugin_load(name);
-  if (library)
-  {
-    /* Remove shared library suffixes, in case we'll prepare on different OS.*/
-    const char *extensions[] = { ".dll", ".so", 0 };
-    for (size_t i = 0; extensions[i]; i++)
-    {
-      const char *ext = extensions[i];
-      if (ends_with(library, ext))
-        library[strlen(library) - strlen(ext)] = 0;
-    }
-    plugin_load += std::string("=") + library;
-  }
-
-  oss << "plugin_load=" << plugin_load << std::endl;
-
-  /* Required  to load the plugin later.*/
-  add_to_plugin_load_list(plugin_load.c_str());
-  strncpy(opt_plugin_dir, dir, FN_REFLEN - 1);
-  opt_plugin_dir[FN_REFLEN - 1] = '\0';
-
-  oss << "plugin_dir=" << '"' << dir << '"' << std::endl;
-
-
-  /* Read plugin variables. */
-  char query[1024];
-  snprintf(query, 1024, "SHOW variables like '%s_%%'", name);
-  mysql_free_result(result);
-
-  result = xb_mysql_query(mysql, query, true, true);
   while ((row = mysql_fetch_row(result)))
   {
-    std::string arg("--");
-    arg += row[0];
-    arg += "=";
-    arg += row[1];
-    backup_plugins_args.push_back(arg);
-    oss << row[0] << "=" << row[1] << std::endl;
+    char *name= row[0];
+    char *library= row[1];
+    char *dir= row[2];
+
+    if (!plugin_load.length())
+    {
+#ifdef _WIN32
+      for (char *p = dir; *p; p++)
+        if (*p == '\\') *p = '/';
+#endif
+      strncpy(opt_plugin_dir, dir, FN_REFLEN - 1);
+      opt_plugin_dir[FN_REFLEN - 1] = '\0';
+      oss << "plugin_dir=" << '"' << dir << '"' << std::endl;
+    }
+
+    plugin_load += std::string(";") + name;
+
+    if (library)
+    {
+      /* Remove shared library suffixes, in case we'll prepare on different OS.*/
+      const char *extensions[] = { ".dll", ".so", 0 };
+      for (size_t i = 0; extensions[i]; i++)
+      {
+        const char *ext = extensions[i];
+        if (ends_with(library, ext))
+          library[strlen(library) - strlen(ext)] = 0;
+      }
+      plugin_load += std::string("=") + library;
+    }
+
+    if (strncmp(name, "provider_", 9) == 0)
+      continue;
+
+    /* Read plugin variables. */
+    snprintf(show_query, sizeof(show_query), "SHOW variables like '%s_%%'", name);
   }
-
   mysql_free_result(result);
+  if (!plugin_load.length())
+    return;
 
-  /* Check whether to encrypt logs. */
-  result = xb_mysql_query(mysql, "select @@innodb_encrypt_log", true, true);
-  row = mysql_fetch_row(result);
-  srv_encrypt_log = (row != 0 && row[0][0] == '1');
-  oss << "innodb_encrypt_log=" << row[0] << std::endl;
+  oss << "plugin_load=" << plugin_load.c_str() + 1 << std::endl;
 
-  mysql_free_result(result);
+  /* Required  to load the plugin later.*/
+  add_to_plugin_load_list(plugin_load.c_str() + 1);
+
+
+  if (*show_query)
+  {
+    result = xb_mysql_query(mysql, show_query, true, true);
+    while ((row = mysql_fetch_row(result)))
+    {
+      std::string arg("--");
+      arg += row[0];
+      arg += "=";
+      arg += row[1];
+      backup_plugins_args.push_back(arg);
+      oss << row[0] << "=" << row[1] << std::endl;
+    }
+
+    mysql_free_result(result);
+
+    /* Check whether to encrypt logs. */
+    result = xb_mysql_query(mysql, "select @@innodb_encrypt_log", true, true);
+    row = mysql_fetch_row(result);
+    srv_encrypt_log = (row != 0 && row[0][0] == '1');
+    oss << "innodb_encrypt_log=" << row[0] << std::endl;
+
+    mysql_free_result(result);
+  }
 
   result = xb_mysql_query(mysql, "select @@innodb_encrypt_tables", true, true);
   row = mysql_fetch_row(result);

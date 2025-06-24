@@ -164,7 +164,7 @@ DROP TABLE p;
 #
 # Expected Outcome:
 # ================
-# This is a true conflict and one transaciton must abort. In this case it is node_1
+# This is a true conflict and one transaction must abort. In this case it is node_1
 # transaction, which was scheduled later.
 #    Parent table should have row (1,0)
 #    child table should have row (1,0)
@@ -211,7 +211,7 @@ DROP TABLE p;
 #
 # Expected Outcome:
 # ================
-# This is a true conflict and one transaciton must abort. In this case it is node_1
+# This is a true conflict and one transaction must abort. In this case it is node_1
 # transaction, which was scheduled later.
 #    Parent table should have rows (1,0), (2,0)
 #    child table should have row (1,1,1)

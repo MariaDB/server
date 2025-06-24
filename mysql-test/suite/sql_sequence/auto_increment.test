@@ -25,8 +25,48 @@ select nextval(s);
 flush tables;
 select nextval(s);
 drop sequence s;
---enable_ps2_protocol
 
 # Clean up
 
 set global auto_increment_increment= default, auto_increment_offset= default;
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 42;
+create sequence s as bigint unsigned start with 9223372036854775800 increment 0;
+select next value for s;
+select next value for s;
+drop sequence s;
+
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 5;
+# Test underflow
+create sequence s as bigint start with -9223372036854775805 minvalue -9223372036854775807 maxvalue -9223372036854775800 increment 0;
+drop sequence s;
+
+set global auto_increment_increment= default, auto_increment_offset= default;
+
+--echo #
+--echo # MDEV-33836 Assertion `(ulonglong) next_free_value % real_increment == (ulonglong) offset' failed in void sequence_definition::adjust_values(longlong)
+--echo #
+
+CREATE SEQUENCE s AS BIGINT UNSIGNED START WITH 9223372036854775800 INCREMENT 0;
+set @old_AUTO_INCREMENT_INCREMENT=@@global.AUTO_INCREMENT_INCREMENT;
+set global AUTO_INCREMENT_INCREMENT=10;
+SELECT NEXTVAL (s);
+FLUSH TABLES WITH READ LOCK;
+# ER_CANT_UPDATE_WITH_READLOCK when executed normally
+# ER_BAD_FIELD_ERROR when executed as a prepared statement
+--error ER_CANT_UPDATE_WITH_READLOCK,ER_BAD_FIELD_ERROR
+UPDATE s SET a=1;
+unlock tables;
+set global AUTO_INCREMENT_INCREMENT=@old_AUTO_INCREMENT_INCREMENT;
+drop sequence s;
+--enable_ps2_protocol
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

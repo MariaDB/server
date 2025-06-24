@@ -1,6 +1,4 @@
 INSTALL SONAME 'ha_spider';
-Warnings:
-Warning	1105	Cannot enable tc-log at run-time. XA features of SPIDER are disabled
 CREATE TABLE t (s INT) ENGINE=SPIDER PARTITION BY HASH (s);
 LOAD INDEX INTO CACHE t PARTITION (p,p1);
 Table	Op	Msg_type	Msg_text

@@ -46,16 +46,16 @@ INSERT INTO tab(c1,c2,c3,c4,c5)
 VALUES(10,ST_GeomFromText('POINT(160 160)'),ST_GeomFromText('LINESTRING(140 140,150 150,160 160)'),
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'),
 ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010 5010))'));
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
@@ -110,9 +110,9 @@ ALTER TABLE tab CHANGE COLUMN c4 c44 POLYGON;
 ERROR 42000: All parts of a SPATIAL index must be NOT NULL
 ALTER TABLE tab add SPATIAL INDEX idx1(c1);
 ERROR HY000: Incorrect arguments to SPATIAL INDEX
-ALTER TABLE tab ADD SPATIAL INDEX idx6(c2 ASC) USING BTREE;
+ALTER TABLE tab ADD SPATIAL INDEX idx6(c2) USING BTREE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING BTREE' at line 1
-ALTER TABLE tab ADD SPATIAL INDEX idx6(c2 ASC) USING HASH;
+ALTER TABLE tab ADD SPATIAL INDEX idx6(c2) USING HASH;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING HASH' at line 1
 SHOW CREATE TABLE tab;
 Table	Create Table
@@ -128,7 +128,7 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
   SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
   KEY `idx6` (`c4`(10)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
@@ -172,7 +172,7 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx4` (`c44`) COMMENT 'testing spatial index on Polygon',
   SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
   KEY `idx6` (`c44`(10)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
@@ -204,7 +204,7 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
   SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
   KEY `idx6` (`c4`(10)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
@@ -261,7 +261,7 @@ tab	CREATE TABLE `tab` (
   `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
   PRIMARY KEY (`c2`(25))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CHECK TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	check	status	OK
@@ -314,7 +314,7 @@ temp_tab	CREATE TEMPORARY TABLE `temp_tab` (
   SPATIAL KEY `idx3` (`c3`),
   SPATIAL KEY `idx4` (`c4`),
   SPATIAL KEY `idx5` (`c5`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM temp_tab WHERE MBRContains(temp_tab.c4, @g1) ORDER BY c1;
 c1	ST_Astext(c2)	ST_Astext(c4)
@@ -333,14 +333,14 @@ tab	CREATE TABLE `tab` (
   `c3` linestring NOT NULL,
   `c4` polygon NOT NULL,
   `c5` geometry NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 DELETE FROM tab;
 ALTER TABLE tab ADD PRIMARY KEY(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-CREATE SPATIAL INDEX idx2 ON tab(c2 ASC);
+CREATE SPATIAL INDEX idx2 ON tab(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD CONSTRAINT const_1 UNIQUE(c2);
@@ -357,7 +357,7 @@ tab	CREATE TABLE `tab` (
   PRIMARY KEY (`c2`(25)),
   UNIQUE KEY `const_1` (`c2`(25)),
   SPATIAL KEY `idx2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c2	A	#	25	NULL		BTREE			NO
@@ -391,7 +391,7 @@ tab	CREATE TABLE `tab` (
   PRIMARY KEY (`c5`(10)),
   UNIQUE KEY `const_1` (`c5`(10)),
   SPATIAL KEY `idx2` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c5	A	#	10	NULL		BTREE			NO
@@ -449,16 +449,16 @@ ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
 test.tab	analyze	status	OK
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
@@ -521,7 +521,7 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
   SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
   KEY `idx6` (`c4`(10)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
@@ -558,7 +558,7 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
   SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
   KEY `idx6` (`c4`(10)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
@@ -615,7 +615,7 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
   SPATIAL KEY `idx5` (`c5`) COMMENT 'testing spatial index on Geometry',
   KEY `idx6` (`c4`(10)) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
@@ -678,10 +678,10 @@ c1	ST_AsText(c2)	ST_AsText(c3)	ST_Astext(c4)
 DROP TABLE tab;
 CREATE TABLE parent (id POINT, PRIMARY KEY(id)) ENGINE=InnoDB;
 CREATE TABLE child (id GEOMETRY NOT NULL, parent_id POINT NOT NULL) ENGINE=InnoDB;
-ALTER TABLE parent ADD SPATIAL INDEX idx1(id ASC);
+ALTER TABLE parent ADD SPATIAL INDEX idx1(id);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id ASC);
+ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE parent;
@@ -690,14 +690,14 @@ parent	CREATE TABLE `parent` (
   `id` point NOT NULL,
   PRIMARY KEY (`id`(25)),
   SPATIAL KEY `idx1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE child;
 Table	Create Table
 child	CREATE TABLE `child` (
   `id` geometry NOT NULL,
   `parent_id` point NOT NULL,
   SPATIAL KEY `idx2` (`parent_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM parent;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 parent	0	PRIMARY	1	id	A	0	25	NULL		BTREE			NO
@@ -710,10 +710,10 @@ ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ON DELETE CAS
 DROP table child,parent;
 CREATE TABLE parent (id GEOMETRY, PRIMARY KEY(id(10))) ENGINE=InnoDB;
 CREATE TABLE child (id GEOMETRY NOT NULL, parent_id GEOMETRY NOT NULL) ENGINE=InnoDB;
-ALTER TABLE parent ADD SPATIAL INDEX idx1(id ASC) ;
+ALTER TABLE parent ADD SPATIAL INDEX idx1(id) ;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id ASC);
+ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SHOW CREATE TABLE parent;
@@ -722,14 +722,14 @@ parent	CREATE TABLE `parent` (
   `id` geometry NOT NULL,
   PRIMARY KEY (`id`(10)),
   SPATIAL KEY `idx1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE child;
 Table	Create Table
 child	CREATE TABLE `child` (
   `id` geometry NOT NULL,
   `parent_id` geometry NOT NULL,
   SPATIAL KEY `idx2` (`parent_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW INDEX FROM parent;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 parent	0	PRIMARY	1	id	A	0	10	NULL		BTREE			NO
@@ -759,17 +759,6 @@ ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 alter table t1 add b geometry not null default st_geomfromtext('POINT(0 0)'),
 add spatial index(b), algorithm=copy;
 DROP table t1;
-#
-# BUG#20111575 ALTER TABLE...ADD SPATIAL INDEX...LOCK NONE IS REFUSED
-# WITHOUT STATING A REASON
-#
-CREATE TABLE t1(p point NOT NULL) ENGINE=innodb;
-ALTER TABLE t1 ADD SPATIAL INDEX(p), LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
-ALTER TABLE t1 ADD SPATIAL INDEX(p);
-ALTER TABLE t1 FORCE, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
-DROP TABLE t1;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 insert into t1 values(default);
@@ -779,7 +768,7 @@ SET timestamp=default;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 alter table t1 add column i int;
-ERROR 22007: Incorrect POINT value: 'LINESTRING(0 0,1 1)' for column `test`.`t1`.`p` at row 1
+ERROR 22007: Incorrect POINT value: 'LINESTRING(0 0,1 1)' for column `test`.`t1`.`p` at row 0
 drop table t1;
 SET timestamp=default;
 CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB;

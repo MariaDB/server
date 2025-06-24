@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(30) DEFAULT NULL,
   `c` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES(1,'abcd',1.234);
 CREATE TABLE t2(a INT, b VARCHAR(30), c FLOAT) ENGINE=MyIsam;
 SHOW CREATE TABLE t2;
@@ -35,7 +35,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(30) DEFAULT NULL,
   `c` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t2 VALUES(1,'abcd',1.234);
 ALTER TABLE t1 RENAME COLUMN a TO a;
 SHOW CREATE TABLE t1;
@@ -44,7 +44,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(30) DEFAULT NULL,
   `c` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 RENAME COLUMN a TO m;
 ALTER TABLE t1 RENAME COLUMN a TO m;
 ERROR 42S22: Unknown column 'a' in 't1'
@@ -57,7 +57,7 @@ t1	CREATE TABLE `t1` (
   `m` int(11) DEFAULT NULL,
   `b` varchar(30) DEFAULT NULL,
   `c` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 m	b	c
 1	abcd	1.234
@@ -70,7 +70,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
   `y` varchar(30) DEFAULT NULL,
   `z` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 x	y	z
 1	abcd	1.234
@@ -81,7 +81,7 @@ t2	CREATE TABLE `t2` (
   `d` int(11) DEFAULT NULL,
   `e` varchar(30) DEFAULT NULL,
   `f` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 d	e	f
 1	abcd	1.234
@@ -92,7 +92,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(30) DEFAULT NULL,
   `z` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 CHANGE COLUMN z c DOUBLE, RENAME COLUMN b to b;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -100,7 +100,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(30) DEFAULT NULL,
   `c` double DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 CHANGE COLUMN a b int, RENAME COLUMN b TO c, CHANGE COLUMN c d FLOAT;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -108,7 +108,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` varchar(30) DEFAULT NULL,
   `d` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ADD COLUMN zz INT, RENAME COLUMN d TO f;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -117,7 +117,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(30) DEFAULT NULL,
   `f` float DEFAULT NULL,
   `zz` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 DROP COLUMN zz, RENAME COLUMN c TO zz;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -125,28 +125,28 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `zz` varchar(30) DEFAULT NULL,
   `f` float DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 RENAME COLUMN zz to c, DROP COLUMN f;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` varchar(30) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ADD COLUMN d INT DEFAULT 5, RENAME COLUMN c TO b, DROP COLUMN b;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` varchar(30) DEFAULT NULL,
   `d` int(11) DEFAULT 5
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 RENAME COLUMN b TO d, RENAME COLUMN d TO b;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` varchar(30) DEFAULT NULL,
   `b` int(11) DEFAULT 5
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ADD KEY(b);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -154,7 +154,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(30) DEFAULT NULL,
   `b` int(11) DEFAULT 5,
   KEY `b` (`b`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 RENAME COLUMN b TO bb;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -162,7 +162,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(30) DEFAULT NULL,
   `bb` int(11) DEFAULT 5,
   KEY `b` (`bb`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 d	bb
 abcd	5
@@ -175,7 +175,7 @@ t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
   KEY `b` (`b`),
   CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`bb`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 RENAME COLUMN bb TO b;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -183,7 +183,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(30) DEFAULT NULL,
   `b` int(11) DEFAULT 5,
   KEY `b` (`b`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t3 RENAME COLUMN b TO c;
 SHOW CREATE TABLE t3;
 Table	Create Table
@@ -192,20 +192,20 @@ t3	CREATE TABLE `t3` (
   `c` int(11) DEFAULT NULL,
   KEY `b` (`c`),
   CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`b`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t4(a int);
 ALTER TABLE t4 RENAME COLUMN a TO aa, ALGORITHM = INPLACE;
 SHOW CREATE TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
   `aa` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t4 RENAME COLUMN aa TO a, ALGORITHM = COPY;
 SHOW CREATE TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` int(11) DEFAULT NULL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t4;
 CREATE VIEW v1 AS SELECT d,e,f FROM t2;
 CREATE TRIGGER trg1 BEFORE UPDATE on t2 FOR EACH ROW SET NEW.d=OLD.d + 10;
@@ -217,7 +217,7 @@ t2	CREATE TABLE `t2` (
   `g` int(11) DEFAULT NULL,
   `e` varchar(30) DEFAULT NULL,
   `f` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t2`.`d` AS `d`,`test`.`t2`.`e` AS `e`,`test`.`t2`.`f` AS `f` from `t2`	latin1	latin1_swedish_ci
@@ -226,7 +226,7 @@ Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function
 SELECT * FROM v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 UPDATE t2 SET f = f + 10;
-ERROR 42S22: Unknown column 'd' in 'OLD'
+ERROR 42S22: Unknown column 'd' in 'NEW'
 CALL sp1();
 ERROR 42S22: Unknown column 'd' in 'INSERT INTO'
 DROP TRIGGER trg1;
@@ -241,7 +241,7 @@ Table	Create Table
 t_gen	CREATE TABLE `t_gen` (
   `a` int(11) DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (sqrt(`a`)) VIRTUAL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t_gen RENAME COLUMN a TO c, CHANGE COLUMN b b DOUBLE GENERATED ALWAYS AS (SQRT(c));
 SELECT * FROM t_gen;
 c	b
@@ -251,14 +251,14 @@ Table	Create Table
 t_gen	CREATE TABLE `t_gen` (
   `c` int(11) DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (sqrt(`c`)) VIRTUAL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t_gen CHANGE COLUMN c x INT;
 show create table t_gen;
 Table	Create Table
 t_gen	CREATE TABLE `t_gen` (
   `x` int(11) DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (sqrt(`x`)) VIRTUAL
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t_gen RENAME COLUMN x TO a;
 DROP TABLE t_gen;
 SHOW CREATE TABLE t1;
@@ -267,7 +267,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(30) DEFAULT NULL,
   `b` int(11) DEFAULT 5,
   KEY `b` (`b`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 RENAME COLUMN b z;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'z' at line 1
 ALTER TABLE t1 RENAME COLUMN FROM b TO z;
@@ -298,7 +298,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(30) DEFAULT NULL,
   `b` int(11) DEFAULT 5,
   KEY `b` (`b`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 d	b
 abcd	5

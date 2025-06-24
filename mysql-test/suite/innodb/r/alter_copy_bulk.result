@@ -1,0 +1,115 @@
+SET @default_stats_persistent= @@global.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= 0;
+CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
+INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
+ALTER TABLE t1 ALGORITHM=COPY, FORCE;
+INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
+ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+ALTER TABLE t1 ALGORITHM=COPY, ADD PRIMARY KEY(f1(2));
+ERROR 23000: Duplicate entry 'bb' for key 'PRIMARY'
+INSERT INTO t1 VALUES(repeat('a', 200), 1);
+ALTER TABLE t1 ALGORITHM=COPY, ADD UNIQUE KEY(f2);
+ERROR 23000: Duplicate entry '1' for key 'f2_2'
+ALTER IGNORE TABLE t1 MODIFY f1 CHAR(200) NOT NULL;
+CREATE TABLE t2(f1 INT NOT NULL,
+FOREIGN KEY(f1) REFERENCES t1(f2))ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+ALTER TABLE t2 ALGORITHM=COPY, FORCE;
+DROP TABLE t2, t1;
+CREATE TABLE t1 (f1 INT, f2 INT) ENGINE=InnoDB PARTITION BY HASH(f1) PARTITIONS 2;
+INSERT INTO t1 VALUES(1, 1);
+INSERT INTO t1 SELECT seq, seq * 2 FROM seq_1_to_2;
+ALTER TABLE t1 ALGORITHM=COPY, FORCE;
+INSERT INTO t1 SELECT seq, seq * 2 FROM seq_3_to_65536;
+ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+DROP TABLE t1;
+#
+# MDEV-34756 Validation of new foreign key skipped
+#            if innodb_alter_copy_bulk=ON
+#
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL PRIMARY KEY,
+f2 INT NOT NULL)ENGINE=InnoDB;
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f1) REFERENCES t1(f1);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t2 VALUES (1, 2);
+ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-alter`, CONSTRAINT `#sql-alter_ibfk_2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+INSERT INTO t1 VALUES(3, 1);
+SET STATEMENT foreign_key_checks=0 FOR
+ALTER TABLE t2 ALGORITHM=COPY, ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ALGORITHM=COPY, FORCE;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 ALGORITHM=COPY, FORCE;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+DROP TABLE t2, t1;
+#
+#  MDEV-35237 Bulk insert fails to apply buffered
+#              operation during copy alter
+#
+CREATE TABLE t1 (f1 int NOT NULL, f2 tinyint(1) NOT NULL,
+f3 varchar(80) NOT NULL, PRIMARY KEY(f1),
+KEY(f2), KEY(f3))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1,''),(2,0,''), (4,1,'e');
+CREATE TABLE t2 (f1 int NOT NULL, f2 int NOT NULL,KEY(f1))ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,0),(1,0);
+CREATE TABLE t engine=innodb
+SELECT t2.f2 FROM t2 JOIN t1 ON t1.f1 = t2.f1 AND t1.f3 = '' AND t1.f2=1 ;
+SELECT COUNT(*) FROM t;
+COUNT(*)
+2
+DROP TABLE t1, t2, t;
+#
+#  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
+#            failed in cmp_rec_rec_simple_field
+#
+CREATE TABLE t1(a BLOB, b VARCHAR(2048), PRIMARY KEY (b)) ENGINE=InnoDB
+CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+INSERT INTO t1 VALUES
+(REPEAT('x',4805),'a'), (REPEAT('x',16111),'b'),
+(REPEAT('x',65535),'c'), (REPEAT('x',11312),'d'),
+(REPEAT('x',35177),'e'), (REPEAT('x',65535),'f'),
+(REPEAT('x',1988),'g'), (NULL,REPEAT('x',2048)),
+(REPEAT('x',2503),'h'), (REPEAT('x',33152),'i'),
+(REPEAT('x',65535),'j'), (REPEAT('x',1988),'k'),
+(REPEAT('x',65535),'l'), (REPEAT('x',65535),'m'),
+(REPEAT('x',65535),'n'), (REPEAT('x',65535),'o'),
+(REPEAT('x',1988),'p'), (REPEAT('x',2503),'q'),
+(REPEAT('x',65535),'r'), (REPEAT('x',65535),'s'),
+(REPEAT('x',65535),'t'), (REPEAT('x',3169),'u'),
+(REPEAT('x',7071),'v'), (REPEAT('x',16111),'w'),
+(REPEAT('x',2325),'x'), (REPEAT('x',33152),'y'),
+(REPEAT('x',65535),'z'), (REPEAT('x',65535),'aa'),
+(REPEAT('x',16111),'bb'), (REPEAT('x',4805),'cc'),
+(REPEAT('x',65535),'dd');
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
+#
+#  MDEV-36504 Memory leak after insert into empty table
+#
+CREATE TABLE t1 (k INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 SET k= 1;
+START TRANSACTION;
+INSERT INTO t1 SET k= 2;
+SELECT COUNT(*) > 0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
+COUNT(*) > 0
+1
+connect con1,localhost,root,,,;
+SET innodb_lock_wait_timeout=0;
+CREATE TABLE t2(f1 INT DEFAULT 1 PRIMARY KEY)
+STATS_PERSISTENT= 1 ENGINE=InnoDB as SELECT k FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+SET innodb_lock_wait_timeout=default;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t2;
+# restart

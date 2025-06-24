@@ -7,10 +7,8 @@ a
 1
 2
 3
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 Variable_name	Value
-Created_tmp_disk_tables	0
-Created_tmp_files	0
 Created_tmp_tables	0
 explain select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -20,10 +18,8 @@ a
 1
 2
 3
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 Variable_name	Value
-Created_tmp_disk_tables	0
-Created_tmp_files	0
 Created_tmp_tables	0
 explain select * from (select * from t2) T1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -46,12 +42,11 @@ CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING 
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
 sum(created_tmp_tables)
 2
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 Variable_name	Value
-Created_tmp_disk_tables	0
-Created_tmp_files	0
 Created_tmp_tables	2
 drop table t3;
+set @@optimizer_switch="firstmatch=off";
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
@@ -64,11 +59,10 @@ CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
 sum(created_tmp_tables)
 1
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 Variable_name	Value
-Created_tmp_disk_tables	0
-Created_tmp_files	0
 Created_tmp_tables	1
+set @@optimizer_switch=default;
 drop table t1,t2,t3;
 truncate table performance_schema.events_statements_history_long;
 flush status;
@@ -76,8 +70,6 @@ flush status;
 select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
 sum(created_tmp_tables)
 0
-show status like '%Created_tmp%';
+show status like '%Created_tmp_tables%';
 Variable_name	Value
-Created_tmp_disk_tables	0
-Created_tmp_files	0
 Created_tmp_tables	0

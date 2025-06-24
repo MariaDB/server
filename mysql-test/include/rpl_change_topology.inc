@@ -234,7 +234,14 @@ if (!$rpl_skip_change_master)
           --echo "\$rpl_master_log_pos parameter not set for the master: $_rpl_master. Set log position to empty."
         }
       }
-      eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1$_timeout_adjustment;
+      if ($rpl_master_log_file)
+      {
+        eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_LOG_FILE = '$_rpl_master_log_file'$_rpl_master_log_pos, MASTER_CONNECT_RETRY = 1$_timeout_adjustmen, MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_USE_GTID=NO;
+      }
+      if (!$rpl_master_log_file)
+      {
+        eval CHANGE MASTER TO MASTER_HOST = '127.0.0.1', MASTER_PORT = $_rpl_port, MASTER_USER = 'root', MASTER_CONNECT_RETRY=1$_timeout_adjustment, MASTER_SSL_VERIFY_SERVER_CERT=0;
+      }
     }
     if ($_rpl_master == '')
     {

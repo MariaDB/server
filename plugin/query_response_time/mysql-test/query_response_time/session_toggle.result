@@ -1,0 +1,130 @@
+#
+# Tests for query_response_time_session_stats variable
+#
+SET @saved_query_response_time_stats = @@GLOBAL.query_response_time_stats;
+SET @saved_query_response_time_flush = @@GLOBAL.query_response_time_flush;
+SET GLOBAL query_response_time_flush= 'ON';
+Warnings:
+Warning	1287	'@@query_response_time_flush' is deprecated and will be removed in a future release
+SELECT SUM(COUNT),1 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	1
+0	1
+# global: ON, session: default(GLOBAL): must be logged
+SET GLOBAL query_response_time_stats= 'ON';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),2 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	2
+2	2
+# global: OFF, session: default(GLOBAL): must not be logged
+SET GLOBAL query_response_time_stats= 'OFF';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),3 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	3
+3	3
+# global: ON, session: GLOBAL: must be logged
+SET GLOBAL query_response_time_stats= 'ON';
+SET SESSION query_response_time_session_stats= 'GLOBAL';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),4 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	4
+6	4
+# global: OFF, session: GLOBAL: must not be logged
+SET GLOBAL query_response_time_stats= 'OFF';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),5 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	5
+7	5
+# global: OFF, session: OFF: must not be logged
+SET SESSION query_response_time_session_stats= 'OFF';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),6 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	6
+7	6
+# global: ON, session: OFF: must not be logged
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),7 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	7
+7	7
+# global: ON: session: ON: must be logged
+SET SESSION query_response_time_session_stats= 'ON';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),8 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	8
+9	8
+# global: OFF: session: ON: must be logged
+SET GLOBAL query_response_time_stats= 'OFF';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),9 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	9
+12	9
+connect con2,localhost,root,,;
+connect con3,localhost,root,,;
+connection con2;
+# 2nd connection: global OFF, session: default(GLOBAL): must not be logged
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),10 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	10
+13	10
+FLUSH TABLES;
+connection con3;
+# 3rd connection: global OFF, session: OFF: must not be logged
+SET SESSION query_response_time_session_stats= 'OFF';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),11 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	11
+13	11
+connection default;
+# 1st connection: global ON, session: ON: must be logged
+SET GLOBAL query_response_time_stats= 'ON';
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),12 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	12
+15	12
+FLUSH TABLES;
+connection con2;
+# 2nd connection: global ON, session: default(GLOBAL): must be logged
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),13 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	13
+17	13
+FLUSH TABLES;
+connection con3;
+# 3rd connection: global ON: session: OFF: must not be logged
+SELECT 1;
+1
+1
+SELECT SUM(COUNT),14 FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME;
+SUM(COUNT)	14
+18	14
+disconnect con2;
+disconnect con3;
+connection default;
+# Cleanup
+SET GLOBAL query_response_time_flush = @saved_query_response_time_flush;
+Warnings:
+Warning	1287	'@@query_response_time_flush' is deprecated and will be removed in a future release
+SET GLOBAL query_response_time_stats = @saved_query_response_time_stats;

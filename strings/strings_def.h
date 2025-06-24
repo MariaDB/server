@@ -20,6 +20,7 @@
 #undef DBUG_ASSERT_AS_PRINTF
 #include <my_global.h>		/* Define standard vars */
 #include "m_string.h"		/* Exernal definitions of string functions */
+#include "m_ctype.h"
 
 /*
   We can't use the original DBUG_ASSERT() (which includes _db_flush())
@@ -105,6 +106,37 @@ static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
 }
 
 
+static inline my_strnxfrm_ret_t
+my_strnxfrm_ret_construct(size_t output_length,
+                          size_t source_length_used,
+                          uint warnings)
+{
+  my_strnxfrm_ret_t rc= {output_length,
+                         source_length_used,
+                         warnings};
+  return rc;
+}
+
+
+static inline my_strnxfrm_pad_ret_t
+my_strnxfrm_pad_ret_construct(size_t output_length,
+                              uint warnings)
+{
+  my_strnxfrm_pad_ret_t rc= {output_length,
+                             warnings};
+  return rc;
+}
+
+
+static inline void
+my_strnxfrm_ret_join_pad(my_strnxfrm_ret_t *rc,
+                         const my_strnxfrm_pad_ret_t *rcpad)
+{
+  rc->m_result_length+= rcpad->m_result_length;
+  rc->m_warnings|= rcpad->m_warnings;
+}
+
+
 int my_strnncollsp_nchars_generic(CHARSET_INFO *cs,
                                   const uchar *str1, size_t len1,
                                   const uchar *str2, size_t len2,
@@ -116,6 +148,51 @@ int my_strnncollsp_nchars_generic_8bit(CHARSET_INFO *cs,
                                        const uchar *str2, size_t len2,
                                        size_t nchars,
                                        uint flags);
+
+
+size_t  my_strnxfrmlen_simple(CHARSET_INFO *, size_t);
+
+my_strnxfrm_ret_t
+my_strnxfrm_simple(CHARSET_INFO *,
+                   uchar *dst, size_t dstlen, uint nweights,
+                   const uchar *src, size_t srclen, uint flags);
+
+
+my_strnxfrm_ret_t
+my_strnxfrm_mb(CHARSET_INFO *,
+               uchar *dst, size_t dstlen, uint nweights,
+               const uchar *src, size_t srclen, uint flags);
+
+my_strnxfrm_ret_t
+my_strnxfrm_mb_nopad(CHARSET_INFO *,
+                    uchar *dst, size_t dstlen, uint nweights,
+                    const uchar *src, size_t srclen, uint flags);
+
+size_t  my_strnxfrmlen_unicode(CHARSET_INFO *, size_t);
+
+size_t  my_strnxfrmlen_unicode_full_bin(CHARSET_INFO *, size_t);
+
+my_strnxfrm_ret_t
+my_strnxfrm_unicode_full_bin(CHARSET_INFO *,
+                             uchar *dst, size_t dstlen, uint nweights,
+                             const uchar *src, size_t srclen, uint flags);
+
+my_strnxfrm_ret_t
+my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *,
+                                   uchar *dst, size_t dstlen, uint nweights,
+                                   const uchar *src, size_t srclen,
+                                   uint flags);
+
+my_strnxfrm_ret_t
+my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
+                                uchar *str, uchar *frmend, uchar *strend,
+                                uint nweights, uint flags, uint level);
+
+my_strnxfrm_ret_t
+my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
+                                      uchar *str, uchar *frmend,
+                                      uchar *strend, uint nweights,
+                                      uint flags, uint level);
 
 uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs);
 uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
@@ -141,6 +218,20 @@ int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
 
 int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
                             uchar *s, uchar *e);
+
+void my_ci_set_strength(struct charset_info_st *cs, uint strength);
+void my_ci_set_level_flags(struct charset_info_st *cs, uint flags);
+
+uint my_casefold_multiply_1(CHARSET_INFO *cs);
+uint my_casefold_multiply_2(CHARSET_INFO *cs);
+
+my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other);
+
+struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
+                                    const LEX_CSTRING name,
+                                    LEX_CSTRING *out_name,
+                                    const LEX_CSTRING comment,
+                                    LEX_CSTRING *out_comment);
 
 /* Some common character set names */
 extern const char charset_name_latin2[];

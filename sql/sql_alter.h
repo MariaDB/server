@@ -85,7 +85,8 @@ public:
     ALTER_TABLE_LOCK_EXCLUSIVE
   };
 
-  Lex_table_name db, table_name;
+  Lex_ident_db db;
+  Lex_ident_table table_name;
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;
@@ -97,6 +98,7 @@ public:
   List<Alter_rename_key>        alter_rename_key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
+  uint                          select_field_count;
   // Indexes whose ignorability needs to be changed.
   List<Alter_index_ignorability>  alter_index_ignorability_list;
   List<Virtual_column_info>     check_constraint_list;
@@ -197,6 +199,7 @@ public:
 
 
   Alter_info() :
+  select_field_count(0),
   flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
     original_table(0),
@@ -218,6 +221,7 @@ public:
     drop_stat_indexes.empty();
     rename_stat_fields.empty();
     rename_stat_indexes.empty();
+    select_field_count= 0;
     flags= 0;
     partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;
@@ -310,15 +314,27 @@ public:
      @retval false  Supported lock type
      @retval true   Not supported value
   */
-  bool supports_lock(THD *thd, const Alter_inplace_info *ha_alter_info);
+  bool supports_lock(THD *thd, bool, Alter_inplace_info *ha_alter_info);
 
   /**
     Return user requested algorithm. If user does not specify
     algorithm then return alter_algorithm variable value.
    */
   enum_alter_table_algorithm algorithm(const THD *thd) const;
-
+  bool algorithm_is_nocopy(const THD *thd) const;
+  bool algorithm_not_specified() const
+  {
+    return requested_algorithm == ALTER_TABLE_ALGORITHM_NONE;
+  }
   uint check_vcol_field(Item_field *f) const;
+
+  bool add_alter_list(THD *thd, LEX_CSTRING name, LEX_CSTRING new_name,
+                      bool exists);
+
+  uint field_count() const
+  {
+    return create_list.elements - select_field_count;
+  }
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
@@ -336,13 +352,15 @@ public:
                   const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
 
   /**
-     @return true if the table is moved to another database, false otherwise.
+     @return true if the table is moved to another database or a new table
+     created by ALTER_PARTITION_CONVERT_OUT, false otherwise.
   */
   bool is_database_changed() const
   { return (new_db.str != db.str); };
 
   /**
-     @return true if the table is renamed, false otherwise.
+     @return true if the table is renamed or a new table created by
+     ALTER_PARTITION_CONVERT_OUT, false otherwise.
   */
   bool is_table_renamed() const
   { return (is_database_changed() || new_name.str != table_name.str); };
@@ -402,12 +420,12 @@ public:
   Create_field *implicit_default_value_error_field= nullptr;
   bool         error_if_not_empty= false;
   uint         tables_opened= 0;
-  LEX_CSTRING  db;
-  LEX_CSTRING  table_name;
+  Lex_ident_db db;
+  Lex_ident_table table_name;
   LEX_CSTRING  storage_engine_name;
   LEX_CSTRING  alias;
-  LEX_CSTRING  new_db;
-  LEX_CSTRING  new_name;
+  Lex_ident_db new_db;
+  Lex_ident_table new_name;
   LEX_CSTRING  new_alias;
   LEX_CSTRING  tmp_name;
   LEX_CSTRING  tmp_storage_engine_name;
@@ -435,7 +453,7 @@ public:
 
 private:
   char new_filename[FN_REFLEN + 1];
-  char new_alias_buff[NAME_LEN + 1];
+  CharBuffer<NAME_LEN> new_name_buff;
   char tmp_name_buff[NAME_LEN + 1];
   char path[FN_REFLEN + 1];
   char new_path[FN_REFLEN + 1];

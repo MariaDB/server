@@ -1,0 +1,88 @@
+# Use `--master-retry-count` when not specified
+CHANGE MASTER 'named' TO master_host='example.com';
+CHANGE MASTER TO master_host='127.0.0.1', master_ssl_verify_server_cert=0;
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	1
+named	1
+# Replace when specified
+CHANGE MASTER 'named' TO master_retry_count=11;
+CHANGE MASTER TO master_retry_count=10;
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+# Conventional views also show the configurations
+Connection_name = ''
+Connection_name = 'named'
+Master_Retry_Count = '10'
+Master_Retry_Count = '11'
+Master_Retry_Count = '10'
+Master_Retry_Count = '11'
+SELECT CHANNEL_NAME, CONNECTION_RETRY_COUNT
+FROM performance_schema.replication_connection_configuration;
+CHANNEL_NAME	CONNECTION_RETRY_COUNT
+named	11
+	10
+# Restore specified config on restart
+# restart: --skip-slave-start
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+# Keep specified config on RESET REPLICA
+RESET REPLICA 'named';
+RESET REPLICA;
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+# Don't replace when not specified
+CHANGE MASTER TO master_user='root';
+CHANGE MASTER 'named' TO master_user='root';
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+# 0 internally means "not specified"
+CHANGE MASTER TO master_retry_count=0;
+CHANGE MASTER 'named' TO master_retry_count=0;
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+# Truncates decimals
+CHANGE MASTER TO master_retry_count=0.5;
+CHANGE MASTER 'named' TO master_retry_count=0.5;
+SELECT Connection_name, Master_Retry_Count
+FROM information_schema.SLAVE_STATUS;
+Connection_name	Master_Retry_Count
+	10
+named	11
+# Caps values (such as UINT64_MAX + 1) to `--master-retry-count`'s max
+CHANGE MASTER TO master_retry_count=18446744073709551616;
+CHANGE MASTER 'named' TO master_retry_count=18446744073709551616;
+SELECT Connection_name
+FROM information_schema.SLAVE_STATUS
+WHERE Master_Retry_Count IN (4294967295, 18446744073709551615);
+Connection_name
+
+named
+# Negative
+CHANGE MASTER TO master_retry_count=-1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1' at line 1
+CHANGE MASTER 'named' TO master_retry_count=-1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1' at line 1
+# NaN
+CHANGE MASTER TO master_retry_count='5';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''5'' at line 1
+CHANGE MASTER 'named' TO master_retry_count='5';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''5'' at line 1
+# Cleanup
+RESET REPLICA 'named' ALL;

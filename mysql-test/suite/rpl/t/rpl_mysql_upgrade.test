@@ -55,7 +55,7 @@ connection master;
 --exec $MYSQL_UPGRADE --skip-verbose --write-binlog --force --user=root > $MYSQLTEST_VARDIR/log/mysql_upgrade.log 2>&1
 
 let $datadir= `select @@datadir`;
-remove_file $datadir/mysql_upgrade_info;
+remove_file $datadir/mariadb_upgrade_info;
 
 connection master;
 let $after_file= query_get_value(SHOW MASTER STATUS, File, 1);

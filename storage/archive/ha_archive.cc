@@ -17,10 +17,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #include "sql_class.h"                          // SSV
 #include "sql_table.h"                          // build_table_filename
@@ -45,8 +41,8 @@
   
   We keep a file pointer open for each instance of ha_archive for each read
   but for writes we keep one open file handle just for that. We flush it
-  only if we have a read occur. azip handles compressing lots of records
-  at once much better then doing lots of little records between writes.
+  only if we have a read occur. azio handles compressing lots of records
+  at once much better than doing lots of little records between writes.
   It is possible to not lock on writes but this would then mean we couldn't
   handle bulk inserts as well (that is if someone was trying to read at
   the same time since we would want to flush).
@@ -64,7 +60,7 @@
 
   At some point a recovery method for such a drastic case needs to be divised.
 
-  Locks are row level, and you will get a consistant read. 
+  Locks are row level, and you will get a consistent read.
 
   For performance as far as table scans go it is quite fast. I don't have
   good numbers but locally it has out performed both Innodb and MyISAM. For
@@ -132,7 +128,8 @@ extern "C" PSI_file_key arch_key_file_data;
 static handler *archive_create_handler(handlerton *hton, 
                                        TABLE_SHARE *table, 
                                        MEM_ROOT *mem_root);
-int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share);
+static int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share);
+static void archive_update_optimizer_costs(OPTIMIZER_COSTS *costs);
 
 /*
   Number of rows that will force a bulk insert.
@@ -205,6 +202,7 @@ static const char *ha_archive_exts[] = {
   NullS
 };
 
+
 int archive_db_init(void *p)
 {
   DBUG_ENTER("archive_db_init");
@@ -217,10 +215,10 @@ int archive_db_init(void *p)
   archive_hton= (handlerton *)p;
   archive_hton->db_type= DB_TYPE_ARCHIVE_DB;
   archive_hton->create= archive_create_handler;
-  archive_hton->flags= HTON_NO_FLAGS;
   archive_hton->discover_table= archive_discover;
   archive_hton->tablefile_extensions= ha_archive_exts;
-
+  archive_hton->update_optimizer_costs= archive_update_optimizer_costs;
+  archive_hton->flags= HTON_NO_FLAGS;
   DBUG_RETURN(0);
 }
 
@@ -270,7 +268,7 @@ ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
 /* Stack size 50264 with clang */
 PRAGMA_DISABLE_CHECK_STACK_FRAME
 
-int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
+static int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("archive_discover");
   DBUG_PRINT("archive_discover", ("db: '%s'  name: '%s'", share->db.str,
@@ -797,7 +795,9 @@ int ha_archive::create(const char *name, TABLE *table_arg,
     {
       Field *field= key_part->field;
 
-      if (!(field->flags & AUTO_INCREMENT_FLAG))
+      if (!(field->flags & AUTO_INCREMENT_FLAG) ||
+          key_part->key_part_flag & HA_REVERSE_SORT)
+
       {
         error= HA_WRONG_CREATE_OPTION;
         DBUG_PRINT("ha_archive", ("Index error in creating archive table"));
@@ -826,7 +826,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 #endif /* HAVE_READLINK */
   {
     if (create_info->data_file_name)
-      my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING), "DATA DIRECTORY");
+      my_error(WARN_OPTION_IGNORED, MYF(ME_NOTE), "DATA DIRECTORY");
 
     fn_format(name_buff, name, "", ARZ,
               MY_REPLACE_EXT | MY_UNPACK_FILENAME);
@@ -834,8 +834,8 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   }
 
   /* Archive engine never uses INDEX DIRECTORY. */
-  if (create_info->index_file_name)
-      my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING), "INDEX DIRECTORY");
+  if (create_info->index_file_name && table_arg->s->keys)
+      my_error(WARN_OPTION_IGNORED, MYF(ME_NOTE), "INDEX DIRECTORY");
 
   /*
     There is a chance that the file was "discovered". In this case
@@ -1010,7 +1010,7 @@ int ha_archive::write_row(const uchar *buf)
     temp_auto= table->next_number_field->val_int();
 
     /*
-      We don't support decremening auto_increment. They make the performance
+      We don't support decrementing auto_increment. They make the performance
       just cry.
     */
     if (temp_auto <= share->archive_write.auto_increment && 
@@ -1103,6 +1103,54 @@ int ha_archive::index_init(uint keynr, bool sorted)
   DBUG_RETURN(0);
 }
 
+#define ARCHIVE_DECOMPRESS_TIME 0.081034543792841 // See optimizer_costs.txt
+
+static void archive_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  costs->disk_read_ratio= 0.20;     // Assume 80 % of data is cached by system
+  costs->row_lookup_cost= 0;        // See rnd_pos_time
+  costs->key_lookup_cost= 0;        // See key_read_time
+  costs->key_next_find_cost= 0;     // Only unique indexes
+  costs->index_block_copy_cost= 0;
+}
+
+
+IO_AND_CPU_COST ha_archive::scan_time()
+{
+  IO_AND_CPU_COST cost;
+  ulonglong blocks;
+  DBUG_ENTER("ha_archive::scan_time");
+
+  blocks= stats.data_file_length / IO_SIZE;
+  cost.io= 0;                                   // No cache
+  cost.cpu= (blocks * DISK_READ_COST * DISK_READ_RATIO +
+             blocks*  ARCHIVE_DECOMPRESS_TIME);
+  DBUG_RETURN(cost);
+}
+
+
+IO_AND_CPU_COST ha_archive::keyread_time(uint index, ulong ranges, ha_rows rows,
+                                         ulonglong blocks)
+{
+  IO_AND_CPU_COST cost= scan_time();
+  /*
+    As these is an unique indexe, assume that we have to scan half the file for
+    each range to find the row.
+  */
+  cost.cpu= cost.cpu * ranges / 2;
+  return cost;
+}
+
+
+IO_AND_CPU_COST ha_archive::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost;
+  /* We have to do one azseek() for each row */
+  cost.io= rows2double(rows);
+  cost.cpu= rows * (DISK_READ_COST * DISK_READ_RATIO + ARCHIVE_DECOMPRESS_TIME);
+  return cost;
+}
+
 
 /*
   No indexes, so if we get a request for an index search since we tell
@@ -1127,8 +1175,6 @@ int ha_archive::index_read_idx(uchar *buf, uint index, const uchar *key,
   current_k_offset= mkey->key_part->offset;
   current_key= key;
   current_key_len= key_len;
-
-
   DBUG_ENTER("ha_archive::index_read_idx");
 
   rc= rnd_init(TRUE);
@@ -1978,4 +2024,3 @@ maria_declare_plugin(archive)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
-

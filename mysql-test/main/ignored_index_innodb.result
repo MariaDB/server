@@ -1,7 +1,19 @@
 create table t1 (a int, b int, key a1(a)) engine=innodb;
 insert into t1 values (1,1),(2,2),(3,3);
-set alter_algorithm='instant';
-alter table t1 alter index a1 ignored;
-alter table t1 alter index a1 not ignored;
-set alter_algorithm=default;
+alter table t1 alter index a1 ignored, algorithm=instant;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a1` (`a`) IGNORED
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 alter index a1 not ignored, algorithm=instant;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;

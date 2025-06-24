@@ -8,5 +8,5 @@ START SLAVE;
 include/wait_for_slave_io_error.inc [errno=1045, 1593]
 include/stop_slave_sql.inc
 CHANGE MASTER TO MASTER_USER= 'root', MASTER_PASSWORD= '';
-START SLAVE;
+include/start_slave.inc
 include/rpl_end.inc

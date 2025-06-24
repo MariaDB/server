@@ -1,4 +1,4 @@
-# Miscellanous FULLTEXT INDEX tests for debug-instrumented servers.
+# Miscellaneous FULLTEXT INDEX tests for debug-instrumented servers.
 # Note: These tests used to be part of a larger test, innodb_fts_misc_debug
 # or innodb_fts.misc_debug. A large part of that test can be run on a
 # non-debug server and has been renamed to innodb_fts.crash_recovery.

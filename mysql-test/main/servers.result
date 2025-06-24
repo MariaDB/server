@@ -4,25 +4,25 @@ set sql_mode="";
 #
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'localhost');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1	localhost				3306		mysql	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1	localhost				3306		mysql		{"HOST": "localhost"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER foo OPTIONS(USER 'bar');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1			bar		0		foo	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1			bar		0		foo		{"USER": "bar"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(USER 'bar');
 ERROR HY000: Can't create federated table. Foreign data src error:  either HOST or SOCKET must be set
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'bar');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1	bar				3306		mysql	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1	bar				3306		mysql		{"HOST": "bar"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET 'bar');
 SELECT * FROM mysql.servers;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-s1					3306	bar	mysql	
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+s1					3306	bar	mysql		{"SOCKET": "bar"}
 DROP SERVER s1;
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
 SELECT Socket FROM mysql.servers where Server_name = 's1';
@@ -43,10 +43,52 @@ ERROR HY000: Can't read record in system table
 drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
 drop server s1;
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+Socket
+/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock
+DROP SERVER s1;
 #
-# MDEV-35641 foreign server "disappears" after ALTERing the servers system table to use innodb and FLUSH PRIVILEGES
+# MDEV-34716 - Arbitrary OPTIONS for CREATE SERVER
+# MDEV-15696 - SHOW CREATE SERVER
+#
+create server srv foreign data wrapper mysql options
+(host "localhost", port 12345, wait_what "it's all good");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER mysql OPTIONS (host 'localhost', port '12345', wait_what 'it''s all good');
+create or replace server srv foreign data wrapper Foo options
+(host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', port '54321', wait_what 'it''s all good', foo 'bar');
+alter server srv options (socket "sock", port 123, foo "", bar ')"{');
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', socket 'sock', port '123', foo '', bar ')"{');
+alter server srv options (socket "sock", port 123, bar "quux");
+show create server srv;
+Server	Create Server
+srv	CREATE SERVER `srv` FOREIGN DATA WRAPPER Foo OPTIONS (host 'somewhere.else', wait_what 'it''s all good', foo '', socket 'sock', port '123', bar 'quux');
+create or replace server srv foreign data wrapper foo options
+(host "localhost", port "12345");
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "bar321");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"bar321")' at line 2
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "123bar");
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"123bar")' at line 2
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "0");
+show create server nonexist;
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  nonexist
+drop server srv;
+#
+# MDEV-35557 SIGSEGV in get_server_from_table_to_cache | servers_load, UBSAN null pointer passed as argument 1, which is declared to never be null
 #
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
-ALTER TABLE mysql.servers ENGINE=innodb;
+ALTER TABLE mysql.servers ENGINE=InnoDB;
+FLUSH PRIVILEGES;
+ALTER TABLE mysql.servers ENGINE=Aria;
 FLUSH PRIVILEGES;
 drop server s1;

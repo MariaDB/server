@@ -175,7 +175,7 @@ static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          "\"Auto\", \"Legacy\", \"Original\", \"Amazon\", "
                          "\"Path\" or \"Domain\". "
                          "Note: \"Legacy\", \"Original\" and \"Amazon\" are "
-                         "deprecated.",
+                         "deprecated",
                          NULL, NULL, 0, &s3_protocol_typelib);
 
 static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
@@ -183,14 +183,14 @@ static MYSQL_SYSVAR_ULONG(pagecache_age_threshold,
        "This characterizes the number of hits a hot block has to be untouched "
        "until it is considered aged enough to be downgraded to a warm block. "
        "This specifies the percentage ratio of that number of hits to the "
-       "total number of blocks in the page cache.", 0, 0,
+       "total number of blocks in the page cache", 0, 0,
        300, 100, ~ (ulong) 0L, 100);
 
 static MYSQL_SYSVAR_ULONGLONG(pagecache_buffer_size, s3_pagecache_buffer_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "The size of the buffer used for index blocks for S3 tables. "
        "Increase this to get better index handling (for all reads and "
-       "multiple writes) to as much as you can afford.", 0, 0,
+       "multiple writes) to as much as you can afford", 0, 0,
         128*1024*1024, 1024*1024*32, ~(ulonglong) 0, 8192);
 
 static MYSQL_SYSVAR_ULONG(pagecache_division_limit,
@@ -205,7 +205,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size,
        "Number of hash buckets for open files.  If you have a lot "
        "of S3 files open you should increase this for faster flush of "
        "changes. A good value is probably 1/10 of number of possible open "
-       "S3 files.", 0,0, 512, 32, 16384, 1);
+       "S3 files", 0,0, 512, 32, 16384, 1);
 
 static MYSQL_SYSVAR_STR(bucket, s3_bucket,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -226,7 +226,7 @@ static MYSQL_SYSVAR_BOOL(use_http, s3_use_http,
        NULL /*check*/, NULL /*update*/, 0 /*default*/);
 static MYSQL_SYSVAR_BOOL(ssl_no_verify, s3_ssl_no_verify,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-      "If true, SSL certificate verifiction for the S3 endpoint is disabled",
+      "If true, SSL certificate verification for the S3 endpoint is disabled",
        NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,
@@ -247,7 +247,7 @@ static MYSQL_SYSVAR_BOOL(no_content_type, s3_no_content_type,
 static MYSQL_SYSVAR_ENUM(provider, s3_provider,
                          PLUGIN_VAR_RQCMDARG,
                          "Enable S3 provider specific compatibility tweaks "
-                         "\"Default\", \"Amazon\", or \"Huawei\". ",
+                         "\"Default\", \"Amazon\", or \"Huawei\"",
                          NULL, NULL, 0, &s3_provider_typelib);
 
 ha_create_table_option s3_table_option_list[]=
@@ -279,6 +279,7 @@ ha_s3::ha_s3(handlerton *hton, TABLE_SHARE *table_arg)
   /* Remove things that S3 doesn't support */
   int_table_flags&= ~(HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                       HA_CAN_EXPORT);
+  int_table_flags|= HA_NO_ONLINE_ALTER;
   can_enable_indexes= 0;
 }
 
@@ -502,9 +503,9 @@ int ha_s3::rename_table(const char *from, const char *to)
         The table is renamed to a temporary table. This only happens
         in the case of an ALTER PARTITION failure and there will be soon
         a delete issued for the temporary table. The only thing we can do
-        is to remove the from table. We will get an extra errors for the
-        uppcoming but we will ignore this minor problem for now as this
-        is an unlikely event and the extra warnings are just annoying,
+        is to remove the "from" table. We will get extra errors for this
+        but we will ignore this minor problem for now as this
+        is an unlikely event and extra warnings are just annoying,
         not critical.
       */
       error= aria_delete_from_s3(s3_client, from_s3_info.bucket.str,
@@ -867,11 +868,11 @@ static int s3_discover_table_existence(handlerton *hton, const char *db,
 /**
   Return a list of all S3 tables in a database
 
-  Partitoned tables are not shown
+  Partitioned tables are not shown
 */
 
 static int s3_discover_table_names(handlerton *hton __attribute__((unused)),
-                                   LEX_CSTRING *db,
+                                   const LEX_CSTRING *db,
                                    MY_DIR *dir __attribute__((unused)),
                                    handlerton::discovered_list *result)
 {
@@ -928,7 +929,7 @@ int ha_s3::discover_check_version()
   s3_info.tabledef_version= table->s->tabledef_version;
   /*
     We have to change the database and table as the table may part of a
-    partitoned table. In this case we want to check the frm file for the
+    partitioned table. In this case we want to check the frm file for the
     partitioned table, not the part table.
   */
   s3_info.base_table= table->s->table_name;
@@ -1071,7 +1072,7 @@ static int ha_s3_init(void *p)
   s3_hton->tablefile_extensions= no_exts;
   s3_hton->commit= 0;
   s3_hton->rollback= 0;
-  s3_hton->checkpoint_state= 0;
+  s3_hton->disable_internal_writes= 0;
   s3_hton->flush_logs= 0;
   s3_hton->show_status= 0;
   s3_hton->prepare_for_backup= 0;

@@ -1,0 +1,21 @@
+#
+# MDEV-26137 ALTER TABLE IMPORT enhancement
+#
+CREATE TABLE t1(a INT PRIMARY KEY DEFAULT 42) CREATE_OPTIONS;
+INSERT INTO t1() VALUES();
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL DEFAULT 42,
+  PRIMARY KEY (`a`)
+) CREATE_OPTIONS
+SELECT * FROM t2;
+a
+42
+DROP TABLE t1, t2;

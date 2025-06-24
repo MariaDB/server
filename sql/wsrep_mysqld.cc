@@ -17,6 +17,7 @@
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 #include "my_global.h"
 #include "wsrep_server_state.h"
+#include "wsrep_status.h"
 
 #include "mariadb.h"
 #include <mysqld.h>
@@ -56,7 +57,6 @@
 #include <sstream>
 
 /* wsrep-lib */
-Wsrep_server_state* Wsrep_server_state::m_instance;
 
 my_bool wsrep_emulate_bin_log= FALSE; // activating parts of binlog interface
 my_bool wsrep_preordered_opt= FALSE;
@@ -83,6 +83,8 @@ const char *wsrep_start_position;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
+const char *wsrep_status_file;
+const char *wsrep_allowlist;
 
 ulong   wsrep_debug;                            // Debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
@@ -91,7 +93,6 @@ my_bool wsrep_drupal_282555_workaround;         // Retry autoinc insert after du
 my_bool wsrep_certify_nonPK;                    // Certify, even when no primary key
 ulong   wsrep_certification_rules      = WSREP_CERTIFICATION_RULES_STRICT;
 my_bool wsrep_recovery;                         // Recovery
-my_bool wsrep_replicate_myisam;                 // Enable MyISAM replication
 my_bool wsrep_log_conflicts;
 my_bool wsrep_load_data_splitting= 0;           // Commit load data every 10K intervals
 my_bool wsrep_slave_UK_checks;                  // Slave thread does UK checks
@@ -101,9 +102,6 @@ my_bool wsrep_restart_slave;                    // Should mysql slave thread be
 my_bool wsrep_desync;                           // De(re)synchronize the node from the
                                                 // cluster
 ulonglong wsrep_mode;
-my_bool wsrep_strict_ddl;                       // Deprecated: Reject DDL to
-                                                // effected tables not
-                                                // supporting Galera replication
 bool wsrep_service_started;                     // If Galera was initialized
 long wsrep_slave_threads;                       // No. of slave appliers threads
 ulong wsrep_retry_autocommit;                   // Retry aborted autocommit trx
@@ -460,6 +458,17 @@ void wsrep_init_schema()
       WSREP_ERROR("Failed to init wsrep schema");
       unireg_abort(1);
     }
+    // If we are bootstraping new cluster we should 
+    // clear allowlist table and populate it from variable
+    if (wsrep_new_cluster) 
+    {
+      wsrep_schema->clear_allowlist();
+      std::vector<std::string> ip_allowlist;
+      if (wsrep_split_allowlist(ip_allowlist))
+      {
+        wsrep_schema->store_allowlist(ip_allowlist);
+      }
+    }
   }
 }
 
@@ -777,6 +786,8 @@ int wsrep_init_server()
   wsrep::log::logger_fn(wsrep_log_cb);
   try
   {
+    Wsrep_status::init_once(wsrep_status_file);
+
     std::string server_name;
     std::string server_id;
     std::string node_address;
@@ -835,6 +846,12 @@ void wsrep_init_globals()
                  global_system_variables.server_id, wsrep_gtid_server.server_id);
   }
   wsrep_init_schema();
+  {
+    /* apparently this thread has already called my_thread_init(),
+     * so we skip it, hence 'false' for initialization. */
+    wsp::thd thd(false, true);
+    wsrep_sst_cleanup_user(thd.ptr);
+  }
   if (WSREP_ON)
   {
     Wsrep_server_state::instance().initialized();
@@ -845,6 +862,7 @@ void wsrep_deinit_server()
 {
   wsrep_deinit_schema();
   Wsrep_server_state::destroy();
+  Wsrep_status::destroy();
   wsrep_free_status_vars();
 }
 
@@ -853,14 +871,13 @@ int wsrep_init()
   assert(wsrep_provider);
 
   wsrep_init_position();
-  wsrep_sst_auth_init();
 
   if (!*wsrep_provider ||
       !strcasecmp(wsrep_provider, WSREP_NONE))
   {
     // enable normal operation in case no provider is specified
     global_system_variables.wsrep_on= 0;
-    int err= Wsrep_server_state::instance().load_provider(
+    int err= Wsrep_server_state::init_provider(
         wsrep_provider, wsrep_provider_options ? wsrep_provider_options : "");
     if (err)
     {
@@ -883,10 +900,14 @@ int wsrep_init()
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
     wsrep_data_home_dir= mysql_real_data_home;
 
-  if (Wsrep_server_state::instance().load_provider(wsrep_provider,
-                                                   wsrep_provider_options))
+  Wsrep_server_state::init_provider_services();
+  if (Wsrep_server_state::instance().load_provider(
+      wsrep_provider,
+      wsrep_provider_options,
+      Wsrep_server_state::instance().provider_services()))
   {
     WSREP_ERROR("Failed to load provider");
+    Wsrep_server_state::deinit_provider_services();
     return 1;
   }
 
@@ -899,13 +920,14 @@ int wsrep_init()
                 "wsrep_trx_fragment_size to 0 or use wsrep_provider that "
                 "supports streaming replication.",
                 wsrep_provider, global_system_variables.wsrep_trx_fragment_size);
-    Wsrep_server_state::instance().unload_provider();
+    Wsrep_server_state::instance().deinit_provider();
+    Wsrep_server_state::deinit_provider_services();
     return 1;
   }
 
   /* Now WSREP is fully initialized */
   global_system_variables.wsrep_on= 1;
-  WSREP_ON_= wsrep_provider && strcmp(wsrep_provider, WSREP_NONE);
+  WSREP_ON_= wsrep_provider && *wsrep_provider && strcasecmp(wsrep_provider, WSREP_NONE);
   wsrep_service_started= 1;
 
   wsrep_init_provider_status_variables();
@@ -914,7 +936,6 @@ int wsrep_init()
 
   WSREP_DEBUG("SR storage init for: %s",
               (wsrep_SR_store_type == WSREP_SR_STORE_TABLE) ? "table" : "void");
-
   return 0;
 }
 
@@ -975,7 +996,8 @@ void wsrep_init_startup (bool sst_first)
     wsrep_plugins_pre_init();
 
   /* Skip replication start if dummy wsrep provider is loaded */
-  if (!strcmp(wsrep_provider, WSREP_NONE)) return;
+  if (!wsrep_provider || !*wsrep_provider ||
+      !strcasecmp(wsrep_provider, WSREP_NONE)) return;
 
   /* Skip replication start if no cluster address */
   if (!wsrep_cluster_address_exists()) return;
@@ -989,6 +1011,11 @@ void wsrep_init_startup (bool sst_first)
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
 
+  if (Wsrep_server_state::init_options())
+  {
+    WSREP_WARN("Failed to initialize provider options");
+  }
+
   Wsrep_server_state& server_state= Wsrep_server_state::instance();
   /*
     If the SST happens before server initialization, wait until the server
@@ -996,7 +1023,7 @@ void wsrep_init_startup (bool sst_first)
     either SST was not necessary or SST has been delivered.
 
     With mysqldump SST (!sst_first) wait until the server reaches
-    joiner state and procedd to accepting connections.
+    joiner state and proceed to accepting connections.
   */
   int err= 0;
   if (sst_first)
@@ -1020,7 +1047,9 @@ void wsrep_deinit(bool free_options)
   DBUG_ASSERT(wsrep_inited == 1);
   WSREP_DEBUG("wsrep_deinit");
 
-  Wsrep_server_state::instance().unload_provider();
+  Wsrep_server_state::deinit_provider();
+  Wsrep_server_state::deinit_provider_services();
+
   provider_name[0]=    '\0';
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
@@ -1032,11 +1061,6 @@ void wsrep_deinit(bool free_options)
     char* p= wsrep_provider_capabilities;
     wsrep_provider_capabilities= NULL;
     free(p);
-  }
-
-  if (free_options)
-  {
-    wsrep_sst_auth_free();
   }
 }
 
@@ -1166,8 +1190,9 @@ bool wsrep_start_replication(const char *wsrep_cluster_address)
   // --wsrep-new-cluster flag is not used, checking wsrep_cluster_address
   // it should match gcomm:// only to be considered as bootstrap node.
   // This logic is used in galera.
-  if (!wsrep_new_cluster && (strlen(wsrep_cluster_address) == 8) &&
-      !strncmp(wsrep_cluster_address, "gcomm://", 8))
+  if (!wsrep_new_cluster && 
+      (strlen(wsrep_cluster_address) == 8) &&
+      !strncmp(wsrep_cluster_address, "gcomm://", 8)) 
   {
     wsrep_new_cluster= true;
   }
@@ -1428,15 +1453,20 @@ bool wsrep_check_mode_after_open_table (THD *thd,
                    (db_type == DB_TYPE_ARIA && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)));
   TABLE *tbl= tables->table;
 
+  DBUG_ASSERT(tbl);
   if (replicate)
   {
-    /* It is not recommended to replicate MyISAM as it lacks rollback feature
-    but if user demands then actions are replicated using TOI.
-    Following code will kick-start the TOI but this has to be done only once
-    per statement.
-    Note: kick-start will take-care of creating isolation key for all tables
-    involved in the list (provided all of them are MYISAM or Aria tables). */
-    if (!is_stat_table(&tables->db, &tables->alias))
+    /*
+      It is not recommended to replicate MyISAM as it lacks rollback
+      feature but if user demands then actions are replicated using TOI.
+      Following code will kick-start the TOI but this has to be done
+      only once per statement.
+
+      Note: kick-start will take care of creating isolation key for
+      all tables involved in the list (provided all of them are MYISAM
+      or Aria tables).
+    */
+    if (tbl->s->table_category != TABLE_CATEGORY_STATISTICS)
     {
       if (tbl->s->primary_key == MAX_KEY &&
           wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
@@ -1470,13 +1500,14 @@ bool wsrep_check_mode_after_open_table (THD *thd,
              db_type != DB_TYPE_PERFORMANCE_SCHEMA)
   {
     bool is_system_db= (tbl &&
-                       ((strcmp(tbl->s->db.str, "mysql") == 0) ||
-                        (strcmp(tbl->s->db.str, "information_schema") == 0)));
+                        (!strcmp(tbl->s->db.str, "mysql") ||
+                         (tbl->s->table_category ==
+                          TABLE_CATEGORY_INFORMATION &&
+                          !strcmp(tbl->s->db.str, "information_schema"))));
 
     if (!is_system_db &&
 	!is_temporary_table(tables))
     {
-
       if (db_type != DB_TYPE_INNODB &&
 	  wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
       {
@@ -1882,6 +1913,34 @@ bool wsrep_reload_ssl()
   }
 }
 
+bool wsrep_split_allowlist(std::vector<std::string>& allowlist)
+{
+  if (!wsrep_allowlist || 0 == strlen(wsrep_allowlist))
+  {
+    return false;
+  }
+  std::istringstream ss{wsrep_allowlist};
+  std::string token;
+  while (std::getline(ss, token, ',')) 
+  {
+    if (!token.empty()) 
+    {
+      struct sockaddr_in sa_4;
+      struct sockaddr_in6 sa_6;
+      if ((inet_pton(AF_INET, token.c_str(), &(sa_4.sin_addr)) != 0) ||
+          (inet_pton(AF_INET6, token.c_str(), &(sa_6.sin6_addr)) != 0))
+      {
+        allowlist.push_back(token);
+      }
+      else
+      {
+        WSREP_WARN("Invalid IP address %s provided in `wsrep_allowlist` variable", token.c_str());
+      }
+    }
+  }
+  return allowlist.size();
+}
+
 /*!
  * @param db      Database string
  * @param table   Table string
@@ -2198,16 +2257,16 @@ int wsrep_to_buf_helper(
     THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len)
 {
   IO_CACHE tmp_io_cache;
-  Log_event_writer writer(&tmp_io_cache, 0);
+  enum_binlog_checksum_alg current_binlog_check_alg=
+    (enum_binlog_checksum_alg) binlog_checksum_options;
+  Log_event_writer writer(&tmp_io_cache, NULL, current_binlog_check_alg, NULL);
   if (open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                        65536, MYF(MY_WME)))
     return 1;
   int ret(0);
-  enum enum_binlog_checksum_alg current_binlog_check_alg=
-    (enum_binlog_checksum_alg) binlog_checksum_options;
 
-  Format_description_log_event *tmp_fd= new Format_description_log_event(4);
-  tmp_fd->checksum_alg= current_binlog_check_alg;
+  Format_description_log_event *tmp_fd=
+    new Format_description_log_event(4, NULL, current_binlog_check_alg);
   writer.write(tmp_fd);
   delete tmp_fd;
 
@@ -2263,7 +2322,6 @@ int wsrep_to_buf_helper(
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
 		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
-    ev.checksum_alg= current_binlog_check_alg;
     if (writer.write(&ev)) ret= 1;
   }
 
@@ -2272,7 +2330,6 @@ int wsrep_to_buf_helper(
   /* WSREP GTID mode, we need to change server_id */
   if (wsrep_gtid_mode && !thd->variables.gtid_seq_no)
     ev.server_id= wsrep_gtid_server.server_id;
-  ev.checksum_alg= current_binlog_check_alg;
   if (!ret && writer.write(&ev)) ret= 1;
   if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);
@@ -2404,7 +2461,7 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
   bool found_temp_table= false;
   for (TABLE_LIST* table= first_table; table; table= table->next_global)
   {
-    if (thd->find_temporary_table(table->db.str, table->table_name.str))
+    if (thd->find_temporary_table(table->db, table->table_name))
     {
       found_temp_table= true;
       break;
@@ -2419,7 +2476,7 @@ static int wsrep_drop_table_query(THD* thd, uchar** buf, size_t* buf_len)
 
     for (TABLE_LIST* table= first_table; table; table= table->next_global)
     {
-      if (!thd->find_temporary_table(table->db.str, table->table_name.str))
+      if (!thd->find_temporary_table(table->db, table->table_name))
       {
         append_identifier(thd, &buff, table->db.str, table->db.length);
         buff.append('.');
@@ -2634,7 +2691,8 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     }
     /* fallthrough */
   default:
-    if (table && !thd->find_temporary_table(db, table))
+    if (table && !thd->find_temporary_table(Lex_ident_db(Lex_cstring_strlen(db)),
+                                            Lex_cstring_strlen(table)))
     {
       return true;
     }
@@ -2643,7 +2701,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       for (const TABLE_LIST* table= first_table; table; table= table->next_global)
       {
-        if (!thd->find_temporary_table(table->db.str, table->table_name.str))
+        if (!thd->find_temporary_table(table->db, table->table_name))
         {
           return true;
         }
@@ -2677,7 +2735,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 
   if (sp->m_handler->type() == SP_TYPE_FUNCTION)
   {
-    sp_returns_type(thd, retstr, sp);
+    sp->sp_returns_type(thd, retstr);
     retstr.get_value(&returns);
   }
   if (sp->m_handler->
@@ -2818,6 +2876,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   }
 
   thd_proc_info(thd, "acquiring total order isolation");
+  WSREP_DEBUG("wsrep_TOI_begin for %s", wsrep_thd_query(thd));
+  THD_STAGE_INFO(thd, stage_waiting_isolation);
 
   DEBUG_SYNC(thd, "wsrep_before_toi_begin");
 
@@ -3199,10 +3259,10 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
 {
-  /* Fallback to the non-wsrep behaviour */
-  if (!WSREP_ON) return;
-
   THD *request_thd= requestor_ctx->get_thd();
+
+  /* Fallback to the non-wsrep behaviour */
+  if (!WSREP(request_thd)) return;
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
 
@@ -3214,6 +3274,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     const char* schema= key->db_name();
     int schema_len= key->db_name_length();
 
+    WSREP_DEBUG("wsrep_handle_mdl_conflict request TOI/APPLY for %s",
+                wsrep_thd_query(request_thd));
+    THD_STAGE_INFO(request_thd, stage_waiting_isolation);
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
     WSREP_MDL_LOG(DEBUG, "MDL conflict ", schema, schema_len,
                   request_thd, granted_thd);
@@ -3230,7 +3293,6 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     /* Here we will call wsrep_abort_transaction so we should hold
     THD::LOCK_thd_data to protect victim from concurrent usage
     and THD::LOCK_thd_kill to protect from disconnect or delete.
-
     */
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
@@ -3245,13 +3307,18 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     {
       if (wsrep_thd_is_aborting(granted_thd))
       {
-        WSREP_DEBUG("BF thread waiting for SR in aborting state");
+        WSREP_DEBUG("BF thread waiting for SR in aborting state for %s",
+                    wsrep_thd_query(request_thd));
+        THD_STAGE_INFO(request_thd, stage_waiting_isolation);
         ticket->wsrep_report(wsrep_debug);
       }
       else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
-        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
+        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR",
                       schema, schema_len, request_thd, granted_thd);
+        WSREP_DEBUG("wsrep_handle_mdl_conflict DDL vs SR for %s",
+                    wsrep_thd_query(request_thd));
+        THD_STAGE_INFO(request_thd, stage_waiting_isolation);
         wsrep_abort_thd(request_thd, granted_thd, 1);
       }
       else
@@ -3286,8 +3353,10 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
-      WSREP_DEBUG("DROP caused BF abort, conf %s",
-                  wsrep_thd_transaction_state_str(granted_thd));
+      WSREP_DEBUG("DROP caused BF abort, conf %s for %s",
+                  wsrep_thd_transaction_state_str(granted_thd),
+                  wsrep_thd_query(request_thd));
+      THD_STAGE_INFO(request_thd, stage_waiting_isolation);
       ticket->wsrep_report(wsrep_debug);
       wsrep_abort_thd(request_thd, granted_thd, 1);
     }
@@ -3295,7 +3364,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     {
       WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", schema, schema_len,
                     request_thd, granted_thd);
+      WSREP_DEBUG("wsrep_handle_mdl_conflict -> BF abort for %s",
+                  wsrep_thd_query(request_thd));
+      THD_STAGE_INFO(request_thd, stage_waiting_isolation);
       ticket->wsrep_report(wsrep_debug);
+
       if (granted_thd->wsrep_trx().active())
       {
         wsrep_abort_thd(request_thd, granted_thd, 1);
@@ -3313,8 +3386,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
         }
         else
         {
-	  WSREP_MDL_LOG(INFO, "MDL unknown BF-BF conflict", schema, schema_len,
-                      request_thd, granted_thd);
+	  WSREP_MDL_LOG(INFO, "MDL unknown BF-BF conflict",
+                        schema, schema_len,
+                        request_thd, granted_thd);
 	  ticket->wsrep_report(true);
           mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
           mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
@@ -3552,7 +3626,6 @@ void wsrep_wait_appliers_close(THD *thd)
      is also applier, we are still running...
   */
 }
-
 int wsrep_must_ignore_error(THD* thd)
 {
   const int error= thd->get_stmt_da()->sql_errno();
@@ -3582,7 +3655,7 @@ ignore_error:
   WSREP_WARN("Ignoring error '%s' on query. "
              "Default database: '%s'. Query: '%s', Error_code: %d",
              thd->get_stmt_da()->message(),
-             print_slave_db_safe(thd->db.str),
+             safe_str(thd->db.str),
              thd->query(),
              error);
   return 1;

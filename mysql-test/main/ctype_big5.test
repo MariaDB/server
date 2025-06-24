@@ -25,6 +25,7 @@ SET collation_connection='big5_bin';
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 -- source include/ctype_pad_space.inc
 
 #
@@ -77,11 +78,7 @@ select hex(convert(_big5 0xC84041 using ucs2));
 set names big5;
 create table t1 (a blob);
 insert into t1 values (0xEE00);
---disable_cursor_protocol
---disable_ps2_protocol
 select * into outfile 'test/t1.txt' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 delete from t1;
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR

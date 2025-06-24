@@ -1,0 +1,14 @@
+#
+# Testing unloaded compression provider: bzip2
+#
+# Innodb_have_bzip2 reflects that the provider is not loaded
+SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_bzip2";
+Variable_name	Value
+Innodb_have_bzip2	OFF
+# Innodb_compression_algorithm cannot be set to bzip2
+SET GLOBAL Innodb_compression_algorithm = bzip2;
+ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'bzip2'
+show warnings;
+Level	Code	Message
+Warning	138	InnoDB: compression algorithm bzip2 (5) is not available. Please, load the corresponding provider plugin.
+Error	1231	Variable 'innodb_compression_algorithm' can't be set to the value of 'bzip2'

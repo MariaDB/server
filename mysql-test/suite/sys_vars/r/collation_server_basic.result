@@ -3,15 +3,15 @@ SET @@global.collation_server= @@collation_server;
 SET @session_start_value = @@collation_server;
 SELECT @session_start_value;
 @session_start_value
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 SET @session_start_value = @@local.collation_server;
 SELECT @session_start_value;
 @session_start_value
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 SET @session_start_value = @@session.collation_server;
 SELECT @session_start_value;
 @session_start_value
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 '#--------------------FN_DYNVARS_014_01------------------#'
 SELECT collation_server;
 ERROR 42S22: Unknown column 'collation_server' in 'SELECT'

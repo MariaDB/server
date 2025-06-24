@@ -23,7 +23,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 drop table t1;
 EXPLAIN SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE();
 ERROR HY000: Incorrect usage of PROCEDURE and subquery
-create table t1 (v varchar(128));
+create table t1 (v varchar(128)) charset=latin1;
 insert into t1 values ('abc'),('abc\'def\\hij\"klm\0opq'),('\''),('\"'),('\\'),('a\0'),('b\''),('c\"'),('d\\'),('\'b'),('\"c'),('\\d'),('a\0\0\0b'),('a\'\'\'\'b'),('a\"\"\"\"b'),('a\\\\\\\\b'),('\'\0\\\"'),('\'\''),('\"\"'),('\\\\'),('The\ZEnd');
 select * from t1 procedure analyse();
 Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype

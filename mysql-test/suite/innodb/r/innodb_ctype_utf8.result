@@ -300,7 +300,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -315,7 +315,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -330,7 +330,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -345,7 +345,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -360,7 +360,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -374,7 +374,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -388,7 +388,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
@@ -397,7 +397,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(2))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
@@ -406,7 +406,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
@@ -415,7 +415,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(100))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 #
@@ -426,26 +426,18 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 #
 # MDEV-30050 Inconsistent results of DISTINCT with NOPAD
 #
@@ -454,26 +446,18 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 #
 # End 10.4 tests
 #

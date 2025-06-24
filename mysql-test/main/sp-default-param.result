@@ -1,0 +1,133 @@
+# Start of 11.8 tests
+#
+# MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+#
+#
+# Basic default parameter test for procedures
+#
+CREATE OR REPLACE PROCEDURE p1(par1 INT, par2 INT DEFAULT 1)
+BEGIN
+SELECT par1, par2 FROM DUAL;
+END;
+$$
+CALL p1(2,3);
+par1	par2
+2	3
+CALL p1(2);
+par1	par2
+2	1
+CALL p1(2,3,4);
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p1; expected 2, got 3
+CALL p1();
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p1; expected 2, got 0
+DROP PROCEDURE p1;
+#
+# Basic default parameter test for functions
+#
+CREATE OR REPLACE FUNCTION f1(par1 INT, par2 INT DEFAULT 1) RETURNS INT
+RETURN par1 + par2;
+$$
+SELECT f1(2,3) FROM DUAL;
+f1(2,3)
+5
+SELECT f1(2) FROM DUAL;
+f1(2)
+3
+SELECT f1(2,3,4) FROM DUAL;
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f1; expected 2, got 3
+SELECT f1() FROM DUAL;
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f1; expected 2, got 0
+DROP FUNCTION f1;
+#
+# Test various data types
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE DATABASE d1;
+USE d1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+USE test;
+CREATE OR REPLACE PROCEDURE p1(par1 INT DEFAULT 1,
+par2 VARCHAR(10) DEFAULT 'abc',
+par3 DATE DEFAULT '2010-01-01',
+par4 DECIMAL(10,2) DEFAULT 1.23,
+par5 DOUBLE DEFAULT 1.23,
+par6 FLOAT DEFAULT 1.23,
+par7 CHAR DEFAULT 'a',
+par8 BINARY DEFAULT 'a',
+par9 BLOB DEFAULT 'a',
+par10 TEXT DEFAULT 'a',
+par11 ENUM('a','b') DEFAULT 'a',
+par12 SET('a','b') DEFAULT 'a',
+par13 TIMESTAMP DEFAULT '2010-01-01 00:00:00',
+par14 DATETIME DEFAULT '2010-01-01 00:00:00',
+par15 TIME DEFAULT '00:00:00',
+par16 YEAR DEFAULT 2010,
+par17 BOOLEAN DEFAULT TRUE,
+par18 TYPE OF t1.a DEFAULT 10,
+par19 TYPE OF d1.t1.a DEFAULT 10,
+par20 ROW TYPE OF t1 DEFAULT ROW(1, 'cde'),
+par21 ROW TYPE OF d1.t1 DEFAULT ROW(1, 'cde'))
+BEGIN
+SELECT par1, par2, par3, par4, par5, par6, par7, par8, par9,
+par10, par11, par12, par13, par14, par15, par16, par17, par18,
+par19, par20.b, par21.b
+FROM DUAL;
+END;
+$$
+CALL p1();
+par1	par2	par3	par4	par5	par6	par7	par8	par9	par10	par11	par12	par13	par14	par15	par16	par17	par18	par19	par20.b	par21.b
+1	abc	2010-01-01	1.23	1.23	1.23	a	a	a	a	a	a	2010-01-01 00:00:00	2010-01-01 00:00:00	00:00:00	2010	1	10	10	cde	cde
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE d1;
+#
+# Default parameters in package's routines
+#
+CREATE OR REPLACE PACKAGE p1
+PROCEDURE p1(par1 INT,
+par2 INT DEFAULT 2);
+FUNCTION f1(par1 INT,
+par2 INT DEFAULT 2) RETURNS INT;
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY p1
+PROCEDURE p1(par1 INT,
+par2 INT DEFAULT 2)
+BEGIN
+SELECT par1, par2 FROM DUAL;
+END;
+FUNCTION f1(par1 INT,
+par2 INT DEFAULT 2) RETURNS INT
+BEGIN
+RETURN par1 + par2;
+END;
+END;
+$$
+CALL p1.p1(1,4);
+par1	par2
+1	4
+CALL p1.p1(1);
+par1	par2
+1	2
+SELECT p1.f1(1,4) FROM DUAL;
+p1.f1(1,4)
+5
+SELECT p1.f1(1) FROM DUAL;
+p1.f1(1)
+3
+DROP PACKAGE p1;
+#
+# MDEV-35925 OUT and INOUT parameters shouldn't expect a default value
+#
+CREATE PROCEDURE sp1(IN p1 INT DEFAULT 0, OUT p2 INT)
+BEGIN
+SET p2 = p2 + 1;
+END;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE sp1(IN p1 INT DEFAULT 0, IN OUT p2 INT)
+BEGIN
+SET p2 = p2 + 1;
+END;
+DELIMITER ;$$
+ERROR 42000: This version of MariaDB doesn't yet support 'IN sparam1 <type> DEFAULT <expr>, OUT spparam2 <type>'
+# End of 11.8 tests

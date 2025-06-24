@@ -52,6 +52,32 @@ EOF
 --error 1
 --exec $MYSQLADMIN -u root -p 2>&1 > /dev/null
 
+--echo #
+--echo # MDEV-33992 mariadb-admin flush-status command should do
+--echo # FLUSH GLOBAL STATUS
+--echo #
+
+flush session status;
+flush global status;
+--connect (con1,localhost,root,)
+--connect (con2,localhost,root,)
+--connect (con3,localhost,root,)
+--disconnect con1
+--disconnect con2
+--disconnect con3
+
+--connection default
+show status like 'Max_used_connections';
+show global status like 'Max_used_connections';
+
+--echo #
+--echo # Running mariadb-admin flush-status
+--echo #
+--exec $MYSQLADMIN flush-status
+
+show status like 'Max_used_connections';
+show global status like 'Max_used_connections';
+
 #
 # MDEV-19168 Reload SSL certificate
 # This test reloads server SSL certs ./mysqladmin flush-ssl, and checks that new SSL
@@ -98,3 +124,5 @@ remove_file $ssl_key;
 # restart with usual SSL
 let $restart_parameters=;
 --source include/restart_mysqld.inc
+
+--echo # End of 11.5

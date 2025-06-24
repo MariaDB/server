@@ -1,0 +1,56 @@
+call mtr.add_suppression("InnoDB: Cannot shrink the system tablespace");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG=2;
+SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+SET UNIQUE_CHECKS=0, FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 INT NOT NULL, INDEX(f1),
+INDEX(f2), INDEX(f3))STATS_PERSISTENT=0 ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+COMMIT;
+DROP TABLE t1;
+InnoDB		0 transactions not purged
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	540016640
+# restart: --debug_dbug=+d,traversal_extent_fail
+FOUND 1 /\[Warning\] InnoDB: Cannot shrink the system tablespace/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+# restart: --debug_dbug=+d,shrink_buffer_pool_full
+FOUND 2 /\[Warning\] InnoDB: Cannot shrink the system tablespace/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+# restart: --debug_dbug=+d,mtr_log_max_size
+FOUND 1 /\[ERROR\] InnoDB: Cannot shrink the system tablespace/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+# restart: --debug_dbug=+d,crash_after_sys_truncate
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb_buffer_pool_size=5M
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;
+NAME	FILE_SIZE
+innodb_system	3145728

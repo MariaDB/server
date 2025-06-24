@@ -1,9 +1,9 @@
 #*****************************************************************
-# The Orginal name of the testcase : gis.test 
-# The following are the modification done 
+# The Original name of the testcase : gis.test
+# The following are the modification done
 # 1.SET default_storage_engine=InnoDB;
 # 2.MyiSam to Innodb where ever is required.
-# 3.Spatial index to Index as Innodb does not support 
+# 3.Spatial index to Index as Innodb does not support
 #***************************************************************** 
 --source include/have_innodb.inc
 -- source include/have_geometry.inc
@@ -390,9 +390,9 @@ t1 where object_id=85984;
 drop table t1;
 
 create table t1 (fl geometry not null);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 values (1);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 values (1.11);
 --error 1416
 insert into t1 values ("qwerty");
@@ -837,13 +837,6 @@ CREATE TABLE t3 (
   col1 POINT,
   col2 POINT
 );
-
-# --error ER_TOO_MANY_KEY_PARTS
---error ER_KEY_COLUMN_DOES_NOT_EXITS
-CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
---error ER_WRONG_ARGUMENTS
-CREATE SPATIAL INDEX idx0 ON t2 (col0, col2);
-
 
 CREATE TABLE t4 (
   col0 INTEGER NOT NULL,

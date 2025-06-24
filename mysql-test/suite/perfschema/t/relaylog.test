@@ -43,7 +43,7 @@ select
   if (sum_number_of_bytes_read > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_READ,
   if (sum_number_of_bytes_write > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_WRITE
   from performance_schema.file_summary_by_instance
-  where file_name like "%master-%" order by file_name;
+  where file_name like "%master-%" and file_name not like "%sql/share%" order by file_name;
 
 select * from performance_schema.file_summary_by_instance
   where file_name like "%slave-%" order by file_name;

@@ -63,8 +63,7 @@ license information can be found in the THIRDPARTY file.
 Bug and/or error reports regarding MariaDB should be submitted at:
 https://jira.mariadb.org
 
-For reporting security vulnerabilities see:
-https://mariadb.org/about/security-policy/
+For reporting security vulnerabilities, see our [security-policy](https://mariadb.org/about/security-policy/).
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server

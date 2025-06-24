@@ -1,0 +1,2 @@
+# Needed conflict
+conflicts-with-version libmariadbclient18 (<< 10.2.0)

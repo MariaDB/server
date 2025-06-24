@@ -13,12 +13,12 @@ CREATE USER user_super@localhost;
 GRANT SUPER ON *.* TO user_super@localhost;
 SHOW GRANTS FOR user_super@localhost;
 Grants for user_super@localhost
-GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `user_super`@`localhost`
+GRANT SUPER, BINLOG MONITOR, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super`@`localhost`
 CREATE USER user_super_replslave@localhost;
 GRANT SUPER, REPLICATION SLAVE ON *.* TO user_super_replslave@localhost;
 SHOW GRANTS FOR user_super_replslave@localhost;
 Grants for user_super_replslave@localhost
-GRANT SUPER, REPLICATION SLAVE, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super_replslave`@`localhost`
+GRANT SUPER, REPLICATION SLAVE, BINLOG MONITOR, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super_replslave`@`localhost`
 #
 # MDEV-23610: Slave user can't run "SHOW SLAVE STATUS" anymore after upgrade to 10.5, mysql_upgrade should take of that
 #
@@ -30,7 +30,7 @@ CREATE USER user_replsuper@localhost;
 GRANT SUPER ON *.* TO user_replsuper@localhost;
 SHOW GRANTS FOR user_replsuper@localhost;
 Grants for user_replsuper@localhost
-GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `user_replsuper`@`localhost`
+GRANT SUPER, BINLOG MONITOR, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_replsuper`@`localhost`
 #
 # Users with privilege REPLICATION CLIENT prior to 10.5 should successfully execute
 # SHOW SLAVE STATUS command
@@ -58,17 +58,17 @@ SHOW GRANTS FOR user_all@localhost;
 Grants for user_all@localhost
 GRANT ALL PRIVILEGES ON *.* TO `user_all`@`localhost` WITH GRANT OPTION
 #
-# Should automatically get all new 10.5.2 priveleges that were splitted from SUPER
+# Should automatically get all new 10.5.2 privileges that were splitted from SUPER
 #
 SHOW GRANTS FOR user_super@localhost;
 Grants for user_super@localhost
-GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `user_super`@`localhost`
+GRANT SUPER, BINLOG MONITOR, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super`@`localhost`
 #
-# Should automatically get all new 10.5.2 priveleges that were splitted from SUPER, plus REPLICATION MASTER ADMIN
+# Should automatically get all new 10.5.2 privileges that were splitted from SUPER, plus REPLICATION MASTER ADMIN
 #
 SHOW GRANTS FOR user_super_replslave@localhost;
 Grants for user_super_replslave@localhost
-GRANT SUPER, REPLICATION SLAVE, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super_replslave`@`localhost`
+GRANT SUPER, REPLICATION SLAVE, BINLOG MONITOR, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super_replslave`@`localhost`
 #
 # MDEV-23610: Slave user can't run "SHOW SLAVE STATUS" anymore after upgrade to 10.5, mysql_upgrade should take of that
 #
@@ -84,15 +84,15 @@ GRANT BINLOG MONITOR, SLAVE MONITOR ON *.* TO `user_replclient`@`localhost`
 SHOW GRANTS FOR user_replslave@localhost;
 Grants for user_replslave@localhost
 GRANT REPLICATION SLAVE, SLAVE MONITOR ON *.* TO `user_replslave`@`localhost`
-connect  con1,localhost,user_super_replslave,,test;
+connect  con1,localhost,user_super_replslave,,"*NO-ONE*";
 connection con1;
 SHOW SLAVE STATUS;
 disconnect con1;
-connect  con1,localhost,user_replclient,,test;
+connect  con1,localhost,user_replclient,,"*NO-ONE*";
 connection con1;
 SHOW SLAVE STATUS;
 disconnect con1;
-connect  con1,localhost,user_replslave,,test;
+connect  con1,localhost,user_replslave,,"*NO-ONE*";
 connection con1;
 SHOW RELAYLOG EVENTS;
 disconnect con1;

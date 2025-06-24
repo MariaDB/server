@@ -44,7 +44,7 @@ SET debug_sync = "now SIGNAL mdl_continue";
 SET debug_sync='RESET';
 
 #
-# ALTER should have been aborted with query interupted error code
+# ALTER should have been aborted with query interrupted error code
 #
 --connection node_2
 --error ER_QUERY_INTERRUPTED

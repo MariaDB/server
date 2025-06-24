@@ -17,10 +17,6 @@
 #ifndef _SP_CACHE_H_
 #define _SP_CACHE_H_
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 /*
   Stored procedures/functions cache. This is used as follows:
    * Each thread has its own cache.

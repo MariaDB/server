@@ -1,7 +1,17 @@
 --source include/long_test.inc
 --source include/have_debug.inc
 --source include/have_log_bin.inc
---source include/not_valgrind.inc
+--source include/default_charset.inc
+
+if (!$BIG_TEST)
+{
+  --source include/not_valgrind.inc
+}
+
+# Starting with 11.7, this will hit the 900-second timeout on WITH_MSAN=ON CMAKE_BUILD_TYPE=Debug
+--source include/not_msan.inc
+
+--source include/test_db_charset_latin1.inc
 
 #
 # Testing of atomic create table with crashes in a lot of different places
@@ -44,6 +54,11 @@ let $crash_count=13;
 let $crash_points='ddl_log_alter_after_create_frm', 'ddl_log_alter_after_create_table', 'ddl_log_alter_after_prepare_inplace','ddl_log_alter_after_copy', 'ddl_log_alter_after_log', 'ddl_log_alter_after_rename_to_backup', 'ddl_log_alter_after_rename_to_backup_log', 'ddl_log_alter_rename_frm', 'ddl_log_alter_after_rename_to_original', 'ddl_log_alter_before_rename_triggers', 'ddl_log_alter_after_rename_triggers', 'ddl_log_alter_after_delete_backup', 'ddl_log_alter_after_drop_original_table';
 
 let $statement_count=16;
+if ($skip_vector == "")
+{
+  let $statement_count=21;
+}
+
 let $statements='ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"',
                 'ALTER TABLE t1 COMMENT "new"',
                 'ALTER TABLE t1 change column a c int COMMENT "new"',
@@ -59,7 +74,12 @@ let $statements='ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"',
                 'ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2',
                 'ALTER TABLE t1 COMMENT "new", rename test2.t2',
                 'ALTER TABLE t1 ADD key(b), COMMENT "new"',
-                'ALTER TABLE t1 DROP INDEX a';
+                'ALTER TABLE t1 DROP INDEX a',
+                'ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)',
+                'ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2',
+                'ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=$extra_engine',
+                'ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=$extra_engine',
+                'ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2';
 
 # If there is a need of testing one specific state (crash point and query),
 # one can use the comments below to execute one specific test combination
@@ -101,8 +121,8 @@ while ($e < $engine_count)
       inc $c;
       let $crash=`select ELT($c, $crash_points)`;
 
-      --eval create table t1 (a int, b int, key(a)) engine=$engine
-      insert into t1 values (1,1),(2,2);
+      --eval create table t1 (a int, b int, key(a) $extra_fields) engine=$engine
+      insert into t1 (a,b) values (1,1),(2,2);
       commit;
       flush tables;
 
@@ -191,3 +211,4 @@ while ($e < $engine_count)
 }
 drop database test2;
 --enable_query_log
+--source include/test_db_charset_restore.inc

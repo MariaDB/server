@@ -16,11 +16,7 @@ insert into t1 () values
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
 (),(),(),();
---disable_cursor_protocol
---disable_ps2_protocol
 select * into outfile 'load.data' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, unique (e));
 load data infile 'load.data' into table tmp;
 delete from tmp;
@@ -182,7 +178,7 @@ ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
 ALTER TABLE t1 ADD KEY idx2(f);
 DROP TABLE t1;
 CREATE TABLE t1(a blob , b blob , unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 insert into t1 values(1,1);
 --error ER_DUP_ENTRY
@@ -232,11 +228,7 @@ drop table t1;
 --echo #
 CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
 INSERT INTO t1 VALUES ('A');
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 --error ER_DUP_ENTRY
 LOAD DATA INFILE 'load.data'  INTO TABLE t1;
 select * from t1;
@@ -250,11 +242,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES ('f'), ('o'), ('o');
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 
 ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
 SELECT * FROM t1;
@@ -474,7 +462,7 @@ create table t1 (
   v1 mediumtext generated always as (concat('f1:', f1)) virtual,
   unique key (f1) using hash,
   key (v1(1000))
-);
+) charset=latin1;
 flush status;
 insert ignore t1 (f1) values (9599),(94410);
 # handler_read_next must be 1 below, meaning there was a hash collision above.
@@ -519,11 +507,7 @@ drop table t2;
 --echo #
 create table t1 (pk int primary key, f blob, unique(f)) engine=innodb;
 insert t1 values (1, null);
---disable_cursor_protocol
---disable_ps2_protocol
 select * into outfile 't1.data' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 load data infile 't1.data' replace into table t1;
 select * from t1;
 drop table t1;
@@ -740,7 +724,7 @@ show create table b;
 drop table b;
 drop table a;
 
---echo # veirfy that duplicate has unique is detected
+--echo # verify that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 drop table t1;

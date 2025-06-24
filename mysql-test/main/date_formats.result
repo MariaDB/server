@@ -1,20 +1,3 @@
-drop table if exists t1;
-SELECT variable_name, variable_value
-FROM information_schema.global_variables
-WHERE variable_name IN ('date_format', 'datetime_format', 'time_format')
-ORDER BY variable_name;
-variable_name	variable_value
-DATETIME_FORMAT	%Y-%m-%d %H:%i:%s
-DATE_FORMAT	%d.%m.%Y
-TIME_FORMAT	%H.%i.%s
-SELECT variable_name, variable_value
-FROM information_schema.session_variables
-WHERE variable_name IN ('date_format', 'datetime_format', 'time_format')
-ORDER BY variable_name;
-variable_name	variable_value
-DATETIME_FORMAT	%Y-%m-%d %H:%i:%s
-DATE_FORMAT	%d.%m.%Y
-TIME_FORMAT	%H.%i.%s
 select str_to_date(concat('15-01-2001',' 2:59:58.999'),
 concat('%d-%m-%Y',' ','%H:%i:%s.%f')) as exp;
 exp
@@ -572,3 +555,76 @@ time_format('01 02:02:02', '%T')
 select time_format('2001-01-01 02:02:02', '%T');
 time_format('2001-01-01 02:02:02', '%T')
 02:02:02
+#
+# End of 10.2 test
+#
+#
+# MDEV-31684 Add timezone information to DATE_FORMAT
+#
+SET @old_timezone= @@time_zone;
+# Using named timezones
+SET TIME_ZONE='Japan';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0900 JST
+SET @@time_zone='Europe/Moscow';
+SELECT DATE_FORMAT('1965-02-17 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0300 MSK
+SELECT DATE_FORMAT('1965-12-31 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0300 MSK
+SELECT DATE_FORMAT('1985-06-01', '%z %Z');
+DATE_FORMAT('1985-06-01', '%z %Z')
++0400 MSD
+# Using positive and negative offset
+SET TIME_ZONE= '-05:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
+-0530 -05:30
+SET TIME_ZONE= '+04:30';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0430 +04:30
+# Using UTC
+SET TIME_ZONE='UTC';
+SELECT DATE_FORMAT('2009-10-04 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0000 UTC
+SET @@time_zone= @old_timezone;
+# More timezone test:
+#
+# Check for time zone with leap seconds
+#
+set time_zone='Europe/Moscow';
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+DATE_FORMAT('2023-03-01 01:30:00', '%z %Z')
++0300 MSK
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+DATE_FORMAT('2023-04-01 01:30:00', '%z %Z')
++0400 MSD
+set time_zone='leap/Europe/Moscow';
+SELECT DATE_FORMAT('2023-03-01 01:30:00', '%z %Z');
+DATE_FORMAT('2023-03-01 01:30:00', '%z %Z')
++0300 MSK
+SELECT DATE_FORMAT('2023-04-01 01:30:00', '%z %Z');
+DATE_FORMAT('2023-04-01 01:30:00', '%z %Z')
++0400 MSD
+#
+# Values around and in spring time-gap
+#
+set time_zone='MET';
+# Normal value with DST
+SELECT DATE_FORMAT('2003-03-30 01:59:59', '%z %Z');
+DATE_FORMAT('2003-03-30 01:59:59', '%z %Z')
++0100 MET
+# Values around and in spring time-gap
+SELECT DATE_FORMAT('2023-03-26 01:59:59', '%z %Z');
+DATE_FORMAT('2023-03-26 01:59:59', '%z %Z')
++0100 MET
+SELECT DATE_FORMAT('2023-03-26 03:00:00', '%z %Z');
+DATE_FORMAT('2023-03-26 03:00:00', '%z %Z')
++0200 MEST
+#
+# End of 11.3 test
+#

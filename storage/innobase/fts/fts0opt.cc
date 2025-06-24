@@ -117,10 +117,10 @@ struct fts_zip_t {
 	fts_string_t	word;		/*!< UTF-8 string */
 
 	ulint		max_words;	/*!< maximum number of words to read
-					in one pase */
+					in one pass */
 };
 
-/** Prepared statemets used during optimize */
+/** Prepared statements used during optimize */
 struct fts_optimize_graph_t {
 					/*!< Delete a word from FTS INDEX */
 	que_t*		delete_nodes_graph;
@@ -172,7 +172,7 @@ struct fts_optimize_t {
 	ulint		n_completed;	/*!< Number of FTS indexes that have
 					been optimized */
 	ibool		del_list_regenerated;
-					/*!< BEING_DELETED list regenarated */
+					/*!< BEING_DELETED list regenerated */
 };
 
 /** Used by the optimize, to keep state during compacting nodes. */
@@ -2245,7 +2245,7 @@ fts_optimize_read_deleted_doc_id_snapshot(
 }
 
 /*********************************************************************//**
-Optimze all the FTS indexes, skipping those that have already been
+Optimize all the FTS indexes, skipping those that have already been
 optimized, since the FTS auxiliary indexes are not guaranteed to be
 of the same cardinality.
 @return DB_SUCCESS if all OK */
@@ -2809,7 +2809,7 @@ static void fts_optimize_sync_table(dict_table_t *table,
 		  std::this_thread::sleep_for(std::chrono::seconds(6)););
 
   if (mdl_ticket)
-    dict_table_close(sync_table, false, fts_opt_thd, mdl_ticket);
+    dict_table_close(sync_table, fts_opt_thd, mdl_ticket);
 }
 
 /**********************************************************************//**

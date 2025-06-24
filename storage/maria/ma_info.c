@@ -16,17 +16,10 @@
 /* Return useful base information for an open table */
 
 #include "maria_def.h"
+#include <mysys_err.h>
 #ifdef	_WIN32
 #include <sys/stat.h>
 #endif
-
-	/* Get position to last record */
-
-MARIA_RECORD_POS maria_position(MARIA_HA *info)
-{
-  return info->cur_row.lastpos;
-}
-
 
 uint maria_max_key_length()
 {
@@ -85,8 +78,7 @@ int maria_status(MARIA_HA *info, register MARIA_INFO *x, uint flag)
     x->filenr	 = info->dfile.file;
     x->options	 = share->options;
     x->create_time=share->state.create_time;
-    x->reflength= maria_get_pointer_length(share->base.max_data_file_length,
-                                        maria_data_pointer_size);
+    x->reflength= share->base.rec_reflength;
     x->record_offset= (info->s->data_file_type == STATIC_RECORD ?
                        share->base.pack_reclength: 0);
     x->sortkey= -1;				/* No clustering */
@@ -148,7 +140,7 @@ void _ma_report_error(int errcode, const LEX_STRING *name, myf flags)
       file_name+= length - 64;
     }
   }
-  my_printf_error(errcode, "Got error '%M' for '%s'",
+  my_printf_error(errcode, "Got error '%iE' for '%s'",
                   flags, errcode, file_name);
   DBUG_VOID_RETURN;
 }
@@ -225,4 +217,24 @@ void _ma_set_fatal_error_with_share(MARIA_SHARE *share, int error)
   maria_mark_crashed_share(share);
   share->state.changed|= STATE_CRASHED_PRINTED;
   DBUG_ASSERT(!maria_assert_if_crashed_table);
+}
+
+/*
+  Check quotas for internal temporary files
+*/
+
+int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
+                             ulonglong file_size)
+{
+  int err;
+  if (track->file_size != file_size)
+  {
+    track->file_size= file_size;
+    if ((err= update_tmp_file_size(track, 0)))
+    {
+      my_errno= HA_ERR_LOCAL_TMP_SPACE_FULL + (err - EE_LOCAL_TMP_SPACE_FULL);
+      return 1;
+    }
+  }
+  return 0;
 }

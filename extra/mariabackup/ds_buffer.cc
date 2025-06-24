@@ -44,7 +44,7 @@ typedef struct {
 
 static ds_ctxt_t *buffer_init(const char *root);
 static ds_file_t *buffer_open(ds_ctxt_t *ctxt, const char *path,
-			      MY_STAT *mystat);
+			      const MY_STAT *mystat, bool rewrite);
 static int buffer_write(ds_file_t *file, const uchar *buf, size_t len);
 static int buffer_close(ds_file_t *file);
 static void buffer_deinit(ds_ctxt_t *ctxt);
@@ -53,8 +53,11 @@ datasink_t datasink_buffer = {
 	&buffer_init,
 	&buffer_open,
 	&buffer_write,
+	nullptr,
 	&buffer_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&buffer_deinit
 };
 
@@ -84,8 +87,10 @@ buffer_init(const char *root)
 }
 
 static ds_file_t *
-buffer_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
+buffer_open(ds_ctxt_t *ctxt, const char *path,
+	const MY_STAT *mystat, bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_buffer_ctxt_t	*buffer_ctxt;
 	ds_ctxt_t		*pipe_ctxt;
 	ds_file_t		*dst_file;

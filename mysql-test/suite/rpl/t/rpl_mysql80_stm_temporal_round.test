@@ -47,7 +47,7 @@ CREATE TABLE t1 (id SERIAL, a DATETIME(3));
 
 --connection slave
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
-eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4, master_use_gtid=no;
 
 --source include/start_slave.inc
 

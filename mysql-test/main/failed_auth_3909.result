@@ -10,8 +10,11 @@ ERROR HY000: Server is running in --secure-auth mode, but 'uu2'@'localhost' has 
 connect(localhost,uu2,password,test,MASTER_PORT,MASTER_SOCKET);
 connect  fail,localhost,uu2,password;
 ERROR HY000: Server is running in --secure-auth mode, but 'uu2'@'localhost' has a password in the old format; please change the password to the new format
+change_user u1,,;
 ERROR 28000: Access denied for user 'u1'@'localhost' (using password: NO)
+change_user uu2,,;
 ERROR HY000: Server is running in --secure-auth mode, but 'uu2'@'localhost' has a password in the old format; please change the password to the new format
+change_user uu2,password,;
 ERROR HY000: Server is running in --secure-auth mode, but 'uu2'@'localhost' has a password in the old format; please change the password to the new format
 delete from mysql.user where plugin = 'mysql_old_password';
 flush privileges;

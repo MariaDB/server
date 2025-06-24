@@ -1,6 +1,4 @@
 install soname 'ha_spider';
-Warnings:
-Warning	1105	Cannot enable tc-log at run-time. XA features of SPIDER are disabled
 SET @@insert_id=128;
 CREATE TABLE t(c TINYINT AUTO_INCREMENT KEY) ENGINE=Spider;
 INSERT IGNORE INTO t VALUES(0);

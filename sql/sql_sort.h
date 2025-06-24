@@ -38,8 +38,8 @@ struct TABLE;
    Only fixed layout is supported now.
    Null bit maps for the appended values is placed before the values 
    themselves. Offsets are from the last sorted field, that is from the
-   record referefence, which is still last component of sorted records.
-   It is preserved for backward compatiblility.
+   record reference, which is still last component of sorted records.
+   It is preserved for backward compatibility.
    The structure is used tp store values of the additional fields 
    in the sort buffer. It is used also when these values are read
    from a temporary file/buffer. As the reading procedures are beyond the
@@ -542,14 +542,25 @@ to be fixed later
 
 class Sort_param {
 public:
-  uint rec_length;            // Length of sorted records.
-  uint sort_length;           // Length of sorted columns.
+  // Length of sorted records. ALWAYS equal to sort_length + addon_length
+  uint rec_length;
+  /*
+    Length of what we need to sort: Sorted columns + ref_length if not
+    addon fields are used
+  */
+  uint sort_length;
+  /* Length of the reference to the row (rowid or primary key etc */
   uint ref_length;            // Length of record ref.
+  /* Length of all addon fields. 0 if no addon fields */
   uint addon_length;          // Length of addon_fields
-  uint res_length;            // Length of records in final sorted file/buffer.
+  /*
+    The length of the 'result' we are going to return to the caller for
+    each sort element. Also the length of data in final sorted file/buffer.
+  */
+  uint res_length;
   uint max_keys_per_buffer;   // Max keys / buffer.
   uint min_dupl_count;
-  ha_rows max_rows;           // Select limit, or HA_POS_ERROR if unlimited.
+  ha_rows limit_rows;         // Select limit, or HA_POS_ERROR if unlimited.
   ha_rows examined_rows;      // Number of examined rows.
   TABLE *sort_form;           // For quicker make_sortkey.
   /**
@@ -580,10 +591,14 @@ public:
     */
     tmp_buffer.set_charset(&my_charset_bin);
   }
-  void init_for_filesort(uint sortlen, TABLE *table,
-                         ha_rows maxrows, Filesort *filesort);
 
-   void  (*unpack)(TABLE *);
+  void init_for_filesort(TABLE *table, Filesort *filesort,
+                         uint sortlen, ha_rows limit_rows_arg);
+  void setup_lengths_and_limit(TABLE *table,
+                               uint sortlen,
+                               uint addon_length,
+                               ha_rows limit_rows_arg);
+  void  (*unpack)(TABLE *);
   /// Enables the packing of addons if possible.
   void try_to_pack_addons(ulong max_length_for_sort_data);
 

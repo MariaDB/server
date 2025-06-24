@@ -1,0 +1,189 @@
+#
+# Test of optimizer_costs
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+select table_name,engine from information_schema.tables where table_name="optimizer_costs";
+show create table information_schema.optimizer_costs;
+let $start_engines=`select count(*) from information_schema.optimizer_costs`;
+--vertical_results
+select * from information_schema.optimizer_costs where engine in
+("memory","innodb","aria","default") order by engine;
+--horizontal_results
+show variables like "optimizer%cost";
+show variables like "optimizer_disk_read_ratio";
+
+--echo #
+--echo # Test change some 'default' variables
+--echo #
+SELECT @@optimizer_disk_read_ratio,@@optimizer_index_block_copy_cost;
+SET global optimizer_disk_read_ratio=0.8;
+SET global optimizer_index_block_copy_cost=0.1;
+SELECT @@optimizer_disk_read_ratio,@@optimizer_index_block_copy_cost;
+select optimizer_disk_read_ratio,optimizer_index_block_copy_cost from information_schema.optimizer_costs where engine='default';
+SET global optimizer_disk_read_ratio=default;
+SET global optimizer_index_block_copy_cost=default;
+SELECT @@optimizer_disk_read_ratio,@@optimizer_index_block_copy_cost;
+
+--echo #
+--echo # Test change some 'engine' variables
+--echo #
+select @@MEMORY.optimizer_row_lookup_cost;
+set @tmp=@@MEMORY.optimizer_row_lookup_cost;
+set @@global.MEMORY.optimizer_row_lookup_cost=1;
+select @@MEMORY.optimizer_row_lookup_cost;
+set @@global.MEMORY.optimizer_row_lookup_cost=default;
+select @@MEMORY.optimizer_row_lookup_cost;
+set @@global.MEMORY.optimizer_row_lookup_cost=@tmp;
+select @@MEMORY.optimizer_row_lookup_cost;
+
+--echo #
+--echo # Print variables with different syntaxes
+--echo #
+SHOW VARIABLES like "optimizer_row_lookup_cost";
+SELECT @@optimizer_row_lookup_cost;
+SELECT @@global.default.optimizer_row_lookup_cost;
+SELECT @@global.default.`optimizer_row_lookup_cost`;
+SELECT @@MEMORY.optimizer_row_lookup_cost;
+SELECT @@memory.optimizer_row_lookup_cost;
+SELECT @@InnoDB.optimizer_row_lookup_cost;
+
+--echo #
+--echo # Accessing not existing cost
+--echo #
+SELECT @@not_existing.optimizer_row_lookup_cost;
+SELECT @@NOT_existing.optimizer_row_lookup_cost;
+select engine from information_schema.optimizer_costs where engine like '%existing';
+
+--echo #
+--echo # Creating a new cost structure
+--echo #
+SET global new_engine.optimizer_disk_read_cost=100;
+select * from information_schema.optimizer_costs where engine like 'new_engine';
+select @@new_engine.optimizer_disk_read_cost, @@new_engine.optimizer_row_copy_cost;
+
+--echo #
+--echo # Errors
+--echo #
+--error ER_PARSE_ERROR
+SELECT @@default.optimizer_disk_read_cost;
+--error ER_WRONG_TYPE_FOR_VAR
+set global Aria.optimizer_disk_read_cost=NULL;
+
+set @tmp=@@Aria.optimizer_disk_read_cost;
+SET global Aria.optimizer_disk_read_cost=-1;
+select @@Aria.optimizer_disk_read_cost;
+SET global Aria.optimizer_disk_read_cost=200000;
+select @@Aria.optimizer_disk_read_cost;
+set global Aria.optimizer_disk_read_cost=@tmp;
+select @@Aria.optimizer_disk_read_cost;
+
+--echo #
+--echo # Test of cost of ref compared to table scan + join_cache
+--echo #
+
+create or replace table t1 (p int primary key, a char(10)) engine=myisam;
+create or replace table t2 (p int primary key, i int, a char(10), key k2(a)) engine=myisam;
+insert into t2 select seq,seq,'a' from seq_1_to_512;
+
+insert into t1 select seq,'a' from seq_1_to_4;
+explain select count(*) from t1, t2 where t1.p = t2.i;
+insert into t1 select seq,'a' from seq_5_to_10;
+explain select count(*) from t1, t2 where t1.p = t2.i;
+
+drop table t1,t2;
+
+--echo #
+--echo # Test of optimizer_scan_setup_cost
+--echo #
+
+create table t1 (p int primary key, a char(10)) engine=myisam;
+create table t2 (p int primary key, i int, a char(10), key k1(i), key k2(a)) engine=myisam;
+insert into t1 values (2, 'qqqq'), (11, 'yyyy');
+insert into t2 values (1, 2, 'qqqq'), (2, 2, 'pppp'),
+                      (3, 2, 'yyyy'), (4, 3, 'zzzz');
+set @org_myisam_disk_read_ratio=@@myisam.optimizer_disk_read_ratio;
+set @@optimizer_scan_setup_cost=10,@@global.myisam.optimizer_disk_read_ratio=0.2;
+flush tables;
+explain select sum(t2.p+length(t1.a)) from t1, t2 where t1.p = t2.i;
+set @@optimizer_scan_setup_cost=0.0, @@global.myisam.optimizer_disk_read_ratio=0.0;
+flush tables;
+explain select sum(t2.p+length(t1.a)) from t1, t2 where t1.p = t2.i;
+set @@optimizer_scan_setup_cost=default,@@global.myisam.optimizer_disk_read_ratio=@org_myisam_disk_read_ratio;
+flush tables;
+drop table t1,t2;
+
+--echo #
+--echo # Test of group by optimization
+--echo #
+
+set @@optimizer_scan_setup_cost=0;
+CREATE TABLE t1 (id INT NOT NULL, a DATE, KEY(id,a)) engine=myisam;
+INSERT INTO t1 values (1,'2001-01-01'),(1,'2001-01-02'),
+(1,'2001-01-03'),(1,'2001-01-04'),
+(2,'2001-01-01'),(2,'2001-01-02'),
+(2,'2001-01-03'),(2,'2001-01-04'),
+(3,'2001-01-01'),(3,'2001-01-02'),
+(3,'2001-01-03'),(3,'2001-01-04'),
+(4,'2001-01-01'),(4,'2001-01-02'),
+(4,'2001-01-03'),(4,'2001-01-04');
+analyze table t1;
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+insert into t1 values (3,'2001-01-03'),(3,'2001-01-04');
+analyze table t1;
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+drop table t1;
+set @@optimizer_scan_setup_cost=default;
+
+--echo #
+--echo # Test of straight join costs
+--echo #
+create table t1 (l_orderkey int(11) NOT NULL,
+                 l_partkey int(11) DEFAULT NULL,
+                 l_suppkey int(11) DEFAULT NULL,
+                 PRIMARY KEY (l_orderkey)) engine=aria;
+insert into t1 select seq,seq,seq from seq_1_to_1000;
+explain select straight_join count(*) from seq_1_to_10000,t1 where seq=l_orderkey;
+show status like "last_query_cost";
+set @org_cost=@@aria.optimizer_key_next_find_cost;
+# Set cost for t1 high so that we cannot use it for index scans
+set global aria.optimizer_key_next_find_cost=1000;
+flush tables;
+explain select count(*) from seq_1_to_10000,t1 where seq=l_orderkey;
+show status like "last_query_cost";
+set global aria.optimizer_key_next_find_cost=@org_cost;
+drop table t1;
+
+--echo #
+--echo # Testing distinct group optimization
+--echo #
+
+create table t1 (a int, b int, key(a,b));
+insert into t1 select seq,seq from seq_1_to_1000;
+explain select count(distinct a,b) from t1;
+explain select count(distinct a,b) from t1 where a>100;
+explain select count(distinct a,b) from t1 where a>800;
+update t1 set a=mod(a,10);
+analyze table t1;
+explain select count(distinct a,b) from t1;
+explain select count(distinct a,b) from t1 where a>1;
+explain select count(distinct a,b) from t1 where a>8;
+update t1 set b=mod(b,2);
+analyze table t1;
+explain select count(distinct a,b) from t1;
+explain select count(distinct a,b) from t1 where a>1;
+explain select count(distinct a,b) from t1 where a>8;
+drop table t1;
+
+--echo #
+--echo # cleanup
+--echo #
+
+let $end_engines=`select count(*) from information_schema.optimizer_costs`;
+let $diff=`select $end_engines - $start_engines`;
+--echo "New cost structures: $diff (should be 1)"
+

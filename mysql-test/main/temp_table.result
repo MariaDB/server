@@ -126,8 +126,8 @@ This is temp. table
 show create table v1;
 Table	Create Table
 v1	CREATE TEMPORARY TABLE `v1` (
-  `A` varchar(19) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `A` varchar(19) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 'This is view' AS `A`	latin1	latin1_swedish_ci
@@ -329,6 +329,7 @@ i
 1
 SHOW TABLES;
 Tables_in_temp_db
+temp_t1
 DROP TABLE temp_t1;
 #
 # Create and drop a temporary table.
@@ -611,6 +612,9 @@ test.t1	optimize	status	Table is already up to date
 test.t2	optimize	status	Table is already up to date
 SHOW TABLES;
 Tables_in_test
+t2
+t1
+tmp
 # in 11.2 and above here should be listed above used temporary tables
 DROP TEMPORARY TABLE t1, t2;
 #

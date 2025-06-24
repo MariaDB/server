@@ -6,8 +6,7 @@ INSERT INTO t1 VALUES (1);
 connection server_2;
 include/stop_slave.inc
 Master_Log_File = 'master-bin.000001'
-Using_Gtid = 'No'
-CHANGE MASTER TO master_use_gtid=current_pos;
+Using_Gtid = 'Slave_Pos'
 FLUSH LOGS;
 connection server_1;
 FLUSH LOGS;

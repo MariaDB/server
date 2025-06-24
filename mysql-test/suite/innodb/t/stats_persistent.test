@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/have_sequence.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
@@ -27,14 +26,3 @@ SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
 
 --source include/wait_until_count_sessions.inc
-
---echo #
---echo # MDEV-36649 dict_acquire_mdl_shared() aborts when table
---echo #      mode is DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
---echo #
-set @old_defragment_stats_accuracy= @@innodb_defragment_stats_accuracy;
-SET GLOBAL innodb_defragment_stats_accuracy=1;
-CREATE TABLE t (a INT ) ENGINE=INNODB;
-INSERT INTO t SELECT * FROM seq_1_to_1000;
-DROP TABLE t;
-set global innodb_defragment_stats_accuracy= @old_defragment_stats_accuracy;

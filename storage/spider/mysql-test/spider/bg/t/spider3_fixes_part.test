@@ -193,10 +193,14 @@ if ($HAVE_PARTITION)
     --connection master_1
   }
   --enable_query_log
+  --disable_ps_protocol
   INSERT INTO t1 () VALUES ();
+  --enable_ps_protocol
   SELECT LAST_INSERT_ID();
   SELECT MAX(id) FROM t1;
+  --disable_ps_protocol
   INSERT INTO t2 () VALUES ();
+  --enable_ps_protocol
   SELECT LAST_INSERT_ID();
   SELECT MAX(id) FROM t2;
   --disable_query_log

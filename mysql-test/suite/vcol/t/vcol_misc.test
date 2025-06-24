@@ -181,8 +181,8 @@ drop table t1,t2;
 # Bug mdev-3938: INSERT DELAYED for a table with virtual columns
 #
 
-SET @old_debug= @@global.debug;
-SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug_dbug;
+SET @old_debug= @@global.debug_dbug;
 SET GLOBAL debug_dbug= "+d,write_delay_wakeup";
 CREATE TABLE t1 (a int,
  ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

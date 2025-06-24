@@ -1,4 +1,3 @@
---innodb_file_per_table=1
 --loose-skip-stack-trace
 --skip-core-file
 --loose-innodb_buffer_pool_load_at_startup=OFF

@@ -4,6 +4,8 @@
 
 -- source include/have_innodb.inc
 
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -707,3 +709,172 @@ select * from t1;
 drop table t1;
 
 --echo # End of MariaDB 10.4 tests
+
+--echo #
+--echo # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+--echo #
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+--echo # End of MariaDB 10.11 tests
+
+--echo #
+--echo # MDEV-29189: Second execution of SF using UPDATE?DELETE
+--echo #             after reported error by the first execution
+--echo #
+--disable_ps2_protocol # because SELECT with side effects
+
+CREATE TABLE t1 (c int);
+
+DELIMITER //;
+CREATE FUNCTION f1() RETURNS int
+BEGIN
+  UPDATE t1 SET c=c+1;
+  RETURN 1;
+END;//
+CREATE FUNCTION f2() RETURNS int
+BEGIN
+  DELETE FROM t1 WHERE c < 7;
+  RETURN 1;
+END;//
+DELIMITER ;//
+
+INSERT INTO t1 VALUES (3), (7), (1);
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE f1() = 1;
+SELECT f1();
+SELECT * FROM t1;
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE f2() = 1;
+SELECT f2();
+SELECT * FROM t1;
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+--enable_ps2_protocol
+
+--echo # End of MariaDB 11.1 tests
+
+--echo #
+--echo # MDEV-25008: Delete query gets stuck on mariadb, same query works
+--echo #             on MySQL 8.0.21
+--echo #
+
+--source include/have_sequence.inc
+
+# original case
+CREATE TABLE t1 (
+  id int NOT NULL PRIMARY KEY,
+  item_id varchar(100),
+  seller_name varchar(400),
+  variant varchar(400),
+  FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+
+# Masking the `rows` column as the value might vary a bit
+--replace_column 9 #
+explain
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+drop table t1;
+
+# example of not full table
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain update t1 set c = 5  where    b <= 2 and a not in (select b from t2);
+explain update t1 set c = 5  where    b <= 3 and a not in (select b from t2);
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-35662 Assertion failure in diagnostics area upon EXPLAIN UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INET6);
+INSERT INTO t2 VALUES ('::'),('::'); # Optional, fails either way
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT b FROM t2) ORDER BY a LIMIT 1;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # End of 11.7 tests
+
+--source include/test_db_charset_restore.inc
+--echo # MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+--echo #
+
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+select * from t2;
+
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+select * from t2;
+select * from t3;
+
+drop table t1, t2, t3;
+
+--echo # End of MariaDB 11.8 tests

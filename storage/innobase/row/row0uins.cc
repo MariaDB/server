@@ -40,7 +40,6 @@ Created 2/25/1997 Heikki Tuuri
 #include "row0row.h"
 #include "row0upd.h"
 #include "que0que.h"
-#include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "fil0fil.h"
 #include <mysql/service_thd_mdl.h>
@@ -188,10 +187,6 @@ restart:
 			os_file_close(d);
 		}
 
-		if (space_id) {
-			ibuf_delete_for_discarded_space(space_id);
-		}
-
 		mtr.start();
 		ut_a(node->pcur.restore_position(
 			BTR_MODIFY_LEAF, &mtr) == btr_pcur_t::SAME_ALL);
@@ -244,8 +239,7 @@ func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 
 	if (UNIV_LIKELY_NULL(table)) {
-		dict_table_close(table, dict_locked,
-				 node->trx->mysql_thd, mdl_ticket);
+		dict_table_close(table, node->trx->mysql_thd, mdl_ticket);
 	}
 
 	return(err);
@@ -271,7 +265,7 @@ row_undo_ins_remove_sec_low(
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
 	pcur.btr_cur.page_cur.index = index;
-	row_mtr_start(&mtr, index, !modify_leaf);
+	row_mtr_start(&mtr, index);
 
 	if (index->is_spatial()) {
 		mode = modify_leaf
@@ -279,8 +273,7 @@ row_undo_ins_remove_sec_low(
 					 | BTR_RTREE_DELETE_MARK
 					 | BTR_RTREE_UNDO_INS)
 			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
-		btr_pcur_get_btr_cur(&pcur)->thr = thr;
-		if (rtr_search(entry, mode, &pcur, &mtr)) {
+		if (rtr_search(entry, mode, &pcur, thr, &mtr)) {
 			goto func_exit;
 		}
 
@@ -301,28 +294,17 @@ row_undo_ins_remove_sec_low(
 		mtr_x_lock_index(index, &mtr);
 	}
 
-	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
-	case ROW_NOT_FOUND:
-		break;
-	case ROW_FOUND:
-        found:
-		btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
-
+	if (row_search_index_entry(entry, mode, &pcur, &mtr)) {
+found:
 		if (modify_leaf) {
-			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr);
+			err = btr_cur_optimistic_delete(&pcur.btr_cur, 0, &mtr);
 		} else {
 			/* Passing rollback=false here, because we are
 			deleting a secondary index record: the distinction
 			only matters when deleting a record that contains
 			externally stored columns. */
-			btr_cur_pessimistic_delete(&err, FALSE, btr_cur, 0,
-						   false, &mtr);
+			btr_cur_pessimistic_delete(&err, FALSE, &pcur.btr_cur,
+						   0, false, &mtr);
 		}
 	}
 
@@ -452,7 +434,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked);
+		node->table->release();
 		node->table = NULL;
 		return false;
 	} else {
@@ -614,7 +596,7 @@ row_undo_ins(
 			err = row_undo_ins_remove_clust_rec(node);
 		}
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			/* Not protected by dict_sys.latch
 			or table->stats_mutex_lock() for
 			performance reasons, we would rather get garbage
@@ -644,8 +626,7 @@ row_undo_ins(
 		break;
 	}
 
-	dict_table_close(node->table, dict_locked);
-
+	node->table->release();
 	node->table = NULL;
 
 	return(err);

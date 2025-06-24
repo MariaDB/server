@@ -1,7 +1,7 @@
 -- source include/have_innodb.inc
 # Embedded server tests do not support restarting.
 -- source include/not_embedded.inc
--- source include/maybe_debug.inc
+--source include/test_db_charset_latin1.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -666,7 +666,7 @@ SET GLOBAL innodb_monitor_reset = module_ddl;
 
 --echo # Skip sort
 --echo # Change PK from (f1,f2,f5,f6) to (f1,f2,f5)
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f6;
 --enable_info
 alter table t1 drop column f6, drop primary key, add primary key(f1,f2,f5);
@@ -692,7 +692,7 @@ SET GLOBAL innodb_monitor_reset = module_ddl;
 
 --echo # Must sort
 --echo # Change PK from (f1,f2,f5) to (f1,f5)
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f2;
 --enable_info
 alter table t1 drop column f2, drop primary key, add primary key(f1,f5);
@@ -908,9 +908,9 @@ drop table t1;
 create table t1(f1 int not null, f2 int not null,
 		primary key (f1), unique key(f1, f2))engine=innodb;
 insert into t1 values(1,3), (2,2);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column f1, drop primary key;
 # DROP PRIMARY KEY is implied for a single-column PRIMARY KEY
 alter table t1 drop column f1, drop key f1;
@@ -922,7 +922,7 @@ create table t1(f1 int not null, f2 int not null,
 insert into t1 values(1,3), (2,2);
 alter table t1 drop primary key, lock=none;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t1 drop index f1, lock=none;
+alter table t1 drop index f1, algorithm=inplace, lock=none;
 drop table t1;
 
 --echo #
@@ -1012,7 +1012,7 @@ drop table t1;
 # pk(o1,o2,o3) to pk(o2,o3) by drop o1
 create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,2,2),(2,1,1);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop o1, lock=none;
 alter table t1 drop o1, drop primary key, add primary key(o2,o3), lock=none;
 drop table t1;
@@ -1020,7 +1020,7 @@ drop table t1;
 # pk(o1,o2,o3) to pk(o1,o3) by drop o2
 create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,1,2),(1,2,1);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop o2, lock=none;
 alter table t1 drop o2, drop primary key, add primary key(o1,o3), lock=none;
 drop table t1;
@@ -1028,7 +1028,7 @@ drop table t1;
 # pk(o1,o2,o3) to pk(o3) by drop o1,o2
 create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,2,2),(2,1,1);
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop o1, drop o2, lock=none;
 alter table t1 drop o1, drop o2,drop primary key,add primary key(o3),lock=none;
 drop table t1;
@@ -1126,9 +1126,6 @@ drop table t1;
 --echo #
 
 --source include/no_checkpoint_start.inc
-if ($have_debug) {
-SET GLOBAL DEBUG_DBUG='+d,fil_names_write_bogus';
-}
 CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 
 CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
@@ -1156,13 +1153,6 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --move_file $MYSQLD_DATADIR/test/t0.ibd $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
-if ($have_debug) {
-# Initiate shutdown in order to issue a redo log checkpoint and to discard
-# the redo log record that was emitted due to '+d,fil_names_write_bogus'.
---let $restart_noprint=2
---source include/restart_mysqld.inc
---let $restart_noprint=0
-}
 
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -1193,12 +1183,70 @@ SHOW CREATE TABLE t;
 --disable_prepare_warnings
 DROP TABLE t;
 
+--echo #
+--echo #  MDEV-27374  InnoDB table becomes corrupt after renaming DESC-indexed column
+--echo #
+CREATE TABLE t1 (a VARCHAR(8), PRIMARY KEY(a DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN a TO b, ALGORITHM=INPLACE;
+--disable_cursor_protocol
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id;
+--enable_cursor_protocol
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27432 ASC/DESC primary and unique keys cause index
+--echo #	inconsistency between InnoDB and server
+--echo #
+CREATE TABLE t1 (id INT NOT NULL, UNIQUE(id DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY (id), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27445 Index inconsistency and assertion failure after
+--echo #	renaming virtual column with DESC key
+--echo #
+CREATE TABLE t1(a INT, b INT AS (a), KEY(a, b DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN IF EXISTS b TO v;
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27592 DESC primary index fails to set wide format
+--echo #	while renaming the column
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(8), b INT, KEY(a DESC,b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'foo',10);
+ALTER TABLE t1 RENAME COLUMN b TO c, ALGORITHM=INPLACE;
+--disable_cursor_protocol
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id ORDER BY INDEX_ID DESC LIMIT 1;
+--enable_cursor_protocol
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+DROP TABLE t1;
+
+--echo # End of 10.8 tests
+
+--echo #
+--echo # MDEV-35849: index records in a wrong order
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY, a VARCHAR(1), KEY (a DESC)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,NULL),(2,'x');
+CHECK TABLE t;
+DROP TABLE t;
+
+--echo # End of 11.8 tests
+
 --disable_query_log
 
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");
-call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 
 --enable_query_log
+--source include/test_db_charset_restore.inc

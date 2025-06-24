@@ -5,25 +5,25 @@ Some tests are known to fail on some platforms or be otherwise unreliable.
 In the file collections/smoke_test there is a list of tests that are
 expected to be stable.
 
-In general you do not have to have to do "make install", and you can have
+In general you do not have to do "make install", and you can have
 a co-existing MariaDB installation, the tests will not conflict with it.
 To run the tests in a source directory, you must do "make" first.
 
 In Red Hat distributions, you should run the script as user "mysql".
 The user is created with nologin shell, so the best bet is something like
   # su -
-  # cd /usr/share/mysql-test
+  # cd /usr/share/mariadb-test
   # su -s /bin/bash mysql -c ./mysql-test-run
 
 This will use the installed MariaDB executables, but will run a private
-copy of the server process (using data files within /usr/share/mysql-test),
+copy of the server process (using data files within /usr/share/mariadb-test),
 so you need not start the mysqld service beforehand.
 
 You can omit --skip-test-list option if you want to check whether
 the listed failures occur for you.
 
 To clean up afterwards, remove the created "var" subdirectory, e.g.
-  # su -s /bin/bash - mysql -c "rm -rf /usr/share/mysql-test/var"
+  # su -s /bin/bash - mysql -c "rm -rf /usr/share/mariadb-test/var"
 
 If tests fail on your system, please read the following manual section
 for instructions on how to report the problem:
@@ -37,7 +37,7 @@ you are expected to provide names of the tests to run.
 For example, here is the command to run the "alias" and "analyze" tests
 with an external server:
 
-  # mysql-test-run --extern socket=/tmp/mysql.sock alias analyze
+  # mariadb-test-run --extern socket=/tmp/mysql.sock alias analyze
 
 To match your setup, you might need to provide other relevant options.
 
@@ -63,20 +63,20 @@ and over again.
 If you are using mysqltest commands in your test case, you should create
 the result file as follows:
 
-  # mysql-test-run --record test_case_name
+  # mariadb-test-run --record test_case_name
 
   or
 
-  # mysqltest --record < t/test_case_name.test
+  # mariadb-test --record < t/test_case_name.test
 
 If you only have a simple test case consisting of SQL statements and
 comments, you can create the result file in one of the following ways:
 
-  # mysql-test-run --record test_case_name
+  # mariadb-test-run --record test_case_name
 
-  # mysql test < t/test_case_name.test > r/test_case_name.result
+  # mariadb test < t/test_case_name.test > r/test_case_name.result
 
-  # mysqltest --record --database test --result-file=r/test_case_name.result < t/test_case_name.test
+  # mariadb-test --record --database test --result-file=r/test_case_name.result < t/test_case_name.test
 
 When this is done, take a look at r/test_case_name.result.
 If the result is incorrect, you have found a bug. In this case, you should

@@ -38,7 +38,7 @@ grad_degree	CREATE TABLE `grad_degree` (
   `deg_start_term` char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data',
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
 CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
 INSERT IGNORE grad_degree (
@@ -153,7 +153,7 @@ grad_degree	CREATE TABLE `grad_degree` (
   `deg_start_term` char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data',
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
 CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
 INSERT IGNORE grad_degree (
@@ -210,7 +210,7 @@ grad_degree	CREATE TABLE `grad_degree` (
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`),
   KEY `grad_degree_as_of_term_ndx` (`deg_as_of_term`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE grad_degree;
 CREATE TABLE IF NOT EXISTS grad_degree (
 student_id int(8) UNSIGNED NOT NULL,
@@ -289,7 +289,7 @@ grad_degree	CREATE TABLE `grad_degree` (
   `deg_start_term` char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data',
   `deg_as_of_term` char(4) NOT NULL COMMENT 'In most cases also end term',
   PRIMARY KEY (`student_id`,`plan`,`admit_term`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
 ALTER TABLE grad_degree DROP COLUMN ofis_deg_status2, DROP COLUMN ofis_deg_status3,
 DROP COLUMN ofis_deg_status4, DROP COLUMN ofis_deg_status5, DROP COLUMN ofis_deg_status6,

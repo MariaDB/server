@@ -13,6 +13,14 @@ SET TIME_ZONE='+03:00';
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
 
+#
+# Remove the 'utf8mb3=xxx' substring from @@character_set_collations to change
+# the default utf8mb3 collation to the hard-coded default utf8mb3_general_ci
+#
+SET character_set_collations= REGEXP_REPLACE(@@character_set_collations, '(utf8mb3=[a-z0-9_]*)', '');
+SELECT @@character_set_collations;
+
+
 --disable_warnings
 drop table if exists t1,t2,t3,t4;
 drop database if exists mysqltest;
@@ -56,32 +64,6 @@ select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%') as exp;
 select convert(_latin1'Günter André' using utf8) like CONVERT(_latin1'GÜNTER%' USING utf8) as exp;
 select CONVERT(_koi8r'×ÁÓÑ' USING utf8) LIKE CONVERT(_koi8r'÷áóñ' USING utf8) as exp;
 select CONVERT(_koi8r'÷áóñ' USING utf8) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8) as exp;
-
-#
-# Check the following:
-# "a"  == "a "
-# "a\0" < "a"
-# "a\0" < "a "
-
-SELECT 'a' = 'a ';
-SELECT 'a\0' < 'a';
-SELECT 'a\0' < 'a ';
-SELECT 'a\t' < 'a';
-SELECT 'a\t' < 'a ';
-
-#
-# The same for binary collation
-#
-SELECT 'a' = 'a ' collate utf8_bin;
-SELECT 'a\0' < 'a' collate utf8_bin;
-SELECT 'a\0' < 'a ' collate utf8_bin;
-SELECT 'a\t' < 'a' collate utf8_bin;
-SELECT 'a\t' < 'a ' collate utf8_bin;
-
-CREATE TABLE t1 (a char(10) character set utf8 not null);
-INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
-SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
-DROP TABLE t1;
 
 #
 # Fix this, it should return 1:
@@ -200,13 +182,6 @@ select * from t1 where a = 'b';
 select * from t1 where a = 'b' and a = 'b';
 select * from t1 where a = 'b' and a != 'b';
 drop table t1;
-
-#
-# Testing regexp
-#
-set names utf8;
---source include/ctype_regex.inc
---source include/ctype_regex_utf8.inc
 
 #
 # Bug #4555
@@ -346,9 +321,11 @@ insert into t1 values ('Ð±');
 insert into t1 values ('Ð±Ð±');
 --error ER_DUP_ENTRY
 insert into t1 values ('Ð±Ð±Ð±');
+--disable_service_connection
 select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='Ð±';
+--enable_service_connection
 drop table t1;
 
 #
@@ -370,9 +347,11 @@ insert into t1 values ('Ð±');
 insert into t1 values ('Ð±Ð±');
 --error ER_DUP_ENTRY
 insert into t1 values ('Ð±Ð±Ð±');
+--disable_service_connection
 select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='Ð±';
+--enable_service_connection
 drop table t1;
 
 #
@@ -393,9 +372,11 @@ insert into t1 values ('Ð±');
 insert into t1 values ('Ð±Ð±');
 --error ER_DUP_ENTRY
 insert into t1 values ('Ð±Ð±Ð±');
+--disable_service_connection
 select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='Ð±';
+--enable_service_connection
 drop table t1;
 
 #
@@ -1683,7 +1664,7 @@ DROP TABLE t1, t2;
 --echo # MDEV-8630 Datetime value dropped in "INSERT ... SELECT ... ON DUPLICATE KEY"
 --echo #
 SET NAMES utf8;
-CREATE TABLE t1 (id2 int, ts timestamp);
+CREATE TABLE t1 (id2 int, ts timestamp not null);
 INSERT INTO t1 VALUES (1,'2012-06-11 15:17:34'),(2,'2012-06-11 15:18:24');
 CREATE TABLE t2 AS SELECT
   COALESCE(ts, 0) AS c0,
@@ -1775,16 +1756,6 @@ SET sql_mode=default;
 --echo # WL#3664 WEIGHT_STRING
 --echo #
 
-set names utf8;
---source include/weight_string.inc
---source include/weight_string_euro.inc
---source include/weight_string_l1.inc
-
-set @@collation_connection=utf8_bin;
---source include/weight_string.inc
---source include/weight_string_euro.inc
---source include/weight_string_l1.inc
-
 --echo #
 --echo # Checking strnxfrm() with odd length
 --echo #
@@ -1805,13 +1776,6 @@ set max_sort_length=default;
 --echo #
 --echo # Start of 10.0 tests
 --echo #
-
-SET NAMES utf8 COLLATE utf8_bin;
---source include/ctype_like_cond_propagation.inc
-SET NAMES utf8;
---source include/ctype_like_cond_propagation.inc
---source include/ctype_like_cond_propagation_utf8_german.inc
-
 
 --echo #
 --echo # MDEV-6666 Malformed result for CONCAT(utf8_column, binary_string)
@@ -2039,7 +2003,7 @@ DROP PROCEDURE p1;
 SET @@SQL_MODE=default;
 
 
-# TODO: Uncomment the below test whe we fix:
+# TODO: Uncomment the below test when we fix it:
 # MDEV-9623INFORMATION_SCHEMA.ROUTINES.ROUTINE_DEFINITION does not handle binary literals well
 #
 #SET NAMES binary;
@@ -2504,7 +2468,7 @@ DROP TABLE t1;
 --echo #
 
 SET NAMES utf8 COLLATE utf8_unicode_ci;
-SELECT uuid()>'';
+SELECT sys_guid()>'';
 
 
 --echo #
@@ -2538,4 +2502,66 @@ select strcmp(_utf8mb3'' collate utf8mb3_nopad_bin, _utf8mb3 0x0001050001) as c1
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-28118 Wrong collation of `CAST(.. AS CHAR COLLATE DEFAULT)`
+--echo #
+
+SET NAMES utf8mb3 COLLATE utf8mb3_bin;
+SELECT COLLATION(CAST('a' AS CHAR COLLATE DEFAULT)) AS c1;
+CREATE TABLE t1 AS SELECT CAST('a' AS CHAR COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28119 Wrong column collation on MODIFY + CONVERT
+--echo #
+
+CREATE TABLE t1 (a CHAR);
+ALTER TABLE t1
+  MODIFY a CHAR COLLATE DEFAULT,
+  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a CHAR);
+ALTER TABLE t1
+  MODIFY a CHAR BINARY,
+  CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-35041 Simple comparison causes "Illegal mix of collations" even with default server settings
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET NAMES utf8mb3;
+--disable_cursor_protocol
+SELECT COLUMN_TYPE INTO @col_type FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_NAME='t1';
+--enable_cursor_protocol
+SELECT @col_type != 'binary(128)';
+SELECT COERCIBILITY(@col_type), COERCIBILITY('binary(128)');
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 11.6 tests
 --echo #

@@ -146,6 +146,11 @@ while ($_dt_tables)
       --echo # increasing group_concat_max_len from $_dt_old_group_concat_max_len to $_dt_order_by_length
     }
   }
+  # Increase sorting buffers.
+  --let $_dt_old_max_sort_length= `SELECT @@SESSION.max_sort_length`
+  --let $_dt_old_sort_buffer_size= `SELECT @@SESSION.sort_buffer_size`
+  --eval SET SESSION max_sort_length = 100000;
+  --eval SET SESSION sort_buffer_size = 10000000;
   # Generate ORDER BY clause.
   # It would be better to do GROUP_CONCAT(CONCAT('`', column_name, '`')) but
   # BUG#58087 prevents us from returning strings that begin with backticks.
@@ -165,13 +170,12 @@ while ($_dt_tables)
 
   # Now that we have the comma-separated list of columns, we can write
   # the table to a file.
-  --disable_ps2_protocol
   --let $_dt_outfile= `SELECT @@datadir`
   --let $_dt_outfile= $_dt_outfile/diff_table-$_dt_connection-$_dt_database-$_dt_table
-  --disable_cursor_protocol
   eval SELECT * INTO OUTFILE '$_dt_outfile' FROM $_dt_database.$_dt_table ORDER BY `$_dt_column_list`;
-  --enable_cursor_protocol
-  --enable_ps2_protocol
+  # Restore sorting buffers.
+  --eval SET SESSION max_sort_length = $_dt_old_max_sort_length;
+  --eval SET SESSION sort_buffer_size = $_dt_old_sort_buffer_size;
 
   # Compare files.
   if ($_dt_prev_outfile)

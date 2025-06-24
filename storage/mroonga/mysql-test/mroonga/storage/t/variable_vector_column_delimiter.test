@@ -25,7 +25,7 @@ DROP TABLE IF EXISTS category;
 
 CREATE TABLE category (
   category CHAR(10) PRIMARY KEY
-) DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci
   COMMENT='default_tokenizer "TokenDelimit"';
 
 CREATE TABLE document (
@@ -33,7 +33,7 @@ CREATE TABLE document (
   title TEXT,
   categories TEXT COMMENT 'flags "COLUMN_VECTOR", type "category"',
   PRIMARY KEY(id)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 
 SHOW GLOBAL VARIABLES LIKE 'mroonga_vector_column_delimiter';
 

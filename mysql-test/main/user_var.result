@@ -137,7 +137,7 @@ drop table t1;
 set @a=_latin2'test';
 select charset(@a),collation(@a),coercibility(@a);
 charset(@a)	collation(@a)	coercibility(@a)
-latin2	latin2_general_ci	2
+latin2	latin2_general_ci	5
 select @a=_latin2'TEST';
 @a=_latin2'TEST'
 1
@@ -147,7 +147,7 @@ select @a=_latin2'TEST' collate latin2_bin;
 set @a=_latin2'test' collate latin2_general_ci;
 select charset(@a),collation(@a),coercibility(@a);
 charset(@a)	collation(@a)	coercibility(@a)
-latin2	latin2_general_ci	2
+latin2	latin2_general_ci	5
 select @a=_latin2'TEST';
 @a=_latin2'TEST'
 1
@@ -162,19 +162,19 @@ collation(@a:=_latin2'test')
 latin2_general_ci
 select coercibility(@a:=_latin2'test');
 coercibility(@a:=_latin2'test')
-2
+6
 select collation(@a:=_latin2'test' collate latin2_bin);
 collation(@a:=_latin2'test' collate latin2_bin)
 latin2_bin
 select coercibility(@a:=_latin2'test' collate latin2_bin);
 coercibility(@a:=_latin2'test' collate latin2_bin)
-2
+6
 select (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST';
 (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST'
 0
 select charset(@a),collation(@a),coercibility(@a);
 charset(@a)	collation(@a)	coercibility(@a)
-latin2	latin2_bin	2
+latin2	latin2_bin	5
 select (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST' collate latin2_general_ci;
 (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST' collate latin2_general_ci
 1
@@ -184,11 +184,11 @@ my_column
 0
 select @v, coercibility(@v);
 @v	coercibility(@v)
-NULL	2
+NULL	5
 set @v1=null, @v2=1, @v3=1.1, @v4=now();
 select coercibility(@v1),coercibility(@v2),coercibility(@v3),coercibility(@v4);
 coercibility(@v1)	coercibility(@v2)	coercibility(@v3)	coercibility(@v4)
-2	5	5	2
+5	7	7	5
 set session @honk=99;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@honk=99' at line 1
 select @@local.max_allowed_packet;
@@ -219,7 +219,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @first_var= cast(NULL as signed integer);
 create table t1 select @first_var;
@@ -227,7 +227,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @first_var= NULL;
 create table t1 select @first_var;
@@ -235,7 +235,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @first_var= concat(NULL);
 create table t1 select @first_var;
@@ -243,7 +243,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `@first_var` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @first_var=1;
 set @first_var= cast(NULL as CHAR);
@@ -251,8 +251,8 @@ create table t1 select @first_var;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `@first_var` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `@first_var` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @a=18446744071710965857;
 select @a;
@@ -430,6 +430,7 @@ End of 5.0 tests
 CREATE TABLE t1 (i INT);
 CREATE TRIGGER t_after_insert AFTER INSERT ON t1 FOR EACH ROW SET @bug42188 = 10;
 INSERT INTO t1 VALUES (1);
+change_user root,,test;
 INSERT INTO t1 VALUES (1);
 DROP TABLE t1;
 CREATE TABLE t1(a INT);
@@ -590,7 +591,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c1
 2233999999

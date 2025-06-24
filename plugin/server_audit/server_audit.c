@@ -15,8 +15,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.14"
+#define PLUGIN_VERSION 0x105
+#define PLUGIN_STR_VERSION "1.5.0"
 
 #define _my_thread_var loc_thread_var
 
@@ -27,10 +27,10 @@
 #define DO_SYSLOG
 #include <syslog.h>
 static const char out_type_desc[]= "Desired output type. Possible values - 'syslog', 'file'"
-                                   " or 'null' as no output.";
+                                   " or 'null' as no output";
 #else
 static const char out_type_desc[]= "Desired output type. Possible values - 'file'"
-                                   " or 'null' as no output.";
+                                   " or 'null' as no output";
 #define syslog(PRIORITY, FORMAT, INFO, MESSAGE_LEN, MESSAGE) do {}while(0)
 static void closelog() {}
 #define openlog(IDENT, LOG_NOWAIT, LOG_USER)  do {}while(0)
@@ -329,11 +329,14 @@ struct connection_info
   int host_length;
   char ip[64];
   int ip_length;
+  char tls_version[64];
+  int tls_version_length;
   const char *query;
   int query_length;
   char query_buffer[1024];
   time_t query_time;
   int log_always;
+  unsigned int port;
   char proxy[USERNAME_CHAR_LENGTH+1];
   int proxy_length;
   char proxy_host[HOSTNAME_LENGTH+1];
@@ -373,10 +376,10 @@ static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *var_ptr, const void *save);
 
 static MYSQL_SYSVAR_STR(incl_users, incl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to monitor.",
+       "Comma separated list of users to monitor",
        check_incl_users, update_incl_users, NULL);
 static MYSQL_SYSVAR_STR(excl_users, excl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to exclude from auditing.",
+       "Comma separated list of users to exclude from auditing",
        check_excl_users, update_excl_users, NULL);
 /* bits in the event filter. */
 #define EVENT_CONNECT 1
@@ -393,13 +396,10 @@ static const char *event_names[]=
   "CONNECT", "QUERY", "TABLE", "QUERY_DDL", "QUERY_DML", "QUERY_DCL",
   "QUERY_DML_NO_SELECT", NULL
 };
-static TYPELIB events_typelib=
-{
-  array_elements(event_names) - 1, "", event_names, NULL
-};
+static TYPELIB events_typelib= CREATE_TYPELIB_FOR(event_names);
 static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
        "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
-           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
+           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL",
        NULL, NULL, 0, &events_typelib);
 #ifdef DO_SYSLOG
 #define OUTPUT_SYSLOG 0
@@ -415,39 +415,35 @@ static const char *output_type_names[]= {
   "syslog",
 #endif
   "file", 0 };
-static TYPELIB output_typelib=
-{
-    array_elements(output_type_names) - 1, "output_typelib",
-    output_type_names, NULL
-};
+static TYPELIB output_typelib=CREATE_TYPELIB_FOR(output_type_names);
 static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
        out_type_desc,
        0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
-       "Path to the log file.", NULL, update_file_path, default_file_name);
+       "Path to the log file", NULL, update_file_path, default_file_name);
 static MYSQL_SYSVAR_ULONGLONG(file_rotate_size, file_rotate_size,
-       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation.",
+       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation",
        NULL, update_file_rotate_size,
        1000000, 100, ((long long) 0x7FFFFFFFFFFFFFFFLL), 1);
 static MYSQL_SYSVAR_UINT(file_rotations, rotations,
-       PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed.",
+       PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed",
        NULL, update_file_rotations, 9, 0, 999, 1);
 static MYSQL_SYSVAR_BOOL(file_rotate_now, rotate, PLUGIN_VAR_OPCMDARG,
-       "Force log rotation now.", NULL, rotate_log, FALSE);
+       "Force log rotation now", NULL, rotate_log, FALSE);
 static MYSQL_SYSVAR_BOOL(logging, logging,
-       PLUGIN_VAR_OPCMDARG, "Turn on/off the logging.", NULL,
+       PLUGIN_VAR_OPCMDARG, "Turn on/off the logging", NULL,
        update_logging, 0);
 static MYSQL_SYSVAR_UINT(mode, mode,
-       PLUGIN_VAR_OPCMDARG, "Auditing mode.", NULL, update_mode, 0, 0, 1, 1);
+       PLUGIN_VAR_OPCMDARG, "Auditing mode", NULL, update_mode, 0, 0, 1, 1);
 static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident, PLUGIN_VAR_RQCMDARG,
-       "The SYSLOG identifier - the beginning of each SYSLOG record.",
+       "The SYSLOG identifier - the beginning of each SYSLOG record",
        NULL, update_syslog_ident, syslog_ident_buffer);
 static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
-       "The <info> string to be added to the SYSLOG record.", NULL, NULL, "");
+       "The <info> string to be added to the SYSLOG record", NULL, NULL, "");
 static MYSQL_SYSVAR_UINT(query_log_limit, query_log_limit,
-       PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record.",
+       PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record",
        NULL, NULL, 1024, 0, 0x7FFFFFFF, 1);
 
 char locinfo_ini_value[sizeof(struct connection_info)+4];
@@ -487,14 +483,10 @@ static unsigned int syslog_facility_codes[]=
   LOG_LOCAL4, LOG_LOCAL5, LOG_LOCAL6, LOG_LOCAL7,
 };
 #endif
-static TYPELIB syslog_facility_typelib=
-{
-    array_elements(syslog_facility_names) - 1, "syslog_facility_typelib",
-    syslog_facility_names, NULL
-};
+static TYPELIB syslog_facility_typelib=CREATE_TYPELIB_FOR(syslog_facility_names);
 static MYSQL_SYSVAR_ENUM(syslog_facility, syslog_facility, PLUGIN_VAR_RQCMDARG,
        "The 'facility' parameter of the SYSLOG record."
-       " The default is LOG_USER.", 0, update_syslog_facility, 0/*LOG_USER*/,
+       " The default is LOG_USER", 0, update_syslog_facility, 0/*LOG_USER*/,
        &syslog_facility_typelib);
 
 static const char *syslog_priority_names[]=
@@ -512,14 +504,10 @@ static unsigned int syslog_priority_codes[]=
 };
 #endif
 
-static TYPELIB syslog_priority_typelib=
-{
-    array_elements(syslog_priority_names) - 1, "syslog_priority_typelib",
-    syslog_priority_names, NULL
-};
+static TYPELIB syslog_priority_typelib=CREATE_TYPELIB_FOR(syslog_priority_names);
 static MYSQL_SYSVAR_ENUM(syslog_priority, syslog_priority, PLUGIN_VAR_RQCMDARG,
        "The 'priority' parameter of the SYSLOG record."
-       " The default is LOG_INFO.", 0, update_syslog_priority, 6/*LOG_INFO*/,
+       " The default is LOG_INFO", 0, update_syslog_priority, 6/*LOG_INFO*/,
        &syslog_priority_typelib);
 
 
@@ -770,7 +758,7 @@ static int user_coll_fill(struct user_coll *c, char *users,
       if (cmp_user && take_over_cmp)
       {
         ADD_ATOMIC(internal_stop_logging, 1);
-        CLIENT_ERROR(1, "User '%.*b' was removed from the"
+        CLIENT_ERROR(1, "User '%.*sB' was removed from the"
             " server_audit_excl_users.",
             MYF(ME_WARNING), (int) cmp_length, users);
         ADD_ATOMIC(internal_stop_logging, -1);
@@ -780,7 +768,7 @@ static int user_coll_fill(struct user_coll *c, char *users,
       else if (cmp_user)
       {
         ADD_ATOMIC(internal_stop_logging, 1);
-        CLIENT_ERROR(1, "User '%.*b' is in the server_audit_incl_users, "
+        CLIENT_ERROR(1, "User '%.*sB' is in the server_audit_incl_users, "
             "so wasn't added.", MYF(ME_WARNING), (int) cmp_length, users);
         ADD_ATOMIC(internal_stop_logging, -1);
         remove_user(users);
@@ -1026,6 +1014,7 @@ static struct connection_info *get_loc_info(MYSQL_THD thd)
     ci->user_length= 0;
     ci->host_length= 0;
     ci->ip_length= 0;
+    ci->tls_version_length= 0;
   }
   return ci;
 }
@@ -1207,9 +1196,11 @@ static void setup_connection_simple(struct connection_info *ci)
   ci->user_length= 0;
   ci->host_length= 0;
   ci->ip_length= 0;
+  ci->tls_version_length= 0;
   ci->query_length= 0;
   ci->header= 0;
   ci->proxy_length= 0;
+  ci->port= 0;
 }
 
 
@@ -1230,6 +1221,8 @@ static void setup_connection_connect(MYSQL_THD thd,struct connection_info *cn,
             event->host, event->host_length);
   get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
             event->ip, event->ip_length);
+  get_str_n(cn->tls_version, &cn->tls_version_length, sizeof(cn->tls_version),
+          event->tls_version, event->tls_version_length);
   cn->header= 0;
   if (event->proxy_user && event->proxy_user[0])
   {
@@ -1396,6 +1389,8 @@ static void change_connection(struct connection_info *cn,
             event->user, event->user_length);
   get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
             event->ip, event->ip_length);
+  get_str_n(cn->tls_version, &cn->tls_version_length, sizeof(cn->tls_version),
+          event->tls_version, event->tls_version_length);
 }
 
 /*
@@ -1452,15 +1447,20 @@ static size_t log_header(char *message, size_t message_len,
                       const char *username, unsigned int username_len,
                       const char *host, unsigned int host_len,
                       const char *userip, unsigned int userip_len,
-                      unsigned int connection_id, long long query_id,
-                      const char *operation)
+                      unsigned int connection_id, unsigned int port,
+                      long long query_id, const char *operation)
 {
   struct tm tm_time;
-
+  char port_str[16];
   if (host_len == 0 && userip_len != 0)
   {
     host_len= userip_len;
     host= userip;
+  }
+  if (port == 0) {
+    port_str[0] = '\0';
+  } else {
+    my_snprintf(port_str, sizeof(port_str), ":%u", port);
   }
 
   /*
@@ -1475,23 +1475,34 @@ static size_t log_header(char *message, size_t message_len,
 
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
-        "%.*s,%.*s,%.*s,%d,%lld,%s",
+        "%.*s,%.*s,%.*s%s,%d,%lld,%s",
         (int) serverhost_len, serverhost,
         username_len, username,
-        host_len, host,
+        host_len, host, port_str,
         connection_id, query_id, operation);
 
   (void) localtime_r(ts, &tm_time);
   return my_snprintf(message, message_len,
-      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s,%d,%lld,%s",
+      "%04d%02d%02d %02d:%02d:%02d,%.*s,%.*s,%.*s%s,%d,%lld,%s",
       tm_time.tm_year+1900, tm_time.tm_mon+1, tm_time.tm_mday,
       tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec,
       (int) serverhost_len, serverhost,
       username_len, username,
-      host_len, host,
+      host_len, host, port_str,
       connection_id, query_id, operation);
 }
 
+static size_t create_tls_obj(const struct mysql_event_connection *ev, char *obj_str, size_t len) {
+  size_t obj_len;
+
+  obj_len= 0;
+  memset(obj_str, 0, len);
+  if (ev->tls_version_length > 0) {
+    obj_len= my_snprintf(obj_str, len,
+      "%.*s", ev->tls_version_length, ev->tls_version);
+  }
+  return obj_len;
+}
 
 static int log_proxy(const struct connection_info *cn,
                      const struct mysql_event_connection *event)
@@ -1507,7 +1518,8 @@ static int log_proxy(const struct connection_info *cn,
                     cn->user, cn->user_length,
                     cn->host, cn->host_length,
                     cn->ip, cn->ip_length,
-                    event->thread_id, 0, "PROXY_CONNECT");
+                    event->thread_id, event->port,
+                    0, "PROXY_CONNECT");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
     ",%.*s,`%.*s`@`%.*s`,%d", cn->db_length, cn->db,
                      cn->proxy_length, cn->proxy,
@@ -1525,6 +1537,8 @@ static int log_connection(const struct connection_info *cn,
   time_t ctime;
   size_t csize;
   char message[1024];
+  char tls_obj[32];
+  size_t obj_len;
 
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
@@ -1532,9 +1546,12 @@ static int log_connection(const struct connection_info *cn,
                     cn->user, cn->user_length,
                     cn->host, cn->host_length,
                     cn->ip, cn->ip_length,
-                    event->thread_id, 0, type);
+                    event->thread_id, event->port, 0, type);
+
+  obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", cn->db_length, cn->db, event->status);
+    ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
+    event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1546,6 +1563,8 @@ static int log_connection_event(const struct mysql_event_connection *event,
   time_t ctime;
   size_t csize;
   char message[1024];
+  char tls_obj[32];
+  size_t obj_len;
 
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
@@ -1553,9 +1572,11 @@ static int log_connection_event(const struct mysql_event_connection *event,
                     event->user, event->user_length,
                     event->host, event->host_length,
                     event->ip, event->ip_length,
-                    event->thread_id, 0, type);
+                    event->thread_id, event->port, 0, type);
+  obj_len= create_tls_obj(event, tls_obj, sizeof(tls_obj));
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", (int) event->database.length, event->database.str, event->status);
+    ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
+    (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
   return write_log(message, csize + 1, 1);
 }
@@ -1940,7 +1961,7 @@ do_log_query:
   csize= log_header(message, message_size-1, &ev_time,
                     servhost, servhost_len,
                     cn->user, cn->user_length,cn->host, cn->host_length,
-                    cn->ip, cn->ip_length, thd_id, query_id, type);
+                    cn->ip, cn->ip_length, thd_id, cn->port, query_id, type);
 
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
       ",%.*s,\'", db_length, db);
@@ -2032,7 +2053,7 @@ static int log_table(const struct connection_info *cn,
                     event->user, SAFE_STRLEN_UI(event->user),
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
-                    event->thread_id, cn->query_id, type);
+                    event->thread_id, event->port, cn->query_id, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize, ",%.*s,%.*s,",
                      (int) event->database.length, event->database.str,
                      (int) event->table.length, event->table.str);
@@ -2054,7 +2075,8 @@ static int log_rename(const struct connection_info *cn,
                     event->user, SAFE_STRLEN_UI(event->user),
                     event->host, SAFE_STRLEN_UI(event->host),
                     event->ip, SAFE_STRLEN_UI(event->ip),
-                    event->thread_id, cn->query_id, "RENAME");
+                    event->thread_id, event->port, 
+                    cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
                       ",%.*s,%.*s|%.*s.%.*s,",
                       (int) event->database.length, event->database.str,
@@ -2113,6 +2135,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
+    cn->port= event->port;
     switch (event->event_subclass) {
       case MYSQL_AUDIT_GENERAL_LOG:
       {
@@ -2196,6 +2219,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
+    cn->port= event->port;
     if (ci_needs_setup(cn))
       setup_connection_table(cn, event);
 
@@ -2221,6 +2245,7 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
   {
     const struct mysql_event_connection *event =
       (const struct mysql_event_connection *) ev;
+    cn->port= event->port;
     switch (event->event_subclass)
     {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
@@ -2691,7 +2716,7 @@ static int server_audit_init(void *p __attribute__((unused)))
           PLUGIN_STR_VERSION, PLUGIN_DEBUG_VERSION);
 
   /* The Query Cache shadows TABLE events if the result is taken from it */
-  /* so we warn users if both Query Cashe and TABLE events enabled.      */
+  /* so we warn users if both Query Caсhe and TABLE events enabled.      */
   if (!started_mysql && FILTER(EVENT_TABLE))
   {
     ulonglong *qc_size= (ulonglong *) dlsym(RTLD_DEFAULT, "query_cache_size");
@@ -2843,7 +2868,7 @@ static void log_current_query(MYSQL_THD thd)
   {
     cn->log_always= 1;
     log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
-		     cn->query, cn->query_length, 0, "QUERY", 0);
+		cn->query, cn->query_length, 0, "QUERY", 0);
     cn->log_always= 0;
   }
 }

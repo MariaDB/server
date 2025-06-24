@@ -1,0 +1,12 @@
+--echo #
+--echo # BUG#6236 - ALTER TABLE MODIFY should set implicit NOT NULL on PK columns
+--echo #
+create table t1 ( a varchar(10) not null primary key ) engine=myisam;
+create table t2 ( a varchar(10) not null primary key ) engine=merge union=(t1);
+flush tables;
+alter table t1 modify a varchar(10);
+show create table t2;
+flush tables;
+alter table t1 modify a varchar(10) not null;
+show create table t2;
+drop table if exists t1, t2;

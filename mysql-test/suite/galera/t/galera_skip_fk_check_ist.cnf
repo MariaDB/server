@@ -1,0 +1,16 @@
+!include ../galera_4nodes.cnf
+
+[mysqld.1]
+wsrep_node_name='node_1'
+
+[mysqld.2]
+wsrep_node_name='node_2'
+
+[mysqld.3]
+wsrep_node_name='node_3'
+
+[mysqld.4]
+wsrep_node_name='node_4'
+
+[ENV]
+galera_cluster_size=4

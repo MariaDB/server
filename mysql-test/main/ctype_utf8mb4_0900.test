@@ -1,0 +1,129 @@
+-- source include/have_ucs2.inc
+-- source include/have_utf8mb4.inc
+-- source include/have_innodb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+#
+# Basic tests
+#
+
+select * from information_schema.COLLATION_CHARACTER_SET_APPLICABILITY
+where collation_name like "%0900%" order by collation_name;
+
+select * from information_schema.COLLATIONS where collation_name like "%0900%";
+
+--echo #
+--echo # MDEV-20912 Add support for utf8mb4_0900_* collations in MariaDB Server
+--echo #
+
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+USE db1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE utf8mb4_0900_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_sv_0900_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP DATABASE db1;
+USE test;
+
+--echo #
+--echo # CREATE TABLE - table level character set and collation
+--echo #
+
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE utf8mb4_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+ALTER TABLE db1.t1 modify a CHAR(1) COLLATE utf8mb4_sv_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE utf8mb4_sv_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE utf8mb4_0900_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+DROP DATABASE db1;
+
+--echo #
+--echo # Ensure that we can seamlessly compare and move between
+--echo # utf8mb4_sv_0900_ai_ci and utf8mb4_uca1400_swedish_1400_nopad_ai_ci
+--echo #
+
+CREATE TABLE t1 (p int primary key auto_increment, a VARCHAR(10), key (a)) engine=innodb, COLLATE utf8mb4_sv_0900_ai_ci;
+show create table t1;
+CREATE TABLE t2 (p int primary key auto_increment, a VARCHAR(10), key(a)) engine=innodb, COLLATE utf8mb4_uca1400_swedish_nopad_ai_ci;
+show create table t2;
+
+insert into t1 (a) values ("hello"),("world");
+insert into t2 (a) values ("hello"),("world");
+explain select * from t1,t2 where t1.a=t2.a;
+
+--echo # Check that alter table can convert between the character sets
+
+alter table t1 modify a varchar(10) collate utf8mb4_uca1400_swedish_nopad_ai_ci, algorithm=nocopy;
+show create table t1;
+
+alter table t2 modify a varchar(10) collate utf8mb4_sv_0900_ai_ci, algorithm=nocopy;
+show create table t2;
+drop table t1,t2;
+
+CREATE OR REPLACE TABLE t1 (p int primary key auto_increment, a VARCHAR(10), key (a)) engine=aria, COLLATE utf8mb4_sv_0900_ai_ci;
+alter table t1 modify a varchar(10) collate utf8mb4_uca1400_swedish_nopad_ai_ci, algorithm=nocopy;
+drop table t1;
+
+--echo #
+--echo # Print protocol collation IDs for 0900 collations
+--echo # They should be known to libmariadb
+--echo # See libmariadb/libmariadb/ma_charset.c
+--echo #
+
+--disable_column_names
+--disable_ps_protocol
+--enable_metadata
+DELIMITER $$;
+FOR rec IN (SELECT COLLATION_NAME
+            FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+            WHERE CHARACTER_SET_NAME='utf8mb4'
+              AND COLLATION_NAME RLIKE '_0900_'
+            ORDER BY ID)
+DO
+  EXECUTE IMMEDIATE CONCAT('SET NAMES utf8mb4 COLLATE ', rec.COLLATION_NAME);
+  SELECT rec.COLLATION_NAME;
+END FOR;
+$$
+DELIMITER ;$$
+--disable_metadata
+--enable_ps_protocol
+--enable_column_names
+
+
+--echo #
+--echo # MDEV-36361 Wrong utf8mb4_0900_bin alias for utf8mb4_bin (should be utf8mb4_nopad_bin)
+--echo #
+
+SELECT collation_name, id, comment
+FROM information_schema.collations
+WHERE collation_name='utf8mb4_0900_bin';
+
+CREATE TABLE t1 (
+  a VARCHAR(32),
+  b VARCHAR(32)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin;
+INSERT INTO t1 VALUES ('a\t', 'a');
+SELECT a<b FROM t1;
+DROP TABLE t1;
+
+--echo # End of 11.4 tests

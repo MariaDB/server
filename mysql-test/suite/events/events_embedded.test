@@ -1,0 +1,4 @@
+--source include/is_embedded.inc
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+set global event_scheduler=ON;

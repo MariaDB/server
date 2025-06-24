@@ -41,10 +41,8 @@ let $message= ####### Testcase for mix of db and table level: #######;
         grant SELECT,INSERT on priv2_db.* to test_noprivs@localhost;
         show grants for test_noprivs@localhost;
 
-	connect (yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-	use priv1_db;
-	connect (no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-	use priv1_db;
+	connect (yes_privs,localhost,test_yesprivs,PWD,priv1_db,$MASTER_MYPORT,$MASTER_MYSOCK);
+	connect (no_privs,localhost,test_noprivs,PWD,priv1_db,$MASTER_MYPORT,$MASTER_MYSOCK);
 
 # trigger priv on db level->create trigger for all tables successful
 

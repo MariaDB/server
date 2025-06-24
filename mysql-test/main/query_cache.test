@@ -27,15 +27,7 @@ SET LOCAL query_cache_type= ON;
 flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
-flush status;
---disable_warnings
-drop table if exists t1,t2,t3,t4,t11,t21,t1_1,t1_2,t9,t9_1,t9_2;
-drop database if exists mysqltest;
-
-# Fix possible left overs from other tests
-drop table if exists ```a`;
-drop view if exists v1;
---enable_warnings
+flush global status;
 
 #
 # First simple test
@@ -394,7 +386,7 @@ update t1 set i=(select distinct 1 from (select * from t2) a);
 drop table t1, t2, t3;
 
 #
-# system databse test
+# system database test
 #
 use mysql;
 disable_result_log;
@@ -468,7 +460,7 @@ drop table t1;
 #
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 set GLOBAL query_cache_size=1048576;
 
 create table t1 (a int not null);
@@ -735,7 +727,7 @@ set GLOBAL query_cache_size=1355776;
 #
 # Query with warning prohibited to query cache (BUG#9414)
 #
-flush status;
+flush global status;
 CREATE TABLE t1 (
   `date` datetime NOT NULL default '0000-00-00 00:00:00',
   KEY `date` (`date`)
@@ -757,7 +749,7 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1);
 reset query cache;
-flush status;
+flush global status;
 select * from (select * from t1) a;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
@@ -780,7 +772,7 @@ drop table t1;
 # BUG#14652: Queries with leading '(' characters.
 #
 create table t1 (a int);
-flush status;
+flush global status;
 (select a from t1) union (select a from t1);
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
@@ -807,9 +799,6 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
 
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
 delimiter //;
 CREATE PROCEDURE `p1`()
 begin
@@ -848,7 +837,7 @@ delimiter ;//
 #
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 delimiter //;
 create table t1 (s1 int)//
 create procedure f1 () begin
@@ -883,7 +872,7 @@ call f1();
 select sql_cache * from t1;
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 select sql_cache * from t1;
 select sql_cache * from t1 where s1=1;
 call f1();
@@ -929,7 +918,7 @@ SET GLOBAL query_cache_size=0;
 # Bug #20045: Server crash on INSERT ... SELECT ... FROM non-mergeable view
 #
 set global query_cache_size=1024*1024;
-flush status;
+flush global status;
 create table t1 (a int);
 insert into t1 (a) values (1), (2), (3);
 select * from t1;
@@ -1230,10 +1219,6 @@ set global query_cache_type=on;
 set session query_cache_type=on;
 
 --echo Restore default values.
- --disable_warnings
- drop database if exists db1;
- drop database if exists db2;
- --enable_warnings
  set GLOBAL query_cache_size=15*1024*1024;
  create database db1;
  use db1;
@@ -1249,10 +1234,6 @@ set session query_cache_type=on;
  drop database db2;
  set global query_cache_size=@save_query_cache_size;
 
- --disable_warnings
- drop database if exists db1;
- drop database if exists db3;
- --enable_warnings
  set GLOBAL query_cache_size=15*1024*1024;
  create database db1;
  create database db3;
@@ -1285,7 +1266,7 @@ set local query_cache_type=on;
 #
 # Bug#33756 - query cache with concurrent_insert=0 appears broken
 #
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SET GLOBAL query_cache_size=10*1024*1024;
 SET @save_concurrent_insert= @@concurrent_insert;
 SET GLOBAL concurrent_insert= 0;
@@ -1305,11 +1286,7 @@ SET GLOBAL query_cache_size= default;
 # Bug#36326: nested transaction and select
 #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SET GLOBAL query_cache_size=1048576;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
@@ -1430,10 +1407,6 @@ if (!` SELECT (@sleep_time_per_result_row * @row_count - @max_acceptable_delay >
    exit;
 }
 SET @@global.query_cache_size = 1024 * 64;
---disable_warnings
-DROP TEMPORARY TABLE IF EXISTS t_history;
-DROP TABLE IF EXISTS t1;
---enable_warnings
 CREATE TEMPORARY TABLE t_history (attempt SMALLINT,
 start_ts DATETIME, end_ts DATETIME,
 start_cached INTEGER, end_cached INTEGER);
@@ -1609,10 +1582,6 @@ DROP TABLE t1;
 --echo # Bug#51336 Assert in reload_acl_and_cache during RESET QUERY CACHE
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 CREATE TABLE t1(id INT);
 
 START TRANSACTION;
@@ -1648,7 +1617,7 @@ set GLOBAL query_cache_size=1355776;
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
 reset query cache;
-flush status;
+flush global status;
 
 create table t1 (a int);
 insert into t1 values (1);
@@ -1669,7 +1638,7 @@ show status like "Qcache_hits";
 drop table t1;
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
-flush status;
+flush global status;
 
 create table t1 (a int);
 select * from t1;
@@ -1688,7 +1657,7 @@ show status like "Qcache_hits";
 
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
-flush status;
+flush global status;
 
 create procedure p1()
   select * from t1;
@@ -1708,7 +1677,7 @@ show status like "Qcache_hits";
 
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
-flush status;
+flush global status;
 
 SET GLOBAL query_cache_size= 0;
 call p1;
@@ -1764,7 +1733,7 @@ SET GLOBAL query_cache_size= @qc;
 --echo #
 CREATE DATABASE `foo.bar`;
 use `foo.bar`;
-flush status;
+flush global status;
 CREATE TABLE moocow (a int);
 INSERT INTO moocow VALUES (1), (2), (3);
 SHOW STATUS LIKE 'Qcache_inserts';
@@ -1782,7 +1751,7 @@ drop database `foo.bar`;
 --echo # MDEV-10766 Queries which start with WITH clause do not get
 --echo # inserted into query cache
 --echo #
-flush status;
+flush global status;
 show status like "Qcache_inserts";
 create table t1 (i int);
 with cte as (select * from t1) select * from cte;
@@ -1883,7 +1852,7 @@ drop table t1;
 --echo #
 create table t1 (a text);
 insert into t1 values ('{"a":"foo"}');
-flush status;
+flush global status;
 SHOW STATUS LIKE 'Qcache_inserts';
 --disable_cursor_protocol
 select * from t1, json_table(t1.a, '$' columns (f varchar(20) path '$.a')) as jt;
@@ -1901,6 +1870,37 @@ DROP TABLE t;
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
---enable_ps2_protocol
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-29028: Queries using RANDOM_BYTES get stored in query cache
+--echo #
+
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+
+create table t1 (a int);
+insert into t1 values (1000);
+
+flush global status;
+--let $v1 = `select hex(random_bytes(a)) from t1`
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+
+--let $v2 = `select hex(random_bytes(a)) from t1`
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+
+if ($v1 == $v2) {
+--echo highly improbable $v1 = $v2
+}
+
+select random_bytes(1024) = random_bytes(1024) as improbable;
+
+# Cleanup
+drop table t1;
+set global query_cache_type= @qcache;
+
+--echo # End of 10.10 tests
+
+--enable_ps2_protocol

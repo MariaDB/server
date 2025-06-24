@@ -610,8 +610,8 @@ select @a;
 10
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop table t1;
 set sql_mode="traditional";
 create table t1 (a date);
@@ -629,10 +629,10 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (id int);
 create trigger t1_ai after insert on t1 for each row reset query cache;
@@ -730,8 +730,6 @@ select user() into user;
 set NEW.username = user;
 select count(*) from ((select 1) union (select 2)) as d1 into i;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 update t1 set data = 1;
 connection addconroot1;
 update t1 set data = 2;
@@ -961,7 +959,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop trigger test.t1_bi;
 ERROR HY000: Trigger does not exist
 drop trigger t1_bi;
@@ -2080,8 +2078,6 @@ FOR EACH ROW BEGIN
 SELECT 1 FROM t1 c WHERE
 (@bug51650 IS NULL OR @bug51650 != c.b) AND c.b = NEW.a LIMIT 1 INTO @foo;
 END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SET @bug51650 = 1;
 INSERT IGNORE INTO t2 VALUES();
 INSERT IGNORE INTO t1 SET b = '777';
@@ -2121,7 +2117,7 @@ CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1
 # Used to crash
 SHOW TRIGGERS IN db1;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 INSERT INTO t2 VALUES (1);
 ERROR 42000: Trigger 'trg1' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VALUES (1)' at line 1'
 SELECT * FROM t1;
@@ -2302,18 +2298,20 @@ DROP TABLE t1, t2;
 set time_zone="+00:00";
 SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+set @rpt=1;
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 CREATE TRIGGER t1_bi
 BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
 END;
 |
 SET @@session.sql_mode = default;
-INSERT INTO t1 VALUES ('a');
-ERROR 22001: Data too long for column 'c' at row 1
+INSERT INTO t1 VALUES ('a'),('b');
+ERROR 22001: Data too long for column 'c' at row 0
 show create trigger t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t1_bi	STRICT_TRANS_TABLES,STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi
@@ -2321,8 +2319,9 @@ BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
-END	latin1	latin1_swedish_ci	latin1_swedish_ci	2001-01-01 10:20:30.00
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	2001-01-01 10:20:30.00
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
@@ -2495,3 +2494,469 @@ Warning	4181	Dropped orphan trigger 't1_trg', originally created for table: 't1'
 drop trigger t1_trg_2;
 drop table t1;
 # End of 10.6 tests
+#
+# MDEV-34551: Column list in the trigger definition
+#
+CREATE TABLE t1 (a INT, b INT, c INT);
+INSERT INTO t1 VALUES (1, 2, 3);
+# Test 1. The `OF` clause followed by <column name list> is allowed only
+# in definition of FOR UPDATE trigger. Check it below.
+CREATE TRIGGER t1_bi BEFORE INSERT OF a ON t1 FOR EACH ROW DO SET @a = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OF a ON t1 FOR EACH ROW DO SET @a = 1' at line 1
+CREATE TRIGGER t1_bi AFTER INSERT OF a ON t1 FOR EACH ROW DO SET @a = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OF a ON t1 FOR EACH ROW DO SET @a = 1' at line 1
+CREATE TRIGGER t1_bi BEFORE DELETE OF a ON t1 FOR EACH ROW DO SET @a = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OF a ON t1 FOR EACH ROW DO SET @a = 1' at line 1
+CREATE TRIGGER t1_bi AFTER DELETE OF a ON t1 FOR EACH ROW DO SET @a = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OF a ON t1 FOR EACH ROW DO SET @a = 1' at line 1
+# Test 2. Check correct handling of the `OF` clause
+CREATE TABLE t2 (a_old INT, b_old INT, a_new INT, b_new INT);
+CREATE TRIGGER t1_bu BEFORE UPDATE OF a, b ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+UPDATE t1 SET a = 10 WHERE a = 1;
+# Expected output is the row (1, 2, 10, 2)
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+1	2	10	2
+TRUNCATE TABLE t2;
+UPDATE t1 SET b = 20 WHERE b = 2;
+# Expected output is the row (1, 2, 10, 20)
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+10	2	10	20
+TRUNCATE TABLE t2;
+UPDATE t1 SET c = 30 WHERE c = 3;
+# Expected empty rowset since the column name `c` is not listed
+# in the `OF` clause of the CREATE TRIGGER statement
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+TRUNCATE TABLE t2;
+# Finally, check that SHOW CREATE TRIGGER displays right information
+# about the `OF` clause.
+SHOW CREATE TRIGGER t1_bu;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_bu	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bu BEFORE UPDATE OF a, b ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+DROP TRIGGER t1_bu;
+# Test 3. The same checks for AFTER UPDATE trigger.
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 2, 3);
+CREATE TRIGGER t1_au AFTER UPDATE OF a, b ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+UPDATE t1 SET a = 10 WHERE a = 1;
+# Expected output is the row (1, 2, 10, 2)
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+1	2	10	2
+TRUNCATE TABLE t2;
+UPDATE t1 SET b = 20 WHERE b = 2;
+# Expected output is the row (1, 2, 10, 20)
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+10	2	10	20
+TRUNCATE TABLE t2;
+UPDATE t1 SET c = 30 WHERE c = 3;
+# Expected empty rowset since the column name `c` is not listed
+# in the OF clause of the CREATE TRIGGER statement
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+# Finally, check that SHOW CREATE TRIGGER displays right information
+# about the 'OF' clause.
+SHOW CREATE TRIGGER t1_au;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_au	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_au AFTER UPDATE OF a, b ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+# Clean up
+DROP TABLE t1, t2;
+# Test 4. Multi-update and a FOR UPDATE trigger with the `OF` clause
+# Test 4.1 Multi-update statement and BEFORE UPDATE trigger with the `OF` clause
+CREATE TABLE t1 (a INT, b INT, c INT);
+INSERT INTO t1 VALUES (1, 2, -1), (3, 4, -2);
+CREATE TABLE t3 (a INT, b INT, c INT);
+CREATE TRIGGER t1_bu BEFORE UPDATE OF b ON t1 FOR EACH ROW INSERT INTO t3 VALUES (NEW.a,NEW.b, NEW.c);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (1, 1), (3, 3);
+UPDATE t1, t2 SET t1.b = t1.b + 100 WHERE t1.a = t2.a;
+SELECT * FROM t1;
+a	b	c
+1	102	-1
+3	104	-2
+# Show trigger's work results. Expected result set is (1, 102, -1), (3, 104, -2)
+SELECT * FROM t3;
+a	b	c
+1	102	-1
+3	104	-2
+TRUNCATE TABLE t3;
+UPDATE t1, t2 SET t1.c = t1.c + 200 WHERE t1.a = t2.a;
+# Show trigger's work results. It's expected that no rows be output
+# since the column `c` is not listed in the the `OF` clause.
+SELECT * FROM t3;
+a	b	c
+# Clean up
+DROP TABLE t1, t2, t3;
+# Test 4.2 Multi-update statement and AFTER UPDATE trigger with the `OF` clause
+CREATE TABLE t1 (a INT, b INT, c INT);
+INSERT INTO t1 VALUES (1, 2, -1), (3, 4, -2);
+CREATE TABLE t3 (a INT, b INT, c INT);
+CREATE TRIGGER t1_au AFTER  UPDATE OF b ON t1 FOR EACH ROW INSERT INTO t3 VALUES (NEW.a, NEW.b, NEW.c);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (1, 1), (3, 3);
+UPDATE t1, t2 SET t1.b = t1.b + 100 WHERE t1.a = t2.a;
+SELECT * FROM t1;
+a	b	c
+1	102	-1
+3	104	-2
+# Show trigger's work results. Expected result set is (1, 102, -1), (3, 104, -2)
+SELECT * FROM t3;
+a	b	c
+1	102	-1
+3	104	-2
+TRUNCATE TABLE t3;
+UPDATE t1, t2 SET t1.c = t1.c + 200 WHERE t1.a = t2.a;
+# Show trigger's work results. It's expected that no rows be output
+# since the column `c` is not listed in the the `OF` clause.
+SELECT * FROM t3;
+a	b	c
+# Clean up
+DROP TABLE t1, t2, t3;
+# Test 5. Check that a FOR UPDATE trigger with the `OF` clause cooperates correctly
+#         with other FOR UPDATE triggers that precedes or follows this one
+CREATE TABLE t1 (a INT, b INT, c INT);
+CREATE TABLE t2 (a_old INT, b_old INT, a_new INT, b_new INT);
+INSERT INTO t1 VALUES (1, 2, 3);
+CREATE TRIGGER t1_bu_0 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (-1, -1, -1, -1);
+CREATE TRIGGER t1_bu BEFORE UPDATE OF a, b ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+CREATE TRIGGER t1_bu_1 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (-2, -2, -2, -2);
+UPDATE t1 SET c = 30 WHERE c = 3;
+#
+# Expected rows in output are (-1, -1, -1, -1), (-2, -2, -2, -2) since
+# the trigger t1_bu is not fired because the column `c` not listed at
+# the clause `OF <columnd list>` in definition of the trigger t1_bu.
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+-1	-1	-1	-1
+-2	-2	-2	-2
+TRUNCATE TABLE t2;
+UPDATE t1 SET b = 200 WHERE b = 2;
+#
+# Expected rows in output are (-1, -1, -1, -1), (1, 2, 1, 200), (-2, -2, -2, -2)
+# since the trigger t1_bu is fired because the column `b` listed at
+# the clause `OF <columnd list>` in definition of the trigger t1_bu.
+SELECT * FROM t2;
+a_old	b_old	a_new	b_new
+-1	-1	-1	-1
+1	2	1	200
+-2	-2	-2	-2
+# Clean up
+DROP TABLE t1, t2;
+#
+# MDEV-10164: Add support for TRIGGERS that fire on multiple events
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER t1_b_any BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (1000);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a);
+CREATE TRIGGER t1_bd BEFORE DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (OLD.a);
+INSERT INTO t1 VALUES (1);
+# The previous statement should fire the triggers t1_b_any and t1_bi.
+# Check it. The following query should return the rows (1000), (1)
+SELECT * FROM t2;
+a
+1000
+1
+# Clean up the table t2 before running the next test case
+TRUNCATE TABLE t2;
+UPDATE t1 SET a = -1;
+# The previous statement should fire the triggers t1_b_any and t1_bu.
+# Check it. The following query should return the rows (1000), (-1)
+SELECT * FROM t2;
+a
+1000
+-1
+# Clean up the table t2 before running the next test case
+TRUNCATE TABLE t2;
+DELETE FROM t1 WHERE a = -1;
+# The previous statement should fire the triggers t1_b_any and t1_bu.
+# Check it. The following query should return the rows (1000), (-1)
+SELECT * FROM t2;
+a
+1000
+-1
+# Clean up
+DROP TABLE t1, t2;
+# The following test case is about handling the new clauses
+# INSERTING, UPDATING, DELETING
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+CREATE TRIGGER t1_b_any BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+INSERT INTO t2 VALUES (NEW.a, 'INSERTING');
+ELSEIF UPDATING THEN
+INSERT INTO t2 VALUES (NEW.a, 'UPDATING');
+ELSEIF DELETING THEN
+INSERT INTO t2 VALUES (OLD.a, 'DELETING');
+END IF;
+END
+$
+INSERT INTO t1 VALUES(100);
+UPDATE t1 SET a = 300;
+DELETE FROM t1;
+# Query results of trigger executions
+SELECT * FROM t2;
+a	b
+100	INSERTING
+300	UPDATING
+300	DELETING
+# Check that SHOW TRIGGERS outputs data about every specified event type
+# in the column `event`. For the trigger t1_b_any the column `event`
+# must contain the value `INSERT,UPDATE,DELETE`
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+t1_b_any	INSERT,UPDATE,DELETE	t1	BEGIN
+IF INSERTING THEN
+INSERT INTO t2 VALUES (NEW.a, 'INSERTING');
+ELSEIF UPDATING THEN
+INSERT INTO t2 VALUES (NEW.a, 'UPDATING');
+ELSEIF DELETING THEN
+INSERT INTO t2 VALUES (OLD.a, 'DELETING');
+END IF;
+END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+# Check that DROP TRIGGER does work correctly
+DROP TRIGGER t1_b_any;
+# No triggers in output of SHOW TRIGGERS;
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+# Clean up
+DROP TABLE t1, t2;
+#
+# Check that event flag in condition must match the event type of a trigger
+#
+CREATE TABLE t1 (a INT);
+# The following CREATE TRIGGER statement must fail since
+# the UPDATING clause can be specified only for UPDATE trigger event
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF UPDATING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'UPDATING' in the condition expression is not compatible with the trigger event type 'INSERT'
+# The following CREATE TRIGGER statement must fail since
+# the DELETING clause can be specified only for DELETE trigger event
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF DELETING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'DELETING' in the condition expression is not compatible with the trigger event type 'INSERT'
+# The following CREATE TRIGGER statement must fail since
+# the INSERTING clause can be specified only for INSERT trigger event
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'INSERTING' in the condition expression is not compatible with the trigger event type 'UPDATE'
+# The following CREATE TRIGGER statement must fail since
+# the INSERTING clause can be specified only for INSERT trigger event
+CREATE TRIGGER t1_bi BEFORE DELETE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'INSERTING' in the condition expression is not compatible with the trigger event type 'DELETE'
+# The following CREATE TRIGGER statement must fail since
+# the DELETING clause can be specified only for DELETE trigger event
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF DELETING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'DELETING' in the condition expression is not compatible with the trigger event type 'INSERT'
+# The following CREATE TRIGGER statement must fail since
+# the DELETING clause can be specified only for DELETE trigger event
+CREATE TRIGGER t1_bi BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+IF DELETING THEN
+SET @a=100;
+END IF;
+END;
+$
+ERROR HY000: Event flag 'DELETING' in the condition expression is not compatible with the trigger event type 'UPDATE'
+# Clean up
+DROP TABLE t1;
+# Check that NEW and OLD clause is handled correctly for different trigger
+# event types.
+# For INSERT trigger, referencing to a table's column via the OLD clause
+# should return the NULL value; for DELETE trigger, referencing to a table's
+# column via the NEW clause should return the NULL value.
+# First, check that for integral types
+CREATE TABLE t1 (a INT, b TINYINT, c SMALLINT, d MEDIUMINT, e BIGINT, f DECIMAL, g FLOAT, h DOUBLE);
+CREATE TABLE t2 (old_a INT, new_a INT, old_b TINYINT, new_b TINYINT, old_c SMALLINT, new_c SMALLINT, old_d MEDIUMINT, new_d MEDIUMINT, old_e BIGINT, new_e BIGINT, old_f DECIMAL, new_f DECIMAL, old_g FLOAT, new_g FLOAT, old_h DOUBLE, new_h DOUBLE, event_name VARCHAR(20));
+CREATE TRIGGER t1_b_all BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, OLD.c, NEW.c, OLD.d, NEW.d, OLD.e, NEW.e, OLD.f, NEW.f, OLD.g, NEW.g, OLD.h, NEW.h, 'INSERTING');
+SET @old_a = OLD.a;
+SET @new_a = NEW.a;
+SET @old_b = OLD.b;
+SET @new_b = NEW.b;
+SET @old_c = OLD.c;
+SET @new_c = NEW.c;
+SET @old_d = OLD.d;
+SET @new_d = NEW.d;
+SET @old_e = OLD.e;
+SET @new_e = NEW.e;
+SET @old_f = OLD.f;
+SET @new_f = NEW.f;
+SET @old_g = OLD.g;
+SET @new_g = NEW.g;
+SET @old_h = OLD.h;
+SET @new_h = NEW.h;
+ELSEIF UPDATING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, OLD.c, NEW.c, OLD.d, NEW.d, OLD.e, NEW.e, OLD.f, NEW.f, OLD.g, NEW.g, OLD.h, NEW.h, 'UPDATING');
+SET @old_a = OLD.a;
+SET @new_a = NEW.a;
+SET @old_b = OLD.b;
+SET @new_b = NEW.b;
+SET @old_c = OLD.c;
+SET @new_c = NEW.c;
+SET @old_d = OLD.d;
+SET @new_d = NEW.d;
+SET @old_e = OLD.e;
+SET @new_e = NEW.e;
+SET @old_f = OLD.f;
+SET @new_f = NEW.f;
+SET @old_g = OLD.g;
+SET @new_g = NEW.g;
+SET @old_h = OLD.h;
+SET @new_h = NEW.h;
+ELSEIF DELETING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, OLD.c, NEW.c, OLD.d, NEW.d, OLD.e, NEW.e, OLD.f, NEW.f, OLD.g, NEW.g, OLD.h, NEW.h, 'DELETING');
+SET @old_a = OLD.a;
+SET @new_a = NEW.a;
+SET @old_b = OLD.b;
+SET @new_b = NEW.b;
+SET @old_c = OLD.c;
+SET @new_c = NEW.c;
+SET @old_d = OLD.d;
+SET @new_d = NEW.d;
+SET @old_e = OLD.e;
+SET @new_e = NEW.e;
+SET @old_f = OLD.f;
+SET @new_f = NEW.f;
+SET @old_g = OLD.g;
+SET @new_g = NEW.g;
+SET @old_h = OLD.h;
+SET @new_h = NEW.h;
+END IF;
+END
+$
+INSERT INTO t1 VALUES (100, 100, 100, 100, 100, 100, 100, 100);
+SELECT @old_a, @new_a, @old_b, @new_b, @old_c, @new_c, @old_d, @new_d, @old_e, @new_e, @old_f, @new_f, @old_g, @new_g, @old_h, @new_h;
+@old_a	@new_a	@old_b	@new_b	@old_c	@new_c	@old_d	@new_d	@old_e	@new_e	@old_f	@new_f	@old_g	@new_g	@old_h	@new_h
+NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	NULL	100
+UPDATE t1 SET a = 150, b=110, c=150, d=150, e=150, f=150, g=150, h=150 WHERE a = 100;
+SELECT @old_a, @new_a, @old_b, @new_b, @old_c, @new_c, @old_d, @new_d, @old_e, @new_e, @old_f, @new_f, @old_g, @new_g, @old_h, @new_h;
+@old_a	@new_a	@old_b	@new_b	@old_c	@new_c	@old_d	@new_d	@old_e	@new_e	@old_f	@new_f	@old_g	@new_g	@old_h	@new_h
+100	150	100	110	100	150	100	150	100	150	100	150	100	150	100	150
+DELETE FROM t1 WHERE a = 150;
+SELECT @old_a, @new_a, @old_b, @new_b, @old_c, @new_c, @old_d, @new_d, @old_e, @new_e, @old_f, @new_f, @old_g, @new_g, @old_h, @new_h;
+@old_a	@new_a	@old_b	@new_b	@old_c	@new_c	@old_d	@new_d	@old_e	@new_e	@old_f	@new_f	@old_g	@new_g	@old_h	@new_h
+150	NULL	110	NULL	150	NULL	150	NULL	150	NULL	150	NULL	150	NULL	150	NULL
+SELECT * FROM t2;
+old_a	new_a	old_b	new_b	old_c	new_c	old_d	new_d	old_e	new_e	old_f	new_f	old_g	new_g	old_h	new_h	event_name
+NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	NULL	100	INSERTING
+100	150	100	110	100	150	100	150	100	150	100	150	100	150	100	150	UPDATING
+150	NULL	110	NULL	150	NULL	150	NULL	150	NULL	150	NULL	150	NULL	150	NULL	DELETING
+# Clean up
+DROP TABLE t1, t2;
+# Then, check this assertion for string types
+CREATE TABLE t1 (a CHAR(10), b VARCHAR(10));
+CREATE TABLE t2 (old_a CHAR(10), new_a CHAR(10), old_b VARCHAR(10), new_b VARCHAR(10), event_name VARCHAR(20));
+CREATE TRIGGER t1_b_all BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, 'INSERTING');
+SET @old_a = OLD.a;
+SET @new_a = NEW.a;
+SET @old_b = OLD.b;
+SET @new_b = NEW.b;
+ELSEIF UPDATING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, 'UPDATING');
+SET @old_a = OLD.a;
+SET @new_a = NEW.a;
+SET @old_b = OLD.b;
+SET @new_b = NEW.b;
+ELSEIF DELETING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, OLD.b, NEW.b, 'DELETING');
+SET @old_a = OLD.a;
+SET @new_a = NEW.a;
+SET @old_b = OLD.b;
+SET @new_b = NEW.b;
+END IF;
+END
+$
+INSERT INTO t1 VALUES ('aaa', 'bbb');
+SELECT @old_a, @new_a, @old_b, @new_b;
+@old_a	@new_a	@old_b	@new_b
+NULL	aaa	NULL	bbb
+UPDATE t1 SET a = 'AAA', b = 'BBB' WHERE a = 'aaa';
+SELECT @old_a, @new_a, @old_b, @new_b;
+@old_a	@new_a	@old_b	@new_b
+aaa	AAA	bbb	BBB
+DELETE FROM t1 WHERE a = 'AAA';
+SELECT @old_a, @new_a, @old_b, @new_b;
+@old_a	@new_a	@old_b	@new_b
+AAA	NULL	BBB	NULL
+SELECT * FROM t2;
+old_a	new_a	old_b	new_b	event_name
+NULL	aaa	NULL	bbb	INSERTING
+aaa	AAA	bbb	BBB	UPDATING
+AAA	NULL	BBB	NULL	DELETING
+# Clean up
+DROP TABLE t1, t2;
+# Test for a column declared as NOT NULL
+CREATE TABLE t1 (a INT NOT NULL);
+CREATE TABLE t2 (old_a INT, new_a INT, event_name VARCHAR(20));
+CREATE TRIGGER t1_b_all BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+BEGIN
+IF INSERTING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, 'INSERTING');
+ELSEIF DELETING THEN
+INSERT INTO t2 VALUES (OLD.a, NEW.a, 'DELETING');
+END IF;
+END;
+$
+# Check that OLD.a is NULL in spite of the fact that the column `a`
+# is declared as NOT NULL. OLD.a is referenced from the trigger t1_b_all
+# when it is fired on INSERT event
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t2;
+old_a	new_a	event_name
+NULL	1	INSERTING
+TRUNCATE TABLE t2;
+# Check that NEL.a is NULL in spite of the fact that the column `a`
+# is declared as NOT NULL. NEW.a is referenced from the trigger t1_b_all
+# when it is fired on DELETE event
+DELETE FROM t1;
+SELECT * FROM t1;
+a
+SELECT * FROM t2;
+old_a	new_a	event_name
+1	NULL	DELETING
+DROP TABLE t1, t2;
+# End of tests for MDEV-10164
+#
+# End of 11.8 tests
+#

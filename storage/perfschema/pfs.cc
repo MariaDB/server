@@ -1351,24 +1351,22 @@ static inline int mysql_mutex_lock(...)
   @ingroup Performance_schema_implementation
 */
 
-thread_local_key_t THR_PFS;
-thread_local_key_t THR_PFS_VG;   // global_variables
-thread_local_key_t THR_PFS_SV;   // session_variables
-thread_local_key_t THR_PFS_VBT;  // variables_by_thread
-thread_local_key_t THR_PFS_SG;   // global_status
-thread_local_key_t THR_PFS_SS;   // session_status
-thread_local_key_t THR_PFS_SBT;  // status_by_thread
-thread_local_key_t THR_PFS_SBU;  // status_by_user
-thread_local_key_t THR_PFS_SBH;  // status_by_host
-thread_local_key_t THR_PFS_SBA;  // status_by_account
+MY_THREAD_LOCAL void* THR_PFS_VG;   // global_variables
+MY_THREAD_LOCAL void* THR_PFS_SV;   // session_variables
+MY_THREAD_LOCAL void* THR_PFS_VBT;  // variables_by_thread
+MY_THREAD_LOCAL void* THR_PFS_SG;   // global_status
+MY_THREAD_LOCAL void* THR_PFS_SS;   // session_status
+MY_THREAD_LOCAL void* THR_PFS_SBT;  // status_by_thread
+MY_THREAD_LOCAL void* THR_PFS_SBU;  // status_by_user
+MY_THREAD_LOCAL void* THR_PFS_SBH;  // status_by_host
+MY_THREAD_LOCAL void* THR_PFS_SBA;  // status_by_account
 
-bool THR_PFS_initialized= false;
+MY_THREAD_LOCAL PFS_thread* THR_PFS;
 
 static inline PFS_thread*
 my_thread_get_THR_PFS()
 {
-  assert(THR_PFS_initialized);
-  PFS_thread *thread= static_cast<PFS_thread*>(my_get_thread_local(THR_PFS));
+  PFS_thread *thread= THR_PFS;
   assert(thread == NULL || sanitize_thread(thread) != NULL);
   return thread;
 }
@@ -1376,8 +1374,7 @@ my_thread_get_THR_PFS()
 static inline void
 my_thread_set_THR_PFS(PFS_thread *pfs)
 {
-  assert(THR_PFS_initialized);
-  my_set_thread_local(THR_PFS, pfs);
+  THR_PFS= pfs;
 }
 
 /**
@@ -2328,6 +2325,14 @@ pfs_get_thread_v1(void)
   return reinterpret_cast<PSI_thread*> (pfs);
 }
 
+const char *pfs_get_thread_class_name_v1(void)
+{
+  PFS_thread *pfs= my_thread_get_THR_PFS();
+  if (!pfs)
+    return NULL;
+  return pfs->m_class->m_name;
+}
+
 /**
   Implementation of the thread instrumentation interface.
   @sa PSI_v1::set_thread_user.
@@ -2644,7 +2649,7 @@ pfs_start_mutex_wait_v1(PSI_mutex_locker_state *state,
 
     if (pfs_mutex->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -2685,7 +2690,7 @@ pfs_start_mutex_wait_v1(PSI_mutex_locker_state *state,
   {
     if (pfs_mutex->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
       state->m_thread= NULL;
@@ -2762,7 +2767,7 @@ pfs_start_rwlock_wait_v1(PSI_rwlock_locker_state *state,
 
     if (pfs_rwlock->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -2803,7 +2808,7 @@ pfs_start_rwlock_wait_v1(PSI_rwlock_locker_state *state,
   {
     if (pfs_rwlock->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
       state->m_thread= NULL;
@@ -2901,7 +2906,7 @@ pfs_start_cond_wait_v1(PSI_cond_locker_state *state,
 
     if (pfs_cond->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -2942,7 +2947,7 @@ pfs_start_cond_wait_v1(PSI_cond_locker_state *state,
   {
     if (pfs_cond->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
     }
@@ -3044,7 +3049,7 @@ pfs_start_table_io_wait_v1(PSI_table_locker_state *state,
 
     if (pfs_table->m_io_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -3091,7 +3096,7 @@ pfs_start_table_io_wait_v1(PSI_table_locker_state *state,
   {
     if (pfs_table->m_io_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
     }
@@ -3175,7 +3180,7 @@ pfs_start_table_lock_wait_v1(PSI_table_locker_state *state,
 
     if (pfs_table->m_lock_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -3222,7 +3227,7 @@ pfs_start_table_lock_wait_v1(PSI_table_locker_state *state,
   {
     if (pfs_table->m_lock_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
     }
@@ -3562,7 +3567,7 @@ pfs_start_socket_wait_v1(PSI_socket_locker_state *state,
 
     if (pfs_socket->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -3605,7 +3610,7 @@ pfs_start_socket_wait_v1(PSI_socket_locker_state *state,
   {
     if (pfs_socket->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
     }
@@ -3674,7 +3679,7 @@ void pfs_unlock_mutex_v1(PSI_mutex *mutex)
     return;
 
   ulonglong locked_time;
-  locked_time= get_timer_pico_value(wait_timer) - pfs_mutex->m_last_locked;
+  locked_time= get_wait_timer() - pfs_mutex->m_last_locked;
   pfs_mutex->m_mutex_stat.m_lock_stat.aggregate_value(locked_time);
 #endif
 }
@@ -3743,12 +3748,12 @@ void pfs_unlock_rwlock_v1(PSI_rwlock *rwlock)
   ulonglong locked_time;
   if (last_writer)
   {
-    locked_time= get_timer_pico_value(wait_timer) - pfs_rwlock->m_last_written;
+    locked_time= get_wait_timer() - pfs_rwlock->m_last_written;
     pfs_rwlock->m_rwlock_stat.m_write_lock_stat.aggregate_value(locked_time);
   }
   else if (last_reader)
   {
-    locked_time= get_timer_pico_value(wait_timer) - pfs_rwlock->m_last_read;
+    locked_time= get_wait_timer() - pfs_rwlock->m_last_read;
     pfs_rwlock->m_rwlock_stat.m_read_lock_stat.aggregate_value(locked_time);
   }
 #else
@@ -3819,7 +3824,7 @@ pfs_start_idle_wait_v1(PSI_idle_locker_state* state, const char *src_file, uint 
 
     if (global_idle_class.m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(idle_timer, &state->m_timer);
+      timer_start= get_idle_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -3863,7 +3868,7 @@ pfs_start_idle_wait_v1(PSI_idle_locker_state* state, const char *src_file, uint 
   {
     if (global_idle_class.m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(idle_timer, &state->m_timer);
+      timer_start= get_idle_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
     }
@@ -3888,7 +3893,7 @@ void pfs_end_idle_wait_v1(PSI_idle_locker* locker)
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_idle_timer();
     wait_time= timer_end - state->m_timer_start;
   }
 
@@ -3958,7 +3963,7 @@ void pfs_end_mutex_wait_v1(PSI_mutex_locker* locker, int rc)
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     /* Aggregate to EVENTS_WAITS_SUMMARY_BY_INSTANCE (timed) */
     mutex->m_mutex_stat.m_wait_stat.aggregate_value(wait_time);
@@ -4030,7 +4035,7 @@ void pfs_end_rwlock_rdwait_v1(PSI_rwlock_locker* locker, int rc)
 
   if (state->m_flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     /* Aggregate to EVENTS_WAITS_SUMMARY_BY_INSTANCE (timed) */
     rwlock->m_rwlock_stat.m_wait_stat.aggregate_value(wait_time);
@@ -4112,7 +4117,7 @@ void pfs_end_rwlock_wrwait_v1(PSI_rwlock_locker* locker, int rc)
 
   if (state->m_flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     /* Aggregate to EVENTS_WAITS_SUMMARY_BY_INSTANCE (timed) */
     rwlock->m_rwlock_stat.m_wait_stat.aggregate_value(wait_time);
@@ -4190,7 +4195,7 @@ void pfs_end_cond_wait_v1(PSI_cond_locker* locker, int rc)
 
   if (state->m_flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     /* Aggregate to EVENTS_WAITS_SUMMARY_BY_INSTANCE (timed) */
     cond->m_cond_stat.m_wait_stat.aggregate_value(wait_time);
@@ -4287,7 +4292,7 @@ void pfs_end_table_io_wait_v1(PSI_table_locker* locker, ulonglong numrows)
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     stat->aggregate_many_value(wait_time, numrows);
   }
@@ -4359,7 +4364,7 @@ void pfs_end_table_lock_wait_v1(PSI_table_locker* locker)
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     stat->aggregate_value(wait_time);
   }
@@ -4546,7 +4551,7 @@ void pfs_start_file_wait_v1(PSI_file_locker *locker,
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+    timer_start= get_wait_timer();
     state->m_timer_start= timer_start;
   }
 
@@ -4629,7 +4634,7 @@ void pfs_end_file_wait_v1(PSI_file_locker *locker,
   /* Aggregation for EVENTS_WAITS_SUMMARY_BY_INSTANCE */
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
     /* Aggregate to EVENTS_WAITS_SUMMARY_BY_INSTANCE (timed) */
     byte_stat->aggregate(wait_time, bytes);
@@ -4825,7 +4830,7 @@ pfs_start_stage_v1(PSI_stage_key key, const char *src_file, int src_line)
     /* Finish old event */
     if (old_class->m_timed)
     {
-      timer_value= get_timer_raw_value(stage_timer);;
+      timer_value= get_stage_timer();
       pfs->m_timer_end= timer_value;
 
       /* Aggregate to EVENTS_STAGES_SUMMARY_BY_THREAD_BY_EVENT_NAME (timed) */
@@ -4873,7 +4878,7 @@ pfs_start_stage_v1(PSI_stage_key key, const char *src_file, int src_line)
       TIMER_END for the previous stage already.
     */
     if (timer_value == 0)
-      timer_value= get_timer_raw_value(stage_timer);
+      timer_value= get_stage_timer();
     pfs->m_timer_start= timer_value;
   }
   else
@@ -4942,7 +4947,7 @@ void pfs_end_stage_v1()
     /* Finish old event */
     if (old_class->m_timed)
     {
-      timer_value= get_timer_raw_value(stage_timer);;
+      timer_value= get_stage_timer();
       pfs->m_timer_end= timer_value;
 
       /* Aggregate to EVENTS_STAGES_SUMMARY_BY_THREAD_BY_EVENT_NAME (timed) */
@@ -5227,7 +5232,7 @@ void pfs_start_statement_v1(PSI_statement_locker *locker,
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_start= get_timer_raw_value_and_function(statement_timer, & state->m_timer);
+    timer_start= get_statement_timer();
     state->m_timer_start= timer_start;
   }
 
@@ -5428,7 +5433,7 @@ void pfs_end_statement_v1(PSI_statement_locker *locker, void *stmt_da)
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_statement_timer();
     wait_time= timer_end - state->m_timer_start;
   }
 
@@ -5864,9 +5869,8 @@ PSI_sp_locker* pfs_start_sp_v1(PSI_sp_locker_state *state,
 
   if(pfs_program->m_timed)
   {
+    state->m_timer_start= get_statement_timer();
     state->m_flags|= STATE_FLAG_TIMED;
-    state->m_timer_start= get_timer_raw_value_and_function(statement_timer,
-                                                  & state->m_timer);
   }
 
   state->m_sp_share= sp_share;
@@ -5887,7 +5891,7 @@ void pfs_end_sp_v1(PSI_sp_locker *locker)
 
   if (state->m_flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_statement_timer();
     wait_time= timer_end - state->m_timer_start;
 
     /* Now use this timer_end and wait_time for timing information. */
@@ -6023,7 +6027,7 @@ void pfs_start_transaction_v1(PSI_transaction_locker *locker,
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_start= get_timer_raw_value_and_function(transaction_timer, &state->m_timer);
+    timer_start= get_transaction_timer();
     state->m_timer_start= timer_start;
   }
 
@@ -6159,7 +6163,7 @@ void pfs_end_transaction_v1(PSI_transaction_locker *locker, my_bool commit)
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_transaction_timer();
     wait_time= timer_end - state->m_timer_start;
   }
 
@@ -6278,7 +6282,7 @@ void pfs_end_socket_wait_v1(PSI_socket_locker *locker, size_t byte_count)
   /* Aggregation for EVENTS_WAITS_SUMMARY_BY_INSTANCE */
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
 
     /* Aggregate to the socket instrument for now (timed) */
@@ -6856,7 +6860,7 @@ pfs_start_metadata_wait_v1(PSI_metadata_locker_state *state,
 
     if (pfs_lock->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags|= STATE_FLAG_TIMED;
     }
@@ -6899,7 +6903,7 @@ pfs_start_metadata_wait_v1(PSI_metadata_locker_state *state,
   {
     if (pfs_lock->m_timed)
     {
-      timer_start= get_timer_raw_value_and_function(wait_timer, & state->m_timer);
+      timer_start= get_wait_timer();
       state->m_timer_start= timer_start;
       flags= STATE_FLAG_TIMED;
       state->m_thread= NULL;
@@ -6936,7 +6940,7 @@ pfs_end_metadata_wait_v1(PSI_metadata_locker *locker,
 
   if (flags & STATE_FLAG_TIMED)
   {
-    timer_end= state->m_timer();
+    timer_end = get_wait_timer();
     wait_time= timer_end - state->m_timer_start;
   }
 
@@ -7043,6 +7047,7 @@ PSI_v1 PFS_v1=
   pfs_set_thread_THD_v1,
   pfs_set_thread_os_id_v1,
   pfs_get_thread_v1,
+  pfs_get_thread_class_name_v1,
   pfs_set_thread_user_v1,
   pfs_set_thread_account_v1,
   pfs_set_thread_db_v1,

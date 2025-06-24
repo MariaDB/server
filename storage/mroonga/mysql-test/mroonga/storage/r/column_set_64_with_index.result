@@ -73,7 +73,7 @@ items	CREATE TABLE `items` (
   `name` varchar(255) DEFAULT NULL,
   `colors` set('black','dim gray','dark gray','gray','light gray','gainsboro','white smoke','white','red','orange red','dark orange','orange','gold','yellow','chartreuse','lawn green','green','spring green','medium spring green','cyan','deep sky blue','blue','medium blue','dark violet','dark magenta','magenta','dark red','brown','firebrick','indian red','light coral','salmon','light salmon','tomato','coral','dark salmon','rosy brown','sienna','saddle brown','chocolate','peru','sandy brown','burlywood','tan','navajo white','wheat','dark goldenrod','goldenrod','light goldenrod','pale goldenrod','cornsilk','dark khaki','khaki','lemon chiffon','dark olive green','olive drab','yellow green','green yellow','light green','forest green','dark green','lime green','pale green','dark sea green') DEFAULT NULL,
   KEY `colors` (`colors`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO items VALUES ("t-shart", "black,white,lawn green,dark violet");
 INSERT INTO items VALUES ("hat", "white,dark violet,yellow green");
 INSERT INTO items VALUES ("parka", "green,brown,red,lime green");

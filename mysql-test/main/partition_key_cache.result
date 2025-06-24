@@ -1,5 +1,5 @@
 # Actual test of key caches
-# Verifing that reads/writes use the key cache correctly
+# Verifying that reads/writes use the key cache correctly
 SET @org_key_cache_buffer_size= @@global.default.key_buffer_size;
 # Minimize default key cache (almost disabled).
 SET @@global.default.key_buffer_size = 4096;
@@ -24,7 +24,7 @@ c INT NOT NULL,
 PRIMARY KEY (a),
 KEY `inx_b` (b));
 FLUSH TABLES;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SET @a:=1167602400;
 CREATE VIEW v AS SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4;
 CREATE VIEW x AS SELECT 1 FROM v,v a,v b;
@@ -44,7 +44,7 @@ p1	sp3	2043
 DROP VIEW x;
 DROP VIEW v;
 FLUSH TABLES;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT COUNT(b) FROM t1 WHERE b >= 0;
 COUNT(b)
 2048
@@ -55,7 +55,7 @@ reads vs requests
 reads == requests
 writes vs requests
 writes == requests
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT COUNT(b) FROM t2 WHERE b >= 0;
 COUNT(b)
 2048
@@ -64,7 +64,7 @@ Yes!
 FLUSH TABLES;
 # Setting the default key cache to 1M
 SET GLOBAL key_buffer_size = 1024*1024;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 # All these have to read the indexes
 LOAD INDEX INTO CACHE t1 PARTITION (p1);
 Table	Op	Msg_type	Msg_text
@@ -175,6 +175,8 @@ SUBPARTITION sp1),
 PARTITION p1 VALUES LESS THAN MAXVALUE
 (SUBPARTITION sp2,
 SUBPARTITION sp3));
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 CREATE TABLE t2 (
 a INT,
 b VARCHAR(257),
@@ -182,6 +184,8 @@ c INT NOT NULL,
 PRIMARY KEY (a),
 KEY `inx_b` (b),
 KEY `inx_c`(c));
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
 SET @a:=1167602400;
 CREATE VIEW v AS SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4;
 CREATE VIEW x AS SELECT 1 FROM v,v a,v b;

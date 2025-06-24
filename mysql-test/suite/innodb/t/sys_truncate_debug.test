@@ -1,0 +1,76 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/not_windows.inc
+# This test is extremely slow on Valgrind (exceeding 4 hours).
+--source include/not_valgrind.inc
+
+call mtr.add_suppression("InnoDB: Cannot shrink the system tablespace");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+
+SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG=2;
+SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+SET UNIQUE_CHECKS=0, FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                f3 INT NOT NULL, INDEX(f1),
+                INDEX(f2), INDEX(f3))STATS_PERSISTENT=0 ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+COMMIT;
+DROP TABLE t1;
+--source include/wait_all_purged.inc
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
+
+# Corruption during traversal of extent
+let $restart_parameters=--debug_dbug=+d,traversal_extent_fail;
+--source include/restart_mysqld.inc
+
+--let SEARCH_PATTERN= \[Warning\] InnoDB: Cannot shrink the system tablespace
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# Ran out of buffer pool
+let $restart_parameters=--debug_dbug=+d,shrink_buffer_pool_full;
+--source include/restart_mysqld.inc
+
+--let SEARCH_PATTERN= \[Warning\] InnoDB: Cannot shrink the system tablespace
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# Ran out of mtr log size
+let $restart_parameters=--debug_dbug=+d,mtr_log_max_size;
+--source include/restart_mysqld.inc
+
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot shrink the system tablespace
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# Crash after shrinking the system tablespace
+let $restart_parameters=--debug_dbug=+d,crash_after_sys_truncate;
+--source include/restart_mysqld.inc
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+let $restart_parameters=--innodb_buffer_pool_size=5M;
+--source include/restart_mysqld.inc
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=0;

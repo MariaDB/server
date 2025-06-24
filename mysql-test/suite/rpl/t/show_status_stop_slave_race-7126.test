@@ -22,7 +22,7 @@ call mtr.add_suppression("Could not read packet:.* errno: 11");
 # aborted by the master due to conflicting server_id from multiple connections.
 --let $rpl_allow_error= 1
 --source include/wait_for_slave_to_stop.inc
-start slave;
+--source include/start_slave.inc
 
 --connection master
 --source include/rpl_end.inc

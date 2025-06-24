@@ -12,7 +12,7 @@ t1	CREATE TABLE `t1` (
   `c` varchar(50) NOT NULL,
   `d` enum('m','w') NOT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -54,7 +54,7 @@ t1	CREATE TABLE `t1` (
   `h` tinyint(4) NOT NULL,
   `i` char(255) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -67,9 +67,9 @@ insert into t1 values
 ('2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, 'pib mdotkbm.m' );
 select * from t1;
 a	b	c	d	e	f	g	h	i
+1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	tbhth nrzh ztfghgfh fzh ftzhj fztjh
 1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	d,f söierugsig msireg siug ei5ggth lrutluitgzeöjrtnb.rkjthuekuhzrkuthgjdnffjmbr
 1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	liuugbzvdmrlti b itiortudirtfgtibm dfi
-1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	tbhth nrzh ztfghgfh fzh ftzhj fztjh
 2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	pib mdotkbm.m
 select * from t1 where a<19851231;
 a	b	c	d	e	f	g	h	i
@@ -104,7 +104,7 @@ t1	CREATE TABLE `t1` (
   `h1` tinyint(4) NOT NULL,
   `i` char(255) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`a1`,`b1`,`c1`,`d1`,`e1`,`f1`,`g1`,`h1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`a1`,`b1`,`c1`,`d1`,`e1`,`f1`,`g1`,`h1`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -117,9 +117,9 @@ insert into t1 values
 ('2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, '2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, 'pib mdotkbm.m');
 select * from t1;
 a	b	c	d	e	f	g	h	a1	b1	c1	d1	e1	f1	g1	h1	i
-1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	liuugbzvdmrlti b itiortudirtfgtibm dfi
-1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	d,f söierugsig msireg siug ei5ggth lrutluitgzeöjrtnb.rkjthuekuhzrkuthgjdnffjmbr
 1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	tbhth nrzh ztfghgfh fzh ftzhj fztjh
+1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	d,f söierugsig msireg siug ei5ggth lrutluitgzeöjrtnb.rkjthuekuhzrkuthgjdnffjmbr
+1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	liuugbzvdmrlti b itiortudirtfgtibm dfi
 2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	pib mdotkbm.m
 select * from t1 where a<19851231;
 a	b	c	d	e	f	g	h	a1	b1	c1	d1	e1	f1	g1	h1	i
@@ -184,7 +184,7 @@ t1	CREATE TABLE `t1` (
   `h3` tinyint(4) NOT NULL,
   `i` char(255) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`a1`,`b1`,`c1`,`d1`,`e1`,`f1`,`g1`,`h1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -197,9 +197,9 @@ insert into t1 values
 ('2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, '2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, '2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, '2000-06-15', 'jukg','zikhuk','m', 45675, 6465754.13, 435242623462, 18, 'pib mdotkbm.m');
 select * from t1;
 a	b	c	d	e	f	g	h	a1	b1	c1	d1	e1	f1	g1	h1	a2	b2	c2	d2	e2	f2	g2	h2	a3	b3	c3	d3	e3	f3	g3	h3	i
+1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	tbhth nrzh ztfghgfh fzh ftzhj fztjh
 1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	1980-10-14	fgbbd	dtzndtz	w	67856	5463354.67	3567845333	124	d,f söierugsig msireg siug ei5ggth lrutluitgzeöjrtnb.rkjthuekuhzrkuthgjdnffjmbr
 1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	1983-12-31	cdef	srtbvsr	w	45634	13452.56	3452346456	127	liuugbzvdmrlti b itiortudirtfgtibm dfi
-1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	1975-01-01	abcde	abcde	m	1234	123.45	32412341234	113	tbhth nrzh ztfghgfh fzh ftzhj fztjh
 2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	2000-06-15	jukg	zikhuk	m	45675	6465754.13	435242623462	18	pib mdotkbm.m
 select * from t1 where a<19851231;
 a	b	c	d	e	f	g	h	a1	b1	c1	d1	e1	f1	g1	h1	a2	b2	c2	d2	e2	f2	g2	h2	a3	b3	c3	d3	e3	f3	g3	h3	i

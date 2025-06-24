@@ -1,0 +1,83 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-30164 System variable for default collations
+#
+connection master;
+SET @@character_set_collations='utf8mb3=uca1400_ai_ci,'
+                               'utf8mb4=uca1400_ai_ci,'
+                               'ucs2=uca1400_ai_ci,'
+                               'utf16=uca1400_ai_ci,'
+                               'utf32=uca1400_ai_ci';
+connection master;
+CREATE TABLE t1 AS SELECT CHAR(0x61 USING utf8mb4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CHAR(0x61 USING utf8mb4)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection slave;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CHAR(0x61 USING utf8mb4)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+CREATE TABLE t1 AS SELECT CONVERT('a' USING utf8mb4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONVERT('a' USING utf8mb4)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection slave;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONVERT('a' USING utf8mb4)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+CREATE TABLE t1 (
+c0 TEXT CHARACTER SET utf8mb3,
+c1 TEXT CHARACTER SET utf8mb4,
+c2 TEXT CHARACTER SET utf16,
+c3 TEXT CHARACTER SET utf32,
+c4 TEXT CHARACTER SET ucs2
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c1` text DEFAULT NULL,
+  `c2` text CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL,
+  `c3` text CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL,
+  `c4` text CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection slave;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c1` text DEFAULT NULL,
+  `c2` text CHARACTER SET utf16 COLLATE utf16_uca1400_ai_ci DEFAULT NULL,
+  `c3` text CHARACTER SET utf32 COLLATE utf32_uca1400_ai_ci DEFAULT NULL,
+  `c4` text CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+CREATE DATABASE db1 CHARACTER SET utf8mb4;
+connection slave;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+connection master;
+DROP DATABASE db1;
+connection slave;
+include/rpl_end.inc

@@ -1,4 +1,3 @@
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 # Create and populate a tables
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;

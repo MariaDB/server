@@ -1,14 +1,12 @@
 #
 # MDEV-22649 SIGSEGV in ha_partition::create_partitioning_metadata on ALTER
 #
-set @save_alter_algorithm= @@session.alter_algorithm;
-SET SESSION alter_algorithm=4;
 CREATE TABLE t1(a INT) engine=myisam PARTITION BY RANGE(a) SUBPARTITION BY KEY(a) (PARTITION p0 VALUES LESS THAN (10) (SUBPARTITION s0,SUBPARTITION s1), PARTITION p1 VALUES LESS THAN (20) (SUBPARTITION s2,SUBPARTITION s3));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY KEY (`a`)
 (PARTITION `p0` VALUES LESS THAN (10)
@@ -17,10 +15,9 @@ SUBPARTITION BY KEY (`a`)
  PARTITION `p1` VALUES LESS THAN (20)
  (SUBPARTITION `s2` ENGINE = MyISAM,
   SUBPARTITION `s3` ENGINE = MyISAM))
-ALTER TABLE t1 ADD COLUMN c INT;
+ALTER TABLE t1 ADD COLUMN c INT,ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=COPY
 DROP table if exists t1;
-set @@session.alter_algorithm= @save_alter_algorithm;
 #
 # MDEV-22804 SIGSEGV in ha_partition::create_partitioning_metadata |
 # ERROR 1507 (HY000): Error in list of partitions to DROP
@@ -39,27 +36,6 @@ ERROR 42000: Can't open table
 DROP VIEW v1;
 DROP TABLE t1, t2;
 #
-# MDEV-25102 UNIQUE USING HASH error after ALTER ... DISABLE KEYS
-#
-create table t1 (i1 int primary key, i2 int, d1 date, key(i2))
-partition by hash(i1) partitions 3;
-insert into t1 values(0, 1, '2010-10-10');
-select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
-index_name	comment
-PRIMARY	
-i2	
-alter table t1 disable keys;
-select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
-index_name	comment
-PRIMARY	
-i2	disabled
-alter table t1 add partition (partition p4);
-select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
-index_name	comment
-PRIMARY	
-i2	disabled
-drop table t1;
-#
 # MDEV-34813 ALGORITHM=INSTANT does not work for partitioned tables on indexed column
 #
 CREATE TABLE `t1` (
@@ -74,3 +50,516 @@ PARTITION `p_31` VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB);
 ALTER online TABLE t1 MODIFY COLUMN `f4`  VARCHAR(500) , ALGORITHM=INSTANT, LOCK=NONE;
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-22165 CONVERT PARTITION: move in partition from existing table
+#
+create or replace table tp1 (a int);
+create or replace table t1 (a int)
+partition by hash (a) partitions 2;
+alter table t1 convert table tp1 to partition p2;
+ERROR HY000: CONVERT TABLE TO PARTITION can only be used on RANGE/LIST partitions
+create or replace table t1 (a int)
+partition by range (a)
+(partition p0 values less than (0));
+alter table t1 convert table non_existent to partition p1 values less than (10);
+ERROR 42S02: Table 'test.non_existent' doesn't exist
+alter table t1 convert table tp1 to partition p1 values less than (10);
+show create table tp1;
+ERROR 42S02: Table 'test.tp1' doesn't exist
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`a`)
+(PARTITION `p0` VALUES LESS THAN (0) ENGINE = X,
+ PARTITION `p1` VALUES LESS THAN (10) ENGINE = X)
+create table tp2 (x int);
+alter table t1 convert table tp2 to partition p2 values less than (20);
+ERROR HY000: Tables have different definitions
+show create table tp2;
+Table	Create Table
+tp2	CREATE TABLE `tp2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`a`)
+(PARTITION `p0` VALUES LESS THAN (0) ENGINE = X,
+ PARTITION `p1` VALUES LESS THAN (10) ENGINE = X)
+create or replace table tp2 (a int);
+insert tp2 values (1), (15), (17);
+alter table t1 convert table tp2 to partition p2 values less than (20);
+ERROR HY000: Found a row that does not match the partition
+delete from tp2;
+insert tp2 values (15), (1), (17);
+alter table t1 convert table tp2 to partition p2 values less than (20);
+ERROR HY000: Found a row that does not match the partition
+delete from tp2;
+insert tp2 values (15), (17), (1);
+alter table t1 convert table tp2 to partition p2 values less than (20);
+ERROR HY000: Found a row that does not match the partition
+delete from tp2;
+insert tp2 values (15), (17);
+alter table t1 convert table tp2 to partition p2 values less than (20);
+show create table tp2;
+ERROR 42S02: Table 'test.tp2' doesn't exist
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`a`)
+(PARTITION `p0` VALUES LESS THAN (0) ENGINE = X,
+ PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = X)
+select * from t1 partition (p2);
+a
+15
+17
+create or replace table t1 (a int)
+partition by range (a) (
+p0 values less than (0),
+pn values less than (30));
+insert into t1 values (1);
+create or replace table tp1 (a int);
+insert into tp1 values (2);
+alter table t1 convert table tp1 to partition p1 values less than (10);
+ERROR HY000: VALUES LESS THAN value must be strictly increasing for each partition
+drop tables t1, tp1;
+#
+# MDEV-22166 CONVERT PARTITION: move out partition into a table
+#
+create or replace table t1 (x int);
+alter table t1 convert partition p1 to table tp1;
+ERROR HY000: Partition management on a not partitioned table is not possible
+create or replace table t1 (x int)
+partition by hash(x) partitions 2;
+alter table t1 convert partition p1 to table tp1;
+ERROR HY000: CONVERT PARTITION can only be used on RANGE/LIST partitions
+create or replace table t1 (x int)
+partition by key(x) partitions 2;
+alter table t1 convert partition p1 to table tp1;
+ERROR HY000: CONVERT PARTITION can only be used on RANGE/LIST partitions
+create or replace table t1 (x int)
+partition by range(x)
+subpartition by hash(x) subpartitions 3 (
+partition p1 values less than (10),
+partition pn values less than maxvalue);
+alter table t1 convert partition p1 to table p1;
+ERROR HY000: Convert partition is not supported for subpartitioned table.
+alter table t1 convert partition p1sp0 to table p1;
+ERROR HY000: Wrong partition name or partition list
+create or replace table t1 (x int)
+partition by range(x) (
+partition p1 values less than (10));
+alter table t1 convert partition p1 to table tp1;
+ERROR HY000: Cannot remove all partitions, use DROP TABLE instead
+create or replace temporary table t1 (x int)
+partition by range(x) (
+partition p0 values less than (10),
+partition pn values less than maxvalue);
+ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
+create or replace table t1 (x int)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+create or replace table tp2 (y int);
+insert tp2 values (88);
+alter table t1 convert partition p2 to table tp2, drop partition p3;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' drop partition p3' at line 1
+alter table t1 convert partition p00 to table tp00;
+ERROR HY000: Wrong partition name or partition list
+alter table t1 convert partition p00 to table tp2;
+ERROR 42S01: Table 'tp2' already exists
+alter table t1 convert partition p2 to table tp2;
+ERROR 42S01: Table 'tp2' already exists
+create trigger tr1 before update on t1 for each row
+begin
+alter table t1 convert partition p2 to table tp2;
+end$
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+create function f1() returns int
+begin
+alter table t1 convert partition p2 to table tp2;
+end$
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+select * from tp2;
+y
+88
+drop table tp2;
+alter table t1 convert partition p2 to table tp2;
+show create table tp2;
+Table	Create Table
+tp2	CREATE TABLE `tp2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from tp2;
+x
+12
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+22
+32
+42
+52
+alter table t1 convert partition p3 to table inexistent.tp3;
+ERROR 42000: Unknown database 'inexistent'
+create database EXISTENT;
+alter table t1 convert partition p3 to table EXISTENT.TP3;
+show create table EXISTENT.TP3;
+Table	Create Table
+TP3	CREATE TABLE `TP3`-ok (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from EXISTENT.TP3 order by x;
+x
+22
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+32
+42
+52
+# LOCK TABLES
+lock tables t1 write;
+alter table t1 convert partition p4 to table tp4;
+show create table tp4;
+ERROR HY000: Table 'tp4' was not locked with LOCK TABLES
+unlock tables;
+show create table tp4;
+Table	Create Table
+tp4	CREATE TABLE `tp4` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from tp4;
+x
+32
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+42
+52
+# PS
+prepare stmt from 'alter table t1 convert partition p5 to table tp5';
+execute stmt;
+show create table tp5;
+Table	Create Table
+tp5	CREATE TABLE `tp5` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from tp5;
+x
+42
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+52
+drop table tp5;
+execute stmt;
+ERROR HY000: Wrong partition name or partition list
+execute stmt;
+ERROR HY000: Wrong partition name or partition list
+drop prepare stmt;
+# Privileges
+create user alan;
+grant usage on *.* to alan;
+grant create, insert, drop on test.* to alan;
+connect alan,localhost,alan,,test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, CREATE, DROP ON `test`.* TO `alan`@`%`
+alter table t1 convert partition p1 to table tp1;
+ERROR 42000: ALTER command denied to user 'alan'@'localhost' for table `test`.`t1`
+connection default;
+revoke all on test.* from alan;
+grant create, insert, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, CREATE, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 convert partition p1 to table tp1;
+ERROR 42000: DROP command denied to user 'alan'@'localhost' for table `test`.`t1`
+connection default;
+revoke all on test.* from alan;
+grant create, drop, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT CREATE, DROP, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 convert partition p1 to table tp1;
+ERROR 42000: INSERT command denied to user 'alan'@'localhost' for table `test`.`tp1`
+connection default;
+revoke all on test.* from alan;
+grant insert, drop, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, DROP, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 convert partition p1 to table tp1;
+ERROR 42000: CREATE command denied to user 'alan'@'localhost' for table `test`.`tp1`
+connection default;
+grant create, insert, drop, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, CREATE, DROP, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 convert partition p1 to table tp1;
+disconnect alan;
+connection default;
+drop database EXISTENT;
+drop user alan;
+drop tables t1, tp1, tp2, tp4;
+#
+# MDEV-31014 Database privileges are insufficient for CONVERT TABLE TO PARTITION
+#
+create database db;
+create user u@localhost;
+grant all on db.* to u@localhost;
+connect  con1,localhost,u,,db;
+create table t1 (a int) partition by range(a) (p1 values less than (100), p2 values less than (1000));
+alter table t1 convert partition p2 to table tp;
+alter table t1 convert table tp to partition p2 values less than (1000);
+disconnect con1;
+connection default;
+drop user u@localhost;
+drop database db;
+# End of 10.11 tests
+#
+# MDEV-22164 without validation for exchange partition/convert in
+#
+call mtr.add_suppression('was altered WITHOUT');
+create table validation(x int);
+drop table validation;
+create table t (a int primary key);
+create table tp (a int primary key) partition by range (a) (
+partition p0 values less than (100),
+p1 values less than (300));
+insert into t values (1), (99);
+insert into tp values (2), (200);
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p0) order by a;
+a
+2
+select * from tp partition (p1) order by a;
+a
+200
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+a
+2
+select * from tp partition (p0) order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p0) order by a;
+a
+2
+select * from tp partition (p1) order by a;
+a
+200
+alter table tp exchange partition p1 with table t;
+ERROR HY000: Found a row that does not match the partition
+alter table tp exchange partition p1 with table t with validation;
+ERROR HY000: Found a row that does not match the partition
+alter table tp exchange partition p1 with table t without validation;
+FOUND 1 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+select * from t order by a;
+a
+200
+select * from tp partition (p1) order by a;
+a
+1
+99
+alter table tp check partition p0;
+Table	Op	Msg_type	Msg_text
+test.tp	check	status	OK
+alter table tp check partition p1;
+Table	Op	Msg_type	Msg_text
+test.tp	check	error	Found a misplaced row
+test.tp	check	error	Partition p1 returned error
+test.tp	check	error	Upgrade required. Please do "REPAIR TABLE `tp`" or dump/reload to fix it!
+alter table tp exchange partition p1 with table t with validation;
+alter table tp exchange partition p1 with table t with validation;
+ERROR HY000: Found a row that does not match the partition
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+create or replace procedure validation()
+alter table tp exchange partition p1 with table t with validation;
+create or replace procedure without_validation()
+alter table tp exchange partition p1 with table t without validation;
+call validation;
+ERROR HY000: Found a row that does not match the partition
+call without_validation;
+FOUND 2 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+call validation;
+call validation;
+ERROR HY000: Found a row that does not match the partition
+call without_validation;
+FOUND 3 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+select * from t order by a;
+a
+200
+select * from tp partition (p1) order by a;
+a
+1
+99
+call validation;
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+drop procedure validation;
+drop procedure without_validation;
+prepare validation from "alter table tp exchange partition p1 with table t with validation";
+prepare without_validation from "alter table tp exchange partition p1 with table t without validation";
+execute validation;
+ERROR HY000: Found a row that does not match the partition
+execute without_validation;
+FOUND 4 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+execute validation;
+execute validation;
+ERROR HY000: Found a row that does not match the partition
+execute without_validation;
+FOUND 5 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+select * from t order by a;
+a
+200
+select * from tp partition (p1) order by a;
+a
+1
+99
+execute validation;
+select * from t order by a;
+a
+1
+99
+select * from tp partition (p1) order by a;
+a
+200
+drop prepare validation;
+drop prepare without_validation;
+alter table tp convert table t to partition p2 values less than (maxvalue);
+ERROR HY000: Found a row that does not match the partition
+alter table tp convert table t to partition p2 values less than (maxvalue) with validation;
+ERROR HY000: Found a row that does not match the partition
+alter table tp convert table t to partition p2 values less than (maxvalue) without validation;
+FOUND 6 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+select * from tp partition (p0) order by a;
+a
+2
+select * from tp partition (p1) order by a;
+a
+200
+select * from tp partition (p2) order by a;
+a
+1
+99
+create table t (a int primary key);
+insert t values (1), (2);
+create or replace table tp (a int primary key)
+partition by hash(a) partitions 2;
+insert tp values (1), (2), (3), (4);
+alter table tp exchange partition p0 with table t;
+ERROR HY000: Found a row that does not match the partition
+alter table tp exchange partition p0 with table t without validation;
+FOUND 7 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+select * from t;
+a
+2
+4
+alter table tp exchange partition p0 with table t;
+drop table tp;
+create or replace table tp (a int primary key)
+partition by list(a) (
+partition p0 values in (2, 3, 4),
+partition p1 values in (12, 13, 14),
+partition p2 values in (52, 53, 54));
+insert tp values (12), (2), (3), (4);
+alter table tp exchange partition p0 with table t;
+ERROR HY000: Table has no partition for value 0
+alter table tp exchange partition p0 with table t without validation;
+FOUND 8 /Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted/ in mysqld.1.err
+select * from t;
+a
+2
+3
+4
+alter table tp exchange partition p0 with table t;
+drop tables tp, t;
+# End of 11.4 tests

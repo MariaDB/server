@@ -15,7 +15,7 @@ call mtr.add_suppression("MemorySanitizer failed to allocate");
 --echo # MDEV-28217 Incorrect Join Execution When Controlling Join Buffer Size
 --echo #
 
-# This test tries to allocate a too big bufffer, for which ASAN gives an error
+# This test tries to allocate a too big buffer, for which ASAN gives an error
 
 CREATE TABLE t1 (i int PRIMARY KEY)engine=innodb;
 INSERT INTO t1 VALUES (1332945389);

@@ -11,8 +11,8 @@ There were some problems during the execution:
    writes
         gds__alloc: non-positive size allocation request
   to log file.
-  This problem has both models. I am not shure if it's interbase or
-  DBD:InterBase problem (though DBD::InterBase made all nesessary
+  This problem has both models. I am not sure if it's interbase or
+  DBD:InterBase problem (though DBD::InterBase made all necessary
   tests during the installation without any problem)
  
 2) In "superserver" mode ibserver several times died (and ibguard restarted it)

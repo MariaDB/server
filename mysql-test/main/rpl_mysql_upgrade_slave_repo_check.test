@@ -96,7 +96,7 @@ EOF
 
 --connection master
 let $datadir= `select @@datadir`;
-remove_file $datadir/mysql_upgrade_info;
+remove_file $datadir/mariadb_upgrade_info;
 TRUNCATE TABLE `mysql`.`slave_master_info`;
 TRUNCATE TABLE `mysql`.`slave_relay_log_info`;
 --remove_file $MYSQLTEST_VARDIR/log/mysql_upgrade_master.log
@@ -117,7 +117,7 @@ TRUNCATE TABLE `mysql`.`slave_relay_log_info`;
 --echo "====== Clean up ======"
 --connection master
 let $datadir= `select @@datadir`;
-remove_file $datadir/mysql_upgrade_info;
+remove_file $datadir/mariadb_upgrade_info;
 DROP TABLE `mysql`.`slave_master_info`, `mysql`.`slave_relay_log_info`;
 
 --remove_file $MYSQLTEST_VARDIR/tmp/slave_table_repo_init.sql

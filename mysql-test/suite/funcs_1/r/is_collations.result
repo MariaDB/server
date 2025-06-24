@@ -28,30 +28,36 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.COLLATIONS;
 Field	Type	Null	Key	Default	Extra
-COLLATION_NAME	varchar(32)	NO		NULL	
-CHARACTER_SET_NAME	varchar(32)	NO		NULL	
-ID	bigint(11)	NO		NULL	
-IS_DEFAULT	varchar(3)	NO		NULL	
+COLLATION_NAME	varchar(64)	NO		NULL	
+CHARACTER_SET_NAME	varchar(32)	YES		NULL	
+ID	bigint(11)	YES		NULL	
+IS_DEFAULT	varchar(3)	YES		NULL	
 IS_COMPILED	varchar(3)	NO		NULL	
 SORTLEN	bigint(3)	NO		NULL	
+PAD_ATTRIBUTE	enum('PAD SPACE','NO PAD')	NO		NULL	
+COMMENT	varchar(80)	NO		NULL	
 SHOW CREATE TABLE information_schema.COLLATIONS;
 Table	Create Table
 COLLATIONS	CREATE TEMPORARY TABLE `COLLATIONS` (
-  `COLLATION_NAME` varchar(32) NOT NULL,
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `ID` bigint(11) NOT NULL,
-  `IS_DEFAULT` varchar(3) NOT NULL,
+  `COLLATION_NAME` varchar(64) NOT NULL,
+  `CHARACTER_SET_NAME` varchar(32),
+  `ID` bigint(11),
+  `IS_DEFAULT` varchar(3),
   `IS_COMPILED` varchar(3) NOT NULL,
-  `SORTLEN` bigint(3) NOT NULL
+  `SORTLEN` bigint(3) NOT NULL,
+  `PAD_ATTRIBUTE` enum('PAD SPACE','NO PAD') NOT NULL,
+  `COMMENT` varchar(80) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.COLLATIONS;
 Field	Type	Null	Key	Default	Extra
-COLLATION_NAME	varchar(32)	NO		NULL	
-CHARACTER_SET_NAME	varchar(32)	NO		NULL	
-ID	bigint(11)	NO		NULL	
-IS_DEFAULT	varchar(3)	NO		NULL	
+COLLATION_NAME	varchar(64)	NO		NULL	
+CHARACTER_SET_NAME	varchar(32)	YES		NULL	
+ID	bigint(11)	YES		NULL	
+IS_DEFAULT	varchar(3)	YES		NULL	
 IS_COMPILED	varchar(3)	NO		NULL	
 SORTLEN	bigint(3)	NO		NULL	
+PAD_ATTRIBUTE	enum('PAD SPACE','NO PAD')	NO		NULL	
+COMMENT	varchar(80)	NO		NULL	
 # Testcases 3.2.3.2 and 3.2.3.3 are checked in suite/funcs_1/t/charset_collation*.test
 ########################################################################
 # Testcases 3.2.1.3-3.2.1.5 + 3.2.1.8-3.2.1.12: INSERT/UPDATE/DELETE and
@@ -66,7 +72,7 @@ INSERT INTO information_schema.collations
 (collation_name,character_set_name,id,is_default,is_compiled,sortlen)
 VALUES (  'cp1251_bin',          'cp1251',50,        '',         '',0);
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
-UPDATE information_schema.collations SET description = 'just updated';
+UPDATE information_schema.collations SET collation_name = 'just updated';
 Got one of the listed errors
 DELETE FROM information_schema.collations WHERE table_name = 't1';
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'

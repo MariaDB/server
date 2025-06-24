@@ -1,15 +1,21 @@
+-- source include/no_view_protocol.inc
 -- source include/have_ssl_communication.inc
-CREATE TABLE t1 (t int(1));
 SET GLOBAL require_secure_transport=ON;
---disable_query_log
---error ER_ACCESS_DENIED_ERROR
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SECURE_TRANSPORT_REQUIRED
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
---enable_query_log
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect with_ssl,localhost,root,,,,,TCP SSL;
+--disable_view_protocol
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+--enable_view_protocol
+disconnect with_ssl;
+
 connection default;
 SET GLOBAL require_secure_transport=OFF;
---disable_query_log
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
---enable_query_log
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 disconnect without_ssl;
 connection default;
-DROP TABLE t1;

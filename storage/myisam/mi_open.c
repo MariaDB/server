@@ -386,19 +386,14 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
 	}
-        if (keyinfo->flag & HA_SPATIAL)
+        if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
 	{
-#ifdef HAVE_SPATIAL
           uint sp_segs= SPDIMS*2;
           keyinfo->seg= pos - sp_segs;
           DBUG_ASSERT(keyinfo->keysegs == sp_segs + 1);
           keyinfo->keysegs= sp_segs;
-#else
-	  my_errno=HA_ERR_UNSUPPORTED;
-	  goto err;
-#endif
 	}
-        else if (keyinfo->flag & HA_FULLTEXT)
+        else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
 	{
           if (!fulltext_keys)
           { /* 4.0 compatibility code, to be removed in 5.0 */
@@ -426,6 +421,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
             memcpy(& share->ft2_keyinfo, keyinfo, sizeof(MI_KEYDEF));
             share->ft2_keyinfo.keysegs=1;
             share->ft2_keyinfo.flag=0;
+            share->ft2_keyinfo.key_alg=HA_KEY_ALG_BTREE;
             share->ft2_keyinfo.keylength=
             share->ft2_keyinfo.minlength=
             share->ft2_keyinfo.maxlength=HA_FT_WLEN+share->base.rec_reflength;
@@ -848,12 +844,8 @@ static void setup_key_functions(register MI_KEYDEF *keyinfo)
 {
   if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
   {
-#ifdef HAVE_RTREE_KEYS
     keyinfo->ck_insert = rtree_insert;
     keyinfo->ck_delete = rtree_delete;
-#else
-    DBUG_ASSERT(0); /* mi_open should check it never happens */
-#endif
   }
   else
   {
@@ -1367,13 +1359,9 @@ int mi_indexes_are_disabled(MI_INFO *info)
 {
   MYISAM_SHARE *share= info->s;
 
-  /*
-    No keys or all are enabled. keys is the number of keys. Left shifted
-    gives us only one bit set. When decreased by one, gives us all all bits
-    up to this one set and it gets unset.
-  */
+  /* No keys or all are enabled */
   if (!share->base.keys ||
-      (mi_is_all_keys_active(share->state.key_map, share->base.keys)))
+      mi_is_all_keys_active(share->state.key_map, share->base.keys))
     return 0;
 
   /* All are disabled */

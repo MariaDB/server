@@ -121,8 +121,10 @@ eval CREATE TABLE tbl_f (
   col_t TIME
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_2_1_F;
 --enable_query_log
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
 SHOW CREATE TABLE tbl_f;
+--enable_ps_protocol
 
 --echo
 --echo Set a different time zone that has DST
@@ -426,7 +428,9 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 DROP INDEX i_ts ON tbl_a;
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
+--enable_ps_protocol
 
 --echo
 --echo Retry lookups on unindexed timestamp column

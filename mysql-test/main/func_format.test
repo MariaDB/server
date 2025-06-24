@@ -1,0 +1,255 @@
+# Testcases for PFS functions are backported from MySQL
+
+--echo # MDEV-19629: Implement MySQL 8.0 native functions: format_bytes(), format_pico_time() and ps_thread_id()
+--echo #
+--echo # Tests for the native function format_pico_time()
+--echo #
+--echo
+
+SELECT format_pico_time(NULL);
+--echo
+SELECT format_pico_time(0);
+--echo
+SELECT format_pico_time(1);
+--echo
+SELECT format_pico_time(999);
+--echo
+SELECT format_pico_time(1000);
+--echo
+SELECT format_pico_time(1001);
+--echo
+SELECT format_pico_time(999999);
+--echo
+SELECT format_pico_time(1000000);
+--echo
+SELECT format_pico_time(1000001);
+--echo
+SELECT format_pico_time(1010000);
+--echo
+SELECT format_pico_time(987654321);
+--echo
+SELECT format_pico_time(1000000000);
+--echo
+SELECT format_pico_time(999876000000);
+--echo
+SELECT format_pico_time(999999999999);
+--echo
+SELECT format_pico_time(1000000000000);
+--echo
+SELECT format_pico_time(59000000000000);
+--echo
+SELECT format_pico_time(60000000000000);
+--echo
+SELECT format_pico_time(3549000000000000);
+--echo
+SELECT format_pico_time(3599000000000000);
+--echo
+SELECT format_pico_time(3600000000000000);
+--echo
+SELECT format_pico_time(power(2, 63));
+--echo
+SELECT format_pico_time((power(2, 63) - 1) * 2 + 1);
+--echo
+SELECT format_pico_time(36000000.495523);
+--echo
+SELECT format_pico_time(1000 * pow(10,12) * 86400);
+--echo
+SELECT format_pico_time(86400000000000000000);
+--echo
+SELECT format_pico_time(86400000000000000000+5000);
+
+--echo
+--echo ## Negative values are ok
+SELECT format_pico_time(1010000 * -1);
+
+--echo
+--echo ## Force exponent
+SELECT format_pico_time(8650000000000000000099);
+--echo
+SELECT format_pico_time(-8650000000000000000099);
+--echo
+SELECT format_pico_time(8640000000000000000099 * 2);
+--echo
+
+--echo
+--echo ## Text input
+SELECT format_pico_time("foo");
+--echo
+SELECT format_pico_time("");
+--echo
+SELECT format_pico_time("118059162071741143500099");
+--echo
+SELECT format_pico_time("-118059162071741143500099");
+--echo
+--echo ## Recognizes up to first non-numeric
+SELECT format_pico_time("40000 * 2000");
+--echo
+SELECT format_pico_time("40000 foo 2000");
+
+--echo ## Aggregate functions
+USE test;
+--echo
+CREATE TABLE timer_waits (id VARCHAR(10), wait BIGINT UNSIGNED DEFAULT NULL) DEFAULT CHARSET = utf8mb4;
+--echo
+# Max BIGINT unsigned is  18 446 744 073 709 551 615
+INSERT INTO timer_waits VALUES ('1 sec',          1000000000000);
+INSERT INTO timer_waits VALUES ('1 min',         60000000000000);
+INSERT INTO timer_waits VALUES ('1 hour',      3600000000000000);
+INSERT INTO timer_waits VALUES ('1 day',      86400000000000000);
+INSERT INTO timer_waits VALUES ('100 days', 8640000000000000000);
+--echo
+SELECT id, format_pico_time(wait), wait FROM timer_waits;
+--echo
+SELECT sum(wait), format_pico_time(sum(wait)) FROM timer_waits;
+--echo
+SELECT avg(wait), format_pico_time(avg(wait)) FROM timer_waits;
+--echo
+SELECT min(wait), format_pico_time(min(wait)) FROM timer_waits;
+--echo
+SELECT max(wait), format_pico_time(max(wait)) FROM timer_waits;
+--echo
+DROP TABLE timer_waits;
+
+--echo ## Using Scientific Notation
+SELECT format_pico_time(3e9);
+--echo
+SELECT format_pico_time(4e6);
+--echo
+SELECT format_pico_time(5e3);
+--echo
+SELECT format_pico_time(6e2);
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-19629 Tests for the native function format_bytes()
+--echo #
+--echo
+
+SELECT format_bytes(NULL);
+--echo
+SELECT format_bytes(0);
+--echo
+SELECT format_bytes(1);
+--echo
+SELECT format_bytes(1023);
+--echo
+SELECT format_bytes(1024);
+--echo
+SELECT format_bytes(1025);
+--echo
+SELECT format_bytes(1024 * 1024 - 200);
+--echo
+SELECT format_bytes(1024 * 1024 - 1);
+--echo
+SELECT format_bytes(1024 * 1024);
+--echo
+SELECT format_bytes(1024 * 1024 + 1);
+--echo
+SELECT format_bytes(1024 * 1024 + 200);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 - 1);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 + 1);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 * 1024 - 1);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 * 1024);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 * 1024 + 1);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 * 1024 * 1024 - 1);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 * 1024 * 1024);
+--echo
+SELECT format_bytes(1024 * 1024 * 1024 * 1024 * 1024 + 1);
+--echo
+SELECT format_bytes(power(2, 63));
+
+--echo
+--echo ## 1024^6 Eib
+SELECT format_bytes(1152921504606846976-1);
+
+--echo
+SELECT format_bytes(1180591620717411434000);
+
+--echo
+--echo ## Negative values are ok
+SELECT format_bytes(1024 * 1024 * -1);
+
+--echo
+--echo ## Force exponent format
+SELECT format_bytes(118059162071741143500099);
+--echo
+SELECT format_bytes(-118059162071741143500099);
+--echo
+SELECT format_bytes(pow(2,400));
+
+--echo
+--echo ## Valid hybrid number
+SELECT format_bytes((pow(2, 63) - 1) * 2 + 1);
+
+--echo
+--echo ## Text input
+SELECT format_bytes("foo");
+--echo
+SELECT format_bytes("");
+--echo
+SELECT format_bytes("118059162071741143500099");
+--echo
+SELECT format_bytes("-118059162071741143500099");
+--echo
+--echo ## Recognizes up to first non-numeric
+SELECT format_bytes("40000 * 2000");
+--echo
+SELECT format_bytes("40000 foo 2000");
+
+--echo ## Aggregate functions
+USE test;
+--echo
+CREATE TABLE memory_counts (id VARCHAR(10), bytes BIGINT UNSIGNED DEFAULT NULL) DEFAULT CHARSET = utf8mb4;
+--echo
+# Max BIGINT unsigned is  18 446 744 073 709 551 615
+INSERT INTO memory_counts VALUES ('Bytes', 512);
+INSERT INTO memory_counts VALUES ('10 KiB', 10 * 1024);
+INSERT INTO memory_counts VALUES ('20 MiB', 20 * pow(1024,2));
+--echo
+SELECT sum(bytes), format_bytes(sum(bytes)) FROM memory_counts;
+
+--echo
+INSERT INTO memory_counts VALUES ('30 GiB', 30 * pow(1024,3));
+--echo
+SELECT sum(bytes), format_bytes(sum(bytes)) FROM memory_counts;
+
+--echo
+INSERT INTO memory_counts VALUES ('40 TiB', 40 * pow(1024,4));
+--echo
+SELECT sum(bytes), format_bytes(sum(bytes)) FROM memory_counts;
+
+--echo
+INSERT INTO memory_counts VALUES ('50 PiB', 50 * pow(1024,5));
+--echo
+SELECT sum(bytes), format_bytes(sum(bytes)) FROM memory_counts;
+
+--echo
+INSERT INTO memory_counts VALUES ('1 EiB', pow(1024,6));
+--echo
+SELECT id, format_bytes(bytes), bytes FROM memory_counts;
+--echo
+SELECT sum(bytes), format_bytes(sum(bytes)) FROM memory_counts;
+--echo
+SELECT avg(bytes), format_bytes(avg(bytes)) FROM memory_counts;
+--echo
+SELECT max(bytes), format_bytes(max(bytes)) FROM memory_counts;
+--echo
+SELECT min(bytes), format_bytes(min(bytes)) FROM memory_counts;
+--echo
+DROP TABLE memory_counts;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

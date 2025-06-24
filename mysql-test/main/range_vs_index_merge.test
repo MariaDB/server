@@ -2,10 +2,11 @@
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -37,7 +38,7 @@ set session optimizer_switch='index_merge_sort_intersection=off';
 
 # The following 4 queries are added for code coverage 
 
-#the exptected # of rows differ on 32-bit and 64-bit platforms for innodb 
+#the expected # of rows differ on 32-bit and 64-bit platforms for innodb
 --replace_column 9 4079
 EXPLAIN
 SELECT * FROM City
@@ -659,7 +660,7 @@ let $cond =
 (Name='Lugansk' AND Country='UKR') OR          
 (Name='Caracas' AND Country='VEN') OR  
 (Name='Samara' AND Country='RUS') OR  
-(Name='Seattle' AND Country='USA'); 
+(Name='Seattle' AND Country='USA');
 
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
@@ -716,6 +717,7 @@ SELECT * FROM City
 ORDER BY Population LIMIT 5;
 
 FLUSH STATUS;
+--sorted_result
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
         AND (Population >= 100000 AND Population < 120000)
@@ -800,7 +802,7 @@ CREATE TABLE t1 (
   KEY user_work_city_indx (work_city),
   KEY user_first_name_indx (first_name),
   KEY user_last_name_indx (last_name)
-);
+) CHARSET=latin1;
 
 insert into t1(account_id, login, home_state, work_state) values
   (1, 'pw', 'ia', 'ia'), (1, 'pw', 'ia', 'ia'), (1, 'pw', 'ia', 'ia'),
@@ -915,7 +917,7 @@ create table t1 (
   c2 char(20),
   c3 char (20), 
   c4 int
-);
+) charset=latin1;
 alter table t1 add key k1 (c2);
 alter table t1 add key k2 (c3);
 alter table t1 add key k3 (c4);
@@ -960,7 +962,7 @@ create table t1 (
   c1 char(12),
   c2 char(15),
   c3 char(1)
-);
+) charset=latin1;
 
 insert into t1 (c3) values ('1'), ('2');
 
@@ -1005,7 +1007,7 @@ CREATE TABLE t1 (
   INDEX idx1 (a),
   INDEX idx2 (b),
   INDEX idx3 (c)
-);
+) CHARSET=latin1;
 --disable_query_log
 --disable_result_log
 INSERT INTO t1 VALUES
@@ -1178,9 +1180,9 @@ SELECT * FROM t1,t2,t3
 
 DROP TABLE t1,t2,t3;
 
-#
-# LP bug #823301: index merge sort union with possible index scan  
-#              
+--echo #
+--echo # LP bug #823301: index merge sort union with possible index scan
+--echo #
 
 CREATE TABLE t1 (
   a int, b int, c int, d int,
@@ -1196,12 +1198,14 @@ SET SESSION optimizer_switch='index_merge_sort_union=off';
 EXPLAIN
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
+--sorted_result
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 SET SESSION optimizer_switch='index_merge_sort_union=on';
 EXPLAIN
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
+--sorted_result
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 SET SESSION optimizer_switch=DEFAULT;
@@ -1252,7 +1256,7 @@ CREATE TABLE t1 (
   UNIQUE KEY (id),
   KEY state (state,id),
   KEY capital (capital, id)
-);
+) CHARSET=latin1;
  
 INSERT INTO t1 VALUES  
   (1,'Arizona','Phoenix'), 
@@ -1284,7 +1288,7 @@ DROP TABLE t1;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -1324,12 +1328,13 @@ where
  Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
  Country='ITA' AND Name IN ('Napoli', 'Venezia');
 
-eval $q;
 eval explain $q;
-
+--sorted_result
+eval $q;
 
 DROP DATABASE world;
 
 #the following command must be the last one in the file
 set session optimizer_switch='index_merge_sort_intersection=default';
 
+--source include/test_db_charset_restore.inc

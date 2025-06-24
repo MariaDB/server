@@ -6,22 +6,22 @@ insert into t2 values (@v);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	User var	#	#	@`v`=_ucs2 X'006100620063' COLLATE ucs2_general_ci
+master-bin.000001	#	User var	#	#	@`v`=_ucs2 X'006100620063' COLLATE ucs2_uca1400_ai_ci
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (@v)
 master-bin.000001	#	Query	#	#	COMMIT
 flush logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 START TRANSACTION
 /*!*/;
-SET @`v`:=_ucs2 X'006100620063' COLLATE `ucs2_general_ci`/*!*/;
+SET @`v`:=_ucs2 X'006100620063' COLLATE `ucs2_uca1400_ai_ci`/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=10000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -72,7 +72,7 @@ a
 DROP TABLE t1;
 FLUSH LOGS;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at #
@@ -84,7 +84,7 @@ DELIMITER /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000003
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl thread_id=#
 /*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*M!100001 SET @@session.gtid_domain_id=#*//*!*/;
 /*M!100001 SET @@session.server_id=#*//*!*/;
@@ -94,17 +94,18 @@ DELIMITER /*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=XXX/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -119,13 +120,14 @@ SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 INSERT INTO t1 VALUES ('ä(i2)')
 /*!*/;
 # at #
@@ -134,7 +136,7 @@ SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -149,7 +151,7 @@ SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -164,13 +166,14 @@ SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 INSERT INTO t1 VALUES ('ä(p2)')
 /*!*/;
 # at #
@@ -179,7 +182,7 @@ SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -194,7 +197,7 @@ SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=#*//*!*/;
 # at #
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>

@@ -153,25 +153,6 @@ PFS_ALIGNED PFS_instr_class global_idle_class;
 PFS_ALIGNED PFS_instr_class global_metadata_class;
 PFS_ALIGNED PFS_transaction_class global_transaction_class;
 
-/** Class-timer map */
-enum_timer_name *class_timers[] =
-{&wait_timer,        /* PFS_CLASS_NONE */
- &wait_timer,        /* PFS_CLASS_MUTEX */
- &wait_timer,        /* PFS_CLASS_RWLOCK */
- &wait_timer,        /* PFS_CLASS_COND */
- &wait_timer,        /* PFS_CLASS_FILE */
- &wait_timer,        /* PFS_CLASS_TABLE */
- &stage_timer,       /* PFS_CLASS_STAGE */
- &statement_timer,   /* PFS_CLASS_STATEMENT */
- &transaction_timer, /* PFS_CLASS_TRANSACTION */
- &wait_timer,        /* PFS_CLASS_SOCKET */
- &wait_timer,        /* PFS_CLASS_TABLE_IO */
- &wait_timer,        /* PFS_CLASS_TABLE_LOCK */
- &idle_timer,        /* PFS_CLASS_IDLE */
- &wait_timer,        /* PFS_CLASS_METADATA */
- &wait_timer         /* PFS_CLASS_MEMORY */
-};
-
 /**
   Hash index for instrumented table shares.
   This index is searched by table fully qualified name (@c PFS_table_share_key),
@@ -466,36 +447,22 @@ LF_PINS* get_table_share_hash_pins(PFS_thread *thread)
   @param table_name The table name.
   @param table_name_length The table name length.
 */
-static void set_table_share_key(PFS_table_share_key *key,
-                                bool temporary,
-                                const char *schema_name, size_t schema_name_length,
-                                const char *table_name, size_t table_name_length)
+void PFS_table_share_key::set(bool temporary,
+                              const char *schema_name,
+                              size_t schema_name_length,
+                              const char *table_name,
+                              size_t table_name_length)
 {
   assert(schema_name_length <= NAME_LEN);
   assert(table_name_length <= NAME_LEN);
-  char *saved_schema_name;
-  char *saved_table_name;
 
-  char *ptr= &key->m_hash_key[0];
-  ptr[0]= (temporary ? OBJECT_TYPE_TEMPORARY_TABLE : OBJECT_TYPE_TABLE);
-  ptr++;
-  saved_schema_name= ptr;
-  memcpy(ptr, schema_name, schema_name_length);
-  ptr+= schema_name_length;
-  ptr[0]= 0;
-  ptr++;
-  saved_table_name= ptr;
-  memcpy(ptr, table_name, table_name_length);
-  ptr+= table_name_length;
-  ptr[0]= 0;
-  ptr++;
-  key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);
+  m_hash_key[0]= (temporary ? OBJECT_TYPE_TEMPORARY_TABLE : OBJECT_TYPE_TABLE);
+  m_key_length= 1;
 
-  if (lower_case_table_names)
-  {
-    my_casedn_str(files_charset_info, saved_schema_name);
-    my_casedn_str(files_charset_info, saved_table_name);
-  }
+  append_opt_casedn_z(files_charset_info, schema_name, schema_name_length,
+                      lower_case_table_names);
+  append_opt_casedn_z(files_charset_info, table_name, table_name_length,
+                      lower_case_table_names);
 }
 
 /**
@@ -1014,7 +981,6 @@ static void init_instr_class(PFS_instr_class *klass,
   klass->m_enabled= true;
   klass->m_timed= true;
   klass->m_type= class_type;
-  klass->m_timer= class_timers[class_type];
 }
 
 /**
@@ -1740,9 +1706,8 @@ PFS_table_share* find_or_create_table_share(PFS_thread *thread,
   const char *table_name= share->table_name.str;
   size_t table_name_length= share->table_name.length;
 
-  set_table_share_key(&key, temporary,
-                      schema_name, schema_name_length,
-                      table_name, table_name_length);
+  key.set(temporary, schema_name, schema_name_length,
+          table_name, table_name_length);
 
   PFS_table_share **entry;
   uint retry_count= 0;
@@ -1770,7 +1735,7 @@ search:
         - recreate index stats
       */
       pfs->destroy_index_stats();
-      pfs->m_key_count= share->keys;
+      pfs->m_key_count= share->total_keys;
       for (uint index= 0; index < pfs->m_key_count; index++)
       {
         (void)pfs->find_or_create_index_stat(share, index);
@@ -1953,8 +1918,8 @@ void drop_table_share(PFS_thread *thread,
   LF_PINS* pins= get_table_share_hash_pins(thread);
   if (unlikely(pins == NULL))
     return;
-  set_table_share_key(&key, temporary, schema_name, schema_name_length,
-                      table_name, table_name_length);
+  key.set(temporary, schema_name, schema_name_length,
+          table_name, table_name_length);
   PFS_table_share **entry;
   entry= reinterpret_cast<PFS_table_share**>
     (lf_hash_search(&table_share_hash, pins,

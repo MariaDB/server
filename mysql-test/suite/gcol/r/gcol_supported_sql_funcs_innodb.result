@@ -11,7 +11,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (abs(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1, default);
 select * from t1;
 a	b
@@ -26,7 +26,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(acos(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1, default);
 insert into t1 values (1.0001,default);
 insert into t1 values (0,default);
@@ -45,7 +45,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(asin(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0.2, default);
 insert into t1 values (1.0001,default);
 select * from t1;
@@ -63,7 +63,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(atan(`a`,`b`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-2,2,default);
 insert into t1 values (format(PI(),6),0,default);
 select * from t1;
@@ -79,7 +79,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(atan(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-2,default);
 insert into t1 values (format(PI(),6),default);
 select * from t1;
@@ -97,7 +97,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(atan(`a`,`b`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-2,2,default);
 insert into t1 values (format(PI(),6),0,default);
 select * from t1;
@@ -114,7 +114,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (ceiling(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.23,default);
 insert into t1 values (-1.23,default);
 select * from t1;
@@ -133,7 +133,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` varchar(10) GENERATED ALWAYS AS (conv(`a`,`b`,`c`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a',16,2,default);
 insert into t1 values ('6e',18,8,default);
 insert into t1 values (-17,10,-18,default);
@@ -154,7 +154,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(cos(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI(),6),default);
 select * from t1;
 a	b
@@ -169,7 +169,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(cot(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0,default);
 insert into t1 values (12,default);
 select * from t1;
@@ -185,7 +185,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (crc32(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 insert into t1 values ('mysql',default);
 select * from t1;
@@ -202,7 +202,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(degrees(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI(),6),default);
 insert into t1 values (format(PI()/2,6),default);
 select * from t1;
@@ -219,7 +219,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (`a` / 2) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 select * from t1;
 a	b
@@ -234,7 +234,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(exp(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
 insert into t1 values (0,default);
@@ -253,7 +253,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (floor(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.23,default);
 insert into t1 values (-1.23,default);
 select * from t1;
@@ -270,7 +270,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(ln(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
 Warnings:
@@ -292,7 +292,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(log(`a`,`b`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,65536,default);
 insert into t1 values (10,100,default);
 insert into t1 values (1,100,default);
@@ -314,7 +314,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(log(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
 Warnings:
@@ -335,7 +335,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(log2(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (65536,default);
 insert into t1 values (-100,default);
 Warnings:
@@ -356,7 +356,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(log10(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert into t1 values (100,default);
 insert into t1 values (-100,default);
@@ -379,7 +379,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (`a` - 1) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 select * from t1;
 a	b
@@ -394,7 +394,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` MOD 10) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (11,default);
 select * from t1;
@@ -411,7 +411,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` MOD 10) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (11,default);
 select * from t1;
@@ -428,7 +428,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (conv(`a`,10,8)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 select * from t1;
 a	b
@@ -443,7 +443,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(pi() * `a` * `a`,6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 select * from t1;
 a	b
@@ -458,7 +458,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 select * from t1;
 a	b
@@ -474,7 +474,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (pow(`a`,2)) VIRTUAL,
   `c` int(11) GENERATED ALWAYS AS (pow(`a`,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default,default);
 insert into t1 values (2,default,default);
 select * from t1;
@@ -491,7 +491,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(radians(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (90,default);
 select * from t1;
 a	b
@@ -506,7 +506,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (round(`a`,0)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1.23,default);
 insert into t1 values (-1.58,default);
 insert into t1 values (1.58,default);
@@ -525,7 +525,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (round(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.298,1,default);
 insert into t1 values (1.298,0,default);
 insert into t1 values (23.298,-1,default);
@@ -544,7 +544,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (sign(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-32,default);
 insert into t1 values (0,default);
 insert into t1 values (234,default);
@@ -563,7 +563,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(sin(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI()/2,6),default);
 select * from t1;
 a	b
@@ -578,7 +578,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(sqrt(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (4,default);
 insert into t1 values (20,default);
 insert into t1 values (-16,default);
@@ -597,7 +597,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(tan(`a`),6)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI(),6),default);
 insert into t1 values (format(PI()+1,6),default);
 select * from t1;
@@ -614,7 +614,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (`a` * 3) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0,default);
 insert into t1 values (1,default);
 insert into t1 values (2,default);
@@ -633,7 +633,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (truncate(`a`,4)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.223,default);
 insert into t1 values (1.999,default);
 insert into t1 values (1.999,default);
@@ -654,7 +654,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (-`a`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (-1,default);
 select * from t1;
@@ -674,7 +674,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(2) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (ascii(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2',default);
 insert into t1 values (2,default);
 insert into t1 values ('dx',default);
@@ -693,7 +693,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (conv(`a`,10,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 select * from t1;
 a	b
@@ -708,7 +708,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (bit_length(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -723,7 +723,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (char_length(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -739,7 +739,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` varbinary(10) GENERATED ALWAYS AS (char(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (77,121,default);
 select * from t1;
 a	b	c
@@ -754,7 +754,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (char_length(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -770,7 +770,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(20) GENERATED ALWAYS AS (concat_ws(',',`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('value1','value2',default);
 select * from t1;
 a	b	c
@@ -786,7 +786,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(20) GENERATED ALWAYS AS (concat(`a`,',',`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('value1','value2',default);
 select * from t1;
 a	b	c
@@ -803,7 +803,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` varchar(10) GENERATED ALWAYS AS (elt(`c`,`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('value1','value2',1,default);
 insert into t1 values ('value1','value2',2,default);
 select * from t1;
@@ -820,7 +820,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (export_set(`a`,'1','0','',10)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (6,default);
 select * from t1;
 a	b
@@ -836,7 +836,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (field('aa',`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('aa','bb',default);
 insert into t1 values ('bb','aa',default);
 select * from t1;
@@ -854,7 +854,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (find_in_set(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('aa','aa,bb,cc',default);
 insert into t1 values ('aa','bb,aa,cc',default);
 select * from t1;
@@ -871,7 +871,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` varchar(20) GENERATED ALWAYS AS (format(`a`,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12332.123456,default);
 select * from t1;
 a	b
@@ -886,7 +886,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (hex(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (17,default);
 select * from t1;
 a	b
@@ -900,7 +900,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (hex(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -916,7 +916,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(20) GENERATED ALWAYS AS (insert(`a`,octet_length(`a`),octet_length(`b`),`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('start,','end',default);
 select * from t1;
 a	b	c
@@ -932,7 +932,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (locate(`b`,`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar,','bar',default);
 insert into t1 values ('xbar,','foobar',default);
 select * from t1;
@@ -949,7 +949,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (lcase(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -964,7 +964,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(5) GENERATED ALWAYS AS (left(`a`,5)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -979,7 +979,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (octet_length(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -994,7 +994,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` like 'H%o') VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert into t1 values ('MySQL',default);
 select * from t1;
@@ -1011,7 +1011,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (locate('bar',`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1026,7 +1026,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (lcase(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1041,7 +1041,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (lpad(`a`,4,' ')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 insert into t1 values ('M',default);
 select * from t1;
@@ -1058,7 +1058,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (ltrim(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('  MySQL',default);
 insert into t1 values ('MySQL',default);
 select * from t1;
@@ -1077,7 +1077,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` varchar(30) GENERATED ALWAYS AS (make_set(`c`,`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',1,default);
 insert into t1 values ('a','b',3,default);
 select * from t1;
@@ -1094,7 +1094,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substr(`a`,1,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1109,7 +1109,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a`  not like 'H%o') VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert into t1 values ('MySQL',default);
 select * from t1;
@@ -1126,7 +1126,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (!(`a` regexp 'H.+o')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert into t1 values ('hello',default);
 select * from t1;
@@ -1143,7 +1143,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (octet_length(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -1158,7 +1158,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (ord(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2',default);
 select * from t1;
 a	b
@@ -1173,7 +1173,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (locate('bar',`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1188,7 +1188,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (quote(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Don\'t',default);
 select * from t1;
 a	b
@@ -1203,7 +1203,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` regexp 'H.+o') VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert into t1 values ('hello',default);
 select * from t1;
@@ -1220,7 +1220,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) GENERATED ALWAYS AS (repeat(`a`,3)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1235,7 +1235,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) GENERATED ALWAYS AS (replace(`a`,'aa','bb')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('maa',default);
 select * from t1;
 a	b
@@ -1250,7 +1250,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) GENERATED ALWAYS AS (reverse(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('maa',default);
 select * from t1;
 a	b
@@ -1265,7 +1265,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (right(`a`,4)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1280,7 +1280,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` regexp 'H.+o') VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert into t1 values ('MySQL',default);
 select * from t1;
@@ -1297,7 +1297,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (rpad(`a`,4,'??')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('He',default);
 select * from t1;
 a	b
@@ -1312,7 +1312,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello  ',default);
 select * from t1;
 a	b
@@ -1327,7 +1327,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(20) GENERATED ALWAYS AS (soundex(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 select * from t1;
 a	b
@@ -1343,7 +1343,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (soundex(`a`) = soundex(`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello','Hello',default);
 insert into t1 values ('Hello','MySQL',default);
 insert into t1 values ('Hello','hello',default);
@@ -1362,7 +1362,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (concat(`a`,space(5))) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello', default);
 select * from t1;
 a	b
@@ -1378,7 +1378,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(9) DEFAULT NULL,
   `b` varchar(9) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (strcmp(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello','Hello', default);
 insert into t1 values ('Hello','Hello1', default);
 select * from t1;
@@ -1395,7 +1395,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substr(`a`,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 select * from t1;
 a	b
@@ -1410,7 +1410,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substring_index(`a`,'.',2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('www.mysql.com',default);
 select * from t1;
 a	b
@@ -1425,7 +1425,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substr(`a`,2,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 select * from t1;
 a	b
@@ -1440,7 +1440,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (trim(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (' aa ',default);
 select * from t1;
 a	b
@@ -1455,7 +1455,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (ucase(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1470,7 +1470,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (unhex(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('4D7953514C',default);
 select * from t1;
 a	b
@@ -1485,7 +1485,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (ucase(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1494,17 +1494,17 @@ drop table t1;
 set sql_warnings = 0;
 # WEIGHT_STRING()
 set sql_warnings = 1;
-create table t1 (a varchar(5), b varchar(10) generated always as (weight_string(a as char(4))) virtual);
+create table t1 (a varchar(5), b varchar(20) generated always as (hex(weight_string(a as char(4)))) virtual);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
-  `b` varchar(10) GENERATED ALWAYS AS (weight_string(`a`,0,4,65)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `b` varchar(20) GENERATED ALWAYS AS (hex(weight_string(`a`,0,4,65))) VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
-MySQL	MYSQ
+MySQL	21E8235922B62262
 drop table t1;
 set sql_warnings = 0;
 #
@@ -1518,7 +1518,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(16) GENERATED ALWAYS AS (case `a` when NULL then 'asd' when 'b' then 'B' else `a` end) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL,default);
 insert into t1 values ('b',default);
 insert into t1 values ('c',default);
@@ -1538,7 +1538,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (if(`a` = 1,`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,2,default);
 insert into t1 values (3,4,default);
 select * from t1;
@@ -1556,7 +1556,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(10) GENERATED ALWAYS AS (ifnull(`a`,'DEFAULT')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL,'adf',default);
 insert into t1 values ('a','adf',default);
 select * from t1;
@@ -1573,7 +1573,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (nullif(`a`,'DEFAULT')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('DEFAULT',default);
 insert into t1 values ('a',default);
 select * from t1;
@@ -1593,7 +1593,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` > 0 and `a` < 2) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1,default);
 insert into t1 values (1,default);
 select * from t1;
@@ -1610,7 +1610,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` between 0 and 2) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1,default);
 insert into t1 values (1,default);
 select * from t1;
@@ -1627,7 +1627,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varbinary(10) GENERATED ALWAYS AS (cast(`a` as char charset binary)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('11',default);
 insert into t1 values (1,default);
 select * from t1;
@@ -1644,7 +1644,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` & 5) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (0,default);
 select * from t1;
@@ -1661,7 +1661,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (~`a`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 Warnings:
 Warning	1264	Out of range value for column 'b' at row 1
@@ -1678,7 +1678,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` | 5) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (0,default);
 insert into t1 values (2,default);
@@ -1697,7 +1697,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` ^ 5) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (0,default);
 insert into t1 values (2,default);
@@ -1716,7 +1716,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` DIV 5) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (7,default);
 select * from t1;
@@ -1734,7 +1734,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <=> `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,1,default);
 insert into t1 values (NULL,NULL,default);
 insert into t1 values (1,NULL,default);
@@ -1754,7 +1754,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` = `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',default);
 insert into t1 values ('a','a',default);
 select * from t1;
@@ -1772,7 +1772,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` >= `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',default);
 insert into t1 values ('a','a',default);
 select * from t1;
@@ -1790,7 +1790,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` > `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',default);
 insert into t1 values ('a','a',default);
 select * from t1;
@@ -1807,7 +1807,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` is not null) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (NULL,default);
 select * from t1;
@@ -1824,7 +1824,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` is null) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (NULL,default);
 select * from t1;
@@ -1841,7 +1841,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` << 2) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (3,default);
 select * from t1;
@@ -1859,7 +1859,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <= `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1879,7 +1879,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` < `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1898,7 +1898,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` not between 0 and 2) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1,default);
 insert into t1 values (1,default);
 select * from t1;
@@ -1916,7 +1916,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <> `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1936,7 +1936,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <> `b`) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1955,7 +1955,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` > 5 or `a` < 3) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (4,default);
 select * from t1;
@@ -1972,7 +1972,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` >> 2) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (8,default);
 insert into t1 values (3,default);
 select * from t1;
@@ -1989,7 +1989,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` xor 5) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0,default);
 insert into t1 values (1,default);
 insert into t1 values (2,default);
@@ -2011,7 +2011,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` + interval 1 month) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2026,7 +2026,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (addtime(`a`,'02:00:00')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2041,7 +2041,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (convert_tz(`a`,'MET','UTC')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2056,7 +2056,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` + interval 1 month) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2071,7 +2071,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(64) GENERATED ALWAYS AS (date_format(`a`,'%W %M %D')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2086,7 +2086,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` - interval 1 month) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2101,7 +2101,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (cast(`a` as date)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31 02:00:00',default);
 select * from t1;
 a	b
@@ -2116,7 +2116,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (to_days(`a`) - to_days('2000-01-01')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2131,7 +2131,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofmonth(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2146,7 +2146,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (dayname(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2161,7 +2161,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofmonth(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2176,7 +2176,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofweek(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2191,7 +2191,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofyear(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2206,7 +2206,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (extract(year from `a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2221,7 +2221,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (from_days(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (730669,default);
 select * from t1;
 a	b
@@ -2236,7 +2236,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (from_unixtime(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1196440219,default);
 select * from t1;
 a	b
@@ -2251,7 +2251,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(32) GENERATED ALWAYS AS (date_format(`a`,get_format(DATE, 'EUR'))) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2266,7 +2266,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (hour(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('10:05:03',default);
 select * from t1;
 a	b
@@ -2281,7 +2281,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (last_day(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2003-02-05',default);
 insert into t1 values ('2003-02-32',default);
 select * from t1;
@@ -2297,7 +2297,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (makedate(`a`,1)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2001,default);
 select * from t1;
 a	b
@@ -2312,7 +2312,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` time GENERATED ALWAYS AS (maketime(`a`,1,3)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 select * from t1;
 a	b
@@ -2327,7 +2327,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (microsecond(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 12:00:00.123456',default);
 insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
@@ -2344,7 +2344,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (minute(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
 a	b
@@ -2359,7 +2359,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (month(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
 a	b
@@ -2374,7 +2374,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(16) GENERATED ALWAYS AS (monthname(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
 a	b
@@ -2389,7 +2389,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (period_add(`a`,2)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (200801,default);
 select * from t1;
 a	b
@@ -2405,7 +2405,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (period_diff(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (200802,200703,default);
 select * from t1;
 a	b	c
@@ -2420,7 +2420,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (quarter(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2435,7 +2435,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) DEFAULT NULL,
   `b` time GENERATED ALWAYS AS (sec_to_time(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2378,default);
 select * from t1;
 a	b
@@ -2450,7 +2450,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (second(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('10:05:03',default);
 select * from t1;
 a	b
@@ -2465,7 +2465,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(64) DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (str_to_date(`a`,'%m/%d/%Y')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('04/30/2004',default);
 select * from t1;
 a	b
@@ -2480,7 +2480,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` - interval 1 month) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2495,7 +2495,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (subtime(`a`,'02:00:00')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2510,7 +2510,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(32) GENERATED ALWAYS AS (time_format(`a`,'%r')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31 02:03:04',default);
 select * from t1;
 a	b
@@ -2525,7 +2525,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (time_to_sec(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('22:23:00',default);
 select * from t1;
 a	b
@@ -2540,7 +2540,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` time GENERATED ALWAYS AS (cast(`a` as time)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31 02:03:04',default);
 select * from t1;
 a	b
@@ -2556,7 +2556,7 @@ t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime DEFAULT NULL,
   `c` time GENERATED ALWAYS AS (timediff(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-12-31 23:59:59.000001','2008-12-30 01:01:01.000002',default);
 select * from t1;
 a	b	c
@@ -2571,7 +2571,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` timestamp GENERATED ALWAYS AS (cast(`a` as datetime)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-12-31',default);
 select * from t1;
 a	b
@@ -2586,7 +2586,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` timestamp GENERATED ALWAYS AS (`a` + interval 1 minute) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2003-01-02',default);
 select * from t1;
 a	b
@@ -2599,9 +2599,9 @@ create table t1 (a timestamp, c bigint generated always as (timestampdiff(MONTH,
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `a` timestamp NULL DEFAULT NULL,
   `c` bigint(20) GENERATED ALWAYS AS (timestampdiff(MONTH,`a`,`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2003-02-01',default);
 select * from t1;
 a	c
@@ -2616,7 +2616,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` bigint(20) GENERATED ALWAYS AS (to_days(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2007-10-07',default);
 select * from t1;
 a	b
@@ -2631,7 +2631,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (week(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2646,7 +2646,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (weekday(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2661,7 +2661,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (week(`a`,3)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2676,7 +2676,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (year(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2691,7 +2691,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (yearweek(`a`,0)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2713,7 +2713,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` bigint(20) unsigned GENERATED ALWAYS AS (cast(`a` as unsigned)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (-1,default);
 Warnings:
@@ -2734,7 +2734,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` bigint(20) unsigned GENERATED ALWAYS AS (cast(`a` as unsigned)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert into t1 values (-1,default);
 Warnings:
@@ -2758,7 +2758,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (extractvalue(`a`,'/b')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('<b>text</b>',default);
 select * from t1;
 a	b
@@ -2777,7 +2777,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (aes_encrypt(aes_decrypt(`a`,'adf'),'adf')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -2792,7 +2792,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (bit_count(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (5,default);
 select * from t1;
 a	b
@@ -2807,11 +2807,11 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (charset(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
-abc	latin1
+abc	utf8mb4
 drop table t1;
 set sql_warnings = 0;
 # COERCIBILITY()
@@ -2822,7 +2822,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (coercibility(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -2837,11 +2837,11 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (collation(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
-abc	latin1_swedish_ci
+abc	utf8mb4_uca1400_ai_ci
 drop table t1;
 set sql_warnings = 0;
 # COMPRESS(), UNCOMPRESS()
@@ -2852,7 +2852,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (uncompress(compress(`a`))) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -2867,7 +2867,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (decode(encode(`a`,'abc'),'abc')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -2882,27 +2882,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT 'aaa',
   `b` varchar(1024) GENERATED ALWAYS AS (ifnull(`a`,default(`a`))) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('any value',default);
 select * from t1;
 a	b
 any value	any value
 drop table t1;
 set sql_warnings = 0;
-# DES_ENCRYPT(), DES_DECRYPT()
-create table t1 (a varchar(1024), b varchar(1024) generated always as (des_encrypt(des_decrypt(a,'adf'),'adf')) virtual);
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(1024) DEFAULT NULL,
-  `b` varchar(1024) GENERATED ALWAYS AS (des_encrypt(des_decrypt(`a`,'adf'),'adf')) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-insert into t1 values ('MySQL',default);
-select * from t1;
-a	b
-MySQL	ÿw2¥ð
-èõÁ
-drop table t1;
 # INET_ATON(), INET_NTOA()
 set sql_warnings = 1;
 create table t1 (a varchar(1024), b varchar(1024) generated always as (inet_ntoa(inet_aton(a))) virtual);
@@ -2911,7 +2897,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (inet_ntoa(inet_aton(`a`))) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('127.0.0.1',default);
 select * from t1;
 a	b
@@ -2926,7 +2912,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varbinary(32) GENERATED ALWAYS AS (md5(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('testing',default);
 select * from t1;
 a	b
@@ -2941,7 +2927,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (password(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('badpwd',default);
 select * from t1;
 a	b
@@ -2956,7 +2942,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (sha(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -2971,7 +2957,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (sha(`a`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -2986,7 +2972,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (sha2(`a`,224)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -3001,7 +2987,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (uncompressed_length(compress(repeat(`a`,30)))) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a',default);
 select * from t1;
 a	b

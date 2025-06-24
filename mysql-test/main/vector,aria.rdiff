@@ -1,0 +1,581 @@
+--- a/mysql-test/main/vector.result
++++ b/mysql-test/main/vector.result
+@@ -1,5 +1,5 @@
+ create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+-ERROR HY000: Cannot create VECTOR index on temporary MyISAM table
++ERROR HY000: Cannot create VECTOR index on temporary Aria table
+ create table t1 (id int auto_increment primary key,
+ u vector(5) not null, vector index (u),
+ v vector(5) not null, vector index (v));
+@@ -12,7 +12,7 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ show keys from t1;
+ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+ t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+@@ -27,7 +27,7 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`) `m`=7
+-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ show keys from t1;
+ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+ t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+@@ -42,7 +42,7 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`) `m`=5
+-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ show keys from t1;
+ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+ t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+@@ -343,7 +343,7 @@ t2	CREATE TABLE `t2` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ drop table t1, t2;
+ db.opt
+ # Test insert ... select with vector index
+@@ -388,8 +388,32 @@ db.opt
+ create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+ insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+ truncate table t1;
++Aria file:           datadir/test/t1#i#01
++Record format:       Block
++Crashsafe:           yes
++Character set:       utf8mb4_uca1400_ai_ci (2304)
++Data records:                       0  Deleted blocks:                      0
++Block_size:                      8192
++Recordlength:                      36
++
++Table description:
++Key Start Len Index    Type
++1   3     5   unique   varbin NULL            
++2   2     1   multip.  int8                   
+ insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+ truncate table t1;
++Aria file:           datadir/test/t1#i#01
++Record format:       Block
++Crashsafe:           yes
++Character set:       utf8mb4_uca1400_ai_ci (2304)
++Data records:                       0  Deleted blocks:                      0
++Block_size:                      8192
++Recordlength:                      36
++
++Table description:
++Key Start Len Index    Type
++1   3     5   unique   varbin NULL            
++2   2     1   multip.  int8                   
+ insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+ select id, hex(v) from t1;
+ id	hex(v)
+@@ -401,33 +425,39 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ drop table t1;
+ db.opt
+ # Test RENAME TABLE with vector index
+ create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ rename table t1 to t2;
+ db.opt
+-t2#i#01.ibd
++t2#i#01.MAD
++t2#i#01.MAI
++t2.MAD
++t2.MAI
+ t2.frm
+-t2.ibd
+ create database test1;
+ rename table test.t2 to test1.t1;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+-call mtr.add_suppression('InnoDB: Cannot rename.*because the source file does not exist');
+-call mtr.add_suppression('InnoDB: File ./test1/t1#i#01.ibd was not found');
+ rename table test1.t1 to test1.t2;
+ Got one of the listed errors
+ db.opt
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ drop database test1;
+ db.opt
+ #
+@@ -442,7 +472,7 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`) `distance`=cosine
+-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+ (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+ (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+@@ -504,9 +534,11 @@ insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+ # ADD/DROP COLUMN, ALGORITHM=COPY
+ alter table t1 add column a int, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -515,12 +547,14 @@ t1	CREATE TABLE `t1` (
+   `a` int(11) DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 drop column a, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -528,13 +562,15 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # ADD/DROP INDEX, ALGORITHM=COPY (non-vector)
+ alter table t1 add index a(id), algorithm=copy;
+ db.opt
+-t1#i#02.ibd
++t1#i#02.MAD
++t1#i#02.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -543,12 +579,14 @@ t1	CREATE TABLE `t1` (
+   PRIMARY KEY (`id`),
+   KEY `a` (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 drop index a, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -556,13 +594,15 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # CREATE/DROP INDEX, ALGORITHM=COPY (non-vector)
+ create index a on t1(id) algorithm=copy;
+ db.opt
+-t1#i#02.ibd
++t1#i#02.MAD
++t1#i#02.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -571,12 +611,14 @@ t1	CREATE TABLE `t1` (
+   PRIMARY KEY (`id`),
+   KEY `a` (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ drop index a on t1;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -584,13 +626,15 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # ADD/DROP COLUMN IF [NOT] EXISTS, ALGORITHM=COPY (non-vector)
+ alter table t1 add column if not exists a int, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -599,12 +643,14 @@ t1	CREATE TABLE `t1` (
+   `a` int(11) DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 drop column if exists a, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -612,24 +658,27 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # ADD/DROP INDEX, ALGORITHM=COPY (vector)
+ alter table t1 drop index v, algorithm=copy;
+ db.opt
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 add vector index v(v), algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -637,24 +686,27 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # CREATE/DROP INDEX, ALGORITHM=COPY (vector)
+ drop index v on t1;
+ db.opt
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ create vector index v on t1(v) algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -662,7 +714,7 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
+ alter table t1 add index a(id), algorithm=inplace;
+ ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+@@ -685,31 +737,15 @@ ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITH
+ alter table t1 modify column v vector(7) not null, algorithm=inplace;
+ ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
+-alter table t1 add column a varchar(10), algorithm=inplace;
+-alter table t1 change column a a varchar(20), algorithm=inplace;
+-alter table t1 modify column a varchar(30), algorithm=inplace;
+-alter table t1 drop column a, algorithm=inplace;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # ENABLE/DISABLE INDEXES
+ alter table t1 disable keys;
+ alter table t1 enable keys;
+-Warnings:
+-Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -717,13 +753,15 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ # RENAME COLUMN (vector)
+ alter table t1 rename column v to w;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -731,14 +769,16 @@ t1	CREATE TABLE `t1` (
+   `w` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`w`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 rename column w to v;
+ # RENAME INDEX (vector)
+ alter table t1 rename key v to w;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -746,7 +786,7 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `w` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 rename key w to v;
+ # IF [NOT] EXISTS
+ create vector index if not exists v on t1(v);
+@@ -757,77 +797,22 @@ drop index if exists v on t1;
+ Warnings:
+ Note	1091	Can't DROP INDEX `v`; check that it exists
+ db.opt
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ create vector index if not exists v on t1(v);
+ alter table t1 rename key if exists v to w;
+ alter table t1 rename key if exists w to v;
+ alter table t1 alter key if exists v ignored;
+ alter table t1 alter key if exists v not ignored;
+ # ENGINE
+-alter table t1 engine=myisam;
+-db.opt
+-t1#i#01.MYD
+-t1#i#01.MYI
+-t1.MYD
+-t1.MYI
+-t1.frm
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t1 engine=innodb;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t1 rename to t2, engine=myisam;
+-db.opt
+-t2#i#01.MYD
+-t2#i#01.MYI
+-t2.MYD
+-t2.MYI
+-t2.frm
+-show create table t2;
+-Table	Create Table
+-t2	CREATE TABLE `t2` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t2 rename to t1, engine=innodb;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # CHANGE/MODIFY/DROP COLUMN (vector)
+ alter table t1 modify column v int;
+ ERROR HY000: Incorrect arguments to VECTOR INDEX
+@@ -839,9 +824,11 @@ alter table t1 change column v v vector(6);
+ ERROR 42000: All parts of a VECTOR index must be NOT NULL
+ alter table t1 modify column v vector(7) not null;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -849,12 +836,14 @@ t1	CREATE TABLE `t1` (
+   `v` vector(7) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 change column v v vector(5) not null;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MAD
++t1#i#01.MAI
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -862,17 +851,18 @@ t1	CREATE TABLE `t1` (
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ alter table t1 drop column v;
+ db.opt
++t1.MAD
++t1.MAI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ drop table t1;
+ create table t1(v vector(5) not null, vector index(v));
+ alter table t1 add column a int;
+@@ -889,5 +879,5 @@ Table	Create Table
+ t	CREATE TABLE `t` (
+   `v` vector(1) NOT NULL,
+   VECTOR KEY `v` (`v`) `distance`=cosine
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ drop table t;

@@ -16,10 +16,6 @@
 
 /* Procedures (functions with changes output of select) */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "procedure.h"
@@ -29,16 +25,18 @@
 #endif
 
 static struct st_procedure_def {
-  const char *name;
+  const Lex_ident_routine name;
   Procedure *(*init)(THD *thd,ORDER *param,select_result *result,
 		     List<Item> &field_list);
 } sql_procs[] = {
 #ifdef USE_PROC_RANGE
-  { "split_sum",proc_sum_range_init },		// Internal procedure at TCX
-  { "split_count",proc_count_range_init },	// Internal procedure at TCX
-  { "matris_ranges",proc_matris_range_init },	// Internal procedure at TCX
+  // A few internal procedures at TCX
+  { Lex_ident_routine("split_sum"_LEX_CSTRING), proc_sum_range_init },
+  { Lex_ident_routine("split_count"_LEX_CSTRING), proc_count_range_init },
+  { Lex_ident_routine("matris_ranges"_LEX_CSTRING), proc_matris_range_init },
 #endif
-  { "analyse",proc_analyse_init }		// Analyse a result
+  // Analyse a result
+  { Lex_ident_routine("analyse"_LEX_CSTRING), proc_analyse_init }
 };
 
 
@@ -88,8 +86,7 @@ setup_procedure(THD *thd,ORDER *param,select_result *result,
     DBUG_RETURN(0);
   for (i=0 ; i < array_elements(sql_procs) ; i++)
   {
-    if (!my_strcasecmp(system_charset_info,
-                       (*param->item)->name.str, sql_procs[i].name))
+    if (sql_procs[i].name.streq((*param->item)->name))
     {
       Procedure *proc=(*sql_procs[i].init)(thd,param,result,field_list);
       *error= !proc;

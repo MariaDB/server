@@ -74,9 +74,9 @@ alter table t add column trx_start timestamp(6) as row start;
 alter table t add system versioning;
 show create table t;
 
---error ER_VERS_DUPLICATE_ROW_START_END
+--error ER_MISSING
 alter table t add column trx_start timestamp(6) as row start;
---error ER_VERS_DUPLICATE_ROW_START_END
+--error ER_WRONG_FIELD_SPEC
 alter table t modify a int as row start;
 
 alter table t add column b int;
@@ -553,7 +553,6 @@ create or replace table t1 (f1 int) with system versioning;
 alter table t1 drop system versioning, add f2 int with system versioning;
 
 drop table t1;
---source suite/versioning/common_finish.inc
 --echo # MDEV-16490 It's possible to make a system versioned table without any versioning field
 
 set @@system_versioning_alter_history=keep;
@@ -613,7 +612,7 @@ create or replace table t1 (
   period for system_time(row_start, row_end)
 ) with system versioning;
 show create table t1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 
 create or replace table t1 (
@@ -623,7 +622,7 @@ a int, b int primary key,
   period for system_time(row_start, row_end)
 ) with system versioning;
 show create table t1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 
 # cleanup
@@ -781,3 +780,38 @@ show create table t1;
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-27293 Allow converting a versioned table from implicit
+--echo #            to explicit row_start/row_end columns
+--echo #
+create table t1 (x int) with system versioning;
+insert t1 values (0), (1);
+update t1 set x= x + 10;
+set @old_system_versioning_alter_history= @@system_versioning_alter_history;
+set @@system_versioning_alter_history= keep;
+alter table t1 add column y int;
+show create table t1;
+--error ER_MISSING
+alter table t1 add column rs timestamp(6) as row start;
+--error ER_MISSING
+alter table t1 add column re timestamp(6) as row end, add period for system_time (row_start, re);
+--error ER_MISSING
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end;
+--error ER_BAD_FIELD_ERROR
+alter table t1 rename column row_start to re;
+--error ER_WRONG_FIELD_SPEC
+alter table t1 add column rs timestamp(5) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+show create table t1;
+select x, check_row_ts(rs, re) from t1 for system_time all order by x;
+
+create or replace table t1 (x int) engine innodb with system versioning;
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+show create table t1;
+
+set @@system_versioning_alter_history= @old_system_versioning_alter_history;
+drop table t1;
+
+--echo # End of 11.6 tests
+--source suite/versioning/common_finish.inc

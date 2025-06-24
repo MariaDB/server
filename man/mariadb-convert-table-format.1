@@ -1,0 +1,222 @@
+'\" t
+.\"
+.TH "\fBMARIADB-CONVERT-TABLE-FORMAT\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb_convert_table_format
+.SH "NAME"
+mariadb-convert-table-format \- convert tables to use a given storage engine (mariadb-convert-table-format is now a symlink to mariadb-convert-table-format)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-convert-table-format\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
+\fBmariadb-convert-table-format [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb_convert_table_format\fR
+converts the tables in a database to use a particular storage engine (MyISAM
+by default)\&.
+\fBmariadb-convert-table-format\fR
+is written in Perl and requires that the
+DBI
+and
+DBD::MariaDB
+Perl modules be installed (see
+Section\ \&2.15, \(lqPerl Installation Notes\(rq)\&.
+.PP
+Invoke
+\fBmariadb-convert-table-format\fR
+like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-convert-table-format [\fR\fB\fIoptions\fR\fR\fB]\fR\fB\fIdb_name\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The
+\fIdb_name\fR
+argument indicates the database containing the tables to be converted\&.
+.PP
+\fBmariadb-convert-table-format\fR
+supports the options described in the following list\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: help option
+.\" help option: mariadb-convert-table-format
+\fB\-\-help\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: force option
+.\" force option: mariadb-convert-table-format
+\fB\-\-force\fR
+.sp
+Continue even if errors occur\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: host option
+.\" host option: mariadb-convert-table-format
+\fB\-\-host=\fR\fB\fIhost_name\fR\fR
+.sp
+Connect to the MariaDB server on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: password option
+.\" password option: mariadb-convert-table-format
+\fB\-\-password=\fR\fB\fIpassword\fR\fR
+.sp
+The password to use when connecting to the server\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: port option
+.\" port option: mariadb-convert-table-format
+\fB\-\-port=\fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use for the connection\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: socket option
+.\" socket option: mariadb-convert-table-format
+\fB\-\-socket=\fR\fB\fIpath\fR\fR
+.sp
+For connections to
+localhost, the Unix socket file to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: type option
+.\" type option: mariadb-convert-table-format
+\fB\-\-type=\fR\fB\fIengine_name\fR\fR
+.sp
+Specify the storage engine that the tables should be converted to use\&. The default is
+MyISAM
+if this option is not given\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: user option
+.\" user option: mariadb-convert-table-format
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR
+.sp
+The MariaDB user name to use when connecting to the server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: verbose option
+.\" verbose option: mariadb-convert-table-format
+\fB\-\-verbose\fR
+.sp
+Verbose mode\&. Print more information about what the program does\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-convert-table-format: version option
+.\" version option: mariadb-convert-table-format
+\fB\-\-version\fR
+.sp
+Display version information and exit\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

@@ -1372,7 +1372,7 @@ MATCH(b.title, b.text) AGAINST ('+mysql' IN BOOLEAN MODE)  and
 a.FTS_DOC_ID = b.FTS_DOC_ID;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	a	fulltext	PRIMARY,FTS_DOC_ID_INDEX,ft_idx	ft_idx	0		1	Using where
-1	SIMPLE	b	eq_ref	PRIMARY,FTS_DOC_ID_INDEX,ft_idx	PRIMARY	8	test.a.FTS_DOC_ID	1	Using where
+1	SIMPLE	b	fulltext	PRIMARY,FTS_DOC_ID_INDEX,ft_idx	ft_idx	0		1	Using where
 SELECT a.FTS_DOC_ID, MATCH(a.title, a.text) AGAINST ('+database' IN BOOLEAN MODE),
 b.FTS_DOC_ID, MATCH(b.title, b.text) AGAINST ('+database' IN BOOLEAN MODE)
 FROM t1 a, t1 b
@@ -1558,17 +1558,24 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "fulltext",
-      "possible_keys": ["f1"],
-      "key": "f1",
-      "key_length": "0",
-      "used_key_parts": ["f1"],
-      "rows": 1,
-      "filtered": 100,
-      "attached_condition": "1.238585e+308 <= (match t1.f1 against ('1' in boolean mode))"
-    }
+    "cost": 0.00009287,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "fulltext",
+          "possible_keys": ["f1"],
+          "key": "f1",
+          "key_length": "0",
+          "used_key_parts": ["f1"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.00009287,
+          "filtered": 100,
+          "attached_condition": "1.238585e+308 <= (match t1.f1 against ('1' in boolean mode))"
+        }
+      }
+    ]
   }
 }
 DROP TABLE t1;

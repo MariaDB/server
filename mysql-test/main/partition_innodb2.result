@@ -1,0 +1,24 @@
+#
+# MDEV-30442: Assertion `!m_innodb' failed in ha_partition::cmp_ref on MULTI-DELETE
+#
+create table t1 (a int) engine=innodb;
+insert into t1 values (1),(2),(1),(2);
+create table t2 (
+a int,
+b int,
+key(a)
+) engine=innodb partition by list(a)
+(
+partition p0 values in (1),
+partition p1 values in (2),
+partition p2 values in (0,3,4,5,6,7,8,9)
+);
+insert into t2 select
+mod(seq, 10), seq from seq_1_to_50;
+explain
+delete t1, t2 from t1, t2 where t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	#	
+delete t1, t2 from t1, t2 where t1.a=t2.a;
+drop table t1,t2;

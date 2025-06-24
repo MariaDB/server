@@ -114,7 +114,7 @@ static CONTROL_FILE_ERROR local_ma_control_file_open(void)
 {
   CONTROL_FILE_ERROR error;
   error_handler_hook= my_ignore_message;
-  error= ma_control_file_open(TRUE, TRUE, TRUE);
+  error= ma_control_file_open(TRUE, TRUE, TRUE, control_file_open_flags);
   error_handler_hook= default_error_handler_hook;
   return error;
 }
@@ -174,7 +174,7 @@ int main(int argc,char *argv[])
   ok(0 == test_bad_magic_string(), "test of bad magic string");
   ok(0 == test_bad_checksum(), "test of bad checksum");
   ok(0 == test_bad_hchecksum(), "test of bad hchecksum");
-  ok(0 == test_future_size(), "test of ability to handlr future versions");
+  ok(0 == test_future_size(), "test of ability to handle future versions");
   ok(0 == test_bad_blocksize(), "test of bad blocksize");
   ok(0 == test_bad_size(), "test of too small/big file");
 
@@ -475,7 +475,7 @@ static int test_future_size(void)
   /* fix lengths */
   int2store(buffer + CF_CREATE_TIME_SIZE_OFFSET, CF_CREATE_TIME_TOTAL_SIZE + 1);
   int2store(buffer + CF_CHANGEABLE_SIZE_OFFSET, CF_CHANGEABLE_TOTAL_SIZE + 1);
-  /* recalculete checksums */
+  /* recalculate checksums */
   sum= (uint32) my_checksum(0, buffer, CF_CREATE_TIME_TOTAL_SIZE -
                             CF_CHECKSUM_SIZE + 1);
   int4store(buffer + CF_CREATE_TIME_TOTAL_SIZE - CF_CHECKSUM_SIZE + 1, sum);

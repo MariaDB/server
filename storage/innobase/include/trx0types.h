@@ -38,7 +38,7 @@ the terminating NUL character. */
 static const ulint TRX_ID_MAX_LEN = 17;
 
 /** Space id of the transaction system page (the system tablespace) */
-static const ulint TRX_SYS_SPACE = 0;
+static constexpr uint32_t TRX_SYS_SPACE= 0;
 
 /** Page number of the transaction system page */
 #define TRX_SYS_PAGE_NO		FSP_TRX_SYS_PAGE_NO
@@ -63,6 +63,15 @@ enum trx_state_t {
 	TRX_STATE_PREPARED_RECOVERED,
         /** The transaction has been committed (or completely rolled back) */
 	TRX_STATE_COMMITTED_IN_MEMORY
+};
+
+/** Transaction bulk insert operation @see trx_t::bulk_insert */
+enum trx_bulk_insert {
+    TRX_NO_BULK,
+    /** bulk insert is being executed during DML */
+    TRX_DML_BULK,
+    /** bulk insert is being executed in copy_data_between_tables() */
+    TRX_DDL_BULK
 };
 
 /** Memory objects */

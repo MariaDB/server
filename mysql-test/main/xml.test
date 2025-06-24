@@ -382,7 +382,7 @@ select extractValue('<foo><foo.bar>Data</foo.bar><something>Otherdata</something
 select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','/zot/tim0/02') as xml;
 select extractValue('<zot><tim0><01>10:39:15</01><02>140</02></tim0></zot>','//*') as xml;
 
-# dot and dash are bad identtifier start character
+# dot and dash are bad identifier start character
 select extractValue('<.>test</.>','//*');
 select extractValue('<->test</->','//*');
 # semicolon is good identifier start character
@@ -822,5 +822,17 @@ DROP TABLE t1;
 SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS f;
 
 --echo #
---echo # Start of 10.5 tests
+--echo # End of 10.5 tests
 --echo #
+
+--echo # Start of 11.4 tests
+
+--echo #
+--echo # MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit
+--echo #
+
+SET NAMES latin1;
+SELECT  lcase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+SELECT  ucase((extractvalue('a', 'a'))) a FROM (select 1) dt;
+
+--echo # End of 11.4 tests

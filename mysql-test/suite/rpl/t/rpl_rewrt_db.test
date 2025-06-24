@@ -2,6 +2,16 @@
 -- source include/have_binlog_format_mixed_or_statement.inc
 -- source include/master-slave.inc
 
+if (`SELECT @@binlog_format = "MIXED"`) {
+--disable_query_log
+--disable_warnings
+# Ensure that switching between mixed and statment works in all case */
+set @@global.create_tmp_table_binlog_formats= "MIXED";
+set @@session.create_tmp_table_binlog_formats= "MIXED";
+--enable_warnings
+--enable_query_log
+}
+
 --connection slave
 set sql_log_bin=0;
 create database y;
@@ -51,8 +61,8 @@ create database rewrite;
 connection master;
 use test;
 create table t1 (a date, b date, c date not null, d date);
-load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
-load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',' IGNORE 2 LINES;
+load data infile '../../std_data/loaddata1.dat' ignore into table t1 character set latin1 fields terminated by ',';
+load data infile '../../std_data/loaddata1.dat' into table t1 character set latin1 fields terminated by ',' IGNORE 2 LINES;
 sync_slave_with_master;
 
 connection slave;
@@ -60,7 +70,7 @@ select * from rewrite.t1;
 
 connection master;
 truncate table t1;
-load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',' LINES STARTING BY ',' (b,c,d);
+load data infile '../../std_data/loaddata1.dat' ignore into table t1 character set latin1 fields terminated by ',' LINES STARTING BY ',' (b,c,d);
 sync_slave_with_master;
 
 connection slave;
@@ -68,8 +78,8 @@ select * from rewrite.t1;
 
 connection master;
 drop table t1;
-create table t1 (a text, b text);
-load data infile '../../std_data/loaddata2.dat' into table t1 fields terminated by ',' enclosed by '''';
+create table t1 (a text, b text) character set latin1;
+load data infile '../../std_data/loaddata2.dat' into table t1 character set latin1 fields terminated by ',' enclosed by '''';
 sync_slave_with_master;
 
 connection slave;
@@ -77,8 +87,8 @@ select concat('|',a,'|'), concat('|',b,'|') from rewrite.t1;
 
 connection master;
 drop table t1;
-create table t1 (a int, b char(10));
-load data infile '../../std_data/loaddata3.dat' into table t1 fields terminated by '' enclosed by '' ignore 1 lines;
+create table t1 (a int, b char(10)) character set latin1;
+load data infile '../../std_data/loaddata3.dat' into table t1 character set latin1 fields terminated by '' enclosed by '' ignore 1 lines;
 sync_slave_with_master;
 
 connection slave;
@@ -86,7 +96,7 @@ select * from rewrite.t1;
 
 connection master;
 truncate table t1;
-load data infile '../../std_data/loaddata4.dat' into table t1 fields terminated by '' enclosed by '' lines terminated by '' ignore 1 lines;
+load data infile '../../std_data/loaddata4.dat' into table t1 character set latin1 fields terminated by '' enclosed by '' lines terminated by '' ignore 1 lines;
 sync_slave_with_master;
 
 connection slave;
@@ -246,5 +256,7 @@ SET sql_log_bin= 1;
 connection master;
 sync_slave_with_master;
 
+connection default;
+set @@global.create_tmp_table_binlog_formats=default;
 # end of 5.0 tests
 --source include/rpl_end.inc

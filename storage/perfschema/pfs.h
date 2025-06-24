@@ -40,19 +40,18 @@
 */
 extern struct PSI_bootstrap PFS_bootstrap;
 /** Performance schema Thread Local Storage key.  */
-extern pthread_key_t THR_PFS;
-extern pthread_key_t THR_PFS_VG;  // global_variables
-extern pthread_key_t THR_PFS_SV;  // session_variables
-extern pthread_key_t THR_PFS_VBT; // variables_by_thread
-extern pthread_key_t THR_PFS_SG;  // global_status
-extern pthread_key_t THR_PFS_SS;  // session_status
-extern pthread_key_t THR_PFS_SBT; // status_by_thread
-extern pthread_key_t THR_PFS_SBU; // status_by_user
-extern pthread_key_t THR_PFS_SBA; // status_by_host
-extern pthread_key_t THR_PFS_SBH; // status_by_account
+struct PFS_thread;
 
-/** True when @c THR_PFS and all other Performance Schema TLS keys are initialized. */
-extern bool THR_PFS_initialized;
+extern MY_THREAD_LOCAL PFS_thread* THR_PFS;
+extern MY_THREAD_LOCAL void* THR_PFS_VG;  // global_variables
+extern MY_THREAD_LOCAL void* THR_PFS_SV;  // session_variables
+extern MY_THREAD_LOCAL void* THR_PFS_VBT; // variables_by_thread
+extern MY_THREAD_LOCAL void* THR_PFS_SG;  // global_status
+extern MY_THREAD_LOCAL void* THR_PFS_SS;  // session_status
+extern MY_THREAD_LOCAL void* THR_PFS_SBT; // status_by_thread
+extern MY_THREAD_LOCAL void* THR_PFS_SBU; // status_by_user
+extern MY_THREAD_LOCAL void* THR_PFS_SBA; // status_by_host
+extern MY_THREAD_LOCAL void* THR_PFS_SBH; // status_by_account
 
 #define PSI_VOLATILITY_UNKNOWN 0
 #define PSI_VOLATILITY_SESSION 1

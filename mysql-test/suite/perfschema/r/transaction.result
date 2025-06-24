@@ -39,8 +39,8 @@ CALL clear_transaction_tables();
 # ========================================================================
 #
 connection con1;
-SELECT @@global.tx_isolation;
-@@global.tx_isolation
+SELECT @@global.transaction_isolation;
+@@global.transaction_isolation
 REPEATABLE-READ
 SELECT @@global.autocommit;
 @@global.autocommit
@@ -48,8 +48,8 @@ SELECT @@global.autocommit;
 SELECT @@global.binlog_format;
 @@global.binlog_format
 ROW
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 SELECT @@autocommit;
 @@autocommit
@@ -408,8 +408,6 @@ CALL clear_transaction_tables();
 # STEP 8 - TRANSACTIONAL AND NON-TRANSACTIONAL TABLES
 # ========================================================================
 #
-## MariaDB bug: MDEV-6012? MDEV-14436?
-set @mariadb_bug=1;
 connection con1;
 SET SESSION AUTOCOMMIT = 0;
 SELECT * FROM performance_schema.events_transactions_current ORDER BY event_id;
@@ -422,17 +420,17 @@ INSERT INTO nt1 VALUES (801, 'NON-TRANSACTIONAL');
 #
 ## Expect 0 transactions in events_transactions_current
 connection default;
-CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, @mariadb_bug);
+CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, 0);
 ACTUAL	EXPECTED
-     1	       1
+     0	       0
 connection con1;
 COMMIT;
 #
 ## Expect 0 transactions in events_transactions_history
 connection default;
-CALL transaction_verifier(1, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, @mariadb_bug);
+CALL transaction_verifier(1, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, 0);
 ACTUAL	EXPECTED
-     1	       1
+     0	       0
 #
 #
 # STEP 8.2 - UPDATE TRANSACTIONAL AND NON-TRANSACTIONAL TABLES
@@ -445,9 +443,9 @@ INSERT INTO nt1 VALUES (802, 'NON-TRANSACTIONAL');
 #
 ## Expect 0 transactions in events_transactions_current
 connection default;
-CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, @mariadb_bug);
+CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, 0);
 ACTUAL	EXPECTED
-     1	       1
+     0	       0
 #
 ## Now transactional. Transaction should be started.
 connection con1;
@@ -467,9 +465,9 @@ connection default;
 CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 0, 0, 0, 1);
 ACTUAL	EXPECTED
      1	       1
-CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 0, 0, 0, 1+@mariadb_bug);
+CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 0, 0, 0, 1);
 ACTUAL	EXPECTED
-     2	       2
+     1	       1
 CALL clear_transaction_tables();
 #
 # ========================================================================

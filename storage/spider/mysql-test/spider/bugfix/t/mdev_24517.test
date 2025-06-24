@@ -41,11 +41,13 @@ eval CREATE TABLE tbl_a (
   PRIMARY KEY(i)
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (i, j) VALUES
   (1, '{"ID": "3", "Name": "Barney", "Age": 18}'),
   (2, '{"ID": "4", "Name": "Betty", "Age": 19}'),
   (3, '{"ID": "2", "Name": "Wilma", "Age": 20}'),
   (4, '[10, 20, [30, 40]]');
+--enable_ps_protocol
 
 --echo
 --echo test 1

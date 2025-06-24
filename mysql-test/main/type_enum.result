@@ -1627,14 +1627,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` enum('','a','b') NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a enum (' ','a','b ') not null default 'b ');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` enum('','a','b') NOT NULL DEFAULT 'b'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a enum ('0','1'));
 insert ignore into t1 set a='foobar';
@@ -1651,7 +1651,7 @@ a
 
 drop table t1;
 set names latin1;
-create table t1 (a enum(0xE4, '1', '2') not null default 0xE4);
+create table t1 (a enum(0xE4, '1', '2') not null default 0xE4) charset=latin1;
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	enum('‰','1','2')	NO		‰	
@@ -1665,7 +1665,7 @@ set names latin1;
 CREATE TABLE t1 (
 a INT  default 1,
 b ENUM('value','ˆ‰¸_value',' √’') character set latin1 NOT NULL
-);
+) charset=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1699,8 +1699,8 @@ a ENUM('‰','ˆ','¸') character set utf8 default '¸'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('‰','ˆ','¸') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT '¸'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` enum('‰','ˆ','¸') CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT '¸'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('‰'), ('ˆ'), ('¸');
 select a from t1 order by a;
 a
@@ -1717,8 +1717,8 @@ set names latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('‰','ˆ','¸') DEFAULT '¸'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` enum('‰','ˆ','¸') CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT '¸'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select a from t1 order by a;
 a
 ‰
@@ -1745,7 +1745,7 @@ create table t1 (a set('x','y') default 'x');
 alter table t1 alter a set default 'z';
 ERROR 42000: Invalid default value for 'a'
 drop table t1;
-create table t1 (f1 int);
+create table t1 (f1 int) charset=latin1;
 alter table t1 add f2 enum(0xFFFF);
 show create table t1;
 Table	Create Table
@@ -1754,21 +1754,21 @@ t1	CREATE TABLE `t1` (
   `f2` enum('ˇˇ') DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-create table t1(russian enum('E','F','EˇF','FˇE') NOT NULL DEFAULT'E');
+create table t1(russian enum('E','F','EˇF','FˇE') NOT NULL DEFAULT'E') CHARSET=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `russian` enum('E','F','EˇF','FˇE') NOT NULL DEFAULT 'E'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-create table t1(denormal enum('E','F','E,F','F,E') NOT NULL DEFAULT'E');
+create table t1(denormal enum('E','F','E,F','F,E') NOT NULL DEFAULT'E') CHARSET=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `denormal` enum('E','F','E,F','F,E') NOT NULL DEFAULT 'E'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-create table t1(russian_deviant enum('E','F','EˇF','F,E') NOT NULL DEFAULT'E');
+create table t1(russian_deviant enum('E','F','EˇF','F,E') NOT NULL DEFAULT'E') CHARSET=latin1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1776,7 +1776,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1(exhausting_charset enum('ABCDEFGHIJKLMNOPQRSTUVWXYZ','	
- !"','#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~','xx\','yy\Ä','zzÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø¿¡¬√ƒ≈∆«»… ÀÃÕŒœ–—“”‘’÷◊ÿŸ⁄€‹›ﬁﬂ‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔÒÚÛÙıˆ˜¯˘˙˚¸˝˛ˇ'));
+ !"','#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~','xx\','yy\Ä','zzÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø¿¡¬√ƒ≈∆«»… ÀÃÕŒœ–—“”‘’÷◊ÿŸ⁄€‹›ﬁﬂ‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔÒÚÛÙıˆ˜¯˘˙˚¸˝˛ˇ')) charset=latin1;
 ERROR 42000: Field separator argument is not what is expected; check the manual
 CREATE TABLE t1 (
 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1905,7 +1905,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `enum` = "`t1`.`c1`" of type `date`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `enum` = "'2001-01-01'" of type `date`
 SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 c1
 2001-01-01
@@ -1917,7 +1916,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `enum` = "`t1`.`c1`" of type `date`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `enum` = "'2001-01-01'" of type `date`
 DROP TABLE t1, t2;
 #
 # MDEV-6978 Bad results with join comparing case insensitive VARCHAR/ENUM/SET expression to a _bin ENUM column
@@ -1950,7 +1948,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "<cache>('a' collate latin1_swedish_ci)" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -1980,7 +1977,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "<cache>('a' collate latin1_swedish_ci)" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -2010,7 +2006,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "<cache>('a' collate latin1_swedish_ci)" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6991 GROUP_MIN_MAX optimization is erroneously applied in some cases
@@ -2306,7 +2301,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `(SELECT a FROM t1)` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 # UNION + table column
 CREATE TABLE t2 AS SELECT (SELECT a FROM t1 UNION SELECT NULL);
@@ -2314,7 +2309,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `(SELECT a FROM t1 UNION SELECT NULL)` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 # UNION + SP variable
 CREATE PROCEDURE p1()
@@ -2329,7 +2324,7 @@ CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `(SELECT va FROM t1 UNION SELECT NULL)` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 # UNION + anchored SP variable
 CREATE PROCEDURE p1()
@@ -2344,7 +2339,7 @@ CALL p1();
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `(SELECT va FROM t1 UNION SELECT NULL)` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
@@ -2362,7 +2357,7 @@ t2	CREATE TABLE `t2` (
   `CEILING(a)` int(5) unsigned DEFAULT NULL,
   `TRUNCATE(a,0)` int(5) unsigned DEFAULT NULL,
   `ROUND(a)` int(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	FLOOR(a)	CEILING(a)	TRUNCATE(a,0)	ROUND(a)
 999999999999999999999999999999999999999999999999999999999999	1	1	1	1
@@ -2375,7 +2370,7 @@ SET note_verbosity=unusable_keys;
 CREATE TABLE t1 (
 indexed_col ENUM('2001','2002','2003','2004','2005','2006','2007','2008','2009','2010'),
 KEY(indexed_col)
-);
+) CHARSET=latin1;
 FOR i IN 1..10
 DO
 INSERT INTO t1 VALUES (i);
@@ -2556,7 +2551,7 @@ indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of collation `latin1_swedish_ci` = "`t2`.`not_indexed_col`" of collation `binary`
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
@@ -2570,3 +2565,34 @@ Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten c
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+#
+CREATE TABLE t1
+(
+c_int INT,
+c_enum ENUM('1')
+);
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c_int` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_enum)  FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_int, c_enum)` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+SELECT c_int FROM t1 UNION SELECT c_enum FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c_int	c_int	253	11	0	Y	16384	0	8
+c_int
+SELECT COALESCE(c_int, c_enum)  FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c_int, c_enum)	253	11	0	Y	0	39	8
+COALESCE(c_int, c_enum)
+DROP TABLE t1;

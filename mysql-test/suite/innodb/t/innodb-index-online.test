@@ -13,10 +13,6 @@ SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl
 
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
 
-# DISCARD TABLESPACE needs file-per-table
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
-
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
@@ -545,7 +541,6 @@ SET DEBUG_SYNC = 'RESET';
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
 
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

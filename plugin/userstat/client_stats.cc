@@ -16,6 +16,8 @@ static ST_FIELD_INFO client_stats_fields[]=
   Column("ROWS_DELETED",             SLonglong(), NOT_NULL, "Rows_deleted"),
   Column("ROWS_INSERTED",            SLonglong(), NOT_NULL, "Rows_inserted"),
   Column("ROWS_UPDATED",             SLonglong(), NOT_NULL, "Rows_updated"),
+  Column("KEY_READ_HITS",            SLonglong(), NOT_NULL, "Key_read_hits"),
+  Column("KEY_READ_MISSES",          SLonglong(), NOT_NULL, "Key_read_misses"),
   Column("SELECT_COMMANDS",          SLonglong(), NOT_NULL, "Select_commands"),
   Column("UPDATE_COMMANDS",          SLonglong(), NOT_NULL, "Update_commands"),
   Column("OTHER_COMMANDS",           SLonglong(), NOT_NULL, "Other_commands"),
@@ -45,16 +47,18 @@ static int send_user_stats(THD* thd, HASH *all_user_stats, TABLE *table)
     table->field[j++]->store((longlong)user_stats->total_connections,TRUE);
     table->field[j++]->store((longlong)user_stats->concurrent_connections, TRUE);
     table->field[j++]->store((longlong)user_stats->connected_time, TRUE);
-    table->field[j++]->store((double)user_stats->busy_time);
-    table->field[j++]->store((double)user_stats->cpu_time);
+    table->field[j++]->store((double)user_stats->busy_time/1e6);
+    table->field[j++]->store((double)user_stats->cpu_time/1e6);
     table->field[j++]->store((longlong)user_stats->bytes_received, TRUE);
     table->field[j++]->store((longlong)user_stats->bytes_sent, TRUE);
     table->field[j++]->store((longlong)user_stats->binlog_bytes_written, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_read, TRUE);
+    table->field[j++]->store((longlong)user_stats->rows_stats.read, TRUE);
     table->field[j++]->store((longlong)user_stats->rows_sent, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_deleted, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_inserted, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_updated, TRUE);
+    table->field[j++]->store((longlong)user_stats->rows_stats.deleted, TRUE);
+    table->field[j++]->store((longlong)user_stats->rows_stats.inserted, TRUE);
+    table->field[j++]->store((longlong)user_stats->rows_stats.updated, TRUE);
+    table->field[j++]->store((longlong)user_stats->rows_stats.key_read_hit, TRUE);
+    table->field[j++]->store((longlong)user_stats->rows_stats.key_read_miss, TRUE);
     table->field[j++]->store((longlong)user_stats->select_commands, TRUE);
     table->field[j++]->store((longlong)user_stats->update_commands, TRUE);
     table->field[j++]->store((longlong)user_stats->other_commands, TRUE);

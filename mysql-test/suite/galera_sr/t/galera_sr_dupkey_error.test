@@ -38,6 +38,7 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 # Confirm that the transaction can be restarted on either node
 
 --connection node_1
+SET innodb_snapshot_isolation=OFF;
 INSERT INTO t1 VALUES (REPEAT('d', 512));
 INSERT INTO t1 VALUES (REPEAT('e', 512));
 INSERT INTO t1 VALUES (REPEAT('f', 512));

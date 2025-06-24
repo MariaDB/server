@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
 DROP DATABASE IF EXISTS world;
 set @org_optimizer_switch=@@optimizer_switch;
@@ -17,7 +18,7 @@ set @innodb_stats_persistent_sample_pages_save=
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
 set names utf8;
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -53,6 +54,7 @@ set join_cache_level=1;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	1
+# Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -60,6 +62,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+# Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -79,6 +82,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -91,6 +95,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+# Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -131,6 +136,7 @@ set join_cache_level=2;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	2
+# join_cache_level 2, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -138,6 +144,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+# join_cache_level 2, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -157,6 +164,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 2, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -169,6 +177,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (incremental, BNL join)
+# join_cache_level 2, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -209,6 +218,7 @@ set join_cache_level=3;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	3
+# join_cache_level 3, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -216,6 +226,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# join_cache_level 3, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -235,6 +246,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 3, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -247,6 +259,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# join_cache_level 3, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -287,6 +300,7 @@ set join_cache_level=4;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	4
+# join_cache_level 4, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -294,6 +308,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# join_cache_level 4, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -313,6 +328,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 4, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -325,6 +341,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (incremental, BNLH join)
+# join_cache_level 4, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -361,6 +378,7 @@ Ludwigshafen am Rhein	Germany	German
 Lungtan	Taiwan	Min
 L´Hospitalet de Llobregat	Spain	Spanish
 Lázaro Cárdenas	Mexico	Spanish
+# join_cache_level 4, Query 5
 SELECT Country.Name, Country.Population, City.Name, City.Population 
 FROM Country LEFT JOIN City
 ON City.Country=Country.Code AND City.Population > 5000000
@@ -379,6 +397,7 @@ Canada	31147000	NULL	NULL
 Cuba	11201000	NULL	NULL
 Côte d?Ivoire	14786000	NULL	NULL
 Czech Republic	10278100	NULL	NULL
+# join_cache_level 4, Query 6
 SELECT Country.Name, Country.Population, City.Name, City.Population
 FROM Country LEFT JOIN City 
 ON City.Country=Country.Code AND
@@ -404,6 +423,7 @@ Czech Republic	10278100	NULL	NULL
 CREATE INDEX City_Population ON City(Population);
 CREATE INDEX City_Name ON City(Name);
 ANALYZE TABLE City;
+# After Analyze, Query 1
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population 
 FROM Country LEFT JOIN City
@@ -412,6 +432,7 @@ WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	hash_range	City_Population	#hash#$hj:City_Population	3:4	world.Country.Code	24	Using where; Rowid-ordered scan; Using join buffer (flat, BNLH join)
+# After Analyze, Query 2
 SELECT Country.Name, Country.Population, City.Name, City.Population 
 FROM Country LEFT JOIN City
 ON City.Country=Country.Code AND City.Population > 5000000
@@ -430,6 +451,7 @@ Canada	31147000	NULL	NULL
 Cuba	11201000	NULL	NULL
 Côte d?Ivoire	14786000	NULL	NULL
 Czech Republic	10278100	NULL	NULL
+# After Analyze, Query 3
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population
 FROM Country LEFT JOIN City 
@@ -439,6 +461,7 @@ WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	hash_index_merge	City_Population,City_Name	#hash#$hj:City_Population,City_Name	3:4,35	world.Country.Code	96	Using sort_union(City_Population,City_Name); Using where; Using join buffer (flat, BNLH join)
+# After Analyze, Query 4
 SELECT Country.Name, Country.Population, City.Name, City.Population
 FROM Country LEFT JOIN City 
 ON City.Country=Country.Code AND
@@ -471,6 +494,7 @@ join_buffer_size	256
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	1
+# join_cache_level 1, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -478,6 +502,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+# join_cache_level 1, Join_buffer_size, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -497,6 +522,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 1, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -509,6 +535,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+# join_cache_level 1, Join_buffer_size, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -549,6 +576,7 @@ set join_cache_level=2;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	2
+# join_cache_level 2, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -556,6 +584,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (flat, BNL join)
+# join_cache_level 2, Join_buffer_size, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -575,6 +604,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 2, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -587,6 +617,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	ALL	NULL	NULL	NULL	NULL	984	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	City	ALL	NULL	NULL	NULL	NULL	4079	Using where; Using join buffer (incremental, BNL join)
+# join_cache_level 2, Join_buffer_size, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -627,6 +658,7 @@ set join_cache_level=3;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	3
+# join_cache_level 3, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -634,6 +666,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# join_cache_level 3, Join_buffer_size, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -653,6 +686,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 3, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -665,6 +699,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# join_cache_level 3, Join_buffer_size, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -705,6 +740,7 @@ set join_cache_level=4;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	4
+# join_cache_level 4, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -712,6 +748,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# join_cache_level 4, Join_buffer_size, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -731,6 +768,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# join_cache_level 4, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -743,6 +781,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	984	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	City	hash_ALL	NULL	#hash#$hj	3	world.Country.Code	4079	Using where; Using join buffer (incremental, BNLH join)
+# join_cache_level 4, Join_buffer_size, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -782,7 +821,7 @@ Lázaro Cárdenas	Mexico	Spanish
 set join_cache_level=@save_join_cache_level;
 set join_buffer_size=@save_join_buffer_size;
 DROP DATABASE world;
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -816,6 +855,7 @@ set join_cache_level=3;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	3
+# Part 2, join_cache_level=3, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -823,6 +863,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
 1	SIMPLE	City	hash_ALL	Population,Country	#hash#Country	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=3, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -842,6 +883,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# Part 2, join_cache_level=3, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -854,6 +896,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	CountryLanguage	hash_ALL|filter	PRIMARY,Percentage	#hash#PRIMARY|Percentage	3|4	world.City.Country	984 (19%)	Using where; Using join buffer (flat, BNLH join); Using rowid filter
+# Part 2, join_cache_level=3, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -890,6 +933,7 @@ Ludwigshafen am Rhein	Germany	German
 Lungtan	Taiwan	Min
 L´Hospitalet de Llobregat	Spain	Spanish
 Lázaro Cárdenas	Mexico	Spanish
+# Part 2, join_cache_level=3, Query 5
 EXPLAIN
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
@@ -897,6 +941,7 @@ City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
 1	PRIMARY	City	hash_ALL	Population,Country	#hash#Country	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=3, Query 6
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -916,6 +961,7 @@ Kaunas
 Klaipeda
 ?iauliai
 Panevezys
+# Part 2, join_cache_level=3, Query 7
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
@@ -925,6 +971,7 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY	#hash#PRIMARY	33	world.Country.Code,const	984	Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=3, Query 8
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
@@ -1000,7 +1047,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1016,6 +1063,7 @@ set join_cache_level=4;
 show variables like 'join_cache_level';
 Variable_name	Value
 join_cache_level	4
+# Part 2, join_cache_level=4, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
@@ -1023,6 +1071,7 @@ Country.Name LIKE 'L%' AND City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
 1	SIMPLE	City	hash_ALL	Population,Country	#hash#Country	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=4, Query 2
 SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND 
 Country.Name LIKE 'L%' AND City.Population > 100000;
@@ -1042,6 +1091,7 @@ Tripoli	Lebanon
 Tripoli	Libyan Arab Jamahiriya
 Vientiane	Laos
 Vilnius	Lithuania
+# Part 2, join_cache_level=4, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
@@ -1054,6 +1104,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	ALL	Country	NULL	NULL	NULL	4079	Using where
 1	SIMPLE	Country	hash_ALL	PRIMARY	#hash#PRIMARY	3	world.City.Country	239	Using where; Using join buffer (flat, BNLH join)
 1	SIMPLE	CountryLanguage	hash_ALL|filter	PRIMARY,Percentage	#hash#PRIMARY|Percentage	3|4	world.City.Country	984 (19%)	Using where; Using join buffer (incremental, BNLH join); Using rowid filter
+# Part 2, join_cache_level=4, Query 4
 SELECT City.Name, Country.Name, CountryLanguage.Language
 FROM City,Country,CountryLanguage
 WHERE City.Country=Country.Code AND
@@ -1090,6 +1141,7 @@ Ludwigshafen am Rhein	Germany	German
 Lungtan	Taiwan	Min
 L´Hospitalet de Llobregat	Spain	Spanish
 Lázaro Cárdenas	Mexico	Spanish
+# Part 2, join_cache_level=4, Query 5
 EXPLAIN
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
@@ -1097,6 +1149,7 @@ City.Population > 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Country	range	PRIMARY,Name	Name	52	NULL	10	Using index condition; Rowid-ordered scan
 1	PRIMARY	City	hash_ALL	Population,Country	#hash#Country	3	world.Country.Code	4079	Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=4, Query 6
 SELECT Name FROM City
 WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
 City.Population > 100000;
@@ -1116,6 +1169,7 @@ Kaunas
 Klaipeda
 ?iauliai
 Panevezys
+# Part 2, join_cache_level=4, Query 7
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
@@ -1125,6 +1179,7 @@ Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	Using where
 1	SIMPLE	CountryLanguage	hash_ALL	PRIMARY	#hash#PRIMARY	33	world.Country.Code,const	984	Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=4, Query 8
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
 FROM Country LEFT JOIN CountryLanguage ON
 (CountryLanguage.Country=Country.Code AND Language='English')
@@ -1200,7 +1255,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1209,6 +1264,7 @@ Belarus	NULL
 Venezuela	NULL
 Russian Federation	NULL
 Vietnam	NULL
+# Part 2, join_cache_level=4, Query 9
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population 
 FROM Country LEFT JOIN City
@@ -1217,6 +1273,7 @@ WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	Name	Name	52	NULL	#	Using index condition; Using where; Rowid-ordered scan
 1	SIMPLE	City	hash_range	Population,Country	#hash#Country:Population	3:4	world.Country.Code	#	Using where; Rowid-ordered scan; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=4, Query 10
 SELECT Country.Name, Country.Population, City.Name, City.Population 
 FROM Country LEFT JOIN City
 ON City.Country=Country.Code AND City.Population > 5000000
@@ -1236,6 +1293,7 @@ Cuba	11201000	NULL	NULL
 Côte d?Ivoire	14786000	NULL	NULL
 Czech Republic	10278100	NULL	NULL
 CREATE INDEX City_Name ON City(Name);
+# Part 2, join_cache_level=4, City_Name, Query 1
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population
 FROM Country LEFT JOIN City 
@@ -1245,6 +1303,7 @@ WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	Country	range	Name	Name	52	NULL	17	Using index condition; Using where; Rowid-ordered scan
 1	SIMPLE	City	hash_index_merge	Population,Country,City_Name	#hash#Country:Population,City_Name	3:4,35	world.Country.Code	96	Using sort_union(Population,City_Name); Using where; Using join buffer (flat, BNLH join)
+# Part 2, join_cache_level=4, City_Name, Query 2
 SELECT Country.Name, Country.Population, City.Name, City.Population
 FROM Country LEFT JOIN City 
 ON City.Country=Country.Code AND
@@ -1459,7 +1518,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1656,7 +1715,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1853,7 +1912,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -2050,7 +2109,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -2694,7 +2753,7 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
 Name	Name
 Alexandria	Egypt
-Ankara	Turkey
+Ankara	Türkiye
 Baghdad	Iraq
 Bangkok	Thailand
 Berlin	Germany
@@ -2708,7 +2767,7 @@ Delhi	India
 Dhaka	Bangladesh
 Harbin	China
 Ho Chi Minh City	Vietnam
-Istanbul	Turkey
+Istanbul	Türkiye
 Jakarta	Indonesia
 Jokohama [Yokohama]	Japan
 Kanton [Guangzhou]	China
@@ -2751,7 +2810,7 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
 Name	Name
 Alexandria	Egypt
-Ankara	Turkey
+Ankara	Türkiye
 Baghdad	Iraq
 Bangkok	Thailand
 Berlin	Germany
@@ -2765,7 +2824,7 @@ Delhi	India
 Dhaka	Bangladesh
 Harbin	China
 Ho Chi Minh City	Vietnam
-Istanbul	Turkey
+Istanbul	Türkiye
 Jakarta	Indonesia
 Jokohama [Yokohama]	Japan
 Kanton [Guangzhou]	China
@@ -2952,7 +3011,7 @@ metaid int  NOT NULL default '0',
 formatid int  NOT NULL default '0',
 status int default NULL,
 path varchar(100) NOT NULL default '',
-datemodified timestamp NOT NULL ,
+datemodified timestamp NOT NULL default now(),
 resourcetype int  NOT NULL default '1',
 parameters text,
 signature int  default NULL,
@@ -3067,13 +3126,13 @@ t1.metaid = t2.metaid AND t1.affiliateid = '2';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t6	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	t5	ref	PRIMARY,t5_formattypeid	t5_formattypeid	4	const	1	
-1	SIMPLE	t1	ref	t1_affiliateid,t1_metaid	t1_affiliateid	4	const	2	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.metaid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t7	ref	PRIMARY	PRIMARY	4	test.t1.metaid	1	Using index
+1	SIMPLE	t4	ref	PRIMARY,t4_formatclassid,t4_formats_idx	t4_formatclassid	4	test.t5.formatclassid	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t3	ref	t3_metaid,t3_formatid,t3_metaidformatid	t3_formatid	4	test.t4.formatid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t1	ref	t1_affiliateid,t1_metaid	t1_metaid	4	test.t3.metaid	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.metaid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t7	ref	PRIMARY	PRIMARY	4	test.t3.metaid	1	Using index
 1	SIMPLE	t8	eq_ref	PRIMARY	PRIMARY	4	test.t7.artistid	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t3	ref	t3_metaid,t3_formatid,t3_metaidformatid	t3_metaidformatid	4	test.t1.metaid	1	Using index condition; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t4	eq_ref	PRIMARY,t4_formatclassid,t4_formats_idx	PRIMARY	4	test.t3.formatid	1	Using where; Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
-1	SIMPLE	t9	index	PRIMARY,t9_subgenreid,t9_metaid	PRIMARY	8	NULL	2	Using where; Using index; Using join buffer (incremental, BNL join)
+1	SIMPLE	t9	ref	PRIMARY,t9_subgenreid,t9_metaid	t9_metaid	4	test.t3.metaid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t10	eq_ref	PRIMARY,t10_genreid	PRIMARY	4	test.t9.subgenreid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t10.genreid	1	Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT t1.uniquekey, t1.xml AS affiliateXml,
@@ -3167,16 +3226,16 @@ a1<>a2	a1	a2	b2	b3	c3	s1	s2
 0	4	4	13	13	138		
 0	1	1	30	30	309		
 0	1	1	32	32	329		
-0	9	9	22	22	228		
 0	8	8	92	92	929		
+0	9	9	22	22	228		
 0	8	8	99	99	998		
+0	5	5	87	87	878		
 0	5	5	82	82	829		
 0	3	3	45	45	459		
 0	3	3	45	45	458		
-0	5	5	87	87	878		
-0	2	2	61	61	618		
 0	6	6	73	73	738		
 0	6	6	74	74	749		
+0	2	2	61	61	618		
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (a int, b int, INDEX idx(b));
 CREATE TABLE t2 (a int, b int, INDEX idx(a));
@@ -3215,7 +3274,7 @@ EXPLAIN
 SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t2.b IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	i_a	i_a	4	test.t1.a	2	Using where; Not exists
+1	SIMPLE	t2	ref	i_a	i_a	4	test.t1.a	1	Using where; Not exists
 SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t2.b IS NULL;
 a	a	b
 3	NULL	NULL
@@ -3226,7 +3285,7 @@ EXPLAIN
 SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t2.b IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	i_a	i_a	4	test.t1.a	2	Using where; Not exists; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	i_a	i_a	4	test.t1.a	1	Using where; Not exists; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a WHERE t2.b IS NULL;
 a	a	b
 3	NULL	NULL
@@ -3253,7 +3312,7 @@ select t1.a, count(t2.p) as count
 from t1 left join t2 on t1.a=t2.a and t2.p % 2 = 1 group by t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index; Using temporary; Using filesort
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 select t1.a, count(t2.p) as count
 from t1 left join t2 on t1.a=t2.a and t2.p % 2 = 1 group by t1.a;
 a	count
@@ -3371,8 +3430,8 @@ set join_cache_level=6;
 set join_buffer_size=1024;
 EXPLAIN SELECT AVG(c) FROM t1,t2 WHERE t1.a=t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2050	Using where
-1	SIMPLE	t2	ref	idx	idx	5	test.t1.a	640	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ALL	idx	NULL	NULL	NULL	1280	Using where
+1	SIMPLE	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.b	2050	Using where; Using join buffer (flat, BNLH join)
 SELECT AVG(c) FROM t1,t2 WHERE t1.a=t2.b;
 AVG(c)
 5.0000
@@ -3781,10 +3840,10 @@ id1	num3	text1	id4	id3	dummy
 228808822	6	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	18	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	1	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
-228808822	17	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
-228808822	50	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	3	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	4	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
+228808822	17	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
+228808822	50	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	826928662	935693782	0
 228808822	89	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	19	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	9	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
@@ -3793,9 +3852,9 @@ id1	num3	text1	id4	id3	dummy
 228808822	1	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	10	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	26	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
-228808822	4	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	3	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	1	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
+228808822	4	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	3	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	28	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
 228808822	62	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC	2381969632	2482416112	0
@@ -3887,8 +3946,8 @@ ORDER BY t2.v;
 MAX(t1.i)
 NULL
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'x'
-Warning	1292	Truncated incorrect DECIMAL value: 'y'
+Warning	1292	Truncated incorrect BOOLEAN value: 'x'
+Warning	1292	Truncated incorrect BOOLEAN value: 'y'
 
 EXPLAIN
 SELECT MAX(t1.i) 
@@ -4027,7 +4086,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.carrier	1	Using where
-1	SIMPLE	t4	ref	carrier_id	carrier_id	5	test.t3.id	2	Using index
+1	SIMPLE	t4	ref	carrier_id	carrier_id	5	test.t3.id	1	Using index
 SET join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
@@ -4043,7 +4102,7 @@ set join_cache_level = 5;
 explain SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ref	b	b	5	test.t1.b	2	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	b	b	5	test.t1.b	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 a
 NULL
@@ -4052,7 +4111,7 @@ set join_cache_level = 8;
 explain SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ref	b	b	5	test.t1.b	2	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	b	b	5	test.t1.b	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 a
 NULL
@@ -4063,7 +4122,7 @@ set join_cache_level = 5;
 explain SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ref	b	b	5	test.t1.b	2	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	b	b	5	test.t1.b	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 a
 NULL
@@ -4078,7 +4137,7 @@ set join_cache_level = 5;
 explain SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ref	b	b	103	test.t1.b	2	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	b	b	103	test.t1.b	1	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 a
 NULL
@@ -4087,7 +4146,7 @@ set join_cache_level = 8;
 explain SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ref	b	b	103	test.t1.b	2	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t2	ref	b	b	103	test.t1.b	1	Using where; Using join buffer (flat, BKAH join); Key-ordered Rowid-ordered scan
 SELECT t2.a FROM t1 LEFT JOIN t2 ON t2.b  = t1.b;
 a
 NULL
@@ -4471,7 +4530,7 @@ EXPLAIN
 SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	
-1	SIMPLE	t1	ref	cu	cu	33	func	2	Using where; Using index
+1	SIMPLE	t1	ref	cu	cu	33	func	1	Using where; Using index
 SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 i
 6
@@ -4804,7 +4863,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t4	ref	idx	idx	5	test.t1.a1	2	100.00	Using where
+1	SIMPLE	t4	ref	idx	idx	5	test.t1.a1	1	100.00	Using where
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a1` AS `a1`,`test`.`t2`.`pk` AS `pk`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`c2` AS `c2`,`test`.`t2`.`d2` AS `d2`,`test`.`t3`.`pk` AS `pk`,`test`.`t3`.`a3` AS `a3`,`test`.`t3`.`c3` AS `c3`,`test`.`t3`.`d3` AS `d3`,`test`.`t4`.`pk` AS `pk`,`test`.`t4`.`a4` AS `a4`,`test`.`t5`.`pk` AS `pk`,`test`.`t5`.`a5` AS `a5` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`d2` = `test`.`t1`.`pk` and `test`.`t3`.`a3` = `test`.`t2`.`c2`) left join `test`.`t4` on(`test`.`t4`.`a4` = `test`.`t1`.`a1` and `test`.`t1`.`a1` is not null) left join `test`.`t5` on(`test`.`t5`.`a5` = `test`.`t3`.`a3`) where 1
@@ -4826,7 +4885,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ref	idx	idx	5	test.t1.a1	2	100.00	Using where
+1	SIMPLE	t4	ref	idx	idx	5	test.t1.a1	1	100.00	Using where
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a1` AS `a1`,`test`.`t2`.`pk` AS `pk`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`c2` AS `c2`,`test`.`t2`.`d2` AS `d2`,`test`.`t3`.`pk` AS `pk`,`test`.`t3`.`a3` AS `a3`,`test`.`t3`.`c3` AS `c3`,`test`.`t3`.`d3` AS `d3`,`test`.`t4`.`pk` AS `pk`,`test`.`t4`.`a4` AS `a4`,`test`.`t5`.`pk` AS `pk`,`test`.`t5`.`a5` AS `a5` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`d2` = `test`.`t1`.`pk` and `test`.`t3`.`a3` = `test`.`t2`.`c2`) left join `test`.`t4` on(`test`.`t4`.`a4` = `test`.`t1`.`a1` and `test`.`t1`.`a1` is not null) left join `test`.`t5` on(`test`.`t5`.`a5` = `test`.`t3`.`a3`) where 1
@@ -4848,7 +4907,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t4	ref	idx	idx	5	test.t1.a1	2	100.00	Using where
+1	SIMPLE	t4	ref	idx	idx	5	test.t1.a1	1	100.00	Using where
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a1` AS `a1`,`test`.`t2`.`pk` AS `pk`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`c2` AS `c2`,`test`.`t2`.`d2` AS `d2`,`test`.`t3`.`pk` AS `pk`,`test`.`t3`.`a3` AS `a3`,`test`.`t3`.`c3` AS `c3`,`test`.`t3`.`d3` AS `d3`,`test`.`t4`.`pk` AS `pk`,`test`.`t4`.`a4` AS `a4`,`test`.`t5`.`pk` AS `pk`,`test`.`t5`.`a5` AS `a5` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`d2` = `test`.`t1`.`pk` and `test`.`t3`.`a3` = `test`.`t2`.`c2`) left join `test`.`t4` on(`test`.`t4`.`a4` = `test`.`t1`.`a1` and `test`.`t1`.`a1` is not null) left join `test`.`t5` on(`test`.`t5`.`a5` = `test`.`t3`.`a3`) where 1
@@ -4969,8 +5028,8 @@ FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
 LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	1	Using where
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.a2	1	Using index
+1	SIMPLE	t3	index	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.a3	1	Using where
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	Using where
 1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t2.a2	1	Using where
 SELECT t4.a4, t5.b5 
@@ -5054,6 +5113,8 @@ CREATE TABLE t2 (
 f3 int(11), f2 varchar(1024), f4 varchar(10), PRIMARY KEY (f3)
 );
 INSERT INTO t2 VALUES (6,'RPOYT','y'),(10,'JINQE','m');
+INSERT INTO t2 VALUES (100,'Q','q'),(101,'Q','q'),(102,'Q','q'),(103,'Q','q');
+INSERT INTO t2 VALUES (104,'Q','q'),(105,'Q','q'),(106,'Q','q'),(107,'Q','q');
 SET SESSION join_cache_level = 1;
 SET SESSION optimizer_switch = 'index_condition_pushdown=off';
 EXPLAIN
@@ -5093,8 +5154,8 @@ SET SESSION optimizer_switch = 'index_condition_pushdown=off';
 EXPLAIN SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0, 100) ORDER BY t1.f2 LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	f1,f2	f2	13	NULL	10	Using where
-1	SIMPLE	t2	ref	f3	f3	67	test.t1.f2	2	Using where; Using index
+1	SIMPLE	t1	range	f1,f2	f1	5	NULL	3	Using where; Rowid-ordered scan; Using filesort
+1	SIMPLE	t2	ref	f3	f3	67	test.t1.f2	1	Using where; Using index
 SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
 f1	f2	f3
@@ -5103,8 +5164,8 @@ SET SESSION optimizer_switch = 'index_condition_pushdown=on';
 EXPLAIN SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	f1,f2	f2	13	NULL	10	Using where
-1	SIMPLE	t2	ref	f3	f3	67	test.t1.f2	2	Using where; Using index
+1	SIMPLE	t1	range	f1,f2	f1	5	NULL	3	Using index condition; Using where; Rowid-ordered scan; Using filesort
+1	SIMPLE	t2	ref	f3	f3	67	test.t1.f2	1	Using where; Using index
 SELECT * FROM t1,t2 
 WHERE t2.f3 = t1.f2 AND t1.f1 IN (9, 0 ,100) ORDER BY t1.f2 LIMIT 1;
 f1	f2	f3
@@ -5205,7 +5266,7 @@ EXPLAIN
 SELECT a FROM t1,t2 WHERE t2.v = t1.v ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	ref	idx	idx	4	test.t1.v	2	
+1	SIMPLE	t2	ref	idx	idx	4	test.t1.v	1	
 SELECT a FROM t1,t2 WHERE t2.v = t1.v ;
 a
 11
@@ -5263,7 +5324,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	t2	ref	c	c	5	test.t1.b	2	Using index; Start temporary; End temporary
+1	PRIMARY	t2	ref	c	c	5	test.t1.b	1	Using index; Start temporary; End temporary
 SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 a	b
 3914	17
@@ -5443,7 +5504,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	range	a,c	a	5	NULL	2	Using index condition; Using where; Using filesort
-1	PRIMARY	t4	ref	c	c	5	test.t2.c	2	Using where; Start temporary; End temporary
+1	PRIMARY	t4	ref	c	c	5	test.t2.c	1	Using where; Start temporary; End temporary
 SELECT * FROM t1,t2
 WHERE t2.c IN (SELECT c FROM t3,t4 WHERE t4.a < 10) AND
 t2.a BETWEEN 4 and 5
@@ -5461,7 +5522,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	range	a,c	a	5	NULL	2	Using index condition; Using where
-1	PRIMARY	t4	ref	c	c	5	test.t2.c	2	Using where; Start temporary; End temporary
+1	PRIMARY	t4	ref	c	c	5	test.t2.c	1	Using where; Start temporary; End temporary
 SELECT * FROM t1,t2
 WHERE t2.c IN (SELECT c FROM t3,t4 WHERE t4.a < 10) AND
 t2.a BETWEEN 4 and 5
@@ -5480,7 +5541,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	range	a,c	a	5	NULL	2	Using index condition; Using where
-1	PRIMARY	t4	ref	c	c	5	test.t2.c	2	Using where; Start temporary; End temporary
+1	PRIMARY	t4	ref	c	c	5	test.t2.c	1	Using where; Start temporary; End temporary
 SELECT * FROM t1,t2
 WHERE t2.c IN (SELECT c FROM t3,t4 WHERE t4.a < 10) AND
 t2.a BETWEEN 4 and 5
@@ -5523,7 +5584,7 @@ and t2.uid=t1.fid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ref	uid	uid	5	const	4	Using where; Start temporary
 1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	4	test.t3.fid	1	Using index
-1	PRIMARY	t1	ALL	uid	NULL	NULL	NULL	11	Using where; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ref	uid	uid	5	test.t3.fid	1	Using where; End temporary; Using join buffer (flat, BKAH join); Rowid-ordered scan
 1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.fid	1	Using join buffer (flat, BKAH join); Rowid-ordered scan
 select name from t2, t1 
 where t1.uid in (select t4.uid from t4, t3 where t3.uid=1 and t4.uid=t3.fid)
@@ -5545,7 +5606,7 @@ set @@optimizer_switch=@local_optimizer_switch;
 drop table t1,t2,t3,t4;
 #
 # Bug#50358 - semijoin execution of subquery with outerjoin
-#             emplying join buffer
+#             implying join buffer
 #
 CREATE TABLE t1 (i int);
 CREATE TABLE t2 (i int);
@@ -5917,10 +5978,9 @@ LEFT JOIN t5  ON t4.e1 = t5.e1
 LEFT JOIN  (SELECT e1  FROM t2 ) AS d ON  t4.e1 = d.e1) a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	128	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	128	
-2	MATERIALIZED	t5	hash_ALL	NULL	#hash#$hj	5	test.t4.e1	128	Using where; Using join buffer (flat, BNLH join)
-2	MATERIALIZED	t2	hash_ALL	NULL	#hash#$hj	5	test.t4.e1	128	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t4	hash_ALL	NULL	#hash#$hj	5	test.t1.i1	128	Using where; Start temporary; Using join buffer (flat, BNLH join)
+1	PRIMARY	t5	hash_ALL	NULL	#hash#$hj	5	test.t4.e1	128	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	5	test.t4.e1	128	Using where; End temporary; Using join buffer (incremental, BNLH join)
 SELECT * FROM t1
 WHERE
 i1 < 10 AND
@@ -5975,12 +6035,11 @@ f1	f2
 EXPLAIN EXTENDED SELECT * FROM temp
 WHERE (f1,f2) IN (SELECT t1.i1, t1.v1 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	temp	hash_ALL	NULL	#hash#$hj	9	test.t1.i1,test.t1.v1	7	100.00	Using where; Using join buffer (flat, BNLH join)
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
-2	MATERIALIZED	t2	hash_index	v1	#hash#v1:v1	4:9	test.t1.v1	10	33.33	Using index; Using join buffer (flat, BNLH join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Start temporary
+1	PRIMARY	temp	hash_ALL	NULL	#hash#$hj	9	test.t1.i1,test.t1.v1	7	10.00	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	t2	hash_index	v1	#hash#v1:v1	4:9	test.t1.v1	10	10.00	Using index; End temporary; Using join buffer (incremental, BNLH join)
 Warnings:
-Note	1003	select `test`.`temp`.`f1` AS `f1`,`test`.`temp`.`f2` AS `f2` from `test`.`temp` semi join (`test`.`t2` join `test`.`t1`) where `test`.`temp`.`f1` = `test`.`t1`.`i1` and `test`.`t2`.`v1` = `test`.`t1`.`v1` and `test`.`temp`.`f2` = `test`.`t1`.`v1`
+Note	1003	select `test`.`temp`.`f1` AS `f1`,`test`.`temp`.`f2` AS `f2` from `test`.`temp` semi join (`test`.`t2` join `test`.`t1`) where `test`.`temp`.`f1` = `test`.`t1`.`i1` and `test`.`temp`.`f2` = `test`.`t1`.`v1` and `test`.`t2`.`v1` = `test`.`t1`.`v1`
 DROP TABLE t1,t2,temp;
 set join_cache_level=@save_join_cache_level;
 #
@@ -6056,8 +6115,7 @@ SET join_cache_level = 3;
 explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.db WHERE Select_priv = PAGE_FAULTS_MINOR;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using where
-1	SIMPLE	db	hash_ALL	NULL	#hash#$hj	1	information_schema.PROFILING.PAGE_FAULTS_MINOR	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 set join_cache_level=@save_join_cache_level;
 create table t1 (c1 date not null, key (c1)) engine=innodb;
 insert t1 values ('2017-12-27');
@@ -6104,9 +6162,9 @@ b	c	d	e
 EXPLAIN SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t4	index	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t4.e	2	Using where; Using join buffer (incremental, BNLH join)
 1	SIMPLE	t3	hash_index	d	#hash#d:d	5:5	test.t2.c	2	Using where; Using index; Using join buffer (incremental, BNLH join)
-1	SIMPLE	t4	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t2.b	2	Using index; Using join buffer (incremental, BNLH join)
 SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e;
 a	b	c	d	e
 1	1	2	2	1
@@ -6117,9 +6175,9 @@ EXPLAIN SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b
 WHERE e IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t4	index	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index; Not exists; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t4.e	2	Using where; Using join buffer (incremental, BNLH join)
 1	SIMPLE	t3	hash_index	d	#hash#d:d	5:5	test.t2.c	2	Using where; Using index; Using join buffer (incremental, BNLH join)
-1	SIMPLE	t4	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t2.b	2	Using where; Using index; Not exists; Using join buffer (incremental, BNLH join)
 SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e
 WHERE e IS NULL;
 a	b	c	d	e
@@ -6195,34 +6253,45 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "a",
-      "access_type": "index",
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "rows": 10,
-      "filtered": 100,
-      "using_index": true
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "b",
-        "access_type": "range",
-        "possible_keys": ["kp1"],
-        "key": "kp1",
-        "key_length": "10",
-        "used_key_parts": ["kp1", "kp2"],
-        "rows": 836,
-        "filtered": 100,
-        "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
-        "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "index",
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "using_index": true
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "54",
-      "join_type": "BNL",
-      "attached_condition": "b.kp1 + 1 = a.a + 1"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["kp1"],
+            "key": "kp1",
+            "key_length": "10",
+            "used_key_parts": ["kp1", "kp2"],
+            "loops": 10,
+            "rows": 836,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
+            "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "54",
+          "join_type": "BNL",
+          "attached_condition": "b.kp1 + 1 = a.a + 1"
+        }
+      }
+    ]
   }
 }
 drop table t1,t2,t3;
@@ -6342,7 +6411,7 @@ LEFT JOIN t3 ON t2.d = t3.c
 LEFT JOIN t4 ON t3.c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10	Using index
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t2	ref	b	b	4	test.t1.b	1	
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.d	1	Using where; Using index
 1	SIMPLE	t4	index	NULL	PRIMARY	4	NULL	3	Using where; Using index
 SELECT *
@@ -6371,7 +6440,7 @@ LEFT JOIN t3 ON t2.d = t3.c
 LEFT JOIN t4 ON t3.c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	10	Using index
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ref	b	b	4	test.t1.b	1	
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.d	1	Using where; Using index
 1	SIMPLE	t4	index	NULL	PRIMARY	4	NULL	3	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT *
@@ -6438,3 +6507,30 @@ DROP TABLE t1, t2;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-36165: BKA join cache buffer is employed despite join_cache_level=3 (flat BNLH)
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT a, a from t1;
+CREATE TABLE t3(a INT, b INT, c INT, key (a,b));
+INSERT INTO t3 select a, a, a FROM t1;
+SET optimizer_switch = 'join_cache_hashed=off,join_cache_bka=on,mrr=on';
+SET join_cache_level = 3;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index condition
+SET join_cache_level = 4;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index condition
+SET join_cache_level = default;
+SET optimizer_switch = default;
+DROP TABLE t1, t2, t3;
+#
+# End of 10.11 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

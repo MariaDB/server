@@ -25,7 +25,9 @@ eval CREATE TABLE tbl_a (
     PARTITION pt1 DEFAULT COMMENT = 'srv "s_2_1"'
 );
 
+--disable_ps_protocol
 INSERT INTO tbl_a VALUES (1);
+--enable_ps_protocol
 ALTER TABLE tbl_a CHECK PARTITION ALL;
 
 DROP DATABASE auto_test_local;

@@ -37,9 +37,8 @@ SELECT COUNT(@@GLOBAL.innodb_log_file_size);
 #   Check if Value can set                                         #
 ####################################################################
 
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@GLOBAL.innodb_log_file_size=1;
---echo Expected error 'Read only variable'
+#--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@GLOBAL.innodb_log_file_size=10485760;
 
 SELECT COUNT(@@GLOBAL.innodb_log_file_size);
 --echo 1 Expected

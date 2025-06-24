@@ -244,20 +244,6 @@ alter table t1 rename to ``;
 rename table t1 to ``;
 drop table t1;
 
-#
-# BUG#6236 - ALTER TABLE MODIFY should set implicit NOT NULL on PK columns
-#
-drop table if exists t1, t2;
-create table t1 ( a varchar(10) not null primary key ) engine=myisam;
-create table t2 ( a varchar(10) not null primary key ) engine=merge union=(t1);
-flush tables;
-alter table t1 modify a varchar(10);
-show create table t2;
-flush tables;
-alter table t1 modify a varchar(10) not null;
-show create table t2;
-drop table if exists t1, t2;
-
 # The following is also part of bug #6236 (CREATE TABLE didn't properly count
 # not null columns for primary keys)
 
@@ -648,11 +634,11 @@ set sql_mode="no_zero_date";
 create table t1(f1 int);
 alter table t1 add column f2 datetime not null, add column f21 date not null;
 insert into t1 values(1,'2000-01-01','2000-01-01');
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 datetime not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 date not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f4 datetime not null default '2002-02-02',
   add column f41 date not null;
 alter table t1 add column f4 datetime not null default '2002-02-02',
@@ -718,10 +704,6 @@ CREATE TABLE t2 (a INT, KEY (a(20)));
 ALTER TABLE t1 ADD d INT;
 --error ER_WRONG_SUB_KEY
 ALTER TABLE t1 ADD KEY (d(20));
-
-# the 5.1 part of the test
---error ER_WRONG_SUB_KEY
-ALTER TABLE t1 ADD e GEOMETRY NOT NULL, ADD SPATIAL KEY (e(30));
 
 DROP TABLE t1;
 
@@ -1071,7 +1053,7 @@ ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','xx');
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx');
 --echo # No copy: Add new to the end
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6');
---echo # Copy: Numerical incrase (pack lenght)
+--echo # Copy: Numerical increase (pack length)
 ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6','a7','a8','a9','a10');
 --disable_info
 DROP TABLE t1;
@@ -1478,16 +1460,14 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 
 --echo #
---echo # 2: Test ALGORITHM + old_alter_table
+--echo # 2: Test ALGORITHM keywords
 --echo #
 
 --enable_info
-SET SESSION old_alter_table= 1;
 ALTER TABLE t1 ADD INDEX i1(b);
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
-SET SESSION old_alter_table= 0;
 --disable_info
 
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
@@ -1533,8 +1513,13 @@ ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 ALTER TABLE t1 ADD INDEX i1(b), ALGORITHM= INPLACE, LOCK= NONE;
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= INPLACE, LOCK= SHARED;
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--disable_info
+--disable_warnings
+--error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+# COPY/NONE works now, but still an error in embedded
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= COPY, LOCK= NONE;
+--enable_warnings
+--enable_info
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= COPY, LOCK= SHARED;
 ALTER TABLE t1 ADD INDEX i6(b), ALGORITHM= COPY, LOCK= EXCLUSIVE;
 
@@ -1543,10 +1528,11 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= NONE;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= SHARED;
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--disable_info
+--error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+# COPY/NONE works now, but still an error in embedded
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= NONE;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER ONLINE TABLE m1 ADD COLUMN c int;
+--enable_info
 # This works because the lock will be SNW for the copy phase.
 # It will still require exclusive lock for actually enabling keys.
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= SHARED;
@@ -1971,7 +1957,7 @@ show create table t1;
 drop table t1;
 
 create table t1 (a int, b int, c int, unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column a;
 alter table t1 drop column a, drop index a;
 show create table t1;
@@ -2419,4 +2405,35 @@ drop table t1, t2;
 
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-26767 Server crashes when rename table and alter storage engine
+--echo #
+--error ER_NO_SUCH_TABLE
+alter table txxx engine=innodb, rename to tyyy;
+
+--echo #
+--echo # MDEV-27048 UBSAN: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'
+--echo #
+CREATE TABLE t (a INT,b INT,c INT,x TEXT,y TEXT,z TEXT,id INT UNSIGNED AUTO_INCREMENT,i INT,KEY(id),UNIQUE KEY a (a,b,c));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t ADD CONSTRAINT test UNIQUE (id) USING HASH;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-33655 Remove alter_algorithm
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT) ENGINE=MERGE, UNION(t1);
+ALTER TABLE t2 COMMENT 'x', LOCK=SHARED;
+DROP TABLE t2,t1;
+
+--echo #
+--echo # End of 11.5 tests
 --echo #

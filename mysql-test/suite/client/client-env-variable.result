@@ -1,0 +1,7 @@
+USE test;
+CREATE TABLE pet (name VARCHAR(20));
+localhost
+****************
+255.255.255.255
+Done
+DROP TABLE pet;

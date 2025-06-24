@@ -445,6 +445,11 @@ static int _ma_find_writepos(MARIA_HA *info,
     info->state->data_file_length+= tmp;
     info->s->state.split++;
     info->update|=HA_STATE_WRITE_AT_END;
+    if (info->s->tracked &&
+        _ma_update_tmp_file_size(&info->s->track_data,
+                                 MY_ALIGN(info->state->data_file_length,
+                                          MARIA_TRACK_INCREMENT_SIZE)))
+      DBUG_RETURN(-1);
   }
   DBUG_RETURN(0);
 } /* _ma_find_writepos */
@@ -886,6 +891,11 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	  info->state->data_file_length+= tmp;
 	  info->update|= HA_STATE_WRITE_AT_END | HA_STATE_EXTEND_BLOCK;
 	  length+=tmp;
+          if (info->s->tracked &&
+              _ma_update_tmp_file_size(&info->s->track_data,
+                                       MY_ALIGN(info->state->data_file_length,
+                                                MARIA_TRACK_INCREMENT_SIZE)))
+            goto err;
 	}
 	else if (length < MARIA_MAX_BLOCK_LENGTH - MARIA_MIN_BLOCK_LENGTH)
 	{
@@ -893,7 +903,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	    Check if next block is a deleted block
 	    Above we have MARIA_MIN_BLOCK_LENGTH to avoid the problem where
 	    the next block is so small it can't be splited which could
-	    casue problems
+	    cause problems
 	  */
 
 	  MARIA_BLOCK_INFO del_block;

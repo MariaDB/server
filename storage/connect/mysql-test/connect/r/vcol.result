@@ -6,7 +6,7 @@ birth date not null date_format='DD/MM/YYYY',
 hired date not null date_format='DD/MM/YYYY' flag=36,
 agehired int(3) as (floor(datediff(hired,birth)/365.25))
 )
-engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+ENGINE=CONNECT CHARSET=latin1 table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
 select * from t1;
 name	city	birth	hired	agehired
 John	Boston	1986-01-25	2010-06-02	24
@@ -25,5 +25,5 @@ hired date not null date_format='DD/MM/YYYY' flag=36,
 agehired int(3) as (floor(datediff(hired,birth)/365.25)),
 index (agehired)
 )
-engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+ENGINE=CONNECT CHARSET=latin1 table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
 ERROR 42000: Table handler doesn't support NULL in given index. Please change column 'agehired' to be NOT NULL or use another handler

@@ -9,7 +9,7 @@ n2 int(10) NOT NULL,
 c1 char(1) NOT NULL,
 KEY c1 (c1),
 KEY n1_c1_n2 (n1,c1,n2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES (0, 2, 'a'), (1, 3, 'a');
 insert into t1 select seq+1,seq+2,'c' from seq_1_to_1000;
 ANALYZE TABLE t1;
@@ -20,7 +20,7 @@ EXPLAIN SELECT t1.n1 FROM t1, (SELECT n1, n2 FROM t1 WHERE c1 = 'a' GROUP BY n1)
 WHERE t.n1 = t1.n1 AND t.n2 = t1.n2 AND c1 = 'a' GROUP BY n1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ref	c1,n1_c1_n2	c1	1	const	2	Using index condition; Using where; Using temporary; Using filesort
-1	PRIMARY	<derived2>	ref	key0	key0	8	test.t1.n1,test.t1.n2	2	
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t1.n1,test.t1.n2	1	
 2	LATERAL DERIVED	t1	ref	c1,n1_c1_n2	n1_c1_n2	4	test.t1.n1	1	Using where; Using index
 SELECT t1.n1 FROM t1, (SELECT n1, n2 FROM t1 WHERE c1 = 'a' GROUP BY n1) as t
 WHERE t.n1 = t1.n1 AND t.n2 = t1.n2 AND c1 = 'a' GROUP BY n1;
@@ -49,7 +49,7 @@ t2
 WHERE t2.id2=t.id2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.id2	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.id2	1	
 2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	1	Using where; Using temporary; Using filesort
 2	DERIVED	t1	eq_ref	PRIMARY,id2	PRIMARY	4	test.t3.i3	1	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
@@ -99,7 +99,7 @@ ON t2.id=t.id
 WHERE t2.id < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	range	PRIMARY	PRIMARY	4	NULL	2	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.id	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.id	1	
 2	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.id	1	
 set join_cache_level=default;
 DROP TABLE t1,t2;
@@ -128,8 +128,8 @@ left join
 (v1 join t1 as t on v1.f1=t.f1 and t.f2 = null)
 on t1.f1=t.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	const	f2	NULL	NULL	NULL	1	Impossible ON condition
-1	PRIMARY	<derived2>	const	key1	NULL	NULL	NULL	1	Impossible ON condition
+1	PRIMARY	t	const	f2	NULL	NULL	NULL	0	Impossible ON condition
+1	PRIMARY	<derived2>	const	key0,key1	NULL	NULL	NULL	0	Impossible ON condition
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
 2	DERIVED	t2	ALL	PRIMARY	NULL	NULL	NULL	3	Using temporary; Using filesort
 set statement optimizer_switch='split_materialized=off' for explain select t.f2
@@ -138,8 +138,8 @@ left join
 (v1 join t1 as t on v1.f1=t.f1 and t.f2 = null)
 on t1.f1=t.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	const	f2	NULL	NULL	NULL	1	Impossible ON condition
-1	PRIMARY	<derived3>	const	key1	NULL	NULL	NULL	1	Impossible ON condition
+1	PRIMARY	t	const	f2	NULL	NULL	NULL	0	Impossible ON condition
+1	PRIMARY	<derived3>	const	key0,key1	NULL	NULL	NULL	0	Impossible ON condition
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
 3	DERIVED	t2	index	NULL	PRIMARY	4	NULL	3	
 drop view v1;
@@ -157,26 +157,26 @@ set statement optimizer_switch='split_materialized=off' for EXPLAIN
 SELECT *
 FROM
 t1 JOIN
-(SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+(SELECT t1_inner.a, t1_inner.b FROM t1 as t1_inner, t2 as t2_inner WHERE t1_inner.b = t2_inner.c GROUP BY t1_inner.a, t1_inner.b) as dt
 WHERE
 t1.a = dt.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	a,a_2	a_2	10	NULL	6	Using where; Using index
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	2	
-3	DERIVED	t1	index	NULL	a_2	10	NULL	6	Using where; Using index
-3	DERIVED	t2	ref	c	c	5	test.t1.b	1	Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	1	
+3	DERIVED	t1_inner	index	NULL	a_2	10	NULL	6	Using where; Using index
+3	DERIVED	t2_inner	ref	c	c	5	test.t1_inner.b	1	Using index
 set statement optimizer_switch='split_materialized=on' for  EXPLAIN
 SELECT *
 FROM
 t1 JOIN
-(SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+(SELECT t1_inner.a, t1_inner.b FROM t1 as t1_inner, t2 as t2_inner WHERE t1_inner.b = t2_inner.c GROUP BY t1_inner.a, t1_inner.b) as dt
 WHERE
 t1.a = dt.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	a,a_2	a_2	10	NULL	6	Using where; Using index
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	2	
-3	LATERAL DERIVED	t1	ref	a,a_2	a	5	test.t1.a	1	Using where; Using temporary; Using filesort
-3	LATERAL DERIVED	t2	ref	c	c	5	test.t1.b	1	Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	1	
+3	DERIVED	t1_inner	index	a,a_2	a_2	10	NULL	6	Using where; Using index
+3	DERIVED	t2_inner	ref	c	c	5	test.t1_inner.b	1	Using index
 DROP TABLE t1, t2;
 #
 # Bug mdev-25714: usage non-splitting covering index is cheaper than
@@ -208,8 +208,8 @@ t2
 where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	ref	key1	key1	4	test.t2.id	2	
-1	PRIMARY	t1	ALL	idx	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ref	key1	key1	4	test.t2.id	1	
+1	PRIMARY	t1	ref	idx	idx	4	test.t2.id	3	Using where
 2	DERIVED	t3	ref	idx1,idx2	idx1	4	const	5	Using where; Using index
 select t1.id, t1.itemid, dt.id, t2.id
 from t1,
@@ -227,8 +227,8 @@ t2
 where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	ref	key1	key1	4	test.t2.id	2	
-1	PRIMARY	t1	ALL	idx	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ref	key1	key1	4	test.t2.id	1	
+1	PRIMARY	t1	ref	idx	idx	4	test.t2.id	3	Using where
 2	DERIVED	t3	ref	idx1	idx1	4	const	5	Using where; Using index
 select t1.id, t1.itemid, dt.id, t2.id
 from t1,
@@ -247,12 +247,12 @@ set optimizer_use_condition_selectivity=default;
 #  (The testcase is taken from testcase for MDEV-13389 due to it being
 #   much smaller)
 #
-create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam charset=latin1;
 insert into t3 values
 (8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
 (7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
 (5,14,'dd'), (9,12,'ee');
-create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam charset=latin1;
 insert into t4 values
 (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
 (4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
@@ -273,7 +273,7 @@ on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	1	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	
 # ... and if one adds WITH ROLLUP, then LATERAL DERIVED is no longer used:
 explain select t3.a,t3.c,t.max,t.min
@@ -283,7 +283,7 @@ on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	4	
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	
 2	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	40	Using filesort
 drop table t3, t4;
 # End of 10.3 tests
@@ -365,125 +365,164 @@ from t10 left join t11 on t11.col1=t10.col1
 group by grp_id) T on T.grp_id=t1.b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 5,
-      "r_rows": 5,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t1.b"],
-      "r_loops": 5,
-      "rows": 2,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(trigcond(t1.b is not null))"
-    },
-    "table": {
-      "table_name": "t3",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t1.b"],
-      "r_loops": 10,
-      "rows": 3,
-      "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(trigcond(t1.b is not null))"
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["grp_id"],
-      "ref": ["test.t1.b"],
-      "r_loops": 30,
-      "rows": 10,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "trigcond(trigcond(t1.b is not null))",
-      "materialized": {
-        "lateral": 1,
-        "query_block": {
-          "select_id": 2,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 5,
+          "r_rows": 5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.b"],
+          "loops": 5,
           "r_loops": 5,
-          "r_total_time_ms": "REPLACED",
-          "outer_ref_condition": "t1.b is not null",
-          "table": {
-            "table_name": "t10",
-            "access_type": "ref",
-            "possible_keys": ["grp_id"],
-            "key": "grp_id",
-            "key_length": "5",
-            "used_key_parts": ["grp_id"],
-            "ref": ["test.t1.b"],
-            "r_loops": 5,
-            "rows": 100,
-            "r_rows": 100,
-            "r_table_time_ms": "REPLACED",
-            "r_other_time_ms": "REPLACED",
-            "r_engine_stats": REPLACED,
-            "filtered": 100,
-            "r_filtered": 100
-          },
-          "block-nl-join": {
-            "table": {
-              "table_name": "t11",
-              "access_type": "ALL",
+          "rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.b is not null))",
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.b"],
+          "loops": 10,
+          "r_loops": 10,
+          "rows": 3,
+          "r_rows": 3,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.b is not null))",
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["grp_id"],
+          "ref": ["test.t1.b"],
+          "loops": 30,
+          "r_loops": 30,
+          "rows": 10,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "trigcond(trigcond(t1.b is not null))",
+          "r_filtered": 100,
+          "materialized": {
+            "lateral": 1,
+            "query_block": {
+              "select_id": 2,
+              "cost": "REPLACED",
               "r_loops": 5,
-              "rows": 10,
-              "r_rows": 10,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            },
-            "buffer_type": "flat",
-            "buffer_size": "1Kb",
-            "join_type": "BNL",
-            "attached_condition": "trigcond(t11.col1 = t10.col1)",
-            "r_loops": 500,
-            "r_filtered": 10,
-            "r_unpack_time_ms": "REPLACED",
-            "r_other_time_ms": "REPLACED",
-            "r_effective_rows": 10
+              "r_total_time_ms": "REPLACED",
+              "outer_ref_condition": "t1.b is not null",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t10",
+                    "access_type": "ref",
+                    "possible_keys": ["grp_id"],
+                    "key": "grp_id",
+                    "key_length": "5",
+                    "used_key_parts": ["grp_id"],
+                    "ref": ["test.t1.b"],
+                    "loops": 1,
+                    "r_loops": 5,
+                    "rows": 100,
+                    "r_rows": 100,
+                    "cost": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
+                    "filtered": 100,
+                    "r_total_filtered": 100,
+                    "r_filtered": 100
+                  }
+                },
+                {
+                  "block-nl-join": {
+                    "table": {
+                      "table_name": "t11",
+                      "access_type": "ALL",
+                      "loops": 100,
+                      "r_loops": 5,
+                      "rows": 10,
+                      "r_rows": 10,
+                      "cost": "REPLACED",
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_total_filtered": 100,
+                      "r_filtered": 100
+                    },
+                    "buffer_type": "flat",
+                    "buffer_size": "1Kb",
+                    "join_type": "BNL",
+                    "attached_condition": "trigcond(t11.col1 = t10.col1)",
+                    "r_loops": 500,
+                    "r_filtered": 10,
+                    "r_unpack_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_effective_rows": 10
+                  }
+                }
+              ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 create table t21 (pk int primary key);
@@ -671,6 +710,14 @@ a	b	a	b	a	b	grp_id	count(*)
 5	5	5	2	5	2	5	100
 5	5	5	2	5	3	5	100
 set join_cache_level=4;
+set optimizer_trace=1;
+set @tmp=@@optimizer_switch, optimizer_switch='hash_join_cardinality=off';
+insert into t11
+select A.seq, A.seq from seq_11_to_100 A;
+analyze table t11 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t11	analyze	status	Engine-independent statistics collected
+test.t11	analyze	status	OK
 explain select *
 from
 (
@@ -692,7 +739,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ref	a	a	5	test.t1.b	3	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
 2	LATERAL DERIVED	t10	ref	grp_id	grp_id	5	test.t1.b	100	
-2	LATERAL DERIVED	t11	hash_ALL	NULL	#hash#$hj	5	test.t10.col1	10	Using where; Using join buffer (flat, BNLH join)
+2	LATERAL DERIVED	t11	hash_ALL	NULL	#hash#$hj	5	test.t10.col1	100	Using where; Using join buffer (flat, BNLH join)
 select *
 from
 (
@@ -739,7 +786,14 @@ a	b	a	b	a	b	grp_id	count(*)
 5	5	5	2	5	1	5	100
 5	5	5	2	5	2	5	100
 5	5	5	2	5	3	5	100
+set optimizer_switch=@tmp;
 set join_cache_level=default;
+delete from t11;
+insert into t11 select A.seq, A.seq from seq_1_to_10 A;
+analyze table t11 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t11	analyze	status	Engine-independent statistics collected
+test.t11	analyze	status	OK
 drop index a on t2;
 drop index a on t3;
 explain select *
@@ -761,7 +815,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	50	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	15	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	1000	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.b	10	Using where
 2	DERIVED	t10	ALL	grp_id	NULL	NULL	NULL	10000	Using temporary; Using filesort
 2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 select *
@@ -892,13 +946,12 @@ GROUP BY groupId, id
 USING (groupId, id)
 WHERE id IN (1,2,3,4,5,6,7,8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	PRIMARY	PRIMARY	8	NULL	19	Using index
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	8	test.t1.groupId,test.t1.id	2	
-4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	19	
+1	PRIMARY	<derived3>	ref	key0	key0	8	test.t1.groupId,test.t1.id	1	
+1	PRIMARY	<derived5>	eq_ref	distinct_key	distinct_key	4	test.t1.id	1	Using where
 5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	8	test.t1.groupId,test.t1.id	1	Using index
-3	LATERAL DERIVED	<derived7>	ref	key0	key0	4	test.t1.id	2	Using where; FirstMatch(t1)
+3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	8	test.t1.groupId,test.t1.id	1	
+3	LATERAL DERIVED	<derived7>	eq_ref	distinct_key	distinct_key	4	test.t1.id	1	Using where
 7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 set statement optimizer_switch='split_materialized=off, loosescan=off' for
 set statement in_predicate_conversion_threshold=2 for

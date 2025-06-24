@@ -27,6 +27,8 @@ pkey int NOT NULL,
 txt_utf8 char(8) NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey,txt_utf8) VALUES (0,'01234567'),(1,'12345678'),(2,'23456789'),(3,'34567890'),(4,'45678901'),(5,'56789012'),(6,'67890123'),(7,'78901234'),(8,'89012345'),(9,'90123456');
 FLUSH TABLES;
 
@@ -40,11 +42,17 @@ pkey	LEFT(`txt_utf8`, 4)
 0	0123
 1	1234
 2	2345
+SELECT `pkey`, SUBSTR(`txt_utf8`, 1, 4) FROM `auto_test_local`.`tbl_a` ORDER BY SUBSTR(`txt_utf8`, 1, 4) LIMIT 3;
+pkey	SUBSTR(`txt_utf8`, 1, 4)
+0	0123
+1	1234
+2	2345
 connection child2_1;
 SET NAMES utf8;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`pkey` `pkey`,(left(t0.`txt_utf8` , 4)) `LEFT(``txt_utf8``, 4)` from `auto_test_remote`.`tbl_a` t0 order by (left(`txt_utf8` , 4)) limit 3
+select t0.`pkey` `pkey`,(substr(t0.`txt_utf8` , 1 , 4)) `SUBSTR(``txt_utf8``, 1, 4)` from `auto_test_remote`.`tbl_a` t0 order by (substr(`txt_utf8` , 1 , 4)) limit 3
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, txt_utf8 FROM tbl_a ORDER BY pkey;
 pkey	txt_utf8

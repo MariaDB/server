@@ -232,9 +232,41 @@ struct ib_lock_t
 		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
 	}
 
-        bool is_rec_granted_exclusive_not_gap() const
+        static bool is_rec_exclusive_not_gap(unsigned type_mode)
         {
+          ut_ad(!(type_mode & LOCK_TABLE));
           return (type_mode & (LOCK_MODE_MASK | LOCK_GAP)) == LOCK_X;
+        }
+
+        bool is_rec_exclusive_not_gap() const
+        {
+          return is_rec_exclusive_not_gap(type_mode);
+        }
+
+        bool is_waiting_not_gap() const
+        {
+          return (type_mode & (LOCK_WAIT | LOCK_GAP)) == LOCK_WAIT;
+        }
+
+        /** Checks if a lock can be bypassed.
+        @param has_s_lock_or_stronger if caller's transaction already holds
+                                      not gap and not insert intention S-lock
+                                      or stronger for the same heap_no as the
+                                      current lock
+        @return true if the lock can be bypassed, false otherwise */
+        bool can_be_bypassed(bool has_s_lock_or_stronger) const noexcept
+        {
+          ut_ad(!is_table());
+          /* We don't need to check supremum bit in the lock's bitmap here,
+          because the function is always called after checking for
+          bypass_mode, which already contains check for supremum. */
+          ut_ad(!is_insert_intention() || is_gap());
+          /* We don't need to check
+                  trx->lock.wait_trx == blocking_trx && mode() == LOCK_X
+          condition here because there can be the following case:
+                       S1 X2(waits for S1) S3(waits for X2),
+          bypassing X1 must not conflict with S3. */
+          return has_s_lock_or_stronger && is_waiting_not_gap();
         }
 
 	/** Print the lock object into the given output stream.

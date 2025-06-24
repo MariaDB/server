@@ -40,8 +40,7 @@ static int s3_read_file_from_disk(const char *filename, uchar **to,
 /* Used by ha_s3.cc and tools to define different protocol options */
 
 static const char *protocol_types[]= {"Auto", "Original", "Amazon", "Legacy", "Path", "Domain", NullS};
-TYPELIB s3_protocol_typelib= {array_elements(protocol_types)-1,"",
-                              protocol_types, NULL};
+TYPELIB s3_protocol_typelib= CREATE_TYPELIB_FOR(protocol_types);
 
 static const char *providers[]= {"Default", "Amazon", "Huawei", NullS};
 TYPELIB s3_provider_typelib = {array_elements(providers)-1,"",providers, NULL};
@@ -883,7 +882,7 @@ int partition_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
   if ((error= s3_read_file_from_disk(filename, &alloc_block, &frm_length, 0)))
   {
     /*
-      In case of ADD PARTITION PARTITON the .frm file is already renamed.
+      In case of ADD PARTITION the .frm file is already renamed.
       Copy the renamed file if it exists.
     */
     fn_format(filename, path, "", ".frm", MY_REPLACE_EXT);

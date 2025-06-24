@@ -1,4 +1,5 @@
-SET @@global.character_set_server= @@session.character_set_server;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET @@global.collation_server= @@session.collation_server;
 set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 drop table if exists t1,t2;
 drop table if exists t1aa,t2aa;
@@ -74,7 +75,7 @@ def	information_schema	STATISTICS	STATISTICS	SUB_PART	Sub_part	8	3	0	Y	36864	0	6
 def	information_schema	STATISTICS	STATISTICS	PACKED	Packed	253	10	0	Y	4096	0	8
 def	information_schema	STATISTICS	STATISTICS	NULLABLE	Null	253	3	0	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	INDEX_TYPE	Index_type	253	16	5	N	4097	0	8
-def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	Y	4096	0	8
+def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	INDEX_COMMENT	Index_comment	253	1024	0	N	4097	0	8
 def	information_schema	STATISTICS	STATISTICS	IGNORED	Ignored	253	3	2	N	4097	0	8
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -134,7 +135,7 @@ def	information_schema	TABLES	TABLES	AUTO_INCREMENT	Auto_increment	8	21	0	Y	3689
 def	information_schema	TABLES	TABLES	CREATE_TIME	Create_time	12	19	0	Y	4224	0	63
 def	information_schema	TABLES	TABLES	UPDATE_TIME	Update_time	12	19	0	Y	4224	0	63
 def	information_schema	TABLES	TABLES	CHECK_TIME	Check_time	12	19	0	Y	4224	0	63
-def	information_schema	TABLES	TABLES	TABLE_COLLATION	Collation	253	32	0	Y	4096	0	8
+def	information_schema	TABLES	TABLES	TABLE_COLLATION	Collation	253	64	0	Y	4096	0	8
 def	information_schema	TABLES	TABLES	CHECKSUM	Checksum	8	21	0	Y	36896	0	63
 def	information_schema	TABLES	TABLES	CREATE_OPTIONS	Create_options	253	2048	0	Y	4096	0	8
 def	information_schema	TABLES	TABLES	TABLE_COMMENT	Comment	253	2048	0	N	4097	0	8
@@ -523,7 +524,7 @@ drop table t1, t2, t3;
 create database mysqltest;
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
 create user mysqltest_1@localhost;
@@ -539,13 +540,13 @@ a
 1
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 drop table t1;
 ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t1`
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysqltest'
 disconnect con1;
-connect  con2,localhost,mysqltest_2,,test;
+connect  con2,localhost,mysqltest_2,,"*NO-ONE*";
 connection con2;
 select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table `mysqltest`.`t1`
@@ -556,13 +557,13 @@ ERROR 42000: DROP command denied to user 'mysqltest_2'@'localhost' for table `my
 drop database mysqltest;
 ERROR 42000: Access denied for user 'mysqltest_2'@'localhost' to database 'mysqltest'
 disconnect con2;
-connect  con3,localhost,mysqltest_3,,test;
+connect  con3,localhost,mysqltest_3,,"*NO-ONE*";
 connection con3;
 select * from mysqltest.t1;
 ERROR 42000: SELECT command denied to user 'mysqltest_3'@'localhost' for table `mysqltest`.`t1`
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 drop table mysqltest.t1;
 drop database mysqltest;
 disconnect con3;
@@ -660,7 +661,7 @@ def	information_schema	STATISTICS	STATISTICS	SUB_PART	Sub_part	8	3	4	Y	36864	0	6
 def	information_schema	STATISTICS	STATISTICS	PACKED	Packed	253	10	0	Y	4096	0	63
 def	information_schema	STATISTICS	STATISTICS	NULLABLE	Null	253	3	0	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_TYPE	Index_type	253	16	5	N	4097	0	63
-def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	Y	4096	0	63
+def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	16	0	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	INDEX_COMMENT	Index_comment	253	1024	0	N	4097	0	63
 def	information_schema	STATISTICS	STATISTICS	IGNORED	Ignored	253	3	2	N	4097	0	63
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -870,7 +871,7 @@ CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a = 1;
 CREATE VIEW v1 AS SELECT 1;
 CREATE PROCEDURE p1() SELECT 1;
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
-set names utf8;
+set names utf8 collate utf8_general_ci;
 -- Here we enable metadata just to check that the collation of the
 -- resultset is non-binary for string type. This should be changed
 -- after Bug#29394 is implemented.
@@ -879,28 +880,29 @@ SHOW CHARACTER SET LIKE 'utf8mb3';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	information_schema	CHARACTER_SETS	CHARACTER_SETS	CHARACTER_SET_NAME	Charset	253	96	7	N	4097	0	33
 def	information_schema	CHARACTER_SETS	CHARACTER_SETS	DESCRIPTION	Description	253	180	13	N	4097	0	33
-def	information_schema	CHARACTER_SETS	CHARACTER_SETS	DEFAULT_COLLATE_NAME	Default collation	253	96	18	N	4097	0	33
+def	information_schema	CHARACTER_SETS	CHARACTER_SETS	DEFAULT_COLLATE_NAME	Default collation	253	192	21	N	4097	0	33
 def	information_schema	CHARACTER_SETS	CHARACTER_SETS	MAXLEN	Maxlen	8	3	1	N	36865	0	63
 Charset	Description	Default collation	Maxlen
-utf8mb3	UTF-8 Unicode	utf8mb3_general_ci	3
+utf8mb3	UTF-8 Unicode	utf8mb3_uca1400_ai_ci	3
 ----------------------------------------------------------------
 SHOW COLLATION LIKE 'latin1_bin';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	information_schema	COLLATIONS	COLLATIONS	COLLATION_NAME	Collation	253	96	10	N	4097	0	33
-def	information_schema	COLLATIONS	COLLATIONS	CHARACTER_SET_NAME	Charset	253	96	6	N	4097	0	33
-def	information_schema	COLLATIONS	COLLATIONS	ID	Id	8	11	2	N	36865	0	63
-def	information_schema	COLLATIONS	COLLATIONS	IS_DEFAULT	Default	253	9	0	N	4097	0	33
+def	information_schema	COLLATIONS	COLLATIONS	COLLATION_NAME	Collation	253	192	10	N	4097	0	33
+def	information_schema	COLLATIONS	COLLATIONS	CHARACTER_SET_NAME	Charset	253	96	6	Y	4096	0	33
+def	information_schema	COLLATIONS	COLLATIONS	ID	Id	8	11	2	Y	36864	0	63
+def	information_schema	COLLATIONS	COLLATIONS	IS_DEFAULT	Default	253	9	0	Y	4096	0	33
 def	information_schema	COLLATIONS	COLLATIONS	IS_COMPILED	Compiled	253	9	3	N	4097	0	33
 def	information_schema	COLLATIONS	COLLATIONS	SORTLEN	Sortlen	8	3	1	N	36865	0	63
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_bin	latin1	47		Yes	1
+def	information_schema	COLLATIONS	COLLATIONS	PAD_ATTRIBUTE	Pad_attribute	254	9	9	N	4353	0	33
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_bin	latin1	47		Yes	1	PAD SPACE
 ----------------------------------------------------------------
 SHOW CREATE DATABASE mysqltest1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					Database	253	192	10	N	1	39	33
-def					Create Database	253	3072	95	N	1	39	33
+def					Create Database	253	3072	100	N	1	39	33
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 ----------------------------------------------------------------
 SHOW DATABASES LIKE 'mysqltest1';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -931,7 +933,7 @@ def	information_schema	STATISTICS	STATISTICS	SUB_PART	Sub_part	8	3	0	Y	36864	0	6
 def	information_schema	STATISTICS	STATISTICS	PACKED	Packed	253	30	0	Y	4096	0	33
 def	information_schema	STATISTICS	STATISTICS	NULLABLE	Null	253	9	0	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	INDEX_TYPE	Index_type	253	48	5	N	4097	0	33
-def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	48	0	Y	4096	0	33
+def	information_schema	STATISTICS	STATISTICS	COMMENT	Comment	253	48	0	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	INDEX_COMMENT	Index_comment	253	3072	0	N	4097	0	33
 def	information_schema	STATISTICS	STATISTICS	IGNORED	Ignored	253	9	2	N	4097	0	33
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -956,7 +958,7 @@ def	information_schema	TABLES	TABLES	TABLE_NAME	TABLE_NAME	253	192	2	N	4097	0	33
 def	information_schema	TABLES	TABLES	TABLE_TYPE	TABLE_TYPE	253	192	10	N	4097	0	33
 def	information_schema	TABLES	TABLES	ENGINE	ENGINE	253	192	6	Y	4096	0	33
 def	information_schema	TABLES	TABLES	ROW_FORMAT	ROW_FORMAT	253	30	5	Y	4096	0	33
-def	information_schema	TABLES	TABLES	TABLE_COLLATION	TABLE_COLLATION	253	96	17	Y	4096	0	33
+def	information_schema	TABLES	TABLES	TABLE_COLLATION	TABLE_COLLATION	253	192	17	Y	4096	0	33
 def	information_schema	TABLES	TABLES	CREATE_OPTIONS	CREATE_OPTIONS	253	6144	0	Y	4096	0	33
 def	information_schema	TABLES	TABLES	TABLE_COMMENT	TABLE_COMMENT	253	6144	0	N	4097	0	33
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	ROW_FORMAT	TABLE_COLLATION	CREATE_OPTIONS	TABLE_COMMENT
@@ -988,7 +990,7 @@ def	information_schema	COLUMNS	COLUMNS	COLUMN_DEFAULT	COLUMN_DEFAULT	252	589788	
 def	information_schema	COLUMNS	COLUMNS	IS_NULLABLE	IS_NULLABLE	253	9	2	N	4097	0	33
 def	information_schema	COLUMNS	COLUMNS	DATA_TYPE	DATA_TYPE	253	192	3	N	4097	0	33
 def	information_schema	COLUMNS	COLUMNS	CHARACTER_SET_NAME	CHARACTER_SET_NAME	253	96	0	Y	4096	0	33
-def	information_schema	COLUMNS	COLUMNS	COLLATION_NAME	COLLATION_NAME	253	96	0	Y	4096	0	33
+def	information_schema	COLUMNS	COLUMNS	COLLATION_NAME	COLLATION_NAME	253	192	0	Y	4096	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_TYPE	COLUMN_TYPE	252	589815	7	N	4113	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_KEY	COLUMN_KEY	253	9	3	N	4097	0	33
 def	information_schema	COLUMNS	COLUMNS	EXTRA	EXTRA	253	240	0	N	4097	0	33
@@ -1017,7 +1019,7 @@ c	int(11)	NO	PRI	NULL
 SHOW TRIGGERS LIKE 't1';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_NAME	Trigger	253	192	5	N	4097	0	33
-def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	Event	253	18	6	N	4097	0	33
+def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	Event	253	60	6	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_TABLE	Table	253	192	2	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	ACTION_STATEMENT	Statement	252	589815	10	N	4113	0	33
 def	information_schema	TRIGGERS	TRIGGERS	ACTION_TIMING	Timing	253	18	6	N	4097	0	33
@@ -1025,8 +1027,8 @@ def	information_schema	TRIGGERS	TRIGGERS	CREATED	Created	12	22	22	Y	4224	2	63
 def	information_schema	TRIGGERS	TRIGGERS	SQL_MODE	sql_mode	253	24576	89	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	DEFINER	Definer	253	1152	14	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	CHARACTER_SET_CLIENT	character_set_client	253	96	6	N	4097	0	33
-def	information_schema	TRIGGERS	TRIGGERS	COLLATION_CONNECTION	collation_connection	253	96	6	N	4097	0	33
-def	information_schema	TRIGGERS	TRIGGERS	DATABASE_COLLATION	Database Collation	253	96	17	N	4097	0	33
+def	information_schema	TRIGGERS	TRIGGERS	COLLATION_CONNECTION	collation_connection	253	192	6	N	4097	0	33
+def	information_schema	TRIGGERS	TRIGGERS	DATABASE_COLLATION	Database Collation	253	192	17	N	4097	0	33
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 t1_bi	INSERT	t1	SET @a = 1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	binary	binary	latin1_swedish_ci
 ----------------------------------------------------------------
@@ -1054,7 +1056,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_CATALOG	TRIGGER_CATALOG	253	1536	3	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_SCHEMA	TRIGGER_SCHEMA	253	192	4	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	TRIGGER_NAME	TRIGGER_NAME	253	192	5	N	4097	0	33
-def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	EVENT_MANIPULATION	253	18	6	N	4097	0	33
+def	information_schema	TRIGGERS	TRIGGERS	EVENT_MANIPULATION	EVENT_MANIPULATION	253	60	6	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_CATALOG	EVENT_OBJECT_CATALOG	253	1536	3	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_SCHEMA	253	192	4	N	4097	0	33
 def	information_schema	TRIGGERS	TRIGGERS	EVENT_OBJECT_TABLE	EVENT_OBJECT_TABLE	253	192	2	N	4097	0	33
@@ -1081,7 +1083,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					View	253	192	2	N	1	39	33
 def					Create View	253	3072	103	N	1	39	33
 def					character_set_client	253	96	6	N	1	39	33
-def					collation_connection	253	96	6	N	1	39	33
+def					collation_connection	253	192	6	N	1	39	33
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1`	binary	binary
 ----------------------------------------------------------------
@@ -1098,7 +1100,7 @@ def	information_schema	VIEWS	VIEWS	IS_UPDATABLE	IS_UPDATABLE	253	9	2	N	4097	0	33
 def	information_schema	VIEWS	VIEWS	DEFINER	DEFINER	253	1152	14	N	4097	0	33
 def	information_schema	VIEWS	VIEWS	SECURITY_TYPE	SECURITY_TYPE	253	21	7	N	4097	0	33
 def	information_schema	VIEWS	VIEWS	CHARACTER_SET_CLIENT	CHARACTER_SET_CLIENT	253	96	6	N	4097	0	33
-def	information_schema	VIEWS	VIEWS	COLLATION_CONNECTION	COLLATION_CONNECTION	253	96	6	N	4097	0	33
+def	information_schema	VIEWS	VIEWS	COLLATION_CONNECTION	COLLATION_CONNECTION	253	192	6	N	4097	0	33
 def	information_schema	VIEWS	VIEWS	ALGORITHM	ALGORITHM	253	30	9	N	4097	0	33
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	test	v1	select 1 AS `1`	NONE	NO	root@localhost	DEFINER	binary	binary	UNDEFINED
@@ -1109,7 +1111,7 @@ def					Procedure	253	192	2	N	1	39	33
 def					sql_mode	253	267	89	N	1	39	33
 def					Create Procedure	253	3072	59	Y	0	39	33
 def					character_set_client	253	96	6	N	1	39	33
-def					collation_connection	253	96	6	N	1	39	33
+def					collation_connection	253	192	6	N	1	39	33
 def					Database Collation	253	96	17	N	1	39	33
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
@@ -1164,7 +1166,7 @@ def					Function	253	192	2	N	1	39	33
 def					sql_mode	253	267	89	N	1	39	33
 def					Create Function	253	3072	74	Y	0	39	33
 def					character_set_client	253	96	6	N	1	39	33
-def					collation_connection	253	96	6	N	1	39	33
+def					collation_connection	253	192	6	N	1	39	33
 def					Database Collation	253	96	17	N	1	39	33
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
@@ -1266,7 +1268,7 @@ PRIMARY KEY  (Codigo)
 show create table t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					Table	253	192	2	N	1	39	33
-def					Create Table	253	3072	488	N	1	39	33
+def					Create Table	253	3072	491	N	1	39	33
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Codigo` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -1279,14 +1281,14 @@ t1	CREATE TABLE `t1` (
   `Provincia` varchar(255) DEFAULT NULL,
   `Poblacion` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`Codigo`)
-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 End of 5.0 tests
 SHOW AUTHORS;
 create database mysqltest;
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 create table mysqltest.t1(a int);
 insert into mysqltest.t1 values(1);
 create user mysqltest_4@localhost;
@@ -1295,7 +1297,7 @@ connect  con4,localhost,mysqltest_4,,mysqltest;
 connection con4;
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 disconnect con4;
 connection default;
 delete from mysql.user where user='mysqltest_4';
@@ -1350,7 +1352,7 @@ CREATE DATABASE `ä`;
 CREATE TABLE `ä`.`ä` (a int) ENGINE=Memory;
 SHOW TABLE STATUS FROM `ä` LIKE 'ä';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-ä	MEMORY	10	Fixed	0	#	#	#	#	0	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
+ä	MEMORY	10	Fixed	0	#	#	#	#	0	NULL	#	NULL	NULL	utf8mb4_uca1400_ai_ci	NULL			0	N
 DROP DATABASE `ä`;
 show columns from `#mysql50#????????`;
 Got one of the listed errors
@@ -1471,7 +1473,7 @@ DROP EVENT ev1;
 SHOW STORAGE ENGINES;
 CREATE USER test_u@localhost;
 GRANT PROCESS ON *.* TO test_u@localhost;
-connect  conn1, localhost, test_u,,;
+connect  conn1, localhost, test_u,,"*NO-ONE*";
 SHOW ENGINE MYISAM MUTEX;
 SHOW ENGINE MYISAM STATUS;
 disconnect conn1;
@@ -1532,7 +1534,7 @@ LOCK TABLE t1 WRITE;
 connection default;
 SHOW CREATE TRIGGER t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci	#
+t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci	#
 connection con1;
 UNLOCK TABLES;
 # Test 2: ALTER TABLE with SHOW CREATE TRIGGER in transaction
@@ -1540,7 +1542,7 @@ connection default;
 START TRANSACTION;
 SHOW CREATE TRIGGER t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci	#
+t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8mb3	utf8mb3_uca1400_ai_ci	latin1_swedish_ci	#
 connection con1;
 ALTER TABLE t1 CHARACTER SET = utf8;
 disconnect con1;
@@ -1587,4 +1589,5 @@ Level	Code	Message
 SHOW CONTRIBUTORS;
 SHOW WARNINGS;
 Level	Code	Message
-SET @@global.character_set_server=@save_character_set_server;
+SET @@global.collation_server=@save_collation_server;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

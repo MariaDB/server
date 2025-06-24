@@ -8,7 +8,7 @@ call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file");
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_upgrade;
 --mkdir $bugdir
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+--let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir --innodb-undo-directory=$bugdir
 
 # Test case similar to log_upgrade.test
 perl;
@@ -23,9 +23,25 @@ my $head = pack("Nx[18]", 0);
 my $body = pack("x[8]Nx[4]Nx[2]Nx[32696]", 768, 49152, 97937874);
 my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
 print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
-# Dummy pages 1..6.
-print OUT chr(0) x (6 * 32768);
+
+# Dummy change buffer header page (page 3).
+die unless seek(OUT, 3 * 32768, 0);
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+my $head = pack("NNNx[8]n", 3, 0xffffffff, 0xffffffff, 6);
+my $body = pack("x[62]nnx[32656]", 2, 50);
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Dummy change buffer root page (page 4).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT
+my $head = pack("NNNx[10]", 4, 0xffffffff, 0xffffffff);
+my $body = chr(0) x 32722;
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+
 # Dictionary header page (page 7).
+die unless seek(OUT, 7 * 32768, 0);
 $head = pack("Nx[18]", 7);
 $body = pack("x[32]Nx[8]Nx[32674]", 8, 9);
 $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
@@ -73,7 +89,7 @@ print OUT chr(0);
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m --innodb_page_size=32k --innodb_buffer_pool_size=10M
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m --innodb_page_size=32k --innodb_buffer_pool_size=11M
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

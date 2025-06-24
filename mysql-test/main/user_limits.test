@@ -27,7 +27,7 @@ flush privileges;
 
 # Test of MAX_QUERIES_PER_HOUR limit
 create user mysqltest_1@localhost;
-grant usage on *.* to mysqltest_1@localhost with max_queries_per_hour 2;
+grant all on test.* to mysqltest_1@localhost with max_queries_per_hour 2;
 # This ensures that counters are reset and makes test scheduling independent
 flush user_resources;
 connect (mqph, localhost, mysqltest_1,,);
@@ -48,7 +48,7 @@ disconnect mqph2;
 
 # Test of MAX_UPDATES_PER_HOUR limit
 create user mysqltest_1@localhost;
-grant usage on *.* to mysqltest_1@localhost with max_updates_per_hour 2;
+grant all on test.* to mysqltest_1@localhost with max_updates_per_hour 2;
 flush user_resources;
 connect (muph, localhost, mysqltest_1,,);
 connection muph;
@@ -73,7 +73,7 @@ disconnect muph2;
 
 # Test of MAX_CONNECTIONS_PER_HOUR limit
 create user mysqltest_1@localhost;
-grant usage on *.* to mysqltest_1@localhost with max_connections_per_hour 2;
+grant all on test.* to mysqltest_1@localhost with max_connections_per_hour 2;
 flush user_resources;
 connect (mcph1, localhost, mysqltest_1,,);
 connection mcph1;
@@ -101,7 +101,7 @@ drop user mysqltest_1@localhost;
 # We need this to reset internal mqh_used variable
 flush privileges;
 create user mysqltest_1@localhost;
-grant usage on *.* to mysqltest_1@localhost with max_user_connections 2;
+grant all on test.* to mysqltest_1@localhost with max_user_connections 2;
 flush user_resources;
 connect (muc1, localhost, mysqltest_1,,);
 connection muc1;
@@ -155,7 +155,7 @@ set global max_user_connections= 2;
 select @@session.max_user_connections, @@global.max_user_connections;
 # Let us check that global limit works
 create user mysqltest_1@localhost;
-grant usage on *.* to mysqltest_1@localhost;
+grant all on test.* to mysqltest_1@localhost;
 flush user_resources;
 connect (muca1, localhost, mysqltest_1,,);
 connection muca1;
@@ -166,7 +166,7 @@ select * from t1;
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 --error ER_TOO_MANY_USER_CONNECTIONS
 connect (muca3, localhost, mysqltest_1,,);
-# Now we are testing that per-account limit prevails over gloabl limit
+# Now we are testing that per-account limit prevails over global limit
 connection default;
 grant usage on *.* to mysqltest_1@localhost with max_user_connections 3;
 flush user_resources;
@@ -225,14 +225,14 @@ set global max_user_connections= @my_max_user_connections;
 --echo # MDEV-17852 Altered connection limits for user have no effect
 --echo #
 create user foo@'%' with max_user_connections 1;
---connect con1,localhost,foo
+--connect con1,localhost,foo,,"*NO-ONE*"
 select current_user();
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
 --error ER_USER_LIMIT_REACHED
 --connect con2,localhost,foo
 --connection default
 alter user foo with max_user_connections 2;
---connect con3,localhost,foo
+--connect con3,localhost,foo,,"*NO-ONE*"
 select current_user();
 --disconnect con3
 --disconnect con1

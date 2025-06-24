@@ -14,7 +14,7 @@ SHOW CREATE TABLE T1;
 Table	Create Table
 T1	CREATE TABLE `T1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 RENAME TABLE T1 TO T2;
 SHOW TABLES LIKE "T2";
 Tables_in_test (T2)
@@ -70,7 +70,7 @@ SHOW CREATE TABLE T1;
 Table	Create Table
 T1	CREATE TABLE `T1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 RENAME TABLE T1 TO T2;
 SHOW TABLES LIKE "T2";
 Tables_in_test (T2)
@@ -185,7 +185,7 @@ create table myUC (i int);
 select TABLE_SCHEMA,TABLE_NAME FROM information_schema.TABLES
 where TABLE_SCHEMA ='mysqltest_LC2';
 TABLE_SCHEMA	TABLE_NAME
-mysqltest_lc2	myUC
+mysqltest_LC2	myUC
 use test;
 drop database mysqltest_LC2;
 #
@@ -319,20 +319,20 @@ Database (mysql_t%)
 mysql_TEST
 show create database mysql_test;
 Database	Create Database
-mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 show create database mysql_TEST;
 Database	Create Database
-mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 show create table mysql_TEST.T1;
 Table	Create Table
 T1	CREATE TABLE `T1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table mysql_test.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop database mysql_TEST;
 # MDEV-30765 SHOW TABLES not working properly with
 # lower_case_table_names=2
@@ -346,9 +346,7 @@ create table `B` (a int);
 create user 'mysqltest_1'@'localhost' identified by 'password';
 grant select, show view on db1.`a` to 'mysqltest_1'@'localhost';
 grant select, show view on db1.`B` to 'mysqltest_1'@'localhost';
-connect  conn1, localhost, mysqltest_1, password, test;
-connection conn1;
-use db1;
+connect  conn1, localhost, mysqltest_1, password, db1;
 show tables;
 Tables_in_db1
 B
@@ -365,17 +363,103 @@ CREATE DATABASE `#mysql50#D+b1`;
 ALTER DATABASE `#mysql50#D+b1` UPGRADE DATA DIRECTORY NAME;
 SHOW CREATE DATABASE `D+b1`;
 Database	Create Database
-D+b1	CREATE DATABASE `D+b1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+D+b1	CREATE DATABASE `D+b1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 SHOW CREATE DATABASE `d+b1`;
 Database	Create Database
-d+b1	CREATE DATABASE `d+b1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+d+b1	CREATE DATABASE `d+b1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 DROP DATABASE `D+b1`;
 CREATE DATABASE Db1;
 ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
 SHOW CREATE DATABASE Db1;
 Database	Create Database
-Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci */
 DROP DATABASE Db1;
+USE test;
+#
+# End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+#
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DROP PACKAGE test.pkg;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#
+#
+# Start of 11.2 tests
+#
+#
+# MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
+#
+create temporary table t2 (a int);
+create temporary table T1 (a int);
+show tables;
+Tables_in_test
+t1
+t2
+show tables like 't1';
+Tables_in_test (t1)
+t1
+show tables like 'T1';
+Tables_in_test (T1)
+t1
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='t1';
+table_name
+t1
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='T1';
+table_name
+t1
+show tables like '_1';
+Tables_in_test (_1)
+t1
+show tables like 't%';
+Tables_in_test (t%)
+t1
+t2
+drop temporary table t2, T1;
+#
+# End of 11.2 tests
+#
+#
+# Start of 11.3 tests
+#
+#
+# MDEV-32026 lowercase_table2.test failures in 11.3
+#
+CREATE DATABASE Db1;
+SHOW CREATE DATABASE Db1;
+Database	Create Database
+Db1	CREATE DATABASE `Db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+USE Db1;
+SELECT DATABASE();
+DATABASE()
+Db1
+DROP DATABASE Db1;
+CREATE DATABASE Db1;
+CREATE FUNCTION Db1.f1() RETURNS INT RETURN 10;
+CREATE FUNCTION db1.f2() RETURNS INT RETURN 10;
+SELECT db, name FROM mysql.proc WHERE name LIKE '^f[12]';
+db	name
+SELECT Db1.f1();
+Db1.f1()
+10
+SELECT db1.f2();
+db1.f2()
+10
+DROP DATABASE Db1;
+#
+# End of 11.3 tests
+#

@@ -271,8 +271,6 @@
 #define SPIDER_SQL_INDEX_FORCE_LEN (sizeof(SPIDER_SQL_INDEX_FORCE_STR) - 1)
 
 #define SPIDER_SQL_INT_LEN 20
-#define SPIDER_SQL_HANDLER_CID_LEN 6
-#define SPIDER_SQL_HANDLER_CID_FORMAT "t%05u"
 #define SPIDER_UDF_PING_TABLE_PING_ONLY                (1 << 0)
 #define SPIDER_UDF_PING_TABLE_USE_WHERE                (1 << 1)
 #define SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES (1 << 2)
@@ -544,10 +542,6 @@ void spider_db_free_show_index(
   SPIDER_SHARE *share
 );
 
-void spider_db_append_handler_next(
-  ha_spider *spider
-);
-
 void spider_db_get_row_from_tmp_tbl_rec(
   SPIDER_RESULT *current,
   SPIDER_DB_ROW **row
@@ -784,23 +778,12 @@ int spider_db_update(
   const uchar *old_data
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int spider_db_direct_update(
-  ha_spider *spider,
-  TABLE *table,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-);
-#else
 int spider_db_direct_update(
   ha_spider *spider,
   TABLE *table,
   ha_rows *update_rows,
   ha_rows *found_rows
 );
-#endif
 
 
 int spider_db_bulk_delete(
@@ -815,21 +798,11 @@ int spider_db_delete(
   const uchar *buf
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int spider_db_direct_delete(
-  ha_spider *spider,
-  TABLE *table,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  ha_rows *delete_rows
-);
-#else
 int spider_db_direct_delete(
   ha_spider *spider,
   TABLE *table,
   ha_rows *delete_rows
 );
-#endif
 
 int spider_db_delete_all_rows(
   ha_spider *spider
@@ -1164,20 +1137,6 @@ int spider_db_udf_copy_tables(
   TABLE *table,
   longlong bulk_insert_rows
 );
-
-int spider_db_open_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-);
-
-
-int spider_db_close_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-);
-
 
 bool spider_db_conn_is_network_error(
   int error_num

@@ -1,0 +1,32 @@
+--source include/have_debug.inc
+
+SET debug_dbug="+d,simulate_uuidv7_my_random_bytes_failure";
+
+source include/have_sequence.inc;
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-32637 Implement native UUID7 function
+--echo #
+
+CREATE TABLE t1 (
+  a int primary key not null,
+  u UUID DEFAULT UUID_v7(),
+  unique key(u)
+);
+INSERT INTO t1(a) SELECT seq FROM seq_1_to_16;
+SELECT COUNT(DISTINCT u) AS distinct_uuid_count FROM t1;
+SELECT
+  u REGEXP '[a-f0-9]{8}-[a-f0-9]{4}-7[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}' AS is_correct_version_and_revision,
+  COUNT(*)
+FROM t1 GROUP BY is_correct_version_and_revision;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #
+
+SET debug_dbug="";

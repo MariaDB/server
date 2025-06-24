@@ -13,8 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifndef _SQL_CACHE_H
-#define _SQL_CACHE_H
+#ifndef SQL_CACHE_INCLUDED
+#define SQL_CACHE_INCLUDED
 
 #include "hash.h"
 #include "my_base.h"                            /* ha_rows */
@@ -36,7 +36,7 @@ typedef struct st_changed_table_list CHANGED_TABLE_LIST;
 */
 #define QUERY_CACHE_MIN_ALLOCATION_UNIT		512
 
-/* inittial size of hashes */
+/* initial size of hashes */
 #define QUERY_CACHE_DEF_QUERY_HASH_SIZE		1024
 #define QUERY_CACHE_DEF_TABLE_HASH_SIZE		1024
 
@@ -129,7 +129,7 @@ struct Query_cache_block
   size_t length;					// length of all block
   size_t used;					// length of data
   /*
-    Not used **pprev, **prev because really needed access to pervious block:
+    Not used **pprev, **prev because really needed access to previous block:
     *pprev to join free blocks
     *prev to access to opposite side of list in cyclic sorted list
   */
@@ -485,7 +485,7 @@ protected:
 		  my_bool using_transactions);
 
   /* Remove all queries that uses any of the tables in following database */
-  void invalidate(THD *thd, const char *db);
+  void invalidate(THD *thd, const LEX_CSTRING &db);
 
   /* Remove all queries that uses any of the listed following table */
   void invalidate_by_MyISAM_filename(const char *filename);
@@ -543,7 +543,6 @@ protected:
   void disable_query_cache(THD *thd);
 };
 
-#ifdef HAVE_QUERY_CACHE
 struct Query_cache_query_flags
 {
   unsigned int client_long_flag:1;
@@ -584,29 +583,13 @@ struct Query_cache_query_flags
   query_cache.send_result_to_client(A, B, C)
 #define query_cache_invalidate_by_MyISAM_filename_ref \
   &query_cache_invalidate_by_MyISAM_filename
+#define query_cache_invalidate_locked_for_write(A, B) \
+  query_cache.invalidate_locked_for_write(A, B)
 /* note the "maybe": it's a read without mutex */
 #define query_cache_maybe_disabled(T)                                 \
   (T->variables.query_cache_type == 0 || query_cache.query_cache_size == 0)
 #define query_cache_is_cacheable_query(L) \
   (((L)->sql_command == SQLCOM_SELECT) && (L)->safe_to_cache_query)
-#else
-#define QUERY_CACHE_FLAGS_SIZE 0
-#define query_cache_store_query(A, B)     do { } while(0)
-#define query_cache_destroy()             do { } while(0)
-#define query_cache_result_size_limit(A)  do { } while(0)
-#define query_cache_init()                do { } while(0)
-#define query_cache_resize(A)             do { } while(0)
-#define query_cache_set_min_res_unit(A)   do { } while(0)
-#define query_cache_invalidate3(A, B, C)  do { } while(0)
-#define query_cache_invalidate1(A,B)      do { } while(0)
-#define query_cache_send_result_to_client(A, B, C) 0
-#define query_cache_invalidate_by_MyISAM_filename_ref NULL
-
-#define query_cache_abort(A,B)            do { } while(0)
-#define query_cache_end_of_result(A)      do { } while(0)
-#define query_cache_maybe_disabled(T) 1
-#define query_cache_is_cacheable_query(L) 0
-#endif /*HAVE_QUERY_CACHE*/
 
 extern MYSQL_PLUGIN_IMPORT Query_cache query_cache;
 #endif

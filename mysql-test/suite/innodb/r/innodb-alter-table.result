@@ -104,7 +104,7 @@ t	CREATE TABLE `t` (
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`),
   UNIQUE KEY `c` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t
 CHANGE COLUMN c b INT NOT NULL,
 ADD UNIQUE INDEX (c);
@@ -133,7 +133,7 @@ child	CREATE TABLE `child` (
   PRIMARY KEY (`a`),
   KEY `c` (`c`),
   CONSTRAINT `child_ibfk_1` FOREIGN KEY (`c`) REFERENCES `parent` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE child, parent;
 CREATE TABLE IF NOT EXISTS ticket (
 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -183,7 +183,7 @@ ticket	CREATE TABLE `ticket` (
   `org_id` int(10) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `org_id` (`org_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE ticket;
 CREATE TABLE t (
 id bigint(20) unsigned NOT NULL auto_increment,

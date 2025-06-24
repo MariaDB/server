@@ -3,10 +3,6 @@
 
 SET TIME_ZONE='+03:00';
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 --echo #
 --echo # Start of 5.5 tests
 --echo #
@@ -34,7 +30,7 @@ select hex(_utf16 0x113344);
 # low byte. The second character is THREE-PER-M, U+2004,
 # which contains 0x20 in the high byte.
 
-CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf16;
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET utf16 COLLATE utf16_general_ci;
 INSERT INTO t1 VALUES (_koi8r 0xF2, _koi8r 0xF2), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 SELECT hex(word2) FROM t1 ORDER BY word2;
@@ -687,7 +683,7 @@ show create table t1;
 drop table t1;
 
 #
-# Testing that maximim possible key length is 1000 bytes
+# Testing that maximum possible key length is 1000 bytes
 #
 create table t1 (a varchar(250) character set utf16 primary key);
 show create table t1;
@@ -833,8 +829,8 @@ SET NAMES utf8;
 set collation_connection=utf16_general_ci;
 --source include/weight_string.inc
 --source include/weight_string_euro.inc
-select hex(weight_string(_utf16 0xD800DC00));
-select hex(weight_string(_utf16 0xD800DC01));
+select hex(weight_string(_utf16 0xD800DC00 COLLATE utf16_general_ci));
+select hex(weight_string(_utf16 0xD800DC01 COLLATE utf16_general_ci));
 --source include/weight_string_l1.inc
 
 set collation_connection=utf16_bin;
@@ -897,7 +893,8 @@ SET NAMES utf8, character_set_connection=utf16;
 --echo #
 CREATE TABLE t1 (
   id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  a VARCHAR(10) CHARACTER SET utf16, KEY(a,id)
+  a VARCHAR(10) CHARACTER SET utf16 COLLATE utf16_general_ci,
+  KEY(a,id)
 );
 INSERT INTO t1 (a) VALUES (_utf8mb4 0x61);
 INSERT INTO t1 (a) VALUES (_utf8mb4 0xC280),(_utf8mb4 0xDFBF);
@@ -930,14 +927,17 @@ SELECT CAST(CONVERT('1Ĳ3' USING utf16) AS SIGNED);
 --echo #
 --echo # MDEV-9711 NO PAD Collatons
 --echo #
-SET character_set_connection=utf16;
+SET collation_connection=utf16_general_nopad_ci;
 let $coll='utf16_general_nopad_ci';
 let $coll_pad='utf16_general_ci';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
+SET collation_connection=utf16_nopad_bin;
 let $coll='utf16_nopad_bin';
 let $coll_pad='utf16_bin';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
 --echo #
 --echo # End of 10.2 tests
@@ -1034,9 +1034,9 @@ SELECT CAST(_utf16 0x0061D83DDE0E0062 AS INT);
 --echo #
 
 SET character_set_connection=utf16;
-SET tx_isolation= 'READ-COMMITTED';
-SELECT @@tx_isolation;
-SET tx_isolation=DEFAULT;
+SET transaction_isolation= 'READ-COMMITTED';
+SELECT @@transaction_isolation;
+SET transaction_isolation=DEFAULT;
 SET NAMES utf8mb3;
 
 --echo #

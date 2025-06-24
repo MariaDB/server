@@ -43,7 +43,7 @@ connection default;
 start transaction;
 insert into t1 values (1);
 connection con1;
-alter table t1 add column (j int), algorithm copy;
+alter table t1 add column (j int), algorithm copy, lock shared;
 connection con2;
 backup stage flush;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info

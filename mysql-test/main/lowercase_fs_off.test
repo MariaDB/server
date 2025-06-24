@@ -128,7 +128,7 @@ show triggers like '%T1%';
 drop table t1;
 
 let $datadir= `select @@datadir`;
-remove_file $datadir/mysql_upgrade_info;
+remove_file $datadir/mariadb_upgrade_info;
 
 set GLOBAL sql_mode=default;
 
@@ -146,3 +146,19 @@ CREATE TABLE t1 (a Mariadb_schema.date);
 
 CREATE TABLE t1 (a mariadb_schema.date);
 DROP TABLE t1;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
+--echo #
+create temporary table t1 (a int);
+create temporary table t2 (a int);
+create temporary table T1 (a int);
+show tables like 't1';
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='t1';
+show tables like '_1';
+show tables like 't%';
+
+--echo # End of 11.2 tests

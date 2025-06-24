@@ -256,98 +256,11 @@ where name='trx_rollbacks';
 
 set global innodb_monitor_disable = module_trx;
 
-# Test DML Module
-set global innodb_monitor_enable = module_dml;
-
-insert into monitor_test values(9);
-
-update monitor_test set col = 10 where col = 9;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-delete from monitor_test;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-	from information_schema.innodb_metrics
-	where name like "dml%";
-
-# test reset counter while the counter is on
-set global innodb_monitor_reset =  module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# insert/delete some rows after the reset
-insert into monitor_test values(9);
-insert into monitor_test values(1);
-
-delete from monitor_test;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# We do not allow reset_all while the counter is on, nothing
-# should be reset here
-set global innodb_monitor_reset_all  =  module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# Turn off the counter
-set global innodb_monitor_disable = module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# Reset all counter values
-set global innodb_monitor_reset_all  = module_dml;
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-# Open individual counter "dml_inserts"
-set global innodb_monitor_enable = dml_inserts;
-
-insert into monitor_test values(9);
-insert into monitor_test values(1);
-
-delete from monitor_test;
-
-# Only counter "dml_inserts" should be updated
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name like "dml%";
-
-set global innodb_monitor_disable = module_dml;
-
 drop table monitor_test;
 
 set global innodb_monitor_enable = file_num_open_files;
 
-# Counters are unpredictable when innodb-file-per-table is on
+# Counters are unpredictable
 --replace_column 2 # 3 # 4 # 5 # 6 # 7 #
 select name, max_count, min_count, count,
        max_count_reset, min_count_reset, count_reset,
@@ -568,7 +481,6 @@ set global innodb_monitor_disable = 'buffer\\_f%';
 set global innodb_monitor_disable = 'buffer\\_page\\_%';
 set global innodb_monitor_disable = 'c%';
 set global innodb_monitor_disable = 'ddl%';
-set global innodb_monitor_disable = 'dml\\_reads%';
 set global innodb_monitor_disable = 'icp%';
 set global innodb_monitor_disable = 'index\\_p%';
 set global innodb_monitor_disable = 'innodb\\_di%';
@@ -580,7 +492,6 @@ set global innodb_monitor_disable = 'log%';
 set global innodb_monitor_disable = 'm%';
 set global innodb_monitor_disable = 'p%';
 set global innodb_monitor_disable = 't%';
-set global innodb_monitor_enable = 'log_padded';
 set global innodb_monitor_enable = 'log\\_w%';
 set global innodb_monitor_enable = 'trx_rseg_history_len';
 set global innodb_monitor_enable = 'trx_undo_slots_cached';

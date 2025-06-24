@@ -207,7 +207,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` int(10) unsigned DEFAULT NULL,
   `least____b_b` int(10) unsigned DEFAULT NULL,
   `greatest_b_b` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -240,7 +240,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` decimal(10,0) DEFAULT NULL,
   `greatest_a_b` decimal(10,0) DEFAULT NULL,
   `greatest_b_a` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -415,7 +415,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` int(11) DEFAULT NULL,
   `least____b_b` int(11) DEFAULT NULL,
   `greatest_b_b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -448,7 +448,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` int(11) DEFAULT NULL,
   `greatest_a_b` int(11) DEFAULT NULL,
   `greatest_b_a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -623,7 +623,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` bigint(20) unsigned DEFAULT NULL,
   `least____b_b` bigint(20) unsigned DEFAULT NULL,
   `greatest_b_b` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -656,7 +656,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` decimal(20,0) DEFAULT NULL,
   `greatest_a_b` decimal(20,0) DEFAULT NULL,
   `greatest_b_a` decimal(20,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -831,7 +831,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` bigint(20) DEFAULT NULL,
   `least____b_b` bigint(20) DEFAULT NULL,
   `greatest_b_b` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -864,7 +864,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` bigint(20) DEFAULT NULL,
   `greatest_a_b` bigint(20) DEFAULT NULL,
   `greatest_b_a` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1008,7 +1008,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` bit(8) DEFAULT NULL,
   `least____b_b` bit(8) DEFAULT NULL,
   `greatest_b_b` bit(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -1041,7 +1041,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` decimal(10,0) DEFAULT NULL,
   `greatest_a_b` decimal(10,0) DEFAULT NULL,
   `greatest_b_a` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1185,7 +1185,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` bit(8) DEFAULT NULL,
   `least____b_b` bit(8) DEFAULT NULL,
   `greatest_b_b` bit(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -1218,7 +1218,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` int(10) unsigned DEFAULT NULL,
   `greatest_a_b` int(10) unsigned DEFAULT NULL,
   `greatest_b_a` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1362,7 +1362,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` bit(8) DEFAULT NULL,
   `least____b_b` bit(8) DEFAULT NULL,
   `greatest_b_b` bit(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -1395,7 +1395,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` bit(8) DEFAULT NULL,
   `greatest_a_b` bit(8) DEFAULT NULL,
   `greatest_b_a` bit(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1539,7 +1539,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` smallint(6) DEFAULT NULL,
   `least____b_b` smallint(6) DEFAULT NULL,
   `greatest_b_b` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -1572,7 +1572,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` double DEFAULT NULL,
   `greatest_a_b` double DEFAULT NULL,
   `greatest_b_a` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1609,14 +1609,14 @@ def					ifnull___a_a	253	10	1	Y	0	39	8
 def					least____a_a	253	10	1	Y	0	39	8
 def					greatest_a_a	253	10	1	Y	0	39	8
 def	test	t1	t1	b	___________b	254	1	1	Y	256	0	8
-def					case_______b	254	1	1	Y	0	39	8
-def					case_____b_b	254	1	1	Y	0	39	8
-def					coalesce___b	254	1	1	Y	0	39	8
-def					coalesce_b_b	254	1	1	Y	0	39	8
-def					if_______b_b	254	1	1	Y	0	39	8
-def					ifnull___b_b	254	1	1	Y	0	39	8
-def					least____b_b	254	1	1	Y	0	39	8
-def					greatest_b_b	254	1	1	Y	0	39	8
+def					case_______b	253	1	1	Y	0	39	8
+def					case_____b_b	253	1	1	Y	0	39	8
+def					coalesce___b	253	1	1	Y	0	39	8
+def					coalesce_b_b	253	1	1	Y	0	39	8
+def					if_______b_b	253	1	1	Y	0	39	8
+def					ifnull___b_b	253	1	1	Y	0	39	8
+def					least____b_b	253	1	1	Y	0	39	8
+def					greatest_b_b	253	1	1	Y	0	39	8
 ___________a	a
 case_______a	a
 case_____a_a	a
@@ -1716,7 +1716,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` varchar(1) DEFAULT NULL,
   `least____b_b` varchar(1) DEFAULT NULL,
   `greatest_b_b` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -1749,7 +1749,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` varchar(10) DEFAULT NULL,
   `greatest_a_b` varchar(10) DEFAULT NULL,
   `greatest_b_a` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1893,7 +1893,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` year(4) DEFAULT NULL,
   `least____b_b` year(4) DEFAULT NULL,
   `greatest_b_b` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -1926,7 +1926,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` decimal(10,0) DEFAULT NULL,
   `greatest_a_b` decimal(10,0) DEFAULT NULL,
   `greatest_b_a` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2070,7 +2070,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` year(4) DEFAULT NULL,
   `least____b_b` year(4) DEFAULT NULL,
   `greatest_b_b` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -2103,7 +2103,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` int(10) unsigned DEFAULT NULL,
   `greatest_a_b` int(10) unsigned DEFAULT NULL,
   `greatest_b_a` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2248,7 +2248,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` time DEFAULT NULL,
   `least____b_b` time DEFAULT NULL,
   `greatest_b_b` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -2281,7 +2281,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` datetime DEFAULT NULL,
   `greatest_a_b` datetime DEFAULT NULL,
   `greatest_b_a` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -2310,15 +2310,15 @@ LEAST(b, b)                               AS least____b_b,
 GREATEST(b, b)                            AS greatest_b_b
 FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	a	___________a	7	19	19	N	9377	0	63
+def	test	t1	t1	a	___________a	7	19	19	Y	160	0	63
 def					case_______a	7	19	19	Y	128	0	63
-def					case_____a_a	7	19	19	N	129	0	63
-def					coalesce___a	7	19	19	N	129	0	63
-def					coalesce_a_a	7	19	19	N	129	0	63
-def					if_______a_a	7	19	19	N	129	0	63
-def					ifnull___a_a	7	19	19	N	129	0	63
-def					least____a_a	7	19	19	N	129	0	63
-def					greatest_a_a	7	19	19	N	129	0	63
+def					case_____a_a	7	19	19	Y	128	0	63
+def					coalesce___a	7	19	19	Y	128	0	63
+def					coalesce_a_a	7	19	19	Y	128	0	63
+def					if_______a_a	7	19	19	Y	128	0	63
+def					ifnull___a_a	7	19	19	Y	128	0	63
+def					least____a_a	7	19	19	Y	128	0	63
+def					greatest_a_a	7	19	19	Y	128	0	63
 def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
 def					case_______b	11	10	8	Y	128	0	63
 def					case_____b_b	11	10	8	Y	128	0	63
@@ -2368,7 +2368,7 @@ def					coalesce_b_a	12	19	19	Y	128	0	63
 def					if_______a_b	12	19	19	Y	128	0	63
 def					if_______b_a	12	19	19	Y	128	0	63
 def					ifnull___a_b	12	19	19	Y	128	0	63
-def					ifnull___b_a	12	19	19	N	129	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
 def					least____a_b	12	19	19	Y	128	0	63
 def					least____b_a	12	19	19	Y	128	0	63
 def					greatest_a_b	12	19	19	Y	128	0	63
@@ -2409,15 +2409,15 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `___________a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `___________a` timestamp NULL DEFAULT NULL,
   `case_______a` timestamp NULL DEFAULT NULL,
-  `case_____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `coalesce___a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `coalesce_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `if_______a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `ifnull___a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `least____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `greatest_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `case_____a_a` timestamp NULL DEFAULT NULL,
+  `coalesce___a` timestamp NULL DEFAULT NULL,
+  `coalesce_a_a` timestamp NULL DEFAULT NULL,
+  `if_______a_a` timestamp NULL DEFAULT NULL,
+  `ifnull___a_a` timestamp NULL DEFAULT NULL,
+  `least____a_a` timestamp NULL DEFAULT NULL,
+  `greatest_a_a` timestamp NULL DEFAULT NULL,
   `___________b` time DEFAULT NULL,
   `case_______b` time DEFAULT NULL,
   `case_____b_b` time DEFAULT NULL,
@@ -2427,7 +2427,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` time DEFAULT NULL,
   `least____b_b` time DEFAULT NULL,
   `greatest_b_b` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -2455,12 +2455,12 @@ t2	CREATE TABLE `t2` (
   `if_______a_b` datetime DEFAULT NULL,
   `if_______b_a` datetime DEFAULT NULL,
   `ifnull___a_b` datetime DEFAULT NULL,
-  `ifnull___b_a` datetime NOT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
   `least____a_b` datetime DEFAULT NULL,
   `least____b_a` datetime DEFAULT NULL,
   `greatest_a_b` datetime DEFAULT NULL,
   `greatest_b_a` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -2606,7 +2606,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` time DEFAULT NULL,
   `least____b_b` time DEFAULT NULL,
   `greatest_b_b` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -2639,7 +2639,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` datetime DEFAULT NULL,
   `greatest_a_b` datetime DEFAULT NULL,
   `greatest_b_a` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -2785,7 +2785,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` date DEFAULT NULL,
   `least____b_b` date DEFAULT NULL,
   `greatest_b_b` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -2818,7 +2818,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` datetime DEFAULT NULL,
   `greatest_a_b` datetime DEFAULT NULL,
   `greatest_b_a` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -2978,7 +2978,7 @@ t2	CREATE TABLE `t2` (
   `ifnull___b_b` varchar(10) DEFAULT NULL,
   `least____b_b` varchar(10) DEFAULT NULL,
   `greatest_b_b` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS
@@ -3016,7 +3016,7 @@ t2	CREATE TABLE `t2` (
   `least____b_a` double DEFAULT NULL,
   `greatest_a_b` double DEFAULT NULL,
   `greatest_b_a` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -3032,7 +3032,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `LEAST(1.0,'10')` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-657 LP:873142 - GREATEST() does not always return same signness of argument types
@@ -3058,12 +3058,12 @@ CREATE TABLE t1 (a TIMESTAMP);
 INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
 SELECT GREATEST(a,a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					GREATEST(a,a)	7	19	19	N	129	0	63
+def					GREATEST(a,a)	7	19	19	Y	128	0	63
 GREATEST(a,a)
 2010-01-01 10:20:30
 SELECT COALESCE(a,a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,a)	7	19	19	N	129	0	63
+def					COALESCE(a,a)	7	19	19	Y	128	0	63
 COALESCE(a,a)
 2010-01-01 10:20:30
 DROP TABLE t1;
@@ -3072,10 +3072,10 @@ CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `LEAST(a,a)` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `LEAST(a,a)` timestamp NULL DEFAULT NULL,
   `LEAST(b,b)` datetime DEFAULT NULL,
   `LEAST(a,b)` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -3097,7 +3097,7 @@ t2	CREATE TABLE `t2` (
   `c2` mediumblob DEFAULT NULL,
   `c3` blob DEFAULT NULL,
   `c4` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2,
@@ -3122,9 +3122,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) DEFAULT NULL,
-  `c2` varchar(255) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2
@@ -3145,9 +3145,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2
@@ -3169,10 +3169,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) DEFAULT NULL,
-  `c2` varchar(255) DEFAULT NULL,
-  `c3` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2,
@@ -3196,10 +3196,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1,
 MAX(COALESCE(c2)) AS c2,
@@ -3221,8 +3221,8 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1
 FROM t1;
@@ -3240,8 +3240,8 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 MAX(COALESCE(c1)) AS c1
 FROM t1;
@@ -3269,7 +3269,7 @@ t2	CREATE TABLE `t2` (
   `c2` blob DEFAULT NULL,
   `c3` mediumblob DEFAULT NULL,
   `c4` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c1:=c1 AS c1,
 @c2:=c2 AS c2,
@@ -3293,9 +3293,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) DEFAULT NULL,
-  `c2` varchar(255) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c1:=c1 AS c1,
 @c2:=c2 AS c2
@@ -3315,9 +3315,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c1:=c1 AS c1,
 @c2:=c2 AS c2
@@ -3338,10 +3338,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) DEFAULT NULL,
-  `c2` varchar(255) DEFAULT NULL,
-  `c3` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c:=c1 AS c1,
 @c:=c2 AS c2,
@@ -3364,10 +3364,10 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  `c3` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  `c3` text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c:=c1 AS c1,
 @c:=c2 AS c2,
@@ -3388,8 +3388,8 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c:=c1 AS c1
 FROM t1;
@@ -3406,8 +3406,8 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT
 @c:=c1 AS c1
 FROM t1;
@@ -3443,9 +3443,9 @@ EXECUTE stmt USING @a,@a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(20) DEFAULT NULL,
-  `b` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `b` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
@@ -3492,9 +3492,9 @@ COALESCE(_latin1'aaa',_utf8 0xC39F) AS c2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
-  `c2` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
+  `c2` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c1	c2
 aaa	aaa
@@ -3526,7 +3526,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` decimal(64,0) DEFAULT NULL,
   `GREATEST(a,b)` decimal(64,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -3538,7 +3538,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` double(255,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -3550,7 +3550,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a)` float(10,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a FLOAT(10,2));
 CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
@@ -3558,7 +3558,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,a)` float(19,2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a TINYINT(1));
 CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
@@ -3566,7 +3566,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a)` tinyint(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2, t1;
 CREATE TABLE t1 (a TINYINT(1));
 CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
@@ -3574,7 +3574,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `LEAST(a,a)` tinyint(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2, t1;
 #
 # MDEV-12875 Wrong VIEW column data type for COALESCE(int_column)
@@ -3598,7 +3598,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(11) NOT NULL,
   `c2` bigint(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 9 AS i1, COALESCE(9) AS c1,
@@ -3688,7 +3688,7 @@ t1	CREATE TABLE `t1` (
   `c21` decimal(21,0) NOT NULL,
   `i22` decimal(22,0) NOT NULL,
   `c22` decimal(22,0) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 i1	9
 c1	9
@@ -3764,7 +3764,7 @@ t2	CREATE TABLE `t2` (
   `c2` smallint(6) DEFAULT NULL,
   `c3` smallint(6) DEFAULT NULL,
   `c4` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2,t1;
 CREATE TABLE t1 AS SELECT
 connection_id() AS c0,
@@ -3780,7 +3780,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(10) unsigned NOT NULL,
   `c3` int(10) unsigned NOT NULL,
   `c4` int(10) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
@@ -3797,7 +3797,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `f0` decimal(1,0) DEFAULT NULL,
   `f1` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 SET sql_mode=DEFAULT;
 #
@@ -3866,7 +3866,7 @@ t1	CREATE TABLE `t1` (
   `i2` date DEFAULT NULL,
   `i3` datetime DEFAULT NULL,
   `i4` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
@@ -3877,9 +3877,11 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET old_mode=ZERO_DATE_TIME_CAST;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 10:20:30'
@@ -3890,7 +3892,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET old_mode=DEFAULT;
 SET timestamp=DEFAULT;
@@ -3911,7 +3913,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
@@ -3998,7 +4000,7 @@ t1	CREATE TABLE `t1` (
   `i2` date DEFAULT NULL,
   `i3` datetime DEFAULT NULL,
   `i4` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
@@ -4009,9 +4011,11 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET old_mode=ZERO_DATE_TIME_CAST;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
 Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 10:20:30'
@@ -4022,7 +4026,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET old_mode=DEFAULT;
 SET timestamp=DEFAULT;
@@ -4043,7 +4047,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
@@ -4099,7 +4103,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c0` date DEFAULT NULL,
-  `string` varchar(10) DEFAULT NULL,
+  `string` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `date` date DEFAULT NULL,
   `datetime` datetime DEFAULT NULL,
   `time` time DEFAULT NULL,
@@ -4107,7 +4111,7 @@ t1	CREATE TABLE `t1` (
   `dbl` double DEFAULT NULL,
   `sint` bigint(10) DEFAULT NULL,
   `uint` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
@@ -4148,7 +4152,7 @@ ERROR HY000: Illegal parameter data types bigint unsigned and row for operation 
 # COALESCE
 CREATE TABLE t1 (a TINYINT UNSIGNED, b TINYINT);
 SELECT COALESCE(a,a)=ROW(1,1) FROM t1;
-ERROR HY000: Illegal parameter data types tiny unsigned and row for operation '='
+ERROR HY000: Illegal parameter data types tinyint unsigned and row for operation '='
 SELECT COALESCE(b,b)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types tinyint and row for operation '='
 DROP TABLE t1;
@@ -4241,7 +4245,7 @@ ERROR HY000: Illegal parameter data types bigint unsigned and row for operation 
 SELECT (b+b)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types bigint and row for operation '='
 DROP TABLE t1;
-# Opetator + for different types integer types, with the UNSIGNED flag
+# Operator + for different types integer types, with the UNSIGNED flag
 CREATE TABLE t1 (a1 TINYINT UNSIGNED, a2 SMALLINT UNSIGNED);
 SELECT (a1+a2)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types int unsigned and row for operation '='
@@ -4278,7 +4282,7 @@ DROP TABLE t1;
 # SUM
 CREATE TABLE t1 (a TINYINT UNSIGNED, b TINYINT);
 SELECT MAX(a)=ROW(1,1) FROM t1;
-ERROR HY000: Illegal parameter data types tiny unsigned and row for operation '='
+ERROR HY000: Illegal parameter data types tinyint unsigned and row for operation '='
 SELECT MAX(b)=ROW(1,1) FROM t1;
 ERROR HY000: Illegal parameter data types tinyint and row for operation '='
 DROP TABLE t1;

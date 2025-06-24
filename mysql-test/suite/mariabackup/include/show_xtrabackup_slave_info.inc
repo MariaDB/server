@@ -1,8 +1,8 @@
 --disable_query_log
---file_exists $targetdir/xtrabackup_slave_info
+--file_exists $targetdir/mariadb_backup_slave_info
 CREATE TEMPORARY TABLE tmp_slave_info(lineno SERIAL, line TEXT);
 --replace_result $targetdir TARGETDIR
---eval LOAD DATA LOCAL INFILE '$targetdir/xtrabackup_slave_info' INTO TABLE tmp_slave_info (line);
+--eval LOAD DATA LOCAL INFILE '$targetdir/mariadb_backup_slave_info' INTO TABLE tmp_slave_info (line);
 SELECT
   lineno,
   regexp_replace(

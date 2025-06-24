@@ -42,6 +42,8 @@ Created 3/26/1996 Heikki Tuuri
 extern mysql_pfs_key_t trx_sys_mutex_key;
 #endif
 
+extern bool trx_rollback_is_active;
+
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
@@ -579,8 +581,7 @@ public:
 
     So we take more expensive approach: get trx through current_thd()->ha_data.
     Some threads don't have trx attached to THD, and at least server
-    initialisation thread, fts_optimize_thread, srv_master_thread,
-    dict_stats_thread, srv_monitor_thread, btr_defragment_thread don't even
+    initialisation thread doesn't even
     have THD at all. For such cases we allocate pins only for duration of
     search and free them immediately.
 
@@ -812,6 +813,21 @@ public:
     mysql_mutex_unlock(&mutex);
   }
 
+  template <typename Callable> bool find_first(Callable &&callback) const
+  {
+    mysql_mutex_lock(&mutex);
+    for (trx_t &trx : trx_list)
+    {
+      if (callback(trx))
+      {
+        mysql_mutex_unlock(&mutex);
+        return true;
+      }
+    }
+    mysql_mutex_unlock(&mutex);
+    return false;
+  }
+
   template <typename Callable> void for_each(Callable &&callback) const
   {
     mysql_mutex_lock(&mutex);
@@ -860,6 +876,8 @@ class trx_sys_t
 
   bool m_initialised;
 
+  /** False if there is no undo log to purge or rollback */
+  bool undo_log_nonempty;
 public:
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
@@ -1050,7 +1068,7 @@ public:
   /**
     Takes MVCC snapshot.
 
-    To reduce malloc probablility we reserve rw_trx_hash.size() + 32 elements
+    To reduce malloc probability we reserve rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin
@@ -1107,6 +1125,10 @@ public:
   /** @return total number of active (non-prepared) transactions */
   size_t any_active_transactions(size_t *prepared= nullptr);
 
+#ifndef EMBEDDED_LIBRARY
+  /** @return true if any active (non-prepared) transactions is recovered */
+  bool any_active_transaction_recovered();
+#endif
 
   /**
     Determine the rollback segment identifier.
@@ -1227,6 +1249,23 @@ public:
   @param space   undo tablespace that will be truncated */
   inline void undo_truncate_start(fil_space_t &space);
 
+  /** Set the undo log empty value */
+  void set_undo_non_empty(bool val)
+  {
+    if (!undo_log_nonempty)
+      undo_log_nonempty= val;
+  }
+
+  /** Get the undo log empty value */
+  bool is_undo_empty() const { return !undo_log_nonempty; }
+
+  /** @return whether XA transaction is in PREPARED state */
+  static bool is_xa_exist() noexcept;
+
+  /* Reset the trx_sys page and retain the dblwr information,
+  system rollback segment header page
+  @return error code */
+  inline dberr_t reset_page(mtr_t *mtr);
 private:
   static my_bool find_same_or_older_callback(void *el, void *i) noexcept;
 

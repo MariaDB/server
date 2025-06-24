@@ -18,7 +18,7 @@ SET @@global.query_cache_size=1355776;
 # more then 255 (257) merged tables test
 #
 
-flush status;
+flush global status;
 disable_query_log;
 --disable_warnings
 let $1 = 257;

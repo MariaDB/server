@@ -1,4 +1,6 @@
 -- source include/have_des.inc
+#double warning for view protocol 
+--source include/no_view_protocol.inc
 
 # This test can't be in func_encrypt.test, because it requires
 # --des-key-file to not be set.
@@ -63,4 +65,6 @@ SELECT CHAR_LENGTH(a), DES_DECRYPT(a) FROM (SELECT _utf8 0xC2A2 AS a FROM t1) AS
 --enable_cursor_protocol
 DROP TABLE t1;
 
---Echo End of 10.5 tests
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -1,0 +1,6 @@
+#
+# Check default optimizer_cost_arguments
+#
+
+select engine,optimizer_disk_read_ratio from information_schema.optimizer_costs where engine in ("memory","aria","default");
+select @@memory.optimizer_row_lookup_cost;

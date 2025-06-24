@@ -176,7 +176,7 @@ select * from t2;
 drop table t1, t2;
 #
 # BUGS #9728 - 'Decreased functionality in "on duplicate key update"' 
-#      #8147 - 'a column proclaimed ambigous in INSERT ... SELECT .. ON
+#      #8147 - 'a column proclaimed ambiguous in INSERT ... SELECT .. ON
 #      DUPLICATE'
 #
 create table t1 (a int unique);
@@ -230,7 +230,7 @@ drop table t1,t2;
 #             tables
 #
 
-#Note: not an exsaustive test : just a check of the code path.
+#Note: not an exhaustive test : just a check of the code path.
 CREATE TABLE t1 (a int PRIMARY KEY);
 INSERT INTO t1 values (1), (2);
 
@@ -612,6 +612,7 @@ eval $q;
 select * from t1;
 
 eval explain $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 eval prepare stmt from "$q";

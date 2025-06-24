@@ -25,6 +25,13 @@
 --let $rpl_topology= 1->2
 --source include/rpl_init.inc
 
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
+--connection server_1
+
 --enable_connect_log
 
 # We stop replication because we want it to happen after the switch
@@ -124,7 +131,7 @@ start slave;
 --sync_with_master
 
 --connection server_1
-# Now save the current position and make slave to try to syncrhonize.
+# Now save the current position and make slave to try to synchronize.
 # It shouldn't work, the slave IO thread is expected to abort with an error
 --save_master_pos
 
@@ -139,7 +146,8 @@ SHOW TABLES;
 # IO thread is stopped, stop SQL thread only
 --source include/stop_slave_sql.inc
 --enable_connect_log
-reset slave;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
 
 --echo ##########
 --echo # Cleanup

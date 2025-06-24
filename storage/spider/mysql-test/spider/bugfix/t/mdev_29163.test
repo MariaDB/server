@@ -18,7 +18,9 @@ CREATE TABLE t1_spider (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's'
 CREATE TABLE t2_spider (b INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't2'";
 CREATE TABLE t3_spider (c INT, PRIMARY KEY(c)) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't3'";
 
+--disable_ps_protocol
 SELECT t1_spider.* FROM t1_spider LEFT JOIN t2_spider LEFT JOIN t3_spider ON b = c ON a = b;
+--enable_ps_protocol
 
 # Cleanup
 DROP TABLE t1_spider, t2_spider, t3_spider, t1, t2, t3;

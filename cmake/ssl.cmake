@@ -18,12 +18,7 @@
 # - "bundled" uses source code in <source dir>/extra/wolfssl
 # - "system"  (typically) uses headers/libraries in /usr/lib and /usr/lib64
 # - a custom installation of openssl can be used like this
-#     - cmake -DCMAKE_PREFIX_PATH=</path/to/custom/openssl> -DWITH_SSL="system"
-#   or
-#     - cmake -DWITH_SSL=</path/to/custom/openssl>
-#
-# The default value for WITH_SSL is "bundled"
-# set in cmake/build_configurations/feature_set.cmake
+#     - cmake -DOPENSSL_ROOT_DIR=</path/to/custom/openssl>
 #
 # For custom build/install of openssl, see the accompanying README and
 # INSTALL* files. When building with gcc, you must build the shared libraries
@@ -40,8 +35,7 @@ SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, yes (prefer os library if present, otherwise use bundled)")
 SET(WITH_SSL_DOC
   "${WITH_SSL_DOC}, system (use os library)")
-SET(WITH_SSL_DOC
-  "${WITH_SSL_DOC}, </path/to/custom/installation>")
+SET(WITH_SSL yes CACHE STRING ${WITH_SSL_DOC})
 
 MACRO (CHANGE_SSL_SETTINGS string)
   SET(WITH_SSL ${string} CACHE STRING ${WITH_SSL_DOC} FORCE)
@@ -57,10 +51,11 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
   SET(SSL_INCLUDE_DIRS ${INC_DIRS})
   SET(SSL_DEFINES "-DHAVE_OPENSSL -DHAVE_WOLFSSL  -DWOLFSSL_USER_SETTINGS")
   SET(HAVE_ERR_remove_thread_state ON CACHE INTERNAL "wolfssl doesn't have ERR_remove_thread_state")
-  SET(HAVE_EncryptAes128Ctr OFF CACHE INTERNAL "wolfssl does support AES-CTR, but differently from openssl")
+  SET(HAVE_EncryptAes128Ctr ON CACHE INTERNAL "wolfssl does support AES-CTR")
   SET(HAVE_EncryptAes128Gcm OFF CACHE INTERNAL "wolfssl does not support AES-GCM")
-  SET(HAVE_X509_check_host ON CACHE INTERNAL  "wolfssl does support X509_check_host")
   SET(HAVE_des ON CACHE INTERNAL "wolfssl does support DES API")
+  SET(HAVE_evp_pkey ON CACHE INTERNAL "wolfssl does support EVP_PKEY API")
+  SET(HAVE_hkdf ON CACHE INTERNAL "wolfssl does support EVP_PKEY_HKDF API")
   CHANGE_SSL_SETTINGS("bundled")
   ADD_SUBDIRECTORY(extra/wolfssl)
   MESSAGE_ONCE(SSL_LIBRARIES "SSL_LIBRARIES = ${SSL_LIBRARIES}")
@@ -74,24 +69,21 @@ MACRO (MYSQL_CHECK_SSL)
   IF(NOT WITH_SSL)
    IF(WIN32)
      CHANGE_SSL_SETTINGS("bundled")
-   ELSE()
-     SET(WITH_SSL "yes")
    ENDIF()
   ENDIF()
 
-  # See if WITH_SSL is of the form </path/to/custom/installation>
-  FILE(GLOB WITH_SSL_HEADER ${WITH_SSL}/include/openssl/ssl.h)
-  IF (WITH_SSL_HEADER)
-    SET(WITH_SSL_PATH ${WITH_SSL} CACHE PATH "path to custom SSL installation")
+  IF (NOT WITH_SSL MATCHES "^(yes|system|bundled)$" AND EXISTS "${WITH_SSL}")
+    IF (CMAKE_VERSION VERSION_LESS 3.24)
+      # workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/22945
+      SET(OPENSSL_ROOT_DIR "${WITH_SSL}" "${WITH_SSL}/lib64")
+    ELSE()
+      SET(OPENSSL_ROOT_DIR "${WITH_SSL}")
+    ENDIF()
   ENDIF()
 
   IF(WITH_SSL STREQUAL "bundled")
     MYSQL_USE_BUNDLED_SSL()
     # Reset some variables, in case we switch from /path/to/ssl to "bundled".
-    IF (WITH_SSL_PATH)
-      UNSET(WITH_SSL_PATH)
-      UNSET(WITH_SSL_PATH CACHE)
-    ENDIF()
     IF (OPENSSL_ROOT_DIR)
       UNSET(OPENSSL_ROOT_DIR)
       UNSET(OPENSSL_ROOT_DIR CACHE)
@@ -109,28 +101,14 @@ MACRO (MYSQL_CHECK_SSL)
       UNSET(OPENSSL_SSL_LIBRARY CACHE)
     ENDIF()
   ELSEIF(WITH_SSL STREQUAL "system" OR
-         WITH_SSL STREQUAL "yes" OR
-         WITH_SSL_PATH
-         )
-    IF(NOT OPENSSL_ROOT_DIR)
-      IF(WITH_SSL_PATH)
-        # workaround for https://gitlab.kitware.com/cmake/cmake/-/issues/22945
-        SET(OPENSSL_ROOT_DIR ${WITH_SSL_PATH} ${WITH_SSL_PATH}/lib64)
-      ENDIF()
-    ENDIF()
+         WITH_SSL STREQUAL "yes"    OR
+         OPENSSL_ROOT_DIR)
     FIND_PACKAGE(OpenSSL)
     SET_PACKAGE_PROPERTIES(OpenSSL PROPERTIES TYPE RECOMMENDED)
     IF(OPENSSL_FOUND)
       SET(OPENSSL_LIBRARY ${OPENSSL_SSL_LIBRARY})
-      INCLUDE(CheckSymbolExists)
       SET(SSL_SOURCES "")
-      SET(SSL_LIBRARIES ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
-      IF(CMAKE_SYSTEM_NAME MATCHES "SunOS")
-        SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${LIBSOCKET})
-      ENDIF()
-      IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
-        SET(SSL_LIBRARIES ${SSL_LIBRARIES} ${CMAKE_DL_LIBS})
-      ENDIF()
+      SET(SSL_LIBRARIES ${OPENSSL_LIBRARIES})
 
       MESSAGE_ONCE(OPENSSL_INCLUDE_DIR "OPENSSL_INCLUDE_DIR = ${OPENSSL_INCLUDE_DIR}")
       MESSAGE_ONCE(OPENSSL_SSL_LIBRARY "OPENSSL_SSL_LIBRARY = ${OPENSSL_SSL_LIBRARY}")
@@ -151,16 +129,19 @@ MACRO (MYSQL_CHECK_SSL)
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
       SET(CMAKE_REQUIRED_LIBRARIES ${SSL_LIBRARIES})
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
+      INCLUDE(CheckSymbolExists)
       CHECK_SYMBOL_EXISTS(ERR_remove_thread_state "openssl/err.h"
                           HAVE_ERR_remove_thread_state)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_ctr "openssl/evp.h"
                           HAVE_EncryptAes128Ctr)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_gcm "openssl/evp.h"
                           HAVE_EncryptAes128Gcm)
-      CHECK_SYMBOL_EXISTS(X509_check_host "openssl/x509v3.h"
-                          HAVE_X509_check_host)
       CHECK_SYMBOL_EXISTS(DES_set_key_unchecked "openssl/des.h"
                           HAVE_des)
+      CHECK_SYMBOL_EXISTS(EVP_PKEY_get_raw_public_key "openssl/evp.h"
+                          HAVE_evp_pkey)
+      CHECK_SYMBOL_EXISTS(EVP_PKEY_CTX_set_hkdf_md "string.h;stdarg.h;openssl/kdf.h"
+                          HAVE_hkdf)
       SET(CMAKE_REQUIRED_INCLUDES)
       SET(CMAKE_REQUIRED_LIBRARIES)
       SET(CMAKE_REQUIRED_DEFINITIONS)
@@ -172,7 +153,9 @@ MACRO (MYSQL_CHECK_SSL)
     ENDIF()
   ELSE()
     MESSAGE(FATAL_ERROR
-      "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}")
+      "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}."
+      "For custom location of OpenSSL library, use OPENSSL_ROOT_DIR pointing to the library."
+    )
   ENDIF()
 ENDMACRO()
 

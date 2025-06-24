@@ -93,7 +93,6 @@ INSERT INTO global_suppressions VALUES
  ("Enabling keys got errno"),
  ("Error reading master configuration"),
  ("Error reading packet"),
- ("Event Scheduler"),
  ("Failed to open log"),
  ("Failed to open the existing master info file"),
  ("Forcing shutdown of [0-9]* plugins"),
@@ -105,7 +104,6 @@ INSERT INTO global_suppressions VALUES
  */
 
  ("Got error [0-9]* when reading table"),
- ("Incorrect definition of table"),
  ("Incorrect information in file"),
  ("InnoDB: Warning: we did not need to do crash recovery"),
  /*("Invalid \\(old\\?\\) table or database name"),*/

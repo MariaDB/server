@@ -20,8 +20,6 @@ else
 select '' as "SUCCESS";
 end if;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set @reprepare_count= 0;
 flush status;
 =====================================================================
@@ -322,8 +320,8 @@ create table t3 (a int unique);
 create view v1 as select a from t2;
 create trigger t1_ai after insert on t1 for each row
 insert into v1 (a) values (new.a);
-# Demonstrate that the same bug is present
-# without prepared statements
+# Demonstrate that this bug is fixed by MDEV-5816
+# both for regular and prepared statements
 insert into t1 (a) values (5);
 select * from t2;
 a
@@ -333,15 +331,15 @@ a
 drop view v1;
 create view v1 as select a from t3;
 insert into t1 (a) values (6);
-ERROR 42S02: Table 'test.t2' doesn't exist
 flush table t1;
-insert into t1 (a) values (6);
+insert into t1 (a) values (60);
 select * from t2;
 a
 5
 select * from t3;
 a
 6
+60
 prepare stmt from "insert into t1 (a) values (?)";
 set @var=7;
 execute stmt using @var;
@@ -352,6 +350,7 @@ select * from t3;
 a
 6
 7
+60
 select * from t2;
 a
 5
@@ -366,23 +365,26 @@ set @var=8;
 # but repreparation of the main statement doesn't cause repreparation
 # of trigger statements.
 #
-# The following EXECUTE results in ER_NO_SUCH_TABLE (t3) error, because
-# pre-locking list of the prepared statement has been changed
+# Prior MDEV-5816, the following EXECUTE resulted in
+# ER_NO_SUCH_TABLE (t3) error, because pre-locking list of the prepared
+# statement has been changed
 # (the prepared statement has noticed the meta-data change),
 # but the trigger still tries to deal with 't3', which is not opened.
 # That's why '8' is not inserted neither into 't2', nor into 't3'.
+# After the task MDEV-5816 be implemented this issue does't exist.
 execute stmt using @var;
-ERROR 42S02: Table 'test.t3' doesn't exist
 call p_verify_reprepare_count(1);
 SUCCESS
 
 select * from t2;
 a
 5
+8
 select * from t3;
 a
 6
 7
+60
 flush table t1;
 set @var=9;
 execute stmt using @var;
@@ -392,11 +394,13 @@ SUCCESS
 select * from t2;
 a
 5
+8
 9
 select * from t3;
 a
 6
 7
+60
 drop view v1;
 drop table t1,t2,t3;
 # Test 7-d: dependent TABLE has changed
@@ -1075,8 +1079,6 @@ call p1(x);
 return x;
 end|
 create procedure p1(out x int) select max(a) from t1 into x;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 prepare stmt from "select * from v1";
 execute stmt;
 f1()
@@ -1089,8 +1091,6 @@ SUCCESS
 
 drop procedure p1;
 create procedure p1(out x int) select max(a) from t2 into x;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # XXX: used to be a bug. The prelocked list was not invalidated
 # and we kept opening table t1, whereas the procedure
 # is now referring to table t2
@@ -2367,11 +2367,11 @@ drop table if exists t1;
 create table t1 (a int);
 prepare stmt from "show collation where (1) in (select * from t1)";
 execute stmt;
-Collation	Charset	Id	Default	Compiled	Sortlen
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 drop table t1;
 create table t1 (x int);
 execute stmt;
-Collation	Charset	Id	Default	Compiled	Sortlen
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 drop table t1;
 deallocate prepare stmt;
 #
@@ -2544,7 +2544,7 @@ EXECUTE stmt1;
 # Create temporary table which will shadow t1.
 CREATE TEMPORARY TABLE t1 (b int);
 # The below execution of statement should not fail with ER_CANT_REOPEN
-# error. Instead stmt1 should be auto-matically reprepared and succeed.
+# error. Instead stmt1 should be automatically reprepared and executed successfully.
 EXECUTE stmt1;
 DEALLOCATE PREPARE stmt1;
 DROP TEMPORARY TABLE t1;

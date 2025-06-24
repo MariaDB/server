@@ -10,7 +10,7 @@ TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 11	SYS_FOREIGN	0	7	0	Redundant	0	System
 12	SYS_FOREIGN_COLS	0	7	0	Redundant	0	System
 13	SYS_VIRTUAL	0	6	0	Redundant	0	System
-16	mysql/transaction_registry	33	8	3	Dynamic	0	Single
+16	mysql/transaction_registry	33	8	6	Dynamic	0	Single
 SELECT table_id,pos,mtype,prtype,len,name
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS
 WHERE table_id NOT IN (@table_stats_id, @index_stats_id)
@@ -77,6 +77,9 @@ test/t_dynamic	test/t_dynamic	33	5	Dynamic	0
 test/t_redundant	test/t_redundant	0	5	Redundant	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t_redundant	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t_redundant.ibd
 test/t_compact	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t_compact.ibd
 test/t_compressed	DEFAULT	2048	MYSQLD_DATADIR/test/t_compressed.ibd

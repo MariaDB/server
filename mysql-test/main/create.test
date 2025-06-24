@@ -741,14 +741,14 @@ drop table t1;
 # Error during open_and_lock_tables() of tables
 --error ER_NO_SUCH_TABLE
 create table t1 select * from t2;
-# A special case which is also caught during open tables pahse
+# A special case which is also caught during open tables phase
 --error ER_NO_SUCH_TABLE
 create table t1 select * from t1;
 # Error which happens before select_create::prepare()
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 # Error during table creation
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (primary key(a)) select "b" as b;
 # Error in select_create::prepare() which is not related to table creation
 create table t1 (a int);
@@ -771,12 +771,12 @@ drop table t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 
-# Base vs temporary tables dillema (a.k.a. bug#24508 "Inconsistent
+# Base vs temporary tables dilemma (a.k.a. bug#24508 "Inconsistent
 # results of CREATE TABLE ... SELECT when temporary table exists").
 # In this situation we either have to create non-temporary table and
 # insert data in it or insert data in temporary table without creation of
 # permanent table. After patch for Bug#47418, we create the base table and
-# instert data into it, even though a temporary table exists with the same
+# insert data into it, even though a temporary table exists with the same
 # name.
 --disable_view_protocol
 create temporary table t1 (j int);
@@ -1062,9 +1062,9 @@ SET sql_mode = NO_ZERO_DATE;
 --error ER_INVALID_DEFAULT
 CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP DEFAULT 0);
 
---echo
---error ER_INVALID_DEFAULT
-CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
+#--echo
+#--error ER_INVALID_DEFAULT
+#CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
 
 --echo
 --echo # -- Check that NULL column still can be created.
@@ -1945,3 +1945,79 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 SET NAMES DEFAULT;
 
 --echo # End of 10.5 Test
+
+--echo #
+--echo # MDEV-35318 Assertion `tl->jtbm_subselect' failed in JOIN::calc_allowed_top_level_tables on 2nd execution of PS
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2); # Optional, fails either way
+
+PREPARE stmt FROM 'CREATE TABLE tmp AS SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0';
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo  # Now, run the same in SP:
+delimiter |;
+
+create procedure sp1()
+begin
+  declare i int unsigned default 1;
+  declare continue handler for SQLEXCEPTION
+  begin
+    select 'In Continue handler' as printf;
+  end;
+  while i <= 3 do
+  begin
+      select concat('Iteration ', i) as printf;
+      CREATE temporary TABLE tmp AS
+        SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0 ;
+      drop temporary table if exists tmp;
+      set i=i+1;
+  end;
+  end while;
+end|
+ 
+delimiter ;|
+call sp1();
+
+DROP PROCEDURE sp1;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-36057: Assertion failure or unexpected outcome upon 2nd execution
+--echo #             of parameterized PS (continues the above)
+--echo #
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+
+PREPARE stmt FROM 'UPDATE t SET a = 3 WHERE a IN (SELECT "" UNION SELECT ?)';
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt USING 4;
+--error ER_TRUNCATED_WRONG_VALUE
+EXECUTE stmt USING 4;
+DROP TABLE t;
+
+--echo # End of 11.7 Test
+
+--echo #
+--echo # MDEV-36104 Server crashes when reading information_schema.COLUMNS after creating a table with virtual columns using the GIS data type
+--echo #
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+set sql_mode='';
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+set sql_mode=default;
+select column_name,column_type from information_schema.columns where table_name='t';
+--enable_prepare_warnings
+show create table t;
+--disable_prepare_warnings
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+insert t () values ();
+alter table t add column c int, drop column a, drop column b;
+drop table t;
+
+--echo # End of 11.8 Test

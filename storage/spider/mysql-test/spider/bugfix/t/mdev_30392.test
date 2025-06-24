@@ -14,7 +14,9 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 'srv', table 't1'";
 
+--disable_ps_protocol
 SELECT a FROM t2 WHERE a IN ( SELECT a FROM t2 );
+--enable_ps_protocol
 
 # Cleanup
 

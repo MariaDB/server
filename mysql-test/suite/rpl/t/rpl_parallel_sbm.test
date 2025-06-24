@@ -74,6 +74,30 @@ if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
 }
 --echo # ..done
 
+--echo # MDEV-33856: New definition for Seconds_Behind_Master
+--echo # Validating Master_last_event_time is updated on event arrival..
+--let $mle_time_trx1_arrive= query_get_value(SHOW ALL SLAVES STATUS, Master_last_event_time, 1)
+--let $mle_time_trx1_arrive_unix= `SELECT truncate(unix_timestamp("$mle_time_trx1_arrive"), 0)`
+if (`SELECT $mle_time_trx1_arrive_unix < ($ts_trx_before_ins - 1)`)
+{
+    --echo # Master_last_event_time: $mle_time_trx1_arrive_unix ($mle_time_trx1_arrive)
+    --die Master_last_event_time was not updated for delayed replica at event arrival time
+}
+--echo # ..done
+
+--echo # Validating Slave_last_event_time is still from the last transaction..
+# Note we infer Slave_last_event_time via Master_Slave_time_diff
+--let $time_diff_trx1_arrive= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
+if ($time_diff_trx1_arrive < 2)
+{
+    --let $slave_time_trx1_arrive= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
+    --let $slave_time_trx1_arrive_unix= `SELECT truncate(unix_timestamp("$slave_time_trx1_arrive"), 0)`
+    --echo # Slave_last_event_time: $slave_time_trx1_arrive_unix ($slave_time_trx1_arrive)
+    --echo # Master_Slave_time_diff: $time_diff_trx1_arrive
+    --die Slave_last_event_time is too recent, should not be less than 2 seconds, ie. from sleeping
+}
+--echo # ..done
+
 
 --echo # MDEV-32265. At time of STOP SLAVE, if the SQL Thread is currently
 --echo # delaying a transaction; then when the reciprocal START SLAVE occurs,
@@ -128,6 +152,33 @@ if (`SELECT $sbm_trx1_after_1s_sleep <= $sbm_trx1_arrive`)
 UNLOCK TABLES;
 
 --source include/sync_with_master_gtid.inc
+
+--echo # MDEV-33856: New definition for Seconds_Behind_Master
+
+# The update of slave timing statistics (Seconds_Behind_Master,
+# Slave_last_event_time, etc) lags slightly behind the update of
+# gtid_slave_pos (we just called sync_with_master_gtid), so wait for SBM==0 to
+# indicate the statistics have been updated
+--echo # Waiting for slave timing statistics to update ..
+--let $wait_condition= SELECT count(*) FROM information_schema.slave_status WHERE Seconds_Behind_Master=0
+--source include/wait_condition.inc
+
+--echo # Ensuring Slave_last_event_time is now up-to-date once event is executed
+--let $slave_time_trx1_commit= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
+--let $slave_time_trx1_commit_unix= `SELECT truncate(unix_timestamp("$slave_time_trx1_commit"),0)`
+if ($slave_time_trx1_commit_unix != $mle_time_trx1_arrive_unix)
+{
+    --echo # Slave_last_event_time: $slave_time_trx1_commit_unix ($slave_time_trx1_commit)
+    --echo # Master_last_event_time: $mle_time_trx1_arrive_unix ($mle_time_trx1_arrive)
+    --die Slave_last_event_time is not equal to Master_last_event_time despite being up-to-date
+}
+--let $time_diff_trx1_commit= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
+if ($time_diff_trx1_commit != 0)
+{
+    --echo # Master_Slave_time_diff: $time_diff_trx1_commit
+    --die Master_Slave_time_diff should be 0, as slave is up-to-date
+}
+--echo # ..done
 
 --echo #
 --echo # Pt 2) If the worker threads have not entered an idle state, ensure

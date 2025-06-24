@@ -1,0 +1,8 @@
+create table t1 (a int, vcol1 int as (a+1), index(vcol1));
+insert into t1 (a) select seq from seq_1_to_100;
+SET SESSION debug_dbug="+d,vcol_subst_simulate_oom";
+explain select * from t1 where a+1=2;
+ERROR HY000: Out of memory.
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug= @saved_dbug;
+drop table t1;

@@ -1,0 +1,108 @@
+--source include/have_64bit_timestamp.inc
+
+--echo #
+--echo # Test dates close to upper range
+--echo #
+
+set time_zone="+03:00";
+
+select from_unixtime(2147483648);
+select unix_timestamp(from_unixtime(2147483648));
+select from_unixtime(4294967295);
+select unix_timestamp(from_unixtime(4294967295));
+
+--echo # bad year
+select unix_timestamp('2107-02-07 01:00:00');
+--echo # bad month
+select unix_timestamp('2106-03-07 01:00:00');
+--echo # bad day
+select unix_timestamp('2106-02-08 01:00:00');
+
+--echo # check bad date, close to the boundary (we cut them off in the very end)
+select unix_timestamp('2038-01-19 07:14:07');
+select unix_timestamp('2106-02-07 09:28:15');
+select unix_timestamp('2106-02-07 09:28:16');
+
+set time_zone=MET;
+select unix_timestamp('2038-01-19 04:14:07'),
+       unix_timestamp('2038-01-19 04:14:08'),
+       unix_timestamp('2106-02-07 07:28:15'),
+       unix_timestamp('2106-02-07 07:28:16');
+set time_zone= @@global.time_zone;
+
+--echo #
+--echo # Functions that construct DATETIME
+--echo #
+
+SET time_zone='+00:00';
+SET sql_mode=IF(@@version LIKE '%MariaDB%', 'TIME_ROUND_FRACTIONAL', '');
+CREATE TABLE t1 (id SERIAL, a DECIMAL(30,10));
+INSERT INTO t1 (a) VALUES
+(2147483647.9999999),
+(4294967295.999999),
+(4294967295.9999999);
+SELECT a, FROM_UNIXTIME(a) FROM t1 ORDER BY id;
+DROP TABLE t1;
+set time_zone= @@global.time_zone;
+set sql_mode=default;
+
+--echo #
+--echo # Corner case:
+--echo # ALTER TIMESTAMP to a shorter TIMESTAMP
+--echo # All values round, maximum possible value truncates.
+--echo #
+
+SET time_zone='+00:00';
+SET sql_mode=IF(@@version LIKE '%MariaDB%', 'TIME_ROUND_FRACTIONAL', '');
+CREATE TABLE t1 (ID INT, a TIMESTAMP(6), comment VARCHAR(64));
+INSERT INTO t1 VALUES (0, '2038-01-18 23:59:59.999999', 'Should round');
+INSERT INTO t1 VALUES (1, '2038-01-19 03:14:06.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2038-01-19 03:14:07.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2106-02-07 06:28:14.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2106-02-07 06:28:15.999999', 'Should truncate');
+ALTER TABLE t1 MODIFY a TIMESTAMP(5);
+SELECT * FROM t1;
+DROP TABLE t1;
+set time_zone= @@global.time_zone;
+set sql_mode=default;
+
+--echo
+--echo # Let us test range for TIMESTAMP
+--echo #
+
+create table t1 (ts timestamp);
+set time_zone='UTC';
+insert into t1 values ('2038-01-19 03:14:07'),('2038-01-19 03:14:08');
+insert into t1 values ('2106-02-07 06:28:15'),('2106-02-07 06:28:16');
+select * from t1;
+truncate table t1;
+# MET time zone has range shifted by one hour
+set time_zone='MET';
+insert into t1 values ('2038-01-19 04:14:07'),('2038-01-19 04:14:08');
+insert ignore into t1 values ('2106-02-07 07:28:15'),('2106-02-07 07:28:16');
+select * from t1;
+truncate table t1;
+# same for +01:30 time zone
+set time_zone='+01:30';
+insert into t1 values ('2038-01-19 04:44:07'),('2038-01-19 04:44:08');
+insert ignore into t1 values ('2106-02-07 07:58:15'),('2106-02-07 07:58:16');
+select * from t1;
+drop table t1;
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (ts0 TIMESTAMP, ts1 TIMESTAMP(1));
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30', '2001-01-01 10:20:30.9');
+--echo # Corner case
+UPDATE t1 SET ts1=FROM_UNIXTIME(2147483647.9);
+UPDATE t1 SET ts0=COALESCE(ts1);
+SELECT * FROM t1;
+UPDATE t1 SET ts1=FROM_UNIXTIME(4294963695.9);
+UPDATE t1 SET ts0=COALESCE(ts1);
+SELECT * FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo # Let us test CONVERT_TZ function
+select convert_tz('2038-01-19 04:14:08', 'MET', 'UTC');
+select convert_tz('2103-01-01 04:00:00', 'MET', 'UTC');
+select convert_tz('2106-02-07 07:28:15', 'MET', 'UTC');

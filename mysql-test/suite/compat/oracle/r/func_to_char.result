@@ -446,3 +446,239 @@ SELECT TO_CHAR((VALUES('2022-12-12','2020-10-10')));
 ERROR HY000: Illegal parameter data type row for operation 'to_char'
 SELECT TO_CHAR((STR_TO_DATE('2023-01-01', '%d-%m-%Y'), 'YYYY-MM-DD') );
 ERROR HY000: Illegal parameter data type row for operation 'to_char'
+#
+# MDEV-36216 TO_CHAR FM format not recognized in SQL_MODE=Oracle
+#
+SET NAMES utf8mb3;
+CREATE TABLE t1 (fmt VARCHAR(256));
+INSERT INTO t1 VALUES
+/* Add the slash character before FM to see the position of FM in the results */
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('/FMYYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-/FMMM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-/FMDD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD /FMHH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:/FMMI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:/FMSS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS /FMDAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY /FMMONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; /FMYYYY-MM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-/FMMM-DD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-/FMDD HH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD /FMHH24:MI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:/FMMI:SS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:/FMSS DAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS /FMDAY MONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY /FMMONTH;'),
+('YYYY-MM-DD HH24:MI:SS DAY MONTH; YYYY-MM-DD HH24:MI:SS DAY MONTH/FM;'),
+/*Formats not covered above */
+('YYY YY Y HH12; /FMYYY YY Y HH12;'),
+/*FM specified multiple times*/
+('FMFMFMFMFMFMFMFMYYYY-MM-DD [DAY] [MONTH]'),
+('FMFMFMFMFMFMFMFMFMYYYY-MM-DD [DAY] [MONTH]'),
+(
+'YYYY-MM-DD [DAY] [MONTH]; FMYYYY-MM-DD [DAY] [MONTH]; '
+ 'FMYYYY-MM-DD [DAY] [MONTH]; FMYYYY-MM-DD [DAY] [MONTH]; '
+ 'FMYYYY-MM-DD [DAY] [MONTH];'
+),
+/*Corner cases*/
+('FX') /*Unknown format starting with 'F'*/,
+('F') /*Unexpected end of the format string*/;
+SET lc_time_names='en_US';
+SELECT TO_CHAR('0001-02-03 04:05:06', fmt) AS c1 FROM t1;
+c1
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  February ;
+/1-2-3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-/2-3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-/3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 /4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:/5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:/6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 /Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  /February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; /1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-/2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-/3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 /4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:/5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:/6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 /Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  /February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  February /;
+001 01 1 04; /1 1 1 4;
+0001-02-03 [Saturday ] [February ]
+1-2-3 [Saturday] [February]
+0001-02-03 [Saturday ] [February ]; 1-2-3 [Saturday] [February]; 0001-02-03 [Saturday ] [February ]; 1-2-3 [Saturday] [February]; 0001-02-03 [Saturday ] [February ];
+NULL
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at FX in function to_char.
+Warning	3047	Invalid argument error: date format not recognized at F in function to_char.
+SET sql_mode=ORACLE;
+CREATE VIEW v1 AS SELECT TO_CHAR('0001-02-03 04:05:06', fmt) AS c1 FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select to_char('0001-02-03 04:05:06',"t1"."fmt") AS "c1" from "t1"	utf8mb3	utf8mb3_uca1400_ai_ci
+SELECT * FROM v1;
+c1
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  February ;
+/1-2-3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-/2-3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-/3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 /4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:/5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:/6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 /Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  /February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; /1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-/2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-/3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 /4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:/5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:/6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 /Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  /February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  February /;
+001 01 1 04; /1 1 1 4;
+0001-02-03 [Saturday ] [February ]
+1-2-3 [Saturday] [February]
+0001-02-03 [Saturday ] [February ]; 1-2-3 [Saturday] [February]; 0001-02-03 [Saturday ] [February ]; 1-2-3 [Saturday] [February]; 0001-02-03 [Saturday ] [February ];
+NULL
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at FX in function to_char.
+Warning	3047	Invalid argument error: date format not recognized at F in function to_char.
+SET sql_mode=DEFAULT;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select to_char('0001-02-03 04:05:06',`t1`.`fmt`) AS `c1` from `t1`	utf8mb3	utf8mb3_uca1400_ai_ci
+SELECT * FROM v1;
+c1
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  February ;
+/1-2-3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-/2-3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-/3 4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 /4:5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:/5:6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:/6 Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 /Saturday February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  /February; 1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; /1-2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-/2-3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-/3 4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 /4:5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:/5:6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:/6 Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 /Saturday February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  /February;
+0001-02-03 04:05:06 Saturday  February ; 0001-02-03 04:05:06 Saturday  February /;
+001 01 1 04; /1 1 1 4;
+0001-02-03 [Saturday ] [February ]
+1-2-3 [Saturday] [February]
+0001-02-03 [Saturday ] [February ]; 1-2-3 [Saturday] [February]; 0001-02-03 [Saturday ] [February ]; 1-2-3 [Saturday] [February]; 0001-02-03 [Saturday ] [February ];
+NULL
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at FX in function to_char.
+Warning	3047	Invalid argument error: date format not recognized at F in function to_char.
+DROP VIEW v1;
+SET lc_time_names='zh_CN';
+SELECT TO_CHAR('0001-02-03 04:05:06', fmt) AS c1 FROM t1;
+c1
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 二月 ;
+/1-2-3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-/2-3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-/3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 /4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:/5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:/6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 /星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 /二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; /1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-/2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-/3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 /4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:/5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:/6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 /星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 /二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 二月 /;
+001 01 1 04; /1 1 1 4;
+0001-02-03 [星期六] [二月 ]
+1-2-3 [星期六] [二月]
+0001-02-03 [星期六] [二月 ]; 1-2-3 [星期六] [二月]; 0001-02-03 [星期六] [二月 ]; 1-2-3 [星期六] [二月]; 0001-02-03 [星期六] [二月 ];
+NULL
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at FX in function to_char.
+Warning	3047	Invalid argument error: date format not recognized at F in function to_char.
+SET sql_mode=ORACLE;
+CREATE VIEW v1 AS SELECT TO_CHAR('0001-02-03 04:05:06', fmt) AS c1 FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select to_char('0001-02-03 04:05:06',"t1"."fmt") AS "c1" from "t1"	utf8mb3	utf8mb3_uca1400_ai_ci
+SELECT * FROM v1;
+c1
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 二月 ;
+/1-2-3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-/2-3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-/3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 /4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:/5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:/6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 /星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 /二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; /1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-/2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-/3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 /4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:/5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:/6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 /星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 /二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 二月 /;
+001 01 1 04; /1 1 1 4;
+0001-02-03 [星期六] [二月 ]
+1-2-3 [星期六] [二月]
+0001-02-03 [星期六] [二月 ]; 1-2-3 [星期六] [二月]; 0001-02-03 [星期六] [二月 ]; 1-2-3 [星期六] [二月]; 0001-02-03 [星期六] [二月 ];
+NULL
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at FX in function to_char.
+Warning	3047	Invalid argument error: date format not recognized at F in function to_char.
+SET sql_mode=DEFAULT;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select to_char('0001-02-03 04:05:06',`t1`.`fmt`) AS `c1` from `t1`	utf8mb3	utf8mb3_uca1400_ai_ci
+SELECT * FROM v1;
+c1
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 二月 ;
+/1-2-3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-/2-3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-/3 4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 /4:5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:/5:6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:/6 星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 /星期六 二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 /二月; 1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; /1-2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-/2-3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-/3 4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 /4:5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:/5:6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:/6 星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 /星期六 二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 /二月;
+0001-02-03 04:05:06 星期六 二月 ; 0001-02-03 04:05:06 星期六 二月 /;
+001 01 1 04; /1 1 1 4;
+0001-02-03 [星期六] [二月 ]
+1-2-3 [星期六] [二月]
+0001-02-03 [星期六] [二月 ]; 1-2-3 [星期六] [二月]; 0001-02-03 [星期六] [二月 ]; 1-2-3 [星期六] [二月]; 0001-02-03 [星期六] [二月 ];
+NULL
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at FX in function to_char.
+Warning	3047	Invalid argument error: date format not recognized at F in function to_char.
+DROP VIEW v1;
+SET lc_time_names=DEFAULT;
+DROP TABLE t1;

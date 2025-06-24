@@ -110,7 +110,7 @@ int mi_write(MI_INFO *info, const uchar *record)
         mysql_rwlock_wrlock(&share->key_root_lock[i]);
 	share->keyinfo[i].version++;
       }
-      if (share->keyinfo[i].flag & HA_FULLTEXT )
+      if (share->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_mi_ft_add(info,i, buff, record, filepos))
         {
@@ -153,6 +153,7 @@ int mi_write(MI_INFO *info, const uchar *record)
   info->update= (HA_STATE_CHANGED | HA_STATE_AKTIV | HA_STATE_WRITTEN |
 		 HA_STATE_ROW_CHANGED);
   info->state->records++;
+  info->lastpos=filepos;
   myisam_log_record(MI_LOG_WRITE,info,record,filepos,0);
   (void) _mi_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
   if (info->invalidator != 0)
@@ -196,7 +197,7 @@ err:
                                     is_tree_inited(&info->bulk_insert[i])));
 	if (local_lock_tree)
           mysql_rwlock_wrlock(&share->key_root_lock[i]);
-	if (share->keyinfo[i].flag & HA_FULLTEXT)
+	if (share->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
         {
           if (_mi_ft_del(info,i, buff,record,filepos))
 	  {
@@ -267,11 +268,15 @@ int _mi_ck_write_btree(register MI_INFO *info, uint keynr, uchar *key,
 
   if (keyinfo->flag & HA_SORT_ALLOWS_SAME)
     comp_flag=SEARCH_BIGGER;			/* Put after same key */
-  else if (keyinfo->flag & (HA_NOSAME|HA_FULLTEXT))
+  else if (keyinfo->flag & HA_NOSAME)
   {
     comp_flag=SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT; /* No duplicates */
     if (keyinfo->flag & HA_NULL_ARE_EQUAL)
       comp_flag|= SEARCH_NULL_ARE_EQUAL;
+  }
+  else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
+  {
+    comp_flag=SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT;
   }
   else
     comp_flag=SEARCH_SAME;			/* Keys in rec-pos order */
@@ -369,7 +374,7 @@ static int w_search(register MI_INFO *info, register MI_KEYDEF *keyinfo,
     else
       dupp_key_pos= HA_OFFSET_ERROR;
 
-    if (keyinfo->flag & HA_FULLTEXT)
+    if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint off;
       int  subkeys;
@@ -521,7 +526,7 @@ int _mi_insert(register MI_INFO *info, register MI_KEYDEF *keyinfo,
   if (a_length <= keyinfo->block_length)
   {
     if (keyinfo->block_length - a_length < 32 &&
-        keyinfo->flag & HA_FULLTEXT && key_pos == endpos &&
+        keyinfo->key_alg == HA_KEY_ALG_FULLTEXT && key_pos == endpos &&
         info->s->base.key_reflength <= info->s->rec_reflength &&
         info->s->options & (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD))
     {

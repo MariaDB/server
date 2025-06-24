@@ -4,6 +4,7 @@ SET sql_log_bin = 0;
 source include/add_anonymous_users.inc;
 SET sql_log_bin = 1;
 
+set @@binlog_format="statement";
 -- source include/master-slave.inc
 
 # Clean up old slave's binlogs.
@@ -99,6 +100,9 @@ sync_slave_with_master;
 
 connection master;
 
+create user zedjzlcsjhd@localhost;
+GRANT ALL on test.* to zedjzlcsjhd@localhost;
+
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 # We want to connect as an unprivileged user. But if we use user="" then this
@@ -176,12 +180,13 @@ drop temporary table t3;
 
 select * from t2 ORDER BY f;
 
-# Commented out 8/30/2005 to make compatable with both sbr and rbr
+# Commented out 8/30/2005 to make compatible with both sbr and rbr
 #--replace_result $VERSION VERSION
 #--replace_column 2 # 5 #
 #show binlog events;
 
 drop table t1, t2;
+drop user zedjzlcsjhd@localhost;
 
 use test;
 SET TIMESTAMP=1040323920;
@@ -339,7 +344,7 @@ GRANT USAGE   ON *.* TO user43748@127.0.0.1 IDENTIFIED BY 'meow';
 GRANT PROCESS ON *.* TO user43748@127.0.0.1;
 
 --echo -- try to KILL system-thread as that non-privileged user (on slave).
-connect (cont43748,127.0.0.1,user43748,meow,test,$SLAVE_MYPORT,);
+connect (cont43748,127.0.0.1,user43748,meow,"*NO-ONE*",$SLAVE_MYPORT,);
 connection cont43748;
 
 --disable_cursor_protocol

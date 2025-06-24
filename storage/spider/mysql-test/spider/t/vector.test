@@ -1,0 +1,21 @@
+INSTALL SONAME 'ha_spider';
+SET spider_same_server_link= ON;
+
+--evalp create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_1_MYPORT)
+
+--echo #
+--echo # MDEV-35317 Server crashes in mhnsw_insert upon using vector key on a Spider table
+--echo #
+CREATE TABLE t (v VECTOR(1) NOT NULL, VECTOR(v));
+
+#
+# For now, SPIDER doesn't support VECTOR indexes.
+# When it's fixed, two --error below should be removed
+#
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TABLE t_spider (v VECTOR(1) NOT NULL, VECTOR(v)) ENGINE=Spider WRAPPER=mysql REMOTE_TABLE=t REMOTE_SERVER=s;
+--error ER_NO_SUCH_TABLE
+INSERT INTO t_spider (v) VALUES (0x30303030);
+
+DROP TABLE t;
+--source include/clean_up_spider.inc

@@ -13,10 +13,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include <zlib.h>
 #include "azlib.h"
 
@@ -56,7 +52,7 @@ public:
 /*
   Version for file format.
   1 - Initial Version (Never Released)
-  2 - Stream Compression, seperate blobs, no packing
+  2 - Stream Compression, separate blobs, no packing
   3 - One stream (row and blobs), with packing
 */
 #define ARCHIVE_VERSION 3
@@ -101,19 +97,25 @@ public:
   {
     return HA_ONLY_WHOLE_INDEX;
   }
-  void get_auto_increment(ulonglong offset, ulonglong increment,
-                          ulonglong nb_desired_values,
-                          ulonglong *first_value,
-                          ulonglong *nb_reserved_values) override;
-  uint max_supported_keys() const       override { return 1; }
+  virtual void get_auto_increment(ulonglong offset, ulonglong increment,
+                                  ulonglong nb_desired_values,
+                                  ulonglong *first_value,
+                                  ulonglong *nb_reserved_values) override;
+  uint max_supported_keys() const override { return 1; }
   uint max_supported_key_length() const override { return sizeof(ulonglong); }
-  uint max_supported_key_part_length() const override { return sizeof(ulonglong); }
+  uint max_supported_key_part_length() const override
+    { return sizeof(ulonglong); }
   ha_rows records() override { return share->rows_recorded; }
+  IO_AND_CPU_COST scan_time() override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   int index_init(uint keynr, bool sorted) override;
-  int index_read(uchar * buf, const uchar * key,
-                 uint key_len, enum ha_rkey_function find_flag) override;
-  int index_read_idx(uchar * buf, uint index, const uchar * key,
-                     uint key_len, enum ha_rkey_function find_flag);
+  virtual int index_read(uchar * buf, const uchar * key,
+			 uint key_len, enum ha_rkey_function find_flag)
+                         override;
+  virtual int index_read_idx(uchar * buf, uint index, const uchar * key,
+			     uint key_len, enum ha_rkey_function find_flag);
   int index_next(uchar * buf) override;
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
@@ -136,13 +138,14 @@ public:
   int info(uint) override;
   int extra(enum ha_extra_function operation) override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
-  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info) override;
+  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info)
+    override;
   int optimize(THD* thd, HA_CHECK_OPT* check_opt) override;
   int repair(THD* thd, HA_CHECK_OPT* check_opt) override;
   int check_for_upgrade(HA_CHECK_OPT *check_opt) override;
   void start_bulk_insert(ha_rows rows, uint flags) override;
   int end_bulk_insert() override;
-  enum row_type get_row_type() const override 
+  enum row_type get_row_type() const override
   { 
     return ROW_TYPE_COMPRESSED;
   }
@@ -155,7 +158,8 @@ public:
   bool fix_rec_buff(unsigned int length);
   int unpack_row(azio_stream *file_to_read, uchar *record);
   unsigned int pack_row(const uchar *record, azio_stream *writer);
-  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes) override;
+  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes)
+    override;
   int external_lock(THD *thd, int lock_type) override;
 private:
   void flush_and_clear_pending_writes();

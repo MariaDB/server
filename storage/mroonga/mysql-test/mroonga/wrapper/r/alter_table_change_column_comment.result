@@ -13,5 +13,5 @@ bugs	CREATE TABLE `bugs` (
   `id` int(10) unsigned NOT NULL,
   `tag` varchar(64) DEFAULT NULL COMMENT 'It must consist of only alphabet and number.',
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='engine "InnoDB"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='engine "InnoDB"'
 DROP TABLE bugs;

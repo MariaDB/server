@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#define VER "2.1"
 #include <my_global.h>
 #include <my_sys.h>
 #include <mysql.h>
@@ -24,6 +25,7 @@
 #include <mysql_version.h>
 #include <sql_common.h>
 #include <mysql/client_plugin.h>
+#include <welcome_copyright_notice.h>
 
 /*
   If non_blocking_api_enabled is true, we will re-define all the blocking
@@ -37,7 +39,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "nonblock-wrappers.h"
 #endif
 
-#define VER "2.1"
 #define MAX_TEST_QUERY_LENGTH 300 /* MAX QUERY BUFFER LENGTH */
 #define MAX_KEY MAX_INDEXES
 #define MAX_SERVER_ARGS 64
@@ -120,7 +121,7 @@ static void get_options(int *argc, char ***argv);
 
 
 /*
-  Abort unless given experssion is non-zero.
+  Abort unless given expression is non-zero.
 
   SYNOPSIS
     DIE_UNLESS(expr)
@@ -251,6 +252,8 @@ static void print_st_error(MYSQL_STMT *stmt, const char *msg)
 static MYSQL *mysql_client_init(MYSQL* con)
 {
   MYSQL* res = mysql_init(con);
+  my_bool no= 0;
+  mysql_options(res, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &no);
   if (res && non_blocking_api_enabled)
     mysql_options(res, MYSQL_OPT_NONBLOCK, 0);
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -1230,6 +1233,8 @@ static struct my_option client_test_long_options[] =
   {"socket", 'S', "Socket file to use for connection",
    &opt_unix_socket, &opt_unix_socket, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ssl-verify-server-cert", 0, "for compatibility only, the value is ignored",
+    0, 0, 0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"testcase", 'c',
    "May disable some code when runs as mysql-test-run testcase.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1260,8 +1265,7 @@ static void usage(void)
 {
   /* show the usage string when the user asks for this */
   putc('\n', stdout);
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+  print_version();
   puts("By Monty, Venu, Kent and others\n");
   printf("\
 Copyright (C) 2002-2004 MySQL AB\n\
@@ -1434,12 +1438,16 @@ int main(int argc, char **argv)
     tests_to_run[i]= NULL;
   }
 
-#ifdef _WIN32
-  /* must be the same in C/C and embedded, 1208 on 64bit, 968 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 60*sizeof(void*)+728);
-#else
-  /* must be the same in C/C and embedded, 1272 on 64bit, 964 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 77*sizeof(void*)+656);
+/*
+  this limited check is enough, if sizeof(MYSQL) changes, it changes
+  everywhere
+*/
+#if defined _M_AMD64
+  compile_time_assert(sizeof(MYSQL) == 1208);
+#elif defined __x86_64__
+  compile_time_assert(sizeof(MYSQL) == 1272);
+#elif defined __i386__
+  compile_time_assert(sizeof(MYSQL) == 964);
 #endif
 
   if (mysql_server_init(embedded_server_arg_count,

@@ -554,7 +554,7 @@ from t2;
 drop table t2;
 
 --echo #
---echo # Try RANGE PRECEDING|FOLLWING n
+--echo # Try RANGE PRECEDING|FOLLOWING n
 --echo #
 create table t1 (
   part_id int,
@@ -956,11 +956,13 @@ drop table t0,t1;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
+--source include/explain-no-costs.inc
 explain format=json select rank() over (order by a) from t0;
 
 create table t1 (a int, b int, c int);
 insert into t1 select a,a,a from t0;
 
+--source include/explain-no-costs.inc
 explain format=json
 select
   a,
@@ -968,6 +970,7 @@ select
 from t1
 group by a;
 
+--source include/explain-no-costs.inc
 explain format=json
 select
   a,
@@ -981,6 +984,7 @@ order by null;
 --echo #
 
 select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+--source include/explain-no-costs.inc
 explain format=json
 select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
 
@@ -1070,24 +1074,28 @@ from t1;
 show status like '%sort%';
 
 # Check using EXPLAIN FORMAT=JSON
+--source include/explain-no-costs.inc
 explain format=json
 select
   rank() over (partition by c order by a) as rank_a,
   rank() over (partition by c order by a) as rank_b
 from t1;
 
+--source include/explain-no-costs.inc
 explain format=json
 select
   rank() over (order by a),
   row_number() over (order by a)
 from t1;
 
+--source include/explain-no-costs.inc
 explain format=json
 select
   rank() over (partition by c order by a) as rank_a,
   count(*) over (partition by c) as count_c
 from t1;
 
+--source include/explain-no-costs.inc
 explain format=json
 select
   count(*) over (partition by c) as count_c,
@@ -1120,6 +1128,7 @@ insert into t1 values (null,'a');
 insert into t1 values (2,'b');
 insert into t1 values (-1,'');
 
+--source include/explain-no-costs.inc
 explain format=json
 select *, row_number() over (order by s1, s2) as X from t1 order by X desc;
 select *, row_number() over (order by s1, s2) as X from t1 order by X desc;
@@ -1208,6 +1217,7 @@ insert into t1 values
 
 select          rank() over (partition by part_id order by a) as rank from t1;
 select distinct rank() over (partition by part_id order by a) as rank from t1;
+--source include/explain-no-costs.inc
 explain format=json
 select distinct rank() over (partition by part_id order by a) as rank from t1;
 
@@ -1332,6 +1342,7 @@ select pk, a, d,
        sum(d) over (order by a 
                     ROWS BETWEEN 1 preceding and 2 following) as sum_2
 from t1;
+--source include/explain-no-costs.inc
 explain format=json
 select pk, a, d,
        sum(d) over (partition by a order by pk
@@ -1367,6 +1378,7 @@ insert into t1 values
  (10, 5, 1000),
  (10, 1, 100);
 
+--source include/explain-no-costs.inc
 explain format=json
 select 
   a,b,c,
@@ -2800,7 +2812,7 @@ FROM t1
 GROUP BY nullif(id, 15532);
 drop table t1;
 
-#Dublicate warnings
+#Duplicate warnings
 --disable_view_protocol
 CREATE TABLE t1 ( a char(25), b text);
 INSERT INTO t1 VALUES ('foo','bar');

@@ -1,0 +1,375 @@
+#
+# Helper file to run through test cases to validate that the replica will stop
+# at the correct place when running STOP SLAVE UNTIL with options
+# SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS.
+#
+# MTR Parameters:
+#   ssu_before_gtids (Boolean): Indicates whether to test SQL_BEFORE_GTIDS,
+#    (when true), or SQL_AFTER_GTIDS (when false).
+#
+
+--let $include_filename= rpl_gtid_until_before_after_gtids.inc
+--source include/begin_include_file.inc
+
+if ($ssu_before_gtids)
+{
+    --let $ssu_opt=SQL_BEFORE_GTIDS
+}
+if (!$ssu_before_gtids)
+{
+    --let $ssu_opt=SQL_AFTER_GTIDS
+}
+
+--echo #
+--echo # Test Setup ($ssu_opt)
+
+--echo # Clean primary and replica states
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--source include/reset_slave.inc
+--connection master
+RESET MASTER;
+set session gtid_domain_id=0;
+
+--echo # Initialize test data
+--connection master
+create table t1 (a int);
+create table t2 (a int);
+
+# Set the value counters to use on insertions. Note they are only set once per
+# test, subsequent invocations of this .inc file continue to increment the
+# previous values.
+if (!$t1_ctr)
+{
+    --let $t1_ctr= 100
+    --let $t2_ctr= 200
+}
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo #  Test Case 1 ($ssu_opt): For a single-dimensional binlog state and a
+--echo # STOP SLAVE UNTIL gtid position with one GTID, the replica should
+if ($ssu_before_gtids)
+{
+--echo # execute events up until the GTID is encountered, and immediately stop
+}
+if (!$ssu_before_gtids)
+{
+--echo # execute events up until the GTID is encountered, finish replicating
+--echo # that event group, and then stop
+}
+
+--connection slave
+--source include/stop_slave.inc
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
+
+--connection master
+set session gtid_domain_id=0;
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+if ($ssu_before_gtids)
+{
+    --let $expected_stop_gtid= `SELECT @@gtid_binlog_pos`
+}
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+--let $until_gtid= `SELECT @@gtid_binlog_pos`
+if (!$ssu_before_gtids)
+{
+    --let $expected_stop_gtid= `SELECT @@gtid_binlog_pos`
+}
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+--connection slave
+--eval START SLAVE UNTIL $ssu_opt="$until_gtid"
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
+--let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
+
+if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
+{
+    --echo # Expected stop gtid != actual stop gtid ($expected_stop_gtid != $actual_stop_gtid)
+    --die Expected stop gtid != actual stop gtid
+}
+
+--echo # Clean replica state
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo #  Test Case 2 ($ssu_opt): If a provided until GTID doesn't exist in the
+--echo # binary log due to a gap, once an event is seen that is beyond the
+--echo # until GTID, the slave should immediately stop. Note the behavior of
+--echo # this test case should be the same between SQL_BEFORE_GTIDS and
+--echo # SQL_AFTER_GTIDS.
+
+--connection slave
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
+--source include/stop_slave.inc
+
+--connection master
+set session gtid_domain_id=0;
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+
+--echo # Skip a seq_no
+--let $binlog_pos= `SELECT @@gtid_binlog_pos`
+--let $domain_id= `SELECT @@gtid_domain_id`
+--let $server_id= `SELECT @@server_id`
+--let $last_seq_no=  `SELECT REGEXP_SUBSTR('$binlog_pos','[0-9]+\\\$')`
+
+--let $skipped_seq_no=  `SELECT ($last_seq_no + 1)`
+--let $new_seq_no=  `SELECT ($skipped_seq_no + 1)`
+--eval set @@session.gtid_seq_no= $new_seq_no
+
+--let $until_gtid= $domain_id-$server_id-$skipped_seq_no
+--let $expected_stop_gtid= $binlog_pos
+
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+--connection slave
+--eval START SLAVE UNTIL $ssu_opt="$until_gtid"
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
+--let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
+
+if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
+{
+    --echo # Expected stop gtid != actual stop gtid ($expected_stop_gtid != $actual_stop_gtid)
+    --die Expected stop gtid != actual stop gtid
+}
+
+--connection slave
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+--echo #
+--echo #  Test Case 3 ($ssu_opt): For a multi-dimensional binlog state and a
+--echo # STOP SLAVE UNTIL gtid position with one GTID, the replica should
+--echo # execute events from only the specified domain until the provided GTID
+if ($ssu_before_gtids)
+{
+--echo # is encountered, and immediately stop
+}
+if (!$ssu_before_gtids)
+{
+--echo # is encountered, finish replicating that event group, and then stop
+}
+
+--connection slave
+--source include/stop_slave.inc
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
+
+--connection master
+set session gtid_domain_id=0;
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+set session gtid_domain_id=1;
+--eval INSERT INTO t2 VALUES ($t2_ctr)
+--inc $t2_ctr
+--eval INSERT INTO t2 VALUES ($t2_ctr)
+--inc $t2_ctr
+
+if ($ssu_before_gtids)
+{
+    # Will have GTIDs for both domains 0 and 1
+    --let $binlog_pos= `SELECT @@gtid_binlog_pos`
+    --let $expected_stop_gtid= `SELECT REGEXP_SUBSTR('$binlog_pos','0-[0-9]+-[0-9]+')`
+}
+
+set session gtid_domain_id=0;
+--eval INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+--let $binlog_pos= `SELECT @@gtid_binlog_pos`
+
+# Just the GTID for domain 0
+--let $until_gtid=  `SELECT REGEXP_SUBSTR('$binlog_pos','0-[0-9]+-[0-9]+')`
+
+if (!$ssu_before_gtids)
+{
+    --let $expected_stop_gtid= $until_gtid
+}
+
+set session gtid_domain_id=1;
+--eval INSERT INTO t2 VALUES ($t2_ctr)
+--inc $t2_ctr
+set session gtid_domain_id=0;
+
+--connection slave
+--eval START SLAVE UNTIL $ssu_opt="$until_gtid"
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
+--let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
+
+if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
+{
+    --echo # Expected stop gtid != actual stop gtid ($expected_stop_gtid != $actual_stop_gtid)
+    --die Expected stop gtid != actual stop gtid
+}
+
+--connection slave
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+--echo #
+--echo #  Test Case 4 ($ssu_opt): For a multi-dimensional binlog state and a
+--echo # STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
+if ($ssu_before_gtids)
+{
+--echo # for each domain, execute events only up until its provided GTID, and
+--echo # once all domains have hit their end point, immediately stop.
+}
+if (!$ssu_before_gtids)
+{
+--echo # stop executing events as soon as all listed GTIDs in the UNTIL list
+--echo # have been executed.
+}
+
+--connection slave
+--source include/stop_slave.inc
+--let $initial_slave_pos= query_get_value(SHOW ALL SLAVES STATUS, Exec_Master_Log_Pos, 1)
+
+--connection master
+--eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+if ($ssu_before_gtids)
+{
+    # Save binlog pos for domain 0
+    --let $expected_stop_gtid_d0= `SELECT REGEXP_SUBSTR(@@global.gtid_binlog_pos,'0-[0-9]+-[0-9]+')`
+    --echo # Tagging domain 0 stop: $expected_stop_gtid_d0
+}
+
+--eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+
+--eval SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES ($t2_ctr)
+--inc $t2_ctr
+
+if ($ssu_before_gtids)
+{
+    # Save binlog pos for domain 1
+    --let $expected_stop_gtid_d1= `SELECT REGEXP_SUBSTR(@@global.gtid_binlog_pos,'1-[0-9]+-[0-9]+')`
+    --let $expected_stop_gtid= $expected_stop_gtid_d0,$expected_stop_gtid_d1
+}
+
+--eval SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES ($t2_ctr)
+--inc $t2_ctr
+
+--let $until_gtid= `SELECT @@gtid_binlog_pos`
+if (!$ssu_before_gtids)
+{
+    --let $expected_stop_gtid= $until_gtid
+}
+
+--eval SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES ($t1_ctr)
+--inc $t1_ctr
+--eval SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES ($t2_ctr)
+--inc $t2_ctr
+
+--connection slave
+--eval START SLAVE UNTIL $ssu_opt="$until_gtid"
+
+--echo # Ensure the slave started
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_comparison= !=
+--let $slave_param_value= $initial_slave_pos
+--source include/wait_for_slave_param.inc
+--let $slave_param_comparison= =
+
+--source include/wait_for_slave_to_stop.inc
+--let $actual_stop_gtid= `SELECT @@gtid_slave_pos`
+
+if (`SELECT strcmp("$expected_stop_gtid","$actual_stop_gtid") != 0`)
+{
+    --echo # Expected stop gtid != actual stop gtid ($expected_stop_gtid != $actual_stop_gtid)
+    --die Expected stop gtid != actual stop gtid
+}
+
+--connection slave
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+
+
+--echo #
+--echo # Error Case 1: Not providing a valid GTID should result in a syntax
+--echo # error
+
+--connection slave
+--source include/stop_slave.inc
+
+--error ER_INCORRECT_GTID_STATE
+--eval START SLAVE UNTIL $ssu_opt="a"
+
+--error ER_INCORRECT_GTID_STATE
+--eval START SLAVE UNTIL $ssu_opt="0"
+
+--error ER_INCORRECT_GTID_STATE
+--eval START SLAVE UNTIL $ssu_opt="0-1"
+
+--error ER_INCORRECT_GTID_STATE
+--eval START SLAVE UNTIL $ssu_opt="0-1-"
+
+--error ER_INCORRECT_GTID_STATE
+--eval START SLAVE UNTIL $ssu_opt="a-b-c"
+
+--source include/start_slave.inc
+
+--echo #
+--echo # Cleanup test data
+--connection master
+DROP TABLE t1, t2;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--let $include_filename= rpl_gtid_until_before_after_gtids.inc
+--source include/end_include_file.inc

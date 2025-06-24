@@ -419,3 +419,505 @@ DROP SEQUENCE s2;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-36032 Check when doing ALTER TABLE table_name sequence=1 that table can be a sequence
+#
+create sequence s;
+alter table s sequence=0;
+insert into s values (3,1,9223372036854775806,1,1,1000,0,0);
+alter table s sequence=1;
+ERROR HY000: More than one row in the table
+drop table s;
+create sequence s;
+alter table s sequence=0;
+delete from s;
+insert into s values (2,500,200,1,1,1000,0,0);
+select * from s;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2	500	200	1	1	1000	0	0
+alter table s sequence=1;
+ERROR HY000: Sequence 'test.s' has out of range value for options
+check table s;
+Table	Op	Msg_type	Msg_text
+test.s	check	status	OK
+select * from s;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2	500	200	1	1	1000	0	0
+check table s;
+Table	Op	Msg_type	Msg_text
+test.s	check	status	OK
+drop table s;
+CREATE TABLE `s` (
+# `next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+`increment` bigint(21) NOT NULL COMMENT 'increment value',
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+`cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=innodb;
+alter table s sequence=1;
+ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of columns)
+drop table s;
+create sequence s;
+alter table s drop column next_not_cached_value;
+ERROR HY000: Sequence 'test.s' table structure is invalid (Wrong number of columns)
+drop sequence s;
+CREATE TABLE `s1` (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+`increment` bigint(21) NOT NULL COMMENT 'increment value',
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+`cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=innodb;
+alter table s1 sequence=1;
+ERROR HY000: Fewer than one row in the table
+alter table s1 sequence=0;
+insert into s1 values (1,1,9223372036854775806,1,1,1000,0,0);
+alter table s1 sequence=1;
+alter table s1 sequence=0;
+insert into s1 values (2,1,9223372036854775806,1,1,1000,0,0);
+alter table s1 sequence=1;
+ERROR HY000: More than one row in the table
+alter table s1 sequence=0;
+insert into s1 values (3,1,9223372036854775806,1,1,1000,0,0);
+alter table s1 sequence=1;
+ERROR HY000: More than one row in the table
+drop table s1;
+# End of 10.11 tests
+#
+# MDEV-28152 Features for sequence
+#
+create sequence s maxvalue 12345;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 12345 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 123456789012345678901234;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+drop sequence s;
+create sequence s as tinyint;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` tinyint(5) NOT NULL,
+  `minimum_value` tinyint(5) NOT NULL,
+  `maximum_value` tinyint(5) NOT NULL,
+  `start_value` tinyint(5) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s as int;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` int(12) NOT NULL,
+  `minimum_value` int(12) NOT NULL,
+  `maximum_value` int(12) NOT NULL,
+  `start_value` int(12) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s maxvalue 12345;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 12345 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` int(12) NOT NULL,
+  `minimum_value` int(12) NOT NULL,
+  `maximum_value` int(12) NOT NULL,
+  `start_value` int(12) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+drop sequence s;
+create sequence s;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s maxvalue 123;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s as tinyint;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint start with 1 minvalue 1 maxvalue 123 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` tinyint(5) NOT NULL,
+  `minimum_value` tinyint(5) NOT NULL,
+  `maximum_value` tinyint(5) NOT NULL,
+  `start_value` tinyint(5) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+drop sequence s;
+create sequence s as int;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` int(12) NOT NULL,
+  `minimum_value` int(12) NOT NULL,
+  `maximum_value` int(12) NOT NULL,
+  `start_value` int(12) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s as tinyint;
+ERROR 22003: Out of range value for column 'maximum_value' at row 1
+alter sequence s maxvalue 126;
+alter sequence s as tinyint;
+drop sequence s;
+create sequence s as tinyint;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` tinyint(5) NOT NULL,
+  `minimum_value` tinyint(5) NOT NULL,
+  `maximum_value` tinyint(5) NOT NULL,
+  `start_value` tinyint(5) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s as int maxvalue 123;
+ERROR 42000: This version of MariaDB doesn't yet support 'ALTER SEQUENCE with both AS <type> and something else.'
+drop sequence s;
+create sequence s as smallint;
+select next value for s;
+next value for s
+1
+alter sequence s as int;
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as tinyint;
+select next value for s;
+next value for s
+1
+alter sequence s cache 100;
+select next value for s;
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+create sequence s as int;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` int(12) NOT NULL,
+  `minimum_value` int(12) NOT NULL,
+  `maximum_value` int(12) NOT NULL,
+  `start_value` int(12) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+alter sequence s as int unsigned;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int unsigned start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `next_not_cached_value` int(12) unsigned NOT NULL,
+  `minimum_value` int(12) unsigned NOT NULL,
+  `maximum_value` int(12) unsigned NOT NULL,
+  `start_value` int(12) unsigned NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+drop sequence s;
+create sequence s as tinyint;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 126;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 63;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint start with 1 minvalue 1 maxvalue 63 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+create sequence s as tinyint unsigned;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint unsigned start with 1 minvalue 1 maxvalue 254 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 254;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint unsigned start with 1 minvalue 1 maxvalue 254 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 120;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as tinyint unsigned start with 1 minvalue 1 maxvalue 120 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+create sequence s as smallint;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as smallint start with 1 minvalue 1 maxvalue 32766 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 32766;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as smallint start with 1 minvalue 1 maxvalue 32766 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 16030;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as smallint start with 1 minvalue 1 maxvalue 16030 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as smallint unsigned;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as smallint unsigned start with 1 minvalue 1 maxvalue 65534 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 65534;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as smallint unsigned start with 1 minvalue 1 maxvalue 65534 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 32000;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as smallint unsigned start with 1 minvalue 1 maxvalue 32000 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as mediumint;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as mediumint start with 1 minvalue 1 maxvalue 8388606 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 8388606;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as mediumint start with 1 minvalue 1 maxvalue 8388606 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 4223212;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as mediumint start with 1 minvalue 1 maxvalue 4223212 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as mediumint unsigned;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as mediumint unsigned start with 1 minvalue 1 maxvalue 16777214 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 16777214;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as mediumint unsigned start with 1 minvalue 1 maxvalue 16777214 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 8389231;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as mediumint unsigned start with 1 minvalue 1 maxvalue 8389231 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as int;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 2147483646;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 1234567890;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int start with 1 minvalue 1 maxvalue 1234567890 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as int unsigned;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int unsigned start with 1 minvalue 1 maxvalue 4294967294 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 4294967294;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int unsigned start with 1 minvalue 1 maxvalue 4294967294 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 2123834923;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as int unsigned start with 1 minvalue 1 maxvalue 2123834923 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as bigint;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 9223372036854775806;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 4683883928492758294;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 4683883928492758294 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+create sequence s as bigint unsigned;
+alter sequence s maxvalue 123456789012345678901;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as bigint unsigned start with 1 minvalue 1 maxvalue 18446744073709551614 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s maxvalue 18446744073709551614;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as bigint unsigned start with 1 minvalue 1 maxvalue 18446744073709551614 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1
+alter sequence s maxvalue 9432738420582397432;
+show create sequence s;
+Table	Create Table
+s	CREATE SEQUENCE `s` as bigint unsigned start with 1 minvalue 1 maxvalue 9432738420582397432 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select next value for s;
+next value for s
+1001
+drop sequence s;
+#
+# MDEV-33739 Assertion `0' failed in Type_handler_typelib::max_display_length_for_field
+#
+CREATE SEQUENCE s1 ;
+ALTER table s1 CHANGE `next_not_cached_value` next_not_cached_value SET('1','2','3','4','5','6','7','8','9','10');
+ERROR HY000: Sequence 'test.s1' table structure is invalid (next_not_cached_value)
+ALTER table s1 CHANGE `next_not_cached_value` next_not_cached_value bool;
+ERROR HY000: Sequence 'test.s1' table structure is invalid (next_not_cached_value)
+drop sequence s1;
+#
+# End of 11.5 test
+#

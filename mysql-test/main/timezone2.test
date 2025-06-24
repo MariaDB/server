@@ -40,7 +40,7 @@ create table t1 (i int, ts timestamp);
 
 set time_zone='MET';
 
-# We check common date time value and non existent or ambiguios values
+# We check common date time value and non existent or ambiguous values
 # Normal value without DST
 insert into t1 (i, ts) values
   (unix_timestamp('2003-03-01 00:00:00'),'2003-03-01 00:00:00');
@@ -113,21 +113,21 @@ create table t1 (ts timestamp);
 set time_zone='UTC';
 insert into t1 values ('0000-00-00 00:00:00'),('1969-12-31 23:59:59'),
                       ('1970-01-01 00:00:00'),('1970-01-01 00:00:01'),
-                      ('2038-01-19 03:14:07'),('2038-01-19 03:14:08');
+                      ('2038-01-19 03:14:07');
 select * from t1;
 truncate table t1;
 # MET time zone has range shifted by one hour
 set time_zone='MET';
 insert into t1 values ('0000-00-00 00:00:00'),('1970-01-01 00:30:00'),
                       ('1970-01-01 01:00:00'),('1970-01-01 01:00:01'),
-                      ('2038-01-19 04:14:07'),('2038-01-19 04:14:08');
+                      ('2038-01-19 04:14:07');
 select * from t1;
 truncate table t1;
 # same for +01:30 time zone
 set time_zone='+01:30';
 insert into t1 values ('0000-00-00 00:00:00'),('1970-01-01 01:00:00'),
                       ('1970-01-01 01:30:00'),('1970-01-01 01:30:01'),
-                      ('2038-01-19 04:44:07'),('2038-01-19 04:44:08');
+                      ('2038-01-19 04:44:07');
 select * from t1;
 
 drop table t1;
@@ -178,8 +178,6 @@ select convert_tz('2003-10-26 02:00:00', 'MET', 'UTC');
 select convert_tz('2003-10-26 02:59:59', 'MET', 'UTC');
 select convert_tz('2003-10-26 04:00:00', 'MET', 'UTC');
 select convert_tz('2038-01-19 04:14:07', 'MET', 'UTC');
-select convert_tz('2038-01-19 04:14:08', 'MET', 'UTC');
-select convert_tz('2103-01-01 04:00:00', 'MET', 'UTC');
 
 # Let us test variable time zone argument
 create table t1 (tz varchar(3));
@@ -265,7 +263,7 @@ INSERT INTO t1 VALUES (NULL), (NULL);
 LOCK TABLES t1 WRITE;
 
 # The following two queries should not return error that time zone
-# tables aren't locked.  We use IS NULL below to supress timestamp
+# tables aren't locked.  We use IS NULL below to suppress timestamp
 # result.
 SELECT CONVERT_TZ(NOW(), 'UTC', 'Europe/Moscow') IS NULL;
 UPDATE t1 SET t = CONVERT_TZ(t, 'UTC', 'Europe/Moscow');
@@ -505,7 +503,7 @@ SELECT * FROM t1 WHERE a = (SELECT MIN(b) FROM t1);
 SELECT * FROM t1 WHERE a IN ((SELECT MAX(b) FROM t1), (SELECT MIN(b) FROM t1));
 DROP TABLE t1;
 
-# Comparison and IN in combinarion with a subquery (with multiple rows)
+# Comparison and IN in combination with a subquery (with multiple rows)
 SET time_zone='+00:00';
 CREATE TABLE t1 (a TIMESTAMP, b TIMESTAMP);
 INSERT INTO t1 VALUES (FROM_UNIXTIME(1100000000),FROM_UNIXTIME(1200000000));
@@ -558,7 +556,7 @@ SET time_zone=DEFAULT;
 --echo #
 
 SET time_zone='Europe/Moscow';
-CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP NOT NULL DEFAULT NOW());
 SET timestamp=1288477526  /* this is summer time */ ;
 INSERT INTO t1 VALUES (3,NULL);
 SET timestamp=1288477526+3599 /* this is winter time*/ ;
@@ -575,7 +573,7 @@ SET time_zone=DEFAULT;
 --echo #
 
 SET time_zone='Europe/Moscow';
-CREATE TABLE t1 (i INT, d TIMESTAMP(6));
+CREATE TABLE t1 (i INT, d TIMESTAMP(6) NOT NULL DEFAULT NOW());
 SET timestamp=1288479599.999999  /* this is the last second in summer time */ ;
 INSERT INTO t1 VALUES (1,NULL);
 SET timestamp=1288479600.000000 /* this is the first second in winter time */ ;
@@ -615,3 +613,194 @@ SELECT a, UNIX_TIMESTAMP(a) FROM t1 ORDER BY a;
 SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a <= ALL (SELECT * FROM t1);
 SELECT a, UNIX_TIMESTAMP(a) FROM t1 WHERE a >= ALL (SELECT * FROM t1);
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-32148 Inefficient WHERE timestamp_column=datetime_expr
+--echo #
+
+--echo #
+--echo # Testing a DST change (fall back)
+--echo #
+
+SET time_zone='Europe/Moscow';
+# '2010-10-31 02:59:59' (1288479599)
+# '2010-10-31 02:00:00' (1288479600)
+SET @first_second_after_dst_fall_back=1288479600;
+
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
+
+--echo #
+--echo # Optimized (more than 24 hours before the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back-24*3600-1;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (24 hours before the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back-24*3600;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (less than 24 hours after the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back+24*3600-1;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Optimized (24 hours after the DST fall back)
+--echo #
+
+SET timestamp=@first_second_after_dst_fall_back+24*3600;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # Testing a DST change (spring forward)
+--echo #
+
+SET time_zone='Europe/Moscow';
+# '2011-03-27 01:59:59' (1301180399)
+# '2011-03-27 03:00:00' (1301180400)
+SET @first_second_after_dst_spring_forward=1301180400;
+
+CREATE TABLE t1 (a TIMESTAMP NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'),('2001-01-01 10:20:31');
+
+--echo #
+--echo # Optimized (more than 24 hours before the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward-24*3600-1;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (24 hours before the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward-24*3600;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (less than 24 hours after the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward+24*3600-1;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Optimized (24 hours after the DST sprint forward)
+--echo #
+
+SET timestamp=@first_second_after_dst_spring_forward+24*3600;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+DROP TABLE t1;
+
+--echo #
+--echo # Testing a leap second
+--echo #
+
+SET time_zone='leap/Europe/Moscow';
+SET @leap_second=362793609; /*The 60th leap second*/
+
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=@leap_second-1;
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=@leap_second;
+INSERT INTO t1 VALUES (NOW());
+SET timestamp=@leap_second+1;
+INSERT INTO t1 VALUES (NOW());
+SELECT UNIX_TIMESTAMP(a), a FROM t1 ORDER BY UNIX_TIMESTAMP(a);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+
+--echo #
+--echo # Optimized (more than 24 hours before the leap second)
+--echo #
+
+SET timestamp=@leap_second-24*3600-1;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (24 hours before the leap second)
+--echo #
+
+SET timestamp=@leap_second-24*3600;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (less than 24 hours after the leap second)
+--echo #
+
+SET timestamp=@leap_second+24*3600-1;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+--echo #
+--echo # Not optimized (24 hours after the leap second)
+--echo #
+
+SET timestamp=@leap_second+24*3600;
+SELECT UNIX_TIMESTAMP(), LOCALTIMESTAMP();
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=LOCALTIMESTAMP();
+
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # End of 11.3 tests
+--echo #
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-15751 CURRENT_TIMESTAMP should return a TIMESTAMP [WITH TIME ZONE?]
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=1288477526 /*summer time*/;
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP()), (COALESCE(CURRENT_TIMESTAMP()));
+SET timestamp=1288477526+3600 /*winter time*/;
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP()), (COALESCE(CURRENT_TIMESTAMP()));
+--echo # The two INSERTs produce equal "a" but different UNIX_TIMESTAMP(a)
+SELECT a, UNIX_TIMESTAMP(a) FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP);
+SET timestamp=1288477526 /*summer time*/;
+INSERT INTO t1 VALUES (LOCALTIMESTAMP()), (COALESCE(LOCALTIMESTAMP()));
+SET timestamp=1288477526+3600 /*winter time*/;
+INSERT INTO t1 VALUES (LOCALTIMESTAMP()), (COALESCE(LOCALTIMESTAMP()));
+--echo # The two INSERTs produce equal "a" and equal (summer) UNIX_TIMESTAMP(a)
+SELECT a, UNIX_TIMESTAMP(a) FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

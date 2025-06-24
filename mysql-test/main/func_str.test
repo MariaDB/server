@@ -1,10 +1,10 @@
 # Description
 # -----------
 # Testing string functions
+--source include/have_sequence.inc
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+--source include/test_db_charset_latin1.inc
+
 
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
@@ -95,7 +95,7 @@ SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),r
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 --disable_view_protocol
-#chaeck after fix MDEV-31540
+#check after fix MDEV-31540
 --disable_cursor_protocol
 --enable_metadata
 select replace('aaaa','a','bbbb');
@@ -463,7 +463,7 @@ select charset(a), collation(a), coercibility(a) from t1;
 drop table t1;
 select charset(null), collation(null), coercibility(null);
 #
-# Make sure OUTER JOIN is not replaced with a regular joun
+# Make sure OUTER JOIN is not replaced with a regular join
 #
 CREATE TABLE t1 (a int, b int);
 CREATE TABLE t2 (a int, b int);
@@ -474,7 +474,7 @@ where collation(t2.a) = _utf8'binary' order by t1.a,t2.a;
 select t1.*,t2.* from t1 left join t2 on (t1.b=t2.b)
 where charset(t2.a) = _utf8'binary' order by t1.a,t2.a;
 select t1.*,t2.* from t1 left join t2 on (t1.b=t2.b)
-where coercibility(t2.a) = 5 order by t1.a,t2.a;
+where coercibility(t2.a) = 7 order by t1.a,t2.a;
 DROP TABLE t1, t2;
 
 #
@@ -490,7 +490,7 @@ select SUBSTR('abcdefg',1,-1) FROM DUAL;
 
 #
 # Test that fix_fields doesn't follow to upper level (to comparison)
-# when an error on a lower level (in concat) has accured:
+# when an error on a lower level (in concat) has occured:
 #
 create table t7 (s1 char);
 --error 1267
@@ -559,7 +559,7 @@ SELECT lpad(12345, 5, "#");
 #
  
 SELECT conv(71, 10, 36), conv('1Z', 36, 10);
-SELECT conv(71, 10, 37), conv('1Z', 37, 10), conv(0,1,10),conv(0,0,10), conv(0,-1,10);
+SELECT conv(71, 10, 63), conv('1Z', 63, 10), conv(0,1,10),conv(0,0,10), conv(0,-1,10);
 
 #
 # Bug in SUBSTRING when mixed with CONCAT and ORDER BY (Bug #3089)
@@ -1537,11 +1537,7 @@ SELECT CONVERT(('' IN (REVERSE(CAST(('') AS DECIMAL)), '')), CHAR(3));
 --echo #
 CREATE TABLE t1 ( a TEXT );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT 'aaaaaaaaaaaaaa' INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt';
---enable_ps2_protocol
---enable_cursor_protocol
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
@@ -1631,7 +1627,7 @@ SELECT format(12345678901234567890.123, 3, 'en_US');
 --enable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'it_CH');
 SELECT format(12345678901234567890.123, 3, 'ru_RU');
-#checkafter fix MDEV-31512
+#check after fix MDEV-31512
 --disable_cursor_protocol
 SELECT format(12345678901234567890.123, 3, 'ta_IN');
 --enable_cursor_protocol
@@ -2457,3 +2453,375 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-25704 Function random_bytes
+--echo #
+
+create table t1 as select random_bytes(100);
+show create table t1;
+drop table t1;
+
+--echo # The sequence starts at 17 so that the probability of test failure is small enough (about 2^(-136))
+select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
+
+select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+
+select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
+
+--echo #
+--echo # Test NULL output for NULL input
+--echo #
+
+SELECT random_bytes(NULL);
+
+--echo #
+--echo # Test For values outside range from 1 to 1024 return NULL
+--echo #
+
+SELECT random_bytes(0);
+SELECT random_bytes(-1);
+SELECT random_bytes(-100);
+SELECT random_bytes(-26);
+SELECT random_bytes(-132);
+SELECT random_bytes(1025);
+SELECT random_bytes(11111);
+SELECT random_bytes(2056);
+
+#double warning for view protocol 
+--disable_view_protocol
+SELECT length(random_bytes(10.0));
+SELECT length(random_bytes(10.1));
+SELECT length(random_bytes(+1e1));
+SELECT length(random_bytes(time("00:01")));
+SELECT length(random_bytes("10.0"));
+SELECT length(random_bytes("10.1"));
+SELECT length(random_bytes("+1e1"));
+SELECT length(random_bytes("10.0bunnies"));
+SELECT length(random_bytes("10.1chickens"));
+SELECT length(random_bytes("+1e1rabbits"));
+--enable_view_protocol
+
+--delimiter |
+create procedure p1()
+begin
+  declare r ROW (c1 INT);
+  set r.c1= 10;
+  select random_bytes(r);
+end|
+--delimiter ;
+--error 1241
+call p1();
+drop procedure p1;
+
+--echo #
+--echo # Test For invalid argument return NULL
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+SELECT random_bytes('s');
+SELECT random_bytes('r');
+SELECT random_bytes('res');
+SELECT random_bytes('test');
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-29108 RANDOM_BYTES - assertion in Create_tmp_table::finalize
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
+
+# Cleanup
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-29154 Excessive warnings upon a call to RANDOM_BYTES
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+select length(random_bytes(cast('x' as unsigned)+1));
+select repeat('.', cast('x' as unsigned)+1);
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+--replace_regex /'.*'/'...random bytes...'/
+select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
+--enable_view_protocol
+--echo #
+--echo # End of 10.10 tests
+--echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33392 Server crashes when using RANDOM_BYTES function and GROUP BY clause on a column with a negative value
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a VARCHAR(255)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9494),(9495),(9496),(9497),(9498),(9499),(9500),(9501),(9502),(9503);
+SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+CREATE TABLE t2 AS SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm
+--echo #
+select aes_encrypt('foo', 'bar', '1234') = aes_encrypt('foo', 'bar') `expected 1`;
+select aes_encrypt('foo', 'bar', NULL, 'aes-128-ecb') = aes_encrypt('foo', 'bar') `expected 1`;
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt(1,2,3,4,5);
+select aes_encrypt('foo', 'bar', '0123', 'something');
+select aes_encrypt('foo', 'bar', '0123', 'aes-111-ecb');
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-bar');
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-cbc');
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-256-cbc')) `x`;
+select aes_decrypt(x'42A3EB91E6DFC40A900D278F99E0726E', 'bar', '0123456789abcdef###', 'AES-256-CBC') `expected foo`;
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-128-ctr')) `x`;
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef', 'aes-128-ctr') `expected foo`;
+
+set @@block_encryption_mode='aes-128-ctr';
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef');
+set @@block_encryption_mode='aes-192-cbc';
+select hex(aes_encrypt('foo', 'bar'));
+select hex(aes_encrypt('foo', 'bar', 'abcdefghabcdefgh'));
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh') `expected foo`;
+
+# wrong key
+select aes_decrypt(x'00000000000000011111111111111111', 'bar', 'abcdefghabcdefgh') `expected NULL`;
+# wrong iv
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', '0000000011111111') `expected NULL`;
+# wrong alg
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ecb') `expected NULL`;
+# but ctr doesn't use padding, so:
+select hex(aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ctr')) `expected garbage`;
+
+set @@block_encryption_mode=default;
+
+--echo #
+--echo # MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+--echo #
+select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
+
+--echo #
+--echo # MDEV-33659: Server crashed at Create_func_aes_decrypt::create_native
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_decrypt();
+
+--echo #
+--echo # End of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-30879 Add conversion to based 62 for CONV function
+--echo #
+
+SELECT CONV('1z', 62, 10);
+SELECT CONV('1Z', 62, 10);
+
+SELECT CONV('-1Z', 62, 10);
+SELECT CONV('-1Z', -62, 10);
+SELECT CONV('-1Z', 62, -10);
+SELECT CONV('-1Z', -62, -10);
+
+# Check limits
+SELECT CONV('AzL8n0Y58m7', 62, 10);
+SELECT CONV('LygHa16AHYE', 62, 10);
+SELECT CONV('LygHa16AHYF', 62, 10);
+
+# Overflow doesn't appear to warn, but does overflow
+SELECT CONV('LygHa16AHZ0', 62, 10);
+
+SELECT CONV('-AzL8n0Y58m7', -62, -10);
+SELECT CONV('-AzL8n0Y58m8', -62, -10);
+SELECT CONV('-AzL8n0Y58m9', -62, -10);
+SELECT CONV('-LygHa16AHZ0', -62, -10);
+
+# Should NULL
+SELECT CONV('LygHa16AHYF', 63, 10);
+SELECT CONV(18446744073709551615, 10, 63);
+
+# Test 10 -> 62
+SELECT CONV(18446744073709551615, 10, 62);
+SELECT CONV(-9223372036854775808, -10, -62);
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-25829 Change default collation to utf8mb4_1400_ai_ci
+--echo #
+
+--vertical_results
+SELECT
+  coercibility(CAST(1 AS CHAR)),
+  coercibility(CONVERT('a' USING latin1));
+
+SELECT
+  coercibility(CAST(1 AS BINARY)),
+  coercibility(CONVERT('a' USING binary)),
+  coercibility(binary'a');
+--horizontal_results
+
+EXPLAIN EXTENDED SELECT
+  CAST(1 AS BINARY) AS c,
+  CONVERT('a' USING binary),
+  BINARY'a';
+
+--vertical_results
+SELECT
+  coercibility(collation('a')),
+  coercibility(charset('a')),
+  coercibility(user()),
+  coercibility(database());
+--horizontal_results
+
+--echo #
+--echo # End of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-34911 Make conditions SUBSTR(col, 1, n) = const_str sargable
+--echo #
+
+create table t (c varchar(5), key (c));
+insert into t values ('ddd'), ('bbcd'), ('bba'), ('b%_cd'), ('aaa');
+
+# positive cases
+
+let $query=
+select * from t where substr(c, 1, 2) = 'bb';
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where 'bb' = substr(c, 1, 2);
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where left(c, 2) = 'bb';
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where 'bb' = left(c, 2);
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where substr(c, 1, 4) = 'b%_c';
+eval explain $query;
+eval $query;
+
+# RHS can_eval_in_optimize()
+let $query=
+select * from t where substr(c, 1, 2) = concat('b', 'b');
+eval explain $query;
+eval $query;
+
+# RHS can_eval_in_optimize()
+let $query=
+select * from t where substr(c, 1, 2) = substr('bb1', 1, 2);
+eval explain $query;
+eval $query;
+
+# works with view
+create table t1 (a varchar(32), b int, index(a));
+insert into t1 select seq, seq / 33 from seq_1_to_100;
+explain select * from t1 where substr(a, 1, 2)='80';
+# The range is a necessary condition, and further filtering happens in
+# the exec stage
+explain select * from t1 where substr(a, 1, b)='80';
+create view v1 as select a,b from t1;
+explain select * from v1 where substr(a, 1, 2)='80';
+drop view v1;
+drop table t1;
+
+# negative cases
+
+let $query=
+select * from t where substr(c, 1, 1) = 'bb';
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where substr(c, 1, 3) = 'bb';
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where substr(c, 1) = 'bb';
+eval explain $query;
+eval $query;
+
+let $query=
+select * from t where substr(c, 1, 2) = substr(c, 2, 3);
+eval explain $query;
+eval $query;
+
+# full table scan when no index on sargable substr
+drop index c on t;
+
+let $query=
+select * from t where substr(c, 1, 2) = 'bb';
+eval explain $query;
+eval $query;
+
+drop table t;
+
+# czech has the same behaviour as in LIKE
+set @old_collation_connection=@@collation_connection;
+SET collation_connection=utf32_czech_ci;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS s1 LIMIT 0;
+INSERT INTO t1 VALUES ('%c'),('%ce'),('%cé'),('%ch'), ('c'), ('d'), ('c%'), ('c\\g');
+SELECT * FROM t1 WHERE s1 LIKE '\\%c%';
+SELECT * FROM t1 WHERE substr(s1, 1, 2) = '%c';
+SELECT * FROM t1 WHERE s1 LIKE 'c\\\\%';
+SELECT * FROM t1 WHERE substr(s1, 1, 2) = 'c\\';
+ALTER TABLE t1 ADD KEY s1 (s1);
+SELECT * FROM t1 WHERE s1 LIKE '\\%c%';
+SELECT * FROM t1 WHERE substr(s1, 1, 2) = '%c';
+SELECT * FROM t1 WHERE s1 LIKE 'c\\\\%';
+SELECT * FROM t1 WHERE substr(s1, 1, 2) = 'c\\';
+DROP TABLE t1;
+set collation_connection=@old_collation_connection;
+
+# no stack overrun escaping long string
+create table t1 (a varchar(100), b varchar(100), key(a));
+insert into t1 select seq, seq from seq_1_to_1000;
+explain select * from t1 where LEFT(a, 20) ='%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%';
+drop table t1;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
+--source include/test_db_charset_restore.inc

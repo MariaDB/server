@@ -55,10 +55,14 @@ DEFAULT current_timestamp() ON UPDATE current_timestamp(),
 PRIMARY KEY(col_a),
 UNIQUE INDEX i_ts (col_ts)
 ) MASTER_1_ENGINE MASTER_1_AUTO_INCREMENT_2_1 MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_f (
 col_d DATE,
 col_t TIME
 ) ENGINE=Spider COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (
@@ -67,13 +71,13 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`col_a`),
   UNIQUE KEY `i_ts` (`col_ts`)
-) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
+) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
 SHOW CREATE TABLE tbl_f;
 Table	Create Table
 tbl_f	CREATE TABLE `tbl_f` (
   `col_d` date DEFAULT NULL,
   `col_t` time DEFAULT NULL
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
 
 Set a different time zone that has DST
 SET time_zone='+01:00';
@@ -257,7 +261,7 @@ select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timest
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2018-03-25 01:00:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
@@ -279,7 +283,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_dt` datetime DEFAULT NULL,
   `col_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`col_a`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
 DROP INDEX i_ts ON tbl_a;
@@ -290,7 +294,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_dt` datetime DEFAULT NULL,
   `col_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
+) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
 
 Retry lookups on unindexed timestamp column
 connection child2_1;
@@ -344,7 +348,7 @@ select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timest
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (_latin1'2018-10-28 01:30:00' > t0.`col_ts`)
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between _latin1'2018-10-28 00:30:00'  and  _latin1'2018-10-28 01:30:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= _latin1'2018-10-28 00:30:00') and (t0.`col_ts` <= _latin1'2018-10-28 01:30:00'))
-select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > _latin1'2018-03-25 01:00:00')
 select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
@@ -394,9 +398,9 @@ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argum
 argument
 select t0.`col_d` `col_d`,t0.`col_t` `col_t` from `ts_test_remote`.`tbl_f` t0
 select (timestamp(t0.`col_d` , t0.`col_t`)) `TIMESTAMP(col_d, col_t)` from `ts_test_remote`.`tbl_f` t0
-select (timestamp('2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
-select (timestamp(t0.`col_d` , '10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
-select (timestamp('2018-06-25' , '10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+select (timestamp(_latin1'2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
+select (timestamp(t0.`col_d` , _latin1'10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+select (timestamp(_latin1'2018-06-25' , _latin1'10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_d, col_t FROM tbl_f;
 col_d	col_t

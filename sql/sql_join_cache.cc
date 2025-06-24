@@ -23,10 +23,6 @@
   @{
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "key.h"
 #include "sql_base.h"
@@ -57,7 +53,7 @@ static void save_or_restore_used_tabs(JOIN_TAB *join_tab, bool save);
     the field value is to be copied and the length of the copied fragment. 
     Before returning the result the function increments the value of
     *field by 1.
-    The function ignores the fields 'blob_length' and 'ofset' of the
+    The function ignores the fields 'blob_length' and 'offset' of the
     descriptor.
 
   RETURN VALUE
@@ -198,7 +194,7 @@ void JOIN_CACHE::calc_record_fields()
 
         We will need to store columns of SJ-inner tables (it_X_Y.*), but we're
         not interested in storing the columns of materialization tables
-        themselves. Beause of that, if the first non-const top-level table is a
+        themselves. Because of that, if the first non-const top-level table is a
         materialized table, we move to its bush_children:
       */
       tab= join->join_tab + join->const_tables;
@@ -647,7 +643,7 @@ void JOIN_CACHE::create_remaining_fields()
     used to store record lengths.
     The function also calculates the maximal length of the representation
     of record in the cache excluding blob_data. This value is used when
-    making a dicision whether more records should be added into the join
+    making a decision whether more records should be added into the join
     buffer or not.
   
   RETURN VALUE
@@ -919,7 +915,12 @@ int JOIN_CACHE::alloc_buffer()
   buff= NULL;
   buff_size= get_max_join_buffer_size(optimize_buff_size, min_buff_size);
 
-  for (tab= start_tab; tab!= join_tab; 
+  /*
+    Compute the total buffer usage for all join buffers up to
+    and including the current one.
+  */
+  for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+       tab != join_tab;
        tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {
     cache= tab->cache;
@@ -1265,7 +1266,7 @@ bool JOIN_CACHE::check_emb_key_usage()
         - null bitmaps for all tables,
         - null row flags for all tables
     (4) values of all data fields including
-        - full images of those fixed legth data fields that cannot have 
+        - full images of those fixed length data fields that cannot have
           trailing spaces
         - significant part of fixed length fields that can have trailing spaces
           with the prepanded length 
@@ -2171,12 +2172,12 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
 
   if (!join_tab->first_unmatched)
   {
-    bool pfs_batch_update= join_tab->pfs_batch_update(join);
-    if (pfs_batch_update)
+    DBUG_ASSERT(join_tab->cached_pfs_batch_update == join_tab->pfs_batch_update());
+    if (join_tab->cached_pfs_batch_update)
       join_tab->table->file->start_psi_batch_mode();
     /* Find all records from join_tab that match records from join buffer */
     rc= join_matching_records(skip_last);   
-    if (pfs_batch_update)
+    if (join_tab->cached_pfs_batch_update)
       join_tab->table->file->end_psi_batch_mode();
     if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
       goto finish;
@@ -2346,7 +2347,8 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   if ((rc= join_tab_execution_startup(join_tab)) < 0)
     goto finish2;
 
-  if (join_tab->build_range_rowid_filter_if_needed())
+  if (join_tab->need_to_build_rowid_filter && 
+      join_tab->build_range_rowid_filter())
   {
     rc= NESTED_LOOP_ERROR;
     goto finish2;
@@ -2643,7 +2645,7 @@ inline bool JOIN_CACHE::check_match(uchar *rec_ptr)
 
   NOTES
     The same implementation of the virtual method join_null_complements
-    is used for BNL/BNLH/BKA/BKA join algorthm.
+    is used for BNL/BNLH/BKA/BKA join algorithm.
       
   RETURN VALUE
     return one of enum_nested_loop_state.
@@ -2713,6 +2715,7 @@ bool JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
   explain->incremental= MY_TEST(prev_cache);
 
   explain->join_buffer_size= get_join_buffer_size();
+  explain->is_bka= false;
 
   switch (get_join_alg()) {
   case BNL_JOIN_ALG:
@@ -2723,9 +2726,11 @@ bool JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
     break;
   case BKA_JOIN_ALG:
     explain->join_alg= "BKA";
+    explain->is_bka= true;
     break;
   case BKAH_JOIN_ALG:
     explain->join_alg= "BKAH";
+    explain->is_bka= true;
     break;
   default:
     DBUG_ASSERT(0);
@@ -2830,7 +2835,7 @@ int JOIN_CACHE_HASHED::init(bool for_explain)
   if (for_explain)
     DBUG_RETURN(0);
 
-  if (!(key_buff= (uchar*) join->thd->alloc(key_length)))
+  if (!(key_buff= join->thd->alloc<uchar>(key_length)))
     DBUG_RETURN(1);
 
   /* Take into account a reference to the next record in the key chain */
@@ -4723,7 +4728,7 @@ DESCRIPTION
   matching the record loaded into the record buffer for join_tab when
   performing join operation by BKAH join algorithm. With BKAH algorithm, if
   association labels are used, then record loaded into the record buffer 
-  for join_tab always has a direct reference to the chain of the mathing
+  for join_tab always has a direct reference to the chain of the matching
   records from the join buffer. If association labels are not used then
   then the chain of the matching records is obtained by the call of the
   get_key_chain_by_join_key function.

@@ -1,0 +1,115 @@
+--source include/not_embedded.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+
+
+--echo #
+--echo # MDEV-32441 SENT_ROWS shows random wrong values when stored function
+--echo # is selected
+--echo #
+
+create table t1 (a int) engine=aria;
+insert into t1 values (1),(2),(3),(4),(5),(6),(7);
+flush status;
+create function if not exists f() returns int return
+(
+  select sum(a) > 0 from t1
+);
+
+--disable_ps_protocol
+select f() from seq_1_to_10 where seq%5 = 0;
+show status like "rows_sent";
+--enable_ps_protocol
+
+--echo # Test simple query
+
+set debug_sync='RESET';
+--connect(con1,localhost,root,,)
+--let $conid= `select connection_id()`
+--let $replace_conid=id=$conid
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go';
+--send select f() from seq_1_to_10 where seq%5 = 0
+
+--connection default
+set debug_sync='now WAIT_FOR parked';
+--echo # Result should be 2, 10+7*2=24
+--replace_result $replace_conid id=#
+eval select sent_rows, examined_rows from information_schema.processlist where id=$conid;
+set debug_sync='now signal go';
+--connection con1
+--reap
+
+--echo # Test union
+
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go';
+--send select a from t1 where a not in (1,2,3,4) union select a from t1 where a not in (4,5,6,7)
+--connection default
+set debug_sync='now WAIT_FOR parked';
+--echo # Result should be 6, 7+7+6=20 (2 scans of 7 rows + 6 rows in union)
+--replace_result $replace_conid id=#
+eval select sent_rows, examined_rows from information_schema.processlist where id=$conid;
+set debug_sync='now signal go';
+--connection con1
+--reap
+
+--echo # Test handler calls
+handler t1 open;
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go';
+--send handler t1 read NEXT LIMIT 2,4
+--connection default
+set debug_sync='now WAIT_FOR parked';
+--echo # Result should be 2, 10+7*2=24
+--replace_result $replace_conid id=#
+eval select sent_rows, examined_rows from information_schema.processlist where id=$conid;
+set debug_sync='now signal go';
+--connection con1
+--reap
+handler t1 close;
+
+--connection default
+drop function f;
+drop table t1;
+
+--echo # Test Stored procedures
+
+create or replace table t (a int primary key);
+insert into t select seq from seq_1_to_100;
+--delimiter $
+create procedure pr()
+begin
+  select * from t where a between 1 and 2 ;
+  select * from t where a between 4 and 6 ;
+end $
+--delimiter ;
+
+--connection con1
+flush status;
+set debug_sync='end_of_statement SIGNAL parked WAIT_FOR go EXECUTE 2';
+
+--send  call pr()
+
+--connection default
+set debug_sync='now WAIT_FOR parked';
+--replace_result $replace_conid id=#
+eval select examined_rows, sent_rows, info from information_schema.processlist where id=$conid;
+set debug_sync='now signal go';
+set debug_sync='now WAIT_FOR parked';
+--replace_result $replace_conid id=#
+eval select examined_rows, sent_rows, info from information_schema.processlist where id=$conid;
+set debug_sync='now signal go';
+
+--connection con1
+--reap
+show status like '%rows%';
+
+connection default;
+# Cleanup
+drop table t;
+drop procedure pr;
+
+--disconnect con1
+set debug_sync= RESET;
+
+--echo #
+--echo # End of 11.3 tests
+--echo #

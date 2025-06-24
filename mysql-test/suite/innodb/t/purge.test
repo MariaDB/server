@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
@@ -143,3 +144,5 @@ INSERT INTO t1() VALUES();
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 DROP TABLE t1;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge, t12637786, t12963823;
+
+--source include/test_db_charset_restore.inc

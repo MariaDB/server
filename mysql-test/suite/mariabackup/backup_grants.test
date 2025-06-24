@@ -1,11 +1,11 @@
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
-let $info=$MYSQLTEST_VARDIR/tmp/backup/xtrabackup_info;
+let $info=$MYSQLTEST_VARDIR/tmp/backup/mariadb_backup_info;
 let $log=$MYSQLTEST_VARDIR/tmp/backup.log;
 CREATE user backup@localhost IDENTIFIED BY 'xyz';
 
 # backup possible for unprivileges user, with --no-lock
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --no-lock  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 -ubackup -pxyz --no-lock  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 
 --let SEARCH_FILE=$log
@@ -19,7 +19,7 @@ rmdir $targetdir;
 # backup fails without --no-lock, because of FTWRL
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 -ubackup -pxyz --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 
 --let SEARCH_FILE=$log
@@ -32,7 +32,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxy
 # backup succeeds with RELOAD privilege
 GRANT RELOAD, PROCESS on *.* to backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --user=backup --password=xyz --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --user=backup --password=xyz --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 --let SEARCH_PATTERN=  missing required privilege
 --source include/search_pattern_in_file.inc
@@ -45,7 +45,7 @@ rmdir $targetdir;
 # --slave-info and --galera-info require REPLICA MONITOR
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user backup --password=xyz --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user=backup --password=xyz --slave-info  --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 rmdir $targetdir;
 
@@ -55,7 +55,7 @@ rmdir $targetdir;
 
 GRANT REPLICA MONITOR ON *.* TO backup@localhost;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --slave-info --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user=backup --password=xyz --slave-info --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log
 --let SEARCH_PATTERN=  missing required privilege
 --source include/search_pattern_in_file.inc
@@ -65,37 +65,10 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxy
 rmdir $targetdir;
 REVOKE REPLICA MONITOR ON *.* FROM backup@localhost;
 
-# TODO need a query that would delay a BACKUP STAGE START/ BACKUP STAGE BLOCK_COMMIT longer than the kill-long-queries-timeout
-#--send SELECT SLEEP(9) kill_me
-
-# kill-long-query-type=(not empty) requires CONNECTION ADMIN
---disable_result_log
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup -pxyz --kill-long-query-type=ALL --kill-long-queries-timeout=4 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
---enable_result_log
---let SEARCH_FILE=$info
---let SEARCH_PATTERN=xyz
---source include/search_pattern_in_file.inc
-rmdir $targetdir;
-
---let SEARCH_FILE=$log
---let SEARCH_PATTERN= missing required privilege CONNECTION ADMIN
---source include/search_pattern_in_file.inc
-
-GRANT CONNECTION ADMIN ON *.* TO backup@localhost;
---disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup -ubackup --password xyz  --kill-long-query-type=all --kill-long-queries-timeout=1 --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
---enable_result_log
---let SEARCH_PATTERN=  missing required privilege
---source include/search_pattern_in_file.inc
---let SEARCH_FILE=$info
---let SEARCH_PATTERN=xyz
---source include/search_pattern_in_file.inc
-rmdir $targetdir;
-
 # --safe-slave-backup requires REPLICATION SLAVE ADMIN, and REPLICA MONITOR
 --disable_result_log
 error 1;
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user backup --password xyz --safe-slave-backup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --user=backup --password=xyz --safe-slave-backup --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log;
 --enable_result_log
 rmdir $targetdir;
 

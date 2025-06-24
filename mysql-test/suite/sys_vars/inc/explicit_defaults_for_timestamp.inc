@@ -105,7 +105,9 @@ SET timestamp=DEFAULT;
 --echo #
 --echo # MDEV-29075 Changing explicit_defaults_for_timestamp within stored procedure works inconsistently
 --echo #
+--disable_warnings
 set statement explicit_defaults_for_timestamp=1-@@explicit_defaults_for_timestamp for create table t1 (ts timestamp);
+--enable_warnings
 show create table t1;
 drop table t1;
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 #include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
+#include "sql_acl.h"
+#include <sql_common.h>
 
 #ifdef HAVE_REPLICATION
 
@@ -31,20 +33,21 @@ static void init_master_log_pos(Master_info* mi);
 Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery)
   :Slave_reporting_capability("I/O"),
-   ssl(0), ssl_verify_server_cert(1), fd(-1), io_thd(0), 
+   ssl(1), ssl_verify_server_cert(1), fd(-1), io_thd(0),
    rli(is_slave_recovery), port(MYSQL_PORT),
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
-   connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
+   connect_retry(DEFAULT_CONNECT_RETRY), retry_count(master_retry_count),
+   connects_tried(0), inited(0), abort_slave(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), slave_run_id(0),
    clock_diff_with_master(0),
    sync_counter(0), heartbeat_period(0), received_heartbeats(0),
    master_id(0), prev_master_id(0),
-   using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
+   using_gtid(USE_GTID_SLAVE_POS), events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
    total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0),
-   do_accept_own_server_id(false), semi_sync_reply_enabled(0)
+   semi_sync_reply_enabled(0)
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
@@ -56,16 +59,22 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
     Store connection name and lower case connection name
     It's safe to ignore any OMM errors as this is checked by error()
   */
-  connection_name.length= cmp_connection_name.length=
-    connection_name_arg->length;
+  connection_name.length= connection_name_arg->length;
+  size_t cmp_connection_name_nbytes= connection_name_arg->length *
+                                     system_charset_info->casedn_multiply() +
+                                     1;
   if ((connection_name.str= tmp= (char*)
-       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length*2+2, MYF(MY_WME))))
+       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length + 1 +
+                                    cmp_connection_name_nbytes,
+                 MYF(MY_WME))))
   {
     strmake(tmp, connection_name_arg->str, connection_name.length);
     tmp+= connection_name_arg->length+1;
     cmp_connection_name.str= tmp;
-    memcpy(tmp, connection_name_arg->str, connection_name.length+1);
-    my_casedn_str(system_charset_info, tmp);
+    cmp_connection_name.length=
+      system_charset_info->casedn_z(connection_name_arg->str,
+                                    connection_name_arg->length,
+                                    tmp, cmp_connection_name_nbytes);
   }
   /*
     When MySQL restarted, all Rpl_filter settings which aren't in the my.cnf
@@ -86,6 +95,14 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_start_stop_lock, &start_stop_lock,
                    MY_MUTEX_INIT_SLOW);
+  /*
+    start_alter_lock will protect individual start_alter_info while
+    start_alter_list_lock is for list insertion and deletion operations
+  */
+  mysql_mutex_init(key_master_info_start_alter_lock, &start_alter_lock,
+                                      MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_master_info_start_alter_list_lock, &start_alter_list_lock,
+                                      MY_MUTEX_INIT_FAST);
   mysql_mutex_setflags(&run_lock, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_setflags(&data_lock, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_init(key_master_info_sleep_lock, &sleep_lock, MY_MUTEX_INIT_FAST);
@@ -93,6 +110,7 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   mysql_cond_init(key_master_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_master_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_master_info_sleep_cond, &sleep_cond, NULL);
+  init_sql_alloc(PSI_INSTRUMENT_ME, &mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 }
 
 
@@ -122,10 +140,13 @@ Master_info::~Master_info()
   mysql_mutex_destroy(&data_lock);
   mysql_mutex_destroy(&sleep_lock);
   mysql_mutex_destroy(&start_stop_lock);
+  mysql_mutex_destroy(&start_alter_lock);
+  mysql_mutex_destroy(&start_alter_list_lock);
   mysql_cond_destroy(&data_cond);
   mysql_cond_destroy(&start_cond);
   mysql_cond_destroy(&stop_cond);
   mysql_cond_destroy(&sleep_cond);
+  free_root(&mem_root, MYF(0));
 }
 
 /**
@@ -199,14 +220,15 @@ void init_master_log_pos(Master_info* mi)
 
   mi->master_log_name[0] = 0;
   mi->master_log_pos = BIN_LOG_HEADER_SIZE;             // skip magic number
-  mi->using_gtid= Master_info::USE_GTID_NO;
+  if (mi->master_supports_gtid)
+  {
+    mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
+  }
   mi->gtid_current_pos.reset();
   mi->events_queued_since_last_gtid= 0;
   mi->gtid_reconnect_event_skip_count= 0;
   mi->gtid_event_seen= false;
 
-  /* Intentionally init ssl_verify_server_cert to 0, no option available  */
-  mi->ssl_verify_server_cert= 0;
   /* 
     always request heartbeat unless master_heartbeat_period is set
     explicitly zero.  Here is the default value for heartbeat period
@@ -549,9 +571,12 @@ file '%s')", fname);
 	  goto errwithmsg;
 
       /* Starting from 5.5 the master_retry_count may be in the repository. */
-      if (lines >= LINE_FOR_MASTER_RETRY_COUNT &&
-	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
-	  goto errwithmsg;
+      if (lines >= LINE_FOR_MASTER_RETRY_COUNT)
+      {
+        if (init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
+          goto errwithmsg;
+        mi->retry_count = atol(buf);
+      }
 
       if (lines >= LINE_FOR_SSL_CRLPATH &&
 	  (init_strvar_from_file(mi->ssl_crl, sizeof(mi->ssl_crl),
@@ -750,7 +775,7 @@ int flush_master_info(Master_info* mi,
                          (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);                           /* error */
-    ulong cur_len= sprintf(ignore_server_ids_buf, "%u",
+    ulong cur_len= sprintf(ignore_server_ids_buf, "%zu",
                            mi->ignore_server_ids.elements);
     for (ulong i= 0; i < mi->ignore_server_ids.elements; i++)
     {
@@ -811,7 +836,7 @@ int flush_master_info(Master_info* mi,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
               heartbeat_buf, "", ignore_server_ids_buf,
-              "", 0,
+              "", mi->retry_count,
               mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid,
               do_domain_ids_buf, ignore_domain_ids_buf);
   err= flush_io_cache(file);
@@ -1011,10 +1036,12 @@ void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter)
       dst_filter->set_wild_ignore_table(tmp.ptr());
   }
 
-  if (dst_filter->rewrite_db_is_empty())
+  dst_filter->get_rewrite_db(&tmp);
+  if (tmp.is_empty())
   {
-    if (!src_filter->rewrite_db_is_empty())
-      dst_filter->copy_rewrite_db(src_filter);
+    src_filter->get_rewrite_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_rewrite_db(tmp.ptr());
   }
 }
 
@@ -1103,10 +1130,11 @@ bool Master_info_index::init_all_master_info()
   }
 
   /* Initialize Master_info Hash Table */
-  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info,
+  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash,
+                   Lex_ident_master_info::charset_info(),
                    MAX_REPLICATION_THREAD, 0, 0, get_key_master_info,
                    free_key_master_info, HASH_UNIQUE))
-  {                                                      
+  {
     sql_print_error("Initializing Master_info hash table failed");
     DBUG_RETURN(1);
   }
@@ -1165,8 +1193,7 @@ bool Master_info_index::init_all_master_info()
       else
       {
         /* Master_info already in HASH */
-        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
-                                          ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_DEFAULT(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str,
                         (int) connection_name.length, connection_name.str);
         mi->unlock_slave_threads();
@@ -1184,8 +1211,7 @@ bool Master_info_index::init_all_master_info()
                                              Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info was already registered */
-        sql_print_error(ER_THD_OR_DEFAULT(current_thd,
-                                          ER_CONNECTION_ALREADY_EXISTS),
+        sql_print_error(ER_DEFAULT(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str,
                         (int) connection_name.length, connection_name.str);
         mi->unlock_slave_threads();
@@ -1352,27 +1378,21 @@ Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
                                    Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
-  char buff[MAX_CONNECTION_NAME+1], *res;
-  size_t buff_length;
   DBUG_ENTER("get_master_info");
   DBUG_PRINT("enter",
              ("connection_name: '%.*s'", (int) connection_name->length,
               connection_name->str));
 
-  /* Make name lower case for comparison */
-  res= strmake(buff, connection_name->str, connection_name->length);
-  my_casedn_str(system_charset_info, buff); 
-  buff_length= (size_t) (res-buff);
-
+  if (!connection_name->str)
+    connection_name= &empty_clex_str;
   mi= (Master_info*) my_hash_search(&master_info_hash,
-                                    (uchar*) buff, buff_length);
+                                    (uchar*) connection_name->str,
+                                    connection_name->length);
   if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)
   {
     my_error(WARN_NO_MASTER_INFO,
-             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING :
-                 0),
-             (int) connection_name->length,
-             connection_name->str);
+             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_WARNING : 0),
+             (int) connection_name->length, connection_name->str);
   }
   DBUG_RETURN(mi);
 }
@@ -1455,17 +1475,38 @@ bool Master_info_index::add_master_info(Master_info *mi, bool write_to_file)
    atomic
 */
 
-bool Master_info_index::remove_master_info(Master_info *mi)
+bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files)
 {
+  char tmp_name[FN_REFLEN];
   DBUG_ENTER("remove_master_info");
   mysql_mutex_assert_owner(&LOCK_active_mi);
+
+  if (clear_log_files)
+  {
+    /* This code is only executed when change_master() failes to create a new master info */
+
+    // Delete any temporary relay log files that could have been created by change_master()
+    mi->rli.relay_log.reset_logs(current_thd, 0, (rpl_gtid*) 0, 0, 0);
+    /* Delete master-'connection'.info */
+    create_logfile_name_with_suffix(tmp_name,
+                                    sizeof(tmp_name),
+                                    master_info_file, 0,
+                                    &mi->cmp_connection_name);
+    my_delete(tmp_name, MYF(0));
+    /* Delete relay-log-'connection'.info */
+    create_logfile_name_with_suffix(tmp_name,
+                                    sizeof(tmp_name),
+                                    relay_log_info_file, 0,
+                                    &mi->cmp_connection_name);
+    my_delete(tmp_name, MYF(0));
+  }
 
   // Delete Master_info and rewrite others to file
   if (!my_hash_delete(&master_info_hash, (uchar*) mi))
   {
     File index_file_nr;
 
-    // Close IO_CACHE and FILE handler fisrt
+    // Close IO_CACHE and FILE handler first
     end_io_cache(&index_file);
     my_close(index_file.file, MYF(MY_WME));
 
@@ -1483,7 +1524,7 @@ bool Master_info_index::remove_master_info(Master_info *mi)
         my_close(index_file_nr,MYF(0));
 
       sql_print_error("Create of Master Info Index file '%s' failed with "
-                      "error: %M",
+                      "error: %iE",
                       index_file_name, error);
       DBUG_RETURN(TRUE);
     }
@@ -1610,6 +1651,9 @@ bool Master_info_index::start_all_slaves(THD *thd)
   DBUG_ENTER("start_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
+  if (check_global_access(thd, PRIV_STMT_START_SLAVE))
+    DBUG_RETURN(true);
+
   for (uint i= 0; i< master_info_hash.records; i++)
   {
     Master_info *mi;
@@ -1687,6 +1731,9 @@ bool Master_info_index::stop_all_slaves(THD *thd)
   DBUG_ENTER("stop_all_slaves");
   mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(thd);
+
+  if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
+    DBUG_RETURN(true);
 
   for (uint i= 0; i< master_info_hash.records; i++)
   {
@@ -1876,6 +1923,14 @@ void Domain_id_filter::store_ids(THD *thd)
   }
 }
 
+void Domain_id_filter::store_ids(Field ***field)
+{
+  for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
+  {
+    field_store_ids(*((*field)++), &m_domain_ids[i]);
+  }
+}
+
 /**
   Initialize the given domain_id list (DYNAMIC_ARRAY) with the
   space-separated list of numbers from the specified IO_CACHE where
@@ -1916,7 +1971,7 @@ char *Domain_id_filter::as_string(enum_list_type type)
     return NULL;
 
   // Store the total number of elements followed by the individual elements.
-  size_t cur_len= sprintf(buf, "%u", ids->elements);
+  size_t cur_len= sprintf(buf, "%zu", ids->elements);
   sz-= cur_len;
 
   for (uint i= 0; i < ids->elements; i++)
@@ -1950,6 +2005,32 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
   return;
 }
 
+static size_t store_ids(DYNAMIC_ARRAY *ids, char *buff, size_t buff_len)
+{
+  uint i;
+  size_t cur_len;
+
+  for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
+  {
+    ulong id, len;
+    char dbuff[FN_REFLEN];
+    get_dynamic(ids, (void *) &id, i);
+    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
+    if (cur_len + len + 4 > buff_len)
+    {
+      /*
+        break the loop whenever remained space could not fit
+        ellipses on the next cycle
+      */
+      cur_len+= sprintf(dbuff + cur_len, "...");
+      break;
+    }
+    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
+  }
+  return cur_len;
+}
+
+
 /**
   Serialize and store the ids from the given ids DYNAMIC_ARRAY into the thd's
   protocol buffer.
@@ -1963,27 +2044,16 @@ void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids)
 void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
 {
   char buff[FN_REFLEN];
-  uint i, cur_len;
-
-  for (i= 0, buff[0]= 0, cur_len= 0; i < ids->elements; i++)
-  {
-    ulong id, len;
-    char dbuff[FN_REFLEN];
-    get_dynamic(ids, (void *) &id, i);
-    len= sprintf(dbuff, (i == 0 ? "%lu" : ", %lu"), id);
-    if (cur_len + len + 4 > FN_REFLEN)
-    {
-      /*
-        break the loop whenever remained space could not fit
-        ellipses on the next cycle
-      */
-      cur_len+= sprintf(dbuff + cur_len, "...");
-      break;
-    }
-    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
-  }
+  size_t cur_len= store_ids(ids, buff, sizeof(buff));
   thd->protocol->store(buff, cur_len, &my_charset_bin);
-  return;
+}
+
+
+void field_store_ids(Field *field, DYNAMIC_ARRAY *ids)
+{
+  char buff[FN_REFLEN];
+  size_t cur_len= store_ids(ids, buff, sizeof(buff));
+  field->store(buff, cur_len, &my_charset_bin);
 }
 
 
@@ -2034,6 +2104,50 @@ bool Master_info_index::flush_all_relay_logs()
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(result);
+}
+
+void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
+                                       uint timeout)
+{
+  DBUG_ASSERT(mi);
+  DBUG_ASSERT(mi->mysql);
+  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &timeout);
+  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &timeout);
+
+#ifdef HAVE_OPENSSL
+  if (mi->ssl)
+  {
+    mysql_ssl_set(mysql, mi->ssl_key, mi->ssl_cert, mi->ssl_ca, mi->ssl_capath,
+                  mi->ssl_cipher);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL, mi->ssl_crl);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, mi->ssl_crlpath);
+    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &mi->ssl_verify_server_cert);
+  }
+  else
+#endif
+    mysql->options.use_ssl= 0;
+
+  /*
+    If server's default charset is not supported (like utf16, utf32) as client
+    charset, then set client charset to 'latin1' (default client charset).
+  */
+  if (is_supported_parser_charset(default_charset_info))
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
+  else
+  {
+    sql_print_information("'%s' can not be used as client character set. "
+                          "'%s' will be used as default client character set "
+                          "while connecting to master.",
+                          default_charset_info->cs_name.str,
+                          default_client_charset_info->cs_name.str);
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
+                  default_client_charset_info->cs_name.str);
+  }
+
+  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
+  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
+    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 }
 
 #endif /* HAVE_REPLICATION */

@@ -136,6 +136,9 @@ SHOW FIELDS FROM  t1;
 # Check SET CHARACTER SET
 #
 
+SET @collation_database=@@collation_database;
+SET @@collation_database=latin1_swedish_ci;
+
 SET CHARACTER SET 'latin1';
 SHOW VARIABLES LIKE 'character_set_client';
 SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
@@ -144,6 +147,8 @@ explain extended SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
 SET CHARACTER SET koi8r;
 SHOW VARIABLES LIKE 'collation_client';
 SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
+
+SET @@collation_database=@collation_database;
 
 --error 1115
 SET CHARACTER SET 'DEFAULT';
@@ -176,6 +181,7 @@ DROP TABLE t1;
 #
 # BUG#48447, Delivering too few records with indexes using collate syntax
 #
+set names latin1;
 create table t1 (a varchar(1) character set latin1 collate latin1_general_ci);
 insert into t1 values ('A'),('a'),('B'),('b'),('C'),('c');
 select * from t1 where a > 'B' collate latin1_bin;

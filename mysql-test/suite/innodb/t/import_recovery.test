@@ -1,0 +1,163 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-26137 ALTER TABLE IMPORT enhancement
+--echo #
+
+let MYSQLD_DATADIR = `SELECT @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t1` is set as discarded.');
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t2` is set as discarded.');
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t3` is set as discarded.');
+call mtr.add_suppression('InnoDB: ./test/t3.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't3' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Expected tablespace id \\d+ but found \\d+ in the file ./test/t3.ibd");
+# In Windows etc.
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t3.ibd' could not be found in the doublewrite buffer.");
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t4` is set as discarded.');
+call mtr.add_suppression('InnoDB: ./test/t4.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't4' is corrupt; try to repair it");
+# In Windows etc.
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t4.ibd' could not be found in the doublewrite buffer.");
+
+--echo # Recovery from crashes
+--echo ## t1: Creation of stub succeeds; server crashes; second import attempt succeeds
+--echo ## t2: Creation of stub succeeds; server crashes; drop table
+--echo ## t3: Creation of stub succeeds; server crashes; ibd corrupted; second import attempt fails; drop table
+--echo ## t4: Did not copy .cfg; creation of stub succeeds; server crashes; ibd corrupted; second import attempt fails; drop table
+CREATE TABLE t (a int) ENGINE=InnoDB;
+INSERT INTO t VALUES(42);
+FLUSH TABLES t FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/test/t3.cfg
+--copy_file $MYSQLD_DATADIR/test/t.frm $MYSQLD_DATADIR/test/t3.frm
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t3.ibd
+--copy_file $MYSQLD_DATADIR/test/t.frm $MYSQLD_DATADIR/test/t4.frm
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t4.ibd
+UNLOCK TABLES;
+
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+
+connect (hang1,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send ALTER TABLE t1 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+
+connect (hang2,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send ALTER TABLE t2 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+
+connect (hang3,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send ALTER TABLE t3 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+
+connect (hang4,localhost,root);
+SET DEBUG_SYNC='ib_after_create_stub_for_import SIGNAL hung WAIT_FOR ever';
+send ALTER TABLE t4 IMPORT TABLESPACE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+
+--echo # corrupting the 0th page
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+@tables= ('t3', 't4');
+foreach $table (@tables) {
+  my $file = "$ENV{MYSQLD_DATADIR}/test/$table.ibd";
+  open(FILE, "+<$file") || die "Unable to open $file";
+  binmode FILE;
+  sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+  die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+  # Replace all NUL bytes with SOH bytes.
+  $page =~ tr/\x0/\x1/;
+  sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+  syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+  close FILE or die "close";
+}
+EOF
+
+--echo # Restart mysqld after the crash and reconnect.
+--source include/start_mysqld.inc
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t3 IMPORT TABLESPACE;
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t4 IMPORT TABLESPACE;
+
+DROP TABLE t, t1, t2, t3, t4;
+
+--echo # Recovery from corruption only, no server restart
+--echo ## t5: Recovery from corruption, with cfg
+--echo ## t6: Recovery from corruption, without cfg
+call mtr.add_suppression('InnoDB: ./test/t5.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd.*: Index for table 't5' is corrupt; try to repair it");
+# In Windows etc.
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t5.ibd' could not be found in the doublewrite buffer.");
+# In Windows etc.
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=.*, page number=0\\] of datafile './test/t6.ibd' could not be found in the doublewrite buffer.");
+call mtr.add_suppression("mariadbd.*: Index for table 't6' is corrupt; try to repair it");
+
+CREATE TABLE t (a int) ENGINE=InnoDB;
+INSERT INTO t VALUES(42);
+FLUSH TABLES t FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t.cfg $MYSQLD_DATADIR/test/t5.cfg
+--copy_file $MYSQLD_DATADIR/test/t.frm $MYSQLD_DATADIR/test/t5.frm
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t5.ibd
+--copy_file $MYSQLD_DATADIR/test/t.frm $MYSQLD_DATADIR/test/t6.frm
+--copy_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t6.ibd
+UNLOCK TABLES;
+
+--echo # corrupting the 0th page
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+@tables= ('t5', 't6');
+foreach $table (@tables) {
+  my $file = "$ENV{MYSQLD_DATADIR}/test/$table.ibd";
+  open(FILE, "+<$file") || die "Unable to open $file";
+  binmode FILE;
+  sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+  die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+  # Replace all NUL bytes with SOH bytes.
+  $page =~ tr/\x0/\x1/;
+  sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+  syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+  close FILE or die "close";
+}
+EOF
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t5 IMPORT TABLESPACE;
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t6 IMPORT TABLESPACE;
+
+DROP TABLE t, t5, t6;

@@ -119,7 +119,9 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
 
 --echo
 --echo 0.9
@@ -182,6 +184,7 @@ if ($USE_CHILD_GROUP2)
 }
 --connection master_1
 --let $MASTER_1_IS_VP= `SELECT IF('$MASTER_1_ENGINE_TYPE' = 'VP', 1, 0)`
+--disable_ps_protocol
 if ($MASTER_1_IS_VP)
 {
   --error 14514
@@ -215,6 +218,7 @@ if ($USE_CHILD_GROUP2)
     --enable_result_log
   }
 }
+--enable_ps_protocol
 
 --echo create un-correspond primary key table
 --connection master_1
@@ -279,6 +283,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps_protocol
 if ($MASTER_1_IS_VP)
 {
   --error 14514
@@ -312,6 +317,7 @@ if ($USE_CHILD_GROUP2)
     --enable_result_log
   }
 }
+--enable_ps_protocol
 
 --echo
 --echo deinit

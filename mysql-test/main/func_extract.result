@@ -47,7 +47,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(DAY_MINUTE FROM ll)` bigint(12) DEFAULT NULL,
   `EXTRACT(DAY_SECOND FROM ll)` bigint(14) DEFAULT NULL,
   `EXTRACT(DAY_MICROSECOND FROM ll)` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(64), b DECIMAL(32,9));
@@ -368,6 +368,8 @@ EXTRACT(DAY FROM '01-02-03')
 SELECT EXTRACT(DAY FROM '24:02:03T');
 EXTRACT(DAY FROM '24:02:03T')
 3
+Warnings:
+Warning	1292	Truncated incorrect date value: '24:02:03T'
 SELECT EXTRACT(DAY FROM '24-02-03');
 EXTRACT(DAY FROM '24-02-03')
 3
@@ -380,33 +382,63 @@ EXTRACT(DAY FROM '11111')
 SELECT TIME('2001-01-01T'), TIME('2001-01-01T ');
 TIME('2001-01-01T')	TIME('2001-01-01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01T'
+Warning	1292	Truncated incorrect date value: '2001-01-01T '
 SELECT TIME('2001/01/01T'), TIME('2001/01/01T ');
 TIME('2001/01/01T')	TIME('2001/01/01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001/01/01T'
+Warning	1292	Truncated incorrect date value: '2001/01/01T '
 SELECT TIME('2001:01:01T'), TIME('2001:01:01T ');
 TIME('2001:01:01T')	TIME('2001:01:01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 SELECT EXTRACT(DAY FROM '2001-01-01T'), EXTRACT(DAY FROM '2001-01-01T ');
 EXTRACT(DAY FROM '2001-01-01T')	EXTRACT(DAY FROM '2001-01-01T ')
 1	1
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01T'
+Warning	1292	Truncated incorrect date value: '2001-01-01T '
 SELECT EXTRACT(DAY FROM '2001/01/01T'), EXTRACT(DAY FROM '2001/01/01T ');
 EXTRACT(DAY FROM '2001/01/01T')	EXTRACT(DAY FROM '2001/01/01T ')
 1	1
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001/01/01T'
+Warning	1292	Truncated incorrect date value: '2001/01/01T '
 SELECT EXTRACT(DAY FROM '2001:01:01T'), EXTRACT(DAY FROM '2001:01:01T ');
 EXTRACT(DAY FROM '2001:01:01T')	EXTRACT(DAY FROM '2001:01:01T ')
 1	1
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 SELECT TIME('2001:01:01T'), TIME('2001:01:01T ');
 TIME('2001:01:01T')	TIME('2001:01:01T ')
 00:00:00	00:00:00
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 SELECT EXTRACT(HOUR FROM '2001-01-01T'), EXTRACT(HOUR FROM '2001-01-01T ');
 EXTRACT(HOUR FROM '2001-01-01T')	EXTRACT(HOUR FROM '2001-01-01T ')
 0	0
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001-01-01T'
+Warning	1292	Truncated incorrect date value: '2001-01-01T '
 SELECT EXTRACT(HOUR FROM '2001/01/01T'), EXTRACT(HOUR FROM '2001/01/01T ');
 EXTRACT(HOUR FROM '2001/01/01T')	EXTRACT(HOUR FROM '2001/01/01T ')
 0	0
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001/01/01T'
+Warning	1292	Truncated incorrect date value: '2001/01/01T '
 SELECT EXTRACT(HOUR FROM '2001:01:01T'), EXTRACT(HOUR FROM '2001:01:01T ');
 EXTRACT(HOUR FROM '2001:01:01T')	EXTRACT(HOUR FROM '2001:01:01T ')
 0	0
+Warnings:
+Warning	1292	Truncated incorrect date value: '2001:01:01T'
+Warning	1292	Truncated incorrect date value: '2001:01:01T '
 # This still parses as DATE and returns NULL (without trying TIME)
 SELECT EXTRACT(DAY FROM '100000:02:03T');
 EXTRACT(DAY FROM '100000:02:03T')
@@ -1481,6 +1513,8 @@ Warning	1292	Incorrect interval value: '42949672955000x1'
 # MDEV-23687 Assertion `is_valid_value_slow()' failed in Datetime::Datetime upon EXTRACT under mode ZERO_DATE_TIME_CAST
 #
 SET SESSION old_mode='ZERO_DATE_TIME_CAST';
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT CAST('100000:00:00' AS DATETIME);
 CAST('100000:00:00' AS DATETIME)
 NULL

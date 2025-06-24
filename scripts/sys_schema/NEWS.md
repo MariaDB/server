@@ -1,6 +1,13 @@
 # Change history for the MySQL sys schema
 
-## 1.5.1 (07/07/16)
+## 1.5.2 (2023-11-20)
+
+### Improvements
+
+* A new `privileges_by_table_by_level` view was added, which displays granted privileges broken down by the table on which they allow access and the level on which they were granted
+
+
+## 1.5.1 (2016-07-07)
 
 ### Improvements
 
@@ -24,7 +31,7 @@
 * Oracle Bug #21970806 - The `sysschema.fn_ps_thread_trx_info` test was unstable
 * Oracle Bug #23621189 - The `ps_trace_statement_digest` procedure ran EXPLAIN incorrectly in certain cases (such as on a SHOW statement, no query being specified, or not having a full qualified table), the procedure now catches these issues and ignores them
 
-## 1.5.0 (11/09/15)
+## 1.5.0 (2015-09-11)
 
 ### Improvements
 
@@ -84,7 +91,7 @@
 * Template files were added for stored procedures and functions
 * Improved the sys_config_cleanup.inc procedure in tests to be able to reset the sys_config table completely (including the set_by column to NULL). The triggers can now be set to not update the column by setting the @sys.ignore_sys_config_triggers user variable to true
 
-## 1.4.0 (09/03/2015)
+## 1.4.0 (2015-03-09)
 
 ### Backwards Incompatible Changes
 
@@ -126,7 +133,7 @@ Various changes were made to allow better generation of integration sql files:
 * Each object has been created within it's own file. No longer do x$ views live with their non-x$ counterparts
 * DELIMITERs were standardized to $$
 
-## 1.3.0 (23/10/2014)
+## 1.3.0 (2014-10-23)
 
 ### Improvements
 
@@ -136,7 +143,7 @@ Various changes were made to allow better generation of integration sql files:
 
 * Fixed broken `host_summary_by_stages` views, broken with a last minute change before the 1.2.0 release that went unnoticed (facepalm)
 
-## 1.2.0 (22/10/2014)
+## 1.2.0 (2014-10-22)
 
 ### Backwards Incompatible Changes
 
@@ -163,7 +170,7 @@ Various changes were made to allow better generation of integration sql files:
 * Added missing space for hour notation within the `format_time` function
 * Fixed views affected by MySQL 5.7 ONLY_FULL_GROUP_BY and functional dependency changes
 
-## 1.1.0 (04/09/2014)
+## 1.1.0 (2014-09-04)
 
 ### Improvements
 
@@ -195,7 +202,7 @@ Various changes were made to allow better generation of integration sql files:
 * Fixed the RETURN datatype `extract_schema_from_file_name` and `extract_table_from_file_name` to return a VARCHAR(64) (**Contributed by Jesper Wisborg Krogh**)
 * Added events_transactions_current to the default enabled consumers in 5.7 (#25)
 
-## 1.0.1 (23/05/2014)
+## 1.0.1 (2014-05-23)
 
 ### Improvements
 
@@ -215,4 +222,4 @@ Various changes were made to allow better generation of integration sql files:
 * Some views did not work with the ERROR_FOR_DIVISION_BY_ZERO SQL mode. (#6) (**Contributed by Joe Grasse**)
 * On Windows the `ps_thread_stack()` stored function failed to escape file path backslashes correctly within the JSON output.
 
-## 1.0.0 (11/04/2014)
+## 1.0.0 (2014-04-11)

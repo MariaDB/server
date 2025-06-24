@@ -9,7 +9,7 @@
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_1;
 --enable_query_log
 START SLAVE;
 

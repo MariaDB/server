@@ -15,12 +15,14 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t_remote (a INT);
 CREATE TABLE t (a INT) ENGINE=SPIDER COMMENT = 'wrapper "mysql", srv "srv", table "t_remote"';
 --disable_ps_protocol
---error ER_NET_READ_INTERRUPTED
+--error ER_LOCK_WAIT_TIMEOUT,ER_NET_READ_INTERRUPTED
 CREATE OR REPLACE TABLE t_remote LIKE t;
 --enable_ps_protocol
-SHOW WARNINGS;
 
 drop table t;
+--disable_warnings
+drop table if exists t_remote;
+--enable_warnings
 drop server srv;
 
 --disable_query_log

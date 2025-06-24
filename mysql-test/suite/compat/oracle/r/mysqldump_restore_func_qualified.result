@@ -32,7 +32,7 @@ CREATE TABLE `t1` (
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim(`a0`)) STORED,
   `b0` varchar(64) NOT NULL DEFAULT lpad(current_timestamp(),10),
   `b1` varchar(64) GENERATED ALWAYS AS (lpad(`b0`,10)) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -41,7 +41,7 @@ CREATE TABLE `t2` (
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim_oracle(`a0`)) STORED,
   `b0` varchar(64) NOT NULL DEFAULT lpad_oracle(current_timestamp(),10),
   `b1` varchar(64) GENERATED ALWAYS AS (lpad_oracle(`b0`,10)) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
@@ -91,7 +91,7 @@ t1	CREATE TABLE `t1` (
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim(`a0`)) STORED,
   `b0` varchar(64) NOT NULL DEFAULT lpad(current_timestamp(),10),
   `b1` varchar(64) GENERATED ALWAYS AS (lpad(`b0`,10)) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -99,7 +99,7 @@ t2	CREATE TABLE `t2` (
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim_oracle(`a0`)) STORED,
   `b0` varchar(64) NOT NULL DEFAULT lpad_oracle(current_timestamp(),10),
   `b1` varchar(64) GENERATED ALWAYS AS (lpad_oracle(`b0`,10)) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select ltrim(current_timestamp()) AS `a0`,lpad(current_timestamp(),10) AS `b0`	latin1	latin1_swedish_ci

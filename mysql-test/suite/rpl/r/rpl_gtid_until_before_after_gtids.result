@@ -1,0 +1,239 @@
+include/master-slave.inc
+[connection master]
+include/rpl_gtid_until_before_after_gtids.inc
+#
+# Test Setup (SQL_BEFORE_GTIDS)
+# Clean primary and replica states
+connection master;
+connection slave;
+connection master;
+RESET MASTER;
+set session gtid_domain_id=0;
+# Initialize test data
+connection master;
+create table t1 (a int);
+create table t2 (a int);
+connection slave;
+#
+#  Test Case 1 (SQL_BEFORE_GTIDS): For a single-dimensional binlog state and a
+# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# execute events up until the GTID is encountered, and immediately stop
+connection slave;
+connection master;
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (100);
+INSERT INTO t1 VALUES (101);
+INSERT INTO t1 VALUES (102);
+connection slave;
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-4";
+# Ensure the slave started
+# Clean replica state
+connection master;
+connection slave;
+#
+#  Test Case 2 (SQL_BEFORE_GTIDS): If a provided until GTID doesn't exist in the
+# binary log due to a gap, once an event is seen that is beyond the
+# until GTID, the slave should immediately stop. Note the behavior of
+# this test case should be the same between SQL_BEFORE_GTIDS and
+# SQL_AFTER_GTIDS.
+connection slave;
+connection master;
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (103);
+INSERT INTO t1 VALUES (104);
+# Skip a seq_no
+set @@session.gtid_seq_no= 9;
+INSERT INTO t1 VALUES (105);
+connection slave;
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-8";
+# Ensure the slave started
+connection slave;
+connection master;
+connection slave;
+#
+#  Test Case 3 (SQL_BEFORE_GTIDS): For a multi-dimensional binlog state and a
+# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# execute events from only the specified domain until the provided GTID
+# is encountered, and immediately stop
+connection slave;
+connection master;
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (106);
+set session gtid_domain_id=1;
+INSERT INTO t2 VALUES (200);
+INSERT INTO t2 VALUES (201);
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (107);
+set session gtid_domain_id=1;
+INSERT INTO t2 VALUES (202);
+set session gtid_domain_id=0;
+connection slave;
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-11";
+# Ensure the slave started
+connection slave;
+connection master;
+connection slave;
+#
+#  Test Case 4 (SQL_BEFORE_GTIDS): For a multi-dimensional binlog state and a
+# STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
+# for each domain, execute events only up until its provided GTID, and
+# once all domains have hit their end point, immediately stop.
+connection slave;
+connection master;
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (108);
+# Tagging domain 0 stop: 0-1-12
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (109);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (203);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (204);
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (110);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (205);
+connection slave;
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-13,1-1-5";
+# Ensure the slave started
+connection slave;
+connection master;
+connection slave;
+#
+# Error Case 1: Not providing a valid GTID should result in a syntax
+# error
+connection slave;
+START SLAVE UNTIL SQL_BEFORE_GTIDS="a";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_BEFORE_GTIDS="0-1-";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_BEFORE_GTIDS="a-b-c";
+ERROR HY000: Could not parse GTID list
+#
+# Cleanup test data
+connection master;
+DROP TABLE t1, t2;
+connection slave;
+include/rpl_gtid_until_before_after_gtids.inc
+#
+# Test Setup (SQL_AFTER_GTIDS)
+# Clean primary and replica states
+connection master;
+connection slave;
+connection master;
+RESET MASTER;
+set session gtid_domain_id=0;
+# Initialize test data
+connection master;
+create table t1 (a int);
+create table t2 (a int);
+connection slave;
+#
+#  Test Case 1 (SQL_AFTER_GTIDS): For a single-dimensional binlog state and a
+# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# execute events up until the GTID is encountered, finish replicating
+# that event group, and then stop
+connection slave;
+connection master;
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (111);
+INSERT INTO t1 VALUES (112);
+INSERT INTO t1 VALUES (113);
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-4";
+# Ensure the slave started
+# Clean replica state
+connection master;
+connection slave;
+#
+#  Test Case 2 (SQL_AFTER_GTIDS): If a provided until GTID doesn't exist in the
+# binary log due to a gap, once an event is seen that is beyond the
+# until GTID, the slave should immediately stop. Note the behavior of
+# this test case should be the same between SQL_BEFORE_GTIDS and
+# SQL_AFTER_GTIDS.
+connection slave;
+connection master;
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (114);
+INSERT INTO t1 VALUES (115);
+# Skip a seq_no
+set @@session.gtid_seq_no= 9;
+INSERT INTO t1 VALUES (116);
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-8";
+# Ensure the slave started
+connection slave;
+connection master;
+connection slave;
+#
+#  Test Case 3 (SQL_AFTER_GTIDS): For a multi-dimensional binlog state and a
+# STOP SLAVE UNTIL gtid position with one GTID, the replica should
+# execute events from only the specified domain until the provided GTID
+# is encountered, finish replicating that event group, and then stop
+connection slave;
+connection master;
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (117);
+set session gtid_domain_id=1;
+INSERT INTO t2 VALUES (206);
+INSERT INTO t2 VALUES (207);
+set session gtid_domain_id=0;
+INSERT INTO t1 VALUES (118);
+set session gtid_domain_id=1;
+INSERT INTO t2 VALUES (208);
+set session gtid_domain_id=0;
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-11";
+# Ensure the slave started
+connection slave;
+connection master;
+connection slave;
+#
+#  Test Case 4 (SQL_AFTER_GTIDS): For a multi-dimensional binlog state and a
+# STOP SLAVE UNTIL gtid position with multiple GTIDs, the replica should
+# stop executing events as soon as all listed GTIDs in the UNTIL list
+# have been executed.
+connection slave;
+connection master;
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (119);
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (120);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (209);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (210);
+SET STATEMENT gtid_domain_id=0 FOR INSERT INTO t1 VALUES (121);
+SET STATEMENT gtid_domain_id=1 FOR INSERT INTO t2 VALUES (211);
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-13,1-1-5";
+# Ensure the slave started
+connection slave;
+connection master;
+connection slave;
+#
+# Error Case 1: Not providing a valid GTID should result in a syntax
+# error
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="a";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_AFTER_GTIDS="0";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-";
+ERROR HY000: Could not parse GTID list
+START SLAVE UNTIL SQL_AFTER_GTIDS="a-b-c";
+ERROR HY000: Could not parse GTID list
+#
+# Cleanup test data
+connection master;
+DROP TABLE t1, t2;
+connection slave;
+#
+# Error Case 2: Providing both SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS
+# should result in a syntax error
+connection slave;
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-1" SQL_BEFORE_GTIDS="0-1-1";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SQL_BEFORE_GTIDS="0-1-1"' at line 1
+#
+# Cleanup
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_gtid_until_before_gtids.test

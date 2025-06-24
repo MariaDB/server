@@ -1,9 +1,11 @@
 install plugin pam soname 'auth_pam.so';
 create user test_pam identified via pam using 'mariadb_mtr';
+grant all on test.* to test_pam;
 create user pam_test;
+grant all on test.* to pam_test;
 grant proxy on pam_test to test_pam;
 #
-# athentication is successful, challenge/pin are ok
+# authentication is successful, challenge/pin are ok
 # note that current_user() differs from user()
 #
 Challenge input first.
@@ -14,21 +16,21 @@ select user(), current_user(), database();
 user()	current_user()	database()
 test_pam@localhost	pam_test@%	test
 #
-# athentication is unsuccessful
+# authentication is unsuccessful
 #
 Challenge input first.
 Enter: *************************
 Now, the magic number!
 PIN: 9224
 #
-# athentication is unsuccessful
+# authentication is unsuccessful
 #
 Challenge input first.
 Enter: ****************
 Now, the magic number!
 PIN: 616
 #
-# athentication is successful
+# authentication is successful
 #
 Now, the magic number!
 PIN: 9212
@@ -36,7 +38,7 @@ select user(), current_user(), database();
 user()	current_user()	database()
 test_pam@localhost	pam_test@%	test
 #
-# athentication is unsuccessful
+# authentication is unsuccessful
 #
 Now, the magic number!
 PIN: 9212
@@ -72,8 +74,9 @@ select user(), current_user(), database();
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
+grant all on test.* to PAM_TEST;
 #
-# athentication is unsuccessful
+# authentication is unsuccessful
 #
 Challenge input first.
 Enter: *************************
@@ -81,7 +84,7 @@ Now, the magic number!
 PIN: 9225
 set global pam_winbind_workaround=1;
 #
-# athentication is successful
+# authentication is successful
 #
 Challenge input first.
 Enter: *************************
@@ -95,6 +98,7 @@ drop user PAM_TEST;
 # MDEV-27341 Use SET PASSWORD to change PAM service
 #
 create user pam_test identified via pam using 'mariadb_mtr';
+grant all on test.* to pam_test;
 Challenge input first.
 Enter: *************************
 Now, the magic number!

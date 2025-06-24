@@ -572,7 +572,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');
@@ -600,7 +600,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -612,6 +612,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -625,6 +636,66 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	C9AB	ɫ
 271	C9B1	C9B1	ɱ
 27D	C9BD	C9BD	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
+DROP TABLE case_folding;
+SET NAMES utf8mb3 COLLATE utf8mb3_turkish_ci /*Unicode-4.0 folding, with Turkish mapping for I */;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_turkish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code) VALUES
+(0x23A),
+(0x23E),
+(0x23F),
+(0x240),
+(0x250),
+(0x251),
+(0x252),
+(0x26B),
+(0x271),
+(0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+UPDATE case_folding SET c=CHAR(code USING ucs2);
+SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
+HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
+23A	C8BA	C8BA	Ⱥ
+23E	C8BE	C8BE	Ⱦ
+23F	C8BF	C8BF	ȿ
+240	C980	C980	ɀ
+250	C990	C990	ɐ
+251	C991	C991	ɑ
+252	C992	C992	ɒ
+26B	C9AB	C9AB	ɫ
+271	C9B1	C9B1	ɱ
+27D	C9BD	C9BD	ɽ
+49	C4B1	49	I
+69	69	C4B0	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb3 COLLATE utf8mb3_unicode_520_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -633,7 +704,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_520_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -645,6 +716,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -658,6 +740,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb3 COLLATE utf8mb3_unicode_520_nopad_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -666,7 +756,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_520_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -678,6 +768,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -691,6 +792,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb3 COLLATE utf8mb3_myanmar_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -699,7 +808,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_myanmar_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -711,6 +820,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -724,6 +844,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb3 COLLATE utf8mb3_thai_520_w2;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -732,7 +860,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -744,6 +872,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -757,6 +896,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 #
 # End of 10.3 tests
@@ -779,7 +926,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -794,7 +941,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -809,7 +956,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -824,7 +971,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -839,7 +986,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -853,7 +1000,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -871,7 +1018,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -886,7 +1033,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 ERROR 23000: Duplicate entry 'ß ' for key 'a'
@@ -901,7 +1048,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -915,7 +1062,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3)) USING HASH
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss ');
 INSERT INTO t1 VALUES (_utf8mb3 0xC39F20)/*SZ+SPACE*/;
 DROP TABLE t1;
@@ -931,7 +1078,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
@@ -940,7 +1087,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(2))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
@@ -949,7 +1096,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
@@ -958,7 +1105,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(100))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 #
@@ -969,26 +1116,18 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET default_storage_engine=MEMORY;
 #
 # MDEV-30048 Prefix keys for CHAR work differently for MyISAM vs InnoDB
@@ -1000,7 +1139,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
@@ -1009,7 +1148,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(2))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
@@ -1018,7 +1157,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
@@ -1027,7 +1166,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(100))
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 #
@@ -1038,27 +1177,852 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET default_storage_engine=DEFAULT;
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# Collation IDs in the protocol
+#
+SET NAMES utf8mb3;
+SET @charset=(SELECT @@character_set_client);
+FOR rec IN (SELECT COLLATION_NAME
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE CHARACTER_SET_NAME=@charset
+AND COLLATION_NAME RLIKE 'uca1400'
+            ORDER BY ID)
+DO
+EXECUTE IMMEDIATE CONCAT('SET NAMES ',@charset,' COLLATE ', rec.COLLATION_NAME);
+SELECT rec.COLLATION_NAME;
+END FOR;
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	13	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	192
+rec.COLLATION_NAME
+uca1400_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	193
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	194
+rec.COLLATION_NAME
+uca1400_latvian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	195
+rec.COLLATION_NAME
+uca1400_romanian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	196
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	197
+rec.COLLATION_NAME
+uca1400_polish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	198
+rec.COLLATION_NAME
+uca1400_estonian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	199
+rec.COLLATION_NAME
+uca1400_spanish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	200
+rec.COLLATION_NAME
+uca1400_swedish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	201
+rec.COLLATION_NAME
+uca1400_turkish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	202
+rec.COLLATION_NAME
+uca1400_czech_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	203
+rec.COLLATION_NAME
+uca1400_danish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	204
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	20	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	26	Y	0	0	205
+rec.COLLATION_NAME
+uca1400_slovak_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	206
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	19	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	25	Y	0	0	207
+rec.COLLATION_NAME
+uca1400_roman_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	208
+rec.COLLATION_NAME
+uca1400_persian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	209
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	23	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	29	Y	0	0	210
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	211
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	21	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	27	Y	0	0	212
+rec.COLLATION_NAME
+uca1400_german2_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	24	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	30	Y	0	0	215
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	22	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	192	28	Y	0	0	576
+rec.COLLATION_NAME
+uca1400_croatian_nopad_as_cs
+#
+# MDEV-29776 collation_connection and db_collation are too short in mysql.proc and mysql.event
+#
+SET NAMES 'utf8mb3' COLLATE 'utf8mb3_uca1400_swedish_nopad_ai_ci';
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+SELECT length(collation_connection), collation_connection
+FROM mysql.proc WHERE db='test' AND name='f1';
+length(collation_connection)	collation_connection
+35	utf8mb3_uca1400_swedish_nopad_ai_ci
+SELECT f1();
+f1()
+1
+DROP FUNCTION f1;
+SET NAMES utf8mb3;
+#
+# End of 10.10 tests
+#
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8
+#
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_ai_ci;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code) VALUES
+(0x23A),
+(0x23E),
+(0x23F),
+(0x240),
+(0x250),
+(0x251),
+(0x252),
+(0x26B),
+(0x271),
+(0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+UPDATE case_folding SET c=CHAR(code USING ucs2);
+SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
+HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
+23A	E2B1A5	C8BA	Ⱥ
+23E	E2B1A6	C8BE	Ⱦ
+23F	C8BF	E2B1BE	ȿ
+240	C980	E2B1BF	ɀ
+250	C990	E2B1AF	ɐ
+251	C991	E2B1AD	ɑ
+252	C992	E2B1B0	ɒ
+26B	C9AB	E2B1A2	ɫ
+271	C9B1	E2B1AE	ɱ
+27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B19F	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B0AF	ⱟ
+A7C0	EA9F81	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F80	ꟁ
+DROP TABLE case_folding;
+#
+# End of 10.10 tests
 #

@@ -2,7 +2,7 @@
 --source include/have_sequence.inc
 --source include/have_64bit.inc
 
-set session storage_engine=aria;
+set session default_storage_engine=aria;
 
 --echo #
 --echo # BUG#47444 - --myisam_repair_threads > 1 can result in all index

@@ -4,7 +4,7 @@
 
 call mtr.add_suppression("Sort aborted.*");
 
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 
 --echo #
 --echo # Bug#36022 please log more information about "Sort aborted" queries
@@ -85,6 +85,8 @@ CREATE TABLE t1 (
   c28 TEXT,
   primary key (pk)
 );
+
+insert into t1 (pk) values (1),(2),(3);
 
 CALL mtr.add_suppression("Out of sort memory");
 

@@ -10,7 +10,11 @@ INSERT INTO t1 VALUES(2, repeat('b', 100), repeat('a', 100));
 COMMIT;
 SET DEBUG_SYNC="now SIGNAL dml_commit";
 connection default;
-ERROR 23000: Duplicate entry 'bbbbbbbbbb' for key 'f2'
+# The below error displays a wrong (too long) key value.
+# The problem is reported as:
+#   MDEV-34387 Too long value in the Duplicate entry message with online alter and utf8
+# Please make sure to remove this comment when MDEV-34387 is fixed.
+ERROR 23000: Duplicate entry 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' for key 'f2'
 connection default;
 SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
 ALTER TABLE t1 ADD PRIMARY KEY(f1);
@@ -33,7 +37,7 @@ UPDATE t1 set f3=repeat('c', 100) where f1=1;
 COMMIT;
 SET DEBUG_SYNC="now SIGNAL dml_commit";
 connection default;
-ERROR 23000: Duplicate entry 'cccccccccc' for key 'PRIMARY'
+ERROR 23000: Duplicate entry 'cccccccccccccccccccccccccccccccccccccccc' for key 'PRIMARY'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -41,7 +45,27 @@ t1	CREATE TABLE `t1` (
   `f2` char(200) DEFAULT NULL,
   `f3` char(200) DEFAULT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
+#
+#  MDEV-30183  Assertion `!memcmp(rec_trx_id, old_pk_trx_id->data,
+#	6 + 7)' failed in row_log_table_apply_update
+#
+set @old_sql_mode = @@sql_mode;
+set @@sql_mode="";
+CREATE TABLE t1(col_int int, col_varchar varchar(500))ENGINE=InnoDB;
+INSERT INTO t1(col_int) values(2560);
+set debug_sync="row_log_table_apply1_before SIGNAL con1_begin WAIT_FOR con1_commit";
+ALTER TABLE t1 ADD PRIMARY KEY ( col_varchar);
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_begin";
+UPDATE t1 SET col_int = 2178;
+INSERT INTO t1(col_int) VALUES(3016);
+UPDATE t1 set col_int=2802;
+SET DEBUG_SYNC="now SIGNAL con1_commit";
+connection default;
+ERROR 23000: Duplicate entry '' for key 'PRIMARY'
+DROP TABLE t1;
+SET @@sql_mode = @old_sql_mode;
 disconnect con1;
 SET DEBUG_SYNC=reset;

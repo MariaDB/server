@@ -3,10 +3,6 @@
 # Bug#39438 Testcase for Bug#39436 crashes on 5.1 in fil_space_get_latch
 # http://bugs.mysql.com/39438
 #
-# This test must be run with innodb_file_per_table=1 because the crash
-# only occurs if that option is turned on and DISCARD TABLESPACE only
-# works with innodb_file_per_table.
-#
 
 SET default_storage_engine=InnoDB;
 

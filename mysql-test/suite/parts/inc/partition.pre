@@ -37,7 +37,7 @@ let $no_debug= `SELECT @aux = 0`;
 --enable_query_log
 if ($debug)
 {
---echo # Attention: Script debugging is swiched on.
+--echo # Attention: Script debugging is switched on.
 --echo #       - all statements will be protocolled
 --echo #        - some additional will be executed
 --echo #       It is to be expected, that we get huge differences.
@@ -51,7 +51,7 @@ let $ER_PARSE_ERROR=                      1064;
 let $ER_TOO_MANY_PARTITIONS_ERROR=        1499;
 let $ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF= 1503;
 let $ER_NO_PARTS_ERROR=                   1504;
-let $ER_DROP_PARTITION_NON_EXISTENT=      1507;
+let $ER_PARTITION_DOES_NOT_EXIST=         1507;
 let $ER_SAME_NAME_PARTITION=              1517;
 let $ER_NO_PARTITION_FOR_GIVEN_VALUE=     1526;
 
@@ -167,7 +167,7 @@ SET @@session.sql_mode= '';
 
 if (0)
 {
-# README for the partioning tests (t/partition_<feature>_<engine>.test)
+# README for the partitioning tests (t/partition_<feature>_<engine>.test)
 # ========================================================================
 #
 # 1. Explanation of the variables to be assigned in the top-level storage engine
@@ -270,7 +270,7 @@ if (0)
 #     storage engine. The PRIMARY KEY tests must be executed for every storage
 #     engine, where the existence of a PRIMARY KEY affects the kind how the
 #     table rows are stored.
-#     Examples for the main rgression tests:
+#     Examples for the main regression tests:
 #       InnoDB - The PRIMARY KEY is a clustered index where the data for the
 #                rows are stored.       $do_pk_tests= 1
 #       MyISAM - AFAIK there is no effect on the tree containing the rows.
@@ -295,7 +295,7 @@ if (0)
 #         via
 #         --source inc/partition.pre
 #      d) Set "fixed_bug<number>" variables to 1 if there are open engine
-#         specific bugs which need worarounds.
+#         specific bugs which need workarounds.
 #      e) Execute the feature specific testscript via
 #         --source inc/partition_<feature>.inc
 #      f) Perform a cleanup by removing all objects created within the tests
@@ -359,21 +359,21 @@ if (0)
 #      3. We want abort testing if we know that a certain error must not happen.
 #      Common but unusable Solutions:
 #      a) --error 0, ER_DUP_KEY, ER_DUP_ENTRY
-#         <statment>
+#         <statement>
 #         We get no error message even if the statement fails.
 #      b) --error ER_DUP_KEY, ER_DUP_ENTRY
-#         <statment>
+#         <statement>
 #         We might get "got one of the expected errors".
 #         There are situations where the statement must be successful.
 #      c) --disable_abort_on_error
-#         <statment>
+#         <statement>
 #         --enable_abort_on_error
 #         And nothing extra
 #         We do not abort in case of unexpected server errors.
 #
 #      Final solution:
 #         --disable_abort_on_error
-#         <statment>
+#         <statement>
 #         --enable_abort_on_error
 #         Check via error number if the error is not totally unexpected.
 #         The sub tests use $ER_DUP_KEY, $ER_DUP_ENTRY, etc.
@@ -409,7 +409,7 @@ if (0)
 #      - add the content of inc/partition_check.inc at the end.
 #
 # Please excuse that the partitioning tests generate such huge protocols which
-# and are not very handy when it comes to bug analysis. I tried to squeez out
+# and are not very handy when it comes to bug analysis. I tried to squeeze out
 # as much test coverage as possible by writing some hopefully smart routines
 # and reusing them in various combinations.
 #

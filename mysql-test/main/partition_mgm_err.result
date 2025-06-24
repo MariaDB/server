@@ -15,13 +15,13 @@ ALTER TABLE t1 REORGANIZE PARTITION x0,x1 INTO
 PARTITION x11 VALUES LESS THAN (5));
 ERROR HY000: Reorganize of range partitions cannot change total ranges except for last partition where it can extend the range
 ALTER TABLE t1 DROP PARTITION x0, x1, x2, x3, x3;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 ALTER TABLE t1 DROP PARTITION x0, x1, x2, x10;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 ALTER TABLE t1 DROP PARTITION x10, x1, x2, x1;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 ALTER TABLE t1 DROP PARTITION x10, x1, x2, x3;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 ALTER TABLE t1 REORGANIZE PARTITION x0,x1,x2,x3,x4,x5,x6,x7,x8,x9,x10 INTO
 (PARTITION x11 VALUES LESS THAN (22));
 ERROR HY000: More partitions to reorganize than there are partitions
@@ -33,7 +33,7 @@ ALTER TABLE t1 REORGANIZE PARTITION x0, x2 INTO
 ERROR HY000: When reorganizing a set of partitions they must be in consecutive order
 ALTER TABLE t1 REORGANIZE PARTITION x0, x1, x1 INTO
 (PARTITION x11 VALUES LESS THAN (4));
-ERROR HY000: Error in list of partitions to REORGANIZE
+ERROR HY000: Wrong partition name or partition list
 ALTER TABLE t1 REORGANIZE PARTITION x0,x1 INTO
 (PARTITION x01 VALUES LESS THAN (5));
 ERROR HY000: Reorganize of range partitions cannot change total ranges except for last partition where it can extend the range
@@ -112,7 +112,7 @@ PARTITION x1 VALUES LESS THAN (8));
 ALTER TABLE t1 ADD PARTITION PARTITIONS 1;
 ERROR HY000: For RANGE partitions each partition must be defined
 ALTER TABLE t1 DROP PARTITION x2;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 ALTER TABLE t1 COALESCE PARTITION 1;
 ERROR HY000: COALESCE PARTITION can only be used on HASH/KEY partitions
 ALTER TABLE t1 DROP PARTITION x1;
@@ -137,13 +137,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 PARTITION BY KEY(a) PARTITIONS 2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 2
 DROP TABLE t1;

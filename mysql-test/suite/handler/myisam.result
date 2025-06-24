@@ -1352,7 +1352,7 @@ set autocommit=default;
 drop table t2, t3;
 # 
 # HANDLER statement and operation-type aware metadata locks.
-# Check that when we clone a ticket for HANDLER we downrade
+# Check that when we clone a ticket for HANDLER we downgrade
 # the lock.
 #
 connect  con1,localhost,root,,;
@@ -1540,8 +1540,6 @@ BEGIN
 SELECT 1 FROM t2 INTO @a;
 RETURN 1;
 END|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT f1();
 ERROR 42S02: Table 'test.t2' doesn't exist
 CREATE TABLE t1(a INT);

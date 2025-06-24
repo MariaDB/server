@@ -19,9 +19,7 @@ SET default_storage_engine= InnoDB;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 COMMIT;
---disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' FROM t1;
---enable_ps2_protocol
 
 LOAD DATA INFILE 'load.data' INTO TABLE t1;
 SELECT * FROM t1;
@@ -156,7 +154,7 @@ SELECT @a;
 DROP PROCEDURE p1;
 
 --echo # Test case 13: Check that the statements PREPARE FROM/EXECUTE/
---echo # DEALLOCAT PREPARE can be executed as prepared statements.
+--echo # DEALLOCATE PREPARE can be executed as prepared statements.
 PREPARE stmt_1 FROM 'SELECT 1';
 
 --echo # Now execute the prepared statement with the name stmt_1
@@ -259,19 +257,6 @@ SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Hello, world!';
 
 --error ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER
 RESIGNAL SET MESSAGE_TEXT = 'New error message';
-
---echo # Test Test case 29: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
---echo # can be executed as a prepared statement
-
-# Since MariaDB supports for tablespaces only on syntax level disable warnings
-# before run CREATE/ALTER/DROP TABLESPACE statements in order to exclude
-# the following in result output
-#   Warning 1478 Table storage engine 'InnoDB' does not support the create option 'TABLESPACE
---disable_warnings
-
-CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB;
-ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB;
-DROP TABLESPACE ts1 ENGINE=InnoDB;
 
 --enable_warnings
 

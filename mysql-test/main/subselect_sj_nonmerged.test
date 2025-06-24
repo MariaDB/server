@@ -15,7 +15,7 @@ create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 
-# Check the case of subquery having agggregates but not having grouping
+# Check the case of subquery having aggregates but not having grouping
 
 create table t1 as select * from t0;
 --echo # The following should use full scan on <subquery2> and it must scan 1 row:

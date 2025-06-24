@@ -152,7 +152,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   if (unlikely(part_table->file->ht != partition_hton))
   {
     /*
-      Only allowed on partitioned tables throught the generic ha_partition
+      Only allowed on partitioned tables throughout the generic ha_partition
       handler, i.e not yet for native partitioning.
     */
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
@@ -193,12 +193,11 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   @param part_table Partitioned table.
   @param part_elem  Partition element to use for partition specific compare.
 */
-static bool compare_table_with_partition(THD *thd, TABLE *table,
-                                         TABLE *part_table,
-                                         partition_element *part_elem,
-                                         uint part_id)
+bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
+                                  partition_element *part_elem, uint part_id)
 {
-  HA_CREATE_INFO table_create_info, part_create_info;
+  HA_CREATE_INFO table_create_info;
+  Table_specification_st part_create_info;
   Alter_info part_alter_info;
   Alter_table_ctx part_alter_ctx; // Not used
   DBUG_ENTER("compare_table_with_partition");
@@ -300,7 +299,7 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
     The workaround is to use REORGANIZE PARTITION to rewrite
     the frm file and then use EXCHANGE PARTITION when they are the same.
   */
-  if (compare_partition_options(&table_create_info, part_elem))
+  if (part_elem && compare_partition_options(&table_create_info, part_elem))
     DBUG_RETURN(TRUE);
 
   DBUG_RETURN(FALSE);
@@ -328,7 +327,7 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
   @param thd        Thread handle
   @param name       name of table/partition 1 (to be exchanged with 2)
   @param from_name  name of table/partition 2 (to be exchanged with 1)
-  @param tmp_name   temporary name to use while exchaning
+  @param tmp_name   temporary name to use while exchanging
   @param ht         handlerton of the table/partitions
 
   @return Operation status
@@ -386,7 +385,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos, 0,
                                            &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
@@ -510,7 +509,6 @@ bool Sql_cmd_alter_table_exchange_partition::
   TABLE_LIST *swap_table_list;
   handlerton *table_hton;
   partition_element *part_elem;
-  const char *partition_name;
   char temp_name[FN_REFLEN+1];
   char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
@@ -632,10 +630,11 @@ bool Sql_cmd_alter_table_exchange_partition::
   ddl_log.new_table_id.length= MY_UUID_SIZE;
 
   /* set lock pruning on first table */
-  partition_name= alter_info->partition_names.head();
+  const Lex_cstring_strlen partition_name=
+    Lex_cstring_strlen(alter_info->partition_names.head());
   if (unlikely(table_list->table->part_info->
-               set_named_partition_bitmap(partition_name,
-                                          strlen(partition_name))))
+               set_named_partition_bitmap(partition_name.str,
+                                          partition_name.length)))
     DBUG_RETURN(true);
 
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
@@ -656,11 +655,10 @@ bool Sql_cmd_alter_table_exchange_partition::
                        swap_table_list->db.str,
                        swap_table_list->table_name.str,
                        "", 0);
-  /* create a unique temp name */
-  my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
-              tmp_file_prefix, current_pid, thd->thread_id);
-  if (lower_case_table_names)
-    my_casedn_str(files_charset_info, temp_name);
+
+  LEX_STRING tmp= { temp_name, sizeof(temp_name) };
+  make_tmp_table_name(thd, &tmp, "exchange");
+
   build_table_filename(temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
@@ -1002,6 +1000,55 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   query_cache_invalidate3(thd, first_table, FALSE);
 
   DBUG_RETURN(error);
+}
+
+
+/**
+  Move a table specified in the CONVERT TABLE <table_name> TO PARTITION ...
+  to the new partition.
+
+  @param lpt  A structure containing parameters regarding to the statement
+              ALTER TABLE ... TO PARTITION ...
+  @param part_file_name  a file name of the partition being added
+
+  @return false on success, true on error
+*/
+
+bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  char part_file_name[2*FN_REFLEN+1];
+  THD *thd= lpt->thd;
+  const char *path= lpt->table_list->table->s->path.str;
+  TABLE_LIST *table_from= lpt->table_list->next_local;
+
+  const Lex_ident_partition &partition_name=
+    thd->lex->part_info->curr_part_elem->partition_name;
+
+  if (create_partition_name(part_file_name, sizeof(part_file_name), path,
+                            partition_name, NORMAL_PART_NAME, false))
+    return true;
+
+  char from_file_name[FN_REFLEN+1];
+
+  build_table_filename(from_file_name, sizeof(from_file_name),
+                       table_from->db.str, table_from->table_name.str, "", 0);
+
+  handler *file= get_new_handler(nullptr, thd->mem_root,
+                                 table_from->table->file->ht);
+  if (unlikely(!file))
+    return true;
+
+  close_all_tables_for_name(thd, table_from->table->s,
+                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
+
+  bool res= file->ha_rename_table(from_file_name, part_file_name);
+
+  if (res)
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
+             part_file_name, my_errno);
+
+  delete file;
+  return res;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */

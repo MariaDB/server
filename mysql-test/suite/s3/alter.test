@@ -93,6 +93,12 @@ select count(*), sum(a), sum(b) from t2;
 select count(*), sum(a), sum(b) from t1;
 drop table t2;
 
+
+--echo # MDEV-31781 ALTER TABLE ENGINE=s3 fails
+create table t (a int) engine=Aria;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t engine=S3, algorithm=copy, lock=none;
+
 #
 # clean up
 #

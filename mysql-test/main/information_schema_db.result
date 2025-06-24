@@ -26,8 +26,6 @@ declare ret_val int;
 select max(f1) from t1 into ret_val;
 return ret_val;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create view v1 as select f1 from t1 where f1 = func1(f1);
 create function func2() returns int return 1;
 use mbase;
@@ -40,7 +38,7 @@ create table t1
 (f1 int(10) unsigned not null,
 f2 varchar(100) not null,
 primary key (f1), unique key (f2));
-connect  user1,localhost,mysqltest_1,,;
+connect  user1,localhost,mysqltest_1,,"*NO-ONE*";
 connection user1;
 select * from information_schema.tables;
 call mbase.p1();
@@ -100,15 +98,14 @@ create user testdb_1@localhost;
 grant all on testdb_1.* to testdb_1@localhost with grant option;
 create user testdb_2@localhost;
 grant all on test.* to testdb_2@localhost with grant option;
-connect  testdb_1,localhost,testdb_1,,test;
-use testdb_1;
+connect  testdb_1,localhost,testdb_1,,testdb_1;
 create table t1 (f1 char(4));
 create view v1 as select f1 from t1;
 grant insert on v1 to testdb_2@localhost;
 create view v5 as select f1 from t1;
 grant select, show view on v5 to testdb_2@localhost;
 create definer=`no_such_user`@`no_such_host` view v6 as select f1 from t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 connection default;
 use testdb_1;
 create view v6 as select f1 from t1;
@@ -116,7 +113,7 @@ grant select, show view on v6 to testdb_2@localhost;
 create table t2 (f1 char(4));
 create definer=`no_such_user`@`no_such_host` view v7 as select * from t2;
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 show fields from testdb_1.v6;
 Field	Type	Null	Key	Default	Extra
 f1	char(4)	YES		NULL	
@@ -127,12 +124,12 @@ show create view testdb_1.v7;
 View	Create View	character_set_client	collation_connection
 v7	CREATE ALGORITHM=UNDEFINED DEFINER=`no_such_user`@`no_such_host` SQL SECURITY DEFINER VIEW `v7` AS select `testdb_1`.`t2`.`f1` AS `f1` from `t2`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 show fields from testdb_1.v7;
 Field	Type	Null	Key	Default	Extra
 f1	char(4)	YES		NULL	
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 connection testdb_1;
 create table t3 (f1 char(4), f2 char(4));
 create view v3 as select f1,f2 from t3;
@@ -157,12 +154,12 @@ show fields from testdb_1.v7;
 Field	Type	Null	Key	Default	Extra
 f1	char(4)	YES		NULL	
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 show create view testdb_1.v7;
 View	Create View	character_set_client	collation_connection
 v7	CREATE ALGORITHM=UNDEFINED DEFINER=`no_such_user`@`no_such_host` SQL SECURITY DEFINER VIEW `v7` AS select `testdb_1`.`t2`.`f1` AS `f1` from `t2`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
+Note	1446	The user specified as a definer ('no_such_user'@'no_such_host') does not exist
 revoke insert(f1) on v3 from testdb_2@localhost;
 revoke select,show view on v5 from testdb_2@localhost;
 connection default;
@@ -231,7 +228,7 @@ create table testdb_1.t1 (a int);
 create view testdb_1.v1 as select * from testdb_1.t1;
 grant show view on testdb_1.* to mysqltest_1@localhost;
 grant select on testdb_1.v1 to mysqltest_1@localhost;
-connect  user1,localhost,mysqltest_1,,test;
+connect  user1,localhost,mysqltest_1,,"*NO-ONE*";
 connection user1;
 select table_schema, table_name, view_definition from information_schema.views
 where table_name='v1';
@@ -385,3 +382,134 @@ drop database db;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-23729 INFORMATION_SCHEMA Table info. about user locked due to
+# max_password_errors
+#
+# MDEV-32218 message to notify end-user N-days prior the password get
+# expired
+#
+set @old_max_password_errors=@@max_password_errors;
+set global max_password_errors=2;
+set timestamp= unix_timestamp('2020-01-02 2:3:4');
+create user nice_user;
+create user naughty_user identified by 'naughty_user_passwd';
+alter user naughty_user password expire interval 10 day;
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+'nice_user'@'%'	0	NULL
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+alter user nice_user password expire interval 10 day;
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+connect(localhost,naughty_user,wrong_passwd,test,MASTER_PORT,MASTER_SOCKET);
+connect con1, localhost, naughty_user, wrong_passwd;
+ERROR 28000: Access denied for user 'naughty_user'@'localhost' (using password: YES)
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	1	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+connect(localhost,naughty_user,wrong_passwd,test,MASTER_PORT,MASTER_SOCKET);
+connect con1, localhost, naughty_user, wrong_passwd;
+ERROR 28000: Access denied for user 'naughty_user'@'localhost' (using password: YES)
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	2	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+# Show all users that are blocked due to max_password_errors reached.
+select user from information_schema.users
+where password_errors >= @@global.max_password_errors;
+user
+'naughty_user'@'%'
+set global max_password_errors=3;
+connect con1, localhost, naughty_user, naughty_user_passwd;
+connection default;
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'mariadb.sys'@'localhost'	0	0000-00-00 00:00:00
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+'nice_user'@'%'	0	2020-01-12 02:03:04
+'root'@'127.0.0.1'	NULL	NULL
+'root'@'::1'	NULL	NULL
+'root'@'localhost'	NULL	NULL
+'root'@HOSTNAME	0	NULL
+disconnect con1;
+# test FLUSH PRIVILEGES
+connect(localhost,naughty_user,wrong_passwd,test,MASTER_PORT,MASTER_SOCKET);
+connect con1, localhost, naughty_user, wrong_passwd;
+ERROR 28000: Access denied for user 'naughty_user'@'localhost' (using password: YES)
+select * from information_schema.users where user like '''naughty%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'naughty_user'@'%'	1	2020-01-12 02:03:04
+flush privileges;
+select * from information_schema.users where user like '''naughty%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'naughty_user'@'%'	0	2020-01-12 02:03:04
+# Test unprivileged output
+connect con2, localhost, nice_user;
+set timestamp= unix_timestamp('2020-01-02 2:3:4');
+set password= password('nice_passwd');
+select * from information_schema.users;
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'nice_user'@'%'	0	2020-01-12 02:03:04
+# Delete user while some connection is still alive, then select.
+connection default;
+drop user nice_user;
+connection con2;
+select * from information_schema.users;
+ERROR 0L000: The current user is invalid
+disconnect con2;
+connection default;
+drop user naughty_user;
+set global max_password_errors=@old_max_password_errors;
+# more password expiration tests
+set global default_password_lifetime= 2;
+create user u1@localhost password expire;
+create user u2@localhost password expire default;
+create user u3@localhost password expire interval 10 day;
+create user u4@localhost password expire interval 20 day;
+create user u5@localhost password expire never;
+set timestamp= unix_timestamp('2020-01-17 2:3:4');
+select * from information_schema.users where user like '''u_''%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'u1'@'localhost'	0	0000-00-00 00:00:00
+'u2'@'localhost'	0	2020-01-04 02:03:04
+'u3'@'localhost'	0	2020-01-12 02:03:04
+'u4'@'localhost'	0	2020-01-22 02:03:04
+'u5'@'localhost'	0	NULL
+set global default_password_lifetime= default;
+select * from information_schema.users where user like '''u_''%';
+USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
+'u1'@'localhost'	0	0000-00-00 00:00:00
+'u2'@'localhost'	0	NULL
+'u3'@'localhost'	0	2020-01-12 02:03:04
+'u4'@'localhost'	0	2020-01-22 02:03:04
+'u5'@'localhost'	0	NULL
+drop user u1@localhost;
+drop user u2@localhost;
+drop user u3@localhost;
+drop user u4@localhost;
+drop user u5@localhost;
+# End of 10.0 tests

@@ -91,7 +91,7 @@ XA COMMIT 'XA2';
 --source include/sync_slave_sql_with_master.inc
 
 #
-# Step 2 - Using mysqlbinlog dump to restore the salve
+# Step 2 - Using mysqlbinlog dump to restore the slave
 #
 --source include/stop_slave.inc
 DROP TABLE t2, t1;
@@ -129,7 +129,7 @@ DROP TABLE t2, t1;
 #  --enable_query_log
 #}
 --replace_result $master_file LOG_FILE $master_pos LOG_POS
---eval CHANGE MASTER TO MASTER_LOG_FILE='$master_file', MASTER_LOG_POS=$master_pos
+--eval CHANGE MASTER TO MASTER_LOG_FILE='$master_file', MASTER_LOG_POS=$master_pos, MASTER_USE_GTID=NO
  
 SET @@GLOBAL.innodb_limit_optimistic_insert_debug = @saved_innodb_limit_optimistic_insert_debug;
 --source include/start_slave.inc

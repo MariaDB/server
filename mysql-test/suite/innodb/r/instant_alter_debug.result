@@ -78,9 +78,7 @@ c7 VARCHAR(257) CHARACTER SET latin1,
 c8 VARCHAR(257) CHARACTER SET binary
 ) ENGINE=InnoDB;
 INSERT INTO t9 () VALUES ();
-ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL KEY;
-Warnings:
-Note	1061	Multiple primary key defined
+ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml';
 OPTIMIZE TABLE t9;
 connection dml;
@@ -279,12 +277,6 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
 INSERT INTO t1 VALUES (1),(5),(4),(3),(2);
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
 ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
-SET @old_defragment = @@innodb_defragment;
-SET GLOBAL innodb_defragment = 1;
-OPTIMIZE TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	optimize	status	OK
-SET GLOBAL innodb_defragment = @old_defragment;
 ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

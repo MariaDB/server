@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 select ENGINE,COMMENT,TRANSACTIONS,XA,SAVEPOINTS from information_schema.engines where engine = 'rocksdb';
 ENGINE	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 ROCKSDB	RocksDB storage engine	YES	YES	YES
@@ -278,12 +279,12 @@ j
 1
 4
 EXPLAIN
-SELECT * FROM t10, t11 WHERE i=j;
+SELECT * FROM t11 straight_join t10 WHERE i=j;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	index	PRIMARY	PRIMARY	4	NULL	#	Using index
-1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t10.i	#	Using index
-SELECT * FROM t10, t11 WHERE i=j;
-i	j
+1	SIMPLE	t11	index	PRIMARY	PRIMARY	4	NULL	#	Using index
+1	SIMPLE	t10	eq_ref	PRIMARY	PRIMARY	4	test.t11.j	#	Using index
+SELECT * FROM t11 straight_join t10 WHERE i=j;
+j	i
 1	1
 DROP TABLE t10,t11;
 #
@@ -942,6 +943,7 @@ rocksdb_keep_log_file_num	1000
 rocksdb_large_prefix	OFF
 rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
+rocksdb_log_dir	
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
 rocksdb_manual_compaction_threads	0
@@ -981,7 +983,7 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
-rocksdb_stats_level	0
+rocksdb_stats_level	1
 rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
@@ -2642,3 +2644,4 @@ CREATE TABLE t1 (a INET6 NOT NULL, KEY (a)) ENGINE=RocksDB;
 INSERT INTO t1 VALUES ('41::1'),('61::1');
 DROP TABLE t1;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

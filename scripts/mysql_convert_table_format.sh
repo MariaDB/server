@@ -19,6 +19,9 @@
 use DBI;
 use Getopt::Long;
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-convert-table-format' instead\n"
+  if $0 =~ m/mysql_convert_table_format$/;
+
 $opt_help=$opt_version=$opt_verbose=$opt_force=0;
 $opt_user=$opt_database=$opt_password=undef;
 $opt_host="localhost";

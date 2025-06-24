@@ -15,7 +15,7 @@ explain
 SELECT * FROM (SELECT id FROM t1 GROUP BY id) dt WHERE 1=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	DERIVED	t1	range	NULL	id	53	NULL	2	Using index for group-by
+2	DERIVED	t1	range	NULL	id	203	NULL	1	Using index for group-by
 SET GLOBAL slow_query_log = @sql_tmp;
 drop table t1;
 #

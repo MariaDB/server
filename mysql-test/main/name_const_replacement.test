@@ -4,8 +4,11 @@
 
 create table t1 (a int, b int);
 insert into t1 values (1,1),(2,2);
+
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1 where a=name_const('varname',1);
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1 left join t1 as t2 on t1.a=name_const('varname',1) and t1.b=t2.b;
 
@@ -29,10 +32,15 @@ create table t3 (
 );
 insert into t3 values ('foo', 1),('bar', 1);
 select * from t3;
+--source include/explain-no-costs.inc
 explain format=json
 update t3 set b=b+1 where a= NAME_CONST('var1',_latin1'foo' COLLATE 'latin1_swedish_ci');
+#
+# enable after fixing MDEV-27904
+#
+--disable_view_protocol
 select * from t3 where a= NAME_CONST('var1',_latin1'foo' COLLATE 'latin1_swedish_ci');
-
+--enable_view_protocol
 
 drop procedure p1;
 drop table t1, t2, t3;

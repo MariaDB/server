@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL\-TEST\-RUN\" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB\-TEST\-RUN\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,31 +11,31 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql-test-run.pl
+.\" mariadb-test-run.pl
 .SH "NAME"
-mysql-test-run.pl \- run MariaDB test suite
+mariadb-test-run.pl \- run MariaDB test suite
 .SH "SYNOPSIS"
-.HP \w'\fBmysql\-test\-run\&.pl\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysql\-test\-run\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadb\-test\-run\&.pl\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb\-test\-run\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 Perl script is the main application used to run the MariaDB test suite\&. It invokes
-\fBmysqltest\fR
+\fBmariadb-test\fR
 to run individual test cases\&.
 .PP
 Invoke
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 in the
-mysql\-test
+mariadb\-test
 directory like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql\-test\-run\&.pl [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fItest_name\fR\fR\fB] \&.\&.\&.\fR
+shell> \fBmariadb\-test\-run\&.pl [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fItest_name\fR\fR\fB] \&.\&.\&.\fR
 .fi
 .if n \{\
 .RE
@@ -49,11 +49,11 @@ t/\fItest_name\fR\&.test\&.
 For each
 \fItest_name\fR
 argument,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 runs the named test case\&. With no
 \fItest_name\fR
 arguments,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 runs all
 \&.test
 files in the
@@ -68,9 +68,9 @@ is assumed\&. Any leading path name is ignored\&. These commands are equivalent:
 .RS 4
 .\}
 .nf
-shell> \fBmysql\-test\-run\&.pl mytest\fR
-shell> \fBmysql\-test\-run\&.pl mytest\&.test\fR
-shell> \fBmysql\-test\-run\&.pl t/mytest\&.test\fR
+shell> \fBmariadb\-test\-run\&.pl mytest\fR
+shell> \fBmariadb\-test\-run\&.pl mytest\&.test\fR
+shell> \fBmariadb\-test\-run\&.pl t/mytest\&.test\fR
 .fi
 .if n \{\
 .RE
@@ -89,7 +89,7 @@ A suite name can be given as part of the test name\&. That is, the syntax for na
 .\}
 .PP
 If a suite name is given,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 looks in that suite for the test\&. The test file corresponding to a test named
 \fIsuite_name\&.test_name\fR
 is found in
@@ -98,7 +98,7 @@ main
 for the tests in the top
 t
 directory\&. With no suite name,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 looks in the default list of suites for a match and runs the test in any suites where it finds the test\&. Suppose that the default suite list is
 main,
 binlog,
@@ -112,7 +112,7 @@ suites\&. With an argument of
 mytest
 or
 mytest\&.test,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 will run
 mytest\&.test
 from the
@@ -152,14 +152,14 @@ with anything in between\&. In the latter case, the pattern match is not anchore
 xmainytesta\&.
 .PP
 To perform setup prior to running tests,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 needs to invoke
-\fBmysqld\fR
+\fBmariadbd\fR
 with the
 \fB\-\-bootstrap\fR
 and
 \fB\-\-skip\-grant\-tables\fR
-options\&. If MySQL was configured with the
+options\&. If MariaDB was configured with the
 \fB\-\-disable\-grant\-options\fR
 option,
 \fB\-\-bootstrap\fR,
@@ -168,7 +168,7 @@ option,
 will be disabled\&. To handle this, set the
 MYSQLD_BOOTSTRAP
 environment variable to the full path name of a server that has all options enabled\&.
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 will use that server to perform setup; it is not used to run the tests\&.
 .PP
 The
@@ -182,7 +182,7 @@ is disabled\&. This is an expected failure that can be handled as follows:
 .\}
 .nf
 shell> \fBexport MYSQLD_BOOTSTRAP\fR
-shell> \fBMYSQLD_BOOTSTRAP=/full/path/to/mysqld\fR
+shell> \fBMYSQLD_BOOTSTRAP=/full/path/to/mariadbd\fR
 shell> \fBmake test force="\-\-skip\-test=init_file"\fR
 .fi
 .if n \{\
@@ -190,15 +190,15 @@ shell> \fBmake test force="\-\-skip\-test=init_file"\fR
 .\}
 .PP
 To run
-\fBmysql\-test\-run\&.pl\fR
-on Windows, you\'ll need either Cygwin or ActiveState Perl to run it\&. You may also need to install the modules required by the script\&. To run the test script, change location into the
-mysql\-test
+\fBmariadb\-test\-run\&.pl\fR
+on Windows, you'll need either Cygwin or ActiveState Perl to run it\&. You may also need to install the modules required by the script\&. To run the test script, change location into the
+mariadb\-test
 directory, set the
 MTR_VS_CONFIG
 environment variable to the configuration you selected earlier (or use the
 \fB\-\-vs\-config\fR
 option), and invoke
-\fBmysql\-test\-run\&.pl\fR\&. For example (using Cygwin and the
+\fBmariadb\-test\-run\&.pl\fR\&. For example (using Cygwin and the
 \fBbash\fR
 shell):
 .sp
@@ -206,19 +206,19 @@ shell):
 .RS 4
 .\}
 .nf
-shell> \fBcd mysql\-test\fR
+shell> \fBcd mariadb\-test\fR
 shell> \fBexport MTR_VS_CONFIG=debug\fR
-shell> \fB\&./mysqltest\-run\&.pl \-\-force \-\-timer\fR
-shell> \fB\&./mysqltest\-run\&.pl \-\-force \-\-timer \-\-ps\-protocol\fR
+shell> \fB\&./mariadb-test\-run\&.pl \-\-force \-\-timer\fR
+shell> \fB\&./mariadb-test\-run\&.pl \-\-force \-\-timer \-\-ps\-protocol\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 uses several environment variables\&. Some of them are listed in the following table\&. Some of these are set from the outside and used by
-\fBmysql\-test\-run\&.pl\fR, others are set by
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR, others are set by
+\fBmariadb\-test\-run\&.pl\fR
 instead, and may be referred to in tests\&.
 .TS
 allbox tab(:);
@@ -242,7 +242,7 @@ T}
 T{
 MTR_VERSION
 T}:T{
-If set to 1, will run the older version 1 of \fBmysql\-test\-run\&.pl\fR\&. This will affect what functionailty is available and what command line options are supported\&.
+If set to 1, will run the older version 1 of \fBmariadb\-test\-run\&.pl\fR\&. This will affect what functionality is available and what command line options are supported\&.
 T}
 T{
 MTR_MEM
@@ -275,12 +275,12 @@ T}
 T{
 MYSQL_TEST
 T}:T{
-Path name to \fBmysqltest\fR binary
+Path name to \fBmariadb-test\fR binary
 T}
 T{
 MYSQLD_BOOTSTRAP
 T}:T{
-Full path name to \fBmysqld\fR that has all options enabled
+Full path name to \fBmariadbd\fR that has all options enabled
 T}
 T{
 MYSQLTEST_VARDIR
@@ -291,7 +291,7 @@ T}
 T{
 MYSQL_TEST_DIR
 T}:T{
-Full path to the mysql\-test directory where tests
+Full path to the mariadb\-test directory where tests
                 are being run from
 T}
 T{
@@ -309,9 +309,9 @@ MTR_BUILD_THREAD\&. It gives the actual port number directly (will be rounded do
 MTR_BUILD_THREAD, the port number is found by multiplying this by 10 and adding 10000\&.
 .PP
 Tests sometimes rely on certain environment variables being defined\&. For example, certain tests assume that
-MYSQL_TEST
+MARIADB-TEST
 is defined so that
-\fBmysqltest\fR
+\fBmariadb-test\fR
 can invoke itself with
 exec $MYSQL_TEST\&.
 .PP
@@ -319,18 +319,18 @@ Other tests may refer to the last three variables listed in the preceding table,
 $MYSQL_TMP_DIR/\fIfile_name\fR\&.
 .PP
 If you are running
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 version 1 by setting
 MTR_VERSION, note that this only affects the test driver, not the test client (and its language) or the tests themselves\&.
 .PP
 A few tests might not run with version 1 because they depend on some feature of version 2\&. You may have those tests skipped by adding the test name to the file
 lib/v1/incompatible\&.tests\&. This feature is available from MySQL 5\&.1\&.40\&.
 .PP
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 supports the options in the following list\&. An argument of
 \fB\-\-\fR
 tells
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 not to process any following arguments as options\&.
 .sp
 .RS 4
@@ -341,8 +341,8 @@ not to process any following arguments as options\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: help option
-.\" help option: mysql-test-run.pl
+.\" mariadb-test-run.pl: help option
+.\" help option: mariadb-test-run.pl
 \fB\-\-help\fR,
 \fB\-h\fR
 .sp
@@ -357,8 +357,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: big-test option
-.\" big-test option: mysql-test-run.pl
+.\" mariadb-test-run.pl: big-test option
+.\" big-test option: mariadb-test-run.pl
 \fB\-\-big\-test\fR
 .sp
 Allow tests marked as "big" to run\&. Tests can be thus marked by including the line
@@ -377,11 +377,11 @@ This is typically used for tests that take a very long to run, or that use many 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: boot-dbx option
-.\" boot-dbx option: mysql-test-run.pl
+.\" mariadb-test-run.pl: boot-dbx option
+.\" boot-dbx option: mariadb-test-run.pl
 \fB\-\-boot\-dbx\fR
 .sp
-Run the mysqld server used for bootstrapping the database through the dbx debugger\&.
+Run the mariadbd server used for bootstrapping the database through the dbx debugger\&.
 .RE
 .sp
 .RS 4
@@ -392,11 +392,11 @@ Run the mysqld server used for bootstrapping the database through the dbx debugg
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: boot-ddd option
-.\" boot-ddd option: mysql-test-run.pl
+.\" mariadb-test-run.pl: boot-ddd option
+.\" boot-ddd option: mariadb-test-run.pl
 \fB\-\-boot\-ddd\fR
 .sp
-Run the mysqld server used for bootstrapping the database through the ddd debugger\&.
+Run the mariadbd server used for bootstrapping the database through the ddd debugger\&.
 .RE
 .sp
 .RS 4
@@ -407,11 +407,11 @@ Run the mysqld server used for bootstrapping the database through the ddd debugg
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: boot-gdb option
-.\" boot-gdb option: mysql-test-run.pl
+.\" mariadb-test-run.pl: boot-gdb option
+.\" boot-gdb option: mariadb-test-run.pl
 \fB\-\-boot\-gdb\fR
 .sp
-Run the mysqld server used for bootstrapping the database through the gdb debugger\&.
+Run the mariadbd server used for bootstrapping the database through the gdb debugger\&.
 .RE
 .sp
 .RS 4
@@ -422,15 +422,15 @@ Run the mysqld server used for bootstrapping the database through the gdb debugg
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: build-thread option
-.\" build-thread option: mysql-test-run.pl
+.\" mariadb-test-run.pl: build-thread option
+.\" build-thread option: mariadb-test-run.pl
 \fB\-\-[mtr\-]build\-thread=\fR\fB\fInumber\fR\fR
 .sp
 Specify a number to calculate port numbers from\&. The formula is 10 *
 \fIbuild_thread\fR
 + 10000\&. Instead of a number, it can be set to
 auto, which is also the default value, in which case
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 will allocate a number unique to this host\&.
 .sp
 The value (number or
@@ -451,8 +451,8 @@ is supported as an alternative\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: callgrind option
-.\" callgrind option: mysql-test-run.pl
+.\" mariadb-test-run.pl: callgrind option
+.\" callgrind option: mariadb-test-run.pl
 \fB\-\-callgrind\fR
 .sp
 Instructs
@@ -469,8 +469,8 @@ to use
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: check-testcases option
-.\" check-testcases option: mysql-test-run.pl
+.\" mariadb-test-run.pl: check-testcases option
+.\" check-testcases option: mariadb-test-run.pl
 \fB\-\-check\-testcases\fR
 .sp
 Check test cases for side effects\&. This is done by checking system state before and after each test case; if there is any difference, a warning to that effect will be written, but the test case will not be marked as failed because of it\&. This check is enabled by default\&.
@@ -484,8 +484,8 @@ Check test cases for side effects\&. This is done by checking system state befor
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: client-bindir option
-.\" client-bindir option: mysql-test-run.pl
+.\" mariadb-test-run.pl: client-bindir option
+.\" client-bindir option: mariadb-test-run.pl
 \fB\-\-client\-bindir=\fR\fB\fIpath\fR\fR
 .sp
 The path to the directory where client binaries are located\&.
@@ -499,12 +499,12 @@ The path to the directory where client binaries are located\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: client-dbx option
-.\" client-dbx option: mysql-test-run.pl
+.\" mariadb-test-run.pl: client-dbx option
+.\" client-dbx option: mariadb-test-run.pl
 \fB\-\-client\-dbx\fR
 .sp
 Start
-\fBmysqltest\fR
+\fBmariadb-test\fR
 in the
 \fBdbx\fR
 debugger\&.
@@ -518,12 +518,12 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: client-ddd option
-.\" client-ddd option: mysql-test-run.pl
+.\" mariadb-test-run.pl: client-ddd option
+.\" client-ddd option: mariadb-test-run.pl
 \fB\-\-client\-ddd\fR
 .sp
 Start
-\fBmysqltest\fR
+\fBmariadb-test\fR
 in the
 \fBddd\fR
 debugger\&.
@@ -537,12 +537,12 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: client-debugger option
-.\" client-debugger option: mysql-test-run.pl
+.\" mariadb-test-run.pl: client-debugger option
+.\" client-debugger option: mariadb-test-run.pl
 \fB\-\-client\-debugger=\fR\fB\fIdebugger\fR\fR
 .sp
 Start
-\fBmysqltest\fR
+\fBmariadb-test\fR
 in the named debugger\&.
 .RE
 .sp
@@ -554,12 +554,12 @@ in the named debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: client-gdb option
-.\" client-gdb option: mysql-test-run.pl
+.\" mariadb-test-run.pl: client-gdb option
+.\" client-gdb option: mariadb-test-run.pl
 \fB\-\-client\-gdb\fR
 .sp
 Start
-\fBmysqltest\fR
+\fBmariadb-test\fR
 in the
 \fBgdb\fR
 debugger\&.
@@ -573,8 +573,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: client-libdir option
-.\" client-libdir option: mysql-test-run.pl
+.\" mariadb-test-run.pl: client-libdir option
+.\" client-libdir option: mariadb-test-run.pl
 \fB\-\-client\-libdir=\fR\fB\fIpath\fR\fR
 .sp
 The path to the directory where client libraries are located\&.
@@ -588,17 +588,17 @@ The path to the directory where client libraries are located\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: combination option
-.\" combination option: mysql-test-run.pl
+.\" mariadb-test-run.pl: combination option
+.\" combination option: mariadb-test-run.pl
 \fB\-\-combination=\fR\fB\fIvalue\fR\fR
 .sp
 Extra options to pass to
-\fBmysqld\fR\&. The value should consist of one or more comma\-separated
-\fBmysqld\fR
+\fBmariadbd\fR\&. The value should consist of one or more comma\-separated
+\fBmariadbd\fR
 options\&. This option is similar to
-\fB\-\-mysqld\fR
+\fB\-\-mariadbd\fR
 but should be given two or more times\&.
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 executes multiple test runs, using the options for each instance of
 \fB\-\-combination\fR
 in successive runs\&. If
@@ -618,8 +618,8 @@ file in the suite directory\&. The file should contain a section of options for 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: comment option
-.\" comment option: mysql-test-run.pl
+.\" mariadb-test-run.pl: comment option
+.\" comment option: mariadb-test-run.pl
 \fB\-\-comment=\fR\fB\fIstr\fR\fR
 .sp
 Write
@@ -636,8 +636,8 @@ to the output within lines filled with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: compress option
-.\" compress option: mysql-test-run.pl
+.\" mariadb-test-run.pl: compress option
+.\" compress option: mariadb-test-run.pl
 \fB\-\-compress\fR
 .sp
 Compress all information sent between the client and the server if both support compression\&.
@@ -651,8 +651,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: cursor-protocol option
-.\" cursor-protocol option: mysql-test-run.pl
+.\" mariadb-test-run.pl: cursor-protocol option
+.\" cursor-protocol option: mariadb-test-run.pl
 \fB\-\-cursor\-protocol\fR
 .sp
 Use the cursor protocol between client and server
@@ -668,12 +668,12 @@ Use the cursor protocol between client and server
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: dbx option
-.\" dbx option: mysql-test-run.pl
+.\" mariadb-test-run.pl: dbx option
+.\" dbx option: mariadb-test-run.pl
 \fB\-\-dbx\fR
 .sp
 Start the
-\fBmysqld(s)\fR
+\fBmariadbd(s)\fR
 in the
 \fBdbx\fR
 debugger\&.
@@ -687,12 +687,12 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: ddd option
-.\" ddd option: mysql-test-run.pl
+.\" mariadb-test-run.pl: ddd option
+.\" ddd option: mariadb-test-run.pl
 \fB\-\-ddd\fR
 .sp
 Start the
-\fBmysqld(s)\fR
+\fBmariadbd(s)\fR
 in the
 \fBddd\fR
 debugger\&.
@@ -706,8 +706,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: debug option
-.\" debug option: mysql-test-run.pl
+.\" mariadb-test-run.pl: debug option
+.\" debug option: mariadb-test-run.pl
 \fB\-\-debug\fR
 .sp
 Dump trace output for all clients and servers\&.
@@ -721,8 +721,8 @@ Dump trace output for all clients and servers\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: debug-common option
-.\" debug-common option: mysql-test-run.pl
+.\" mariadb-test-run.pl: debug-common option
+.\" debug-common option: mariadb-test-run.pl
 \fB\-\-debug\-common\fR
 .sp
 Same as \fB--debug\fR, but sets the 'd' debug flags to "query,info,error,enter,exit"\&.
@@ -736,8 +736,8 @@ Same as \fB--debug\fR, but sets the 'd' debug flags to "query,info,error,enter,e
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: debug-server option
-.\" debug-server option: mysql-test-run.pl
+.\" mariadb-test-run.pl: debug-server option
+.\" debug-server option: mariadb-test-run.pl
 \fB\-\-debug\-server\fR
 .sp
 Use debug version of server, but without turning on tracing\&.
@@ -751,12 +751,12 @@ Use debug version of server, but without turning on tracing\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: debugger option
-.\" debugger option: mysql-test-run.pl
+.\" mariadb-test-run.pl: debugger option
+.\" debugger option: mariadb-test-run.pl
 \fB\-\-debugger=\fR\fB\fIdebugger\fR\fR
 .sp
 Start
-\fBmysqld\fR
+\fBmariadbd\fR
 using the named debugger\&.
 .RE
 .sp
@@ -768,20 +768,20 @@ using the named debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: debug-sync-timeout option
-.\" debug-sync-timeout option: mysql-test-run.pl
+.\" mariadb-test-run.pl: debug-sync-timeout option
+.\" debug-sync-timeout option: mariadb-test-run.pl
 \fB\-\-debug\-sync\-timeout=\fR\fB\fIN\fR\fR
 .sp
 Controls whether the Debug Sync facility for testing and debugging is enabled\&. The option value is a timeout in seconds\&. The default value is 300\&. A value of 0 disables Debug Sync\&. The value of this option also becomes the default timeout for individual synchronization points\&.
 .sp
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 passes
 \fB\-\-loose\-debug\-sync\-timeout=\fR\fB\fIN\fR\fR
 to
-\fBmysqld\fR\&. The
+\fBmariadbd\fR\&. The
 \fB\-\-loose\fR
 prefix is used so that
-\fBmysqld\fR
+\fBmariadbd\fR
 does not fail if Debug Sync is not compiled in\&.
 .RE
 .sp
@@ -793,8 +793,8 @@ does not fail if Debug Sync is not compiled in\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: defaults-file option
-.\" defaults-file option: mysql-test-run.pl
+.\" mariadb-test-run.pl: defaults-file option
+.\" defaults-file option: mariadb-test-run.pl
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR
 .sp
 Use the named file as fixed config file template for all tests\&.
@@ -808,8 +808,8 @@ Use the named file as fixed config file template for all tests\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: defaults_extra_file option
-.\" default_extra_file option: mysql-test-run.pl
+.\" mariadb-test-run.pl: defaults_extra_file option
+.\" default_extra_file option: mariadb-test-run.pl
 \fB\-\-defaults_extra_file=\fR\fB\fIfile_name\fR\fR
 .sp
 Add setting from the named file to all generated configs\&.
@@ -823,13 +823,13 @@ Add setting from the named file to all generated configs\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: do-test option
-.\" do-test option: mysql-test-run.pl
+.\" mariadb-test-run.pl: do-test option
+.\" do-test option: mariadb-test-run.pl
 \fB\-\-do\-test=\fR\fB\fIprefix\fR\fR|\fB\fIregex\fR\fR
 .sp
 Run all test cases having a name that begins with the given
 \fIprefix\fR
-value, or fulfils the 
+value, or fulfils the
 \fIregex\fR\&. This option provides a convenient way to run a family of similarly named tests\&.
 .sp
 The argument for the
@@ -860,8 +860,8 @@ xmainytestz\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: dry-run option
-.\" dry-run option: mysql-test-run.pl
+.\" mariadb-test-run.pl: dry-run option
+.\" dry-run option: mariadb-test-run.pl
 \fB\-\-dry\-run\fR
 .sp
 Don't run any tests, print the list of tests that were selected for execution\&.
@@ -875,12 +875,12 @@ Don't run any tests, print the list of tests that were selected for execution\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: embedded-server option
-.\" embedded-server option: mysql-test-run.pl
+.\" mariadb-test-run.pl: embedded-server option
+.\" embedded-server option: mariadb-test-run.pl
 \fB\-\-embedded\-server\fR
 .sp
 Use a version of
-\fBmysqltest\fR
+\fBmariadb-test\fR
 built with the embedded server\&.
 .RE
 .sp
@@ -892,8 +892,8 @@ built with the embedded server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: enable-disabled option
-.\" enable-disabled option: mysql-test-run.pl
+.\" mariadb-test-run.pl: enable-disabled option
+.\" enable-disabled option: mariadb-test-run.pl
 \fB\-\-enable\-disabled\fR
 .sp
 Ignore any
@@ -909,8 +909,8 @@ file, and also run tests marked as disabled\&. Success or failure of those tests
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: experimental option
-.\" experimental option: mysql-test-run.pl
+.\" mariadb-test-run.pl: experimental option
+.\" experimental option: mariadb-test-run.pl
 \fB\-\-experimental=\fR\fB\fIfile_name\fR\fR
 .sp
 Specify a file that contains a list of test cases that should be displayed with the
@@ -920,7 +920,7 @@ code rather than
 if they fail\&.
 .sp
 For an example of a file that might be specified via this option, see
-mysql\-test/collections/default\&.experimental\&.
+mariadb\-test/collections/default\&.experimental\&.
 .RE
 .sp
 .RS 4
@@ -931,13 +931,13 @@ mysql\-test/collections/default\&.experimental\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: extern option
-.\" extern option: mysql-test-run.pl
+.\" mariadb-test-run.pl: extern option
+.\" extern option: mariadb-test-run.pl
 \fB\-\-extern\fR
 \fIoption\fR=\fIvalue\fR
 .sp
 Use an already running server\&. The option/value pair is what is needed by the
-\fBmysql\fR
+\fBmariadb\fR
 client to connect to the server\&. Each
 \fB\-\-extern\fR option
 can only take one option/value pair as an argument, so you need to repeat
@@ -948,7 +948,7 @@ for each pair needed\&. Example:
 .RS 4
 .\}
 .nf
-      \&./mysql\-test\-run\&.pl \-\-extern socket=var/tmp/mysqld\&.1\&.sock alias
+      \&./mariadb\-test\-run\&.pl \-\-extern socket=var/tmp/mariadbd\&.1\&.sock alias
 .fi
 .if n \{\
 .RE
@@ -967,8 +967,8 @@ file that requires the server to be restarted with specific options, the file wi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: fast option
-.\" fast option: mysql-test-run.pl
+.\" mariadb-test-run.pl: fast option
+.\" fast option: mariadb-test-run.pl
 \fB\-\-fast\fR
 .sp
 Do not perform controlled shutdown when servers need to be restarted or at the end of the test run\&. This is equivalent to using
@@ -983,8 +983,8 @@ Do not perform controlled shutdown when servers need to be restarted or at the e
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: force-restart option
-.\" force-restart option: mysql-test-run.pl
+.\" mariadb-test-run.pl: force-restart option
+.\" force-restart option: mariadb-test-run.pl
 \fB\-\-force\-restart\fR
 .sp
 Always restart servers between tests\&.
@@ -998,12 +998,12 @@ Always restart servers between tests\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: force option
-.\" force option: mysql-test-run.pl
+.\" mariadb-test-run.pl: force option
+.\" force option: mariadb-test-run.pl
 \fB\-\-force\fR
 .sp
 Normally,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 exits if a test case fails\&.
 \fB\-\-force\fR
 causes execution to continue regardless of test case failure\&.
@@ -1017,8 +1017,8 @@ causes execution to continue regardless of test case failure\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: gcov option
-.\" gcov option: mysql-test-run.pl
+.\" mariadb-test-run.pl: gcov option
+.\" gcov option: mariadb-test-run.pl
 \fB\-\-gcov\fR
 .sp
 Collect coverage information after the test\&. The result is a
@@ -1034,11 +1034,11 @@ file per source and header file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: gcov-src-dir option
-.\" gcov-src-dir option: mysql-test-run.pl
+.\" mariadb-test-run.pl: gcov-src-dir option
+.\" gcov-src-dir option: mariadb-test-run.pl
 \fB\-\-gcov\-src\-dir\fR
 .sp
-Colllect coverage only within the given subdirectory\&. For example, if you're only developing the SQL layer, 
+Collect coverage only within the given subdirectory\&. For example, if you're only developing the SQL layer,
 it makes sense to use \fB--gcov-src-dir=sql\fR\&.
 .RE
 .sp
@@ -1050,12 +1050,12 @@ it makes sense to use \fB--gcov-src-dir=sql\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: gdb option
-.\" gdb option: mysql-test-run.pl
+.\" mariadb-test-run.pl: gdb option
+.\" gdb option: mariadb-test-run.pl
 \fB\-\-gdb\fR
 .sp
 Start the
-\fBmysqld(s)\fR
+\fBmariadbd(s)\fR
 in the
 \fBgdb\fR
 debugger\&.
@@ -1069,8 +1069,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: gprof option
-.\" gprof option: mysql-test-run.pl
+.\" mariadb-test-run.pl: gprof option
+.\" gprof option: mariadb-test-run.pl
 \fB\-\-gprof\fR
 .sp
 Collect profiling information using the
@@ -1086,8 +1086,8 @@ profiling tool\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: manual-dbx option
-.\" manual-dbx option: mysql-test-run.pl
+.\" mariadb-test-run.pl: manual-dbx option
+.\" manual-dbx option: mariadb-test-run.pl
 \fB\-\-manual\-dbx\fR
 .sp
 Use a server that has already been started by the user in the
@@ -1103,8 +1103,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: manual-ddd option
-.\" manual-ddd option: mysql-test-run.pl
+.\" mariadb-test-run.pl: manual-ddd option
+.\" manual-ddd option: mariadb-test-run.pl
 \fB\-\-manual\-ddd\fR
 .sp
 Use a server that has already been started by the user in the
@@ -1120,8 +1120,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: manual-debug option
-.\" manual-debug option: mysql-test-run.pl
+.\" mariadb-test-run.pl: manual-debug option
+.\" manual-debug option: mariadb-test-run.pl
 \fB\-\-manual\-debug\fR
 .sp
 Use a server that has already been started by the user in a debugger\&.
@@ -1135,8 +1135,8 @@ Use a server that has already been started by the user in a debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: manual-gdb option
-.\" manual-gdb option: mysql-test-run.pl
+.\" mariadb-test-run.pl: manual-gdb option
+.\" manual-gdb option: mariadb-test-run.pl
 \fB\-\-manual\-gdb\fR
 .sp
 Use a server that has already been started by the user in the
@@ -1152,8 +1152,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: manual-lldb option
-.\" manual-lldb option: mysql-test-run.pl
+.\" mariadb-test-run.pl: manual-lldb option
+.\" manual-lldb option: mariadb-test-run.pl
 \fB\-\-manual\-lldb\fR
 .sp
 Use a server that has already been started by the user in the
@@ -1169,8 +1169,8 @@ debugger\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: mark-progress option
-.\" mark-progress option: mysql-test-run.pl
+.\" mariadb-test-run.pl: mark-progress option
+.\" mark-progress option: mariadb-test-run.pl
 \fB\-\-mark\-progress\fR
 .sp
 Marks progress with timing (in milliseconds) and line number in
@@ -1185,12 +1185,12 @@ var/log/\fItestname\fR\&.progress\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: max-connections option
-.\" max-connections option: mysql-test-run.pl
+.\" mariadb-test-run.pl: max-connections option
+.\" max-connections option: mariadb-test-run.pl
 \fB\-\-max\-connections=\fR\fB\fInum\fR\fR
 .sp
 The maximum number of simultaneous server connections that may be used per test\&. If not set, the maximum is 128\&. Minimum allowed limit is 8, maximum is 5120\&. Corresponds to the same option for
-\fBmysqltest\fR\&.
+\fBmariadb-test\fR\&.
 .RE
 .sp
 .RS 4
@@ -1201,8 +1201,8 @@ The maximum number of simultaneous server connections that may be used per test\
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: max-save-core option
-.\" max-save-core option: mysql-test-run.pl
+.\" mariadb-test-run.pl: max-save-core option
+.\" max-save-core option: mariadb-test-run.pl
 \fB\-\-max\-save\-core=\fR\fB\fIN\fR\fR
 .sp
 Limit the number of core files saved, to avoid filling up disks in case of a frequently crashing server\&. Defaults to 5, set to 0 for no limit\&. May also be set with the environment variable
@@ -1217,8 +1217,8 @@ MTR_MAX_SAVE_CORE
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: max-save-datadir option
-.\" max-save-datadir option: mysql-test-run.pl
+.\" mariadb-test-run.pl: max-save-datadir option
+.\" max-save-datadir option: mariadb-test-run.pl
 \fB\-\-max\-save\-datadir=\fR\fB\fIN\fR\fR
 .sp
 Limit the number of data directories saved after failed tests, to avoid filling up disks in case of frequent failures\&. Defaults to 20, set to 0 for no limit\&. May also be set with the environment variable
@@ -1233,8 +1233,8 @@ MTR_MAX_SAVE_DATADIR
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: max-test-fail option
-.\" max-test-fail option: mysql-test-run.pl
+.\" mariadb-test-run.pl: max-test-fail option
+.\" max-test-fail option: mariadb-test-run.pl
 \fB\-\-max\-test\-fail=\fR\fB\fIN\fR\fR
 .sp
 Stop execution after the specified number of tests have failed, to avoid using up resources (and time) in case of massive failures\&. retries are not counted, nor are failures of tests marked experimental\&. Defaults to 10, set to 0 for no limit\&. May also be set with the environment variable
@@ -1249,14 +1249,14 @@ MTR_MAX_TEST_FAIL
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: mem option
-.\" mem option: mysql-test-run.pl
+.\" mariadb-test-run.pl: mem option
+.\" mem option: mariadb-test-run.pl
 \fB\-\-mem\fR
 .sp
 This option is not supported on Windows\&.
 .sp
 Run the test suite in memory, using tmpfs or ramdisk\&. This can decrease test times significantly, in particular if you would otherwise be running over a remote file system\&.
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 attempts to find a suitable location using a built\-in list of standard locations for tmpfs and puts the
 var
 directory there\&. This option also affects placement of temporary files, which are created in
@@ -1271,7 +1271,7 @@ is given, it is added to the beginning of the list of locations to search, so it
 Once you have run tests with
 \fB\-\-mem\fR
 within a
-mysql\-testdirectory, a soflink
+mariadb\-testdirectory, a soflink
 var
 will have been set up to the temporary directory, and this will be re\-used the next time, until the soflink is deleted\&. Thus, you do not have to repeat the
 \fB\-\-mem\fR
@@ -1286,13 +1286,13 @@ option next time\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: mysqld option
-.\" mysqld option: mysql-test-run.pl
-\fB\-\-mysqld=\fR\fB\fIvalue\fR\fR
+.\" mariadb-test-run.pl: mariadbd option
+.\" mariadbd option: mariadb-test-run.pl
+\fB\-\-mariadbd=\fR\fB\fIvalue\fR\fR
 .sp
 Extra options to pass to
-\fBmysqld\fR\&. The value should consist of one or more comma\-separated
-\fBmysqld\fR
+\fBmariadbd\fR\&. The value should consist of one or more comma\-separated
+\fBmariadbd\fR
 options\&.
 .RE
 .sp
@@ -1304,11 +1304,11 @@ options\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: mysqld-env option
-.\" mysqld-env option: mysql-test-run.pl
-\fB\-\-mysqld\-env=\fR\fB\fIVAR=VAL\fR\fR
+.\" mariadb-test-run.pl: mariadbd-env option
+.\" mariadbd-env option: mariadb-test-run.pl
+\fB\-\-mariadbd\-env=\fR\fB\fIVAR=VAL\fR\fR
 .sp
-Specify additional environment settings for "mysqld"\&. Use additional \fB--mysqld-env\fR options to set more than one variable\&.
+Specify additional environment settings for "mariadbd"\&. Use additional \fB--mariadbd-env\fR options to set more than one variable\&.
 .RE
 .sp
 .RS 4
@@ -1319,8 +1319,8 @@ Specify additional environment settings for "mysqld"\&. Use additional \fB--mysq
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: nocheck-testcases option
-.\" nocheck-testcases option: mysql-test-run.pl
+.\" mariadb-test-run.pl: nocheck-testcases option
+.\" nocheck-testcases option: mariadb-test-run.pl
 \fB\-\-nocheck\-testcases\fR
 .sp
 Disable the check for test case side effects; see
@@ -1336,8 +1336,8 @@ for a description\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: noreorder option
-.\" noreorder option: mysql-test-run.pl
+.\" mariadb-test-run.pl: noreorder option
+.\" noreorder option: mariadb-test-run.pl
 \fB\-\-noreorder\fR
 .sp
 Do not reorder tests to reduce number of restarts, but run them in exactly the order given\&. If a whole suite is to be run, the tests are run in alphabetical order, though similar combinations will be grouped together\&. If more than one suite is listed, the tests are run one suite at a time, in the order listed\&.
@@ -1351,12 +1351,12 @@ Do not reorder tests to reduce number of restarts, but run them in exactly the o
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: notimer option
-.\" notimer option: mysql-test-run.pl
+.\" mariadb-test-run.pl: notimer option
+.\" notimer option: mariadb-test-run.pl
 \fB\-\-notimer\fR
 .sp
 Cause
-\fBmysqltest\fR
+\fBmariadb-test\fR
 not to generate a timing file\&. The effect of this is that the report from each test case does not include the timing in milliseconds as it normally does\&.
 .RE
 .sp
@@ -1368,8 +1368,8 @@ not to generate a timing file\&. The effect of this is that the report from each
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: nowarnings option
-.\" nowarnings option: mysql-test-run.pl
+.\" mariadb-test-run.pl: nowarnings option
+.\" nowarnings option: mariadb-test-run.pl
 \fB\-\-nowarnings\fR
 .sp
 Do not look for and report errors and warning in the server logs\&.
@@ -1383,8 +1383,8 @@ Do not look for and report errors and warning in the server logs\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: parallel option
-.\" parallel option: mysql-test-run.pl
+.\" mariadb-test-run.pl: parallel option
+.\" parallel option: mariadb-test-run.pl
 \fB\-\-parallel={\fR\fB\fIN\fR\fR\fB|auto}\fR
 .sp
 Run tests using
@@ -1403,8 +1403,8 @@ for auto\-setting of
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: port-base option
-.\" port-base option: mysql-test-run.pl
+.\" mariadb-test-run.pl: port-base option
+.\" port-base option: mariadb-test-run.pl
 \fB\-\-[mtr\-]port\-base=\fR\fB\fIP\fR\fR
 .sp
 Specify base of port numbers to be used; a block of 10 will be allocated\&.
@@ -1413,7 +1413,7 @@ should be divisible by 10; if it is not, it will be rounded down\&. If running w
 .sp
 If the port number is given as
 auto, which is also the default,
-\fBmysql\-test\-run\&.pl\fR will allocate a number unique to this host\&. The value may also be given with the environment variable
+\fBmariadb\-test\-run\&.pl\fR will allocate a number unique to this host\&. The value may also be given with the environment variable
 MTR_PORT_BASE\&.
 .sp
 If both \fB\-\-build\-thread\fR and \fB\-\-port\-base\fR are used,
@@ -1429,8 +1429,8 @@ takes precedence\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: print-testcases option
-.\" print-testcases option: mysql-test-run.pl
+.\" mariadb-test-run.pl: print-testcases option
+.\" print-testcases option: mariadb-test-run.pl
 \fB\-\-print\-testcases\fR
 .sp
 Do not run any tests, but print details about all tests, in the order they would have been run\&.
@@ -1444,8 +1444,8 @@ Do not run any tests, but print details about all tests, in the order they would
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: ps-protocol option
-.\" ps-protocol option: mysql-test-run.pl
+.\" mariadb-test-run.pl: ps-protocol option
+.\" ps-protocol option: mariadb-test-run.pl
 \fB\-\-ps\-protocol\fR
 .sp
 Use the binary protocol between client and server\&.
@@ -1459,14 +1459,14 @@ Use the binary protocol between client and server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: record option
-.\" record option: mysql-test-run.pl
+.\" mariadb-test-run.pl: record option
+.\" record option: mariadb-test-run.pl
 \fB\-\-record\fR
 .sp
 Pass the
 \fB\-\-record\fR
 option to
-\fBmysqltest\fR\&. This option requires a specific test case to be named on the command line\&.
+\fBmariadb-test\fR\&. This option requires a specific test case to be named on the command line\&.
 .RE
 .sp
 .RS 4
@@ -1477,8 +1477,8 @@ option to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: reorder option
-.\" reorder option: mysql-test-run.pl
+.\" mariadb-test-run.pl: reorder option
+.\" reorder option: mariadb-test-run.pl
 \fB\-\-reorder\fR
 .sp
 Reorder tests to minimize the number of server restarts needed\&. This is the default behavior\&. There is no guarantee that a particular set of tests will always end up in the same order\&.
@@ -1492,8 +1492,8 @@ Reorder tests to minimize the number of server restarts needed\&. This is the de
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: repeat option
-.\" repeat option: mysql-test-run.pl
+.\" mariadb-test-run.pl: repeat option
+.\" repeat option: mariadb-test-run.pl
 \fB\-\-repeat=\fR\fB\fIN\fR\fR
 .sp
 Run each test
@@ -1509,11 +1509,11 @@ number of times\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: report-features option
-.\" report-features option: mysql-test-run.pl
+.\" mariadb-test-run.pl: report-features option
+.\" report-features option: mariadb-test-run.pl
 \fB\-\-report\-features\fR
 .sp
-First run a "test" that reports MariaDB features, displaying the output of SHOW ENGINES and SHOW VARIABLES\&. This can be 
+First run a "test" that reports MariaDB features, displaying the output of SHOW ENGINES and SHOW VARIABLES\&. This can be
 used to verify that binaries are built with all required features\&.
 .RE
 .sp
@@ -1525,8 +1525,8 @@ used to verify that binaries are built with all required features\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: report-times option
-.\" report-times option: mysql-test-run.pl
+.\" mariadb-test-run.pl: report-times option
+.\" report-times option: mariadb-test-run.pl
 \fB\-\-report\-times\fR
 .sp
 Report how much time has been spent on different phases of test execution\&.
@@ -1540,13 +1540,13 @@ Report how much time has been spent on different phases of test execution\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: retry option
-.\" retry option: mysql-test-run.pl
+.\" mariadb-test-run.pl: retry option
+.\" retry option: mariadb-test-run.pl
 \fB\-\-retry=\fR\fB\fIN\fR\fR
 .sp
 If a test fails, it is retried up to a maximum of
 \fIN\fR
-runs (default 1)\&. Retries are also limited by the maximum number of failures before stopping, 
+runs (default 1)\&. Retries are also limited by the maximum number of failures before stopping,
 set with the \fB-\-retry\-failure\fR option\&. This option has no effect unless
 \fB\-\-force\fR
 is also used; without it, test execution will terminate after the first failure\&.
@@ -1568,11 +1568,11 @@ may fail in total, as each repetition is considered a new test case, which may i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: retry-failure option
-.\" retry-failure option: mysql-test-run.pl
+.\" mariadb-test-run.pl: retry-failure option
+.\" retry-failure option: mariadb-test-run.pl
 \fB\-\-retry\-failure=\fR\fB\fIN\fR\fR
 .sp
-When using the \fB-\-retry\fR option to retry failed tests, 
+When using the \fB-\-retry\fR option to retry failed tests,
 stop when N failures have occurred (default 2)\&. Setting it to 0 or 1 effectively turns off retries\&.
 .RE
 .sp
@@ -1584,8 +1584,8 @@ stop when N failures have occurred (default 2)\&. Setting it to 0 or 1 effective
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: shutdown-timeout option
-.\" shutdown-timeout option: mysql-test-run.pl
+.\" mariadb-test-run.pl: shutdown-timeout option
+.\" shutdown-timeout option: mariadb-test-run.pl
 \fB\-\-shutdown\-timeout=\fR\fB\fISECONDS\fR\fR
 .sp
 Max number of seconds to wait for servers to do controlled shutdown before killing them\&. Default is 10\&.
@@ -1599,8 +1599,8 @@ Max number of seconds to wait for servers to do controlled shutdown before killi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: skip-combinations option
-.\" skip-combinations option: mysql-test-run.pl
+.\" mariadb-test-run.pl: skip-combinations option
+.\" skip-combinations option: mariadb-test-run.pl
 \fB\-\-skip\-combinations\fR
 .sp
 Do not apply combinations; ignore combinations file or option\&.
@@ -1614,8 +1614,8 @@ Do not apply combinations; ignore combinations file or option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: skip-rpl option
-.\" skip-rpl option: mysql-test-run.pl
+.\" mariadb-test-run.pl: skip-rpl option
+.\" skip-rpl option: mariadb-test-run.pl
 \fB\-\-skip\-rpl\fR
 .sp
 Skip replication test cases\&.
@@ -1629,12 +1629,12 @@ Skip replication test cases\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: skip-ssl option
-.\" skip-ssl option: mysql-test-run.pl
+.\" mariadb-test-run.pl: skip-ssl option
+.\" skip-ssl option: mariadb-test-run.pl
 \fB\-\-skip\-ssl\fR
 .sp
 Do not start
-\fBmysqld\fR
+\fBmariadbd\fR
 with support for SSL connections\&.
 .RE
 .sp
@@ -1646,8 +1646,8 @@ with support for SSL connections\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: skip-test option
-.\" skip-test option: mysql-test-run.pl
+.\" mariadb-test-run.pl: skip-test option
+.\" skip-test option: mariadb-test-run.pl
 \fB\-\-skip\-test=\fR\fB\fIregex\fR\fR|\fR\fB\fIregex\fR\fR
 .sp
 Specify a regular expression to be applied to test case names\&. Cases with names that match the expression are skipped\&. tests to skip\&.
@@ -1667,8 +1667,8 @@ option for details\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: skip-test-list option
-.\" skip-test-list option: mysql-test-run.pl
+.\" mariadb-test-run.pl: skip-test-list option
+.\" skip-test-list option: mariadb-test-run.pl
 \fB\-\-skip\-test\-list=\fB\fIFILE\fR
 .sp
 Skip the tests listed in FILE\&. Each line in the file is an entry and should be formatted as: <TESTNAME> : <COMMENT>
@@ -1686,7 +1686,7 @@ Skip the tests listed in FILE\&. Each line in the file is an entry and should be
 .sp
 \fB\-\-skip\-*\fR
 options not otherwise recognized by
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 are passed to the master server\&.
 .RE
 .sp
@@ -1698,14 +1698,14 @@ are passed to the master server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: sleep option
-.\" sleep option: mysql-test-run.pl
+.\" mariadb-test-run.pl: sleep option
+.\" sleep option: mariadb-test-run.pl
 \fB\-\-sleep=\fR\fB\fIN\fR\fR
 .sp
 Pass
 \fB\-\-sleep=\fR\fB\fIN\fR\fR
 to
-\fBmysqltest\fR\&.
+\fBmariadb-test\fR\&.
 .RE
 .sp
 .RS 4
@@ -1716,8 +1716,8 @@ to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: sp-protocol option
-.\" sp-protocol option: mysql-test-run.pl
+.\" mariadb-test-run.pl: sp-protocol option
+.\" sp-protocol option: mariadb-test-run.pl
 \fB\-\-sp\-protocol\fR
 .sp
 Create a stored procedure to execute all queries\&.
@@ -1731,20 +1731,20 @@ Create a stored procedure to execute all queries\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: ssl option
-.\" ssl option: mysql-test-run.pl
+.\" mariadb-test-run.pl: ssl option
+.\" ssl option: mariadb-test-run.pl
 \fB\-\-ssl\fR
 .sp
 If
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 is started with the
 \fB\-\-ssl\fR
 option, it sets up a secure connection for all test cases\&. In this case, if
-\fBmysqld\fR
+\fBmariadbd\fR
 does not support SSL,
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 exits with an error message:
-Couldn\'t find support for SSL
+Couldn't find support for SSL
 .RE
 .sp
 .RS 4
@@ -1755,8 +1755,8 @@ Couldn\'t find support for SSL
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: staging-run option
-.\" staging-run option: mysql-test-run.pl
+.\" mariadb-test-run.pl: staging-run option
+.\" staging-run option: mariadb-test-run.pl
 \fB\-\-staging\-run\fR
 .sp
 Run a limited number of tests (no slow tests)\&. Used for running staging trees with valgrind\&.
@@ -1770,21 +1770,21 @@ Run a limited number of tests (no slow tests)\&. Used for running staging trees 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: start-and-exit option
-.\" start-and-exit option: mysql-test-run.pl
+.\" mariadb-test-run.pl: start-and-exit option
+.\" start-and-exit option: mariadb-test-run.pl
 \fB\-\-start\fR
 .sp
 Initialize and start servers with the startup settings for the specified test case\&. You can use this option to start a server to which you can connect later\&. For example, after building a source distribution you can start a server and connect to it with the
-\fBmysql\fR
+\fBmariadb\fR
 client like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBcd mysql\-test\fR
-shell> \fB\&./mysql\-test\-run\&.pl \-\-start alias &\fR
-shell> \fB\&.\&./mysql \-S \&./var/tmp/master\&.sock \-h localhost \-u root\fR
+shell> \fBcd mariadb\-test\fR
+shell> \fB\&./mariadb\-test\-run\&.pl \-\-start alias &\fR
+shell> \fB\&.\&./mariadb \-S \&./var/tmp/master\&.sock \-h localhost \-u root\fR
 .fi
 .if n \{\
 .RE
@@ -1794,7 +1794,7 @@ If no tests are named on the command line, the server(s) will be started with se
 \fB\-\-start\fR
 option\&.
 .sp
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 will stop once the server has been started, but will terminate if the server dies\&. If killed, it will also shut down the server\&.
 .RE
 .sp
@@ -1806,12 +1806,12 @@ will stop once the server has been started, but will terminate if the server die
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: start-and-exit option
-.\" start-and-exit option: mysql-test-run.pl
+.\" mariadb-test-run.pl: start-and-exit option
+.\" start-and-exit option: mariadb-test-run.pl
 \fB\-\-start\-and\-exit\fR
 .sp
-Same 
-\fB\-\-start\fR, but mysql-test-run terminates and leaves just the server running\&.
+Same
+\fB\-\-start\fR, but mariadb-test-run terminates and leaves just the server running\&.
 .RE
 .sp
 .RS 4
@@ -1822,8 +1822,8 @@ Same
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: start-dirty option
-.\" start-dirty option: mysql-test-run.pl
+.\" mariadb-test-run.pl: start-dirty option
+.\" start-dirty option: mariadb-test-run.pl
 \fB\-\-start\-dirty\fR
 .sp
 This is similar to
@@ -1838,11 +1838,11 @@ This is similar to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: start-from option
-.\" start-from option: mysql-test-run.pl
+.\" mariadb-test-run.pl: start-from option
+.\" start-from option: mariadb-test-run.pl
 \fB\-\-start\-from=\fR\fB\fItest_name\fR\fR
 .sp
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 sorts the list of names of the test cases to be run, and then begins with
 \fItest_name\fR\&.
 .RE
@@ -1855,11 +1855,11 @@ sorts the list of names of the test cases to be run, and then begins with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: strace option
-.\" strace option: mysql-test-run.pl
+.\" mariadb-test-run.pl: strace option
+.\" strace option: mariadb-test-run.pl
 \fB\-\-strace\fR
 .sp
-Run the "mysqld" executables using strace. Default options are \fB-f -o var/log/'mysqld-name'.strace\fR\&.
+Run the "mariadbd" executables using strace. Default options are \fB-f -o var/log/'mariadbd-name'.strace\fR\&.
 .RE
 .sp
 .RS 4
@@ -1870,17 +1870,17 @@ Run the "mysqld" executables using strace. Default options are \fB-f -o var/log/
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: strace-client option
-.\" strace-client option: mysql-test-run.pl
+.\" mariadb-test-run.pl: strace-client option
+.\" strace-client option: mariadb-test-run.pl
 \fB\-\-strace\-client\fR
 .sp
 Create
 \fBstrace\fR
 output for
-\fBmysqltest\fR, optionally specifying name and path 
+\fBmariadb-test\fR, optionally specifying name and path
 to the trace program to use\&.
 .sp
-Example: \&./mysql\-test\-run\&.pl \-\-strace\-client=ktrace
+Example: \&./mariadb\-test\-run\&.pl \-\-strace\-client=ktrace
 .RE
 .sp
 .RS 4
@@ -1891,12 +1891,12 @@ Example: \&./mysql\-test\-run\&.pl \-\-strace\-client=ktrace
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: strace-option option
-.\" strace-option option: mysql-test-run.pl
+.\" mariadb-test-run.pl: strace-option option
+.\" strace-option option: mariadb-test-run.pl
 \fB\-\-strace\-option\fR=\fR\fB\fIARGS\fR\fR
 .sp
-Option to give 
-\fBstrace\fR, 
+Option to give
+\fBstrace\fR,
 replaces default option(s)\&.
 .RE
 .sp
@@ -1908,11 +1908,11 @@ replaces default option(s)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: stress option
-.\" stress option: mysql-test-run.pl
+.\" mariadb-test-run.pl: stress option
+.\" stress option: mariadb-test-run.pl
 \fB\-\-stress=\fR\fB\fIARGS\fR\fR
 .sp
-Run stress test, providing options to mysql\-stress\-test\&.pl\&. Options are separated by comma\&.
+Run stress test, providing options to mariadb\-stress\-test\&.pl\&. Options are separated by comma\&.
 .RE
 .sp
 .RS 4
@@ -1923,8 +1923,8 @@ Run stress test, providing options to mysql\-stress\-test\&.pl\&. Options are se
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: suite option
-.\" suite option: mysql-test-run.pl
+.\" mariadb-test-run.pl: suite option
+.\" suite option: mariadb-test-run.pl
 \fB\-\-suite[s]=\fR\fB\fIsuite_name...\fR\fR
 .sp
 Comma separated list of suite names to run. The default is:
@@ -1942,11 +1942,11 @@ plugins-,roles-,rpl-,sys_vars-,unit-,vcol-"\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: stop-file option
-.\" stop-file option: mysql-test-run.pl
+.\" mariadb-test-run.pl: stop-file option
+.\" stop-file option: mariadb-test-run.pl
 \fB\-\-stop\-file=\fR\fB\fIfile\fR\fR
 .sp
-If this file is detected, mysqltest will not start new tests until the file is removed (also MTR_STOP_FILE environment variable)\&.
+If this file is detected, mariadb-test will not start new tests until the file is removed (also MTR_STOP_FILE environment variable)\&.
 .RE
 .sp
 .RS 4
@@ -1957,11 +1957,11 @@ If this file is detected, mysqltest will not start new tests until the file is r
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: stop-keep-alive option
-.\" stop-keep-alive option: mysql-test-run.pl
+.\" mariadb-test-run.pl: stop-keep-alive option
+.\" stop-keep-alive option: mariadb-test-run.pl
 \fB\-\-stop\-keep\-alive=\fR\fB\fIsec\fR\fR
 .sp
-Works with \fB--stop-file\fR, print messages every \fIsec\fR seconds when mysqltest is waiting to remove the file (for buildbot) (also MTR_STOP_KEEP_ALIVE environment variable)\&.
+Works with \fB--stop-file\fR, print messages every \fIsec\fR seconds when mariadb-test is waiting to remove the file (for buildbot) (also MTR_STOP_KEEP_ALIVE environment variable)\&.
 .RE
 .sp
 .RS 4
@@ -1972,8 +1972,8 @@ Works with \fB--stop-file\fR, print messages every \fIsec\fR seconds when mysqlt
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: suite-timeout option
-.\" suite-timeout option: mysql-test-run.pl
+.\" mariadb-test-run.pl: suite-timeout option
+.\" suite-timeout option: mariadb-test-run.pl
 \fB\-\-suite\-timeout=\fR\fB\fIminutes\fR\fR
 .sp
 Specify the maximum test suite runtime in minutes\&. The default is 360\&.
@@ -1987,8 +1987,8 @@ Specify the maximum test suite runtime in minutes\&. The default is 360\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: testcase-timeout option
-.\" testcase-timeout option: mysql-test-run.pl
+.\" mariadb-test-run.pl: testcase-timeout option
+.\" testcase-timeout option: mariadb-test-run.pl
 \fB\-\-testcase\-timeout\fR
 .sp
 Specify the maximum test case runtime in minutes\&. The default is 15\&.
@@ -2002,8 +2002,8 @@ Specify the maximum test case runtime in minutes\&. The default is 15\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: timediff option
-.\" timediff option: mysql-test-run.pl
+.\" mariadb-test-run.pl: timediff option
+.\" timediff option: mariadb-test-run.pl
 \fB\-\-timediff\fR
 .sp
 Used with \fB\-\-timestamp\fR, also print time passed since the previous test started\&.
@@ -2017,12 +2017,12 @@ Used with \fB\-\-timestamp\fR, also print time passed since the previous test st
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: timer option
-.\" timer option: mysql-test-run.pl
+.\" mariadb-test-run.pl: timer option
+.\" timer option: mariadb-test-run.pl
 \fB\-\-timer\fR
 .sp
 Cause
-\fBmysqltest\fR
+\fBmariadb-test\fR
 to generate a timing file\&. The default file is named
 \&./var/log/timer\&.
 .RE
@@ -2035,8 +2035,8 @@ to generate a timing file\&. The default file is named
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: timestamp option
-.\" timestamp option: mysql-test-run.pl
+.\" mariadb-test-run.pl: timestamp option
+.\" timestamp option: mariadb-test-run.pl
 \fB\-\-timestamp\fR
 .sp
 Prints a timestamp before the test case name in each test report line, showing when the test ended\&.
@@ -2050,8 +2050,8 @@ Prints a timestamp before the test case name in each test report line, showing w
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: tmpdir option
-.\" tmpdir option: mysql-test-run.pl
+.\" mariadb-test-run.pl: tmpdir option
+.\" tmpdir option: mariadb-test-run.pl
 \fB\-\-tmpdir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where temporary file are stored\&. The default location is
@@ -2068,8 +2068,8 @@ will be set to the path for this directory, whether it has the default value or 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: user option
-.\" user option: mysql-test-run.pl
+.\" mariadb-test-run.pl: user option
+.\" user option: mariadb-test-run.pl
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
 The MariaDB user name to use when connecting to the server (default root)\&.
@@ -2083,11 +2083,11 @@ The MariaDB user name to use when connecting to the server (default root)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: user-args option
-.\" user-args option: mysql-test-run.pl
+.\" mariadb-test-run.pl: user-args option
+.\" user-args option: mariadb-test-run.pl
 \fB\-\-user\-args\fR
 .sp
-In combination with \fBstart*\fR and no test name, drops arguments to mysqld except those specified with \fB\-\-mysqld\fR (if any)\&.
+In combination with \fBstart*\fR and no test name, drops arguments to mariadbd except those specified with \fB\-\-mariadbd\fR (if any)\&.
 .RE
 .sp
 .RS 4
@@ -2098,14 +2098,14 @@ In combination with \fBstart*\fR and no test name, drops arguments to mysqld exc
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: valgrind option
-.\" valgrind option: mysql-test-run.pl
+.\" mariadb-test-run.pl: valgrind option
+.\" valgrind option: mariadb-test-run.pl
 \fB\-\-valgrind[\-all]\fR
 .sp
 Run
-\fBmysqltest\fR
+\fBmariadb-test\fR
 and
-\fBmysqld\fR
+\fBmariadbd\fR
 with
 \fBvalgrind\fR\&. This and the following
 \fB\-\-valgrind\fR
@@ -2122,12 +2122,12 @@ support\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: valgrind-mysqld option
-.\" valgrind-mysqld option: mysql-test-run.pl
-\fB\-\-valgrind\-mysqld\fR
+.\" mariadb-test-run.pl: valgrind-mariadbd option
+.\" valgrind-mariadbd option: mariadb-test-run.pl
+\fB\-\-valgrind\-mariadbd\fR
 .sp
 Run the
-\fBmysqld\fR
+\fBmariadbd\fR
 server with
 \fBvalgrind\fR\&.
 .RE
@@ -2140,14 +2140,14 @@ server with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: valgrind-mysqltest option
-.\" valgrind-mysqltest option: mysql-test-run.pl
-\fB\-\-valgrind\-mysqltest\fR
+.\" mariadb-test-run.pl: valgrind-mariadb-test option
+.\" valgrind-mariadb-test option: mariadb-test-run.pl
+\fB\-\-valgrind\-mariadb-test\fR
 .sp
-Run the 
-\fBmysqltest\fR
-and 
-\fBmysql_client_test\fR
+Run the
+\fBmariadb-test\fR
+and
+\fBmariadb-client-test\fR
 executables with
 \fBvalgrind\fR\&.
 .RE
@@ -2160,8 +2160,8 @@ executables with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: valgrind-options option
-.\" valgrind-options option: mysql-test-run.pl
+.\" mariadb-test-run.pl: valgrind-options option
+.\" valgrind-options option: mariadb-test-run.pl
 \fB\-\-valgrind\-option=\fR\fB\fIstr\fR\fR
 .sp
 Option to give \fBvalgrind\fR. Replaces default option(s)\&. Can be specified more then once&.
@@ -2175,8 +2175,8 @@ Option to give \fBvalgrind\fR. Replaces default option(s)\&. Can be specified mo
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: valgrind-path option
-.\" valgrind-path option: mysql-test-run.pl
+.\" mariadb-test-run.pl: valgrind-path option
+.\" valgrind-path option: mariadb-test-run.pl
 \fB\-\-valgrind\-path=\fR\fB\fIpath\fR\fR
 .sp
 Path to the
@@ -2192,8 +2192,8 @@ executable\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: vardir option
-.\" vardir option: mysql-test-run.pl
+.\" mariadb-test-run.pl: vardir option
+.\" vardir option: mariadb-test-run.pl
 \fB\-\-vardir=\fR\fB\fIpath\fR\fR
 .sp
 Specify the path where files generated during the test run are stored\&. The default location is
@@ -2210,8 +2210,8 @@ will be set to the path for this directory, whether it has the default value or 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: verbose option
-.\" verbose option: mysql-test-run.pl
+.\" mariadb-test-run.pl: verbose option
+.\" verbose option: mariadb-test-run.pl
 \fB\-\-verbose\fR
 .sp
 Give more verbose output regarding test execution\&. Use the option twice to get even more output\&. Note that the output generated within each test case is not affected\&.
@@ -2225,8 +2225,8 @@ Give more verbose output regarding test execution\&. Use the option twice to get
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: verbose-restart option
-.\" verbose-restart option: mysql-test-run.pl
+.\" mariadb-test-run.pl: verbose-restart option
+.\" verbose-restart option: mariadb-test-run.pl
 \fB\-\-verbose\-restart\fR
 .sp
 Write when and why servers are restarted between test cases\&.
@@ -2240,8 +2240,8 @@ Write when and why servers are restarted between test cases\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: view-protocol option
-.\" view-protocol option: mysql-test-run.pl
+.\" mariadb-test-run.pl: view-protocol option
+.\" view-protocol option: mariadb-test-run.pl
 \fB\-\-view\-protocol\fR
 .sp
 Create a view to execute all non updating queries\&.
@@ -2255,8 +2255,8 @@ Create a view to execute all non updating queries\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: vs-config option
-.\" vs-config option: mysql-test-run.pl
+.\" mariadb-test-run.pl: vs-config option
+.\" vs-config option: mariadb-test-run.pl
 \fB\-\-vs\-config=\fR\fB\fIconfig_val\fR\fR
 .sp
 Visual Studio configuration used to create executables
@@ -2272,8 +2272,8 @@ This option is for Windows only\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: wait-all option
-.\" wait-all option: mysql-test-run.pl
+.\" mariadb-test-run.pl: wait-all option
+.\" wait-all option: mariadb-test-run.pl
 \fB\-\-wait\-all\fR
 .sp
 If
@@ -2291,8 +2291,8 @@ is used, wait for all servers to exit before termination\&. Otherwise, it will t
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: warnings option
-.\" warnings option: mysql-test-run.pl
+.\" mariadb-test-run.pl: warnings option
+.\" warnings option: mariadb-test-run.pl
 \fB\-\-warnings\fR
 .sp
 Search the server log for errors or warning after each test and report any suspicious ones; if any are found, the test will be marked as failed\&. This is the default behavior, it may be turned off with
@@ -2304,7 +2304,7 @@ Search the server log for errors or warning after each test and report any suspi
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2020 MariaDB Foundation
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2025 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

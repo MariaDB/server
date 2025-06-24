@@ -20,8 +20,6 @@ SET GLOBAL innodb_fast_shutdown=0;
 
 --echo # Create and populate the table to be corrupted
 
-set global innodb_file_per_table=ON;
-
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 --disable_query_log

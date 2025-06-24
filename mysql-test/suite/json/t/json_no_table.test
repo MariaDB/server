@@ -1863,7 +1863,7 @@ select json_unquote(json_compact('{"abc": "foo"}'));
 select json_extract(json_compact('{"abc": "foo"}'), '$.abc');
 select json_unquote(json_extract(json_compact('{"abc": "foo"}'), '$.abc'));
 
-# Bug fix: thse should be the same
+# Bug fix: these should be the same
 select json_unquote('["a", "b", "c"]');
 select json_unquote(json_compact('["a", "b", "c"]'));
 
@@ -2378,3 +2378,20 @@ SELECT JSON_ARRAY(LEAST(NULL, NULL), GREATEST(NULL, NULL), LEAST(j1, NULL),
                   GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
 FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
 --enable_cursor_protocol
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-25829 Change default collation to utf8mb4_1400_ai_ci
+--echo #
+
+SELECT
+  JSON_UNQUOTE("String"),
+  COERCIBILITY(JSON_UNQUOTE("String")),
+  COLLATION(JSON_UNQUOTE("String"));
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

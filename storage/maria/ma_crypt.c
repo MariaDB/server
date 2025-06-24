@@ -482,7 +482,7 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
                       uint *key_version)
 {
   int rc;
-  uint32 dstlen= 0;              /* Must be set because of error message */
+  uint32 dstlen= size;
 
   *key_version = encryption_key_get_latest_version(crypt_data->scheme.key_id);
   if (unlikely(*key_version == ENCRYPTION_KEY_VERSION_INVALID))
@@ -509,6 +509,9 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
   DBUG_ASSERT(!my_assert_on_error || dstlen == size);
   if (! (rc == MY_AES_OK && dstlen == size))
   {
+    if (rc != MY_AES_OK)
+      dstlen= 0; /* reset dstlen if failed, to match expected message */
+
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
                     "failed to encrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
@@ -526,7 +529,7 @@ static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
                       uint key_version)
 {
   int rc;
-  uint32 dstlen= 0;              /* Must be set because of error message */
+  uint32 dstlen= size;
 
   rc= encryption_scheme_decrypt(src, size, dst, &dstlen,
                                 &crypt_data->scheme, key_version,
@@ -536,6 +539,8 @@ static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
   DBUG_ASSERT(!my_assert_on_error || dstlen == size);
   if (! (rc == MY_AES_OK && dstlen == size))
   {
+    if (rc != MY_AES_OK)
+      dstlen= 0; /* reset dstlen if failed, to match expected message */
     my_errno= HA_ERR_DECRYPTION_FAILED;
     if (!share->silence_encryption_errors)
       my_printf_error(HA_ERR_DECRYPTION_FAILED,

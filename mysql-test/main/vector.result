@@ -1,0 +1,893 @@
+create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+ERROR HY000: Cannot create VECTOR index on temporary MyISAM table
+create table t1 (id int auto_increment primary key,
+u vector(5) not null, vector index (u),
+v vector(5) not null, vector index (v));
+ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR indexes'
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+t1	1	v	1	v	A	NULL	NULL	NULL		VECTOR			NO
+drop table t1;
+set mhnsw_default_m=@@mhnsw_default_m+1;
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `m`=7
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+t1	1	v	1	v	A	NULL	NULL	NULL		VECTOR			NO
+drop table t1;
+create table t1 (id int auto_increment primary key, v vector(5) not null,
+vector index (v) m=5);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `m`=5
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+t1	1	v	1	v	A	NULL	NULL	NULL		VECTOR			NO
+set mhnsw_default_m=default;
+select * from information_schema.statistics where table_name='t1';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+NON_UNIQUE	0
+INDEX_SCHEMA	test
+INDEX_NAME	PRIMARY
+SEQ_IN_INDEX	1
+COLUMN_NAME	id
+COLLATION	A
+CARDINALITY	0
+SUB_PART	NULL
+PACKED	NULL
+NULLABLE	
+INDEX_TYPE	BTREE
+COMMENT	
+INDEX_COMMENT	
+IGNORED	NO
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+NON_UNIQUE	1
+INDEX_SCHEMA	test
+INDEX_NAME	v
+SEQ_IN_INDEX	1
+COLUMN_NAME	v
+COLLATION	A
+CARDINALITY	NULL
+SUB_PART	NULL
+PACKED	NULL
+NULLABLE	
+INDEX_TYPE	VECTOR
+COMMENT	
+INDEX_COMMENT	
+IGNORED	NO
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+select id, hex(v), vec_totext(v) from t1;
+id	hex(v)	vec_totext(v)
+1	E360D63EBE554F3FCDBC523F4522193F5236083D	[0.418708,0.809902,0.823193,0.598179,0.0332549]
+2	F511303F72224A3FDD05FE3EB22A133FFAE86A3F	[0.687774,0.789588,0.496138,0.57487,0.917617]
+3	F09BAA3EA172763F123DEF3E0C7FE53E288BF33E	[0.333221,0.962687,0.467263,0.448235,0.475671]
+4	B97A523F2A193E3EB4F62E3F2D23583E9DD60D3F	[0.822185,0.185643,0.683452,0.211072,0.554056]
+5	F7C5DF3E984B2B3E65E59D3D7376DB3EAC63773E	[0.437057,0.167281,0.0770977,0.428638,0.241591]
+6	DE01453FFA486D3F10AA4D3FDD66813C71CB163F	[0.76956,0.926895,0.803376,0.0157961,0.589042]
+7	76EDFC3E4B57243F10F8423FB158713F020BDA3E	[0.493999,0.641957,0.761598,0.94276,0.425865]
+8	56926C3FDF098D3E2C8C5E3D1AD4953DAA9D0B3E	[0.924108,0.275466,0.0543329,0.0731585,0.136344]
+9	7B713F3E5258323F80D1113D673B2B3F66E3583F	[0.186956,0.69666,0.0356002,0.668875,0.84722]
+10	6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E	[0.415294,0.609278,0.426765,0.988832,0.475556]
+flush tables;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+select id,vec_distance_euclidean(x'b047263C9f87233fcfd27e3eae493e3f0329f43e', v) d from t1 order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+select id>0,vec_distance_euclidean(v, NULL) d from t1 order by d limit 3;
+id>0	d
+1	NULL
+1	NULL
+1	NULL
+select id>0,vec_distance_euclidean(v, x'123456') d from t1 order by d limit 3;
+id>0	d
+1	NULL
+1	NULL
+1	NULL
+select t1.id as id1, t2.id as id2, vec_distance_euclidean(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
+id1	id2	vec_distance_euclidean(t1.v, t2.v)
+1	1	0
+2	2	0
+3	3	0
+4	4	0
+5	5	0
+6	6	0
+7	7	0
+8	8	0
+9	9	0
+10	10	0
+7	10	0.35209
+10	7	0.35209
+1	7	0.55726
+7	1	0.55726
+2	3	0.60651
+3	2	0.60651
+1	3	0.61282
+3	1	0.61282
+5	8	0.62199
+8	5	0.62199
+3	10	0.65231
+10	3	0.65231
+9	10	0.67326
+10	9	0.67326
+3	7	0.67998
+7	3	0.67998
+3	9	0.68207
+9	3	0.68207
+2	10	0.69163
+10	2	0.69163
+2	9	0.69666
+9	2	0.69666
+3	6	0.71028
+6	3	0.71028
+2	7	0.71202
+7	2	0.71202
+2	6	0.73516
+6	2	0.73516
+1	10	0.73868
+10	1	0.73868
+4	6	0.77843
+6	4	0.77843
+4	8	0.77958
+8	4	0.77958
+4	5	0.81320
+5	4	0.81320
+2	4	0.82609
+4	2	0.82609
+5	10	0.82864
+10	5	0.82864
+5	9	0.87693
+9	5	0.87693
+1	6	0.88614
+6	1	0.88614
+3	5	0.92242
+5	3	0.92242
+4	7	0.93479
+7	4	0.93479
+7	9	0.93642
+9	7	0.93642
+3	4	0.97571
+4	3	0.97571
+1	2	0.98102
+2	1	0.98102
+1	4	0.99654
+4	1	0.99654
+5	7	0.99768
+7	5	0.99768
+4	10	1.01093
+10	4	1.01093
+1	5	1.02083
+5	1	1.02083
+6	7	1.02213
+7	6	1.02213
+2	5	1.05076
+5	2	1.05076
+6	8	1.10342
+8	6	1.10342
+3	8	1.11703
+8	3	1.11703
+6	10	1.15234
+10	6	1.15234
+1	9	1.16377
+9	1	1.16377
+2	8	1.17365
+8	2	1.17365
+4	9	1.17468
+9	4	1.17468
+1	8	1.19099
+8	1	1.19099
+8	10	1.20935
+10	8	1.20935
+6	9	1.21452
+9	6	1.21452
+5	6	1.22727
+6	5	1.22727
+8	9	1.25752
+9	8	1.25752
+7	8	1.28823
+8	7	1.28823
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 order by d limit 9;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+7	0.73444
+5	0.76710
+1	0.86251
+2	0.87503
+4	1.15881
+6	1.22844
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 where id % 3 = 0 order by d limit 3;
+id	d
+9	0.47199
+3	0.58656
+6	1.22844
+select * from (
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 where id < 10
+) u order by d limit 3;
+id	d
+9	0.47199
+3	0.58656
+7	0.73444
+flush session status;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	0
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+flush session status;
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.05905
+9	0.06546
+3	0.10750
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+delete from t1 where v = x'7b713f3e5258323f80d1113d673b2b3f66e3583f';
+select id,vec_distance_euclidean(v, x'B047263C9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.50690
+3	0.58656
+7	0.73444
+insert t1 (v) values (x'7b713f3e5258323f80d1113d673b2b3f66e3583f');
+select id,vec_distance_euclidean(v, x'b047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+11	0.47199
+10	0.50690
+3	0.58656
+select id,vec_distance_euclidean(v, x'B047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+id	d
+11	0.47199
+10	0.50690
+3	0.58656
+7	0.73444
+5	0.76710
+update t1 set v=x'76EDFC3E4B57243F10F8423FB158713F020BAA3E' where v=x'6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E';
+select id,vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+id	d
+11	0.47199
+3	0.58656
+7	0.73444
+10	0.74683
+5	0.76710
+delete from t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+select id,vec_distance_euclidean(v, x'b047263c9f87233Fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+id	d
+20	0.47199
+21	0.50690
+14	0.58656
+18	0.73444
+16	0.76710
+insert t1 (v) values ('');
+ERROR 22007: Incorrect vector value: '' for column `test`.`t1`.`v` at row 1
+insert t1 (v) values (x'1234');
+ERROR 22007: Incorrect vector value: '\x124' for column `test`.`t1`.`v` at row 1
+insert t1 (v) values (x'12345678');
+ERROR 22007: Incorrect vector value: '\x124Vx' for column `test`.`t1`.`v` at row 1
+drop table t1;
+db.opt
+# Check if CREATE TABLE ... LIKE inherits VECTOR index
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+create table t2 like t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+db.opt
+# Test insert ... select with vector index
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+create table t2 like t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+insert into t2 select id+10, v from t1;
+insert into t1 select * from t2;
+select id, hex(v) from t1;
+id	hex(v)
+1	E360D63EBE554F3FCDBC523F4522193F5236083D
+2	F511303F72224A3FDD05FE3EB22A133FFAE86A3F
+3	F09BAA3EA172763F123DEF3E0C7FE53E288BF33E
+4	B97A523F2A193E3EB4F62E3F2D23583E9DD60D3F
+5	F7C5DF3E984B2B3E65E59D3D7376DB3EAC63773E
+6	DE01453FFA486D3F10AA4D3FDD66813C71CB163F
+7	76EDFC3E4B57243F10F8423FB158713F020BDA3E
+8	56926C3FDF098D3E2C8C5E3D1AD4953DAA9D0B3E
+9	7B713F3E5258323F80D1113D673B2B3F66E3583F
+10	6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E
+11	E360D63EBE554F3FCDBC523F4522193F5236083D
+12	F511303F72224A3FDD05FE3EB22A133FFAE86A3F
+13	F09BAA3EA172763F123DEF3E0C7FE53E288BF33E
+14	B97A523F2A193E3EB4F62E3F2D23583E9DD60D3F
+15	F7C5DF3E984B2B3E65E59D3D7376DB3EAC63773E
+16	DE01453FFA486D3F10AA4D3FDD66813C71CB163F
+17	76EDFC3E4B57243F10F8423FB158713F020BDA3E
+18	56926C3FDF098D3E2C8C5E3D1AD4953DAA9D0B3E
+19	7B713F3E5258323F80D1113D673B2B3F66E3583F
+20	6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E
+drop table t1, t2;
+db.opt
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+truncate table t1;
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+truncate table t1;
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+select id, hex(v) from t1;
+id	hex(v)
+1	E360D63EBE554F3FCDBC523F4522193F5236083D
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+db.opt
+# Test RENAME TABLE with vector index
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+rename table t1 to t2;
+db.opt
+t2#i#01.ibd
+t2.frm
+t2.ibd
+create database test1;
+rename table test.t2 to test1.t1;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+call mtr.add_suppression('InnoDB: Cannot rename.*because the source file does not exist');
+call mtr.add_suppression('InnoDB: File ./test1/t1#i#01.ibd was not found');
+rename table test1.t1 to test1.t2;
+Got one of the listed errors
+db.opt
+t1.frm
+t1.ibd
+drop database test1;
+db.opt
+#
+# Cosine distance
+#
+create table t1 (id int auto_increment primary key, v vector(5) not null,
+vector index (v) distance=cosine);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`) `distance`=cosine
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.05905
+9	0.06546
+3	0.10750
+flush session status;
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+10	0.05905
+9	0.06546
+3	0.10750
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	0
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+id	d
+10	0.05905
+9	0.06546
+3	0.10750
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+flush session status;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+show status like 'handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	11
+drop table t1;
+set @a=vec_fromtext('[94.542572,8.735560,60.050098,74.043800,90.068710,28.212160,70.854660,69.636841,35.620232,69.190628]');
+select vec_distance_cosine(@a, @a), vec_distance_euclidean(@a, @a);
+vec_distance_cosine(@a, @a)	vec_distance_euclidean(@a, @a)
+0	0
+# Test ALTER TABLE, CREATE/DROP INDEX
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+# ADD/DROP COLUMN, ALGORITHM=COPY
+alter table t1 add column a int, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop column a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP INDEX, ALGORITHM=COPY (non-vector)
+alter table t1 add index a(id), algorithm=copy;
+db.opt
+t1#i#02.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop index a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# CREATE/DROP INDEX, ALGORITHM=COPY (non-vector)
+create index a on t1(id) algorithm=copy;
+db.opt
+t1#i#02.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop index a on t1;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP COLUMN IF [NOT] EXISTS, ALGORITHM=COPY (non-vector)
+alter table t1 add column if not exists a int, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop column if exists a, algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP INDEX, ALGORITHM=COPY (vector)
+alter table t1 drop index v, algorithm=copy;
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add vector index v(v), algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# CREATE/DROP INDEX, ALGORITHM=COPY (vector)
+drop index v on t1;
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create vector index v on t1(v) algorithm=copy;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
+alter table t1 add index a(id), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add index a(id);
+alter table t1 drop index a, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop index a;
+# ADD/DROP INDEX, ALGORITHM=INPLACE (vector)
+alter table t1 drop index v, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop index v;
+alter table t1 add vector index v(v), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add vector index v(v);
+# CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (vector)
+alter table t1 change column v v vector(6) not null, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop column v, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 modify column v vector(7) not null, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+# ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
+alter table t1 add column a varchar(10), algorithm=inplace;
+alter table t1 change column a a varchar(20), algorithm=inplace;
+alter table t1 modify column a varchar(30), algorithm=inplace;
+alter table t1 drop column a, algorithm=inplace;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# ENABLE/DISABLE INDEXES
+alter table t1 disable keys;
+alter table t1 enable keys;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# RENAME COLUMN (vector)
+alter table t1 rename column v to w;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `w` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`w`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 rename column w to v;
+# RENAME INDEX (vector)
+alter table t1 rename key v to w;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `w` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 rename key w to v;
+# IF [NOT] EXISTS
+create vector index if not exists v on t1(v);
+Warnings:
+Note	1061	Duplicate key name 'v'
+drop index if exists v on t1;
+drop index if exists v on t1;
+Warnings:
+Note	1091	Can't DROP INDEX `v`; check that it exists
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create vector index if not exists v on t1(v);
+alter table t1 rename key if exists v to w;
+alter table t1 rename key if exists w to v;
+alter table t1 alter key if exists v ignored;
+alter table t1 alter key if exists v not ignored;
+# ENGINE
+alter table t1 engine=myisam;
+db.opt
+t1#i#01.MYD
+t1#i#01.MYI
+t1.MYD
+t1.MYI
+t1.frm
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 engine=innodb;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 rename to t2, engine=myisam;
+db.opt
+t2#i#01.MYD
+t2#i#01.MYI
+t2.MYD
+t2.MYI
+t2.frm
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t2 rename to t1, engine=innodb;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# CHANGE/MODIFY/DROP COLUMN (vector)
+alter table t1 modify column v int;
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+alter table t1 change column v v int;
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+alter table t1 modify column v vector(5);
+ERROR 42000: All parts of a VECTOR index must be NOT NULL
+alter table t1 change column v v vector(6);
+ERROR 42000: All parts of a VECTOR index must be NOT NULL
+alter table t1 modify column v vector(7) not null;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(7) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 change column v v vector(5) not null;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop column v;
+db.opt
+t1.frm
+t1.ibd
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1(v vector(5) not null, vector index(v));
+alter table t1 add column a int;
+drop table t1;
+#
+# MDEV-35292 - ALTER TABLE re-creating vector key is no-op with
+#              non-copying alter algorithms (default)
+#
+create table t (v vector(1) not null, vector(v) distance=euclidean);
+insert into t values (0x31313131);
+alter table t drop index v, add vector(v) distance=cosine;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`) `distance`=cosine
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;

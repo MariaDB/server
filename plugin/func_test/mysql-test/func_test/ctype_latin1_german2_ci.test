@@ -1,0 +1,20 @@
+SET NAMES utf8mb4;
+
+--source strnxfrm_sp_create.inc
+
+CREATE TABLE t0 (a TEXT CHARACTER SET latin1);
+INSERT INTO t0 VALUES (''),('a'),('e'),('s'),('u');
+INSERT INTO t0 VALUES ('ae'),('oe'),('ue');
+INSERT INTO t0 VALUES
+  (_latin1 0xC4),(_latin1 0xD6),(_latin1 0xDC),(_latin1 0xDF);
+CREATE VIEW v0 AS SELECT CONCAT(t1.a, t2.a) AS str FROM t0 t1, t0 t2;
+
+CREATE TABLE t1 (str TEXT CHARACTER SET latin1 COLLATE latin1_german2_ci);
+INSERT INTO t1 SELECT * FROM v0;
+CALL test_strnxfrm(10,12);
+DROP TABLE t1;
+
+DROP VIEW v0;
+DROP TABLE t0;
+
+--source strnxfrm_sp_drop.inc

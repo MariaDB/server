@@ -26,6 +26,8 @@
   Published with a permission.
 */
 
+#define VER "1.0"
+
 #include <my_global.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,16 +50,9 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "buf0buf.h"             /* buf_page_is_corrupted */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
-#include "ut0crc32.h"            /* ut_crc32_init() */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
-
-#ifdef UNIV_NONINL
-# include "fsp0fsp.inl"
-# include "mach0data.inl"
-# include "ut0rnd.inl"
-#endif
 
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
@@ -78,7 +73,7 @@ static ulint physical_page_size;  /* Page size in bytes on disk. */
 static ulint extent_size;
 static ulint xdes_size;
 ulong srv_page_size;
-ulong srv_page_size_shift;
+uint32_t srv_page_size_shift;
 /* Current page number (0 based). */
 uint32_t		cur_page_num;
 /* Current space. */
@@ -265,7 +260,7 @@ static void init_page_size(const byte* buf)
 						 + FSP_SPACE_FLAGS);
 
 	if (fil_space_t::full_crc32(flags)) {
-		const ulong ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
+		const uint32_t ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
 		srv_page_size_shift = UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize;
 		srv_page_size = 512U << ssize;
 		physical_page_size = srv_page_size;
@@ -274,7 +269,7 @@ static void init_page_size(const byte* buf)
 		return;
 	}
 
-	const ulong	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	const uint32_t ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 
 	srv_page_size_shift = ssize
 		? UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize
@@ -387,7 +382,7 @@ open_file(
  @param  [in,out]	buf			read the file in buffer
  @param  [in]		partial_page_read	enable when to read the
 						remaining buffer for first page.
- @param  [in]		physical_page_size	Physical/Commpressed page size.
+ @param  [in]		physical_page_size	Physical/Compressed page size.
  @param  [in,out]	fil_in			file pointer created for the
 						tablespace.
  @retval no. of bytes read.
@@ -440,12 +435,7 @@ static bool is_page_all_zeroes(
 				with crypt_scheme encrypted
 @param[in]	flags		tablespace flags
 @retval true if page is corrupted otherwise false. */
-static
-bool
-is_page_corrupted(
-	byte*		buf,
-	bool		is_encrypted,
-	ulint		flags)
+static bool is_page_corrupted(byte *buf, bool is_encrypted, uint32_t flags)
 {
 
 	/* enable if page is corrupted. */
@@ -600,9 +590,9 @@ Rewrite the checksum for the page.
 
 @retval true  : do rewrite
 @retval false : skip the rewrite as checksum stored match with
-		calculated or page is doublwrite buffer.
+		calculated or page is doublewrite buffer.
 */
-static bool update_checksum(byte* page, ulint flags)
+static bool update_checksum(byte* page, uint32_t flags)
 {
 	ib_uint32_t	checksum = 0;
 	byte		stored1[4];	/* get FIL_PAGE_SPACE_OR_CHKSUM field checksum */
@@ -646,7 +636,7 @@ static bool update_checksum(byte* page, ulint flags)
 	} else if (use_full_crc32) {
 		ulint payload = buf_page_full_crc32_size(page, NULL, NULL)
 			- FIL_PAGE_FCRC32_CHECKSUM;
-		checksum = ut_crc32(page, payload);
+		checksum = my_crc32c(0, page, payload);
 		byte* c = page + payload;
 		if (mach_read_from_4(c) == checksum) return false;
 		mach_write_to_4(c, checksum);
@@ -711,7 +701,7 @@ write_file(
 	const char*	filename,
 	FILE*		file,
 	byte*		buf,
-	ulint		flags,
+	uint32_t	flags,
 	fpos_t*		pos)
 {
 	bool	do_update;
@@ -1234,20 +1224,6 @@ static struct my_option innochecksum_options[] = {
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-/* Print out the Innodb version and machine information. */
-static void print_version(void)
-{
-#ifdef DBUG_OFF
-	printf("%s Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
-		SYSTEM_TYPE, MACHINE_TYPE);
-#else
-	printf("%s-debug Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
-		SYSTEM_TYPE, MACHINE_TYPE);
-#endif /* DBUG_OFF */
-}
-
 static void usage(void)
 {
 	print_version();
@@ -1383,7 +1359,7 @@ static int verify_checksum(
 	byte*			buf,
 	bool			is_encrypted,
 	unsigned long long*	mismatch_count,
-	ulint			flags)
+	uint32_t		flags)
 {
 	int exit_status = 0;
 	if (is_page_corrupted(buf, is_encrypted, flags)) {
@@ -1424,7 +1400,7 @@ rewrite_checksum(
 	byte*		buf,
 	fpos_t*		pos,
 	bool		is_encrypted,
-	ulint		flags)
+	uint32_t	flags)
 {
 	bool is_compressed = fil_space_t::is_compressed(flags);
 
@@ -1593,7 +1569,7 @@ int main(
 		from fsp_flags and encryption metadata from page 0 */
 		init_page_size(buf);
 
-		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
+		uint32_t flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 
 		if (physical_page_size == UNIV_ZIP_SIZE_MIN) {
 			partial_page_read = false;
@@ -1899,7 +1875,7 @@ first_non_zero:
 		}
 
 		if (!read_from_stdin) {
-			/* flcose() will flush the data and release the lock if
+			/* fclose() will flush the data and release the lock if
 			any acquired. */
 			fclose(fil_in);
 		}

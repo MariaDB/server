@@ -9,18 +9,26 @@ COUNT(@@GLOBAL.innodb_file_per_table)
 1 Expected
 '#---------------------BS_STVARS_028_02----------------------#'
 SET @@global.innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SELECT @@global.innodb_file_per_table;
 @@global.innodb_file_per_table
 0
 SET @@global.innodb_file_per_table ='On' ;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SELECT @@global.innodb_file_per_table;
 @@global.innodb_file_per_table
 1
 SET @@global.innodb_file_per_table ='Off' ;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SELECT @@global.innodb_file_per_table;
 @@global.innodb_file_per_table
 0
 SET @@global.innodb_file_per_table = 1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SELECT @@global.innodb_file_per_table;
 @@global.innodb_file_per_table
 1
@@ -64,6 +72,8 @@ COUNT(@@GLOBAL.innodb_file_per_table)
 SELECT innodb_file_per_table = @@SESSION.innodb_file_per_table;
 ERROR 42S22: Unknown column 'innodb_file_per_table' in 'SELECT'
 SET @@global.innodb_file_per_table = @start_global_value;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SELECT @@global.innodb_file_per_table;
 @@global.innodb_file_per_table
 1

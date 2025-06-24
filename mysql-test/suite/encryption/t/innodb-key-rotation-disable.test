@@ -4,7 +4,6 @@
 -- source include/not_embedded.inc
 
 let $encryption = `SELECT @@innodb_encrypt_tables`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 

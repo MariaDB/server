@@ -451,10 +451,10 @@ completely purged and trx_purge_free_segment() has started freeing it */
 /** Transaction end identifier (if the log is in a history list),
 or 0 if the transaction has not been committed */
 #define	TRX_UNDO_TRX_NO		8
-/** Before MariaDB 10.3.1, when purge did not reset DB_TRX_ID of
+/* Before MariaDB 10.3.1, when purge did not reset DB_TRX_ID of
 surviving user records, this used to be called TRX_UNDO_DEL_MARKS.
 
-This field is redundant; it is only being read by some debug assertions.
+This field was removed in MariaDB 11.0.
 
 The value 1 indicates that purge needs to process the undo log segment.
 The value 0 indicates that all of it has been processed, and
@@ -463,7 +463,7 @@ trx_purge_free_segment() has been invoked, so the log is not safe to access.
 Before MariaDB 10.3.1, a log segment may carry the value 0 even before
 trx_purge_free_segment() was called, for those undo log records for
 which purge would not result in removing delete-marked records. */
-#define	TRX_UNDO_NEEDS_PURGE	16
+/*#define	TRX_UNDO_NEEDS_PURGE	16*/
 #define	TRX_UNDO_LOG_START	18	/*!< Offset of the first undo log record
 					of this log on the header page; purge
 					may remove undo log record from the

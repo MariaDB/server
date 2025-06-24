@@ -97,11 +97,15 @@ if ($all_slaves_status)
   {
     --die Bug in test case: Both $all_slaves_status and $slave_name are set.
   }
-  --let $_show_query=SHOW ALL SLAVES STATUS
+  --let $_show_query=SELECT * from information_schema.slave_status
 }
 if ($slave_name)
 {
   --let $_show_query=SHOW SLAVE $slave_name STATUS
+  if ($for_channel)
+  {
+    --let $_show_query=SHOW SLAVE STATUS for channel $slave_name
+  }
 }
 
 

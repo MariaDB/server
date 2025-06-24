@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
@@ -173,3 +174,5 @@ DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
 --echo # End of 10.6 tests
+
+--source include/test_db_charset_restore.inc

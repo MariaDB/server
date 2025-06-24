@@ -5,7 +5,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `col1` bigint(20) DEFAULT NULL,
   `col2` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into test.t1 values(1,'One');
 set default_storage_engine=InnoDB;
 drop table if exists test.marker;
@@ -15,7 +15,7 @@ update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES'
   where name like "wait/io/table/%";
 truncate table performance_schema.events_waits_history_long;
-flush status;
+flush global status;
 flush tables;
 update performance_schema.setup_consumers set enabled = 'YES';
 set autocommit = off;
@@ -87,11 +87,11 @@ Performance_schema_thread_classes_lost	0
 Performance_schema_thread_instances_lost	0
 Performance_schema_users_lost	0
 truncate performance_schema.events_waits_history_long;
-flush status;
+flush global status;
 drop table test.t1;
 update performance_schema.setup_consumers set enabled='NO';
 truncate performance_schema.events_waits_history_long;
 drop table test.marker;
-flush status;
+flush global status;
 update performance_schema.setup_instruments set enabled='YES';
 update performance_schema.setup_consumers set enabled='YES';

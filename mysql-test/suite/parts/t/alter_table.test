@@ -1,23 +1,24 @@
+# Permissions don't work with embedded
+--source include/not_embedded.inc
+
 #
 # General bugs with ALTER TABLE and partitions that doesn't have to be run
 # on all engines
 #
 
 --source include/have_partition.inc
+--source include/lcase_names.inc
+--source suite/parts/inc/engines.inc
 
 --echo #
 --echo # MDEV-22649 SIGSEGV in ha_partition::create_partitioning_metadata on ALTER
 --echo #
 
-set @save_alter_algorithm= @@session.alter_algorithm;
-SET SESSION alter_algorithm=4;
 CREATE TABLE t1(a INT) engine=myisam PARTITION BY RANGE(a) SUBPARTITION BY KEY(a) (PARTITION p0 VALUES LESS THAN (10) (SUBPARTITION s0,SUBPARTITION s1), PARTITION p1 VALUES LESS THAN (20) (SUBPARTITION s2,SUBPARTITION s3));
 show create table t1;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 ADD COLUMN c INT;
+ALTER TABLE t1 ADD COLUMN c INT,ALGORITHM=INSTANT;
 DROP table if exists t1;
-set @@session.alter_algorithm= @save_alter_algorithm;
-
 
 --echo #
 --echo # MDEV-22804 SIGSEGV in ha_partition::create_partitioning_metadata |
@@ -40,19 +41,6 @@ DROP VIEW v1;
 DROP TABLE t1, t2;
 
 --echo #
---echo # MDEV-25102 UNIQUE USING HASH error after ALTER ... DISABLE KEYS
---echo #
-create table t1 (i1 int primary key, i2 int, d1 date, key(i2))
-partition by hash(i1) partitions 3;
-insert into t1 values(0, 1, '2010-10-10');
-select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
-alter table t1 disable keys;
-select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
-alter table t1 add partition (partition p4);
-select index_name, comment from information_schema.statistics where table_schema='test' and table_name='t1';
-drop table t1;
-
---echo #
 --echo # MDEV-34813 ALGORITHM=INSTANT does not work for partitioned tables on indexed column
 --echo #
 
@@ -72,3 +60,426 @@ ALTER online TABLE t1 MODIFY COLUMN `f4`  VARCHAR(500) , ALGORITHM=INSTANT, LOCK
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-22165 CONVERT PARTITION: move in partition from existing table
+--echo #
+create or replace table tp1 (a int);
+create or replace table t1 (a int)
+partition by hash (a) partitions 2;
+--error ER_ONLY_ON_RANGE_LIST_PARTITION
+alter table t1 convert table tp1 to partition p2;
+
+create or replace table t1 (a int)
+partition by range (a)
+(partition p0 values less than (0));
+
+--error ER_NO_SUCH_TABLE
+alter table t1 convert table non_existent to partition p1 values less than (10);
+alter table t1 convert table tp1 to partition p1 values less than (10);
+--error ER_NO_SUCH_TABLE
+show create table tp1;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+
+create table tp2 (x int);
+--error ER_TABLES_DIFFERENT_METADATA
+alter table t1 convert table tp2 to partition p2 values less than (20);
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp2;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+
+create or replace table tp2 (a int);
+insert tp2 values (1), (15), (17);
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table t1 convert table tp2 to partition p2 values less than (20);
+delete from tp2;
+insert tp2 values (15), (1), (17);
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table t1 convert table tp2 to partition p2 values less than (20);
+delete from tp2;
+insert tp2 values (15), (17), (1);
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table t1 convert table tp2 to partition p2 values less than (20);
+delete from tp2;
+insert tp2 values (15), (17);
+alter table t1 convert table tp2 to partition p2 values less than (20);
+--error ER_NO_SUCH_TABLE
+show create table tp2;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 partition (p2);
+
+create or replace table t1 (a int)
+partition by range (a) (
+p0 values less than (0),
+pn values less than (30));
+insert into t1 values (1);
+create or replace table tp1 (a int);
+insert into tp1 values (2);
+# TODO: would be good to automatically detect order of partitions,
+# as well as move the data from succeeding partitions (ADD PARTITION FR).
+--error ER_RANGE_NOT_INCREASING_ERROR
+alter table t1 convert table tp1 to partition p1 values less than (10);
+
+drop tables t1, tp1;
+
+
+--echo #
+--echo # MDEV-22166 CONVERT PARTITION: move out partition into a table
+--echo #
+
+create or replace table t1 (x int);
+--error ER_PARTITION_MGMT_ON_NONPARTITIONED
+alter table t1 convert partition p1 to table tp1;
+
+create or replace table t1 (x int)
+partition by hash(x) partitions 2;
+--error ER_ONLY_ON_RANGE_LIST_PARTITION
+alter table t1 convert partition p1 to table tp1;
+
+create or replace table t1 (x int)
+partition by key(x) partitions 2;
+--error ER_ONLY_ON_RANGE_LIST_PARTITION
+alter table t1 convert partition p1 to table tp1;
+
+create or replace table t1 (x int)
+partition by range(x)
+subpartition by hash(x) subpartitions 3 (
+  partition p1 values less than (10),
+  partition pn values less than maxvalue);
+--error ER_PARTITION_CONVERT_SUBPARTITIONED
+alter table t1 convert partition p1 to table p1;
+--error ER_PARTITION_DOES_NOT_EXIST
+alter table t1 convert partition p1sp0 to table p1;
+
+create or replace table t1 (x int)
+partition by range(x) (
+  partition p1 values less than (10));
+--error ER_DROP_LAST_PARTITION
+alter table t1 convert partition p1 to table tp1;
+
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create or replace temporary table t1 (x int)
+partition by range(x) (
+  partition p0 values less than (10),
+  partition pn values less than maxvalue);
+
+if ($MTR_COMBINATION_RANGE)
+{
+  create or replace table t1 (x int)
+  partition by range(x) (
+    partition p1 values less than (10),
+    partition p2 values less than (20),
+    partition p3 values less than (30),
+    partition p4 values less than (40),
+    partition p5 values less than (50),
+    partition pn values less than maxvalue);
+}
+
+if ($MTR_COMBINATION_LIST)
+{
+  create or replace table t1 (x int)
+  partition by list(x) (
+    partition p1 values in (2, 3, 4),
+    partition p2 values in (12, 13, 14),
+    partition p3 values in (22, 23, 24),
+    partition p4 values in (32, 33, 34),
+    partition p5 values in (42, 43, 44),
+    partition pn values in (52, 53, 54));
+}
+
+insert into t1 values (2), (12), (22), (32), (42), (52);
+
+create or replace table tp2 (y int);
+insert tp2 values (88);
+# Multiple ALTER PARTITION statements are not possible
+--error ER_PARSE_ERROR
+alter table t1 convert partition p2 to table tp2, drop partition p3;
+# TODO: probably no need in such specific codes, should be ER_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
+alter table t1 convert partition p00 to table tp00;
+# Better error here is ER_PARTITION_DOES_NOT_EXIST,
+# but mysql_alter_table() works checks new table before anything else.
+# So, looks like no big reason to change anything here.
+--error ER_TABLE_EXISTS_ERROR
+alter table t1 convert partition p00 to table tp2;
+--error ER_TABLE_EXISTS_ERROR
+alter table t1 convert partition p2 to table tp2;
+--delimiter $
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+create trigger tr1 before update on t1 for each row
+begin
+  alter table t1 convert partition p2 to table tp2;
+end$
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+create function f1() returns int
+begin
+  alter table t1 convert partition p2 to table tp2;
+end$
+--delimiter ;
+select * from tp2;
+drop table tp2;
+alter table t1 convert partition p2 to table tp2;
+
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp2;
+select * from tp2;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+
+--error ER_BAD_DB_ERROR
+alter table t1 convert partition p3 to table inexistent.tp3;
+create database EXISTENT;
+alter table t1 convert partition p3 to table EXISTENT.TP3;
+
+# The only way to put `` into var...
+--let $tp3=`select '`TP3`'`
+if ($MTR_COMBINATION_LCASE1)
+{
+  --let $tp3= `select '`tp3`'`
+}
+--replace_result $engine X ' PAGE_CHECKSUM=1' '' $tp3 `TP3`-ok
+show create table EXISTENT.TP3;
+select * from EXISTENT.TP3 order by x;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+
+--echo # LOCK TABLES
+lock tables t1 write;
+alter table t1 convert partition p4 to table tp4;
+# TODO: lock table tp4 in ALTER TABLE, otherwise there is no
+# guarantee in data consistency between t1 and tp4
+--error ER_TABLE_NOT_LOCKED
+show create table tp4;
+
+unlock tables;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp4;
+select * from tp4;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+
+--echo # PS
+prepare stmt from 'alter table t1 convert partition p5 to table tp5';
+execute stmt;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp5;
+select * from tp5;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+drop table tp5;
+--error ER_PARTITION_DOES_NOT_EXIST
+execute stmt;
+--error ER_PARTITION_DOES_NOT_EXIST
+execute stmt;
+drop prepare stmt;
+
+--echo # Privileges
+create user alan;
+grant usage on *.* to alan;
+grant create, insert, drop on test.* to alan;
+--connect alan,localhost,alan,,test
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p1 to table tp1;
+--connection default
+revoke all on test.* from alan;
+grant create, insert, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p1 to table tp1;
+--connection default
+revoke all on test.* from alan;
+grant create, drop, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p1 to table tp1;
+--connection default
+revoke all on test.* from alan;
+grant insert, drop, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 convert partition p1 to table tp1;
+--connection default
+grant create, insert, drop, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+alter table t1 convert partition p1 to table tp1;
+--disconnect alan
+--connection default
+
+drop database EXISTENT;
+drop user alan;
+drop tables t1, tp1, tp2, tp4;
+
+--echo #
+--echo # MDEV-31014 Database privileges are insufficient for CONVERT TABLE TO PARTITION
+--echo #
+create database db;
+create user u@localhost;
+grant all on db.* to u@localhost;
+
+--connect (con1,localhost,u,,db)
+create table t1 (a int) partition by range(a) (p1 values less than (100), p2 values less than (1000));
+alter table t1 convert partition p2 to table tp;
+alter table t1 convert table tp to partition p2 values less than (1000);
+
+# Cleanup
+--disconnect con1
+--connection default
+drop user u@localhost;
+drop database db;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-22164 without validation for exchange partition/convert in
+--echo #
+call mtr.add_suppression('was altered WITHOUT');
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Table `test`.`tp` was altered WITHOUT VALIDATION: the table might be corrupted;
+
+create table validation(x int);
+drop table validation;
+
+create table t (a int primary key);
+
+create table tp (a int primary key) partition by range (a) (
+  partition p0 values less than (100),
+  p1 values less than (300));
+
+insert into t values (1), (99);
+insert into tp values (2), (200);
+
+select * from t order by a;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+
+alter table tp exchange partition p0 with table t;
+select * from t order by a;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p1 with table t;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p1 with table t with validation;
+alter table tp exchange partition p1 with table t without validation;
+source include/search_pattern_in_file.inc;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+alter table tp check partition p0;
+alter table tp check partition p1;
+
+alter table tp exchange partition p1 with table t with validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p1 with table t with validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+
+# SP
+create or replace procedure validation()
+alter table tp exchange partition p1 with table t with validation;
+create or replace procedure without_validation()
+alter table tp exchange partition p1 with table t without validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+call validation;
+call without_validation;
+source include/search_pattern_in_file.inc;
+call validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+call validation;
+call without_validation;
+source include/search_pattern_in_file.inc;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+call validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+drop procedure validation;
+drop procedure without_validation;
+
+# PS
+prepare validation from "alter table tp exchange partition p1 with table t with validation";
+prepare without_validation from "alter table tp exchange partition p1 with table t without validation";
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+execute validation;
+execute without_validation;
+source include/search_pattern_in_file.inc;
+execute validation;
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+execute validation;
+execute without_validation;
+source include/search_pattern_in_file.inc;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+execute validation;
+select * from t order by a;
+select * from tp partition (p1) order by a;
+drop prepare validation;
+drop prepare without_validation;
+
+# CONVERT IN
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp convert table t to partition p2 values less than (maxvalue);
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp convert table t to partition p2 values less than (maxvalue) with validation;
+alter table tp convert table t to partition p2 values less than (maxvalue) without validation;
+source include/search_pattern_in_file.inc;
+select * from tp partition (p0) order by a;
+select * from tp partition (p1) order by a;
+select * from tp partition (p2) order by a;
+
+# Hash
+create table t (a int primary key);
+insert t values (1), (2);
+
+create or replace table tp (a int primary key)
+partition by hash(a) partitions 2;
+
+insert tp values (1), (2), (3), (4);
+--error ER_ROW_DOES_NOT_MATCH_PARTITION
+alter table tp exchange partition p0 with table t;
+alter table tp exchange partition p0 with table t without validation;
+source include/search_pattern_in_file.inc;
+select * from t;
+alter table tp exchange partition p0 with table t;
+drop table tp;
+
+# List
+create or replace table tp (a int primary key)
+partition by list(a) (
+  partition p0 values in (2, 3, 4),
+  partition p1 values in (12, 13, 14),
+  partition p2 values in (52, 53, 54));
+
+
+insert tp values (12), (2), (3), (4);
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+alter table tp exchange partition p0 with table t;
+alter table tp exchange partition p0 with table t without validation;
+source include/search_pattern_in_file.inc;
+select * from t;
+alter table tp exchange partition p0 with table t;
+
+drop tables tp, t;
+
+--echo # End of 11.4 tests

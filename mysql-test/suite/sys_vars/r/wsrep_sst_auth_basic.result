@@ -1,8 +1,6 @@
 #
 # wsrep_sst_auth
 #
-# save the initial value
-SET @wsrep_sst_auth_global_saved = @@global.wsrep_sst_auth;
 # default
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
@@ -47,6 +45,4 @@ NULL
 SET @@global.wsrep_sst_auth=user:pass;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':pass' at line 1
 
-# restore the initial value
-SET @@global.wsrep_sst_auth = @wsrep_sst_auth_global_saved;
 # End of test

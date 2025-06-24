@@ -5,8 +5,8 @@
 # this is read by the standalone daemon and embedded servers
 [server]
 
-# this is only for the mysqld standalone daemon
-[mysqld]
+# this is only for the mariadbd daemon
+[mariadbd]
 
 #
 # * Basic Settings
@@ -44,27 +44,31 @@ bind-address            = 127.0.0.1
 # * Logging and Replication
 #
 
+# Note: The configured log file or its directory need to be created
+# and be writable by the mysql user, e.g.:
+# $ sudo mkdir -m 2750 /var/log/mysql
+# $ sudo chown mysql /var/log/mysql
+
 # Both location gets rotated by the cronjob.
 # Be aware that this log type is a performance killer.
 # Recommend only changing this at runtime for short testing periods if needed!
 #general_log_file       = /var/log/mysql/mysql.log
 #general_log            = 1
 
-# When running under systemd, error logging goes via stdout/stderr to journald
-# and when running legacy init error logging goes to syslog due to
-# /etc/mysql/conf.d/mariadb.conf.d/50-mysqld_safe.cnf
+# Error logging goes via stdout/stderr, which on systemd systems goes to
+# journald.
 # Enable this if you want to have error logging into a separate file
 #log_error = /var/log/mysql/error.log
 # Enable the slow query log to see queries with especially long duration
-#slow_query_log_file    = /var/log/mysql/mariadb-slow.log
-#long_query_time        = 10
+#log_slow_query_file    = /var/log/mysql/mariadb-slow.log
+#log_slow_query_time    = 10
 #log_slow_verbosity     = query_plan,explain
 #log-queries-not-using-indexes
-#min_examined_row_limit = 1000
+#log_slow_min_examined_row_limit = 1000
 
 # The following can be used as easy to replay backup logs or for replication.
-# note: if you are setting up a replication slave, see README.Debian about
-#       other settings you may need to change.
+# note: if you are setting up a replica, see README.Debian about other
+#       settings you may need to change.
 #server-id              = 1
 #log_bin                = /var/log/mysql/mysql-bin.log
 expire_logs_days        = 10
@@ -85,10 +89,8 @@ expire_logs_days        = 10
 # * Character sets
 #
 
-# MySQL/MariaDB default is Latin1, but in Debian we rather default to the full
-# utf8 4-byte character set. See also client.cnf
-character-set-server  = utf8mb4
-collation-server      = utf8mb4_general_ci
+# MariaDB default is now utf8 4-byte character set.
+# No Debian specific default is required.
 
 #
 # * InnoDB
@@ -106,9 +108,9 @@ collation-server      = utf8mb4_general_ci
 # This group is only read by MariaDB servers, not by MySQL.
 # If you use the same .cnf file for MySQL and MariaDB,
 # you can put MariaDB-only options here
-[mariadb]
+[mariadbd]
 
-# This group is only read by MariaDB-10.6 servers.
+# This group is only read by MariaDB-12.1 servers.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-10.6]
+[mariadb-12.1]

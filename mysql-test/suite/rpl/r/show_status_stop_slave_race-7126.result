@@ -3,6 +3,6 @@ include/master-slave.inc
 connection slave;
 connection slave;
 include/wait_for_slave_to_stop.inc
-start slave;
+include/start_slave.inc
 connection master;
 include/rpl_end.inc

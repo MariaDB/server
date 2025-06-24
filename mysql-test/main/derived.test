@@ -6,6 +6,8 @@
 drop table if exists t1,t2,t3;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 
@@ -109,6 +111,7 @@ SELECT a.x FROM (SELECT 1 AS x) AS a HAVING a.x = 1;
 #
 # Connect without a database as user mysqltest_1
 create user mysqltest_1;
+grant all on test.* to mysqltest_1;
 create table t1 select 1 as a;
 connect (con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection con1;
@@ -259,6 +262,10 @@ insert into t2 values(2),(2);
 insert into t3 values(3),(3);
 select * from t1 union distinct select * from t2 union all select * from t3;
 select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+set @save2_derived_optimizer_switch_bug=@@optimizer_switch;
+set @@optimizer_switch=default;
+select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+set @@optimizer_switch=@save2_derived_optimizer_switch_bug;
 drop table t1, t2, t3;
 
 #
@@ -1131,8 +1138,12 @@ analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select 
 
 select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
 
-drop table t1,t2,t3;
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
 
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+
+
+drop table t1,t2,t3;
 
 --echo #
 --echo # MDEV-16549: Server crashes in Item_field::fix_fields on query with
@@ -1182,3 +1193,1046 @@ drop table t1,t2,t3;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-24588: Fix crash with unnamed column in derived table.
+--echo # Assertion `item->name.str && item->name.str[0]` in
+--echo # `TABLE_LIST::create_field_translation` fails when a SELECT
+--echo # query includes a derived table containing unnamed column
+--echo # (eg: `SELECT '' from t`).
+--echo #
+
+--echo # Tests from the bug report
+
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+
+# this should pass withiout assertion fail in dbg or should not crash mariadb server
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a) FROM t;
+
+# The PREPARE command itself should succeed without crashing
+SET sql_mode='';
+PREPARE p FROM 'SELECT SHA(pk) IN (SELECT * FROM (SELECT \'\' FROM t) AS a) FROM t;';
+
+EXECUTE p;
+EXECUTE p;
+
+DEALLOCATE PREPARE p;
+
+--echo # Tests on derived tables
+
+SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SELECT * FROM (SELECT '', 1 FROM t) AS a;
+SELECT * FROM (SELECT 1, 2, '' FROM t) AS a;
+SELECT * FROM (SELECT pk, '' FROM t) AS a;
+SELECT '/', '/';
+
+SELECT * FROM (SELECT pk, '', '' as c1 FROM t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '', '' from t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '/', '/' FROM t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '/', '/') AS a;
+
+DROP TABLE t;
+
+--echo # Tests on views
+
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+
+CREATE VIEW v_t AS SELECT * FROM t;
+SHOW CREATE VIEW v_t;
+
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a) FROM v_t;
+
+SELECT * FROM (SELECT pk, '', '' as c1 FROM v_t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '', '' from v_t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '/', '/' from v_t) AS a;
+
+CREATE VIEW v1 AS SELECT '/', '/';
+SHOW CREATE VIEW v1;
+
+DROP VIEW v_t, v1;
+DROP TABLE t;
+
+--echo # Tests on views created using SELECT statements that contain derived columns
+
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+
+CREATE VIEW v1_t AS SELECT '' FROM t;
+SHOW CREATE VIEW v1_t;
+
+SELECT * FROM v1_t;
+
+CREATE VIEW v2_t AS SELECT * FROM (SELECT '' FROM t) AS a;
+SHOW CREATE VIEW v2_t;
+
+--error ER_VIEW_INVALID
+SELECT * FROM v2_t;
+
+CREATE VIEW v3_t AS SELECT * FROM (SELECT '' as c1 FROM t) AS a;
+SHOW CREATE VIEW v3_t;
+
+SELECT * FROM v3_t;
+
+CREATE VIEW v4_t AS SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SHOW CREATE VIEW v4_t;
+
+--error ER_VIEW_INVALID
+SELECT * from v4_t;
+
+CREATE VIEW v5_t AS SELECT '';
+SHOW CREATE VIEW v5_t;
+
+SELECT * FROM v5_t;
+
+CREATE VIEW v6_t AS SELECT * FROM (SELECT '') AS a;
+SHOW CREATE VIEW v6_t;
+
+--error ER_VIEW_INVALID
+SELECT * FROM v6_t;
+
+DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
+DROP TABLE t;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # Test of "Derived tables and union can now create distinct keys"
+--echo #
+
+create table t1 (a int);
+insert into t1 values (100),(100),(100),(100),(100),(100),(100),(100),(100),(100);
+
+create table duplicates_tbl (a int);
+insert into duplicates_tbl select seq/100 from seq_1_to_10000;
+
+explain
+select
+  t1.a IN ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+select
+  t1.a IN ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+explain
+select
+  t1.a = all ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+select
+  t1.a = all ( SELECT COUNT(*)
+              from (select a
+                    from duplicates_tbl
+                    limit 10000
+                   ) T
+              where T.a=5
+            ) as 'A'
+from t1;
+
+drop table t1, duplicates_tbl;
+
+--echo #
+--echo # MDEV-30310
+--echo # Assertion failure in best_access_path upon IN exceeding
+--echo # IN_PREDICATE_CONVERSION_THRESHOLD, derived_with_keys=off
+--echo #
+
+CREATE TABLE t1 (l_orderkey int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (o_orderkey int);
+INSERT INTO t2 VALUES (3),(4);
+SET IN_PREDICATE_CONVERSION_THRESHOLD= 2;
+SET OPTIMIZER_SWITCH='derived_with_keys=on';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+SET OPTIMIZER_SWITCH='derived_with_keys=off';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+SET @@IN_PREDICATE_CONVERSION_THRESHOLD=@@global.IN_PREDICATE_CONVERSION_THRESHOLD;
+SET @@OPTIMIZER_SWITCH=@@global.OPTIMIZER_SWITCH;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-30540 Wrong result with IN list length reaching
+--echo # IN_PREDICATE_CONVERSION_THRESHOLD
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 SELECT seq FROM seq_1_to_30;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SET IN_PREDICATE_CONVERSION_THRESHOLD=4;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+SET IN_PREDICATE_CONVERSION_THRESHOLD=100;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+drop table t1;
+
+--echo #
+--echo # MDEV-31022: SIGSEGV in maria_create from create_internal_tmp_table
+--echo # keydef incorrectly allocated on the stack in create_internal_tmp_table()
+--echo #
+
+CREATE TABLE t1 (c CHAR(1) NULL) ENGINE=MyISAM;
+INSERT INTO t1 (c) VALUES (1);
+SET statement
+  optimizer_where_cost=1,
+  tmp_memory_table_size=0,
+  in_predicate_conversion_threshold=2
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+
+SET statement
+  optimizer_where_cost=1,
+  tmp_memory_table_size=0,
+  in_predicate_conversion_threshold=2,
+  sql_mode=''
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-28883: single/multi-table UPDATE/DELETE whose WHERE condition
+--echo #             contains subquery from mergeable derived table
+--echo #             that uses the updated/deleted table
+--echo #
+
+create table t1 (pk int, a int);
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+
+let $q1=
+update t1 set a = 10
+  where a = ( select * from (select a from t1) dt where dt.a > 7);
+
+eval explain $q1;
+eval $q1;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q1";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+
+let $q2=
+update t1 set a = 10
+  where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+eval explain $q2;
+eval $q2;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+eval prepare stmt from "$q2";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+
+let $q3=
+delete from t1
+  where a = ( select * from (select a from t1) dt where dt.a > 7);
+
+eval explain $q3;
+eval $q3;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q3";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+
+let $q4=
+delete from t1
+  where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a;
+
+eval explain $q4;
+eval $q4;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+eval prepare stmt from "$q4";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+
+let $q5=
+delete from t1
+  where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+eval explain $q5;
+eval $q5;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q5";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+create table t2 (pk int, a int);
+insert into t2 values (1,3), (2, 7), (3,1), (4,9);
+create table t3 (a int);
+insert into t3 VALUES (0),(1);
+
+let $q6=
+update t1,t3 set t1.a = 1
+  where t1.a=t3.a and
+        t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+
+eval explain $q6;
+eval $q6;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q6";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+
+let $q7=
+update t1,t3 set t1.a = 1
+  where t1.a=t3.a and
+        t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+
+eval explain $q7;
+eval $q7;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q7";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+insert into t3 values (9), (10), (7);
+
+let $q8=
+delete from t1 using t1,t3
+  where t1.a=t3.a and
+        t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+
+eval explain $q8;
+eval $q8;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q8";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+
+let $q9=
+delete from t1 using t1,t3
+  where t1.a=t3.a and
+        t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+
+eval explain $q9;
+eval $q9;
+select * from t1;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+eval prepare stmt from "$q9";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+
+drop table t1,t2,t3;
+
+--echo # End of MariaDB 11.1 tests
+
+--echo #
+--echo # MDEV-34880: Incorrect result for query with derived table having TEXT field
+--echo #
+CREATE TABLE t1 (id int NOT NULL  PRIMARY KEY, notes TEXT NOT NULL);
+INSERT INTO t1 VALUES (1, 'test1'), (2, 'test2');
+
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1;
+
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1 AND
+  notes = 'test1';
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-31466 Add optional correlation column list for derived tables
+--echo #
+
+--echo # simple examples of renaming a TVC
+select *, c1 from (values (3,4),(5,6)) as tvc(c1, c2);
+
+--echo # multibyte chars as names
+select * from (values (3,4),(5,6)) as tvc(c1, `柱`);
+
+--echo # illustrate column name at each level
+select outmost from
+(
+  select outercol1, outercol2 from
+  (
+    select concat(innercol1, innercol2), 1 from
+    (
+      values (3,4),(5,6),(7,8)
+    )
+    as tvc(innercol1, innercol2)
+  )
+  as derived (outercol1, outercol2)
+)
+derived2 (outmost, outmost1);
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(4,5,6);
+create table t2 like t1;
+insert into t2 values (7,8,9),(10,11,12);
+create table t3 like t1;
+insert into t3 values (10,11,12),(13,14,15);
+
+--echo # nested mergeable derived tables
+select * from
+  (
+    select ic1, ic2, ic3 from
+      (
+        select c1, c2, c3 from t1
+      ) dt2 (ic1, ic2, ic3)
+  ) dt1 (oc1, oc2, oc3)
+join t2 on t2.c1 = dt1.oc1+6;
+
+select * from
+  (
+    select ic1, ic2, ic3 from
+      (
+        select c1, c2, c3 from t1
+      ) dt2 (ic1, ic2, ic3)
+    join t2 on t2.c1 = dt2.ic1+6
+  ) dt1 (oc1, oc2, oc3);
+
+select * from
+  (
+    select ic1, ic2, ic3 from
+      (
+        select t1.c1, t1.c2, t1.c3 from t1
+        join t2 on t2.c1 = t1.c1+6
+      ) dt2 (ic1, ic2, ic3)
+  ) dt1 (oc1, oc2, oc3);
+
+let $q=select * from
+  (
+    select ic1, ic2, ic3 from
+      (
+        select c1, c2, c3 from t1
+      ) dt2 (ic1, ic2, ic3)
+    join t2 on t2.c1 = dt2.ic1+6
+  ) dt1 (oc1, oc2, oc3)
+join t3 on t3.c1 = dt1.oc1+9;
+
+eval $q;
+eval explain $q;
+
+let $q=select * from
+  (
+    select ic1, ic2, ic3 from
+      (
+        select c1, c2, c3 from t1 group by c1
+      ) dt2 (ic1, ic2, ic3)
+    join t2 on t2.c1 = dt2.ic1+6
+    group by ic1
+  ) dt1 (oc1, oc2, oc3)
+join t3 on t3.c1 = dt1.oc1+9;
+
+eval $q;
+eval explain $q;
+
+--echo # test natural join on renamed columns
+let $q= select * from
+  (
+    select join_col, ic2, ic3, jc2, jc3 from
+      (
+        select c1+7, c2+1, c3+1 from t1
+      ) dt2 (join_col, ic2, ic3)
+    natural join
+      (
+        select c1+1, c2+1, c3+1 from t2
+      ) dt3 (join_col, jc2, jc3)
+  ) dt1 (oc1, oc2, oc3, c3, oc5)
+natural join t3;
+
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # create views with alternate syntax
+create view v1 as select * from
+  (select * from t1) as d1 (a1, a2, a3);
+create view v2 as select * from
+  (select c1, c2, sum(c3) from t2 group by c1, c2)
+  as d2 (b1, b2, b3);
+create view v3 as select * from (select * from t3 where c1=10)
+  as d3 (d1, d2, d3);
+create view v4 as select * from
+  (select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2)
+  as d2 (e1, e2, e3);
+create view v5 as select * from
+  (
+    select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+    union
+    select c1, c2, sum(c3) as s from t2 group by c1, c2 having s > 3
+  )
+  as d2 (f1, f2, f3);
+create view v6 as select a1 from
+  (
+    select * from t1 union select * from t2 order by c1
+  ) as d3 (a1, a2, a3);
+create view v7 (b1) as select a1 from (select c1 from t1) dt (a1);
+create view v8 (b1, b2, b3) as select a1, a2, a3 from
+  (
+    select * from t1 union select * from t2 order by c1
+  ) as d3 (a1, a2, a3);
+
+--echo # test parent query mergability
+--source include/explain-no-costs.inc
+explain format=json select a1 from v1;
+select a1 from v1;
+select a1, a2 from v1;
+select * from v1;
+select b1 from v2;
+select b1, b2 from v2;
+select * from v2;
+select a1 from v1 union select b1 from v2;
+select a1, a2 from v1 union select b1, b2 from v2;
+select * from v1 union select * from v2;
+select * from v3 intersect select * from v2 union select * from v1;
+select * from v4 where e3 < 10;
+select * from v6;
+show create view v6;
+select * from v7;
+show create view v7;
+select * from v8;
+show create view v8;
+--echo # show materialization and condition pushdown into having
+--source include/explain-no-costs.inc
+explain format=json select * from v4 where e3 < 10;
+
+--echo # these views embedded in a CTE
+let $q = with cte (c1, c2, c3 )
+  as (select * from v3 intersect select * from v2 union select * from v1)
+  select * from cte where c1 = 1;
+
+eval $q;
+
+--echo # and executed as a prepared query
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from
+"select * from (select * from t1) as d1 (a1, a2, a3)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from
+"select * from (select * from t1) as d1 (a1, a2, a3) union select * from "
+"(select * from t1) as d1 (na1, na2, na3)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # as well as a stored procedure
+eval create procedure p1(a int)
+  with cte (ct1)
+    as (select d1 from v3 intersect select b1 from v2 union select a1 from v1)
+  select ct1 from cte where ct1 = a;
+call p1(1);
+call p1(1);
+call p1(4);
+call p1(7);
+drop procedure p1;
+
+eval create procedure p1(a int)
+  with cte (ct1, ct2, ct3)
+    as (select * from v3 intersect select * from v2 union select * from v1)
+  select * from cte where ct1 = a;
+call p1(1);
+call p1(1);
+call p1(4);
+call p1(7);
+drop procedure p1;
+
+--echo # name resolution in the select list and in the where condition
+select *, a2 from
+  (select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  where a1 = 1;
+
+--echo # and elsewhere
+select a1, sum(a3) from
+  (select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  where a2 = 1
+  group by a1
+  order by a1 desc;
+
+--echo # creation of a having condition in materialized subquery
+let $q=select * from
+  (select c1, sum(c2), sum(c3) from t1 where c1 = 1
+    group by c1 order by c1 desc) as d1 (a1, a2, a3)
+  where a3=3;
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # and augmentation
+let $q=select * from
+    (select c1, c2, max(c3) as m, avg(c3) from t1
+      group by c1, c2 having m < 7) dt (d1, d2, d3, d4),
+        t2 where (dt.d1 = t2.c1) and (dt.d3 > 3);
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # pushing subformula into where condition for join to t2 (t2.c1 = 7)
+--echo # and translating v4.e1=1 into condition t1.c1 = 1 for t1
+let $q=
+select * from v4,t2 where (t2.c1=v4.e1+6) and (v4.e2+6=t2.c2) and (v4.e1=1);
+eval $q;
+eval explain format=json $q;
+
+--echo # calculated result pushed into condition for t1 (t1.c1 = 4)
+let $q=
+select * from v4,t2 where (v4.e1=t2.c1-6) and (v4.e2+6=t2.c2) and (t2.c1=10);
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # pushing into HAVING using equalities e3 > 2
+let $q=select * from v4,t2
+    where ((t2.c1<4) and (v4.e1=t2.c1)) or ((t2.c3>10) and (v4.e3=t2.c3));
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # pushing into multiple places
+let $q=select * from v1,v5,t2 where ((v1.a1=v5.f1) or (v1.a1=t2.c1)) and
+    ((v5.f2<50) or (v5.f2=19)) and (v1.a3<300);
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # pushing into multiple places, inline subquery definition of forced
+--echo # materialization
+let $q=SELECT * FROM
+  (
+  SELECT a1 FROM v1
+    WHERE 1 IN (0,v1.a1)
+    GROUP BY v1.a1
+  ) AS dt1 (a)
+JOIN
+  (
+  SELECT v5.f1 FROM v5
+    WHERE 1 IN (0,v5.f1)
+  ) AS dt2 (b)
+ON dt1.a = dt2.b;
+eval $q;
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+
+--echo # pushdown with update statement (t1.c1 >= 3)
+--source include/explain-no-costs.inc
+explain format=json update t2,
+  (select c1, count(*) from t1 group by c1) t (a, c)
+  set t2.c1=t.c+10
+  where t2.c1 = t.c and t.a >= 3;
+
+--echo # pushdown with delete statement (t1.c1 >= 3)
+--source include/explain-no-costs.inc
+explain format=json delete t2 from t2,
+  (select c1, count(*) from t1 group by c1) t (a, c)
+  where t2.c1 = t.c and t.a >= 3;
+
+--echo # pushdown with insert statement (t1.c1 >= 3)
+--source include/explain-no-costs.inc
+explain format=json insert into t3  select t2.* from t2,
+  (select c1, count(*) from t1 group by c1) t (a, c)
+  where t2.c1 = t.c and t.a >= 3;
+
+--echo # pushdown into union with different column names
+--source include/explain-no-costs.inc
+explain format=json
+select * from (select min(c1) from t1 union all select max(c1) from t1) t (x)
+  where x > 0;
+
+--echo # complex conditions
+--source include/explain-no-costs.inc
+explain format=json select * from v1 where if( a1 regexp 'def', 'foo', a2 )
+  in ('abc', a3);
+
+--echo # pushdown through GROUP BY
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+create view v9 as select * from
+  (select c1, f1(c2), sum(c3) from t1 group by c1, f1(c2)) as f (c1, c2, c3);
+explain format=json select * from v9 where (c3+1) > 10 and c1 > 1 and c2 > 123;
+drop function f1;
+
+--echo # name resolution for multi select units
+select a1 from
+  (select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+
+select a1, a2 from
+  (select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+
+--echo # wildcard expansion for multi select units
+select * from
+  (select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+
+--echo # name resolution in where/group by etc
+
+select a1, count(*) from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  group by a1 order by a1;
+
+select a1, count(*) from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  where a1 in (select c1 from t2);
+
+select a1, count(*) from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  where exists (select c1 from t2 where c1 = a1);
+
+select *, a1 from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join t2 on a1=c1;
+
+select *, a1 from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join (values (1, 2, 3), (4, 5, 6)) as d2 (b1, b2, b3)
+    on a1=b1;
+
+echo # some error checking, more elsewhere
+
+--error ER_NONUNIQ_TABLE
+select * from
+  ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join (values (1, 2, 3), (4, 5, 6)) as d1 (b1, b2, b3)
+    on a1=b1;
+
+--error ER_DUP_FIELDNAME
+select * from (values (3,4),(5,6)) as foo(Col1, Col1);
+
+--error ER_BAD_FIELD_ERROR
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where c1 = 1;
+
+--error ER_INCORRECT_COLUMN_NAME_COUNT
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2) where c1 = 1;
+
+--error ER_INCORRECT_COLUMN_NAME_COUNT
+select * from ( select c1, c2 from t1 union select c1, c2 from t1) as d1 (a1);
+
+--error ER_INCORRECT_COLUMN_NAME_COUNT
+select * from ( select * from t1 union select * from t1) as d1 (a1, a2);
+
+--error ER_PARSE_ERROR
+select * from ( select c1, c2, c3 from t1 ) as d1 () where c1 = 1;
+
+--error ER_NON_UNIQ_ERROR
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+  join ( select c1, c2, c3 from t1 ) as d2 (a1, a2, a3)
+  where d1.a1=a1;
+
+--echo # We expect to see the results of the 1st select in the union as names
+--echo # check wildcard expansion and name resolution in the outer select list
+
+let $q1=select *, a1 from
+  (select c1, c2, c3 from t1 where c1 > 1)
+  as d1 (a1, a2, a3);
+let $q2=select *, 1 as c4 from t2;
+
+eval $q1 union $q2;
+eval $q1 union $q2 order by a2;
+eval $q1 where a1=a2+1 union $q2 order by a2;
+eval $q1 union all $q2;
+eval $q1 union all $q2 order by a2;
+
+--source include/explain-no-costs.inc
+eval explain format=json $q1 union $q2;
+--source include/explain-no-costs.inc
+eval explain format=json $q1 union $q2 order by a2;
+--source include/explain-no-costs.inc
+eval explain format=json $q1 where a1=a2+1 union $q2 order by a2;
+--source include/explain-no-costs.inc
+eval explain format=json $q1 union all $q2;
+--source include/explain-no-costs.inc
+eval explain format=json $q1 union all $q2 order by a2;
+
+--echo # Internally, we cannot have 2 column names the same (a1 from $q1)
+--error ER_DUP_FIELDNAME
+eval select * from ($q1 union $q2) d2;
+eval select *, o4 from ($q1 union $q2) d2 (o1, o2, o3, o4) where o2=o3+1;
+eval select * from ($q1 union $q2 order by a2) d2 (o1, o2, o3, o4);
+eval select *, o4 from ($q1 union all $q2) d2 (o1, o2, o3, o4) where o2=o3+1;
+eval select * from ($q1 union all $q2 order by a2) d2 (o1, o2, o3, o4);
+
+--echo # different query result set operations (union etc)
+
+--source include/explain-no-costs.inc
+eval explain format=json select *, o4 from ($q1 union $q2) d2 (o1, o2, o3, o4)
+  where o2=o3+1;
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q1 union $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select *, o4 from ($q1 union all $q2)
+  d2 (o1, o2, o3, o4) where o2=o3+1;
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q1 union all $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q1 intersect $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q1 intersect all $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q1 except $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q1 except all $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+
+let $q3=values (1, 2, 4, 7);
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q3 union $q2 order by 1)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q3 union all $q2 order by 1)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q3 union all $q2 order by 1)
+  d2 (o1, o2, o3, o4) where o1=1;
+
+let $q3=select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4);
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q3 union $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q3 union all $q2 order by a2)
+  d2 (o1, o2, o3, o4);
+--source include/explain-no-costs.inc
+eval explain format=json select * from ($q3 union all $q2 order by a2)
+  d2 (o1, o2, o3, o4) where o1=1;
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from
+  ($q1 union all $q2 union all $q3 order by a2) d2 (o1, o2, o3, o4) where o1=1;
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from
+  ($q1 union all $q2 union all $q3 order by a2 limit 1)
+  as d2 (o1, o2, o3, o4) where o1=1;
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from
+  ($q1 union all $q2 union all $q3 order by a2)
+  as d2 (o1, o2, o3, o4) where o1=1;
+
+--source include/explain-no-costs.inc
+eval explain format=json select * from
+  ($q1 union all $q2 union all $q3 order by a2, a3 limit 1)
+  as d2 (o1, o2, o3, o4) where o1=1;
+
+--echo # both group by references should work
+select c1 as col, sum(c2) as s from t1 group by c1;
+select c1 as col, sum(c2) as s from t1 group by col;
+select d1 from
+  (select c1 as col, sum(c2) as s from t1 group by c1) as dt (d1,d2);
+select * from
+  (select c1 as col, sum(c2) as s from t1 group by c1) as dt (d1,d2);
+select d1 from
+  (select c1 as col, sum(c2) as s from t1 group by col) as dt (d1,d2);
+select * from
+  (select c1 as col, sum(c2) as s from t1 group by col) as dt (d1,d2);
+
+--echo # name resolution again at a different lexical depth
+select *, e1 from
+  (select d2 from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+    where d1 > 2 group by d1) td (e1);
+
+--echo # check resolution in grouping operations
+select * from
+  (select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+    where d1 > 2 group by d1 having sum(d3) > 4 order by d2) td (e1, e2, e3);
+
+select * from
+  (select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+    where d1 > 2 group by d1 having sum(d3) > 4 order by d2) td (e1, e2, e3)
+  where e3 < 5;
+
+select d1, row_number() over (partition by d1 order by d2)
+from (select * from t1) dt (d1, d2, d3);
+
+select
+  d1, d2,
+  count(*) over w1 as dc1,
+  count(*) over w2 as dc2,
+  count(*) over w3 as dc3
+from (select * from t1)  dt (d1, d2, d3)
+window
+  w1 as (partition by d2),
+  w2 as (w1 order by d1),
+  w3 as (w2 rows between 2 preceding and 2 following);
+
+with
+  cte1 as
+    (select * from (select * from t1 group by c1)
+      as dt2 (d1,d2,d3)),
+    cte as
+      (select cte1.d1, sum(cte1.d2) over (partition by cte1.d1 order by cte1.d1)
+        as k from cte1)
+    select * from cte;
+
+--echo # check non select queries
+
+update t1, (select * from t2) as dt (d1,d2,d3)
+set c1=c1+1 where d1= c1+6;
+
+delete t1 from t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+5;
+
+insert into t1 values (1,2,3),(4,5,6);
+
+delete from t1 using t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+6;
+
+insert into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3);
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+  returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+    where c1=d1 limit 1);
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+  returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+    where c1=d2 limit 1);
+
+alter table t1 rename column c1 to cc1;
+
+--error ER_VIEW_INVALID
+select * from v1;
+
+drop view v1, v2, v3, v4, v5, v6, v7, v8, v9;
+drop table t1, t2, t3;
+
+# test derived embedded in views
+create table t10 (a int);
+create table t20 (b int);
+insert into t10 values (1),(2);
+insert into t20 values (1),(3);
+create view v10 as select *, 'U' as u from t10
+  left join (select 'Y' as y, t20.b from t20) dt1 (y, b1) on t10.a= dt1.b1
+  limit 3;
+create view v11 as select b1, 'U' as u from t10
+  left join (select 'Y' as y, t20.b from t20) dt1 (y, b1) on t10.a= dt1.b1
+  limit 3;
+create table t30 (c int);
+insert into t30 values (1),(3);
+create view v20 as select * from t30
+  left join (select 'X' as x, v10.u, v10.y, v10.b1 from v10) dt2 (x, u1, y1, b2)
+  on t30.c=dt2.b2 limit 6;
+create view v21 as select * from t30
+  left join (select 'X' as x, v11.u, v11.b1 from v11) dt2 (x, u1, b1)
+  on t30.c=dt2.b1 order by x;
+select * from v20;
+select * from v20  order by c limit 9;
+select * from v21 order by c;
+drop view v10, v20, v11, v21;
+drop table t10, t20, t30;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

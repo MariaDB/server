@@ -1,5 +1,5 @@
 drop table if exists t1;
-CREATE TABLE t1 (id CHAR(12) not null, PRIMARY KEY (id));
+CREATE TABLE t1 (id CHAR(12) not null, PRIMARY KEY (id)) CHARSET=latin1;
 insert into t1 values ('000000000001'),('000000000002');
 explain select * from t1 where id=000000000001;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -29,7 +29,7 @@ SELECT 'a\t' < 'a';
 SELECT 'a\t' < 'a ';
 'a\t' < 'a '
 1
-CREATE TABLE t1 (a char(10) not null);
+CREATE TABLE t1 (a char(10) not null) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
 SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
 hex(a)	STRCMP(a,'a')	STRCMP(a,'a ')
@@ -102,7 +102,7 @@ CREATE TABLE t1(a INT ZEROFILL);
 SELECT 1 FROM t1 WHERE t1.a IN (1, t1.a) AND t1.a=2;
 1
 DROP TABLE t1;
-CREATE TABLE t1 (a char(2), index (a));
+CREATE TABLE t1 (a char(2), index (a)) charset=latin1;
 insert into t1 values ("aa"),("bb");
 select * from t1 where a="aa";
 a

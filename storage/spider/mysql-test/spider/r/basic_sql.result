@@ -48,6 +48,9 @@ CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 SELECT a, b, c FROM tb_l
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -78,6 +81,8 @@ PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 IGNORE SELECT a, b, c FROM tb_l
 Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 Warning	1062	Duplicate entry '1' for key 'PRIMARY'
 Warning	1062	Duplicate entry '2' for key 'PRIMARY'
 Warning	1062	Duplicate entry '3' for key 'PRIMARY'
@@ -99,6 +104,9 @@ CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 REPLACE SELECT a, b, c FROM tb_l
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -114,6 +122,9 @@ DROP TABLE IF EXISTS ta_l_no_idx;
 CREATE TABLE ta_l_no_idx
 MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
 SELECT a, b, c FROM tb_l
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l_no_idx ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
@@ -706,12 +717,16 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 connection master_1;
 create table t2345678911234567892123456789312345678941234567895123234234(id int) ENGINE=SPIDER
 COMMENT='host "192.168.21.1", user "spider", password "password", database "test32738123123123"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table t2345678911234567892123456789312345678941234567895123234234;
 #
 # MDEV-26139 Spider crashes with segmentation fault (signal 11) on CREATE TABLE when COMMENT does not contain embedded double quotes
 #
 create table mdev_26139 (id int) ENGINE=SPIDER
 COMMENT="host '192.168.21.1', user 'spider', password 'password', database 'test'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 drop table mdev_26139;
 
 deinit

@@ -1105,7 +1105,7 @@ SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
 DROP TABLE t1;
 
---echo # UNION with a parenthesed term
+--echo # UNION with a parenthesized term
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 
@@ -1135,7 +1135,7 @@ SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONC
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a));
 DROP TABLE t1;
 
---echo # UNION with a non-parethesized term with ROLLUP
+--echo # UNION with a non-parenthesized term with ROLLUP
 
 --echo # This will change after: MDEV-10120 Wrong result of UNION .. ORDER BY GROUP_CONCAT()
 --echo # Currently we're testing the parser only
@@ -2066,4 +2066,51 @@ DELIMITER ;$$
 
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+--echo #
+
+--let $keyword=nocopy
+--source include/keyword_non_reserved.inc
+
+# Statements like "CREATE FUNCTION nocopy" and "SELECT nocopy()" below
+# erroneously prints a warning:
+#   This function 'nocopy' has the same name as a native function
+# Though it's not really a function, it's just a keyword.
+
+--enable_prepare_warnings
+CREATE FUNCTION nocopy (nocopy INT) RETURNS INT RETURN nocopy;
+--disable_view_protocol
+SELECT nocopy(1);
+--enable_view_protocol
+DROP FUNCTION nocopy;
+--disable_prepare_warnings
+
+CREATE PROCEDURE nocopy (nocopy INT) SELECT nocopy;
+CALL nocopy(1);
+DROP PROCEDURE nocopy;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE nocopy INT DEFAULT 1;
+nocopy:
+  WHILE 1 DO
+    BEGIN
+      SELECT nocopy;
+      LEAVE nocopy;
+    END;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # End of 11.7 tests
 --echo #

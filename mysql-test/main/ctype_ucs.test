@@ -1,9 +1,5 @@
 -- source include/have_ucs2.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 SET @test_character_set= 'ucs2';
 SET @test_collation= 'ucs2_general_ci';
 -- source include/ctype_common.inc
@@ -34,7 +30,7 @@ drop table t1;
 # which contains 0x20 in the high byte.
 #
 
-CREATE TABLE t1 (word VARCHAR(64) CHARACTER SET ucs2, word2 CHAR(64) CHARACTER SET ucs2);
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
 INSERT INTO t1 VALUES (_koi8r'ò',_koi8r'ò'), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 SELECT hex(word2) FROM t1 ORDER BY word2;
@@ -75,13 +71,9 @@ DROP TABLE t1;
 
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
---disable_cursor_protocol
 --enable_prepare_warnings
---disable_ps2_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
 --disable_prepare_warnings
---enable_ps2_protocol
---enable_cursor_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -92,14 +84,10 @@ DROP TABLE t1;
 let $MYSQLD_DATADIR= `select @@datadir`;
 remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
---disable_ps2_protocol
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
---disable_cursor_protocol
 --enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
 --disable_prepare_warnings
---enable_cursor_protocol
---enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -1059,14 +1047,17 @@ SELECT CAST(CONVERT('1Ä²3' USING ucs2) AS SIGNED);
 --echo #
 --echo # MDEV-9711 NO PAD Collatons
 --echo #
-SET character_set_connection=ucs2;
+SET collation_connection=ucs2_general_nopad_ci;
 let $coll='ucs2_general_nopad_ci';
 let $coll_pad='ucs2_general_ci';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
+SET collation_connection=ucs2_nopad_bin;
 let $coll='ucs2_nopad_bin';
 let $coll_pad='ucs2_bin';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
 --echo #
 --echo # MDEV-10585 EXECUTE IMMEDIATE statement

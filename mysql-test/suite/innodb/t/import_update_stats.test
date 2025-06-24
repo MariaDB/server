@@ -6,10 +6,6 @@
 --source include/have_innodb.inc
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
-SET @old_innodb_file_per_table = @@innodb_file_per_table;
-
-SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
 
 CREATE TABLE t1 (
 	col_1 CHAR (255),
@@ -23,8 +19,10 @@ SHOW INDEXES FROM t1;
 
 INSERT INTO t1  VALUES ("col1_00001", "col2_00001"), ("col1_00002", "col2_00002");
 
-SHOW INDEXES FROM t1;
+# Here, the cardinality would sometimes be 2 (already updated), sometimes 1.
+# SHOW INDEXES FROM t1;
 
+SET STATEMENT use_stat_tables=never FOR
 ANALYZE TABLE t1;
 SHOW INDEXES FROM t1;
 
@@ -73,8 +71,6 @@ ANALYZE TABLE t1;
 SHOW INDEXES FROM t1;
 
 DROP TABLE t1;
-
-SET GLOBAL innodb_file_per_table = @old_innodb_file_per_table;
 
 --remove_files_wildcard $MYSQLTEST_VARDIR/tmp t1*.ibd
 --remove_files_wildcard $MYSQLTEST_VARDIR/tmp t1*.cfg

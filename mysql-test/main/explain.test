@@ -258,7 +258,7 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1(f1 VARCHAR(6) NOT NULL,
-FULLTEXT KEY(f1),UNIQUE(f1));
+FULLTEXT KEY `fulltext` (f1), UNIQUE `unique` (f1));
 INSERT INTO t1 VALUES ('test');
 
 EXPLAIN SELECT 1 FROM t1
@@ -283,6 +283,7 @@ PREPARE stmt FROM
  WHERE t1.f1 GROUP BY t1.f1))';
 
 EXECUTE stmt;
+INSERT into t1 values('test1'),('test2'),('test3'),('test4'),('test5');
 EXECUTE stmt;
 
 DEALLOCATE PREPARE stmt;

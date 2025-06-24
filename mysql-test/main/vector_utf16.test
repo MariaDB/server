@@ -1,0 +1,6 @@
+set collation_connection=utf16_general_ci;
+set character_set_results=utf16;
+select hex(vec_fromtext('[1,2,3]'));
+select vec_totext(x'0000803F0000004000004040FFFFFFFF0000807F000080FF');
+set character_set_results=default;
+select vec_totext(x'0000803F0000004000004040FFFFFFFF0000807F000080FF');

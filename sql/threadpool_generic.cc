@@ -559,6 +559,7 @@ static void* timer_thread(void *param)
   pool_timer_t* timer=(pool_timer_t *)param;
 
   my_thread_init();
+  my_thread_set_name("timer_thread");
   DBUG_ENTER("timer_thread");
   timer->next_timeout_check.store(std::numeric_limits<uint64_t>::max(),
                                   std::memory_order_relaxed);
@@ -661,7 +662,7 @@ void check_stall(thread_group_t *thread_group)
     Q : Will this handling lead to an unbound growth of threads, if queue
     stalls permanently?
     A : No. If queue stalls permanently, it is an indication for many very long
-    simultaneous queries. The maximum number of simultanoues queries is
+    simultaneous queries. The maximum number of simultaneous queries is
     max_connections, further we have threadpool_max_threads limit, upon which no
     worker threads are created. So in case there is a flood of very long
     queries, threadpool would slowly approach thread-per-connection behavior.
@@ -753,7 +754,7 @@ static TP_connection_generic * listener(worker_thread_t *current_thread,
 
     /*
      We got some network events and need to make decisions : whether
-     listener  hould handle events and whether or not any wake worker
+     listener should handle events and whether or not any wake worker
      threads so they can handle events.
 
      Q1 : Should listener handle an event itself, or put all events into
@@ -1542,6 +1543,7 @@ static void *worker_main(void *param)
   worker_thread_t this_thread;
   pthread_detach_this_thread();
   my_thread_init();
+  my_thread_set_name("worker_thread");
 
   DBUG_ENTER("worker_main");
 
@@ -1760,7 +1762,7 @@ static void print_pool_blocked_message(bool max_threads_reached)
 
     sql_print_information("Threadpool has been blocked for %u seconds\n",
       (uint)((now- pool_block_start)/1000000));
-    /* avoid reperated messages for the same blocking situation */
+    /* avoid repeated messages for the same blocking situation */
     msg_written= true;
   }
 }

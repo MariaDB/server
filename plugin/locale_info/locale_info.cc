@@ -63,7 +63,7 @@ static int locale_info_fill_table_locale(THD* thd, TABLE_LIST* tables, COND* con
       /* ID */
       table->field[0]->store((longlong) (*loc)->number, TRUE);
       /* NAME */
-      table->field[1]->store((*loc)->name, strlen((*loc)->name), cs);
+      table->field[1]->store((*loc)->name, cs);
       /* DESCRIPTION */
       table->field[2]->store((*loc)->description, strlen((*loc)->description), cs);
       /* MAX_MONTH_NAME_LENGTH */

@@ -175,41 +175,34 @@ int spider_internal_xa_rollback_by_xid(
 );
 
 int spider_start_consistent_snapshot(
-  handlerton *hton,
   THD* thd
 );
 
 int spider_commit(
-  handlerton *hton,
   THD *thd,
   bool all
 );
 
 int spider_rollback(
-  handlerton *hton,
   THD *thd,
   bool all
 );
 
 int spider_xa_prepare(
-  handlerton *hton,
   THD* thd,
   bool all
 );
 
 int spider_xa_recover(
-  handlerton *hton,
   XID* xid_list,
   uint len
 );
 
 int spider_xa_commit_by_xid(
-  handlerton *hton,
   XID* xid
 );
 
 int spider_xa_rollback_by_xid(
-  handlerton *hton,
   XID* xid
 );
 

@@ -4,23 +4,26 @@ drop table if exists t1, t2;
 #
 CREATE TABLE t1 (a INT,b INT,KEY a (a,b));
 INSERT INTO `t1` VALUES (0,580092),(3000,894076),(4000,805483),(4000,913540),(6000,611137),(8000,171602),(9000,599495),(9000,746305),(10000,272829),(10000,847519),(12000,258869),(12000,929028),(13000,288970),(15000,20971),(15000,105839),(16000,788272),(17000,76914),(18000,827274),(19000,802258),(20000,123677),(20000,587729),(22000,701449),(25000,31565),(25000,230782),(25000,442887),(25000,733139),(25000,851020);
+SELECT COUNT(*) from t1 where a IN (10000, 1000000, 3000);
+COUNT(*)
+3
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index for group-by
 alter table t1 partition by hash(a) partitions 1;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index for group-by
 alter table t1 remove partitioning;
 insert into t1 (a,b) select seq,seq from seq_4001_to_4100;
 insert into t1 (a,b) select seq,seq from seq_10001_to_10100;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using where; Using index
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index for group-by
 alter table t1 partition by hash(a) partitions 1;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using where; Using index
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index for group-by
 DROP TABLE t1;
 create table t1 (a DATETIME)
 partition by range (TO_DAYS(a))
@@ -30,7 +33,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (to_days(`a`))
 SUBPARTITION BY HASH (to_seconds(`a`))
 (PARTITION `p0` VALUES LESS THAN (1) ENGINE = MyISAM)
@@ -70,7 +73,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (to_seconds(`a`))
 (PARTITION `p0` VALUES LESS THAN (63340531200) ENGINE = MyISAM,
  PARTITION `p1` VALUES LESS THAN (63342604800) ENGINE = MyISAM)
@@ -101,7 +104,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (to_seconds(`a`))
 (PARTITION `p0` VALUES LESS THAN (63240134400) ENGINE = MyISAM,
  PARTITION `p1` VALUES LESS THAN (63271756800) ENGINE = MyISAM)
@@ -131,7 +134,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (to_seconds(`a`))
 (PARTITION `p0` VALUES LESS THAN (63240177600) ENGINE = MyISAM,
  PARTITION `p1` VALUES LESS THAN (63271800000) ENGINE = MyISAM)
@@ -161,7 +164,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 drop table t1;
@@ -292,11 +295,11 @@ t1	CREATE TABLE `t1` (
   `b` int(11) NOT NULL,
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
-(PARTITION `x1` VALUES LESS THAN (5) TABLESPACE = ts1 ENGINE = MyISAM,
- PARTITION `x2` VALUES LESS THAN (10) TABLESPACE = ts2 ENGINE = MyISAM,
- PARTITION `x3` VALUES LESS THAN MAXVALUE TABLESPACE = ts3 ENGINE = MyISAM)
+(PARTITION `x1` VALUES LESS THAN (5) ENGINE = MyISAM,
+ PARTITION `x2` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `x3` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 ALTER TABLE t1
 partition by range (a)
 partitions 3
@@ -316,11 +319,11 @@ t1	CREATE TABLE `t1` (
   `b` int(11) NOT NULL,
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
-(PARTITION `x1` VALUES LESS THAN (5) TABLESPACE = ts1 ENGINE = MyISAM,
- PARTITION `x2` VALUES LESS THAN (10) TABLESPACE = ts2 ENGINE = MyISAM,
- PARTITION `x3` VALUES LESS THAN MAXVALUE TABLESPACE = ts3 ENGINE = MyISAM)
+(PARTITION `x1` VALUES LESS THAN (5) ENGINE = MyISAM,
+ PARTITION `x2` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `x3` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
 drop table if exists t1;
 CREATE TABLE t1 (
 a int not null,
@@ -417,7 +420,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) NOT NULL,
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a` + `b`)
 (PARTITION `x1` VALUES LESS THAN (1)
@@ -435,7 +438,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) NOT NULL,
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a` + `b`)
 (PARTITION `x1` VALUES LESS THAN (1)
@@ -666,7 +669,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (0) ENGINE = MyISAM,
  PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM)
@@ -679,7 +682,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (2) ENGINE = MyISAM,
  PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM)
@@ -955,6 +958,11 @@ CREATE TABLE t1 (
 a INT,
 b INT,
 KEY ( a, b )
+);
+CREATE TABLE t1_part (
+a INT,
+b INT,
+KEY ( a, b )
 ) PARTITION BY HASH (a) PARTITIONS 1;
 CREATE TABLE t2 (
 a INT,
@@ -966,36 +974,68 @@ INSERT INTO t1 SELECT a +  5, b +  5 FROM t1;
 INSERT INTO t1 SELECT a + 10, b + 10 FROM t1;
 INSERT INTO t1 SELECT a + 20, b + 20 FROM t1;
 INSERT INTO t1 SELECT a + 40, b + 40 FROM t1;
+INSERT INTO t1 values(10,0),(10,1),(10,2),(100,0),(100,1);
+select count(*) from t1;
+count(*)
+85
+select count(*) from t1 where a=10;
+count(*)
+4
+select count(*) from t1 where a=100;
+count(*)
+2
+INSERT INTO t1_part SELECT * FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
-ANALYZE TABLE t1,t2;
+ANALYZE TABLE t1_part,t2;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	OK
+test.t1_part	analyze	status	Engine-independent statistics collected
+test.t1_part	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 # plans should be identical
-EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10,100) GROUP BY a;
+EXPLAIN SELECT a, MAX(b) FROM t1_part WHERE a IN (10,100) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+1	SIMPLE	t1_part	range	a	a	5	NULL	2	Using where; Using index for group-by
 EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	5	NULL	2	Using where; Using index
+1	SIMPLE	t2	range	a	a	5	NULL	2	Using where; Using index for group-by
 FLUSH status;
-SELECT a, MAX(b) FROM t1 WHERE a IN (10, 100) GROUP BY a;
+SELECT a, MAX(b) FROM t1_part WHERE a IN (10, 100) GROUP BY a;
 a	MAX(b)
 10	10
-# Should be no more than 4 reads.
-SHOW status LIKE 'handler_read_key';
+100	1
+SHOW status LIKE 'handler_read%';
 Variable_name	Value
-Handler_read_key	2
+Handler_read_first	0
+Handler_read_key	6
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
 FLUSH status;
 SELECT a, MAX(b) FROM t2 WHERE a IN (10, 100) GROUP BY a;
 a	MAX(b)
 10	10
-# Should be no more than 4 reads.
-SHOW status LIKE 'handler_read_key';
+100	1
+SHOW status LIKE 'handler_read%';
 Variable_name	Value
-Handler_read_key	2
+Handler_read_first	0
+Handler_read_key	6
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+insert into t2 select 100,seq from seq_1_to_100;
+EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	5	NULL	2	Using where; Using index for group-by
+DROP TABLE t1,t1_part,t2;
 #
 # MDEV-18501 Partition pruning doesn't work for historical queries
 #
@@ -1023,7 +1063,7 @@ d
 select * from t1 partition (p1);
 d
 2000-01-01 00:00:01.000000
-DROP TABLE t1, t2;
+DROP TABLE t1;
 #
 # MDEV-21195 INSERT chooses wrong partition for RANGE partitioning by DECIMAL column
 #

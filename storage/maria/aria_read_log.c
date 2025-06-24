@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     goto end;
   }
   /* we don't want to create a control file, it MUST exist */
-  if (ma_control_file_open(FALSE, TRUE, TRUE))
+  if (ma_control_file_open(FALSE, TRUE, TRUE, control_file_open_flags))
   {
     fprintf(stderr, "Can't open control file (%d)\n", errno);
     goto err;
@@ -139,6 +139,12 @@ int main(int argc, char **argv)
   if (opt_display_only)
     printf("You are using --display-only, NOTHING will be written to disk\n");
 
+  if (translog_get_horizon() == LSN_IMPOSSIBLE)
+  {
+     fprintf(stdout, "The transaction log is empty\n");
+     goto end;
+  }
+
   lsn= translog_first_lsn_in_log();
   if (lsn == LSN_ERROR)
   {
@@ -147,7 +153,8 @@ int main(int argc, char **argv)
   }
   if (lsn == LSN_IMPOSSIBLE)
   {
-     fprintf(stdout, "The transaction log is empty\n");
+    fprintf(stdout, "The transaction log is empty\n");
+    goto end;
   }
   if (opt_start_from_checkpoint && !opt_start_from_lsn &&
       last_checkpoint_lsn != LSN_IMPOSSIBLE)
@@ -254,7 +261,7 @@ static struct my_option my_long_options[] =
     "The size of the buffer used for index blocks for Aria tables",
     &opt_page_buffer_size, &opt_page_buffer_size, 0,
     GET_ULL, REQUIRED_ARG, PAGE_BUFFER_INIT,
-    PAGE_BUFFER_INIT, SIZE_T_MAX, MALLOC_OVERHEAD, (long) IO_SIZE, 0},
+    PAGE_BUFFER_INIT, SIZE_T_MAX, 0, (long) IO_SIZE, 0},
   { "print-log-control-file", 'l',
     "Print the content of the aria_log_control_file",
     &opt_print_aria_log_control, &opt_print_aria_log_control, 0,
@@ -283,7 +290,7 @@ static struct my_option my_long_options[] =
     "The size of the buffer used for transaction log for Aria tables",
     &opt_translog_buffer_size, &opt_translog_buffer_size, 0,
     GET_ULONG, REQUIRED_ARG, (long) TRANSLOG_PAGECACHE_SIZE,
-    1024L*1024L, (long) ~(ulong) 0, (long) MALLOC_OVERHEAD,
+    1024L*1024L, (long) ~(ulong) 0, 0,
     (long) IO_SIZE, 0},
   {"undo", 'u',
    "Apply UNDO records to tables. (disable with --disable-undo). "
@@ -300,7 +307,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s Ver 1.5 for %s on %s\n",
+  printf("%s Ver 1.6 for %s on %s\n",
               my_progname_short, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
@@ -308,7 +315,7 @@ static void print_version(void)
 static void usage(void)
 {
   print_version();
-  puts("Copyright (C) 2007 MySQL AB, 2009-2011 Monty Program Ab, 2020 MariaDB Corporation");
+  puts("Copyright (C) 2007 MySQL AB, 2009-2011 Monty Program Ab, 2022 MariaDB Corporation");
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,");
   puts("and you are welcome to modify and redistribute it under the GPL license\n");
 

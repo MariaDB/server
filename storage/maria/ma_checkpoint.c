@@ -577,6 +577,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   PAGECACHE_FILE *UNINIT_VAR(kfile); /**< index file currently being flushed */
 
   my_thread_init();
+  my_thread_set_name("checkpoint_bg");
   DBUG_PRINT("info",("Maria background checkpoint thread starts"));
   DBUG_ASSERT(interval > 0);
 

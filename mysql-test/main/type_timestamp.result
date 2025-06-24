@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 set time_zone="+03:00";
 CREATE TABLE t1 (a int, t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
 CREATE TABLE t2 (a int, t datetime);
@@ -174,7 +173,7 @@ t1	CREATE TABLE `t1` (
   `t1` timestamp NOT NULL DEFAULT '2003-01-01 00:00:00',
   `t2` datetime DEFAULT NULL,
   `t3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 t1	timestamp	NO		2003-01-01 00:00:00	
@@ -198,7 +197,7 @@ t1	CREATE TABLE `t1` (
   `t1` timestamp NOT NULL DEFAULT current_timestamp(),
   `t2` datetime DEFAULT NULL,
   `t3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 t1	timestamp	NO		current_timestamp()	
@@ -224,7 +223,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `t1` timestamp NOT NULL DEFAULT '2003-01-01 00:00:00' ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 t1	timestamp	NO		2003-01-01 00:00:00	on update current_timestamp()
@@ -249,7 +248,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `t1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 t1	timestamp	NO		current_timestamp()	on update current_timestamp()
@@ -275,7 +274,7 @@ t1	CREATE TABLE `t1` (
   `t1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL,
   `t3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 t1	timestamp	NO		current_timestamp()	on update current_timestamp()
@@ -301,7 +300,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `t1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 t1	timestamp	NO		current_timestamp()	on update current_timestamp()
@@ -356,7 +355,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp NULL DEFAULT NULL,
   `b` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL, NULL);
 SET TIMESTAMP=1000000017;
 insert into t1 values ();
@@ -371,7 +370,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `b` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL, NULL);
 SET TIMESTAMP=1000000018;
 insert into t1 values ();
@@ -386,7 +385,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp NULL DEFAULT NULL,
   `b` timestamp NULL DEFAULT '2003-01-01 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL, NULL);
 insert into t1 values (DEFAULT, DEFAULT);
 select * from t1;
@@ -575,7 +574,7 @@ a
 2010-02-01 09:31:02
 2010-02-01 09:31:03
 2010-02-01 09:31:04
-CREATE TABLE t2 ( a TIMESTAMP, KEY ( a DESC ) );
+CREATE TABLE t2 ( a TIMESTAMP, KEY ( a ) );
 INSERT INTO t2 VALUES( '2010-02-01 09:31:01' );
 INSERT INTO t2 VALUES( '2010-02-01 09:31:02' );
 INSERT INTO t2 VALUES( '2010-02-01 09:31:03' );
@@ -727,12 +726,12 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ts` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ts` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
 #
@@ -748,13 +747,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `vc` varchar(10) NOT NULL DEFAULT 'test',
   `ts` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `vc` varchar(10) NOT NULL DEFAULT 'test',
   `ts` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 End of 10.0 tests
 #
@@ -872,13 +871,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=' 2001-01-01 00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=' 2001-01-01 00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 19 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00')) = 19 + rand()
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' garbage ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -905,13 +904,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 30 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00.000000' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a TIMESTAMP(6));;
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00.000000'),('2001-01-01 00:00:01.000000');
@@ -930,13 +929,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=26 AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=40+RAND() AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00.000000')) = 40 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00.000000' and <cache>(octet_length(TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00.000000')) = 40 + rand()
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 (a TIMESTAMP);;
@@ -956,13 +955,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIME'00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=40+RAND() AND a=TIME'00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 40 + rand()
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00')) = 40 + rand()
 DROP TABLE t1;
 #
 # End of 10.1 tests
@@ -1025,7 +1024,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a)` timestamp NULL DEFAULT NULL,
   `COALESCE(MAX(a))` timestamp NULL DEFAULT NULL,
   `MAX(COALESCE(a))` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1145,7 +1144,7 @@ DROP TABLE t1;
 # MDEV-17972 Assertion `is_valid_value_slow()' failed in Datetime::Datetime
 #
 SET time_zone='+00:00';
-CREATE TABLE t1 (a TIMESTAMP(6)) ENGINE=MyISAM;
+CREATE TABLE t1 (a TIMESTAMP(6) NOT NULL) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
 FLUSH TABLES;
 MYD
@@ -1345,16 +1344,552 @@ SET time_zone=DEFAULT;
 # End of 10.4 tests
 #
 #
+# Start of 10.6 tests
+#
+#
+# MDEV-32148 Inefficient WHERE timestamp_column=datetime_expr
+#
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30'), ('2001-01-01 10:20:31');
+#
+# Comparison predicates: Bad TIMESTAMP values preserve DATETIME comparison
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2001-01-00 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-00 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2040-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='1001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-00 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Warning	1292	Incorrect datetime value: '2001-01-00 00:00:00'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '2001-01-00 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2040-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10010101102030;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 10010101102030
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20010100000000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 20010100000000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20400101102030;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10010101102030e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 10010101102030e0
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20010100000000e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 20010100000000e0
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20400101102030e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30.000000'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10010101102030.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 10010101102030.0
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20010100000000.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 20010100000000.0
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20400101102030.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30.0'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=DATE_ADD('2020-01-01 10:20:30', INTERVAL 30 YEAR);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2050-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(NULL, a)=DATE_ADD('2020-01-01 10:20:30', INTERVAL 30 YEAR);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(NULL,`test`.`t1`.`a`) = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2050-01-01 10:20:30'
+#
+# Comparison predicates: Good TIMESTAMP values switch to TIMESTAMP comparison
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-00 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20010101102030;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=0e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00.000000'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20010101102030e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.000000'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=0.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00.0'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=20010101102030.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.0'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=DATE_ADD('2001-01-01 10:20:00', INTERVAL 30 SECOND);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(NULL, a)=DATE_ADD('2001-01-01 10:20:00', INTERVAL 30 SECOND);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(NULL,`test`.`t1`.`a`) = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+#
+# Corner cases: DATETIME values before the supported optimization range
+# FROM_UNIXTIME(0)..FROM_UNIXTIME(24*3600-1)
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-01 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1970-01-01 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-01 23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1970-01-01 23:59:59'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-01 23:59:59.999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1970-01-01 23:59:59.999999'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-01 23:59:59.9999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '1970-01-01 23:59:59.9999999'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1970-01-01 23:59:59.999999'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=FROM_UNIXTIME(24*3600-1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(from_unixtime(24 * 3600 - 1))
+#
+# Corner cases: DATETIME values inside the supported optimization range:
+# FROM_UNIXTIME(24*3600) .. FROM_UNIXTIME(0x7FFFFFFF-24*3600)
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(24*3600) AS DATETIME);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'1970-01-02 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-02 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'1970-01-02 00:00:00'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2038-01-18 03:14:07';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:07'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF-24*3600) AS DATETIME);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:07'
+#
+# Corner cases: DATETIME values after the supported optimization range
+# FROM_UNIXTIME(0x7FFFFFFF-24*3600+1) .. FROM_UNIXTIME(0x7FFFFFFF)
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF-24*3600+1) AS DATETIME);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:08'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2038-01-18 03:14:08';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:08'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2038-01-19 03:14:07';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-19 03:14:07'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST(FROM_UNIXTIME(0x7FFFFFFF) AS DATETIME);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-19 03:14:07'
+#
+# Corner cases: rounding
+#
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+#
+# Not optimized (before the supported range)
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-01 23:59:59.999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'1970-01-01 23:59:59.999999'
+#
+# Optimized
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'1970-01-01 23:59:59.9999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '1970-01-01 23:59:59.9999999'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'1970-01-02 00:00:00.000000'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2038-01-18 03:14:07.999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:07.999999'
+#
+# Not optimized (after the supported range)
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=TIMESTAMP'2038-01-18 03:14:07.9999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '2038-01-18 03:14:07.9999999'
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2038-01-18 03:14:08.000000'
+SET sql_mode=DEFAULT;
+#
+# NULLIF: Bad TIMESTAMP values preserve DATETIME comparison
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,TIMESTAMP'1001-01-01 10:20:30');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP'1001-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,TIMESTAMP'2001-01-00 00:00:00');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP'2001-01-00 00:00:00')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,TIMESTAMP'2040-01-01 10:20:30');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,'1001-01-01 10:20:30');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,'1001-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,'2001-01-00 00:00:00');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,'2001-01-00 00:00:00')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,'2040-01-01 10:20:30');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,10010101102030);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,10010101102030)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20010100000000);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,20010100000000)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20400101102030);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,10010101102030e0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,10010101102030e0)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20010100000000e0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,20010100000000e0)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20400101102030e0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30.000000')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,10010101102030.0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,10010101102030.0)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20010100000000.0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,20010100000000.0)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20400101102030.0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2040-01-01 10:20:30.0')
+#
+# NULLIF: Good TIMESTAMP values switch to TIMESTAMP comparison
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,TIMESTAMP'0000-00-00 00:00:00');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,TIMESTAMP'2001-01-01 10:20:30');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,'0000-00-00 00:00:00');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,'2001-01-01 10:20:30');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20010101102030);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,0e0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00.000000')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20010101102030e0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.000000')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,0.0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'0000-00-00 00:00:00.0')
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE NULLIF(a,20010101102030.0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where nullif(`test`.`t1`.`a`,TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.0')
+#
+# Subqueries with bad TIMESTAMP values
+# It's not clear from the output if the comparison is done as DATETIME or TIMESTAMP
+#
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 VALUES ('1001-01-01 10:20:30');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=(SELECT MAX(a) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = (/* select#2 */ select max('1001-01-01 10:20:30') from dual)
+DROP TABLE t2;
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 VALUES ('2001-00-00 00:00:00');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=(SELECT MAX(a) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = (/* select#2 */ select max('2001-00-00 00:00:00') from dual)
+DROP TABLE t2;
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 VALUES ('2040-01-01 10:20:30');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=(SELECT MAX(a) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = (/* select#2 */ select max('2040-01-01 10:20:30') from dual)
+DROP TABLE t2;
+#
+# Subqueries with good TIMESTAMP values
+# It's not clear from the output if the comparison is done as DATETIME or TIMESTAMP
+#
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 VALUES ('0000-00-00 00:00:00');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=(SELECT MAX(a) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = (/* select#2 */ select max('0000-00-00 00:00:00') from dual)
+DROP TABLE t2;
+CREATE TABLE t2 (a DATETIME);
+INSERT INTO t2 VALUES ('2001-01-01 10:20:30');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=(SELECT MAX(a) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = (/* select#2 */ select max('2001-01-01 10:20:30') from dual)
+DROP TABLE t2;
+#
+# Trivial equality elimination
+# Covers Type_handler_timestamp_common::Item_const_eq()
+#
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE IF(a='2001-01-01 00:00:00',1,0)=IF(a='2001-01-01 00:00:00',1,0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where if(`test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00',1,0) = if(`test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 00:00:00',1,0)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE (a<=>?)=(a<=>?)'
+    USING '2001-01-01 00:00:00', '2001-01-01 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+#
+# Equal field propagation: Good TIMESTAMP values switch to TIMESTAMP comparison
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIMESTAMP'2001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19 AND a='2001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=20010101102030;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=20010101102030e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.000000'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=20010101102030.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.0'
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=TIMESTAMP'2001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30' and <cache>(octet_length(TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30')) = 19 + rand()
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a='2001-01-01 10:20:30';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30' and <cache>(octet_length(TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30')) = 19 + rand()
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=20010101102030;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30' and <cache>(octet_length(TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30')) = 19 + rand()
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=20010101102030e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.000000' and <cache>(octet_length(TIMESTAMP'2001-01-01 10:20:30')) = 19 + rand()
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=20010101102030.0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP/*WITH LOCAL TIME ZONE*/'2001-01-01 10:20:30.0' and <cache>(octet_length(TIMESTAMP'2001-01-01 10:20:30')) = 19 + rand()
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 10.6 tests
+#
+#
 # MDEV-29225 make explicit_defaults_for_timestamps SESSION variable
 #
 set explicit_defaults_for_timestamp=OFF;
+Warnings:
+Warning	1287	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 create table t1 (f1 timestamp, f2 timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `f2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set explicit_defaults_for_timestamp=ON;
 create table t1 (f1 timestamp, f2 timestamp);
@@ -1363,7 +1898,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` timestamp NULL DEFAULT NULL,
   `f2` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-34069 Zero datetime reinterprets as '1970-01-01 00:00:00' on field_datetime=field_timestamp
@@ -1591,7 +2126,7 @@ Warnings:
 Warning	1292	Incorrect datetime value: '0'
 Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
@@ -1604,3 +2139,262 @@ DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
 # End of 10.6 tests
+#
+# Start of 11.3 tests
+#
+#
+# MDEV-33299 Assertion `(tm->tv_usec % (int) log_10_int[6 - dec]) == 0' failed in void my_timestamp_to_binary(const timeval*, uchar*, uint)
+#
+CREATE TABLE t1(a TIMESTAMP,KEY(a));
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23' ;
+a
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+DROP TABLE t1;
+CREATE TABLE t1(a TIMESTAMP,KEY(a));
+INSERT INTO t1 VALUES ('2023-12-31 23:59:59');
+INSERT INTO t1 VALUES ('2024-01-22 10:20:30');
+INSERT INTO t1 VALUES ('2024-01-23 10:20:30');
+INSERT INTO t1 VALUES ('2024-01-23 23:59:59');
+INSERT INTO t1 VALUES ('2024-01-24 00:00:00');
+INSERT INTO t1 VALUES ('2024-12-31 23:59:59');
+INSERT INTO t1 VALUES ('2025-01-01 00:00:00');
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+a
+2023-12-31 23:59:59
+2024-01-22 10:20:30
+2024-01-23 10:20:30
+2024-01-23 23:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-23 23:59:59'
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+2023-12-31 23:59:59
+2024-01-22 10:20:30
+2024-01-23 10:20:30
+2024-01-23 23:59:59
+2024-01-24 00:00:00
+2024-12-31 23:59:59
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-12-31 23:59:59'
+SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+a
+2024-01-24 00:00:00
+2024-12-31 23:59:59
+2025-01-01 00:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-24 00:00:00'
+SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+a
+2024-01-22 10:20:30
+2024-01-23 10:20:30
+2024-01-23 23:59:59
+2024-01-24 00:00:00
+2024-12-31 23:59:59
+2025-01-01 00:00:00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00'
+DROP TABLE t1;
+CREATE TABLE t1(a TIMESTAMP(3),KEY(a));
+INSERT INTO t1 VALUES ('2023-12-31 23:59:59.999');
+INSERT INTO t1 VALUES ('2024-01-22 10:20:30.001');
+INSERT INTO t1 VALUES ('2024-01-23 10:20:30.002');
+INSERT INTO t1 VALUES ('2024-01-23 23:59:59.999');
+INSERT INTO t1 VALUES ('2024-01-24 00:00:00.000');
+INSERT INTO t1 VALUES ('2024-12-31 23:59:59.999');
+INSERT INTO t1 VALUES ('2025-01-01 00:00:00.000');
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+a
+2023-12-31 23:59:59.999
+2024-01-22 10:20:30.001
+2024-01-23 10:20:30.002
+2024-01-23 23:59:59.999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-23 23:59:59.999'
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+2023-12-31 23:59:59.999
+2024-01-22 10:20:30.001
+2024-01-23 10:20:30.002
+2024-01-23 23:59:59.999
+2024-01-24 00:00:00.000
+2024-12-31 23:59:59.999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-12-31 23:59:59.999'
+SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+a
+2024-01-24 00:00:00.000
+2024-12-31 23:59:59.999
+2025-01-01 00:00:00.000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	3	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-24 00:00:00.000'
+SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+a
+2024-01-22 10:20:30.001
+2024-01-23 10:20:30.002
+2024-01-23 23:59:59.999
+2024-01-24 00:00:00.000
+2024-12-31 23:59:59.999
+2025-01-01 00:00:00.000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	7	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00.000'
+DROP TABLE t1;
+CREATE TABLE t1(a TIMESTAMP(6),KEY(a));
+INSERT INTO t1 VALUES ('2023-12-31 23:59:59.999999');
+INSERT INTO t1 VALUES ('2024-01-22 10:20:30.000001');
+INSERT INTO t1 VALUES ('2024-01-23 10:20:30.000002');
+INSERT INTO t1 VALUES ('2024-01-23 23:59:59.999999');
+INSERT INTO t1 VALUES ('2024-01-24 00:00:00.000000');
+INSERT INTO t1 VALUES ('2024-12-31 23:59:59.999999');
+INSERT INTO t1 VALUES ('2025-01-01 00:00:00.000000');
+SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+a
+2023-12-31 23:59:59.999999
+2024-01-22 10:20:30.000001
+2024-01-23 10:20:30.000002
+2024-01-23 23:59:59.999999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) <= '2024-01-23';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	4	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-23 23:59:59.999999'
+SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+a
+2023-12-31 23:59:59.999999
+2024-01-22 10:20:30.000001
+2024-01-23 10:20:30.000002
+2024-01-23 23:59:59.999999
+2024-01-24 00:00:00.000000
+2024-12-31 23:59:59.999999
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) <= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-12-31 23:59:59.999999'
+SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+a
+2024-01-24 00:00:00.000000
+2024-12-31 23:59:59.999999
+2025-01-01 00:00:00.000000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE DATE(a) >= '2024-01-24';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	3	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-24 00:00:00.000000'
+SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+a
+2024-01-22 10:20:30.000001
+2024-01-23 10:20:30.000002
+2024-01-23 23:59:59.999999
+2024-01-24 00:00:00.000000
+2024-12-31 23:59:59.999999
+2025-01-01 00:00:00.000000
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE YEAR(a) >= 2024;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	8	NULL	6	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` >= TIMESTAMP/*WITH LOCAL TIME ZONE*/'2024-01-01 00:00:00.000000'
+DROP TABLE t1;
+#
+# MDEV-34085 Server crash ASAN used-after-poison upon 2nd execution of PS with erroneous timestamp conversion
+#
+CREATE TABLE t1 (a int, b timestamp);
+INSERT INTO t1 VALUES (1,'2000-01-01'),(2,'2001-12-31');
+PREPARE stmt FROM 'UPDATE t1 SET a = 0 WHERE 1 IN (SELECT b FROM t1)';
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect datetime value: '1'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect datetime value: '1'
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+# End of 11.3 tests
+#
+# MDEV-35677 Assertion `thd->is_error()' failed in virtual bool Field::sp_prepare_and_store_item(THD*, Item**)
+#
+CREATE FUNCTION f() RETURNS INT DETERMINISTIC RETURN (SELECT a FROM t);
+CREATE TABLE t (c TIMESTAMP);
+SELECT * FROM t WHERE c=f();
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+DROP TABLE t;
+DROP FUNCTION f;
+# End of 11.4 tests
+#
+# MDEV-35250 Assertion `dec <= 6' failed in my_timestamp_binary_length
+#
+SET time_zone='+00:00';
+SELECT FROM_UNIXTIME('1922-02-10') AS c1, BIT_AND(1) AS c2;
+c1	c2
+1970-01-01 00:32:02	1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1922-02-10'
+SELECT FROM_UNIXTIME('1922') AS c1, BIT_AND(1) AS c2;
+c1	c2
+1970-01-01 00:32:02	1
+SELECT FROM_UNIXTIME('1922.1') AS c1, BIT_AND(1) AS c2;
+c1	c2
+1970-01-01 00:32:02.100000	1
+SELECT FROM_UNIXTIME('1922.1') AS c1;
+c1
+1970-01-01 00:32:02.100000
+SELECT * FROM (SELECT FROM_UNIXTIME('1') AS c1, BIT_AND(1) AS c2) t;
+c1	c2
+1970-01-01 00:00:01.000000	1
+SELECT * FROM (SELECT FROM_UNIXTIME('1.1') AS c1, BIT_AND(1) AS c2) t;
+c1	c2
+1970-01-01 00:00:01.100000	1
+CREATE TABLE t1 (a TEXT, b TEXT);
+INSERT INTO t1 SELECT FROM_UNIXTIME('1') AS c1, BIT_AND(1) AS c2;
+INSERT INTO t1 SELECT FROM_UNIXTIME('1.1') AS c1, BIT_AND(1) AS c2;
+SELECT * FROM t1;
+a	b
+1970-01-01 00:00:01	1
+1970-01-01 00:00:01.100000	1
+DROP TABLE t1;
+SELECT 1 FROM (values(1),(2)) dt GROUP BY from_unixtime('a') WITH ROLLUP;
+1
+1
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 ORDER BY from_unixtime(a);
+a
+1
+2
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+# End of 11.7 tests

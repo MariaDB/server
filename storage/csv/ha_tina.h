@@ -102,7 +102,6 @@ public:
       delete file_buff;
     free_root(&blobroot, MYF(0));
   }
-  const char *index_type(uint inx) override { return "NONE"; }
   ulonglong table_flags() const override
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_NO_AUTO_INCREMENT |
@@ -124,7 +123,12 @@ public:
   /*
      Called in test_quick_select to determine if indexes should be used.
    */
-  double scan_time() override { return (double) (stats.records+stats.deleted) / 20.0+10; }
+  IO_AND_CPU_COST scan_time() override
+  {
+    return
+    { (double) ((share->saved_data_file_length + IO_SIZE-1))/ IO_SIZE,
+        (stats.records+stats.deleted) * ROW_NEXT_FIND_COST };
+  }
   /* The next method will never be called */
   virtual bool fast_key_read() { return 1;}
   /* 

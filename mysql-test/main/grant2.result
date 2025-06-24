@@ -12,7 +12,7 @@ flush privileges;
 grant all privileges on `my\_1`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
 create user mysqltest_2@localhost;
-connect  user_a,localhost,mysqltest_1,,;
+connect  user_a,localhost,mysqltest_1,,"*NO-ONE*";
 connection user_a;
 grant select on `my\_1`.* to mysqltest_2@localhost;
 grant select on `my\_1`.* to mysqltest_2@localhost identified by 'pass';
@@ -20,14 +20,14 @@ ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysql
 disconnect user_a;
 connection default;
 grant update on mysql.* to mysqltest_1@localhost;
-connect  user_b,localhost,mysqltest_1,,;
+connect  user_b,localhost,mysqltest_1,,"*NO-ONE*";
 connection user_b;
 grant select on `my\_1`.* to mysqltest_2@localhost identified by 'pass';
 grant select on `my\_1`.* to mysqltest_3@localhost;
 disconnect user_b;
 connection default;
 grant insert on mysql.* to mysqltest_1@localhost;
-connect  user_c,localhost,mysqltest_1,,;
+connect  user_c,localhost,mysqltest_1,,"*NO-ONE*";
 connection user_c;
 grant select on `my\_1`.* to mysqltest_3@localhost;
 grant select on `my\_1`.* to mysqltest_4@localhost identified by 'pass';
@@ -40,7 +40,7 @@ delete from mysql.columns_priv where user like 'mysqltest\_%';
 flush privileges;
 grant all privileges on `my\_%`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
-connect  user1,localhost,mysqltest_1,,;
+connect  user1,localhost,mysqltest_1,,"*NO-ONE*";
 connection user1;
 select current_user();
 current_user()
@@ -73,7 +73,7 @@ delete from mysql.db where user like 'mysqltest\_%';
 flush privileges;
 create database mysqltest_1;
 grant all privileges on `mysqltest\_1`.* to mysqltest_1@localhost with grant option;
-connect  user2,localhost,mysqltest_1,,;
+connect  user2,localhost,mysqltest_1,,"*NO-ONE*";
 connection user2;
 select current_user();
 current_user()
@@ -82,7 +82,6 @@ show databases;
 Database
 information_schema
 mysqltest_1
-test
 grant all privileges on `mysqltest_1`.* to mysqltest_1@localhost with grant option;
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysqltest_1'
 disconnect user2;
@@ -157,12 +156,12 @@ disconnect con9;
 connection default;
 create database mysqltest_1;
 grant select, insert, update on `mysqltest\_1`.* to mysqltest_1@localhost;
-connect  con10,localhost,mysqltest_1,,;
+connect  con10,localhost,mysqltest_1,,"*NO-ONE*";
 connection con10;
 set sql_log_off = 1;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 set sql_log_bin = 0;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the BINLOG ADMIN privilege(s) for this operation
 disconnect con10;
 connection default;
 delete from mysql.user where user like 'mysqltest\_1';
@@ -309,7 +308,7 @@ GRANT SELECT ON "mysql".* TO "%@a"@"a"
 drop user '%@a'@'a';
 create user mysqltest_2@localhost;
 grant create user on *.* to mysqltest_2@localhost;
-connect  user3,localhost,mysqltest_2,,;
+connect  user3,localhost,mysqltest_2,,"*NO-ONE*";
 connection user3;
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 ERROR 42000: SELECT command denied to user 'mysqltest_2'@'localhost' for table `mysql`.`user`
@@ -321,7 +320,7 @@ connection default;
 drop user mysqltest_2@localhost;
 create user mysqltest_3@localhost;
 grant INSERT,DELETE,UPDATE on mysql.* to mysqltest_3@localhost;
-connect  user4,localhost,mysqltest_3,,;
+connect  user4,localhost,mysqltest_3,,"*NO-ONE*";
 connection user4;
 show grants;
 Grants for mysqltest_3@localhost
@@ -390,7 +389,7 @@ revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';
 delete from mysql.user where user like 'mysqltest\_1';
 flush privileges;
 drop database mysqltest_1;
-connect  n5,localhost,test,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  n5,localhost,test,,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
 connection n5;
 set password = password("changed");
 ERROR 42000: You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings
@@ -453,8 +452,6 @@ INSERT INTO t2 VALUES (1);
 DROP FUNCTION IF EXISTS f2;
 CREATE FUNCTION f2 () RETURNS INT
 BEGIN DECLARE v INT; SELECT s1 FROM t2 INTO v; RETURN v; END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT f2();
 f2()
 1
@@ -496,13 +493,13 @@ drop database mysqltest_2;
 drop user mysqltest_u1@localhost;
 grant all on `mysqltest\_%`.* to mysqltest_1@localhost with grant option;
 grant usage on *.* to mysqltest_2@localhost;
-connect  con18600_1,localhost,mysqltest_1,,;
+connect  con18600_1,localhost,mysqltest_1,,"*NO-ONE*";
 create database mysqltest_1;
 use mysqltest_1;
 create table t1 (f1 int);
 grant create on `mysqltest\_1`.* to mysqltest_2@localhost;
 grant select on mysqltest_1.t1 to mysqltest_2@localhost;
-connect  con3,localhost,mysqltest_2,,;
+connect  con3,localhost,mysqltest_2,,"*NO-ONE*";
 connection con3;
 create database mysqltest_3;
 ERROR 42000: Access denied for user 'mysqltest_2'@'localhost' to database 'mysqltest_3'
@@ -527,7 +524,7 @@ CREATE TABLE t2 (b INT, c INT);
 INSERT INTO t2 VALUES (1,100),(2,200);
 GRANT SELECT ON t1 TO mysqltest1@localhost;
 GRANT SELECT (b) ON t2 TO mysqltest1@localhost;
-connect  conn1,localhost,mysqltest1,,;
+connect  conn1,localhost,mysqltest1,,"*NO-ONE*";
 connection conn1;
 USE db1;
 SELECT c FROM t2;

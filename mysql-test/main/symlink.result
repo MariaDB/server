@@ -42,7 +42,7 @@ t9	CREATE TABLE `t9` (
   `b` char(16) NOT NULL,
   `c` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM AUTO_INCREMENT=16725 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
+) ENGINE=MyISAM AUTO_INCREMENT=16725 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
 alter table t9 rename t8, add column d int not null;
 alter table t8 rename t7;
 rename table t7 to t9;
@@ -55,7 +55,7 @@ t9	CREATE TABLE `t9` (
   `c` int(11) NOT NULL,
   `d` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM AUTO_INCREMENT=16725 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
+) ENGINE=MyISAM AUTO_INCREMENT=16725 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
 create database mysqltest;
 create table mysqltest.t9 (a int not null auto_increment, b char(16) not null, primary key (a)) 
 engine=myisam index directory="/this-dir-does-not-exist";
@@ -81,36 +81,36 @@ t9	CREATE TABLE `t9` (
   `c` int(11) NOT NULL,
   `d` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM AUTO_INCREMENT=16725 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
+) ENGINE=MyISAM AUTO_INCREMENT=16725 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
 drop database mysqltest;
 create table t1 (a int not null) engine=myisam;
 alter table t1 data directory="MYSQLTEST_VARDIR/tmp";
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 add b int;
 alter table t1 data directory="MYSQLTEST_VARDIR/log";
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 index directory="MYSQLTEST_VARDIR/log";
 Warnings:
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1(a INT)
 DATA DIRECTORY='TEST_DIR/tmp'
@@ -130,14 +130,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/log/'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQLTEST_VARDIR/log/'
 connection session2;
 create temporary table t1 (a int) engine=myisam data directory="MYSQLTEST_VARDIR/log" select 99 a;
 show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/log/'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQLTEST_VARDIR/log/'
 connection default;
 create table t1 (a int) engine=myisam select 42 a;
 connection session1;
@@ -157,9 +157,13 @@ a
 drop table t1;
 End of 4.1 tests
 SET SESSION keep_files_on_create = TRUE;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a INT) ENGINE MYISAM;
 Got one of the listed errors
 SET SESSION keep_files_on_create = FALSE;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a INT) ENGINE MYISAM;
 DROP TABLE t1;
 End of 5.0 tests
@@ -181,8 +185,8 @@ ERROR HY000: Can't create/write to file 'TEST_DIR/master-data_var/t1.MYI' (Errco
 SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE='NO_DIR_IN_CREATE';
 CREATE TABLE t1(a INT) DATA DIRECTORY='MYSQLTEST_VARDIR/tmp' INDEX DIRECTORY='MYSQLTEST_VARDIR/tmp';
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 DROP TABLE t1;
 SET @@SQL_MODE=@OLD_SQL_MODE;
 #
@@ -211,7 +215,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
 select create_options from information_schema.tables where table_name='t1';
 create_options
 DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/' INDEX DIRECTORY='MYSQLTEST_VARDIR/run/'
@@ -224,7 +228,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t1, t2;
 #
 # Test for bug #25514146 DB_NAME IS IGNORED WHEN CREATING TABLE
@@ -247,5 +251,5 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
   `c2` int(11) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DELAY_KEY_WRITE=1 DATA DIRECTORY='MYSQL_TMP_DIR/' INDEX DIRECTORY='MYSQL_TMP_DIR/'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DELAY_KEY_WRITE=1 DATA DIRECTORY='MYSQL_TMP_DIR/' INDEX DIRECTORY='MYSQL_TMP_DIR/'
 drop table t1;

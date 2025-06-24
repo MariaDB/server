@@ -114,21 +114,18 @@ create or replace sequence t1 maxvalue=13, increment= -1;
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 --error ER_PARSE_ERROR
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
---error ER_SEQUENCE_INVALID_DATA
-create sequence t1 start with 10 maxvalue=9223372036854775807;
---error ER_PARSE_ERROR
-create sequence t1 start with 10 minvalue=-9223372036854775808;
 --error ER_PARSE_ERROR
 create sequence t1 RESTART WITH 10;
-
-# This should probably give an error
+--error ER_DUP_ARGUMENT
 create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;
-drop sequence t1;
+# hidden constraints cache < (LONGLONG_MAX - max_increment) / max_increment
+--error ER_SEQUENCE_INVALID_DATA
+create sequence s increment by 3234567890123456789;
 
 #
 # Test with LIST COLUMNS as first command
 #
-create sequence t1;
+create or replace sequence t1;
 show fields from t1;
 flush tables;
 show fields from t1;
@@ -585,3 +582,208 @@ show create sequence seq;
 show create table seq;
 drop sequence seq;
 SET @@innodb_compression_default=DEFAULT;
+
+--echo ######
+--echo # MDEV-28152 Features for sequence
+--echo ######
+
+--echo # -----
+--echo # Truncating out-of-bound numbers for minvalue and maxvalue
+--echo # -----
+--disable_ps_protocol
+create or replace sequence t1 minvalue -999999999999999999999;
+show create sequence t1;
+create or replace sequence t1 minvalue -9223372036854775808;
+show create sequence t1;
+create or replace sequence t1 minvalue -9223372036854775807;
+show create sequence t1;
+create or replace sequence t1 minvalue 9223372036854775805;
+show create sequence t1;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9223372036854775806;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9223372036854775807;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9223372036854775808;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9999999999999999999999;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 maxvalue -999999999999999999999 increment by -1;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 maxvalue -9223372036854775808 increment by -1;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 maxvalue -9223372036854775807 increment by -1;
+create or replace sequence t1 maxvalue -9223372036854775806 increment by -1;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9223372036854775806;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9223372036854775807;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9223372036854775808;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9999999999999999999999;
+show create sequence t1;
+--enable_ps_protocol
+
+--echo # -----
+--echo # Create with value types
+--echo # -----
+create or replace sequence t1 as tinyint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as smallint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as mediumint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as int;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as bigint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as tinyint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as smallint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as mediumint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as int unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as bigint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as tinyint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as smallint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as mediumint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as int;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as bigint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as tinyint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as smallint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as mediumint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as int unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 increment -1 as bigint unsigned;
+show create sequence t1;
+show create table t1;
+
+#zerofill is not supported
+--error ER_BAD_OPTION_VALUE
+create or replace sequence t1 as tinyint zerofill;
+
+#start with a number between longlong_max and ulonglong_max
+create or replace sequence t1 as bigint unsigned start with 12345678901234567890;
+show create sequence t1;
+show create table t1;
+
+# hidden constraints cache < (LONGLONG_MAX - max_increment) / max_increment
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 as bigint unsigned increment 12345678901234567;
+
+--echo # -----
+--echo # value types + truncating
+--echo # -----
+--disable_ps_protocol
+create or replace sequence t1 minvalue -23 maxvalue 9999 as tinyint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 minvalue -32768 maxvalue 32767 as smallint;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 minvalue 0 maxvalue 65535 as smallint unsigned;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 minvalue -12345678901234 as mediumint unsigned maxvalue 12345678901234;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 as bigint unsigned minvalue -12345678901234 maxvalue 12345678901234;
+show create sequence t1;
+show create table t1;
+--enable_ps_protocol
+
+--echo # -----
+--echo # indistinguishable values during parsing if we did not pass back Longlong_hybrid from the parser.
+--echo # -----
+#signed, -1: no truncation. Note that we need a negative increment because this is a nagative sequence
+create or replace sequence t1 as bigint maxvalue -1 increment by -1;
+show create sequence t1;
+show create table t1;
+--disable_ps_protocol
+#signed, ulonglong_max: truncating to longlong_max-1
+create or replace sequence t1 as bigint maxvalue 18446744073709551615;
+show create sequence t1;
+show create table t1;
+#unsigned, -1: truncation and invalid data (max_value truncated to 1 which is equal to min_value)
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 as bigint unsigned maxvalue -1;
+#unsigned, ulonglong_max: truncating to ulonglong_max-1
+create or replace sequence t1 as bigint unsigned maxvalue 18446744073709551615;
+show create sequence t1;
+show create table t1;
+--enable_ps_protocol
+
+--echo # -----
+--echo # value types + out of range start
+--echo # -----
+--error ER_PARSE_ERROR
+create or replace sequence t1 start with -123456789012345678901 as tinyint unsigned;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 start with -1 as tinyint unsigned;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 start with 0 as tinyint unsigned;
+show create sequence t1;
+create or replace sequence t1 start with 1 as tinyint unsigned;
+show create sequence t1;
+create or replace sequence t1 start with 254 as tinyint unsigned;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 start with 255 as tinyint unsigned;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 start with 256 as tinyint unsigned;
+--error ER_PARSE_ERROR
+create or replace sequence t1 start with 123456789012345678901 as tinyint unsigned;
+
+drop sequence t1;
+
+--echo # -----
+--echo # information_schema.sequences
+--echo # -----
+create sequence s1 as tinyint unsigned increment by 23;
+create sequence s2 start with 42 minvalue -9223372036854775807;
+create sequence s3 as bigint unsigned start with 12345678901234567890 cycle;
+#test support of all types in information schema
+create sequence s4 as tinyint;
+create sequence s5 as smallint;
+create sequence s6 as mediumint;
+create sequence s7 as int;
+create sequence s8 as bigint;
+create sequence s9 as tinyint unsigned;
+create sequence s10 as smallint unsigned;
+create sequence s11 as mediumint unsigned;
+create sequence s12 as int unsigned;
+create sequence s13 as bigint unsigned;
+select * from information_schema.sequences order by sequence_name;
+drop sequence s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
+
+--echo # End of 11.5 tests

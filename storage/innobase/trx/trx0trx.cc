@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,11 +57,17 @@ const byte trx_id_max_bytes[8] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
-/** The bit pattern corresponding to max timestamp */
+#if SIZEOF_VOIDP == 4
+/* Max timestamp before 11.3 */
 const byte timestamp_max_bytes[7] = {
 	0x7f, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
 };
-
+#else
+/** The bit pattern corresponding to max timestamp */
+const byte timestamp_max_bytes[7] = {
+	0xff, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
+};
+#endif /* SIZEOF_VOIDP */
 
 static const ulint MAX_DETAILED_ERROR_LEN = 512;
 
@@ -133,8 +139,6 @@ trx_init(
 	trx->auto_commit = false;
 
 	trx->will_lock = false;
-
-	trx->bulk_insert = false;
 
 	trx->apply_online_log = false;
 
@@ -517,6 +521,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	ut_d(trx->apply_online_log = false);
+	trx->bulk_insert = 0;
 	trx->commit_state();
 	trx->release_locks();
 	trx->mod_tables.clear();
@@ -718,6 +723,12 @@ corrupted:
 		return err;
 	}
 
+	if (trx_sys.is_undo_empty()) {
+func_exit:
+		purge_sys.clone_oldest_view<true>();
+		return DB_SUCCESS;
+	}
+
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
 	const time_t	start_time	= time(NULL);
@@ -779,8 +790,7 @@ corrupted:
 		ib::info() << "Trx id counter is " << trx_sys.get_max_trx_id();
 	}
 
-	purge_sys.clone_oldest_view<true>();
-	return DB_SUCCESS;
+	goto func_exit;
 }
 
 /** Assign a persistent rollback segment in a round-robin fashion,
@@ -824,8 +834,7 @@ static void trx_assign_rseg_low(trx_t *trx)
 			ut_ad(rseg->is_persistent());
 
 			if (rseg->space != fil_system.sys_space) {
-				if (rseg->skip_allocation()
-				    || !srv_undo_tablespaces) {
+				if (rseg->skip_allocation()) {
 					continue;
 				}
 			} else if (const fil_space_t *space =
@@ -1241,25 +1250,26 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   ut_ad(srv_flush_log_at_trx_commit);
   ut_ad(trx->state != TRX_STATE_PREPARED);
 
-  if (log_sys.get_flushed_lsn() > lsn)
+  if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
 
   const bool flush=
-    (srv_file_flush_method != SRV_NOSYNC &&
+    (!my_disable_sync &&
      (srv_flush_log_at_trx_commit & 1));
+  if (!log_sys.is_mmap())
+  {
+    completion_callback cb;
 
-  completion_callback cb;
-  if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
-  {
-    cb.m_callback = thd_decrement_pending_ops;
-    log_write_up_to(lsn, flush, false, &cb);
+    if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
+    {
+      cb.m_callback= thd_decrement_pending_ops;
+      log_write_up_to(lsn, flush, &cb);
+      return;
+    }
   }
-  else
-  {
-    trx->op_info= "flushing log";
-    log_write_up_to(lsn, flush);
-    trx->op_info= "";
-  }
+  trx->op_info= "flushing log";
+  log_write_up_to(lsn, flush);
+  trx->op_info= "";
 }
 
 /** Process tables that were modified by the committing transaction. */
@@ -1499,11 +1509,16 @@ bool trx_t::commit_cleanup() noexcept
   ut_ad(!dict_operation);
   ut_ad(!was_dict_operation);
 
+  if (is_bulk_insert())
+    for (auto &t : mod_tables)
+      delete t.second.bulk_store;
+
   mutex.wr_lock();
   state= TRX_STATE_NOT_STARTED;
   *detailed_error= '\0';
   mod_tables.clear();
 
+  bulk_insert= TRX_NO_BULK;
   check_foreigns= true;
   check_unique_secondary= true;
   assert_freed();
@@ -1596,8 +1611,11 @@ void trx_t::commit() noexcept
   ut_d(was_dict_operation= dict_operation);
   dict_operation= false;
   commit_persist();
+#ifdef UNIV_DEBUG
+  if (!was_dict_operation)
+    for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped());
+#endif /* UNIV_DEBUG */
   ut_d(was_dict_operation= false);
-  ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
   commit_cleanup();
 }
 
@@ -1930,8 +1948,6 @@ trx_prepare(
 
 	lsn_t	lsn = trx_prepare_low(trx);
 
-	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
-
 	ut_a(trx->state == TRX_STATE_ACTIVE);
 	{
 		TMTrxGuard tg{*trx};
@@ -1955,8 +1971,7 @@ trx_prepare(
 
 		We must not be holding any mutexes or latches here. */
 		if (auto f = srv_flush_log_at_trx_commit) {
-			log_write_up_to(lsn, (f & 1) && srv_file_flush_method
-					!= SRV_NOSYNC);
+			log_write_up_to(lsn, (f & 1) && !my_disable_sync);
 		}
 
 		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)

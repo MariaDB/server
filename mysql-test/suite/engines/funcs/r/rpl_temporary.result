@@ -1,5 +1,6 @@
 SET sql_log_bin = 0;
 SET sql_log_bin = 1;
+set @@binlog_format="statement";
 include/master-slave.inc
 [connection master]
 connection slave;
@@ -34,18 +35,20 @@ connection master;
 DROP TABLE t1;
 connection slave;
 connection master;
+create user zedjzlcsjhd@localhost;
+GRANT ALL on test.* to zedjzlcsjhd@localhost;
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connect  con3,localhost,zedjzlcsjhd,,;
 connection con3;
 SET @save_select_limit=@@session.sql_select_limit;
 SET @@session.sql_select_limit=10, @@session.pseudo_thread_id=100;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation
 SELECT @@session.sql_select_limit = @save_select_limit;
 @@session.sql_select_limit = @save_select_limit
 1
 SET @@session.sql_select_limit=10, @@session.sql_log_bin=0;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the BINLOG ADMIN privilege(s) for this operation
 SELECT @@session.sql_select_limit = @save_select_limit;
 @@session.sql_select_limit = @save_select_limit
 1
@@ -83,6 +86,7 @@ f
 5
 7
 drop table t1, t2;
+drop user zedjzlcsjhd@localhost;
 use test;
 SET TIMESTAMP=1040323920;
 create table t1(f int);
@@ -174,7 +178,7 @@ FLUSH PRIVILEGES;
 GRANT USAGE   ON *.* TO user43748@127.0.0.1 IDENTIFIED BY 'meow';
 GRANT PROCESS ON *.* TO user43748@127.0.0.1;
 -- try to KILL system-thread as that non-privileged user (on slave).
-connect  cont43748,127.0.0.1,user43748,meow,test,$SLAVE_MYPORT,;
+connect  cont43748,127.0.0.1,user43748,meow,"*NO-ONE*",$SLAVE_MYPORT,;
 connection cont43748;
 SELECT id INTO @id FROM information_schema.processlist WHERE user='system user' LIMIT 1;
 KILL @id;

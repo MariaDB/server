@@ -191,7 +191,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   const uint16_t undo_header_offset= undo->hdr_offset;
   trx_ulogf_t *undo_header= undo_page->page.frame + undo_header_offset;
 
-  ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
   ut_ad(rseg->needs_purge > trx->id);
   ut_ad(rseg->last_page_no != FIL_NULL);
 
@@ -257,7 +256,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   if (trx->mysql_log_file_name && *trx->mysql_log_file_name)
     /* Update the latest binlog name and offset if log_bin=ON or this
     is a replica. */
-    trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
+    trx_rseg_update_binlog_offset(rseg_header, trx->mysql_log_file_name,
+                                  trx->mysql_log_offset, mtr);
 
   /* Add the log as the first in the history list */
 
@@ -273,8 +273,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
                 undo_page->page.frame, undo_state);
   mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page, undo_header + TRX_UNDO_TRX_NO,
                                  trx->rw_trx_hash_element->no);
-  mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, undo_header +
-                                 TRX_UNDO_NEEDS_PURGE, 1U);
 }
 
 /** Free an undo log segment.
@@ -485,6 +483,7 @@ loop:
     free_segment:
       ut_ad(rseg.curr_size >= seg_size);
       rseg.curr_size-= seg_size;
+      DBUG_EXECUTE_IF("undo_segment_leak", goto skip_purge_free;);
       trx_purge_free_segment(rseg_hdr, b, mtr);
       break;
     case TRX_UNDO_CACHED:
@@ -499,6 +498,7 @@ loop:
       if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
                                          rseg_hdr->page.frame)))
         trx_rseg_format_upgrade(rseg_hdr, &mtr);
+      DBUG_EXECUTE_IF("skip_cached_undo", goto skip_purge_free;);
       if (UNIV_LIKELY(undo != nullptr))
       {
         UT_LIST_REMOVE(rseg.undo_cached, undo);
@@ -512,7 +512,9 @@ loop:
       goto free_segment;
     }
   }
-
+#ifndef DBUG_OFF
+skip_purge_free:
+#endif /* !DBUG_OFF */
   hdr_addr= prev_hdr_addr;
 
   mtr.commit();
@@ -580,7 +582,7 @@ inline void trx_sys_t::undo_truncate_start(fil_space_t &space)
     }
 }
 
-inline fil_space_t *purge_sys_t::undo_truncate_try(ulint id, ulint size)
+inline fil_space_t *purge_sys_t::undo_truncate_try(uint32_t id, uint32_t size)
 {
   ut_ad(srv_is_undo_tablespace(id));
   fil_space_t *space= fil_space_get(id);
@@ -604,7 +606,7 @@ fil_space_t *purge_sys_t::truncating_tablespace()
   const uint32_t size=
     uint32_t(std::min(ulonglong{std::numeric_limits<uint32_t>::max()},
                       srv_max_undo_log_size >> srv_page_size_shift));
-  for (ulint i= truncate_undo_space.last, j= i;; )
+  for (uint32_t i= truncate_undo_space.last, j= i;; )
   {
     if (fil_space_t *s= undo_truncate_try(srv_undo_space_id_start + i, size))
       return s;
@@ -833,7 +835,6 @@ bool purge_sys_t::rseg_get_next_history_log()
     {
       const byte *log_hdr= undo_page->page.frame + prev_log_addr.boffset;
       trx_no= mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
-      ut_ad(mach_read_from_2(log_hdr + TRX_UNDO_NEEDS_PURGE) <= 1);
     }
 
     if (UNIV_LIKELY(trx_no != 0))
@@ -1057,7 +1058,7 @@ static void trx_purge_close_tables(purge_node_t *node, THD *thd) noexcept
   {
     dict_table_t *table= t.second.first;
     if (table != nullptr && table != reinterpret_cast<dict_table_t*>(-1))
-      dict_table_close(table);
+      table->release();
   }
 
   MDL_context *mdl_context= static_cast<MDL_context*>(thd_mdl_context(thd));
@@ -1189,7 +1190,10 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
 
   dict_table_t *table= trx_purge_table_open(id, mdl_context, mdl);
   if (table == reinterpret_cast<dict_table_t*>(-1))
+  {
+    VALGRIND_YIELD;
     goto retry;
+  }
 
   for (que_thr_t *thr= UT_LIST_GET_FIRST(purge_sys.query->thrs); thr;
        thr= UT_LIST_GET_NEXT(thrs, thr))
@@ -1204,7 +1208,8 @@ dict_table_t *purge_sys_t::close_and_reopen(table_id_t id, THD *thd,
         if (t.second.first == reinterpret_cast<dict_table_t*>(-1))
         {
           if (table)
-            dict_table_close(table, false, thd, *mdl);
+            dict_table_close(table, thd, *mdl);
+          VALGRIND_YIELD;
           goto retry;
         }
       }
@@ -1236,9 +1241,6 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
   MDL_context *const mdl_context=
     static_cast<MDL_context*>(thd_mdl_context(thd));
   ut_ad(mdl_context);
-
-  const size_t max_pages=
-    std::min(buf_pool.curr_size * 3 / 4, size_t{srv_purge_batch_size});
 
   while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown)
   {
@@ -1289,7 +1291,9 @@ static purge_sys_t::iterator trx_purge_attach_undo_recs(THD *thd,
       ut_ad(!table_node->in_progress);
     }
 
-    if (purge_sys.n_pages_handled() >= max_pages)
+    const size_t size{purge_sys.n_pages_handled()};
+    if (size >= size_t{srv_purge_batch_size} ||
+        size >= buf_pool.usable_size() * 3 / 4)
       break;
   }
 

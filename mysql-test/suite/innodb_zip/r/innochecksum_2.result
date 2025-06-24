@@ -92,5 +92,6 @@ skip-freed-pages                  FALSE
 Number of pages:#
 Number of pages:#
 [4]:# Print the version of innochecksum and exit
-innochecksum Ver #.#.## Restart the DB server
+innochecksum from #.#.#-MariaDB, client #.# for OS (ARCH)
+# Restart the DB server
 DROP TABLE t1;

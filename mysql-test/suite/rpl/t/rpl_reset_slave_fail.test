@@ -67,7 +67,7 @@ START SLAVE;
 # Disable "Warning  1612  Being purged log ./slave-relay-bin.0* was not found"
 # because it is different on Unix and Windows systems.
 --disable_warnings
-RESET SLAVE;
+--source include/reset_slave.inc
 --enable_warnings
 DROP TABLE t1;
 --replace_result $master_exec_file MASTER_LOG_FILE $master_exec_pos MASTER_LOG_POS

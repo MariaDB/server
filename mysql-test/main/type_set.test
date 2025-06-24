@@ -279,7 +279,7 @@ SET note_verbosity=unusable_keys;
 CREATE TABLE t1 (
   indexed_col SET('2001','2002','2003','2004','2005','2006','2007','2008','2009','2010'),
   KEY(indexed_col)
-);
+) CHARACTER SET latin1;
 DELIMITER $$;
 FOR i IN 1..10
 DO
@@ -292,7 +292,6 @@ DELIMITER ;$$
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
 
-
 --echo #
 --echo # MDEV-35864 UBSAN: "applying zero offset to null pointer" when using a Field_set with empty values
 --echo #
@@ -303,3 +302,36 @@ INSERT INTO t VALUES ('',CURRENT_TIME,'');
 UPDATE t SET c2=c2+5 WHERE c BETWEEN '' AND '';
 DROP TABLE t;
 SET sql_mode=DEFAULT;
+
+--echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+--echo #
+
+CREATE TABLE t1
+(
+  c_int INT,
+  c_set SET('1')
+);
+
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_set)  FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+--disable_view_protocol
+--disable_ps_protocol
+--enable_metadata
+SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+SELECT COALESCE(c_int, c_set)  FROM t1;
+--disable_metadata
+--enable_ps_protocol
+--enable_view_protocol
+
+DROP TABLE t1;
+
+--echo # End of 10.11 tests

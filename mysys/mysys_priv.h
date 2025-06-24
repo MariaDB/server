@@ -43,20 +43,17 @@ extern PSI_mutex_key key_LOCK_localtime_r;
 #endif /* !defined(HAVE_LOCALTIME_R) || !defined(HAVE_GMTIME_R) */
 
 extern PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
-  key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock, key_LOCK_alarm,
+  key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock,
   key_my_thread_var_mutex, key_THR_LOCK_charset, key_THR_LOCK_heap,
   key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
   key_THR_LOCK_open, key_THR_LOCK_threads, key_LOCK_uuid_generator,
   key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap, key_LOCK_timer;
 
-extern PSI_cond_key key_COND_alarm, key_COND_timer, key_IO_CACHE_SHARE_cond,
+extern PSI_cond_key key_COND_timer, key_IO_CACHE_SHARE_cond,
   key_IO_CACHE_SHARE_cond_writer, key_my_thread_var_suspend,
   key_THR_COND_threads;
 
-#ifdef USE_ALARM_THREAD
-extern PSI_thread_key key_thread_alarm;
-#endif /* USE_ALARM_THREAD */
 extern PSI_thread_key key_thread_timer;
 extern PSI_rwlock_key key_SAFEHASH_mutex;
 

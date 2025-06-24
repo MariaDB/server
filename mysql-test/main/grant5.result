@@ -261,10 +261,13 @@ connect  con1,localhost,foo,,db;
 create temporary table tmp (a int, key(a));
 show tables;
 Tables_in_db
+tmp
 show full tables;
 Tables_in_db	Table_type
+tmp	TEMPORARY TABLE
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tmp	MyISAM	10	Fixed	0	0	X	X	X	X	X	X	X	X	utf8mb4_uca1400_ai_ci	NULL			X	Y
 show index in tmp;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 tmp	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -276,7 +279,7 @@ Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 a	int(11)	NULL	YES	MUL	NULL		select,insert,update,references	
 # we don't expect to show temporary tables in information_schema.columns
 select * from information_schema.columns where table_schema='db';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
 disconnect con1;
 connect  con1,localhost,bar,,db;
 show full columns in tmp;
@@ -441,7 +444,7 @@ show create table db.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 delete from db.t1 returning *;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'a' in table 't1'
 disconnect con1;

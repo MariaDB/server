@@ -965,8 +965,8 @@ DROP TABLE t1, t2;
 [mysqltest1]
 port=1234
 EOF
---exec $MYSQL_MY_PRINT_DEFAULTS -c $MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1
---exec $MYSQL_MY_PRINT_DEFAULTS -e $MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1 mysqltest1
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-extra-file=$MYSQLTEST_VARDIR/tmp/tmp.cnf mysqltest1 mysqltest1
 --remove_file $MYSQLTEST_VARDIR/tmp/tmp.cnf
 
 --echo #
@@ -1381,6 +1381,7 @@ use test;
 
 # Create user without sufficient privs to perform the requested operation
 create user mysqltest_1@localhost;
+grant all on test.* to  mysqltest_1@localhost;
 create table t1(a int, b varchar(34));
 
 # To get consistent output, reset the master, starts over from first log
@@ -1601,6 +1602,8 @@ create database mysqldump_test_db;
 
 grant all privileges on mysqldump_test_db.*  to user1;
 grant all privileges on mysqldump_test_db.*  to user2;
+revoke SHOW CREATE ROUTINE on  mysqldump_test_db.* from user1;
+revoke SHOW CREATE ROUTINE on  mysqldump_test_db.* from user2;
 
 connect (user27293,localhost,user1,,mysqldump_test_db,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection user27293;
@@ -2333,6 +2336,7 @@ CREATE VIEW v2 AS SELECT * FROM t2;
 --echo
 
 GRANT ALL PRIVILEGES ON BUG52792.* TO user1;
+REVOKE SHOW CREATE ROUTINE ON BUG52792.* FROM user1;
 
 connect (conn_1, localhost, user1, , BUG52792, $MASTER_MYPORT, $MASTER_MYSOCK);
 connection conn_1;
@@ -2478,12 +2482,12 @@ INSERT INTO t2 VALUES (3), (4);
 SELECT * FROM t1;
 SELECT * FROM t2;
 
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ db_20772273
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=2 db_20772273
 --exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t1.sql
 --exec $MYSQL db_20772273 < $MYSQLTEST_VARDIR/tmp/t2.sql
 
 # Test mysqlimport with multiple threads
---exec $MYSQL_IMPORT --silent --use-threads=2 db_20772273 $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt
+--exec $MYSQL_IMPORT --silent --parallel=2 db_20772273 $MYSQLTEST_VARDIR/tmp/t1.txt $MYSQLTEST_VARDIR/tmp/t2.txt
 
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -2659,7 +2663,7 @@ DROP FUNCTION f;
 --exec $MYSQL -uroot test < $MYSQLTEST_VARDIR/test.dmp
 
 --echo #
---echo # Cleanup after succesful import.
+--echo # Cleanup after successful import.
 --echo #
 DROP VIEW v1;
 DROP FUNCTION f;
@@ -2699,6 +2703,8 @@ drop tables t2, t1;
 --echo # (work around for MDEV-20939)
 --echo #
 
+create user a;
+grant SELECT on test.* to  a;
 use mysql;
 
 --echo # check that all tables we need are not empty
@@ -2724,6 +2730,7 @@ let SEARCH_PATTERN=CREATE TABLE `proc`;
 source include/search_pattern_in_file.inc;
 
 --remove_file $MYSQLTEST_VARDIR/tmp/MDEV-20939.sql
+drop user a;
 use test;
 
 --echo # End of 10.1 tests
@@ -3035,3 +3042,107 @@ drop view `v'1"2`; # "'
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-16733 mysqldump --tab and --xml options are conflicting
+--echo #
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp 2>&1
+
+--echo # End of 10.11 tests
+
+#
+# MDEV-32589 parallel-mysqldump - test "too many connections"
+#
+--disable_cursor_protocol
+select @@max_connections into @save_max_connections;
+--enable_cursor_protocol
+set global max_connections=10;
+--replace_result mariadb-dump.exe mariadb-dump
+--error 2
+--exec $MYSQL_DUMP --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=20 mysql 2>&1
+#
+# MDEV-32589 test builtin 256 connections limit
+#
+set global max_connections=300;
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=280 mysql 2>&1
+set global max_connections=@save_max_connections;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+#
+# MDEV-33625 Add option --dir to mariadb-dump
+#
+
+# test --all-databases
+--mkdir $MYSQLTEST_VARDIR/tmp/dump
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --all-databases --parallel=10
+--echo # Content of dump directory
+--list_files $MYSQLTEST_VARDIR/tmp/dump
+--echo # Content of 'test' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/test
+--rmdir $MYSQLTEST_VARDIR/tmp/dump
+
+# test --databases
+create database db1;
+use db1;
+create table t1(i int);
+insert into t1 values(1);
+create database db2;
+use db2;
+create table t1(i int);
+insert into t1 values(2);
+--mkdir $MYSQLTEST_VARDIR/tmp/dump
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --databases db1 db2
+--echo # Content of dump directory
+--list_files $MYSQLTEST_VARDIR/tmp/dump
+--echo # Content of 'db1' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/db1
+--echo # Content of 'db2' dump subdirectory
+--list_files $MYSQLTEST_VARDIR/tmp/dump/db2
+drop table db1.t1;
+drop table db2.t1;
+# Test mysqlimport
+--exec $MYSQL db1 < $MYSQLTEST_VARDIR/tmp/dump/db1/t1.sql
+--exec $MYSQL db2 < $MYSQLTEST_VARDIR/tmp/dump/db2/t1.sql
+--exec $MYSQL_IMPORT --silent db1 $MYSQLTEST_VARDIR/tmp/dump/db1/t1.txt
+--exec $MYSQL_IMPORT --silent db2 $MYSQLTEST_VARDIR/tmp/dump/db2/t1.txt
+select * from db1.t1;
+select * from db2.t1;
+drop database db1;
+drop database db2;
+--rmdir $MYSQLTEST_VARDIR/tmp/dump
+
+#
+# --tab and --dir options are conflicting
+#
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp --tab=$MYSQLTEST_VARDIR/tmp mysql 2>&1
+
+# --dir can't create directory, because file with the same name already exists
+--write_file $MYSQLTEST_VARDIR/tmp/mysql
+EOF
+--replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 3
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp mysql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mysql
+
+# --dir is a file, not directory
+--write_file $MYSQLTEST_VARDIR/tmp/dump
+EOF
+--replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 3
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump mysql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/dump
+
+# --dir is not existent
+--replace_result mariadb-dump.exe mariadb-dump $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 3
+--exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/does_not_exist mysql 2>&1
+
+--source include/test_db_charset_restore.inc

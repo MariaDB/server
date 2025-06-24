@@ -122,7 +122,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `min_num` decimal(6,6) DEFAULT 0.000001
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1 ;
 set session sql_mode = 'IGNORE_SPACE';
 create table t1 ( min_num   dec(6,6)     default 0.000001);
@@ -130,14 +130,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `min_num` decimal(6,6) DEFAULT 0.000001
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1 ;
 create table t1 ( min_num   dec(6,6)     default .000001);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `min_num` decimal(6,6) DEFAULT 0.000001
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1 ;
 set @@SQL_MODE=NULL;
 ERROR 42000: Variable 'sql_mode' can't be set to the value of 'NULL'
@@ -148,7 +148,7 @@ f2 timestamp not null default current_timestamp on update current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "f1" int(11) NOT NULL AUTO_INCREMENT,
+  "f1" int(11) NOT NULL,
   "f2" timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY ("f1")
 )
@@ -159,13 +159,13 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`f1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE='';
 show local variables like 'SQL_MODE';
 Variable_name	Value
 sql_mode	
-CREATE TABLE t1 (p int not null auto_increment, a varchar(20), primary key(p));
+CREATE TABLE t1 (p int not null auto_increment, a varchar(20), primary key(p)) CHARSET=latin1;
 INSERT t1 (a) VALUES 
 ('\\'),
 ('\n'),
@@ -288,7 +288,7 @@ SET @@SQL_MODE='NO_BACKSLASH_ESCAPES';
 show local variables like 'SQL_MODE';
 Variable_name	Value
 sql_mode	NO_BACKSLASH_ESCAPES
-CREATE TABLE t1 (p int not null auto_increment, a varchar(20), primary key(p));
+CREATE TABLE t1 (p int not null auto_increment, a varchar(20), primary key(p)) CHARSET=latin1;
 INSERT t1 (a) VALUES 
 ('\\'),
 ('\n'),
@@ -428,23 +428,23 @@ create function `foo` () returns int return 5;
 show create function `foo`;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 foo		CREATE DEFINER=`root`@`localhost` FUNCTION `foo`() RETURNS int(11)
-return 5	latin1	latin1_swedish_ci	latin1_swedish_ci
+return 5	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SET @@SQL_MODE='ANSI_QUOTES';
 show create function `foo`;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 foo		CREATE DEFINER=`root`@`localhost` FUNCTION `foo`() RETURNS int(11)
-return 5	latin1	latin1_swedish_ci	latin1_swedish_ci
+return 5	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop function `foo`;
 create function `foo` () returns int return 5;
 show create function `foo`;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 foo	ANSI_QUOTES	CREATE DEFINER="root"@"localhost" FUNCTION "foo"() RETURNS int(11)
-return 5	latin1	latin1_swedish_ci	latin1_swedish_ci
+return 5	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SET @@SQL_MODE='';
 show create function `foo`;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 foo	ANSI_QUOTES	CREATE DEFINER="root"@"localhost" FUNCTION "foo"() RETURNS int(11)
-return 5	latin1	latin1_swedish_ci	latin1_swedish_ci
+return 5	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop function `foo`;
 SET @@SQL_MODE='';
 create table t1 (a int);
@@ -505,7 +505,7 @@ connection default;
 set @OLD_SQL_MODE=@@SESSION.SQL_MODE;
 set session sql_mode='PAD_CHAR_TO_FULL_LENGTH';
 flush privileges;
-connect  user_32753,localhost,mysqltest_32753,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  user_32753,localhost,mysqltest_32753,,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
 select current_user();
 current_user()
 mysqltest_32753@localhost
@@ -535,7 +535,7 @@ SET SESSION SQL_MODE = @OLD_SQL_MODE;
 DROP USER 'user_no_PCTFL'@'localhost';
 FLUSH PRIVILEGES;
 SELECT * FROM mysql.db WHERE Host = 'localhost' AND User LIKE 'user_%PCTFL';
-Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv
+Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv	Show_create_routine_priv
 SELECT * FROM mysql.tables_priv WHERE Host = 'localhost' AND User LIKE 'user_%PCTFL';
 Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
 SELECT * FROM mysql.columns_priv WHERE Host = 'localhost' AND User LIKE 'user_%PCTFL';

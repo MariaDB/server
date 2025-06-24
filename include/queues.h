@@ -77,7 +77,7 @@ uchar *queue_remove(QUEUE *queue,uint idx);
 void queue_replace(QUEUE *queue,uint idx);
 
 #define queue_remove_all(queue) { (queue)->elements= 0; }
-#define queue_is_full(queue) (queue->elements == queue->max_elements)
+#define queue_is_full(queue) ((queue)->elements == (queue)->max_elements)
 void _downheap(QUEUE *queue, uint idx);
 void queue_fix(QUEUE *queue);
 #define is_queue_inited(queue) ((queue)->root != 0)

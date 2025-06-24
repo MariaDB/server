@@ -1082,6 +1082,43 @@ if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
     WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
 fi
 
+# Reads incoming data from STDIN and sets the variables
+#
+# Globals:
+#   WSREP_SST_OPT_USER (sets this variable)
+#   WSREP_SST_OPT_PSWD (sets this variable)
+#
+# Parameters:
+#   None
+#
+read_variables_from_stdin()
+{
+    while read line; do
+        local key="${line%%=*}"
+        local value=""
+        [ "$key" != "$line" ] && value="${line#*=}"
+        case "$key" in
+            'sst_user')
+                WSREP_SST_OPT_USER="$value"
+                ;;
+            'sst_password')
+                WSREP_SST_OPT_PSWD="$value"
+                ;;
+            'sst_remote_user')
+                WSREP_SST_OPT_REMOTE_USER="$value"
+                ;;
+            'sst_remote_password')
+                WSREP_SST_OPT_REMOTE_PSWD="$value"
+                ;;
+            *)
+                wsrep_log_warning "Unrecognized input: $line"
+        esac
+    done
+    return 0
+}
+
+[ "$WSREP_SST_OPT_ROLE" = "donor" ] && read_variables_from_stdin || :
+
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
 readonly WSREP_SST_OPT_AUTH
@@ -1405,7 +1442,7 @@ verify_ca_matches_cert()
         wsrep_log_info "run: \"$OPENSSL_BINARY\" verify -verbose${ca:+ -CAfile \"$ca\"}${cap:+ -CApath \"$cap\"} \"$cert\""
         wsrep_log_info "output: $errmsg"
         wsrep_log_error "******** FATAL ERROR ********************************************"
-        wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
+        wsrep_log_error "* The certificate and CA (certificate authority) do not match.  *"
         wsrep_log_error "* It does not appear that the certificate was issued by the CA. *"
         wsrep_log_error "* Please check your certificate and CA files.                   *"
         wsrep_log_error "*****************************************************************"

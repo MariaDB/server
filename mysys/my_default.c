@@ -318,6 +318,9 @@ int get_defaults_options(char **argv)
   }
 
   if (! my_defaults_group_suffix)
+    my_defaults_group_suffix= getenv("MARIADB_GROUP_SUFFIX");
+
+  if (! my_defaults_group_suffix)
     my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
 
   if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)
@@ -466,7 +469,7 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   if (*argc)
     memcpy(res + args.elements, *argv, *argc * sizeof(char*));
 
-  (*argc)+= args.elements;
+  (*argc)+= (int)args.elements;
   *argv= res;
   (*argv)[*argc]= 0;
   *(MEM_ROOT*) ptr= alloc;			/* Save alloc root for free */
@@ -526,7 +529,7 @@ static int search_default_file(struct handle_option_ctx *ctx, const char *dir,
    get_argument()
    keyword		Include directive keyword
    kwlen		Length of keyword
-   ptr			Pointer to the keword in the line under process
+   ptr			Pointer to the keyword in the line under process
    line			line number
 
   RETURN
@@ -602,7 +605,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
   MYSQL_FILE *fp;
   uint line=0;
   enum { NONE, PARSE, SKIP } found_group= NONE;
-  uint i;
+  size_t i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
 
@@ -705,7 +708,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
         if (!(search_dir= my_dir(ptr, MYF(MY_WME | MY_WANT_SORT))))
           goto err;
 
-        for (i= 0; i < (uint) search_dir->number_of_files; i++)
+        for (i= 0; i < search_dir->number_of_files; i++)
         {
           search_file= search_dir->dir_entry + i;
           ext= fn_ext2(search_file->name);
@@ -857,7 +860,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
 static char *remove_end_comment(char *ptr)
 {
   char quote= 0;	/* we are inside quote marks */
-  char escape= 0;	/* symbol is protected by escape chagacter */
+  char escape= 0;	/* symbol is protected by escape character */
 
   for (; *ptr; ptr++)
   {

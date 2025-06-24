@@ -38,6 +38,8 @@ id
 ==== Clean up ====
 stop slave sql_thread;
 include/cleanup_fake_relay_log.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 DROP TABLE t1, t2;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;

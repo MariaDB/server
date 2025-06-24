@@ -67,20 +67,21 @@ enum privilege_t: unsigned long long
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
-  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.8
+  SLAVE_MONITOR_ACL     = (1ULL << 38), // Added in 10.5.8
+  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39)  // added in 11.3.0
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
     - Add a new LAST_version_ACL
     - Add a new ALL_KNOWN_ACL_version
     - Change ALL_KNOWN_ACL to ALL_KNOWN_ACL_version
-    - Change GLOBAL_ACLS if needed
+    - Change GLOBAL_ACLS, DB_ACLS, TABLE_ACLS, PROC_ACLS if needed
     - Change SUPER_ADDED_SINCE_USER_TABLE_ACL if needed
 
     In other files:
     - static struct show_privileges_st sys_privileges[]
     - static const char *command_array[] and static uint command_lengths[]
-    - mysql_system_tables.sql and mysql_system_tables_fix.sql
+    - mariadb_system_tables.sql and mariadb_system_tables_fix.sql
     - acl_init() or whatever - to define behaviour for old privilege tables
     - Update User_table_json::get_access()
     - sql_yacc.yy - for GRANT/REVOKE to work
@@ -103,9 +104,10 @@ constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
 constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
+constexpr privilege_t LAST_110300_ACL= SHOW_CREATE_ROUTINE_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_100508_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_110300_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -124,6 +126,9 @@ constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
 // unfortunately, SLAVE_MONITOR_ACL was added in 10.5.9, but also in 10.5.8-5
 // let's stay compatible with that branch too.
 constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
+
+// A combination of all bits defined in 11.3.0
+constexpr privilege_t ALL_KNOWN_ACL_110300= ALL_KNOWN_BITS(LAST_110300_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
@@ -208,7 +213,7 @@ static inline constexpr privilege_t operator|(privilege_t a, privilege_t b)
 }
 
 
-// Dyadyc bitwise assignment operators
+// Dyadic bitwise assignment operators
 static inline privilege_t& operator&=(privilege_t &a, privilege_t b)
 {
   return a= a & b;
@@ -224,21 +229,24 @@ static inline privilege_t& operator|=(privilege_t &a, privilege_t b)
   return a= a | b;
 }
 
+/*
+  A combination of all privileges that SUPER used to allow before 10.11.0
+*/
+constexpr privilege_t ALLOWED_BY_SUPER_BEFORE_101100= READ_ONLY_ADMIN_ACL;
 
 /*
-  A combination of all SUPER privileges added since the old user table format.
-  These privileges are automatically added when upgrading from the
-  old format mysql.user table if a user has the SUPER privilege.
+  A combination of all privileges that SUPER used to allow before 11.0.0
 */
-constexpr privilege_t  GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS=
+constexpr privilege_t ALLOWED_BY_SUPER_BEFORE_110000=
   SET_USER_ACL |
   FEDERATED_ADMIN_ACL |
   CONNECTION_ADMIN_ACL |
-  READ_ONLY_ADMIN_ACL |
   REPL_SLAVE_ADMIN_ACL |
   BINLOG_ADMIN_ACL |
-  BINLOG_REPLAY_ACL;
-
+  BINLOG_REPLAY_ACL |
+  SLAVE_MONITOR_ACL |
+  BINLOG_MONITOR_ACL |
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t COL_DML_ACLS=
   SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL;
@@ -258,9 +266,14 @@ constexpr privilege_t COL_ACLS=
 constexpr privilege_t PROC_DDL_ACLS=
   CREATE_PROC_ACL | ALTER_PROC_ACL;
 
-constexpr privilege_t SHOW_PROC_ACLS=
+constexpr privilege_t SHOW_PROC_WITHOUT_DEFINITION_ACLS=
   PROC_DDL_ACLS | EXECUTE_ACL;
 
+/*
+  When changing this, don't forget to update tables_priv
+  at scripts/mariadb_system_tables.sql, scripts/mariadb_system_tables_fix.sql
+  and scripts/sys_schema/i_s/table_privileges.sql
+*/
 constexpr privilege_t TABLE_ACLS=
   COL_DML_ACLS | ALL_TABLE_DDL_ACLS | VIEW_ACLS |
   GRANT_ACL | REFERENCES_ACL | 
@@ -268,18 +281,16 @@ constexpr privilege_t TABLE_ACLS=
 
 constexpr privilege_t DB_ACLS=
    TABLE_ACLS | PROC_DDL_ACLS | EXECUTE_ACL |
-   CREATE_TMP_ACL | LOCK_TABLES_ACL | EVENT_ACL;
+   CREATE_TMP_ACL | LOCK_TABLES_ACL | EVENT_ACL | SHOW_CREATE_ROUTINE_ACL;
 
 constexpr privilege_t PROC_ACLS=
-  ALTER_PROC_ACL | EXECUTE_ACL | GRANT_ACL;
+  ALTER_PROC_ACL | EXECUTE_ACL | GRANT_ACL | SHOW_CREATE_ROUTINE_ACL;
 
 constexpr privilege_t GLOBAL_ACLS=
-  DB_ACLS | SHOW_DB_ACL |
-  CREATE_USER_ACL | CREATE_TABLESPACE_ACL |
+  DB_ACLS | SHOW_DB_ACL | CREATE_USER_ACL | CREATE_TABLESPACE_ACL |
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
-  REPL_SLAVE_ACL | BINLOG_MONITOR_ACL |
-  GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS |
-  REPL_MASTER_ADMIN_ACL | SLAVE_MONITOR_ACL;
+  REPL_SLAVE_ACL |
+  ALLOWED_BY_SUPER_BEFORE_101100 | ALLOWED_BY_SUPER_BEFORE_110000;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
   ALTER_PROC_ACL | EXECUTE_ACL;
@@ -303,7 +314,7 @@ constexpr privilege_t PRIV_LOCK_TABLES= SELECT_ACL | LOCK_TABLES_ACL;
     CREATE DEFINER=xxx {TRIGGER|VIEW|FUNCTION|PROCEDURE}
   Was SUPER prior to 10.5.2
 */
-constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL;
 /*
   If a VIEW has a `definer=invoker@host` clause and
   the specified definer does not exists, then
@@ -319,7 +330,9 @@ constexpr privilege_t PRIV_DEFINER_CLAUSE= SET_USER_ACL | SUPER_ACL;
 
   Was SUPER prior to 10.5.2
 */
-constexpr privilege_t PRIV_REVEAL_MISSING_DEFINER= SET_USER_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_REVEAL_MISSING_DEFINER= SET_USER_ACL;
+
+constexpr privilege_t PRIV_SUDO_CHANGE_USER= SET_USER_ACL;
 
 /* Actions that require only the SUPER privilege */
 constexpr privilege_t PRIV_DES_DECRYPT_ONE_ARG= SUPER_ACL;
@@ -330,119 +343,129 @@ constexpr privilege_t PRIV_SET_RESTRICTED_SESSION_SYSTEM_VARIABLE= SUPER_ACL;
 
 /* The following variables respected only SUPER_ACL prior to 10.5.2 */
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_FORMAT=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_ANNOTATE_ROW_EVENTS=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_BINLOG_ROW_IMAGE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_VAR_SQL_LOG_BIN=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_CACHE_SIZE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_FILE_CACHE_SIZE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_STMT_CACHE_SIZE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_COMMIT_WAIT_COUNT=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_COMMIT_WAIT_USEC=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_ROW_METADATA=
+  BINLOG_ADMIN_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_LEGACY_EVENT_POS=
   SUPER_ACL | BINLOG_ADMIN_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX=
+  BINLOG_ADMIN_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_PAGE_SIZE=
+  BINLOG_ADMIN_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_GTID_INDEX_SPAN_MIN=
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_EXPIRE_LOGS_DAYS=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_COMPRESS=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_COMPRESS_MIN_LEN=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_LOG_BIN_TRUST_FUNCTION_CREATORS=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_CACHE_SIZE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_STMT_CACHE_SIZE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_SIZE=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
+  BINLOG_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_BINLOG=
-  SUPER_ACL | BINLOG_ADMIN_ACL;
-
+  BINLOG_ADMIN_ACL;
 
 
 /* Privileges related to --read-only */
 // Was super prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_READ_ONLY= READ_ONLY_ADMIN_ACL;
 // Was super prior to 10.5.2
-constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY=
-  READ_ONLY_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_READ_ONLY= READ_ONLY_ADMIN_ACL;
 
 /*
   Privileges related to connection handling.
 */
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_INIT_CONNECT= CONNECTION_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_INIT_CONNECT= CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_MAX_USER_CONNECTIONS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_MAX_USER_CONNECTIONS= CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_MAX_CONNECTIONS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_MAX_CONNECTIONS= CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_IGNORE_MAX_PASSWORD_ERRORS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_IGNORE_MAX_PASSWORD_ERRORS= CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_KILL_OTHER_USER_PROCESS= CONNECTION_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_KILL_OTHER_USER_PROCESS= CONNECTION_ADMIN_ACL;
 
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_CONNECT_TIMEOUT=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_DISCONNECT_ON_EXPIRED_PASSWORD=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_EXTRA_MAX_CONNECTIONS=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_INIT_CONNECT=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_CONNECTIONS=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_CONNECT_ERRORS=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_PROXY_PROTOCOL_NETWORKS=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SECURE_AUTH=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLOW_LAUNCH_TIME=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL=
-  CONNECTION_ADMIN_ACL | SUPER_ACL;
+  CONNECTION_ADMIN_ACL;
 
 
 /*
@@ -456,20 +479,23 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL=
   Was SUPER_ACL | REPL_CLIENT_ACL prior to 10.5.2
   REPL_CLIENT_ACL was renamed to BINLOG_MONITOR_ACL.
 */
-constexpr privilege_t PRIV_STMT_SHOW_BINLOG_STATUS= BINLOG_MONITOR_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_BINLOG_STATUS= BINLOG_MONITOR_ACL;
 
 /*
   Was SUPER_ACL | REPL_CLIENT_ACL prior to 10.5.2
   REPL_CLIENT_ACL was renamed to BINLOG_MONITOR_ACL.
 */
-constexpr privilege_t PRIV_STMT_SHOW_BINARY_LOGS= BINLOG_MONITOR_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_BINARY_LOGS= BINLOG_MONITOR_ACL;
 
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_PURGE_BINLOG= BINLOG_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_PURGE_BINLOG= BINLOG_ADMIN_ACL;
 
 // Was REPL_SLAVE_ACL prior to 10.5.2
 constexpr privilege_t PRIV_STMT_SHOW_BINLOG_EVENTS= BINLOG_MONITOR_ACL;
 
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DO_DB = BINLOG_ADMIN_ACL | SUPER_ACL;
+
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_IGNORE_DB = BINLOG_ADMIN_ACL | SUPER_ACL;
 
 /*
   Privileges for replication related statements and commands
@@ -485,39 +511,39 @@ constexpr privilege_t PRIV_STMT_SHOW_SLAVE_HOSTS= REPL_MASTER_ADMIN_ACL;
   Where SUPER prior to 10.5.2
 */
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_ENABLED=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TIMEOUT=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_TRACE_LEVEL=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_POINT=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MASTER_VERIFY_CHECKSUM=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_BINLOG_STATE=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SERVER_ID=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_DOMAIN_ID=
-  REPL_MASTER_ADMIN_ACL | SUPER_ACL;
+  REPL_MASTER_ADMIN_ACL;
 
 
 /* Privileges for statements that are executed on the slave */
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_START_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_START_SLAVE= REPL_SLAVE_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_STOP_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_STOP_SLAVE= REPL_SLAVE_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_CHANGE_MASTER= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_CHANGE_MASTER= REPL_SLAVE_ADMIN_ACL;
 // Was (SUPER_ACL | REPL_CLIENT_ACL) prior to 10.5.2
 // Was (SUPER_ACL | REPL_SLAVE_ADMIN_ACL) from 10.5.2 to 10.5.7
-constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= SLAVE_MONITOR_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= SLAVE_MONITOR_ACL;
 // Was REPL_SLAVE_ACL prior to 10.5.2
 // Was REPL_SLAVE_ADMIN_ACL from 10.5.2 to 10.5.7
 constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= SLAVE_MONITOR_ACL;
@@ -526,114 +552,121 @@ constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= SLAVE_MONITOR_ACL;
   Privileges related to binlog replying.
   Were SUPER_ACL prior to 10.5.2
 */
-constexpr privilege_t PRIV_STMT_BINLOG= BINLOG_REPLAY_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_BINLOG= BINLOG_REPLAY_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_GTID_SEQ_NO=
-  BINLOG_REPLAY_ACL | SUPER_ACL;
+  BINLOG_REPLAY_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID=
-  BINLOG_REPLAY_ACL | SUPER_ACL;
+  BINLOG_REPLAY_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_SERVER_ID=
-  BINLOG_REPLAY_ACL | SUPER_ACL;
+  BINLOG_REPLAY_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_SESSION_VAR_GTID_DOMAIN_ID=
-  BINLOG_REPLAY_ACL | SUPER_ACL;
+  BINLOG_REPLAY_ACL;
 
 /*
   Privileges for slave related global variables.
   Were SUPER prior to 10.5.2.
 */
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_EVENTS_MARKED_FOR_SKIP=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_REWRITE_DB=
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_DB=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_DO_TABLE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_DB=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_IGNORE_TABLE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_WILD_DO_TABLE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_REPLICATE_WILD_IGNORE_TABLE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_READ_BINLOG_SPEED_LIMIT=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_DDL_EXEC_MODE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_DOMAIN_PARALLEL_THREADS=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_EXEC_MODE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_ALLOWED_PACKET=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_MAX_STATEMENT_TIME=
+  REPL_SLAVE_ADMIN_ACL;
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_ABORT_BLOCKING_TIMEOUT=
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_NET_TIMEOUT=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MAX_QUEUED=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MODE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_THREADS=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_WORKERS=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_RUN_TRIGGERS_FOR_RBR=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_SQL_VERIFY_CHECKSUM=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TRANSACTION_RETRY_INTERVAL=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_INIT_SLAVE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_ENABLED=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_DELAY_MASTER=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_KILL_CONN_TIMEOUT=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RELAY_LOG_PURGE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_RELAY_LOG_RECOVERY=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_MASTER_INFO=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_RELAY_LOG=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_RELAY_LOG_INFO=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_CLEANUP_BATCH_SIZE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_IGNORE_DUPLICATES=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_POS_AUTO_ENGINES=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_SLAVE_POS=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_STRICT_MODE=
-  REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+  REPL_SLAVE_ADMIN_ACL;
 
 
 /* Privileges for federated database related statements */
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_CREATE_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_CREATE_SERVER= FEDERATED_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_ALTER_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_ALTER_SERVER= FEDERATED_ADMIN_ACL;
 // Was SUPER_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_DROP_SERVER= FEDERATED_ADMIN_ACL | SUPER_ACL;
+constexpr privilege_t PRIV_STMT_DROP_SERVER= FEDERATED_ADMIN_ACL;
 
 
 /* Privileges related to processes */
 constexpr privilege_t PRIV_COM_PROCESS_INFO= PROCESS_ACL;
+// This privilege applies both for SHOW EXPLAIN and SHOW ANALYZE
 constexpr privilege_t PRIV_STMT_SHOW_EXPLAIN= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_STATUS= PROCESS_ACL;
 constexpr privilege_t PRIV_STMT_SHOW_ENGINE_MUTEX= PROCESS_ACL;
@@ -653,6 +686,7 @@ constexpr privilege_t DB_CHUNK3 (VIEW_ACLS | PROC_DDL_ACLS);
 constexpr privilege_t DB_CHUNK4 (EXECUTE_ACL);
 constexpr privilege_t DB_CHUNK5 (EVENT_ACL | TRIGGER_ACL);
 constexpr privilege_t DB_CHUNK6 (DELETE_HISTORY_ACL);
+constexpr privilege_t DB_CHUNK7 (SHOW_CREATE_ROUTINE_ACL);
 
 
 static inline privilege_t fix_rights_for_db(privilege_t access)
@@ -665,7 +699,8 @@ static inline privilege_t fix_rights_for_db(privilege_t access)
             ((A << 9) & DB_CHUNK3) |
             ((A << 2) & DB_CHUNK4) |
             ((A << 9) & DB_CHUNK5) |
-            ((A << 10) & DB_CHUNK6));
+            ((A << 10) & DB_CHUNK6) |
+            ((A << 19) & DB_CHUNK7));
 }
 
 static inline privilege_t get_rights_for_db(privilege_t access)
@@ -678,7 +713,8 @@ static inline privilege_t get_rights_for_db(privilege_t access)
            ((A & DB_CHUNK3) >> 9) |
            ((A & DB_CHUNK4) >> 2) |
            ((A & DB_CHUNK5) >> 9) |
-           ((A & DB_CHUNK6) >> 10));
+           ((A & DB_CHUNK6) >> 10) |
+           ((A & DB_CHUNK7) >> 19));
 }
 
 
@@ -732,9 +768,10 @@ static inline privilege_t fix_rights_for_procedure(privilege_t access)
 {
   ulonglong A(access);
   return static_cast<privilege_t>
-           (((A << 18) & EXECUTE_ACL)    |
-            ((A << 23) & ALTER_PROC_ACL) |
-            ((A << 8) & GRANT_ACL));
+           (((A << 35) & SHOW_CREATE_ROUTINE_ACL) |
+            ((A << 18) & EXECUTE_ACL)             |
+            ((A << 23) & ALTER_PROC_ACL)          |
+            ((A << 8)  & GRANT_ACL));
 }
 
 
@@ -742,9 +779,10 @@ static inline privilege_t get_rights_for_procedure(privilege_t access)
 {
   ulonglong A(access);
   return static_cast<privilege_t>
-           (((A & EXECUTE_ACL)    >> 18) |
-            ((A & ALTER_PROC_ACL) >> 23) |
-            ((A & GRANT_ACL) >> 8));
+           (((A & SHOW_CREATE_ROUTINE_ACL) >> 35) |
+            ((A & EXECUTE_ACL)             >> 18) |
+            ((A & ALTER_PROC_ACL)          >> 23) |
+            ((A & GRANT_ACL)               >> 8));
 }
 
 

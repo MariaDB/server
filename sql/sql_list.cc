@@ -13,22 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_list.h"
 
 list_node end_of_list;
-
-void free_list(I_List <i_string_pair> *list)
-{
-  i_string_pair *tmp;
-  while ((tmp= list->get()))
-    delete tmp;
-}
 
 
 void free_list(I_List <i_string> *list)

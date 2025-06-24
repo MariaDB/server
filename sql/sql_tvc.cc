@@ -30,7 +30,7 @@
     Walk through all VALUES items.
   @param
      @param processor      - the processor to call for each Item
-     @param walk_qubquery  - if should dive into subquery items
+     @param walk_subquery  - if should dive into subquery items
      @param argument       - the argument to pass recursively
   @retval
     true   on error
@@ -118,8 +118,8 @@ bool fix_fields_for_tvc(THD *thd, List_iterator_fast<List_item> &li)
     types and aggregates them with the previous ones stored in holders. If
     list_a is the first one in the list of lists its elements types are put in
     holders. The errors can be reported when count of list_a elements is
-    different from the first_list_el_count. Also error can be reported whe
-    n aggregation can't be made.
+    different from the first_list_el_count. Also error can be reported when
+    aggregation can't be made.
 
   @retval
     true    if an error was reported
@@ -428,7 +428,9 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_ENTER("table_value_constr::exec");
   List_iterator_fast<List_item> li(lists_of_values);
   List_item *elem;
+  THD *cur_thd= sl->parent_lex->thd;
   ha_rows send_records= 0;
+  int rc=0;
   
   if (select_options & SELECT_DESCRIBE)
     DBUG_RETURN(false);
@@ -444,12 +446,10 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
-    THD *cur_thd= sl->parent_lex->thd;
+    cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
-    int rc=
-      result->send_data_with_check(*elem, sl->master_unit(), send_records);
-    cur_thd->get_stmt_da()->inc_current_row_for_warning();
+    rc= result->send_data_with_check(*elem, sl->master_unit(), send_records);
     if (!rc)
       send_records++;
     else if (rc > 0)
@@ -711,12 +711,12 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
     goto err;
   wrapper_sl->select_number= ++thd->lex->stmt_lex->current_select_number;
   wrapper_sl->parent_lex= lex; /* Used in init_query. */
-  wrapper_sl->init_query();
-  wrapper_sl->init_select();
+  wrapper_sl->make_empty_select();
   wrapper_sl->is_tvc_wrapper= true;
 
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;
+  wrapper_sl->distinct=      tvc_sl->distinct;
   wrapper_sl->set_linkage(tvc_sl->get_linkage());
   wrapper_sl->exclude_from_table_unique_test=
                                  tvc_sl->exclude_from_table_unique_test;
@@ -744,6 +744,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   derived_unit->init_query();
   derived_unit->thd= thd;
   derived_unit->include_down(wrapper_sl);
+  derived_unit->distinct= tvc_sl->distinct;
 
   /*
     Attach the select used of TVC as the only slave to the unit for
@@ -960,8 +961,10 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!length  || length > tmp_table_max_key_length() ||
       args[0]->cols() > tmp_table_max_key_parts())
   {
-    trace_conv.add("done", false);
-    trace_conv.add("reason", "key is too long");
+    if (unlikely(trace_conv.trace_started()))
+      trace_conv.
+        add("done", false).
+        add("reason", "key is too long");
     return this;
   }
 
@@ -969,15 +972,19 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   {
     if (!args[i]->const_item())
     {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "non-constant element in the IN-list");
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "non-constant element in the IN-list");
       return this;
     }
 
     if (cmp_row_types(args[i], args[0]))
     {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "type mismatch");
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "type mismatch");
       return this;
     }
   }
@@ -991,7 +998,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   */
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   /* Create item list as '*' for the subquery SQ */
   Item *item;
   SELECT_LEX *sq_select; // select for IN subquery;
@@ -1009,10 +1016,12 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
+  derived_unit->distinct= 1;
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);
+  tvc_select->distinct= 1;
 
   /* Create TVC used in the transformation */
   if (create_value_list_for_tvc(thd, &values))
@@ -1045,7 +1054,9 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   sq_select->add_where_field(derived_unit->first_select());
   sq_select->context.table_list= sq_select->table_list.first;
   sq_select->context.first_name_resolution_table= sq_select->table_list.first;
-  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  sq_select->table_list.first->derived_type= (DTYPE_TABLE |
+                                              DTYPE_MATERIALIZE |
+                                              DTYPE_IN_PREDICATE);
   lex->derived_tables|= DERIVED_SUBQUERY;
 
   sq_select->where= 0;
@@ -1160,7 +1171,7 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   @details
     For each IN predicate from AND parts of the WHERE condition and/or
     ON expressions of the SELECT for this join the method performs
-    the intransformation into an equivalent IN sunquery if it's needed.
+    the intransformation into an equivalent IN subquery if it's needed.
 
   @retval
     false     always

@@ -1,0 +1,141 @@
+#
+# MDEV-31496 Make optimizer handle UCASE(varchar_col)=...
+#
+--source include/have_sequence.inc
+
+set
+  @tmp_switch_sarg_casefold=@@optimizer_switch,
+  optimizer_switch='sargable_casefold=on';
+
+let $collation=utf8mb3_general_ci;
+source include/sargable_casefold.inc;
+
+--echo # must not be rewritten:
+explain select * from t1 where ucase(col1 collate utf8mb3_bin)='a-3';
+
+--echo # Will not do the rewrite due to collation mismatch:
+explain select * from t1 where ucase(col1)=_utf8mb3'abc' COLLATE utf8mb3_bin;
+drop table t1;
+
+let $collation=utf8mb4_general_ci;
+source include/sargable_casefold.inc;
+
+--echo # must not be rewritten:
+explain select * from t1 where ucase(col1 collate utf8mb4_bin)='a-3';
+
+--echo # Will not do the rewrite due to collation mismatch:
+explain select * from t1 where ucase(col1)=_utf8mb4'abc' COLLATE utf8mb4_bin;
+
+--echo #
+--echo # Check if optimizer_switch turns the rewrite off:
+--echo #
+
+set 
+  @save_os=@@optimizer_switch, 
+  optimizer_switch='sargable_casefold=off';
+explain select * from t1 where upper(col1)='A-3';
+explain select * from t1 where ucase(col1)='a-3';
+
+set optimizer_switch=@save_os;
+
+--echo # The following will not do the rewrite because the comparison
+--echo # is done as DOUBLEs. Come to think of it, it won't harm to do
+--echo # the rewrite but it is outside of the scope of this patch:
+explain select * from t1 where ucase(col1)=123.456;
+
+select
+  coercibility(upper(col1))
+from t1 limit 1;
+select coercibility(_utf8mb3'abc' COLLATE utf8mb3_bin);
+
+
+--echo # This is transformed too even if it doesn't create any new
+--echo # [potential] access paths:
+explain format=json select * from t1 where upper(col1)=upper(col2);
+
+
+--echo #
+--echo # Check if ref access works
+--echo #
+create table t2 (
+  a varchar(32),
+  non_key varchar(32),
+  key(a)
+) collate utf8mb4_general_ci;
+
+insert into t2
+select
+  concat('A-', seq),
+  concat('A-', seq)
+from seq_1_to_10;
+
+--echo # Must use ref access for t1:
+explain select * from t1, t2 where upper(t1.col1)= t2.non_key;
+
+# Check the interplay with equality propagation
+
+create table t3 (
+  a varchar(32),
+  b varchar(32),
+  key(a),
+  key(b)
+) collate utf8mb3_general_ci;
+insert into t3 values ('abc','ABC'), ('xyz','XYZ');
+
+explain extended
+select a from t3 ignore index(a) where a=b and upper(b)='ABC';
+
+--echo #
+--echo # Check that rewrite isn't applied for non-applicable collations
+--echo #
+create table t4 (
+  col1 varchar(32) collate utf8mb3_bin,
+  col2 varchar(32) collate utf8mb3_czech_ci,
+  col3 varchar(32) collate latin1_bin,
+  key(col1),
+  key(col2),
+  key(col3)
+);
+
+insert into t4
+select 
+  concat('A-', seq),
+  concat('A-', seq),
+  concat('A-', seq)
+from seq_1_to_100;
+
+analyze table t4 persistent for all;
+
+--echo # None should use ref access:
+explain select * from t4 where upper(col1)='A-3';
+explain select * from t4 where upper(col2)='a-3';
+explain select * from t4 where upper(col3)='a-3';
+
+--echo #
+--echo # Check that rewrite works for UPPER(col) IN (const-list)
+--echo #
+set
+  @tmp_ot= @@optimizer_trace,
+  optimizer_trace=1;
+
+--echo # must use range:
+explain
+select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
+select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
+
+--echo # Will not use the rewrite:
+explain
+select * from t1 where upper(col1) IN ('A-3','A-4',col2);
+
+--echo #
+--echo # MDEV-31946: Optimizer handle UCASE(varchar_col)=... does not work for UPDATE/DELETE
+--echo #
+explain delete from t1 where upper(col1)='A';
+explain delete from t1 where upper(col1) IN ('A','B');
+
+explain update t1 set col2='ABC' where upper(col1)='A';
+explain update t1 set col2='ABC' where upper(col1) IN ('A','B');
+
+drop table t1,t2,t3,t4;
+
+set optimizer_switch=@tmp_switch_sarg_casefold;

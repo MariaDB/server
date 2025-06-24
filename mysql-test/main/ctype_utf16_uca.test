@@ -268,7 +268,26 @@ INSERT INTO t1 (c) VALUES (1);
 SELECT HEX(c) FROM t1;
 DROP TABLE t1;
 
+SET NAMES utf8;
+
 --enable_service_connection
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # Collation IDs in the protocol
+--echo #
+
+SET @charset='utf16';
+--source include/ctype_uca1400_ids_using_convert.inc
+
+--echo #
+--echo # End of 10.9 tests
 --echo #

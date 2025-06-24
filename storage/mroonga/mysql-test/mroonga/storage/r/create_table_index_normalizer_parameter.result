@@ -12,7 +12,7 @@ memos	CREATE TABLE `memos` (
   `content` text NOT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `content` (`content`) `NORMALIZER`='NormalizerAuto'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 INSERT INTO memos VALUES (1, "1日の消費㌍は約2000㌔㌍");
 SELECT * FROM memos
 WHERE MATCH (content) AGAINST ("+カロリー" IN BOOLEAN MODE);

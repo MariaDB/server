@@ -92,7 +92,7 @@ eval CREATE TABLE federated.t1 (
     `name` varchar(32) NOT NULL default ''
     )
   ENGINE="FEDERATED" DEFAULT CHARSET=latin1
-  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+  CONNECTION='mariadb://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
 
 INSERT INTO federated.t1 (id, name) VALUES (1, 'foo');
 INSERT INTO federated.t1 (id, name) VALUES (2, 'fee');
@@ -1505,7 +1505,7 @@ DROP TABLE federated.test;
 # cases this resulted in incorrect (garbage) values of OLD variables
 # and lost changes to NEW variables.
 # Since for federated engine only operation which is affected by wrong
-# fields mark-up is handler::write_row() this file constains coverage
+# fields mark-up is handler::write_row() this file contains coverage
 # for ON INSERT triggers only.
 #
 connection slave;
@@ -2089,5 +2089,27 @@ set @@optimizer_switch=@save_optimizer_switch;
 DROP SERVER s;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
+--echo #
+
+evalp create server s foreign data wrapper mysql options
+  (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+CREATE VIEW v AS SELECT * FROM t1_fed;
+
+SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
+
+DROP VIEW v;
+DROP TABLE t1_fed, t1, t2;
+DROP SERVER s;
 
 source include/federated_cleanup.inc;

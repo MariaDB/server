@@ -1,4 +1,4 @@
-drop table if exists t1, t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
 Warnings:
@@ -76,9 +76,18 @@ drop table t1;
 SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE=NO_AUTO_VALUE_ON_ZERO;
 create table t1(id integer not null auto_increment primary key);
 insert into t1 values(0);
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' from t1;
+delete from t1;
+load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t1;
 select * from t1;
 id
 0
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1'
+FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n'
+FROM t1;
+delete from t1;
+load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t1
+FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n';
 Warnings:
 Note	1265	Data truncated for column 'id' at row 1
 select * from t1;
@@ -238,6 +247,9 @@ drop table t1, t2;
 create table t1(f1 int);
 insert into t1 values(1),(null);
 create table t2(f2 int auto_increment primary key);
+select * into outfile '$MYSQLTEST_VARDIR/tmp/t1' from t1;
+SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE=NO_AUTO_VALUE_ON_ZERO;
+load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t2;
 select * from t2;
 f2
 1
@@ -247,6 +259,8 @@ drop table t1,t2;
 create table t1(f1 int, f2 timestamp not null default current_timestamp);
 create table t2(f1 int);
 insert into t2 values(1),(2);
+select * into outfile '$MYSQLTEST_VARDIR/tmp/t2' from t2;
+load data infile '$MYSQLTEST_VARDIR/tmp/t2' ignore into table t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 2 doesn't contain data for all columns
@@ -255,6 +269,11 @@ f1
 1
 2
 delete from t1;
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t2'
+FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n'
+FROM t2;
+load data infile '$MYSQLTEST_VARDIR/tmp/t2' ignore into table t1
+FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n';
 Warnings:
 Note	1265	Data truncated for column 'f1' at row 1
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -723,3 +742,4 @@ ST_AsText(p)	chr
 POINT(37.646944 -75.761111)	їєі
 drop table t1, t2;
 # End of 10.5 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -4,19 +4,15 @@
 #
 
 call mtr.add_suppression("Sort aborted.*");
-
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
+--source include/have_sequence.inc
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
 --source include/have_sequence.inc
+
+--source include/test_db_charset_latin1.inc
 
 #
 # Test old ORDER BY bug
 #
-
---source include/have_sequence.inc
 
 CREATE TABLE t1 (
   id int(6) DEFAULT '0' NOT NULL,
@@ -800,10 +796,15 @@ INSERT INTO t2 SELECT * FROM t1 ORDER BY id;
 
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
+EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 6000;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 10 AND 12 ORDER BY c3 LIMIT 20;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 20 AND 30 ORDER BY c3 LIMIT 4000;
 
 SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
+
+# Show that order by optimization takes into account index only scans
+ALTER TABLE t2 DROP INDEX k3, ADD INDEX k3 (c3,c2);
+EXPLAIN SELECT c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
 
 DROP TABLE t1,t2;
 
@@ -917,8 +918,12 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES (1, 10), (2, NULL);
 
 --echo # Must use ref-or-null on the a_c index
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+
 --echo # Must return 1 row
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 
@@ -2412,7 +2417,7 @@ let $query= select
                    t2.key1 = t1.a and t2.key1 IS NOT NULL
                  ORDER BY
                    t2.key2 ASC
-                LIMIT 1) as exp
+                LIMIT 1) as "con"
            from t1;
 
 --echo # here type should show ref not index
@@ -2638,7 +2643,7 @@ drop table t1;
 --echo # MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
 --echo #
 
-create table t1 (a varchar(200) character set utf8, b int);
+create table t1 (a varchar(200) character set utf8 collate utf8_general_ci, b int);
 insert into t1 select seq, seq from seq_1_to_10;
 select * from t1 order by a;
 --echo #
@@ -2775,8 +2780,8 @@ CREATE TABLE t2 (a INT, b INT);
 
 INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
                             (2354,7),(321421,3),(535,2),(4535,3);
-INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3);
-
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000),(3000,3000);
+INSERT INTO t2 select seq,seq from seq_10_to_100;
 --echo # Join order should have the SJM scan table as the first table for both
 --echo # the queries with GROUP BY and ORDER BY clause.
 
@@ -2786,6 +2791,7 @@ let $query= SELECT t1.a
             ORDER BY t1.a DESC;
 
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
@@ -2795,8 +2801,22 @@ let $query= SELECT t1.a, group_concat(t1.b)
             GROUP BY t1.a DESC;
 
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 DROP TABLE t1, t2;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-13756 Implement descending index: KEY (a DESC, b ASC)
+--echo #
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+explain select * from t1 force index(r) order by a desc,b limit 20;
+        select * from t1 force index(r) order by a desc,b limit 20;
+drop table t1;
+
+--source include/test_db_charset_restore.inc

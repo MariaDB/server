@@ -185,7 +185,7 @@ t2	CREATE TABLE `t2` (
   KEY `FTS_DOC_ID` (`FTS_DOC_ID`),
   FULLTEXT KEY `idx` (`s2`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`FTS_DOC_ID`) REFERENCES `t1` (`s1`) ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,'Sunshine'),(2,'Lollipops');
 insert into t2 values (1,'Sunshine'),(2,'Lollipops');
 update t1 set s1 = 3 where s1=1;
@@ -466,7 +466,6 @@ ROLLBACK;
 SELECT * FROM t2 WHERE MATCH(s2) AGAINST ('Lollipops');
 s1	s2
 DROP TABLE t2 , t1;
-set global innodb_file_per_table=1;
 CREATE TABLE t1 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
@@ -485,7 +484,7 @@ t1	CREATE TABLE `t1` (
   `b` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`a`,`b`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci ROW_FORMAT=COMPRESSED
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci ROW_FORMAT=COMPRESSED
 SELECT count(*) FROM information_schema.innodb_sys_tables WHERE name LIKE "%FTS_%" AND space !=0;
 count(*)
 11
@@ -649,7 +648,6 @@ id	a	b
 6	MYSQL SECURITY	when configured properly, mysql ...
 7	TEST QUERY EXPANSION	for database ...
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t1 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),

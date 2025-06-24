@@ -60,7 +60,7 @@ INSERT INTO t set c = concat(repeat('x',28),'g','w');
 
 # Reset cache & flush status
 --echo ** Reset cache values **
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 RESET QUERY CACHE;
 
 # set query cache type value to on and allocating cache size
@@ -85,7 +85,7 @@ SET GLOBAL query_cache_type = ON;
 
 # Reset cache & flush status
 --echo ** Reset cache values **
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 RESET QUERY CACHE;
 
 
@@ -107,7 +107,7 @@ SHOW STATUS LIKE 'Qcache_queries_in_cache';
 
 # Reset cache & flush status
 --echo ** Reset cache values **
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 RESET QUERY CACHE;
 
 #set cache limit
@@ -139,7 +139,7 @@ SET @@GLOBAL.query_cache_limit = DEFAULT;
 
 # Reset cache & flush status
 --echo ** Reset cache values **
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 RESET QUERY CACHE;
 
 #fetching results#

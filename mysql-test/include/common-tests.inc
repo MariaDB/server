@@ -13,6 +13,11 @@
 drop table if exists t1,t2,t3,t4;
 --enable_warnings
 
+# We have to use Aria instead of MyISAM as MyISAM has a very high row
+# access cost which causes some tests to use use join_cache instead of eq_ref
+
+set @@default_storage_engine="aria";
+
 CREATE TABLE t1 (
   Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
   Varor_period smallint(4) unsigned DEFAULT '0' NOT NULL
@@ -39,7 +44,7 @@ CREATE TABLE t2 (
   UNIQUE fld1 (fld1),
   KEY fld3 (fld3),
   PRIMARY KEY (auto)
-);  
+) CHARSET=latin1;
 
 #
 # Populate table
@@ -1369,7 +1374,7 @@ create table t3 (
  price2     double(11,0),
  key (period),
  key (name)
-);
+) CHARSET=latin1;
 
 --disable_query_log
 INSERT INTO t3 (period,name,companynr,price,price2) VALUES (1001,"Iranizes",37,5987435,234724);
@@ -1429,7 +1434,7 @@ set tmp_memory_table_size=default;
 select distinct fld3,repeat("a",length(fld3)),count(*) from t2 group by companynr,fld3 limit 100,10;
 
 #
-# A big order by that should trigger a merge in filesort
+# A big order by that should traigger a merge in filesort
 #
 
 select distinct companynr,rtrim(space(512+companynr)) from t3 order by 1,2;
@@ -1446,9 +1451,9 @@ select distinct fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2nr orde
 
 explain select t3.t2nr,fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2nr order by t3.t2nr,fld3;
 
-#
-# Some test with ORDER BY and limit
-#
+--echo #
+--echo # Some test with ORDER BY and limit
+--echo #
 
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
@@ -1501,7 +1506,7 @@ create table t4 (
   companyname char(30) NOT NULL default '',
   PRIMARY KEY (companynr),
   UNIQUE KEY companyname(companyname)
-) ENGINE=MyISAM MAX_ROWS=50 PACK_KEYS=1 COMMENT='companynames';
+) ENGINE=aria CHARSET=latin1 MAX_ROWS=50 PACK_KEYS=1 COMMENT='companynames';
 
 --disable_query_log
 INSERT INTO t4 (companynr, companyname) VALUES (29,'company 1');
@@ -1519,7 +1524,7 @@ INSERT INTO t4 (companynr, companyname) VALUES (00,'Unknown');
 --enable_query_log
 
 #
-# Test of stright join to force a full join.
+# Test of straight join to force a full join.
 #
 
 select STRAIGHT_JOIN t2.companynr,companyname from t4,t2 where t2.companynr=t4.companynr group by t2.companynr;
@@ -1555,8 +1560,9 @@ explain select companynr,companyname from t2 left join t4 using (companynr) wher
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr is null;
 delete from t2 where fld1=999999;
 
-#
-# Test left join optimization
+--echo #
+--echo # Test left join optimization
+--echo #
 
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
@@ -1586,7 +1592,7 @@ explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=
 SET @@join_cache_level=@local_join_cache_level;
 
 #
-# Search using 'or' with the same referens group.
+# Search using 'or' with the same reference group.
 # An interval search will be done first with the first table and after that
 # the other table is referenced with a key with a 'test if key in use' for
 # each record

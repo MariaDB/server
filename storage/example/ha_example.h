@@ -32,10 +32,6 @@
   /sql/handler.h and /storage/example/ha_example.cc
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "my_global.h"                   /* ulonglong */
 #include "thr_lock.h"                    /* THR_LOCK, THR_LOCK_DATA */
 #include "handler.h"                     /* handler */
@@ -62,19 +58,13 @@ public:
 */
 class ha_example: public handler
 {
-  THR_LOCK_DATA lock;      ///< MySQL lock
+  THR_LOCK_DATA lock;      ///< MariaDB lock
   Example_share *share;    ///< Shared lock info
   Example_share *get_share(); ///< Get the share
 
 public:
   ha_example(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_example() = default;
-
-  /** @brief
-    The name of the index type that will be used for display.
-    Don't implement this method unless you really have indexes.
-   */
-  const char *index_type(uint inx) override { return "HASH"; }
 
   /** @brief
     This is a list of flags that indicate what functionality the storage engine
@@ -97,7 +87,7 @@ public:
 
       @details
     part is the key part to check. First key part is 0.
-    If all_parts is set, MySQL wants to know the flags for the combined
+    If all_parts is set, MariaDB wants to know the flags for the combined
     index, up to and including 'part'.
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const override
@@ -109,7 +99,7 @@ public:
     unireg.cc will call max_supported_record_length(), max_supported_keys(),
     max_supported_key_parts(), uint max_supported_key_length()
     to make sure that the storage engine can handle the data it is about to
-    send. Return *real* limits of your storage engine here; MySQL will do
+    send. Return *real* limits of your storage engine here; MariaDB will do
     min(your_limits, MySQL_limits) automatically.
    */
   uint max_supported_record_length() const override { return HA_MAX_REC_LENGTH; }
@@ -117,7 +107,7 @@ public:
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
     the data it is about to send. Return *real* limits of your storage engine
-    here; MySQL will do min(your_limits, MySQL_limits) automatically.
+    here; MariaDB will do min(your_limits, MySQL_limits) automatically.
 
       @details
     There is no need to implement ..._key_... methods if your engine doesn't
@@ -128,7 +118,7 @@ public:
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
     the data it is about to send. Return *real* limits of your storage engine
-    here; MySQL will do min(your_limits, MySQL_limits) automatically.
+    here; MariaDB will do min(your_limits, MySQL_limits) automatically.
 
       @details
     There is no need to implement ..._key_... methods if your engine doesn't
@@ -139,7 +129,7 @@ public:
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
     the data it is about to send. Return *real* limits of your storage engine
-    here; MySQL will do min(your_limits, MySQL_limits) automatically.
+    here; MariaDB will do min(your_limits, MySQL_limits) automatically.
 
       @details
     There is no need to implement ..._key_... methods if your engine doesn't
@@ -148,21 +138,46 @@ public:
   uint max_supported_key_length() const override { return 0; }
 
   /** @brief
-    Called in test_quick_select to determine if indexes should be used.
+    Called in test_quick_select to determine cost of table scan
   */
-  double scan_time() override { return (double) (stats.records+stats.deleted) / 20.0+10; }
+  virtual IO_AND_CPU_COST scan_time() override
+  {
+    IO_AND_CPU_COST cost;
+    /* 0 blocks,  0.001 ms / row */
+    cost.io= (double) (stats.records+stats.deleted) * DISK_READ_COST;
+    cost.cpu= 0;
+    return cost;
+  }
 
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-  double read_time(uint, uint, ha_rows rows) override
-  { return (double) rows /  20.0+1; }
+  IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows rows,
+                                       ulonglong blocks) override
+  {
+    IO_AND_CPU_COST cost;
+    cost.io= blocks * DISK_READ_COST;
+    cost.cpu= (double) rows * 0.001;
+    return cost;
+  }
+
+  /** @brief
+    Cost of fetching 'rows' records through rnd_pos()
+  */
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override
+  {
+   IO_AND_CPU_COST cost;
+    /* 0 blocks,  0.001 ms / row */
+    cost.io= 0;
+    cost.cpu= (double) rows * DISK_READ_COST;
+    return cost;
+  }
 
   /*
     Everything below are methods that we implement in ha_example.cc.
 
     Most of these methods are not obligatory, skip them and
-    MySQL will treat them as not implemented
+    MariaDB will treat them as not implemented
   */
   /** @brief
     We implement this in ha_example.cc; it's a required method.
@@ -176,50 +191,50 @@ public:
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int write_row(const uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int update_row(const uchar *old_data, const uchar *new_data) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int delete_row(const uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int index_read_map(uchar *buf, const uchar *key,
                      key_part_map keypart_map, enum ha_rkey_function find_flag) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int index_next(uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int index_prev(uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int index_first(uchar *buf) override;
 
   /** @brief
     We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
+    skip it and and MariaDB will treat it as not implemented.
   */
   int index_last(uchar *buf) override;
 

@@ -36,7 +36,7 @@ struct st_unit_ctxt_elem;
 class With_element_head : public Sql_alloc
 {
   /* The name of the defined CTE */
-  LEX_CSTRING *query_name;
+  const Lex_ident_with_element query_name;
 
 public:
   /*
@@ -47,7 +47,7 @@ public:
   */
   TABLE_CHAIN tables_pos;
 
-  With_element_head(LEX_CSTRING *name)
+  With_element_head(const Lex_ident_with_element &name)
     : query_name(name)
   {
     tables_pos.set_start_pos(0);
@@ -62,7 +62,7 @@ public:
   @brief Definition of a CTE table
 	
   It contains a reference to the name of the table introduced by this with element,
-  and a reference to the unit that specificies this table. Also it contains
+  and a reference to the unit that specifies this table. Also it contains
   a reference to the with clause to which this element belongs to.	
 */
 
@@ -224,8 +224,8 @@ public:
       level(0), rec_result(NULL)
   { unit->with_element= this; }
 
-  LEX_CSTRING *get_name() { return head->query_name; }
-  const char *get_name_str() { return get_name()->str; }
+  const Lex_ident_with_element get_name() const { return head->query_name; }
+  const char *get_name_str() const { return get_name().str; }
 
   void set_tables_start_pos(TABLE_LIST **pos)
   { head->tables_pos.set_start_pos(pos); }
@@ -549,5 +549,8 @@ void st_select_lex::set_with_clause(With_clause *with_clause)
   if (with_clause)
     with_clause->set_owner(master_unit());
 }
+
+void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list,
+                              bool bracketed= false);
 
 #endif /* SQL_CTE_INCLUDED */

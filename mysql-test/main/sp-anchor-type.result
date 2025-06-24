@@ -62,7 +62,7 @@ CALL p1();
 a	b
 127	200
 Warnings:
-Warning	1264	Out of range value for column 'a' at row 1
+Warning	1264	Out of range value for column 'a' at row 0
 DROP PROCEDURE p1;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
@@ -97,7 +97,7 @@ t2	CREATE TABLE `t2` (
   `a` tinyint(4) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `ts` timestamp NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
@@ -126,7 +126,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL,
   `d` varchar(5) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
@@ -152,7 +152,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `dzr` decimal(10,3) unsigned DEFAULT NULL,
   `dzt` decimal(10,3) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
@@ -179,7 +179,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a
 11
@@ -199,7 +199,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a
 11
@@ -227,7 +227,7 @@ SHOW CREATE TABLE test.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE test.t2;
 #
 # This interprets "TYPE OF t1.a" as INT, as in test1.t1.a
@@ -238,7 +238,7 @@ SHOW CREATE TABLE test.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE test.t2;
 #
 # Error if there is no an active database
@@ -280,7 +280,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p1;
 DROP TABLE t2;
 DROP DATABASE test1;
@@ -464,13 +464,13 @@ t2	CREATE TABLE `t2` (
   `dc209` decimal(20,9) DEFAULT NULL,
   `cc` char(10) DEFAULT NULL,
   `cv` varchar(10) DEFAULT NULL,
-  `cvu` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `cvu` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
   `t1` tinytext DEFAULT NULL,
   `t2` text DEFAULT NULL,
   `t3` mediumtext DEFAULT NULL,
   `t4` longtext DEFAULT NULL,
-  `enum1` char(1) DEFAULT NULL,
-  `set1` char(5) DEFAULT NULL,
+  `enum1` varchar(1) DEFAULT NULL,
+  `set1` varchar(5) DEFAULT NULL,
   `blob1` tinyblob DEFAULT NULL,
   `blob2` blob DEFAULT NULL,
   `blob3` mediumblob DEFAULT NULL,
@@ -486,7 +486,7 @@ t2	CREATE TABLE `t2` (
   `ts0` timestamp NULL DEFAULT NULL,
   `ts3` timestamp(3) NULL DEFAULT NULL,
   `ts6` timestamp(6) NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 bit6	0
 bit7	A
@@ -562,7 +562,7 @@ def				tm6	tm6	11	17	15	Y	128	6	63
 def				dt0	dt0	12	19	19	Y	128	0	63
 def				dt3	dt3	12	23	23	Y	128	3	63
 def				dt6	dt6	12	26	26	Y	128	6	63
-def				ts0	ts0	7	19	19	Y	9376	0	63
+def				ts0	ts0	7	19	19	Y	160	0	63
 def				ts3	ts3	7	23	23	Y	160	3	63
 def				ts6	ts6	7	26	26	Y	160	6	63
 bit6	0
@@ -626,13 +626,13 @@ t2	CREATE TABLE `t2` (
   `dc209` decimal(20,9) DEFAULT NULL,
   `cc` char(10) DEFAULT NULL,
   `cv` varchar(10) DEFAULT NULL,
-  `cvu` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `cvu` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
   `t1` tinytext DEFAULT NULL,
   `t2` text DEFAULT NULL,
   `t3` mediumtext DEFAULT NULL,
   `t4` longtext DEFAULT NULL,
-  `enum1` char(1) DEFAULT NULL,
-  `set1` char(5) DEFAULT NULL,
+  `enum1` varchar(1) DEFAULT NULL,
+  `set1` varchar(5) DEFAULT NULL,
   `blob1` tinyblob DEFAULT NULL,
   `blob2` blob DEFAULT NULL,
   `blob3` mediumblob DEFAULT NULL,
@@ -648,7 +648,7 @@ t2	CREATE TABLE `t2` (
   `ts0` timestamp NULL DEFAULT NULL,
   `ts3` timestamp(3) NULL DEFAULT NULL,
   `ts6` timestamp(6) NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 bit6	0
 bit7	A
@@ -828,7 +828,7 @@ t1	CREATE TABLE `t1` (
   `tables_table_rows` bigint(21) unsigned DEFAULT NULL,
   `processlist_info` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   `processlist_info_binary` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -853,7 +853,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a0` int(11) DEFAULT NULL,
   `a1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -873,7 +873,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(10) DEFAULT NULL,
   `b` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 test	123
@@ -957,8 +957,6 @@ SELECT * FROM t1 INTO v_a, v_b, v_c;
 SELECT v_a, v_b, v_c;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 v_a	v_b	v_c
 1	b1	2001-01-01 10:20:30.123
@@ -1044,7 +1042,7 @@ t1	CREATE TABLE `t1` (
   `a_flt0` float DEFAULT NULL,
   `a_dbl0` double DEFAULT NULL,
   `a_bit3` bit(3) DEFAULT NULL,
-  `a_enum0` char(1) DEFAULT NULL,
+  `a_enum0` varchar(1) DEFAULT NULL,
   `a_varchar10` varchar(10) DEFAULT NULL,
   `a_text1` text DEFAULT NULL,
   `a_tinytext1` tinytext DEFAULT NULL,
@@ -1054,7 +1052,7 @@ t1	CREATE TABLE `t1` (
   `a_datetime4` datetime(4) DEFAULT NULL,
   `a_timestamp5` timestamp(5) NULL DEFAULT NULL,
   `a_date0` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `aa_int11` int(11) DEFAULT NULL,
@@ -1062,7 +1060,7 @@ t1	CREATE TABLE `t1` (
   `aa_flt0` float DEFAULT NULL,
   `aa_dbl0` double DEFAULT NULL,
   `aa_bit3` bit(3) DEFAULT NULL,
-  `aa_enum0` char(1) DEFAULT NULL,
+  `aa_enum0` varchar(1) DEFAULT NULL,
   `aa_varchar10` varchar(10) DEFAULT NULL,
   `aa_text1` text DEFAULT NULL,
   `aa_tinytext1` tinytext DEFAULT NULL,
@@ -1072,4 +1070,150 @@ t1	CREATE TABLE `t1` (
   `aa_datetime4` datetime(4) DEFAULT NULL,
   `aa_timestamp5` timestamp(5) NULL DEFAULT NULL,
   `aa_date0` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+CREATE FUNCTION f1() RETURNS TYPE OF a RETURN 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RETURN 1' at line 1
+CREATE FUNCTION f1() RETURNS TYPE OF t1.a RETURN (SELECT min(a) FROM t1);
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS TYPE OF `test`.`t1`.`a`
+RETURN (SELECT min(a) FROM t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (b INT);
+SELECT f1();
+ERROR 42S22: Unknown column 'a' in 't1'
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE DATABASE db1;
+CREATE FUNCTION db1.f1() RETURNS TYPE OF db1.t1.a
+BEGIN
+RETURN (SELECT min(a) FROM t1);
+END;
+$$
+SHOW CREATE FUNCTION db1.f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS TYPE OF `db1`.`t1`.`a`
+BEGIN
+RETURN (SELECT min(a) FROM t1);
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT db1.f1();
+ERROR 42S02: Table 'db1.t1' doesn't exist
+CREATE TABLE db1.t1 (b TIME);
+SELECT db1.f1();
+ERROR 42S22: Unknown column 'a' in 't1'
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a TIME);
+SELECT db1.f1();
+db1.f1()
+NULL
+INSERT INTO db1.t1 VALUES ('10:20:30');
+SELECT db1.f1();
+db1.f1()
+10:20:30
+DROP TABLE db1.t1;
+DROP FUNCTION db1.f1;
+DROP DATABASE db1;
+CREATE TABLE t1 (a TIME);
+CREATE FUNCTION f1() RETURNS TYPE OF test.t1.a RETURN (SELECT min(a) FROM t1);
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS TYPE OF `test`.`t1`.`a`
+RETURN (SELECT min(a) FROM t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+f1()
+NULL
+DROP FUNCTION f1;
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME);
+CREATE FUNCTION f1() RETURNS TYPE OF t1.a
+BEGIN
+RETURN (SELECT min(a) FROM t1);
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS TYPE OF `test`.`t1`.`a`
+BEGIN
+RETURN (SELECT min(a) FROM t1);
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+f1()
+NULL
+CREATE TABLE t2 AS SELECT f1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1()` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+f1()
+NULL
+DROP TABLE t2;
+INSERT INTO t1 VALUES ('10:20:30');
+SELECT f1();
+f1()
+10:20:30
+CREATE TABLE t2 AS SELECT f1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1()` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+f1()
+10:20:30
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT f1();
+f1()
+10
+CREATE TABLE t2 AS SELECT f1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1()` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+f1()
+10
+DROP TABLE t2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-35003 Server crashes when reading routines table after creating a function with "returns type of"
+#
+CREATE FUNCTION f1(a TYPE OF t1.a) RETURNS TYPE OF t1.a
+BEGIN
+RETURN (SELECT min(a) FROM t1);
+END;
+$$
+SELECT ROUTINE_NAME, DATA_TYPE, DTD_IDENTIFIER
+FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test';
+ROUTINE_NAME	f1
+DATA_TYPE	TYPE OF
+DTD_IDENTIFIER	TYPE OF `test`.`t1`.`a`
+SELECT SPECIFIC_NAME, ORDINAL_POSITION, PARAMETER_NAME, DATA_TYPE, DTD_IDENTIFIER
+FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='test';
+SPECIFIC_NAME	f1
+ORDINAL_POSITION	0
+PARAMETER_NAME	NULL
+DATA_TYPE	TYPE OF
+DTD_IDENTIFIER	TYPE OF `test`.`t1`.`a`
+SPECIFIC_NAME	f1
+ORDINAL_POSITION	1
+PARAMETER_NAME	a
+DATA_TYPE	TYPE OF
+DTD_IDENTIFIER	TYPE OF `t1`.`a`
+DROP FUNCTION f1;
+#
+# End of 11.7 tests
+#

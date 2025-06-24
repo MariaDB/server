@@ -764,11 +764,8 @@ SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
 # "INTO" clause tests
 SELECT 1 FROM t1 INTO @var17727401;
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 FROM DUAL INTO @var17727401;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT 1 INTO @var17727401;
 SELECT 1 INTO @var17727401 FROM t1;
 Warnings:
@@ -784,7 +781,6 @@ Warnings:
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1 INTO @var17727401;
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 FROM t1 WHERE 1 INTO @var17727401 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1' at line 1
@@ -804,7 +800,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401) UNION (SELECT 1 FROM t1 INTO t1)' at line 1
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE()' at line 1
@@ -936,7 +931,7 @@ ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies t
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
 ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
-# UNION with a parenthesed term
+# UNION with a parenthesized term
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 2);
@@ -991,7 +986,7 @@ ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a));
 ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
 DROP TABLE t1;
-# UNION with a non-parethesized term with ROLLUP
+# UNION with a non-parenthesized term with ROLLUP
 # This will change after: MDEV-10120 Wrong result of UNION .. ORDER BY GROUP_CONCAT()
 # Currently we're testing the parser only
 CREATE TABLE t1 (a INT);
@@ -1316,7 +1311,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `id` (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
@@ -1377,7 +1372,7 @@ sql_mode	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_E
 SQL Original Statement	CREATE DEFINER=`root`@`localhost` trigger a before insert on t1 for each row set @a:=1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Created	2020-10-10 05:05:05.00
 drop table t1;
 create procedure a() select 1;select 2$
@@ -1390,7 +1385,7 @@ Create Procedure	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 drop procedure a;
 create function a() returns int return 1;select 2$
 2
@@ -1402,7 +1397,7 @@ Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 1
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 drop function a;
 set timestamp=default;
 #
@@ -1917,7 +1912,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` int(11) GENERATED ALWAYS AS (1 = 2 not between 3 and 4) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 ( f INT, CHECK ( 1 IN ( 2 NOT BETWEEN 3 AND 4 ) ) );
 SHOW CREATE TABLE t1;
@@ -1925,7 +1920,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (1 = 2 not between 3 and 4)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE VIEW v1 AS SELECT 1 IN ( 2 NOT BETWEEN 3 AND 4 );
 SHOW CREATE VIEW v1;
@@ -2268,4 +2263,55 @@ END;
 $$
 #
 # End of 10.6 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+#
+CREATE TABLE nocopy (a INT);
+DROP TABLE nocopy;
+CREATE TABLE t1 (nocopy int);
+SELECT nocopy AS nocopy FROM t1 AS nocopy;
+nocopy
+DROP TABLE t1;
+CREATE TABLE nocopy (nocopy INT);
+CREATE TRIGGER nocopy AFTER INSERT ON nocopy FOR EACH ROW BEGIN END;
+DROP TRIGGER nocopy;
+DROP TABLE nocopy;
+PREPARE nocopy FROM 'select 1';
+EXECUTE nocopy;
+1
+1
+DEALLOCATE PREPARE nocopy;
+CREATE FUNCTION nocopy (nocopy INT) RETURNS INT RETURN nocopy;
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+SELECT nocopy(1);
+nocopy(1)
+1
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+DROP FUNCTION nocopy;
+CREATE PROCEDURE nocopy (nocopy INT) SELECT nocopy;
+CALL nocopy(1);
+nocopy
+1
+DROP PROCEDURE nocopy;
+BEGIN NOT ATOMIC
+DECLARE nocopy INT DEFAULT 1;
+nocopy:
+WHILE 1 DO
+BEGIN
+SELECT nocopy;
+LEAVE nocopy;
+END;
+END WHILE;
+END;
+$$
+nocopy
+1
+#
+# End of 11.7 tests
 #

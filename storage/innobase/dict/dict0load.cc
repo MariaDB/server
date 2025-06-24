@@ -168,40 +168,28 @@ name_of_col_is(
 					      dict_index_get_nth_field(
 						      index, i)));
 
-	return(strcmp(name, dict_table_get_col_name(table, tmp)) == 0);
+	return(strcmp(name, dict_table_get_col_name(table, tmp).str) == 0);
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-This function gets the next system table record as it scans the table.
-@return the next record if found, NULL if end of scan */
-static
 const rec_t*
-dict_getnext_system_low(
-/*====================*/
-	btr_pcur_t*	pcur,		/*!< in/out: persistent cursor to the
-					record*/
-	mtr_t*		mtr)		/*!< in: the mini-transaction */
+dict_getnext_system_low(btr_pcur_t *pcur, mtr_t *mtr)
 {
-	rec_t*	rec = NULL;
-
-	while (!rec) {
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
-
-		rec = btr_pcur_get_rec(pcur);
-
-		if (!btr_pcur_is_on_user_rec(pcur)) {
-			/* end of index */
-			btr_pcur_close(pcur);
-
-			return(NULL);
-		}
-	}
-
-	/* Get a record, let's save the position */
-	btr_pcur_store_position(pcur, mtr);
-
-	return(rec);
+  rec_t *rec = nullptr;
+  while (!rec)
+  {
+    btr_pcur_move_to_next_user_rec(pcur, mtr);
+    rec = btr_pcur_get_rec(pcur);
+    if (!btr_pcur_is_on_user_rec(pcur))
+    {
+      /* end of index */
+      btr_pcur_close(pcur);
+      return nullptr;
+    }
+  }
+  /* Get a record, let's save the position */
+  btr_pcur_store_position(pcur, mtr);
+  return rec;
 }
 
 /********************************************************************//**
@@ -613,11 +601,10 @@ dict_sys_tables_type_valid(ulint type, bool not_redundant)
 @param[in]	not_redundant	whether ROW_FORMAT=REDUNDANT is not used
 @return	table flags */
 static
-ulint
-dict_sys_tables_type_to_tf(ulint type, bool not_redundant)
+uint32_t dict_sys_tables_type_to_tf(uint32_t type, bool not_redundant)
 {
 	ut_ad(dict_sys_tables_type_valid(type, not_redundant));
-	ulint	flags = not_redundant ? 1 : 0;
+	uint32_t flags = not_redundant ? 1 : 0;
 
 	/* ZIP_SSIZE, ATOMIC_BLOBS, DATA_DIR, PAGE_COMPRESSION,
 	PAGE_COMPRESSION_LEVEL are the same. */
@@ -655,15 +642,14 @@ dict_sys_tables_rec_read(
 	bool			uncommitted,
 	mtr_t*			mtr,
 	table_id_t*		table_id,
-	ulint*			space_id,
-	ulint*			n_cols,
-	ulint*			flags,
-	ulint*			flags2,
+	uint32_t*		space_id,
+	uint32_t*		n_cols,
+	uint32_t*		flags,
+	uint32_t*		flags2,
 	trx_id_t*		trx_id)
 {
 	const byte*	field;
 	ulint		len;
-	ulint		type;
 	mem_heap_t*	heap = nullptr;
 
 	field = rec_get_nth_field_old(
@@ -721,7 +707,7 @@ dict_sys_tables_rec_read(
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__TYPE, &len);
 	ut_a(len == 4);
-	type = mach_read_from_4(field);
+	uint32_t type = mach_read_from_4(field);
 
 	/* Handle MDEV-12873 InnoDB SYS_TABLES.TYPE incompatibility
 	for PAGE_COMPRESSED=YES in MariaDB 10.2.2 to 10.2.6.
@@ -812,8 +798,8 @@ dict_sys_tables_rec_read(
 	if (!dict_sys_tables_type_valid(type, not_redundant)) {
 		sql_print_error("InnoDB: Table %.*s in InnoDB"
 				" data dictionary contains invalid flags."
-				" SYS_TABLES.TYPE=" ULINTPF
-				" SYS_TABLES.N_COLS=" ULINTPF,
+				" SYS_TABLES.TYPE=" UINT32PF
+				" SYS_TABLES.N_COLS=" UINT32PF,
 				int(rec_get_field_start_offs(rec, 1)), rec,
 				type, *n_cols);
 err_exit:
@@ -843,8 +829,8 @@ err_exit:
 			sql_print_error("InnoDB: Table %.*s in InnoDB"
 					" data dictionary"
 					" contains invalid flags."
-					" SYS_TABLES.TYPE=" ULINTPF
-					" SYS_TABLES.MIX_LEN=" ULINTPF,
+					" SYS_TABLES.TYPE=" UINT32PF
+					" SYS_TABLES.MIX_LEN=" UINT32PF,
 					int(rec_get_field_start_offs(rec, 1)),
 					rec,
 					type, *flags2);
@@ -889,20 +875,19 @@ static uint32_t dict_find_max_space_id(btr_pcur_t *pcur, mtr_t *mtr)
 /** Check MAX(SPACE) FROM SYS_TABLES and store it in fil_system.
 Open each data file if an encryption plugin has been loaded.
 
-@param spaces  set of tablespace files to open */
-void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
+@param spaces  set of tablespace files to open
+@param upgrade whether we need to invoke ibuf_upgrade() */
+void dict_load_tablespaces(const std::set<uint32_t> *spaces, bool upgrade)
 {
-	ulint		max_space_id = 0;
+	uint32_t	max_space_id = 0;
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
-
-	DBUG_ENTER("dict_check_tablespaces_and_store_max_id");
 
 	mtr.start();
 
 	dict_sys.lock(SRW_LOCK_CALL);
 
-	if (!spaces && ibuf.empty
+	if (!spaces && !upgrade
 	    && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
 		max_space_id = dict_find_max_space_id(&pcur, &mtr);
 		goto done;
@@ -913,10 +898,10 @@ void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces)
 	     rec; rec = dict_getnext_system_low(&pcur, &mtr)) {
 		ulint		len;
 		table_id_t	table_id;
-		ulint		space_id;
-		ulint		n_cols;
-		ulint		flags;
-		ulint		flags2;
+		uint32_t	space_id;
+		uint32_t	n_cols;
+		uint32_t	flags;
+		uint32_t	flags2;
 
 		/* If a table record is not useable, ignore it and continue
 		on to the next record. Error messages were logged. */
@@ -1004,8 +989,6 @@ done:
 	fil_set_max_space_id_if_bigger(max_space_id);
 
 	dict_sys.unlock();
-
-	DBUG_VOID_RETURN;
 }
 
 /** Error message for a delete-marked record in dict_load_column_low() */
@@ -1153,7 +1136,7 @@ err_len:
 
 			prtype = dtype_form_prtype(
 				prtype,
-				data_mysql_default_charset_coll);
+				default_charset_info->number);
 		}
 	}
 
@@ -1336,7 +1319,7 @@ static dberr_t dict_load_columns(dict_table_t *table, unsigned use_uncommitted,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -1390,8 +1373,8 @@ static dberr_t dict_load_columns(dict_table_t *table, unsigned use_uncommitted,
 		/* Note: Currently we have one DOC_ID column that is
 		shared by all FTS indexes on a table. And only non-virtual
 		column can be used for FULLTEXT index */
-		if (innobase_strcasecmp(name,
-					FTS_DOC_ID_COL_NAME) == 0
+		if (Lex_ident_column(Lex_cstring_strlen(name)).
+		      streq(FTS_DOC_ID)
 		    && nth_v_col == ULINT_UNDEFINED) {
 			dict_col_t*	col;
 			/* As part of normal loading of tables the
@@ -1463,7 +1446,7 @@ dict_load_virtual_col(dict_table_t *table, bool uncommitted, ulint nth_v_col)
 
 	dfield_t dfield[2];
 	dtuple_t tuple{
-		0,2,2,dfield,0,nullptr
+		0,2,2,0,dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -1563,6 +1546,7 @@ dict_load_field_low(
 	ulint		len;
 	unsigned	pos_and_prefix_len;
 	unsigned	prefix_len;
+	bool		descending;
 	bool		first_field;
 	ulint		position;
 
@@ -1615,10 +1599,12 @@ err_len:
 	}
 
 	if (first_field || pos_and_prefix_len > 0xFFFFUL) {
-		prefix_len = pos_and_prefix_len & 0xFFFFUL;
+		prefix_len = pos_and_prefix_len & 0x7FFFUL;
+		descending = (pos_and_prefix_len & 0x8000UL);
 		position = (pos_and_prefix_len & 0xFFFF0000UL)  >> 16;
 	} else {
 		prefix_len = 0;
+		descending = false;
 		position = pos_and_prefix_len & 0xFFFFUL;
 	}
 
@@ -1668,11 +1654,12 @@ err_len:
 	if (index) {
 		dict_mem_index_add_field(
 			index, mem_heap_strdupl(heap, (const char*) field, len),
-			prefix_len);
+			prefix_len, descending);
 	} else {
 		sys_field->name = mem_heap_strdupl(
 			heap, (const char*) field, len);
 		sys_field->prefix_len = prefix_len & ((1U << 12) - 1);
+		sys_field->descending = descending;
 		*pos = position;
 	}
 
@@ -1703,7 +1690,7 @@ static dberr_t dict_load_fields(dict_index_t *index, bool uncommitted,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -1962,7 +1949,7 @@ dberr_t dict_load_indexes(dict_table_t *table, bool uncommitted,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2158,7 +2145,7 @@ next_rec:
 
 	if (table->fts != NULL) {
 		dict_index_t *idx = dict_table_get_index_on_name(
-			table, FTS_DOC_ID_INDEX_NAME);
+			table, FTS_DOC_ID_INDEX.str);
 		if (idx && dict_index_is_unique(idx)) {
 			table->fts_doc_id_index = idx;
 		}
@@ -2189,13 +2176,9 @@ const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
                                 const rec_t *rec, dict_table_t **table)
 {
 	table_id_t	table_id;
-	ulint		space_id;
-	ulint		n_cols;
-	ulint		t_num;
-	ulint		flags;
-	ulint		flags2;
+	uint32_t	space_id, t_num, flags, flags2;
+	ulint		n_cols, n_v_col;
 	trx_id_t	trx_id;
-	ulint		n_v_col;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
 		*table = NULL;
@@ -2302,8 +2285,8 @@ dict_load_tablespace(
 		table->file_unreadable = true;
 
 		if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
-			sql_print_error("InnoDB: Failed to load tablespace "
-					ULINTPF " for table %s",
+			sql_print_error("InnoDB: Failed to load tablespace %"
+					PRIu32 " for table %s",
 					table->space_id, table->name.m_name);
 		}
 	}
@@ -2355,7 +2338,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2494,9 +2477,7 @@ corrupted:
 				goto corrupted;
 			}
 
-			if (table->supports_instant()) {
-				err = btr_cur_instant_init(table);
-			}
+			err = btr_cur_instant_init(table);
 		}
 	} else {
 		ut_ad(ignore_err & DICT_ERR_IGNORE_INDEX);
@@ -2611,7 +2592,7 @@ dict_load_table_on_id(
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2720,7 +2701,7 @@ static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2896,7 +2877,7 @@ dict_load_foreign(
 
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -2984,7 +2965,7 @@ err_exit:
 
 	foreign->foreign_table_name = mem_heap_strdupl(
 		foreign->heap, (char*) field, len);
-	dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
+	foreign->foreign_table_name_lookup_set();
 
 	const size_t foreign_table_name_len = len;
 	const size_t table_name_len = strlen(table_name);
@@ -3005,7 +2986,7 @@ err_exit:
 
 	foreign->referenced_table_name = mem_heap_strdupl(
 		foreign->heap, (const char*) field, len);
-	dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+	foreign->referenced_table_name_lookup_set();
 
 	mtr.commit();
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -3107,7 +3088,7 @@ dict_load_foreigns(
 	bool check_recursive = !trx_id;
 	dfield_t dfield;
 	dtuple_t tuple{
-		0,1,1,&dfield,0,nullptr
+		0,1,1,0,&dfield,nullptr
 #ifdef UNIV_DEBUG
 		, DATA_TUPLE_MAGIC_N
 #endif
@@ -3146,12 +3127,12 @@ loop:
 	following call does the comparison in the latin1_swedish_ci
 	charset-collation, in a case-insensitive way. */
 
-	if (0 != cmp_data_data(dfield_get_type(&dfield)->mtype,
-			       dfield_get_type(&dfield)->prtype,
-			       reinterpret_cast<const byte*>(table_name),
-			       dfield_get_len(&dfield),
-			       field, len)) {
-
+	if (cmp_data(dfield_get_type(&dfield)->mtype,
+		     dfield_get_type(&dfield)->prtype,
+		     false,
+		     reinterpret_cast<const byte*>(table_name),
+		     dfield_get_len(&dfield),
+		     field, len)) {
 		goto load_next_index;
 	}
 

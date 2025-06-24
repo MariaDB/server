@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo # Test for INSERT...RETURNING
 
 CREATE TABLE t1(id1 INT PRIMARY KEY AUTO_INCREMENT, val1 VARCHAR(1));
@@ -398,3 +400,15 @@ CREATE TABLE t (a INT);
 INSERT t WITH cte AS (SELECT 1) SELECT * FROM cte RETURNING *;
 
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-3953 Add columns for ROWS_EXAMINED, ROWS_SENT, and ROWS_READ to I_S and
+--echo #           processlist
+--echo #
+
+create table t1 (a int primary key, b int);
+flush status;
+insert into t1 values (1,2),(2,4) returning a,b;
+insert into t1 select seq,seq from seq_10_to_13 returning a,b;
+show status like "Rows_sent";
+drop table t1;

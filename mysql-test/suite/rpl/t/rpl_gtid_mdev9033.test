@@ -21,7 +21,7 @@ INSERT INTO t1 VALUES (1, "m1");
 INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
 
 SET @@session.gtid_domain_id=2;
---echo # The following should get filetered on slave.
+--echo # The following should get filtered on slave.
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1, "m1");
 INSERT INTO t2 VALUES (2, "m2"), (3, "m3"), (4, "m4");
@@ -63,10 +63,10 @@ DROP TABLE t2;
 
 --connection server_2
 STOP SLAVE;
-CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_DOMAIN_IDS = ();
+CHANGE MASTER TO IGNORE_DOMAIN_IDS = ();
 
 --connection server_3
 STOP SLAVE;
-CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_DOMAIN_IDS = ();
+CHANGE MASTER TO IGNORE_DOMAIN_IDS = ();
 
 --echo # End of test.

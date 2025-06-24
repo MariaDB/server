@@ -452,6 +452,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_SHARE *share= keyinfo->share;
   const uchar *sort_order= keyinfo->seg->charset->sort_order;
+  const int reverse = keyinfo->seg->flag & HA_REVERSE_SORT;
   DBUG_ENTER("_ma_prefix_search");
 
   t_buff[0]=0;                                  /* Avoid bugs */
@@ -585,7 +586,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 
       /*
         If prefix_len > cmplen then we are in the end-space comparison
-        phase. Do not try to acces the key any more ==> left= 0.
+        phase. Do not try to access the key any more ==> left= 0.
       */
       left= ((len <= cmplen) ? suffix_len :
              ((prefix_len < cmplen) ? cmplen - prefix_len : 0));
@@ -605,8 +606,6 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
             break;
       }
 
-      if (my_flag>0)      /* mismatch */
-        break;
       if (my_flag==0) /* match */
       {
 	/*
@@ -632,12 +631,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	    for ( ; k < k_end && *k == ' '; k++) ;
 	    if (k == k_end)
 	      goto cmp_rest;		/* should never happen */
-	    if ((uchar) *k < (uchar) ' ')
-	    {
-	      my_flag= 1;		/* Compared string is smaller */
-	      break;
-	    }
-	    my_flag= -1;		/* Continue searching */
+	    my_flag= (uchar)' ' - *k;
 	  }
         }
         else if (len > cmplen)
@@ -651,13 +645,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	       vseg < vseg_end && *vseg == (uchar) ' ';
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
-
-	  if ((uchar) *vseg > (uchar) ' ')
-	  {
-	    my_flag= 1;			/* Compared string is smaller */
-	    break;
-	  }
-	  my_flag= -1;			/* Continue searching */
+          my_flag= *vseg - (uchar)' ';
         }
         else
 	{
@@ -685,6 +673,8 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	  }
 	}
       }
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
+        break;
       matched-=left;
     }
     /* else (matched < prefix_len) ---> do nothing. */
@@ -696,7 +686,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     *ret_pos=page;
   }
   if (my_flag)
-    flag=(keyinfo->seg->flag & HA_REVERSE_SORT) ? -my_flag : my_flag;
+    flag= reverse ? -my_flag : my_flag;
   if (flag == 0)
   {
     memcpy(buff,t_buff,saved_length=seg_len_pack+prefix_len);
@@ -1402,7 +1392,7 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
 }
 
 /**
-  skip key which is ptefix packed against previous key
+  skip key which is prefix packed against previous key
 
   @fn _ma_skip_binary_key()
   @param key       Keyinfo and buffer that can be used
@@ -1941,7 +1931,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
   key_length= int_key->data_length + int_key->ref_length + nod_flag;
 
   sort_order=0;
-  if ((keyinfo->flag & HA_FULLTEXT) &&
+  if ((keyinfo->key_alg == HA_KEY_ALG_FULLTEXT) &&
       ((keyseg->type == HA_KEYTYPE_TEXT) ||
        (keyseg->type == HA_KEYTYPE_VARTEXT1) ||
        (keyseg->type == HA_KEYTYPE_VARTEXT2)) &&
@@ -2055,7 +2045,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
   DBUG_PRINT("test",("tot_length: %u  length: %d  uniq_key_length: %u",
                      key_length, length, s_temp->key_length));
 
-        /* If something after that hasn't length=0, test if we can combine */
+  /* If something after that hasn't length=0, test if we can combine */
   if ((s_temp->next_key_pos=next_key))
   {
     uint packed,n_length;
@@ -2068,7 +2058,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
     }
     else
       n_length= *next_key++ & 127;
-    if (!packed)
+    if (!packed && n_length)
       n_length-= s_temp->store_not_null;
 
     if (n_length || packed)             /* Don't pack 0 length keys */
@@ -2368,7 +2358,7 @@ void _ma_store_var_pack_key(MARIA_KEYDEF *keyinfo  __attribute__((unused)),
       store_key_length_inc(key_pos,s_temp->n_length);
     }
   }
-  else
+  else if (s_temp->n_length)
   {
     s_temp->n_length+= s_temp->store_not_null;
     store_pack_length(s_temp->pack_marker == 128,key_pos,s_temp->n_length);

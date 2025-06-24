@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+# Correct Galera library found
+connection node_1;
+CALL mtr.add_suppression("\\[Warning\\] WSREP: evicting member .* ?at .+ permanently from group");
+connection node_2;
+CALL mtr.add_suppression("\\[Warning\\] WSREP: handshake with .* ?.+ failed: 'evicted'");
+CALL mtr.add_suppression("\\[ERROR\\] WSREP: exception from gcomm, backend must be restarted: this node has been evicted out of the cluster, gcomm backend restart is required \\(FATAL\\)");
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+CALL mtr.add_suppression("\\[Warning\\] WSREP: evicting member .* ?at .+ permanently from group");
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+CALL mtr.add_suppression("\\[Warning\\] WSREP: evicting member .* ?at .+ permanently from group");
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET GLOBAL wsrep_on = OFF;
+include/assert_grep.inc [Node evicted]

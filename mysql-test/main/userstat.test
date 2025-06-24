@@ -127,14 +127,57 @@ set @@global.general_log=@save_general_log;
 --echo #
 create function f() returns int return (select 1 from performance_schema.threads);
 set global userstat= 1;
+create table t1 (a int primary key);
+insert into t1 values (1),(2);
+select * from t1 where a=1;
 --error ER_SUBQUERY_NO_1_ROW
 select f() from information_schema.table_statistics;
 --error ER_SUBQUERY_NO_1_ROW
 select f() from information_schema.index_statistics;
 set global userstat= 0;
 drop function f;
+drop table t1;
 --enable_ps2_protocol
 
---echo #
 --echo # End of 10.2 tests
+
 --echo #
+--echo # MDEV-36586 USER_STATISTICS.BUSY_TIME is in microseconds
+--echo #
+select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-33901 INDEX_STATISTICS.QUERIES is incremented additionally for
+--echo # subqueries
+--echo #
+
+SET @save_userstat= @@userstat;
+set global userstat= 1;
+
+create or replace table t1 (a int, key(a)) engine=MyISAM;
+insert into t1 values (1),(2),(3),(4);
+flush index_statistics;
+--disable_ps2_protocol
+select a from t1 where a in ( select a from t1 );
+--enable_ps2_protocol
+show index_statistics;
+drop table t1;
+set global userstat=@save_userstat;
+
+--echo # End of 11.5 tests
+
+--echo #
+--echo # MDEV-34782 SIGSEGV in handler::update_global_table_stats in
+--echo # close_thread_table()
+--echo #
+
+CREATE TABLE t1 (a CHAR(1));
+HANDLER t1 OPEN;
+INSERT INTO t1 VALUES (1);
+HANDLER t1 READ NEXT;
+SET GLOBAL userstat=1;
+HANDLER t1 close;
+drop table t1;
+SET GLOBAL userstat=@save_userstat;

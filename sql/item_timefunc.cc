@@ -26,10 +26,6 @@
     Move month and days to language files
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 /*
@@ -437,7 +433,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
     goto err;
 
   int was_cut;
-  if (check_date(l_time, fuzzydate | TIME_INVALID_DATES, &was_cut))
+  if (check_date(l_time, fuzzydate, &was_cut))
     goto err;
 
   if (val != val_end)
@@ -473,15 +469,17 @@ err:
   Create a formatted date/time value in a string.
 */
 
-static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
-                           timestamp_type type, const MY_LOCALE *locale,
-                           String *str)
+static bool make_date_time(THD *thd, const String *format,
+                           const MYSQL_TIME *l_time, timestamp_type type,
+                           const MY_LOCALE *locale, String *str)
 {
   char intbuff[15];
   uint hours_i;
   uint weekday;
   ulong length;
   const uchar *ptr, *end;
+  struct my_tz curr_tz;
+  Time_zone* curr_timezone= 0;
 
   str->length(0);
 
@@ -694,6 +692,32 @@ static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
 	str->append_zerofill(weekday, 1);
 	break;
 
+      case 'z':
+      {
+        if (!curr_timezone)
+        {
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
+        }
+        long minutes= labs(curr_tz.seconds_offset)/60, diff_hr, diff_min;
+        diff_hr= minutes/60;
+        diff_min= minutes%60;
+
+        str->append(curr_tz.seconds_offset < 0 ? '-' : '+');
+        str->append(static_cast<char>('0' + diff_hr/10));
+        str->append(static_cast<char>('0' + diff_hr%10));
+        str->append(static_cast<char>('0' + diff_min/10));
+        str->append(static_cast<char>('0' + diff_min%10));
+        break;
+      }
+      case 'Z':
+        if (!curr_timezone)
+        {
+          curr_timezone= thd->variables.time_zone;
+          curr_timezone->get_timezone_information(&curr_tz, l_time);
+        }
+        str->append(curr_tz.abbreviation, strlen(curr_tz.abbreviation));
+        break;
       default:
 	str->append_wc(wc);
 	break;
@@ -966,9 +990,8 @@ longlong Item_func_month::val_int()
 }
 
 
-bool Item_func_monthname::fix_length_and_dec()
+bool Item_func_monthname::fix_length_and_dec(THD *thd)
 {
-  THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
   locale= thd->variables.lc_time_names;
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
@@ -1111,9 +1134,8 @@ longlong Item_func_weekday::val_int()
   return dt.weekday(odbc_type) + MY_TEST(odbc_type);
 }
 
-bool Item_func_dayname::fix_length_and_dec()
+bool Item_func_dayname::fix_length_and_dec(THD *thd)
 {
-  THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
   locale= thd->variables.lc_time_names;  
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
@@ -1227,8 +1249,17 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
   if ((null_value= native.is_null() || native.is_zero_datetime()))
     return true;
   Timestamp tm(native);
-  *seconds= tm.tv().tv_sec;
-  *second_part= tm.tv().tv_usec;
+  *seconds= (my_time_t) tm.tv_sec;
+  *second_part= tm.tv_usec;
+  if ((null_value= (tm.tv_sec == 0 && tm.tv_usec == 0)))
+  {
+    /*
+      The value {0,0}='1970-01-01 00:00:00.000000 GMT' cannot be
+      stored in a TIMESTAMP field. Return SQL NULL.
+      Simmetrically, UNIX_TIMESTAMP(0) also returns SQL NULL.
+    */
+    return true;
+  }
   return false;
 }
 
@@ -1254,8 +1285,7 @@ my_decimal *Item_func_unix_timestamp::decimal_op(my_decimal* buf)
   if (get_timestamp_value(&seconds, &second_part))
     return 0;
 
-  return seconds2my_decimal(seconds < 0, seconds < 0 ? -seconds : seconds,
-                            second_part, buf);
+  return seconds2my_decimal(0, seconds, second_part, buf);
 }
 
 
@@ -1511,6 +1541,17 @@ bool Item_func_from_days::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzz
 }
 
 
+bool Item_func_current_timestamp::val_native(THD *thd, Native *to)
+{
+  Timestamp ts(Timeval(thd->query_start(), thd->query_start_sec_part()));
+  /*
+    to_native() can fail in case of EOM. Don't set null_value on EOM,
+    because CURRENT_TIMESTAMP is NOT NULL. The statement will fail anyway.
+  */
+  return ts.trunc(decimals).to_native(to, decimals);
+}
+
+
 /**
     Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole CURDATE function.
@@ -1518,7 +1559,7 @@ bool Item_func_from_days::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzz
 void Item_func_curdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(now_time, thd->query_start());
-  thd->time_zone_used= 1;
+  thd->used |= THD::TIME_ZONE_USED;
 }
 
 
@@ -1556,13 +1597,8 @@ bool Item_func_curdate::get_date(THD *thd, MYSQL_TIME *res,
 
 bool Item_func_curtime::fix_fields(THD *thd, Item **items)
 {
-  if (decimals > TIME_SECOND_PART_DIGITS)
-  {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), static_cast<ulonglong>(decimals),
-             func_name(), TIME_SECOND_PART_DIGITS);
-    return 1;
-  }
-  return Item_timefunc::fix_fields(thd, items);
+  return check_fsp_or_error() ||
+         Item_timefunc::fix_fields(thd, items);
 }
 
 bool Item_func_curtime::get_date(THD *thd, MYSQL_TIME *res,
@@ -1610,7 +1646,7 @@ void Item_func_curtime_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
   now_time->year= now_time->month= now_time->day= 0;
   now_time->time_type= MYSQL_TIMESTAMP_TIME;
   set_sec_part(thd->query_start_sec_part(), now_time, this);
-  thd->time_zone_used= 1;
+  thd->used|= THD::TIME_ZONE_USED;
 }
 
 
@@ -1632,13 +1668,8 @@ void Item_func_curtime_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 
 bool Item_func_now::fix_fields(THD *thd, Item **items)
 {
-  if (decimals > TIME_SECOND_PART_DIGITS)
-  {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), static_cast<ulonglong>(decimals),
-             func_name(), TIME_SECOND_PART_DIGITS);
-    return 1;
-  }
-  return Item_datetimefunc::fix_fields(thd, items);
+  return check_fsp_or_error() ||
+         Item_datetimefunc::fix_fields(thd, items);
 }
 
 void Item_func_now::print(String *str, enum_query_type query_type)
@@ -1651,23 +1682,6 @@ void Item_func_now::print(String *str, enum_query_type query_type)
 }
 
 
-int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
-{
-  if (field->type() == MYSQL_TYPE_TIMESTAMP)
-  {
-    THD *thd= field->get_thd();
-    my_time_t ts= thd->query_start();
-    ulong sec_part= decimals ? thd->query_start_sec_part() : 0;
-    sec_part-= my_time_fraction_remainder(sec_part, decimals);
-    field->set_notnull();
-    field->store_timestamp(ts, sec_part);
-    return 0;
-  }
-  else
-    return Item_datetimefunc::save_in_field(field, no_conversions);
-}
-
-
 /**
     Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole NOW function.
@@ -1676,7 +1690,7 @@ void Item_func_now_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(now_time, thd->query_start());
   set_sec_part(thd->query_start_sec_part(), now_time, this);
-  thd->time_zone_used= 1;
+  thd->used|= THD::TIME_ZONE_USED;
 }
 
 
@@ -1714,21 +1728,17 @@ bool Item_func_now::get_date(THD *thd, MYSQL_TIME *res,
     Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole SYSDATE function.
 */
-void Item_func_sysdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
+bool Item_func_sysdate_local::val_native(THD *thd, Native *to)
 {
   my_hrtime_t now= my_hrtime();
-  thd->variables.time_zone->gmt_sec_to_TIME(now_time, hrtime_to_my_time(now));
-  set_sec_part(hrtime_sec_part(now), now_time, this);
-  thd->time_zone_used= 1;
+  Timestamp ts(hrtime_to_my_time(now), hrtime_sec_part(now));
+  /*
+    to_native() can fail on EOM. Don't set null_value here,
+    because SYSDATE is NOT NULL. The statement will fail anyway.
+  */
+  return ts.trunc(decimals).to_native(to, decimals);
 }
 
-
-bool Item_func_sysdate_local::get_date(THD *thd, MYSQL_TIME *res,
-                                       date_mode_t fuzzydate __attribute__((unused)))
-{
-  store_now_in_TIME(thd, res);
-  return 0;
-}
 
 bool Item_func_sec_to_time::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
@@ -1742,9 +1752,8 @@ bool Item_func_sec_to_time::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fu
   return false;
 }
 
-bool Item_func_date_format::fix_length_and_dec()
+bool Item_func_date_format::fix_length_and_dec(THD *thd)
 {
-  THD* thd= current_thd;
   if (!is_time_format)
   {
     if (arg_count < 3)
@@ -1837,6 +1846,7 @@ uint Item_func_date_format::format_length(const String *format)
       case 'X': /* Year, used with 'v, where week starts with Monday' */
 	size += 4;
 	break;
+      case 'Z': /* time zone abbreviation */
       case 'a': /* locale's abbreviated weekday name (Sun..Sat) */
       case 'b': /* locale's abbreviated month name (Jan.Dec) */
 	size += 32; /* large for UTF8 locale data */
@@ -1875,6 +1885,9 @@ uint Item_func_date_format::format_length(const String *format)
       case 'f': /* microseconds */
 	size += 6;
 	break;
+      case 'z': /* time zone offset */
+        size += 5;
+        break;
       case 'w': /* day (of the week), numeric */
       case '%':
       default:
@@ -1922,7 +1935,7 @@ String *Item_func_date_format::val_str(String *str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(format, &l_time,
+  if (!make_date_time(thd, format, &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))
@@ -1932,6 +1945,79 @@ null_date:
   null_value=1;
   return 0;
 }
+
+
+/* A class to print TO_CHAR(date_time, format) */
+class Date_time_format_oracle
+{
+  // m_fm is true if "FM" was found in the format string odd number of times
+  bool m_fm;
+public:
+  Date_time_format_oracle()
+   :m_fm(false)
+  { }
+
+  /*
+    Append a numeric value to a String.
+    If m_fm is false, then left-pad the numeric value with '0'.
+
+    @param val       - the numeric value to be appended to str
+    @param size      - the maximum number of digits possible in val
+    @param [OUT] str - the result String (val will be appended to it)
+
+    @retval false    - on success
+    @retval true     - on error (e.g. EOM)
+  */
+  bool append_val(int val, uint size, String *str) const
+  {
+    if (m_fm)
+      return str->append_longlong(val);
+    return str->append_zerofill(val, size);
+  }
+
+  /*
+    Append a LEX_CSTRING value to a String.
+    If m_fm is false, then right-pad the appended value with spaces.
+
+    @param ls              - the LEX_CSTRING to be append to str
+    @param max_char_length - the maximum possible length of ls, in characters
+    @param [OUT] str       - the result String (ls will be appended to it)
+
+    @retval false          - on success
+    @retval true           - on error (e.g. EOM)
+ */
+  bool append_lex_cstring(const LEX_CSTRING ls, uint max_char_length,
+                          String *str) const
+  {
+    // Locale data uses utf8mb3
+    static constexpr CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci;
+    str->append(ls.str, ls.length, cs);
+    if (!m_fm)
+    {
+      size_t char_length= cs->numchars(ls.str, ls.str + ls.length);
+      if (char_length < max_char_length)
+        return str->fill(str->length() + max_char_length - char_length, ' ');
+    }
+    return false;
+  }
+
+  /*
+    Print a date/time value to a String according to the given format
+    @param fmt_array - the format array
+    @param l_time    - the date/time value
+    @param locale    - the locale to use for textual components
+                       (MONTH and DAY)
+    @param [OUT] str - the string to print into.
+
+    @retval false    - on success
+    @retval true     - on error (e.g. EOM)
+  */
+  bool format(const uint16 *fmt_array,
+              const MYSQL_TIME *l_time,
+              const MY_LOCALE *locale,
+              String *str);
+};
+
 
 /*
   Oracle has many formatting models, we list all but only part of them
@@ -2046,7 +2132,7 @@ static uint parse_special(char cfmt, const char *ptr, const char *end,
 
   /*
    * '&' with text is used for variable input, but '&' with other
-   * special charaters like '|'. '*' is used as separator
+   * special characters like '|'. '*' is used as separator
    */
   if (cfmt == '&' && ptr + 1 < end)
   {
@@ -2109,7 +2195,8 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
     /*
       Oracle datetime format support text in double quotation marks like
       'YYYY"abc"MM"xyz"DD', When this happens, store the text and quotation
-      marks, and use the text as a separator in make_date_time_oracle.
+      marks, and use the text as a separator in
+      Date_time_format_oracle::format().
 
       NOTE: the quotation mark is not print in return value. for example:
       select TO_CHAR(sysdate, 'YYYY"abc"MM"xyzDD"') will return 2021abc01xyz11
@@ -2390,6 +2477,17 @@ bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
       tmp_fmt--;
       break;
 
+    case 'F':
+      if (ptr + 1 == end)
+        goto error;
+      if (my_toupper(system_charset_info, ptr[1]) == 'M')
+      {
+        *tmp_fmt= FMT_FM;
+        ptr+= 1;
+        continue;
+      }
+      goto error;
+
     default:
       offset= parse_special(cfmt, ptr, end, tmp_fmt);
       if (!offset)
@@ -2412,16 +2510,10 @@ error:
 }
 
 
-static inline bool append_val(int val, int size, String *str)
-{
-  return str->append_zerofill(val, size);
-}
-
-
-static bool make_date_time_oracle(const uint16 *fmt_array,
-                                  const MYSQL_TIME *l_time,
-                                  const MY_LOCALE *locale,
-                                  String *str)
+bool Date_time_format_oracle::format(const uint16 *fmt_array,
+                                     const MYSQL_TIME *l_time,
+                                     const MY_LOCALE *locale,
+                                     String *str)
 {
   bool quotation_flag= false;
   const uint16 *ptr= fmt_array;
@@ -2529,16 +2621,8 @@ static bool make_date_time_oracle(const uint16 *fmt_array,
         }
         else
         {
-          const char *month_name= (locale->month_names->
-                                   type_names[l_time->month-1]);
-          size_t month_byte_len= strlen(month_name);
-          size_t month_char_len;
-          str->append(month_name, month_byte_len, system_charset_info);
-          month_char_len= my_numchars_mb(&my_charset_utf8mb3_general_ci,
-                                         month_name, month_name +
-                                         month_byte_len);
-          if (str->fill(str->length() + locale->max_month_name_length -
-                        month_char_len, ' '))
+          if (append_lex_cstring(locale->month_name(l_time->month - 1),
+                                 locale->max_month_name_length, str))
             goto err_exit;
         }
       }
@@ -2569,17 +2653,10 @@ static bool make_date_time_oracle(const uint16 *fmt_array,
           str->append("00", 2, system_charset_info);
         else
         {
-          const char *day_name;
-          size_t day_byte_len, day_char_len;
           weekday=calc_weekday(calc_daynr(l_time->year,l_time->month,
                                           l_time->day), 0);
-          day_name= locale->day_names->type_names[weekday];
-          day_byte_len= strlen(day_name);
-          str->append(day_name, day_byte_len, system_charset_info);
-          day_char_len= my_numchars_mb(&my_charset_utf8mb3_general_ci,
-                                       day_name, day_name + day_byte_len);
-          if (str->fill(str->length() + locale->max_day_name_length -
-                        day_char_len, ' '))
+          if (append_lex_cstring(locale->day_name(weekday),
+                                 locale->max_day_name_length, str))
             goto err_exit;
         }
       }
@@ -2607,6 +2684,10 @@ static bool make_date_time_oracle(const uint16 *fmt_array,
         goto err_exit;
       break;
 
+    case FMT_FM:
+      m_fm= !m_fm;
+      break;
+
     default:
       str->append((char) *ptr);
     }
@@ -2620,9 +2701,8 @@ err_exit:
 }
 
 
-bool Item_func_tochar::fix_length_and_dec()
+bool Item_func_tochar::fix_length_and_dec(THD *thd)
 {
-  thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
   Item *arg1= args[1]->this_item();
   my_repertoire_t repertoire= arg1->collation.repertoire;
@@ -2686,6 +2766,7 @@ bool Item_func_tochar::fix_length_and_dec()
 
 String *Item_func_tochar::val_str(String* str)
  {
+  THD *thd= current_thd;
   StringBuffer<64> format_buffer;
   String *format;
   MYSQL_TIME l_time;
@@ -2714,7 +2795,7 @@ String *Item_func_tochar::val_str(String* str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time_oracle(fmt_array, &l_time, lc, str))
+  if (!Date_time_format_oracle().format(fmt_array, &l_time, lc, str))
     return str;
 
 null_date:
@@ -2736,10 +2817,8 @@ null_date:
 }
 
 
-bool Item_func_from_unixtime::fix_length_and_dec()
+bool Item_func_from_unixtime::fix_length_and_dec(THD *thd)
 {
-  THD *thd= current_thd;
-  thd->time_zone_used= 1;
   tz= thd->variables.time_zone;
   Type_std_attributes::set(
     Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH,
@@ -2750,26 +2829,36 @@ bool Item_func_from_unixtime::fix_length_and_dec()
 }
 
 
-bool Item_func_from_unixtime::get_date(THD *thd, MYSQL_TIME *ltime,
-				       date_mode_t fuzzydate __attribute__((unused)))
+bool Item_func_from_unixtime::val_native(THD *thd, Native *to)
 {
-  bzero((char *)ltime, sizeof(*ltime));
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-
   VSec9 sec(thd, args[0], "unixtime", TIMESTAMP_MAX_VALUE);
   DBUG_ASSERT(sec.is_null() || sec.sec() <= TIMESTAMP_MAX_VALUE);
 
   if (sec.is_null() || sec.truncated() || sec.neg())
     return (null_value= 1);
 
-  sec.round(MY_MIN(decimals, TIME_SECOND_PART_DIGITS), thd->temporal_round_mode());
+  // decimals can be NOT_FIXED_DEC
+  decimal_digits_t fixed_decimals= MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+
+  sec.round(fixed_decimals, thd->temporal_round_mode());
+
+  if (sec.sec() == 0 && sec.usec() == 0)
+  {
+    /*
+      The value {0,0}='1970-01-01 00:00:00.000000 GMT' cannot be
+      stored in a TIMESTAMP field. Return SQL NULL.
+      Simmetrically, UNIX_TIMESTAMP('1970-01-01 00:00:00')
+      also returns SQL NULL (assuming time_zone='+00:00').
+    */
+    thd->push_warning_truncated_wrong_value("unixtime", "0.0");
+    return (null_value= true); // 0.0 after rounding
+  }
+
   if (sec.sec() > TIMESTAMP_MAX_VALUE)
     return (null_value= true); // Went out of range after rounding
 
-  tz->gmt_sec_to_TIME(ltime, (my_time_t) sec.sec());
-  ltime->second_part= sec.usec();
-
-  return (null_value= 0);
+  const Timestamp ts(Timeval(sec.sec(), sec.usec()));
+  return null_value= ts.to_native(to, fixed_decimals);
 }
 
 
@@ -2821,7 +2910,7 @@ void Item_func_convert_tz::cleanup()
 }
 
 
-bool Item_date_add_interval::fix_length_and_dec()
+bool Item_date_add_interval::fix_length_and_dec(THD *thd)
 {
   enum_field_types arg0_field_type;
 
@@ -2950,7 +3039,7 @@ bool Item_extract::check_arguments() const
 }
 
 
-bool Item_extract::fix_length_and_dec()
+bool Item_extract::fix_length_and_dec(THD *thd)
 {
   set_maybe_null(); // If wrong date
   uint32 daylen= args[0]->cmp_type() == TIME_RESULT ? 2 :
@@ -3176,14 +3265,25 @@ String *Item_char_typecast::val_str_generic(String *str)
   DBUG_ASSERT(fixed());
   String *res;
 
-  if (has_explicit_length())
-    cast_length= adjusted_length_with_warn(cast_length);
-
   if (!(res= args[0]->val_str(str)))
   {
     null_value= 1;
     return 0;
   }
+  return val_str_generic_finalize(res, str);
+}
+
+
+/*
+  Adjust the result of: res= args[0]->val_str(str);
+  according to the cast length.
+  @param res - the value returned from val_str()
+  @param str - the value passed to val_str() as a buffer.
+*/
+String *Item_char_typecast::val_str_generic_finalize(String *res, String *str)
+{
+  if (has_explicit_length())
+    cast_length= adjusted_length_with_warn(cast_length);
 
   if (cast_cs == &my_charset_bin &&
       has_explicit_length() &&
@@ -3360,7 +3460,7 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
                       (!my_charset_same(from_cs, cast_cs) &&
                        from_cs != &my_charset_bin &&
                        cast_cs != &my_charset_bin);
-  collation.set(cast_cs, DERIVATION_IMPLICIT);
+  collation= DTCollation::string_typecast(cast_cs);
   char_length= ((cast_length != ~0U) ? cast_length :
                 args[0]->max_length /
                 (cast_cs == &my_charset_bin ? 1 :
@@ -3453,7 +3553,7 @@ err:
 }
 
 
-bool Item_func_add_time::fix_length_and_dec()
+bool Item_func_add_time::fix_length_and_dec(THD *thd)
 {
   enum_field_types arg0_field_type;
 
@@ -3882,7 +3982,7 @@ get_date_time_result_type(const char *format, uint length)
 }
 
 
-bool Item_func_str_to_date::fix_length_and_dec()
+bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
 {
   if (!args[0]->type_handler()->is_traditional_scalar_type() ||
       !args[1]->type_handler()->is_traditional_scalar_type())

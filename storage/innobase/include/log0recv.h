@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,13 +37,6 @@ Created 9/20/1997 Heikki Tuuri
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
 
-/** Find the latest checkpoint in the log header.
-@param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
-@return error code or DB_SUCCESS */
-dberr_t
-recv_find_max_checkpoint(ulint* max_field)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Apply any buffered redo log to a page.
 @param space     tablespace
@@ -52,39 +45,14 @@ ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool recv_recover_page(fil_space_t* space, buf_page_t* bpage);
 
 /** Read the latest checkpoint information from log file
-and store it in log_sys.next_checkpoint and recv_sys.mlog_checkpoint_lsn
+and store it in log_sys.next_checkpoint and recv_sys.file_checkpoint
 @return error code or DB_SUCCESS */
-dberr_t recv_recovery_read_max_checkpoint();
+dberr_t recv_recovery_read_checkpoint();
 
 /** Start recovering from a redo log checkpoint.
-@param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
 of first system tablespace page
 @return error code or DB_SUCCESS */
-dberr_t
-recv_recovery_from_checkpoint_start(
-	lsn_t	flush_lsn);
-
-/** Whether to store redo log records in recv_sys.pages */
-enum store_t {
-	/** Do not store redo log records. */
-	STORE_NO,
-	/** Store redo log records. */
-	STORE_YES,
-	/** Store redo log records if the tablespace exists. */
-	STORE_IF_EXISTS
-};
-
-
-/** Adds data from a new log block to the parsing buffer of recv_sys if
-recv_sys.parse_start_lsn is non-zero.
-@param[in]	log_block	log block to add
-@param[in]	scanned_lsn	lsn of how far we were able to find
-				data in this log block
-@return true if more data added */
-bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
-
-/** Moves the parsing buffer data left to the buffer start */
-void recv_sys_justify_left_parsing_buf();
+dberr_t recv_recovery_from_checkpoint_start();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -94,8 +62,8 @@ void recv_sys_justify_left_parsing_buf();
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
 extern void (*log_file_op)(uint32_t space_id, int type,
-			   const byte* name, size_t len,
-			   const byte* new_name, size_t new_len);
+			   const byte* name, ulint len,
+			   const byte* new_name, ulint new_len);
 
 /** Report an operation which does undo log tablespace truncation
 during backup
@@ -171,7 +139,8 @@ struct recv_dblwr_t
   @param name tablespace filepath
   @param file tablespace file handle
   @return space_id or 0 in case of error */
-  uint32_t find_first_page(const char *name, pfs_os_file_t file);
+  inline uint32_t find_first_page(const char *name, pfs_os_file_t file)
+    const noexcept;
 
   typedef std::deque<byte*, ut_allocator<byte*> > list;
 
@@ -243,22 +212,9 @@ struct page_recv_t
   inline void will_not_read();
 };
 
-/** A page initialization operation that was parsed from the redo log */
-struct recv_init
-{
-  /** log sequence number of the page initialization */
-  lsn_t lsn;
-  /** Whether btr_page_create() avoided a read of the page.
-  At the end of the last recovery batch, mark_ibuf_exist()
-  will mark pages for which this flag is set. */
-  bool created;
-};
-
 /** Recovery system data structure */
 struct recv_sys_t
 {
-  using init= recv_init;
-
   /** mutex protecting this as well as some of page_recv_t */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
 private:
@@ -269,36 +225,28 @@ private:
   during log scan or apply */
   bool found_corrupt_fs;
 public:
+  /** @return maximum guaranteed size of a mini-transaction on recovery */
+  static constexpr size_t MTR_SIZE_MAX{1U << 20};
+
   /** whether we are applying redo log records during crash recovery.
-  This is protected by recv_sys.mutex */
+  This can be cleared when holding mutex, or when pages.empty() and
+  we are holding exclusive log_sys.latch. */
   Atomic_relaxed<bool> recovery_on= false;
   /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
-	byte*		buf;	/*!< buffer for parsing log records */
-	ulint		len;	/*!< amount of data in buf */
-	lsn_t		parse_start_lsn;
-				/*!< this is the lsn from which we were able to
-				start parsing log records and adding them to
-				pages; zero if a suitable
-				start point not found yet */
-	lsn_t		scanned_lsn;
-				/*!< the log data has been scanned up to this
-				lsn */
-	ulint		scanned_checkpoint_no;
-				/*!< the log data has been scanned up to this
-				checkpoint number (lowest 4 bytes) */
-	ulint		recovered_offset;
-				/*!< start offset of non-parsed log records in
-				buf */
-	lsn_t		recovered_lsn;
-				/*!< the log records have been parsed up to
-				this lsn */
-	lsn_t		mlog_checkpoint_lsn;
-				/*!< the LSN of a FILE_CHECKPOINT
-				record, or 0 if none was parsed */
-	/** the time when progress was last reported */
-	time_t		progress_time;
+  /** number of bytes in log_sys.buf */
+  size_t len;
+  /** start offset of non-parsed log records in log_sys.buf */
+  size_t offset;
+  /** log sequence number of the first non-parsed record */
+  lsn_t lsn;
+  /** log sequence number of the last parsed mini-transaction */
+  lsn_t scanned_lsn;
+  /** log sequence number at the end of the FILE_CHECKPOINT record, or 0 */
+  lsn_t file_checkpoint;
+  /** the time when progress was last reported */
+  time_t progress_time;
 
   using map = std::map<const page_id_t, page_recv_t,
                        std::less<const page_id_t>,
@@ -323,19 +271,19 @@ private:
     lsn_t lsn;
     /** truncated size of the tablespace, or 0 if not truncated */
     unsigned pages;
-  } truncated_undo_spaces[127];
+  };
+
+  trunc truncated_undo_spaces[127];
+  trunc truncated_sys_space;
 
 public:
   /** The contents of the doublewrite buffer */
   recv_dblwr_t dblwr;
 
-  /** Last added LSN to pages. */
-  lsn_t last_stored_lsn= 0;
-
-  __attribute__((warn_unused_result))
-  dberr_t read(os_offset_t offset, span<byte> buf);
+  __attribute__((warn_unused_result)) 
+  inline dberr_t read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
-  void close_files() { files.clear(); files.shrink_to_fit(); }
+  void close_files();
 
   /** Advance pages_it if it matches the iterator */
   void pages_it_invalidate(const map::iterator &p)
@@ -352,29 +300,27 @@ public:
       pages_it= pages.end();
   }
 
+  /** Allow to apply system tablespace truncate redo log only
+  if the size to be extended is lesser than current size.
+  @retval true  To apply the truncate shrink redo log record
+  @retval false otherwise */
+  bool check_sys_truncate();
+
 private:
   /** Attempt to initialize a page based on redo log records.
   @param p        iterator
   @param mtr      mini-transaction
   @param b        pre-allocated buffer pool block
-  @param init     page initialization
+  @param init_lsn page initialization
   @return the recovered block
   @retval nullptr if the page cannot be initialized based on log records
   @retval -1      if the page cannot be recovered due to corruption */
   inline buf_block_t *recover_low(const map::iterator &p, mtr_t &mtr,
-                                  buf_block_t *b, init &init);
-  /** Attempt to initialize a page based on redo log records.
-  @param page_id  page identifier
-  @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  ATTRIBUTE_COLD buf_block_t *recover_low(const page_id_t page_id);
+                                  buf_block_t *b, lsn_t init_lsn);
 
   /** All found log files (multiple ones are possible if we are upgrading
   from before MariaDB Server 10.5.1) */
   std::vector<log_file_t> files;
-
-  void open_log_files_if_needed();
 
   /** Base node of the redo block list.
   List elements are linked via buf_block_t::unzip_LRU. */
@@ -417,25 +363,66 @@ public:
   /** Clean up after create() */
   void close();
 
-  bool is_initialised() const { return last_stored_lsn != 0; }
+  bool is_initialised() const { return scanned_lsn != 0; }
+
+  /** Find the latest checkpoint.
+  @return error code or DB_SUCCESS */
+  dberr_t find_checkpoint();
 
   /** Register a redo log snippet for a page.
   @param it       page iterator
   @param start_lsn start LSN of the mini-transaction
   @param lsn      @see mtr_t::commit_lsn()
-  @param l        redo log snippet @see log_t::FORMAT_10_5
+  @param l        redo log snippet
   @param len      length of l, in bytes
   @return whether we ran out of memory */
   bool add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
            const byte *l, size_t len);
 
-  /** Parse and register mini-transactions in log_t::FORMAT_10_5.
-  @param checkpoint_lsn  the log sequence number of the latest checkpoint
-  @param store           whether to store the records
-  @param apply           whether to apply file-level log records
-  @return whether FILE_CHECKPOINT record was seen the first time,
-  or corruption was noticed */
-  bool parse(lsn_t checkpoint_lsn, store_t *store, bool apply);
+  /** Parsing result */
+  enum parse_mtr_result {
+    /** a record was successfully parsed */
+    OK,
+    /** the log ended prematurely (need to read more) */
+    PREMATURE_EOF,
+    /** the end of the log was reached */
+    GOT_EOF,
+    /** parse<true>(l, false) ran out of memory */
+    GOT_OOM
+  };
+
+  /** Whether to store parsed log records */
+  enum store{NO,BACKUP,YES};
+
+private:
+  /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
+  @tparam storing   whether to store the records
+  @param  l         log data source
+  @param  if_exists if store: whether to check if the tablespace exists */
+  template<typename source,store storing>
+  inline parse_mtr_result parse(source &l, bool if_exists) noexcept;
+
+  /** Rewind a mini-transaction when parse() runs out of memory.
+  @param  l         log data source
+  @param  begin     start of the mini-transaction */
+  template<typename source>
+  ATTRIBUTE_COLD void rewind(source &l, source &begin) noexcept;
+
+  /** Report progress in terms of LSN or pages remaining */
+  ATTRIBUTE_COLD void report_progress() const;
+public:
+  /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
+  without handling any log_sys.is_mmap() buffer wrap-around.
+  @tparam storing   whether to store the records
+  @param  if_exists storing=YES: whether to check if the tablespace exists */
+  template<store storing>
+  static parse_mtr_result parse_mtr(bool if_exists) noexcept;
+  /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
+  handling log_sys.is_mmap() buffer wrap-around.
+  @tparam storing   whether to store the records
+  @param  if_exists storing=YES: whether to check if the tablespace exists */
+  template<store storing>
+  static parse_mtr_result parse_mmap(bool if_exists) noexcept;
 
   /** Erase log records for a page. */
   void erase(map::iterator p);
@@ -443,14 +430,6 @@ public:
   /** Clear a fully processed set of stored redo log records. */
   void clear();
 
-private:
-  /** Rewind a mini-transaction when parse() runs out of memory.
-  @param  end       current position of the mini-transaction
-  @param  begin     start of the mini-transaction */
-  ATTRIBUTE_COLD void rewind(const byte *end, const byte *begin) noexcept;
-  /** Report progress in terms of LSN or pages remaining */
-  ATTRIBUTE_COLD void report_progress() const;
-public:
   /** Determine whether redo log recovery progress should be reported.
   @param time  the current time
   @return whether progress should be reported
@@ -482,20 +461,17 @@ public:
   bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
 
   /** Check if recovery reached a consistent log sequence number.
-  @param start_lsn  the checkpoint LSN
-  @param end_lsn    the end LSN of the FILE_CHECKPOINT mini-transaction
   @return whether the recovery failed to process enough log */
-  inline bool validate_checkpoint(lsn_t start_lsn, lsn_t end_lsn) const;
+  inline bool validate_checkpoint() const noexcept;
 
-  /** Attempt to initialize a page based on redo log records.
+  /** Read a page or recover it based on redo log records.
   @param page_id  page identifier
-  @return the recovered block
-  @retval nullptr if the page cannot be initialized based on log records
-  @retval -1      if the page cannot be recovered due to corruption */
-  buf_block_t *recover(const page_id_t page_id)
-  {
-    return UNIV_UNLIKELY(recovery_on) ? recover_low(page_id) : nullptr;
-  }
+  @param mtr      mini-transaction
+  @param err      error code
+  @return the requested block
+  @retval nullptr if the page cannot be accessed due to corruption */
+  ATTRIBUTE_COLD
+  buf_block_t *recover(const page_id_t page_id, mtr_t *mtr, dberr_t *err);
 
   /** Try to recover a tablespace that was not readable earlier
   @param p          iterator
@@ -511,28 +487,10 @@ public:
 /** The recovery system */
 extern recv_sys_t	recv_sys;
 
-/** If the following is TRUE, the buffer pool file pages must be invalidated
-after recovery and no ibuf operations are allowed; this will be set if
-recv_sys.pages becomes too full, and log records must be merged
-to file pages already before the recovery is finished: in this case no
-ibuf operations are allowed, as they could modify the pages read in the
-buffer pool before the pages have been recovered to the up-to-date state.
-
-TRUE means that recovery is running and no operations on the log files
-are allowed yet: the variable name is misleading. */
-extern bool		recv_no_ibuf_operations;
 /** TRUE when recv_init_crash_recovery() has been called. */
 extern bool		recv_needed_recovery;
 #ifdef UNIV_DEBUG
-/** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys.mutex. */
-extern bool		recv_no_log_write;
+/** whether writing to the redo log is forbidden;
+protected by exclusive log_sys.latch. */
+extern bool recv_no_log_write;
 #endif /* UNIV_DEBUG */
-
-/** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
-times! */
-#define RECV_PARSING_BUF_SIZE	(2U << 20)
-
-/** Size of block reads when the log groups are scanned forward to do a
-roll-forward */
-#define RECV_SCAN_SIZE		(4U << srv_page_size_shift)

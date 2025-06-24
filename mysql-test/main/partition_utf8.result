@@ -6,7 +6,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2) CHARACTER SET cp1250 COLLATE cp1250_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST  COLUMNS(`a`)
 (PARTITION `p0` VALUES IN (_cp1250 0x81) ENGINE = MyISAM)
 drop table t1;
@@ -17,7 +17,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2) CHARACTER SET cp1250 COLLATE cp1250_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST  COLUMNS(`a`)
 (PARTITION `p0` VALUES IN ('€') ENGINE = MyISAM)
 drop table t1;
@@ -43,8 +43,8 @@ partition p1 values in (''));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` varchar(2) CHARACTER SET ucs2 COLLATE ucs2_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST  COLUMNS(`a`)
 (PARTITION `p0` VALUES IN ('†') ENGINE = MyISAM,
  PARTITION `p1` VALUES IN ('') ENGINE = MyISAM)
@@ -79,7 +79,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
  PARTITION BY LIST  COLUMNS(`a`)
 (PARTITION `p0` VALUES IN (_binary 0xff) ENGINE = MyISAM)
 SELECT PARTITION_DESCRIPTION FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_NAME='t1';

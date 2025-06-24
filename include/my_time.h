@@ -30,15 +30,27 @@ C_MODE_START
 extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
+#if SIZEOF_VOIDP == 4
+/* 32 bit system, using old timestamp */
 #define MY_TIME_T_MAX LONG_MAX
 #define MY_TIME_T_MIN LONG_MIN
-
-/* Time handling defaults */
 #define TIMESTAMP_MAX_YEAR 2038
-#define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
+#define TIMESTAMP_MAX_MONTH 1
+#define TIMESTAMP_MAX_DAY 19
 #define TIMESTAMP_MAX_VALUE INT_MAX32
 #define TIMESTAMP_MIN_VALUE 0
+#else
+/* 64 bit system. Use 4 byte unsigned timestamp */
+#define MY_TIME_T_MAX ((longlong) UINT_MAX32)
+#define MY_TIME_T_MIN 0
+#define TIMESTAMP_MAX_YEAR 2106
+#define TIMESTAMP_MIN_VALUE 0
+#define TIMESTAMP_MAX_VALUE ((longlong) UINT_MAX32)
+#define TIMESTAMP_MAX_MONTH 2
+#define TIMESTAMP_MAX_DAY 7
+#endif /* SIZEOF_VOIDP */
 
+#define TIMESTAMP_MIN_YEAR (1900 + YY_PART_YEAR - 1)
 /* two-digit years < this are 20..; >= this are 19.. */
 #define YY_PART_YEAR	   70
 
@@ -48,8 +60,8 @@ extern uchar days_in_month[];
 */
 #if SIZEOF_TIME_T > 4 || defined(TIME_T_UNSIGNED)
 # define IS_TIME_T_VALID_FOR_TIMESTAMP(x) \
-    ((x) <= TIMESTAMP_MAX_VALUE && \
-     (x) >= TIMESTAMP_MIN_VALUE)
+  ((ulonglong) (x) <= TIMESTAMP_MAX_VALUE &&     \
+      ((x) >= TIMESTAMP_MIN_VALUE)
 #else
 # define IS_TIME_T_VALID_FOR_TIMESTAMP(x) \
     ((x) >= TIMESTAMP_MIN_VALUE)
@@ -118,6 +130,13 @@ static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
   status->nanoseconds= 0;
 }
 
+struct my_timeval
+{
+  longlong tv_sec;
+  ulong tv_usec;
+};
+
+
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut);
 my_bool str_to_DDhhmmssff(const char *str, size_t length, MYSQL_TIME *l_time,
@@ -181,7 +200,6 @@ void my_init_time(void);
 static inline my_bool validate_timestamp_range(const MYSQL_TIME *t)
 {
   if ((t->year > TIMESTAMP_MAX_YEAR || t->year < TIMESTAMP_MIN_YEAR) ||
-      (t->year == TIMESTAMP_MAX_YEAR && (t->month > 1 || t->day > 19)) ||
       (t->year == TIMESTAMP_MIN_YEAR && (t->month < 12 || t->day < 31)))
     return FALSE;
 
@@ -216,7 +234,7 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to);
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits);
 
-int my_timeval_to_str(const struct timeval *tm, char *to, uint dec);
+int my_timeval_to_str(const struct my_timeval *tm, char *to, uint dec);
 
 static inline longlong sec_part_shift(longlong second_part, uint digits)
 {
@@ -246,11 +264,6 @@ static inline void my_time_trunc(MYSQL_TIME *ltime, uint decimals)
 #ifdef _WIN32
 #define suseconds_t long
 #endif
-static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
-{
-  tv->tv_usec-= (suseconds_t) my_time_fraction_remainder(tv->tv_usec, decimals);
-}
-
 
 #define hrtime_to_my_time(X) ((my_time_t)hrtime_to_time(X))
 

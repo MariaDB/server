@@ -14,6 +14,9 @@ CREATE TABLE t1(id int not null primary key) engine=innodb;
 INSERT INTO t1 values (1);
 show global variables  like '%gtid%';
 Variable_name	Value
+binlog_gtid_index	ON
+binlog_gtid_index_page_size	4096
+binlog_gtid_index_span_min	65536
 gtid_binlog_pos	1-11-2
 gtid_binlog_state	1-11-2
 gtid_cleanup_batch_size	64
@@ -29,6 +32,9 @@ connection node_2;
 SET SESSION wsrep_sync_wait=15;
 show global variables  like '%gtid%';
 Variable_name	Value
+binlog_gtid_index	ON
+binlog_gtid_index_page_size	4096
+binlog_gtid_index_span_min	65536
 gtid_binlog_pos	0-12-1,1-11-2
 gtid_binlog_state	0-12-1,1-11-2
 gtid_cleanup_batch_size	64
@@ -55,6 +61,9 @@ Error	1231	Variable 'server_id' can't be set to the value of '200'
 INSERT INTO t1 values(2);
 show global variables  like '%gtid%';
 Variable_name	Value
+binlog_gtid_index	ON
+binlog_gtid_index_page_size	4096
+binlog_gtid_index_span_min	65536
 gtid_binlog_pos	0-12-1,1-11-3
 gtid_binlog_state	0-12-1,1-11-3
 gtid_cleanup_batch_size	64
@@ -69,6 +78,9 @@ wsrep_gtid_mode	ON
 connection node_1;
 show global variables  like '%gtid%';
 Variable_name	Value
+binlog_gtid_index	ON
+binlog_gtid_index_page_size	4096
+binlog_gtid_index_span_min	65536
 gtid_binlog_pos	1-11-3
 gtid_binlog_state	1-11-3
 gtid_cleanup_batch_size	64

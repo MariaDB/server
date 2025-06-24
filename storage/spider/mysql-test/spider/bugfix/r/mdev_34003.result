@@ -9,6 +9,8 @@ create table t2 (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (0,1,0),(1,0,0),(2,0,0);
 create table t1 (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t1 WHERE c=0;
 c	c1	c2
 0	1	0

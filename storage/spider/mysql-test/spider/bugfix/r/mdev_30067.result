@@ -7,18 +7,30 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t (c INT);
 INSERT INTO t VALUES (13);
 CREATE TABLE t1 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"' PARTITION BY LIST (c) (PARTITION p VALUES IN (42));
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DELETE FROM a1 USING t1 AS a1;
 drop table t, t1;
 CREATE TABLE t (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=InnoDB;
 INSERT INTO t VALUES (0,1,0),(1,0,0),(2,0,0);
 CREATE TABLE t1 (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 ALTER TABLE t1 ENGINE=Spider PARTITION BY LIST (c) (PARTITION p VALUES IN (1,2));
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DELETE FROM a2,a1 USING t1 AS a1 JOIN t1 AS a2,t1 AS a3;
 drop table t, t1;
 CREATE TABLE t (c INT);
 CREATE TABLE t1 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"' PARTITION BY LIST (c) (PARTITION p1 VALUES IN (42), PARTITION p2 VALUES IN (13));
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t1 VALUES (13);
 ALTER TABLE t1 PARTITION BY LIST (c) (PARTITION p1 VALUES IN (13), PARTITION p2 VALUES IN (87));
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DELETE FROM a1 USING t1 AS a1;
 drop table t, t1;
 drop server srv;

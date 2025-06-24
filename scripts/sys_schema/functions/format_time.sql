@@ -26,7 +26,9 @@ CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_time (
     COMMENT '
              Description
              -----------
-
+             
+             OBSOLETE. USE BUILT-IN format_pico_time() INSTEAD
+             
              Takes a raw picoseconds value, and converts it to a human readable form.
              
              Picoseconds are the precision that all latency values are printed in 

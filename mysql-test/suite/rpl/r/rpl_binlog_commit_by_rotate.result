@@ -1,0 +1,173 @@
+include/master-slave.inc
+[connection master]
+# Prepare
+SET @saved_binlog_large_commit_threshold= @@GLOBAL.binlog_large_commit_threshold;
+SET @saved_binlog_checksum= @@GLOBAL.binlog_checksum;
+SET GLOBAL binlog_checksum = "NONE";
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+CREATE TABLE t2 (c1 LONGTEXT) ENGINE = MyISAM;
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t2 values(repeat("1", 5242880));
+INSERT INTO t2 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+# Not renamed to binlog, since the binlog cache is not larger than the
+# threshold. And it should works well after ROLLBACK TO SAVEPOINT
+BEGIN;
+SAVEPOINT s1;
+UPDATE t1 SET c1 = repeat('1', 5242880);
+ROLLBACK TO SAVEPOINT s1;
+UPDATE t1 SET c1 = repeat('2', 5242880);
+SAVEPOINT s2;
+UPDATE t1 SET c1 = repeat('3', 5242880);
+UPDATE t1 SET c1 = repeat('4', 5242880);
+ROLLBACK TO SAVEPOINT s2;
+COMMIT;
+include/assert.inc [Binlog is not rotated]
+#
+# Test binlog cache rename to binlog file with checksum off
+#
+include/sync_slave_sql_with_master.inc
+include/stop_slave.inc
+SET @saved_binlog_large_commit_threshold = @@GLOBAL.binlog_large_commit_threshold;
+SET @saved_slave_parallel_workers = @@GLOBAL.slave_parallel_workers;
+SET @saved_slave_parallel_mode = @@GLOBAL.slave_parallel_mode;
+SET @saved_slave_parallel_max_queued = @@GLOBAL.slave_parallel_max_queued;
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+SET GLOBAL slave_parallel_max_queued = 100 * 1024 * 1024;
+SET GLOBAL slave_parallel_workers = 4;
+SET GLOBAL slave_parallel_mode = "aggressive";
+include/start_slave.inc
+BEGIN;
+DELETE FROM t1;
+connection master;
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+# Transaction cache can be renamed and works well with ROLLBACK TO SAVEPOINT
+BEGIN;
+SAVEPOINT s1;
+UPDATE t1 SET c1 = repeat('2', 5242880);
+ROLLBACK TO s1;
+UPDATE t1 SET c1 = repeat('3', 5242880);
+SAVEPOINT s2;
+UPDATE t1 SET c1 = repeat('4', 5242880);
+UPDATE t1 SET c1 = repeat('5', 5242880);
+UPDATE t1 SET c1 = repeat('6', 5242880);
+ROLLBACK TO SAVEPOINT s2;
+COMMIT;
+INSERT INTO t1 VALUES("after_update_t1");
+include/assert.inc [Rename is executed.]
+# statement cache can be renamed
+connection master;
+BEGIN;
+UPDATE t2 SET c1 = repeat('4', 5242880);
+INSERT INTO t1 VALUES("after_update_t2");
+COMMIT;
+include/assert.inc [Rename is executed.]
+connection slave;
+ROLLBACK;
+connection master;
+include/sync_slave_sql_with_master.inc
+include/assert.inc [Rename is executed.]
+include/assert.inc [Rename is executed.]
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000002	#	Annotate_rows	#	#	UPDATE t1 SET c1 = repeat('3', 5242880)
+slave-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000002	#	Update_rows_v1	#	#	table_id: #
+slave-bin.000002	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000002	#	Query	#	#	SAVEPOINT `s2`
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES("after_update_t1")
+slave-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000002	#	Rotate	#	#	slave-bin.000003;pos=POS
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000003	#	Annotate_rows	#	#	UPDATE t2 SET c1 = repeat('4', 5242880)
+slave-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
+slave-bin.000003	#	Update_rows_v1	#	#	table_id: #
+slave-bin.000003	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000003	#	Query	#	#	COMMIT
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES("after_update_t2")
+slave-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000003	#	Xid	#	#	COMMIT /* XID */
+include/stop_slave.inc
+SET GLOBAL binlog_large_commit_threshold = @saved_binlog_large_commit_threshold;
+SET GLOBAL slave_parallel_workers = @saved_slave_parallel_workers;
+SET GLOBAL slave_parallel_max_queued = @saved_slave_parallel_max_queued;
+SET GLOBAL slave_parallel_mode = @saved_slave_parallel_mode;
+include/start_slave.inc
+# CREATE SELECT works well
+connection master;
+CREATE TABLE t3 SELECT * FROM t1;
+include/assert.inc [Rename is executed.]
+CREATE TABLE t4 SELECT * FROM t2;
+include/assert.inc [Rename is executed.]
+# XA statement works well
+XA START "test-a-long-xid========================================";
+UPDATE t1 SET c1 = repeat('1', 5242880);
+XA END "test-a-long-xid========================================";
+XA PREPARE "test-a-long-xid========================================";
+XA COMMIT "test-a-long-xid========================================";
+include/assert.inc [Rename is executed.]
+XA START "test-xid";
+UPDATE t1 SET c1 = repeat('2', 5242880);
+XA END "test-xid";
+XA COMMIT "test-xid" ONE PHASE;
+include/assert.inc [Rename is executed.]
+#
+#  It works well in the situation that binlog header is larger than
+#  IO_SIZE and binlog file's buffer.
+#
+FLUSH BINARY LOGS;
+SET SESSION server_id = 1;
+UPDATE t1 SET c1 = repeat('3', 5242880);
+include/assert.inc [Rename is executed.]
+#
+# RESET MASTER should work well. It also verifies binlog checksum mechanism.
+#
+include/rpl_reset.inc
+#
+# Test binlog cache rename to binlog file with checksum on
+#
+SET GLOBAL binlog_checksum = "CRC32";
+# It will not rename the cache to file, since the cache's checksum was
+# initialized when reset the cache at the end of previous transaction.
+UPDATE t1 SET c1 = repeat('5', 5242880);
+include/assert.inc [Binlog is not rotated]
+#
+# Not rename to binlog file If the cache's checksum is not same
+# to binlog_checksum
+#
+BEGIN;
+UPDATE t1 SET c1 = repeat('6', 5242880);
+SET GLOBAL binlog_checksum = "NONE";
+COMMIT;
+include/assert.inc [Binlog is not rotated]
+BEGIN;
+UPDATE t1 SET c1 = repeat('7', 5242880);
+SET GLOBAL binlog_checksum = "CRC32";
+COMMIT;
+include/assert.inc [Binlog is not rotated]
+#
+# Not rename to binlog file If both stmt and trx cache are not empty
+#
+UPDATE t1, t2 SET t1.c1 = repeat('8', 5242880), t2.c1 = repeat('7', 5242880);
+include/assert.inc [Binlog is not rotated]
+#
+# Not rename to binlog file If binlog_legacy_event_pos is on
+#
+SET GLOBAL binlog_legacy_event_pos = ON;
+UPDATE t1 SET c1 = repeat('9', 5242880);
+SET GLOBAL binlog_legacy_event_pos = OFF;
+include/assert.inc [Binlog is not rotated]
+DROP TABLE t1, t2, t3, t4;
+SET GLOBAL binlog_large_commit_threshold = @saved_binlog_large_commit_threshold;
+SET GLOBAL binlog_checksum = @saved_binlog_checksum;
+include/rpl_end.inc

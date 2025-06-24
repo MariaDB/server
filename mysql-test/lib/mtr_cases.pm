@@ -67,8 +67,8 @@ if (-d '../sql') {
   @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', );
   $overlay_regex= '\b(?:storage|plugin|storage[/][^/]*)/(\w+)/mysql-test\b';
 } else {
-  @plugin_suitedirs= ('mysql-test/plugin/*');
-  $overlay_regex= '\bmysql-test/plugin/(\w+)\b';
+  @plugin_suitedirs= ('mariadb-test/plugin/*');
+  $overlay_regex= '\bmariadb-test/plugin/(\w+)\b';
 }
 $plugin_suitedir_regex= $overlay_regex;
 $plugin_suitedir_regex=~ s/\Q(\w+)\E/\\w+/;
@@ -84,7 +84,7 @@ sub init_pattern {
   return undef unless defined $from;
   if ( $from =~ /^[a-z0-9\.]*$/ ) {
     # Does not contain any regex (except . that we allow as
-    # separator betwen suite and testname), make the pattern match
+    # separator between suite and testname), make the pattern match
     # beginning of string
     $from= "^$from";
     mtr_verbose2("$what='$from'");
@@ -184,7 +184,7 @@ sub collect_test_cases ($$$$) {
       #
       # Collect the criteria for sorting, in order of importance.
       # Note that criteria are also used in mysql-test-run.pl to
-      # schedule tests to workers, and it preferres tests that have
+      # schedule tests to workers, and it prefers tests that have
       # *identical* criteria. That is, test name is *not* part of
       # the criteria, but it's part of the sorting function below.
       #
@@ -288,8 +288,8 @@ sub load_suite_object {
 sub suite_for_file($) {
   my ($file) = @_;
   return ($2, $1) if $file =~ m@^(.*/$plugin_suitedir_regex/(\w+))/@o;
-  return ($2, $1) if $file =~ m@^(.*/mysql-test/suite/(\w+))/@;
-  return ('main', $1) if $file =~ m@^(.*/mysql-test)/@;
+  return ($2, $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test/suite/(\w+))/@;
+  return ('main', $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test)/@;
   mtr_error("Cannot determine suite for $file");
 }
 
@@ -397,7 +397,7 @@ sub collect_suite_name($$)
     else
     {
       my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
-                             ["mysql-test/suite", @plugin_suitedirs ],
+                             ["mariadb-test/suite", "mysql-test/suite", @plugin_suitedirs ],
                              $suitename,
                              $::opt_skip_not_found ? NOT_REQUIRED : undef);
       #
@@ -405,7 +405,7 @@ sub collect_suite_name($$)
       # their overlays here. Let's group them appropriately.
       #
       for (@dirs) {
-        m@^.*/(?:mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
+        m@^.*/(?:mariadb-test/suite|mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
         push @{$suites{$1}}, $_;
       }
     }
@@ -487,7 +487,7 @@ sub process_suite {
 					     $suitedir));
 
   #
-  # Read suite config files, unless it was done aleady
+  # Read suite config files, unless it was done already
   #
   unless (defined $suite->{name}) {
     $suite->{name} = $suitename;

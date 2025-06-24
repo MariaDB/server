@@ -1,6 +1,7 @@
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 --source include/have_innodb.inc
+--source suite/versioning/sys_time.inc
 
 --echo # MDEV-16252: MINIMAL binlog_row_image does not work for versioned tables
 set @old_row_image= @@binlog_row_image;
@@ -39,6 +40,7 @@ show create table t1;
 set timestamp= 12345;
 --let $start_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
 insert t1 values (1, 1);
+--replace_result $sys_timestamp_max TIMESTAMP_MAX
 select *, unix_timestamp(row_start) as row_start, unix_timestamp(row_end) as row_end from t1;
 --let $stop_pos= query_get_value("SHOW MASTER STATUS", Position, 1)
 set timestamp= default;
@@ -46,6 +48,7 @@ set timestamp= default;
 # NOTE: pipe grep is not Windows-compatible
 --let grep_file= $TMP/out.txt
 --let grep_regex= ^###
+--let grep_filter=s{$sys_timestamp_max}{MAX_TIMESTAMP};
 --exec $MYSQL_BINLOG -v -j $start_pos --stop-position=$stop_pos -o 3 $MYSQLD_DATADIR/master-bin.000001 > $grep_file
 --source include/grep.inc
 --sync_slave_with_master
@@ -71,4 +74,4 @@ select * from t;
 --connection master
 drop table t;
 
---source include/rpl_end.inc
+--source rpl_common.inc

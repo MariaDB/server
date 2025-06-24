@@ -238,14 +238,14 @@ dtuple_set_info_bits(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		info_bits)	/*!< in: info bits */
 {
-	tuple->info_bits = info_bits;
+	tuple->info_bits = byte(info_bits);
 }
 
 /*********************************************************************//**
 Gets number of fields used in record comparisons.
 @return number of fields used in comparisons in rem0cmp.* */
 UNIV_INLINE
-ulint
+uint16_t
 dtuple_get_n_fields_cmp(
 /*====================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
@@ -264,7 +264,7 @@ dtuple_set_n_fields_cmp(
 					comparisons in rem0cmp.* */
 {
 	ut_ad(n_fields_cmp <= tuple->n_fields);
-	tuple->n_fields_cmp = n_fields_cmp;
+	tuple->n_fields_cmp = uint16_t(n_fields_cmp);
 }
 
 /** Creates a data tuple from an already allocated chunk of memory.
@@ -291,9 +291,9 @@ dtuple_create_from_mem(
 
 	tuple = (dtuple_t*) buf;
 	tuple->info_bits = 0;
-	tuple->n_fields = n_fields;
-	tuple->n_v_fields = n_v_fields;
-	tuple->n_fields_cmp = n_fields;
+	tuple->n_fields = uint16_t(n_fields);
+	tuple->n_v_fields = uint16_t(n_v_fields);
+	tuple->n_fields_cmp = uint16_t(n_fields);
 	tuple->fields = (dfield_t*) &tuple[1];
 	if (n_v_fields > 0) {
 		tuple->v_fields = &tuple->fields[n_fields];
@@ -398,6 +398,12 @@ dtuple_create_with_vcol(
 	return(tuple);
 }
 
+inline void dtuple_set_n_fields(dtuple_t *tuple, ulint n_fields)
+{
+  tuple->n_fields= uint16_t(n_fields);
+  tuple->n_fields_cmp= uint16_t(n_fields);
+}
+
 /** Copies a data tuple's virtual fields to another. This is a shallow copy;
 @param[in,out]	d_tuple		destination tuple
 @param[in]	s_tuple		source tuple */
@@ -432,7 +438,7 @@ dtuple_copy(
 	ulint		n_fields	= dtuple_get_n_fields(tuple);
 	ulint		n_v_fields	= dtuple_get_n_v_fields(tuple);
 	dtuple_t*	new_tuple	= dtuple_create_with_vcol(
-						heap, n_fields, n_v_fields);
+		heap, tuple->n_fields, tuple->n_v_fields);
 	ulint		i;
 
 	for (i = 0; i < n_fields; i++) {
@@ -525,63 +531,6 @@ dtuple_set_types_binary(
 		dfield_type = dfield_get_type(dtuple_get_nth_field(tuple, i));
 		dtype_set(dfield_type, DATA_BINARY, 0, 0);
 	}
-}
-
-/** Fold a prefix given as the number of fields of a tuple.
-@param[in]	tuple		index record
-@param[in]	n_fields	number of complete fields to fold
-@param[in]	n_bytes		number of bytes to fold in the last field
-@param[in]	index_id	index tree ID
-@return the folded value */
-UNIV_INLINE
-ulint
-dtuple_fold(
-	const dtuple_t*	tuple,
-	ulint		n_fields,
-	ulint		n_bytes,
-	index_id_t	tree_id)
-{
-	const dfield_t*	field;
-	ulint		i;
-	const byte*	data;
-	ulint		len;
-	ulint		fold;
-
-	ut_ad(tuple);
-	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
-	ut_ad(dtuple_check_typed(tuple));
-
-	fold = ut_fold_ull(tree_id);
-
-	for (i = 0; i < n_fields; i++) {
-		field = dtuple_get_nth_field(tuple, i);
-
-		data = (const byte*) dfield_get_data(field);
-		len = dfield_get_len(field);
-
-		if (len != UNIV_SQL_NULL) {
-			fold = ut_fold_ulint_pair(fold,
-						  ut_fold_binary(data, len));
-		}
-	}
-
-	if (n_bytes > 0) {
-		field = dtuple_get_nth_field(tuple, i);
-
-		data = (const byte*) dfield_get_data(field);
-		len = dfield_get_len(field);
-
-		if (len != UNIV_SQL_NULL) {
-			if (len > n_bytes) {
-				len = n_bytes;
-			}
-
-			fold = ut_fold_ulint_pair(fold,
-						  ut_fold_binary(data, len));
-		}
-	}
-
-	return(fold);
 }
 
 /**********************************************************************//**

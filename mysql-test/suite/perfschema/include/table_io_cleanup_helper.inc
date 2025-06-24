@@ -4,7 +4,7 @@
 update performance_schema.setup_consumers set enabled='NO';
 truncate performance_schema.events_waits_history_long;
 drop table test.marker;
-flush status;
+flush global status;
 update performance_schema.setup_instruments set enabled='YES';
 update performance_schema.setup_consumers set enabled='YES';
 

@@ -29,6 +29,7 @@
 
 #include "unireg.h"
 #include "log_event.h"
+#include "log_cache.h"
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_cache.h"                       // QUERY_CACHE_FLAGS_SIZE
 #include "sql_locale.h" // MY_LOCALE, my_locale_by_number, my_locale_en_US
@@ -52,6 +53,8 @@
 #include "compat56.h"
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
+#include "sql_table.h"
+#include <mysql/service_wsrep.h>
 
 #include <my_bitmap.h>
 #include "rpl_utility.h"
@@ -139,7 +142,7 @@ static const char *HA_ERR(int i)
   deadlocks; such errors are handled automatically by rolling back re-trying
   the transactions, so should not pollute the error log.
 */
-static bool
+bool
 is_parallel_retry_error(rpl_group_info *rgi, int err)
 {
   if (!rgi->is_parallel_exec)
@@ -212,7 +215,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
 
   aggregate_da_errors(buff, sizeof(buff), thd->get_stmt_da());
 
-  if (ha_error != 0)
+  if (ha_error != 0 && !thd->killed)
     rli->report(level, errcode, rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s handler error %s; "
@@ -231,19 +234,12 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
 
 #if defined(HAVE_REPLICATION)
 static void set_thd_db(THD *thd, Rpl_filter *rpl_filter,
-                       const char *db, uint32 db_len)
+                       const LEX_CSTRING &db)
 {
-  char lcase_db_buf[NAME_LEN +1];
-  LEX_CSTRING new_db;
-  new_db.length= db_len;
-  if (lower_case_table_names == 1)
-  {
-    strmov(lcase_db_buf, db);
-    my_casedn_str(system_charset_info, lcase_db_buf);
-    new_db.str= lcase_db_buf;
-  }
-  else
-    new_db.str= db;
+  IdentBuffer<NAME_LEN> lcase_db_buf;
+  LEX_CSTRING new_db= lower_case_table_names == 1 ?
+                      lcase_db_buf.copy_casedn(db).to_lex_cstring() :
+                      db;
   /* TODO WARNING this makes rewrite_db respect lower_case_table_names values
    * for more info look MDEV-17446 */
   new_db.str= rpl_filter->get_rewrite_db(new_db.str, &new_db.length);
@@ -366,37 +362,6 @@ inline bool unexpected_error_code(int unexpected_error)
   }
 }
 
-/*
-  pretty_print_str()
-*/
-
-static void
-pretty_print_str(String *packet, const char *str, int len)
-{
-  const char *end= str + len;
-  packet->append(STRING_WITH_LEN("'"));
-  while (str < end)
-  {
-    char c;
-    switch ((c=*str++)) {
-    case '\n': packet->append(STRING_WITH_LEN("\\n")); break;
-    case '\r': packet->append(STRING_WITH_LEN("\\r")); break;
-    case '\\': packet->append(STRING_WITH_LEN("\\\\")); break;
-    case '\b': packet->append(STRING_WITH_LEN("\\b")); break;
-    case '\t': packet->append(STRING_WITH_LEN("\\t")); break;
-    case '\'': packet->append(STRING_WITH_LEN("\\'")); break;
-    case 0   : packet->append(STRING_WITH_LEN("\\0")); break;
-    default:
-      packet->append(&c, 1);
-      break;
-    }
-  }
-  packet->append(STRING_WITH_LEN("'"));
-}
-#endif /* HAVE_REPLICATION */
-
-
-#if defined(HAVE_REPLICATION)
 
 /**
   Create a prefix for the temporary files that is to be used for
@@ -484,7 +449,7 @@ static void cleanup_load_tmpdir(LEX_CSTRING *connection_name)
 {
   MY_DIR *dirp;
   FILEINFO *file;
-  uint i;
+  size_t i;
   char dir[FN_REFLEN], fname[FN_REFLEN];
   char prefbuf[31 + MAX_CONNECTION_NAME* MAX_FILENAME_MBWIDTH + 1];
   DBUG_ENTER("cleanup_load_tmpdir");
@@ -505,7 +470,7 @@ static void cleanup_load_tmpdir(LEX_CSTRING *connection_name)
   load_data_tmp_prefix(prefbuf, connection_name);
   DBUG_PRINT("enter", ("dir: '%s'  prefix: '%s'", dir, prefbuf));
 
-  for (i=0 ; i < (uint)dirp->number_of_files; i++)
+  for (i=0 ; i < dirp->number_of_files; i++)
   {
     file=dirp->dir_entry+i;
     if (is_prefix(file->name, prefbuf))
@@ -539,7 +504,7 @@ int append_query_string(CHARSET_INFO *csinfo, String *to,
   beg= (char*) to->ptr() + to->length();
   ptr= beg;
   if (csinfo->escape_with_backslash_is_dangerous)
-    ptr= str_to_hex(ptr, str, len);
+    ptr= str_to_hex(ptr, (uchar*)str, len);
   else
   {
     *ptr++= '\'';
@@ -573,8 +538,8 @@ int append_query_string(CHARSET_INFO *csinfo, String *to,
 **************************************************************************/
 
 Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
-  :log_pos(0), temp_buf(0), exec_time(0), thd(thd_arg),
-   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
+  :log_pos(0), temp_buf(0), exec_time(0),
+   slave_exec_mode(SLAVE_EXEC_MODE_STRICT), thd(thd_arg)
 {
   server_id=	thd->variables.server_id;
   when=         thd->start_time;
@@ -598,7 +563,7 @@ Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
 
 Log_event::Log_event()
   :temp_buf(0), exec_time(0), flags(0), cache_type(EVENT_INVALID_CACHE),
-   thd(0), checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
+   slave_exec_mode(SLAVE_EXEC_MODE_STRICT), thd(0)
 {
   server_id=	global_system_variables.server_id;
   /*
@@ -619,29 +584,17 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Log_event::do_update_pos");
 
+  DBUG_ASSERT(rli);
   DBUG_ASSERT(!rli->belongs_to_client());
-  /*
-    rli is null when (as far as I (Guilhem) know) the caller is
-    Load_log_event::do_apply_event *and* that one is called from
-    Execute_load_log_event::do_apply_event.  In this case, we don't
-    do anything here ; Execute_load_log_event::do_apply_event will
-    call Log_event::do_apply_event again later with the proper rli.
-    Strictly speaking, if we were sure that rli is null only in the
-    case discussed above, 'if (rli)' is useless here.  But as we are
-    not 100% sure, keep it for now.
 
-    Matz: I don't think we will need this check with this refactoring.
+  /*
+    In parallel execution, delay position update for the events that are
+    not part of event groups (format description, rotate, and such) until
+    the actual event execution reaches that point.
   */
-  if (rli)
-  {
-    /*
-      In parallel execution, delay position update for the events that are
-      not part of event groups (format description, rotate, and such) until
-      the actual event execution reaches that point.
-    */
-    if (!rgi->is_parallel_exec || is_group_event(get_type_code()))
-      rli->stmt_done(log_pos, thd, rgi);
-  }
+  if (!rgi->is_parallel_exec || is_group_event(get_type_code()))
+    rli->stmt_done(log_pos, thd, rgi);
+
   DBUG_RETURN(0);                                  // Cannot fail currently
 }
 
@@ -735,88 +688,16 @@ void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
                         mem_root);
 }
 
-/**
-   A decider of whether to trigger checksum computation or not.
-   To be invoked in Log_event::write() stack.
-   The decision is positive 
-
-    S,M) if it's been marked for checksumming with @c checksum_alg
-    
-    M) otherwise, if @@global.binlog_checksum is not NONE and the event is 
-       directly written to the binlog file.
-       The to-be-cached event decides at @c write_cache() time.
-
-   Otherwise the decision is negative.
-
-   @note   A side effect of the method is altering Log_event::checksum_alg
-           it the latter was undefined at calling.
-
-   @return true   Checksum should be used. Log_event::checksum_alg is set.
-   @return false  No checksum
-*/
-
-my_bool Log_event::need_checksum()
-{
-  my_bool ret;
-  DBUG_ENTER("Log_event::need_checksum");
-
-  /* 
-     few callers of Log_event::write 
-     (incl FD::write, FD constructing code on the slave side, Rotate relay log
-     and Stop event) 
-     provides their checksum alg preference through Log_event::checksum_alg.
-  */
-  if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-    ret= checksum_alg != BINLOG_CHECKSUM_ALG_OFF;
-  else
-  {
-    ret= binlog_checksum_options && cache_type == Log_event::EVENT_NO_CACHE;
-    checksum_alg= ret ? (enum_binlog_checksum_alg)binlog_checksum_options
-                      : BINLOG_CHECKSUM_ALG_OFF;
-  }
-  /*
-    FD calls the methods before data_written has been calculated.
-    The following invariant claims if the current is not the first
-    call (and therefore data_written is not zero) then `ret' must be
-    TRUE. It may not be null because FD is always checksummed.
-  */
-  
-  DBUG_ASSERT(get_type_code() != FORMAT_DESCRIPTION_EVENT || ret ||
-              data_written == 0);
-
-  DBUG_ASSERT(!ret || 
-              ((checksum_alg == binlog_checksum_options ||
-               /* 
-                  Stop event closes the relay-log and its checksum alg
-                  preference is set by the caller can be different
-                  from the server's binlog_checksum_options.
-               */
-               get_type_code() == STOP_EVENT ||
-               /* 
-                  Rotate:s can be checksummed regardless of the server's
-                  binlog_checksum_options. That applies to both
-                  the local RL's Rotate and the master's Rotate
-                  which IO thread instantiates via queue_binlog_ver_3_event.
-               */
-               get_type_code() == ROTATE_EVENT ||
-               get_type_code() == START_ENCRYPTION_EVENT ||
-               /* FD is always checksummed */
-               get_type_code() == FORMAT_DESCRIPTION_EVENT) && 
-               checksum_alg != BINLOG_CHECKSUM_ALG_OFF));
-
-  DBUG_ASSERT(checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-
-  DBUG_ASSERT(((get_type_code() != ROTATE_EVENT &&
-                get_type_code() != STOP_EVENT) ||
-               get_type_code() != FORMAT_DESCRIPTION_EVENT) ||
-              cache_type == Log_event::EVENT_NO_CACHE);
-
-  DBUG_RETURN(ret);
-}
-
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
+  if (cache_data &&
+#ifdef WITH_WSREP
+      mysql_bin_log.is_open() &&
+#endif
+      cache_data->write_prepare(len))
+    return 1;
+
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -884,7 +765,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
   /*
     recording checksum of FD event computed with dropped
     possibly active LOG_EVENT_BINLOG_IN_USE_F flag.
-    Similar step at verication: the active flag is dropped before
+    Similar step at verification: the active flag is dropped before
     checksum computing.
   */
   if (checksum_len)
@@ -953,16 +834,14 @@ int Log_event_writer::write_footer()
   Log_event::write_header()
 */
 
-bool Log_event::write_header(size_t event_data_length)
+bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
 {
   uchar header[LOG_EVENT_HEADER_LEN];
-  ulong now;
+  my_time_t now;
   DBUG_ENTER("Log_event::write_header");
   DBUG_PRINT("enter", ("filepos: %lld  length: %zu type: %d",
                        (longlong) writer->pos(), event_data_length,
                        (int) get_type_code()));
-
-  writer->checksum_len= need_checksum() ? BINLOG_CHECKSUM_LEN : 0;
 
   /* Store number of bytes that will be written by this event */
   data_written= event_data_length + sizeof(header) + writer->checksum_len;
@@ -972,11 +851,17 @@ bool Log_event::write_header(size_t event_data_length)
     change the position
   */
 
-  if (is_artificial_event())
+  if (is_artificial_event() ||
+      cache_type == Log_event::EVENT_STMT_CACHE ||
+      cache_type == Log_event::EVENT_TRANSACTIONAL_CACHE)
   {
     /*
       Artificial events are automatically generated and do not exist
       in master's binary log, so log_pos should be set to 0.
+
+      Events written through transaction or statement cache have log_pos set
+      to 0 so that they can be copied directly to the binlog without having
+      to compute the real end_log_pos.
     */
     log_pos= 0;
   }
@@ -1058,7 +943,8 @@ void Query_log_event::pack_info(Protocol *protocol)
   if (flags2 & (OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_AUTO_IS_NULL |
                 OPTION_RELAXED_UNIQUE_CHECKS |
                 OPTION_NO_CHECK_CONSTRAINT_CHECKS |
-                OPTION_IF_EXISTS))
+                OPTION_IF_EXISTS |
+                OPTION_INSERT_HISTORY))
   {
     buf.append(STRING_WITH_LEN("set "));
     if (flags2 & OPTION_NO_FOREIGN_KEY_CHECKS)
@@ -1071,6 +957,8 @@ void Query_log_event::pack_info(Protocol *protocol)
       buf.append(STRING_WITH_LEN("check_constraint_checks=1, "));
     if (flags2 & OPTION_IF_EXISTS)
       buf.append(STRING_WITH_LEN("@@sql_if_exists=1, "));
+    if (flags2 & OPTION_INSERT_HISTORY)
+      buf.append(STRING_WITH_LEN("@@system_versioning_insert_history=1, "));
     buf[buf.length()-2]=';';
   }
   if (query && q_len)
@@ -1108,7 +996,7 @@ static void store_str_with_code_and_len(uchar **dst, const char *src,
     will print!
 */
 
-bool Query_log_event::write()
+bool Query_log_event::write(Log_event_writer *writer)
 {
   uchar buf[QUERY_HEADER_LEN + MAX_SIZE_LOG_EVENT_STATUS];
   uchar *start, *start_of_status;
@@ -1180,7 +1068,7 @@ bool Query_log_event::write()
   if (catalog_len) // i.e. this var is inited (false for 4.0 events)
   {
     store_str_with_code_and_len(&start,
-                                catalog, catalog_len, Q_CATALOG_NZ_CODE);
+                                catalog, catalog_len, (uint) Q_CATALOG_NZ_CODE);
     /*
       In 5.0.x where x<4 masters we used to store the end zero here. This was
       a waste of one byte so we don't do it in x>=4 masters. We change code to
@@ -1207,6 +1095,14 @@ bool Query_log_event::write()
     int2store(start+2, auto_increment_offset);
     start+= 4;
   }
+
+  if (thd && (thd->used & THD::CHARACTER_SET_COLLATIONS_USED))
+  {
+    *start++= Q_CHARACTER_SET_COLLATIONS;
+    size_t len= thd->variables.character_set_collations.to_binary((char*)start);
+    start+= len;
+  }
+
   if (charset_inited)
   {
     *start++= Q_CHARSET_CODE;
@@ -1240,18 +1136,6 @@ bool Query_log_event::write()
     int8store(start, table_map_for_update);
     start+= 8;
   }
-  if (master_data_written != 0)
-  {
-    /*
-      Q_MASTER_DATA_WRITTEN_CODE only exists in relay logs where the master
-      has binlog_version<4 and the slave has binlog_version=4. See comment
-      for master_data_written in log_event.h for details.
-    */
-    *start++= Q_MASTER_DATA_WRITTEN_CODE;
-    int4store(start, master_data_written);
-    start+= 4;
-  }
-
   if (thd && thd->need_binlog_invoker())
   {
     LEX_CSTRING user;
@@ -1305,7 +1189,7 @@ bool Query_log_event::write()
     }
   }
 
-  if (thd && thd->query_start_sec_part_used)
+  if (thd && (thd->used & THD::QUERY_START_SEC_PART_USED))
   {
     *start++= Q_HRNOW;
     get_time();
@@ -1321,11 +1205,25 @@ bool Query_log_event::write()
     start+= 8;
   }
 
+  if (gtid_flags_extra)
+  {
+    *start++= Q_GTID_FLAGS3;
+    *start++= gtid_flags_extra;
+    if (gtid_flags_extra &
+        (Gtid_log_event::FL_COMMIT_ALTER_E1 |
+         Gtid_log_event::FL_ROLLBACK_ALTER_E1))
+    {
+      int8store(start, sa_seq_no);
+      start+= 8;
+    }
+  }
+
+
   /*
     NOTE: When adding new status vars, please don't forget to update
     the MAX_SIZE_LOG_EVENT_STATUS in log_event.h and update the function
     code_name() in this file.
-   
+
     Here there could be code like
     if (command-line-option-which-says-"log_this_variable" && inited)
     {
@@ -1347,16 +1245,16 @@ bool Query_log_event::write()
   event_length= ((uint) (start-buf) + get_post_header_size_for_derived() +
                  db_len + 1 + q_len);
 
-  return write_header(event_length) ||
-         write_data(buf, QUERY_HEADER_LEN) ||
-         write_post_header_for_derived() ||
-         write_data(start_of_status, (uint) status_vars_len) ||
-         write_data(db, db_len + 1) ||
-         write_data(query, q_len) ||
-         write_footer();
+  return write_header(writer, event_length) ||
+         write_data(writer, buf, QUERY_HEADER_LEN) ||
+         write_post_header_for_derived(writer) ||
+         write_data(writer, start_of_status, (uint) status_vars_len) ||
+         write_data(writer, db, db_len + 1) ||
+         write_data(writer, query, q_len) ||
+         write_footer(writer);
 }
 
-bool Query_compressed_log_event::write()
+bool Query_compressed_log_event::write(Log_event_writer *writer)
 {
   uchar *buffer;
   uint32 alloc_size, compressed_size;
@@ -1375,7 +1273,7 @@ bool Query_compressed_log_event::write()
     uint32 q_len_tmp= q_len;
     query= (char*) buffer;
     q_len= compressed_size;
-    ret= Query_log_event::write();
+    ret= Query_log_event::write(writer);
     query= query_tmp;
     q_len= q_len_tmp;
   }
@@ -1417,8 +1315,8 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 				 bool direct, bool suppress_use, int errcode)
 
   :Log_event(thd_arg,
-             (thd_arg->thread_specific_used ? LOG_EVENT_THREAD_SPECIFIC_F :
-              0) |
+             ((thd_arg->used & THD::THREAD_SPECIFIC_USED)
+              ? LOG_EVENT_THREAD_SPECIFIC_F : 0) |
              (suppress_use ? LOG_EVENT_SUPPRESS_USE_F : 0),
 	     using_trans),
    data_buf(0), query(query_arg), catalog(thd_arg->catalog),
@@ -1433,11 +1331,10 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
    lc_time_names_number(thd_arg->variables.lc_time_names->number),
    charset_database_number(0),
    table_map_for_update((ulonglong)thd_arg->table_map_for_update),
-   master_data_written(0)
+   gtid_flags_extra(thd_arg->get_binlog_flags_for_alter()),
+   sa_seq_no(0)
 {
   /* status_vars_len is set just before writing the event */
-
-  time_t end_time;
 
 #ifdef WITH_WSREP
   /*
@@ -1457,8 +1354,13 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   memset(&host, 0, sizeof(host));
   error_code= errcode;
 
-  end_time= my_time(0);
-  exec_time = (ulong) (end_time  - thd_arg->start_time);
+  /*
+    For slave threads, remember the original master exec time.
+    This is needed to be able to calculate the master commit time.
+  */
+  exec_time= ((thd->rgi_slave) ? thd->rgi_slave->orig_exec_time
+                               : (my_time(0) - thd_arg->start_time));
+
   /**
     @todo this means that if we have no catalog, then it is replicated
     as an existing catalog of length zero. is that safe? /sven
@@ -1502,7 +1404,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   int2store(charset, thd_arg->variables.character_set_client->number);
   int2store(charset+2, thd_arg->variables.collation_connection->number);
   int2store(charset+4, thd_arg->variables.collation_server->number);
-  if (thd_arg->time_zone_used)
+  if (thd_arg->used & THD::TIME_ZONE_USED)
   {
     /*
       Note that our event becomes dependent on the Time_zone object
@@ -1569,10 +1471,14 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
         use_cache= trx_cache= TRUE;
         break;
       default:
-        use_cache= sqlcom_can_generate_row_events(thd);
+        use_cache= (gtid_flags_extra) ? false : sqlcom_can_generate_row_events(thd);
         break;
     }
   }
+
+  if (gtid_flags_extra & (Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                          Gtid_log_event::FL_ROLLBACK_ALTER_E1))
+      sa_seq_no= thd_arg->get_binlog_start_alter_seq_no();
 
   if (!use_cache || direct)
   {
@@ -1645,6 +1551,223 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
 }
 
 
+static start_alter_info *get_new_start_alter_info(THD *thd)
+{
+  /*
+   Why on global memory ?- So that process_commit/rollback_alter should not get
+   error when spawned threads exits too early.
+   */
+  start_alter_info *info;
+  if (!(info= (start_alter_info *)my_malloc(PSI_INSTRUMENT_ME,
+                                      sizeof(start_alter_info), MYF(MY_WME))))
+  {
+    sql_print_error("Failed to allocate memory for ddl log free list");
+    return 0;
+  }
+  info->sa_seq_no= 0;
+  info->domain_id= 0;
+  info->direct_commit_alter= false;
+  info->state= start_alter_state::INVALID;
+  mysql_cond_init(0, &info->start_alter_cond, NULL);
+  info->error= 0;
+
+  return info;
+}
+
+
+/*
+  Perform necessary actions for two-phase-logged ALTER parts, to
+  return
+
+  0  when the event's query proceeds normal parsing and execution
+  1  when the event skips parsing and execution
+  -1 as error.
+*/
+int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
+                                                        bool &skip_error_check)
+{
+  int rc= 0;
+
+  rgi->gtid_ev_flags_extra= gtid_flags_extra;
+  if (gtid_flags_extra & Gtid_log_event::FL_START_ALTER_E1)
+  {
+    //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
+    if(!rgi->rpt || rgi->reserved_start_alter_thread || WSREP(thd))
+    {
+      rc= 1;
+      /*
+       We will just write the binlog and move to next event , because COMMIT
+       Alter will take care of actual work
+      */
+      rgi->reserved_start_alter_thread= false;
+      thd->lex->sql_command= SQLCOM_ALTER_TABLE;
+      Write_log_with_flags wlwf(thd, Gtid_log_event::FL_START_ALTER_E1,
+                                true /* wsrep to isolation end */);
+#ifdef WITH_WSREP
+      if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+          // no need to supply other than db in this case
+          wsrep_to_isolation_begin(thd, db, NULL,NULL,NULL,NULL,NULL))
+        return -1;
+#endif
+      if (write_bin_log(thd, false, thd->query(), thd->query_length()))
+        return -1;
+
+      my_ok(thd);
+      return rc;
+    }
+    if (!rgi->sa_info)
+      rgi->sa_info= get_new_start_alter_info(thd);
+    else
+    {
+      /* Not send Start-Alter into query execution when it's to rollback */
+      mysql_mutex_lock(&rgi->rli->mi->start_alter_lock);
+      if (rgi->sa_info->state == start_alter_state::ROLLBACK_ALTER)
+        mysql_cond_broadcast(&rgi->sa_info->start_alter_cond);
+      mysql_mutex_unlock(&rgi->rli->mi->start_alter_lock);
+    }
+
+    return rc;
+  }
+
+  bool is_CA= (gtid_flags_extra & Gtid_log_event::FL_COMMIT_ALTER_E1) ? true : false;
+  if (is_CA)
+  {
+    DBUG_EXECUTE_IF("rpl_slave_stop_CA_before_binlog",
+    {
+      // the awake comes from STOP-SLAVE running driver (sql) thread
+      debug_sync_set_action(thd,
+                            STRING_WITH_LEN("now WAIT_FOR proceed_CA_1"));
+    });
+  }
+  start_alter_info *info=NULL;
+  Master_info *mi= NULL;
+
+  rgi->gtid_ev_sa_seq_no= sa_seq_no;
+  // is set for both the direct execution and the write to binlog
+  thd->set_binlog_start_alter_seq_no(sa_seq_no);
+  mi= rgi->rli->mi;
+  mysql_mutex_lock(&mi->start_alter_list_lock);
+  {
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while ((info= info_iterator++))
+    {
+      if(info->sa_seq_no == rgi->gtid_ev_sa_seq_no &&
+         info->domain_id == rgi->current_gtid.domain_id)
+      {
+        info_iterator.remove();
+        break;
+      }
+    }
+  }
+  mysql_mutex_unlock(&mi->start_alter_list_lock);
+
+  if (!info)
+  {
+    if (is_CA)
+    {
+      /*
+        error handling, direct_commit_alter is turned on, so that we dont
+        wait for master reply in mysql_alter_table (in wait_for_master)
+      */
+      rgi->direct_commit_alter= true;
+#ifdef WITH_WSREP
+      if (WSREP(thd))
+        thd->set_binlog_flags_for_alter(Gtid_log_event::FL_COMMIT_ALTER_E1);
+#endif
+      goto cleanup;
+    }
+    else
+    {
+      //Just write the binlog because there is nothing to be done
+      goto write_binlog;
+    }
+  }
+
+  mysql_mutex_lock(&mi->start_alter_lock);
+  if (info->state != start_alter_state::COMPLETED)
+  {
+    if (is_CA)
+      info->state= start_alter_state::COMMIT_ALTER;
+    else
+      info->state= start_alter_state::ROLLBACK_ALTER;
+    mysql_cond_broadcast(&info->start_alter_cond);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    /*
+      Wait till Start Alter worker has changed the state to ::COMPLETED
+      when start alter worker reaches the old code write_bin_log(), it will
+      change state to COMMITTED.
+      COMMITTED and `direct_commit_alter == true` at the same time indicates
+      the query needs re-execution by the CA running thread.
+    */
+    mysql_mutex_lock(&mi->start_alter_lock);
+
+    DBUG_ASSERT(info->state == start_alter_state::COMPLETED ||
+                !info->direct_commit_alter);
+
+    while(info->state != start_alter_state::COMPLETED)
+      mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+  }
+  else
+  {
+    // SA has completed and left being kicked out by deadlock or ftwrl
+    DBUG_ASSERT(info->direct_commit_alter);
+  }
+  mysql_mutex_unlock(&mi->start_alter_lock);
+
+  if (info->direct_commit_alter)
+  {
+    rgi->direct_commit_alter= true; // execute the query as if there was no SA
+    if (is_CA)
+      goto cleanup;
+  }
+
+write_binlog:
+  rc= 1;
+
+  if(!is_CA)
+  {
+    if(((info && info->error) || error_code) &&
+       global_system_variables.log_warnings > 2)
+    {
+      sql_print_information("Query '%s' having %d error code on master "
+                            "is rolled back%s", query, error_code,
+                            !(info && info->error) ? "." : ";");
+      if (info && info->error)
+        sql_print_information("its execution on slave %sproduced %d error.",
+                              info->error == error_code ? "re":"", info->error);
+    }
+  }
+  {
+    thd->lex->sql_command= SQLCOM_ALTER_TABLE;
+    Write_log_with_flags wlwf(thd, is_CA ? Gtid_log_event::FL_COMMIT_ALTER_E1 :
+                              Gtid_log_event::FL_ROLLBACK_ALTER_E1,
+                              true);
+#ifdef WITH_WSREP
+    if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+        wsrep_to_isolation_begin(thd, db, NULL,NULL,NULL,NULL,NULL))
+      rc= -1;
+#endif
+    if (rc != -1 &&
+        write_bin_log(thd, false, thd->query(), thd->query_length()))
+      rc= -1;
+  }
+
+  if (!thd->is_error())
+  {
+    skip_error_check= true;
+    my_ok(thd);
+  }
+
+cleanup:
+  if (info)
+  {
+    mysql_cond_destroy(&info->start_alter_cond);
+    my_free(info);
+  }
+  return rc;
+}
+
+
 /**
   @todo
   Compare the values of "affected rows" around here. Something
@@ -1673,6 +1796,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   Relay_log_info const *rli= rgi->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   bool current_stmt_is_commit;
+  bool skip_error_check= false;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
   /*
@@ -1683,6 +1807,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     you.
   */
   thd->catalog= catalog_len ? (char *) catalog : (char *)"";
+  rgi->start_alter_ev= this;
 
   size_t valid_len= Well_formed_prefix(system_charset_info,
                                        db, db_len, NAME_LEN).length();
@@ -1696,7 +1821,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     goto end;
   }
 
-  set_thd_db(thd, rpl_filter, db, db_len);
+  set_thd_db(thd, rpl_filter, LEX_CSTRING{db, db_len});
 
   /*
     Setting the character set and collation of the current database thd->db.
@@ -1731,6 +1856,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
                                   Gtid_log_event::FL_COMPLETED_XA))) ||
       rpl_filter->db_ok(thd->db.str))
   {
+    bool is_rb_alter= gtid_flags_extra & Gtid_log_event::FL_ROLLBACK_ALTER_E1;
+
     thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
@@ -1745,7 +1872,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     }
 #endif
 
-    if (unlikely(!(expected_error= error_code)) ||
+    if (unlikely(!(expected_error= !is_rb_alter ? error_code : 0)) ||
         ignored_error_code(expected_error) ||
         !unexpected_error_code(expected_error))
     {
@@ -1773,10 +1900,21 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->variables.sql_mode=
           (sql_mode_t) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
                         (sql_mode & ~(sql_mode_t) MODE_NO_DIR_IN_CREATE));
+
+      size_t cslen= thd->variables.character_set_collations.from_binary(
+                                      character_set_collations.str,
+                                      character_set_collations.length);
+      if (cslen != character_set_collations.length)
+      {
+        // Fatal: either a broken even, or an unknown collation ID
+        thd->variables.character_set_collations.init();
+        goto compare_errors; // QQ: report an error here?
+      }
+
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
-        if (sql_info->cached_charset_compare(charset))
+        if (thd->slave_thread && sql_info->cached_charset_compare(charset))
         {
           /* Verify that we support the charsets found in the event. */
           if (!(thd->variables.character_set_client=
@@ -1914,47 +2052,69 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->variables.option_bits|= OPTION_MASTER_SQL_ERROR;
         thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
       }
-      /* Execute the query (note that we bypass dispatch_command()) */
-      Parser_state parser_state;
-      if (!parser_state.init(thd, thd->query(), thd->query_length()))
+
+      int sa_result= 0;
+      bool is_2p_alter= gtid_flags_extra &
+        (Gtid_log_event::FL_START_ALTER_E1 |
+         Gtid_log_event::FL_COMMIT_ALTER_E1 |
+         Gtid_log_event::FL_ROLLBACK_ALTER_E1);
+      if (is_2p_alter)
+        sa_result= handle_split_alter_query_log_event(rgi, skip_error_check);
+      if (sa_result == 0)
       {
-        DBUG_ASSERT(thd->m_digest == NULL);
-        thd->m_digest= & thd->m_digest_state;
-        DBUG_ASSERT(thd->m_statement_psi == NULL);
-        thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
-                                                    stmt_info_rpl.m_key,
-                                                    thd->db.str, thd->db.length,
-                                                    thd->charset(), NULL);
-        THD_STAGE_INFO(thd, stage_starting);
-        MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
-        if (thd->m_digest != NULL)
-          thd->m_digest->reset(thd->m_token_array, max_digest_length);
+        /* Execute the query (note that we bypass dispatch_command()) */
+        Parser_state parser_state;
+        if (!parser_state.init(thd, thd->query(), thd->query_length()))
+        {
+          DBUG_ASSERT(thd->m_digest == NULL);
+          thd->m_digest= & thd->m_digest_state;
+          DBUG_ASSERT(thd->m_statement_psi == NULL);
+          thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
+                                                      stmt_info_rpl.m_key,
+                                                      thd->db.str, thd->db.length,
+                                                      thd->charset(), NULL);
+          THD_STAGE_INFO(thd, stage_starting);
+          MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(), thd->query_length());
+          if (thd->m_digest != NULL)
+            thd->m_digest->reset(thd->m_token_array, max_digest_length);
 
-         if (thd->slave_thread)
-         {
-           /*
-             To be compatible with previous releases, the slave thread uses the global
-             log_slow_disabled_statements value, wich can be changed dynamically, so we
-             have to set the sql_log_slow respectively.
-           */
-           thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
-         }
+          if (thd->slave_thread)
+          {
+            /*
+              To be compatible with previous releases, the slave thread uses the global
+              log_slow_disabled_statements value, which can be changed dynamically, so we
+              have to set the sql_log_slow respectively.
+            */
+            thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
+          }
+          mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
+          /* Finalize server status flags after executing a statement. */
+          thd->update_server_status();
+          log_slow_statement(thd);
+          thd->lex->restore_set_statement_var();
 
-        mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
-        /* Finalize server status flags after executing a statement. */
-        thd->update_server_status();
-        log_slow_statement(thd);
-        thd->lex->restore_set_statement_var();
-
-        /*
-          When THD::slave_expected_error gets reset inside execution stack
-          that is the case of to be ignored event. In this case the expected
-          error must change to the reset value as well.
-        */
-        expected_error= thd->slave_expected_error;
+          /*
+            When THD::slave_expected_error gets reset inside execution stack
+            that is the case of to be ignored event. In this case the expected
+            error must change to the reset value as well.
+          */
+          expected_error= thd->slave_expected_error;
+        }
       }
-
+      else if (sa_result == -1)
+      {
+        rli->report(ERROR_LEVEL, expected_error, rgi->gtid_info(),
+                          "TODO start alter error");
+        thd->is_slave_error= 1;
+        goto end;
+      }
       thd->variables.option_bits&= ~OPTION_MASTER_SQL_ERROR;
+      if (is_2p_alter && !rgi->is_parallel_exec)
+      {
+        rgi->gtid_ev_flags_extra= 0;
+        rgi->direct_commit_alter= 0;
+        rgi->gtid_ev_sa_seq_no= 0;
+      }
     }
     else
     {
@@ -2017,7 +2177,8 @@ compare_errors:
       If we expected a non-zero error code, and we don't get the same error
       code, and it should be ignored or is related to a concurrency issue.
     */
-    actual_error= thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0;
+    actual_error= thd->is_error() ? thd->get_stmt_da()->sql_errno() :
+                     skip_error_check? expected_error : 0;
     DBUG_PRINT("info",("expected_error: %d  sql_errno: %d",
                        expected_error, actual_error));
 
@@ -2036,7 +2197,7 @@ compare_errors:
                   expected_error,
                   actual_error ? thd->get_stmt_da()->message() : "no error",
                   actual_error,
-                  print_slave_db_safe(db), query_arg);
+                  safe_str(db), query_arg);
       thd->is_slave_error= 1;
     }
     /*
@@ -2056,7 +2217,7 @@ compare_errors:
     else if (actual_error == ER_XAER_NOTA && !rpl_filter->db_ok(get_db()))
     {
       /*
-        If there is an XA query whos XID cannot be found, if the replication
+        If there is an XA query whose XID cannot be found, if the replication
         filter is active and filters the target database, assume that the XID
         cache has been cleared (e.g. by server restart) since it was prepared,
         so we can just ignore this event.
@@ -2216,7 +2377,7 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
 bool
 Query_log_event::peek_is_commit_rollback(const uchar *event_start,
                                          size_t event_len,
-                                         enum enum_binlog_checksum_alg
+                                         enum_binlog_checksum_alg
                                          checksum_alg)
 {
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
@@ -2236,23 +2397,11 @@ Query_log_event::peek_is_commit_rollback(const uchar *event_start,
          !memcmp(event_start + (event_len-9), "\0ROLLBACK", 9);
 }
 
-#endif
+/***************************************************************************
+       Format_description_log_event methods
+****************************************************************************/
 
-
-/**************************************************************************
-	Start_log_event_v3 methods
-**************************************************************************/
-
-Start_log_event_v3::Start_log_event_v3()
-  :Log_event(), created(0), binlog_version(BINLOG_VERSION),
-   dont_set_created(0)
-{
-  memcpy(server_version, ::server_version, ST_SERVER_VER_LEN);
-}
-
-
-#if defined(HAVE_REPLICATION)
-void Start_log_event_v3::pack_info(Protocol *protocol)
+void Format_description_log_event::pack_info(Protocol *protocol)
 {
   char buf[12 + ST_SERVER_VER_LEN + 14 + 22], *pos;
   pos= strmov(buf, "Server ver: ");
@@ -2261,115 +2410,13 @@ void Start_log_event_v3::pack_info(Protocol *protocol)
   pos= int10_to_str(binlog_version, pos, 10);
   protocol->store(buf, (uint) (pos-buf), &my_charset_bin);
 }
-#endif
-
-
-bool Start_log_event_v3::write()
-{
-  char buff[START_V3_HEADER_LEN];
-  int2store(buff + ST_BINLOG_VER_OFFSET,binlog_version);
-  memcpy(buff + ST_SERVER_VER_OFFSET,server_version,ST_SERVER_VER_LEN);
-  if (!dont_set_created)
-    created= get_time(); // this sets when and when_sec_part as a side effect
-  int4store(buff + ST_CREATED_OFFSET,created);
-  return write_header(sizeof(buff)) ||
-         write_data(buff, sizeof(buff)) ||
-         write_footer();
-}
-
-
-#if defined(HAVE_REPLICATION)
-
-/**
-  Start_log_event_v3::do_apply_event() .
-  The master started
-
-    IMPLEMENTATION
-    - To handle the case where the master died without having time to write
-    DROP TEMPORARY TABLE, DO RELEASE_LOCK (prepared statements' deletion is
-    TODO), we clean up all temporary tables that we got, if we are sure we
-    can (see below).
-
-  @todo
-    - Remove all active user locks.
-    Guilhem 2003-06: this is true but not urgent: the worst it can cause is
-    the use of a bit of memory for a user lock which will not be used
-    anymore. If the user lock is later used, the old one will be released. In
-    other words, no deadlock problem.
-*/
-
-int Start_log_event_v3::do_apply_event(rpl_group_info *rgi)
-{
-  DBUG_ENTER("Start_log_event_v3::do_apply_event");
-  int error= 0;
-  Relay_log_info *rli= rgi->rli;
-
-  switch (binlog_version)
-  {
-  case 3:
-  case 4:
-    /*
-      This can either be 4.x (then a Start_log_event_v3 is only at master
-      startup so we are sure the master has restarted and cleared his temp
-      tables; the event always has 'created'>0) or 5.0 (then we have to test
-      'created').
-    */
-    if (created)
-    {
-      rli->close_temporary_tables();
-      
-      /*
-        The following is only false if we get here with a BINLOG statement
-      */
-      if (rli->mi)
-        cleanup_load_tmpdir(&rli->mi->cmp_connection_name);
-    }
-    break;
-
-    /*
-       Now the older formats; in that case load_tmpdir is cleaned up by the I/O
-       thread.
-    */
-  case 1:
-    if (strncmp(rli->relay_log.description_event_for_exec->server_version,
-                "3.23.57",7) >= 0 && created)
-    {
-      /*
-        Can distinguish, based on the value of 'created': this event was
-        generated at master startup.
-      */
-      rli->close_temporary_tables();
-    }
-    /*
-      Otherwise, can't distinguish a Start_log_event generated at
-      master startup and one generated by master FLUSH LOGS, so cannot
-      be sure temp tables have to be dropped. So do nothing.
-    */
-    break;
-  default:
-    /*
-      This case is not expected. It can be either an event corruption or an
-      unsupported binary log version.
-    */
-    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
-                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-                "Binlog version not supported");
-    DBUG_RETURN(1);
-  }
-  DBUG_RETURN(error);
-}
 #endif /* defined(HAVE_REPLICATION) */
 
-/***************************************************************************
-       Format_description_log_event methods
-****************************************************************************/
-
-bool Format_description_log_event::write()
+bool Format_description_log_event::write(Log_event_writer *writer)
 {
   bool ret;
-  bool no_checksum;
   /*
-    We don't call Start_log_event_v3::write() because this would make 2
+    We don't call Start_log_event_v::write() because this would make 2
     my_b_safe_write().
   */
   uchar buff[START_V3_HEADER_LEN+1];
@@ -2390,11 +2437,9 @@ bool Format_description_log_event::write()
     FD_queue checksum_alg value.
   */
   compile_time_assert(BINLOG_CHECKSUM_ALG_DESC_LEN == 1);
-#ifdef DBUG_ASSERT_EXISTS
-  data_written= 0; // to prepare for need_checksum assert
-#endif
-  uint8 checksum_byte= (uint8)
-    (need_checksum() ? checksum_alg : BINLOG_CHECKSUM_ALG_OFF);
+  uint8 checksum_byte= (uint8) (used_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF ?
+                                used_checksum_alg : BINLOG_CHECKSUM_ALG_OFF);
+  DBUG_ASSERT(used_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
   /* 
      FD of checksum-aware server is always checksum-equipped, (V) is in,
      regardless of @@global.binlog_checksum policy.
@@ -2408,21 +2453,51 @@ bool Format_description_log_event::write()
      1 + 4 bytes bigger comparing to the former FD.
   */
 
-  if ((no_checksum= (checksum_alg == BINLOG_CHECKSUM_ALG_OFF)))
-  {
-    checksum_alg= BINLOG_CHECKSUM_ALG_CRC32;  // Forcing (V) room to fill anyway
-  }
-  ret= write_header(rec_size) ||
-       write_data(buff, sizeof(buff)) ||
-       write_data(post_header_len, number_of_event_types) ||
-       write_data(&checksum_byte, sizeof(checksum_byte)) ||
-       write_footer();
-  if (no_checksum)
-    checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
+  uint orig_checksum_len= writer->checksum_len;
+  writer->checksum_len= BINLOG_CHECKSUM_LEN;
+  ret= write_header(writer, rec_size) ||
+       write_data(writer, buff, sizeof(buff)) ||
+       write_data(writer, post_header_len, number_of_event_types) ||
+       write_data(writer, &checksum_byte, sizeof(checksum_byte)) ||
+       write_footer(writer);
+  writer->checksum_len= orig_checksum_len;
   return ret;
 }
 
 #if defined(HAVE_REPLICATION)
+/*
+ Auxiliary function to conduct cleanup of unfinished two-phase logged ALTERs.
+*/
+static void check_and_remove_stale_alter(Relay_log_info *rli)
+{
+  Master_info *mi= rli->mi;
+  start_alter_info *info=NULL;
+
+  mysql_mutex_lock(&mi->start_alter_list_lock);
+  List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+  while ((info= info_iterator++))
+  {
+    DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
+
+    sql_print_warning("ALTER query started at %u-%lu-%llu could not "
+                      "be completed because of unexpected master server "
+                      "or its binlog change", info->domain_id,
+                      mi->master_id, info->sa_seq_no);
+    info_iterator.remove();
+    mysql_mutex_lock(&mi->start_alter_lock);
+    info->state= start_alter_state::ROLLBACK_ALTER;
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_broadcast(&info->start_alter_cond);
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state != start_alter_state::COMPLETED)
+      mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_destroy(&info->start_alter_cond);
+    my_free(info);
+  }
+  mysql_mutex_unlock(&mi->start_alter_list_lock);
+}
+
 int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int ret= 0;
@@ -2440,22 +2515,26 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     original place when it comes to us; we'll know this by checking
     log_pos ("artificial" events have log_pos == 0).
   */
-  if (!thd->rli_fake &&
-      !is_artificial_event() && created && thd->transaction->all.ha_list)
+  if (!is_artificial_event() && created && !thd->rli_fake && !thd->rgi_fake)
   {
-    /* This is not an error (XA is safe), just an information */
-    rli->report(INFORMATION_LEVEL, 0, NULL,
-                "Rolling back unfinished transaction (no COMMIT "
-                "or ROLLBACK in relay log). A probable cause is that "
-                "the master died while writing the transaction to "
-                "its binary log, thus rolled back too."); 
-    rgi->cleanup_context(thd, 1);
+    // check_and_remove stale Start Alter:s
+    if (flags & LOG_EVENT_BINLOG_IN_USE_F)
+      check_and_remove_stale_alter(rli);
+    if (thd->transaction->all.ha_list)
+    {
+      /* This is not an error (XA is safe), just an information */
+      rli->report(INFORMATION_LEVEL, 0, NULL,
+                  "Rolling back unfinished transaction (no COMMIT "
+                  "or ROLLBACK in relay log). A probable cause is that "
+                  "the master died while writing the transaction to "
+                  "its binary log, thus rolled back too.");
+      rgi->cleanup_context(thd, 1);
+    }
   }
 
   /*
-    If this event comes from ourselves, there is no cleaning task to
-    perform, we don't call Start_log_event_v3::do_apply_event()
-    (this was just to update the log's description event).
+    If this event comes from ourselves, there is no cleaning task to perform,
+    we don't do cleanup (this was just to update the log's description event).
   */
   if (server_id != (uint32) global_system_variables.server_id)
   {
@@ -2468,7 +2547,24 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
       0, then 96, then jump to first really asked event (which is
       >96). So this is ok.
     */
-    ret= Start_log_event_v3::do_apply_event(rgi);
+    switch (binlog_version)
+    {
+    case 4:
+      if (created)
+      {
+        rli->close_temporary_tables();
+
+        /* The following is only false if we get here with a BINLOG statement */
+        if (rli->mi)
+          cleanup_load_tmpdir(&rli->mi->cmp_connection_name);
+      }
+      break;
+    default:
+      rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+                  ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+                  "Binlog version not supported");
+      ret= 1;
+    }
   }
 
   if (!ret)
@@ -2537,564 +2633,6 @@ int Start_encryption_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 /**************************************************************************
-      Load_log_event methods
-**************************************************************************/
-
-#if defined(HAVE_REPLICATION)
-bool Load_log_event::print_query(THD *thd, bool need_db, const char *cs,
-                                 String *buf, my_off_t *fn_start,
-                                 my_off_t *fn_end, const char *qualify_db)
-{
-  if (need_db && db && db_len)
-  {
-    buf->append(STRING_WITH_LEN("use "));
-    append_identifier(thd, buf, db, db_len);
-    buf->append(STRING_WITH_LEN("; "));
-  }
-
-  buf->append(STRING_WITH_LEN("LOAD DATA "));
-
-  if (is_concurrent)
-    buf->append(STRING_WITH_LEN("CONCURRENT "));
-
-  if (fn_start)
-    *fn_start= buf->length();
-
-  if (check_fname_outside_temp_buf())
-    buf->append(STRING_WITH_LEN("LOCAL "));
-  buf->append(STRING_WITH_LEN("INFILE '"));
-  buf->append_for_single_quote(fname, fname_len);
-  buf->append(STRING_WITH_LEN("' "));
-
-  if (sql_ex.opt_flags & REPLACE_FLAG)
-    buf->append(STRING_WITH_LEN("REPLACE "));
-  else if (sql_ex.opt_flags & IGNORE_FLAG)
-    buf->append(STRING_WITH_LEN("IGNORE "));
-
-  buf->append(STRING_WITH_LEN("INTO"));
-
-  if (fn_end)
-    *fn_end= buf->length();
-
-  buf->append(STRING_WITH_LEN(" TABLE "));
-  if (qualify_db)
-  {
-    append_identifier(thd, buf, qualify_db, strlen(qualify_db));
-    buf->append(STRING_WITH_LEN("."));
-  }
-  append_identifier(thd, buf, table_name, table_name_len);
-
-  if (cs != NULL)
-  {
-    buf->append(STRING_WITH_LEN(" CHARACTER SET "));
-    buf->append(cs, strlen(cs));
-  }
-
-  /* We have to create all optional fields as the default is not empty */
-  buf->append(STRING_WITH_LEN(" FIELDS TERMINATED BY "));
-  pretty_print_str(buf, sql_ex.field_term, sql_ex.field_term_len);
-  if (sql_ex.opt_flags & OPT_ENCLOSED_FLAG)
-    buf->append(STRING_WITH_LEN(" OPTIONALLY "));
-  buf->append(STRING_WITH_LEN(" ENCLOSED BY "));
-  pretty_print_str(buf, sql_ex.enclosed, sql_ex.enclosed_len);
-
-  buf->append(STRING_WITH_LEN(" ESCAPED BY "));
-  pretty_print_str(buf, sql_ex.escaped, sql_ex.escaped_len);
-
-  buf->append(STRING_WITH_LEN(" LINES TERMINATED BY "));
-  pretty_print_str(buf, sql_ex.line_term, sql_ex.line_term_len);
-  if (sql_ex.line_start_len)
-  {
-    buf->append(STRING_WITH_LEN(" STARTING BY "));
-    pretty_print_str(buf, sql_ex.line_start, sql_ex.line_start_len);
-  }
-
-  if ((long) skip_lines > 0)
-  {
-    buf->append(STRING_WITH_LEN(" IGNORE "));
-    buf->append_ulonglong(skip_lines);
-    buf->append(STRING_WITH_LEN(" LINES "));
-  }
-
-  if (num_fields)
-  {
-    uint i;
-    const char *field= fields;
-    buf->append(STRING_WITH_LEN(" ("));
-    for (i = 0; i < num_fields; i++)
-    {
-      if (i)
-      {
-        /*
-          Yes, the space and comma is reversed here. But this is mostly dead
-          code, at most used when reading really old binlogs from old servers,
-          so better just leave it as is...
-        */
-        buf->append(STRING_WITH_LEN(" ,"));
-      }
-      append_identifier(thd, buf, field, field_lens[i]);
-      field+= field_lens[i]  + 1;
-    }
-    buf->append(STRING_WITH_LEN(")"));
-  }
-  return 0;
-}
-
-
-void Load_log_event::pack_info(Protocol *protocol)
-{
-  char query_buffer[1024];
-  String query_str(query_buffer, sizeof(query_buffer), system_charset_info);
-
-  query_str.length(0);
-  print_query(protocol->thd, TRUE, NULL, &query_str, 0, 0, NULL);
-  protocol->store(query_str.ptr(), query_str.length(), &my_charset_bin);
-}
-#endif /* defined(HAVE_REPLICATION) */
-
-
-bool Load_log_event::write_data_header()
-{
-  char buf[LOAD_HEADER_LEN];
-  int4store(buf + L_THREAD_ID_OFFSET, slave_proxy_id);
-  int4store(buf + L_EXEC_TIME_OFFSET, exec_time);
-  int4store(buf + L_SKIP_LINES_OFFSET, skip_lines);
-  buf[L_TBL_LEN_OFFSET] = (char)table_name_len;
-  buf[L_DB_LEN_OFFSET] = (char)db_len;
-  int4store(buf + L_NUM_FIELDS_OFFSET, num_fields);
-  return write_data(buf, LOAD_HEADER_LEN) != 0;
-}
-
-
-bool Load_log_event::write_data_body()
-{
-  if (sql_ex.write_data(writer))
-    return 1;
-  if (num_fields && fields && field_lens)
-  {
-    if (write_data(field_lens, num_fields) ||
-	write_data(fields, field_block_len))
-      return 1;
-  }
-  return (write_data(table_name, table_name_len + 1) ||
-	  write_data(db, db_len + 1) ||
-	  write_data(fname, fname_len));
-}
-
-
-Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
-			       const char *db_arg, const char *table_name_arg,
-			       List<Item> &fields_arg,
-                               bool is_concurrent_arg,
-			       enum enum_duplicates handle_dup,
-			       bool ignore, bool using_trans)
-  :Log_event(thd_arg,
-             thd_arg->thread_specific_used ? LOG_EVENT_THREAD_SPECIFIC_F : 0,
-             using_trans),
-   thread_id(thd_arg->thread_id),
-   slave_proxy_id((ulong)thd_arg->variables.pseudo_thread_id),
-   num_fields(0),fields(0),
-   field_lens(0),field_block_len(0),
-   table_name(table_name_arg ? table_name_arg : ""),
-   db(db_arg), fname(ex->file_name), local_fname(FALSE),
-   is_concurrent(is_concurrent_arg)
-{
-  time_t end_time;
-  time(&end_time);
-  exec_time = (ulong) (end_time  - thd_arg->start_time);
-  /* db can never be a zero pointer in 4.0 */
-  db_len = (uint32) strlen(db);
-  table_name_len = (uint32) strlen(table_name);
-  fname_len = (fname) ? (uint) strlen(fname) : 0;
-  sql_ex.field_term = ex->field_term->ptr();
-  sql_ex.field_term_len = (uint8) ex->field_term->length();
-  sql_ex.enclosed = ex->enclosed->ptr();
-  sql_ex.enclosed_len = (uint8) ex->enclosed->length();
-  sql_ex.line_term = ex->line_term->ptr();
-  sql_ex.line_term_len = (uint8) ex->line_term->length();
-  sql_ex.line_start = ex->line_start->ptr();
-  sql_ex.line_start_len = (uint8) ex->line_start->length();
-  sql_ex.escaped = ex->escaped->ptr();
-  sql_ex.escaped_len = (uint8) ex->escaped->length();
-  sql_ex.opt_flags = 0;
-  sql_ex.cached_new_format = -1;
-    
-  if (ex->dumpfile)
-    sql_ex.opt_flags|= DUMPFILE_FLAG;
-  if (ex->opt_enclosed)
-    sql_ex.opt_flags|= OPT_ENCLOSED_FLAG;
-
-  sql_ex.empty_flags= 0;
-
-  switch (handle_dup) {
-  case DUP_REPLACE:
-    sql_ex.opt_flags|= REPLACE_FLAG;
-    break;
-  case DUP_UPDATE:				// Impossible here
-  case DUP_ERROR:
-    break;	
-  }
-  if (ignore)
-    sql_ex.opt_flags|= IGNORE_FLAG;
-
-  if (!ex->field_term->length())
-    sql_ex.empty_flags |= FIELD_TERM_EMPTY;
-  if (!ex->enclosed->length())
-    sql_ex.empty_flags |= ENCLOSED_EMPTY;
-  if (!ex->line_term->length())
-    sql_ex.empty_flags |= LINE_TERM_EMPTY;
-  if (!ex->line_start->length())
-    sql_ex.empty_flags |= LINE_START_EMPTY;
-  if (!ex->escaped->length())
-    sql_ex.empty_flags |= ESCAPED_EMPTY;
-    
-  skip_lines = ex->skip_lines;
-
-  List_iterator<Item> li(fields_arg);
-  field_lens_buf.length(0);
-  fields_buf.length(0);
-  Item* item;
-  while ((item = li++))
-  {
-    num_fields++;
-    uchar len= (uchar) item->name.length;
-    field_block_len += len + 1;
-    fields_buf.append(item->name.str, len + 1);
-    field_lens_buf.append((char*)&len, 1);
-  }
-
-  field_lens = (const uchar*)field_lens_buf.ptr();
-  fields = fields_buf.ptr();
-}
-
-
-/**
-  Load_log_event::set_fields()
-
-  @note
-    This function can not use the member variable 
-    for the database, since LOAD DATA INFILE on the slave
-    can be for a different database than the current one.
-    This is the reason for the affected_db argument to this method.
-*/
-
-void Load_log_event::set_fields(const char* affected_db, 
-				List<Item> &field_list,
-                                Name_resolution_context *context)
-{
-  uint i;
-  const char* field = fields;
-  for (i= 0; i < num_fields; i++)
-  {
-    LEX_CSTRING field_name= {field, field_lens[i] };
-    field_list.push_back(new (thd->mem_root)
-                         Item_field(thd, context,
-                                    Lex_cstring_strlen(affected_db),
-                                    Lex_cstring_strlen(table_name),
-                                    field_name),
-                         thd->mem_root);
-    field+= field_lens[i]  + 1;
-  }
-}
-
-
-#if defined(HAVE_REPLICATION)
-/**
-  Does the data loading job when executing a LOAD DATA on the slave.
-
-  @param net
-  @param rli
-  @param use_rli_only_for_errors     If set to 1, rli is provided to
-                                     Load_log_event::exec_event only for this
-                                     function to have RPL_LOG_NAME and
-                                     rli->last_slave_error, both being used by
-                                     error reports. rli's position advancing
-                                     is skipped (done by the caller which is
-                                     Execute_load_log_event::exec_event).
-                                     If set to 0, rli is provided for full use,
-                                     i.e. for error reports and position
-                                     advancing.
-
-  @todo
-    fix this; this can be done by testing rules in
-    Create_file_log_event::exec_event() and then discarding Append_block and
-    al.
-  @todo
-    this is a bug - this needs to be moved to the I/O thread
-
-  @retval
-    0           Success
-  @retval
-    1           Failure
-*/
-
-int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
-                                   bool use_rli_only_for_errors)
-{
-  Relay_log_info const *rli= rgi->rli;
-  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
-  DBUG_ENTER("Load_log_event::do_apply_event");
-
-  DBUG_ASSERT(thd->query() == 0);
-  set_thd_db(thd, rpl_filter, db, db_len);
-  thd->clear_error(1);
-
-  /* see Query_log_event::do_apply_event() and BUG#13360 */
-  DBUG_ASSERT(!rgi->m_table_map.count());
-  /*
-    Usually lex_start() is called by mysql_parse(), but we need it here
-    as the present method does not call mysql_parse().
-  */
-  lex_start(thd);
-  thd->lex->local_file= local_fname;
-  thd->reset_for_next_command(0);               // Errors are cleared above
-
-  /*
-    We test replicate_*_db rules. Note that we have already prepared
-    the file to load, even if we are going to ignore and delete it
-    now. So it is possible that we did a lot of disk writes for
-    nothing. In other words, a big LOAD DATA INFILE on the master will
-    still consume a lot of space on the slave (space in the relay log
-    + space of temp files: twice the space of the file to load...)
-    even if it will finally be ignored.  TODO: fix this; this can be
-    done by testing rules in Create_file_log_event::do_apply_event()
-    and then discarding Append_block and al. Another way is do the
-    filtering in the I/O thread (more efficient: no disk writes at
-    all).
-
-    Note:   We do not need to execute reset_one_shot_variables() if this
-            db_ok() test fails.
-    Reason: The db stored in binlog events is the same for SET and for
-            its companion query.  If the SET is ignored because of
-            db_ok(), the companion query will also be ignored, and if
-            the companion query is ignored in the db_ok() test of
-            ::do_apply_event(), then the companion SET also have so
-            we don't need to reset_one_shot_variables().
-  */
-  if (rpl_filter->db_ok(thd->db.str))
-  {
-    thd->set_time(when, when_sec_part);
-    thd->set_query_id(next_query_id());
-    thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
-
-    TABLE_LIST tables;
-    LEX_CSTRING db_name= { thd->strmake(thd->db.str, thd->db.length), thd->db.length };
-    if (lower_case_table_names)
-      my_casedn_str(system_charset_info, (char *)table_name);
-    LEX_CSTRING tbl_name=   { table_name, strlen(table_name) };
-    tables.init_one_table(&db_name, &tbl_name, 0, TL_WRITE);
-    tables.updating= 1;
-
-    // the table will be opened in mysql_load    
-    if (rpl_filter->is_on() && !rpl_filter->tables_ok(thd->db.str, &tables))
-    {
-      // TODO: this is a bug - this needs to be moved to the I/O thread
-      if (net)
-        skip_load_data_infile(net);
-    }
-    else
-    {
-      enum enum_duplicates handle_dup;
-      bool ignore= 0;
-      char query_buffer[1024];
-      String query_str(query_buffer, sizeof(query_buffer), system_charset_info);
-      char *load_data_query;
-
-      query_str.length(0);
-      /*
-        Forge LOAD DATA INFILE query which will be used in SHOW PROCESS LIST
-        and written to slave's binlog if binlogging is on.
-      */
-      print_query(thd, FALSE, NULL, &query_str, NULL, NULL, NULL);
-      if (!(load_data_query= (char *)thd->strmake(query_str.ptr(),
-                                                  query_str.length())))
-      {
-        /*
-          This will set thd->fatal_error in case of OOM. So we surely will notice
-          that something is wrong.
-        */
-        goto error;
-      }
-
-      thd->set_query(load_data_query, (uint) (query_str.length()));
-
-      if (sql_ex.opt_flags & REPLACE_FLAG)
-        handle_dup= DUP_REPLACE;
-      else if (sql_ex.opt_flags & IGNORE_FLAG)
-      {
-        ignore= 1;
-        handle_dup= DUP_ERROR;
-      }
-      else
-      {
-        /*
-          When replication is running fine, if it was DUP_ERROR on the
-          master then we could choose IGNORE here, because if DUP_ERROR
-          suceeded on master, and data is identical on the master and slave,
-          then there should be no uniqueness errors on slave, so IGNORE is
-          the same as DUP_ERROR. But in the unlikely case of uniqueness errors
-          (because the data on the master and slave happen to be different
-          (user error or bug), we want LOAD DATA to print an error message on
-          the slave to discover the problem.
-
-          If reading from net (a 3.23 master), mysql_load() will change this
-          to IGNORE.
-        */
-        handle_dup= DUP_ERROR;
-      }
-      /*
-        We need to set thd->lex->sql_command and thd->lex->duplicates
-        since InnoDB tests these variables to decide if this is a LOAD
-        DATA ... REPLACE INTO ... statement even though mysql_parse()
-        is not called.  This is not needed in 5.0 since there the LOAD
-        DATA ... statement is replicated using mysql_parse(), which
-        sets the thd->lex fields correctly.
-      */
-      thd->lex->sql_command= SQLCOM_LOAD;
-      thd->lex->duplicates= handle_dup;
-
-      sql_exchange ex((char*)fname, sql_ex.opt_flags & DUMPFILE_FLAG);
-      String field_term(sql_ex.field_term,sql_ex.field_term_len,log_cs);
-      String enclosed(sql_ex.enclosed,sql_ex.enclosed_len,log_cs);
-      String line_term(sql_ex.line_term,sql_ex.line_term_len,log_cs);
-      String line_start(sql_ex.line_start,sql_ex.line_start_len,log_cs);
-      String escaped(sql_ex.escaped,sql_ex.escaped_len, log_cs);
-      ex.field_term= &field_term;
-      ex.enclosed= &enclosed;
-      ex.line_term= &line_term;
-      ex.line_start= &line_start;
-      ex.escaped= &escaped;
-
-      ex.opt_enclosed = (sql_ex.opt_flags & OPT_ENCLOSED_FLAG);
-      if (sql_ex.empty_flags & FIELD_TERM_EMPTY)
-        ex.field_term->length(0);
-
-      ex.skip_lines = skip_lines;
-      List<Item> field_list;
-      thd->lex->first_select_lex()->context.resolve_in_table_list_only(&tables);
-      set_fields(tables.db.str,
-                 field_list, &thd->lex->first_select_lex()->context);
-      thd->variables.pseudo_thread_id= thread_id;
-      if (net)
-      {
-        // mysql_load will use thd->net to read the file
-        thd->net.vio = net->vio;
-        // Make sure the client does not get confused about the packet sequence
-        thd->net.pkt_nr = net->pkt_nr;
-      }
-      /*
-        It is safe to use tmp_list twice because we are not going to
-        update it inside mysql_load().
-      */
-      List<Item> tmp_list;
-      if (thd->open_temporary_tables(&tables) ||
-          mysql_load(thd, &ex, &tables, field_list, tmp_list, tmp_list,
-                     handle_dup, ignore, net != 0))
-        thd->is_slave_error= 1;
-      if (thd->cuted_fields)
-      {
-        /* log_pos is the position of the LOAD event in the master log */
-        sql_print_warning("Slave: load data infile on table '%s' at "
-                          "log position %llu in log '%s' produced %ld "
-                          "warning(s). Default database: '%s'",
-                          (char*) table_name, log_pos, RPL_LOG_NAME,
-                          (ulong) thd->cuted_fields,
-                          thd->get_db());
-      }
-      if (net)
-        net->pkt_nr= thd->net.pkt_nr;
-    }
-  }
-  else
-  {
-    /*
-      We will just ask the master to send us /dev/null if we do not
-      want to load the data.
-      TODO: this a bug - needs to be done in I/O thread
-    */
-    if (net)
-      skip_load_data_infile(net);
-  }
-
-error:
-  thd->net.vio = 0; 
-  const char *remember_db= thd->get_db();
-  thd->catalog= 0;
-  thd->set_db(&null_clex_str);     /* will free the current database */
-  thd->reset_query();
-  thd->get_stmt_da()->set_overwrite_status(true);
-  thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
-  thd->get_stmt_da()->set_overwrite_status(false);
-  close_thread_tables(thd);
-  /*
-    - If transaction rollback was requested due to deadlock
-      perform it and release metadata locks.
-    - If inside a multi-statement transaction,
-    defer the release of metadata locks until the current
-    transaction is either committed or rolled back. This prevents
-    other statements from modifying the table for the entire
-    duration of this transaction.  This provides commit ordering
-    and guarantees serializability across multiple transactions.
-    - If in autocommit mode, or outside a transactional context,
-    automatically release metadata locks of the current statement.
-  */
-  if (thd->transaction_rollback_request)
-  {
-    trans_rollback_implicit(thd);
-    thd->release_transactional_locks();
-  }
-  else if (! thd->in_multi_stmt_transaction_mode())
-    thd->release_transactional_locks();
-  else
-    thd->mdl_context.release_statement_locks();
-
-  DBUG_EXECUTE_IF("LOAD_DATA_INFILE_has_fatal_error",
-                  thd->is_slave_error= 0; thd->is_fatal_error= 1;);
-
-  if (unlikely(thd->is_slave_error))
-  {
-    /* this err/sql_errno code is copy-paste from net_send_error() */
-    const char *err;
-    int sql_errno;
-    if (thd->is_error())
-    {
-      err= thd->get_stmt_da()->message();
-      sql_errno= thd->get_stmt_da()->sql_errno();
-    }
-    else
-    {
-      sql_errno=ER_UNKNOWN_ERROR;
-      err= ER_THD(thd, sql_errno);
-    }
-    rli->report(ERROR_LEVEL, sql_errno, rgi->gtid_info(), "\
-Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
-                    err, (char*)table_name, remember_db);
-    free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-    DBUG_RETURN(1);
-  }
-  free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-
-  if (unlikely(thd->is_fatal_error))
-  {
-    char buf[256];
-    my_snprintf(buf, sizeof(buf),
-                "Running LOAD DATA INFILE on table '%-.64s'."
-                " Default database: '%-.64s'",
-                (char*)table_name,
-                remember_db);
-
-    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                ER_THD(thd, ER_SLAVE_FATAL_ERROR), buf);
-    DBUG_RETURN(1);
-  }
-
-  DBUG_RETURN( use_rli_only_for_errors ? 0 : Log_event::do_apply_event(rgi) );
-}
-#endif
-
-
-/**************************************************************************
   Rotate_log_event methods
 **************************************************************************/
 
@@ -3130,14 +2668,14 @@ Rotate_log_event::Rotate_log_event(const char* new_log_ident_arg,
 }
 
 
-bool Rotate_log_event::write()
+bool Rotate_log_event::write(Log_event_writer *writer)
 {
   char buf[ROTATE_HEADER_LEN];
   int8store(buf + R_POS_OFFSET, pos);
-  return (write_header(ROTATE_HEADER_LEN + ident_len) ||
-          write_data(buf, ROTATE_HEADER_LEN) ||
-          write_data(new_log_ident, (uint) ident_len) ||
-          write_footer());
+  return (write_header(writer, ROTATE_HEADER_LEN + ident_len) ||
+          write_data(writer, buf, ROTATE_HEADER_LEN) ||
+          write_data(writer, new_log_ident, (uint) ident_len) ||
+          write_footer(writer));
 }
 
 
@@ -3287,14 +2825,14 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
 }
 
 
-bool Binlog_checkpoint_log_event::write()
+bool Binlog_checkpoint_log_event::write(Log_event_writer *writer)
 {
   uchar buf[BINLOG_CHECKPOINT_HEADER_LEN];
   int4store(buf, binlog_file_len);
-  return write_header(BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
-         write_data(buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
-         write_data(binlog_file_name, binlog_file_len) ||
-         write_footer();
+  return write_header(writer, BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
+         write_data(writer, buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
+         write_data(writer, binlog_file_name, binlog_file_len) ||
+         write_footer(writer);
 }
 
 
@@ -3309,9 +2847,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) |
+    pad_to_size(0), flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
-    flags_extra(0), extra_engines(0)
+    flags_extra(0), extra_engines(0),
+    thread_id(thd_arg->variables.pseudo_thread_id)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -3335,6 +2874,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
+  if (!thd->rgi_slave ||
+      thd_arg->rgi_slave->gtid_ev_flags_extra & FL_EXTRA_THREAD_ID)
+    flags_extra|= FL_EXTRA_THREAD_ID;
 
   XID_STATE &xid_state= thd->transaction->xid_state;
   if (is_transactional)
@@ -3371,7 +2913,14 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       extra_engines= count > 1 ? 0 : UCHAR_MAX;
     }
     if (extra_engines > 0)
-      flags_extra|= FL_EXTRA_MULTI_ENGINE;
+      flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
+  }
+  if (thd->get_binlog_flags_for_alter())
+  {
+    flags_extra |= thd->get_binlog_flags_for_alter();
+    if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
+      sa_seq_no= thd->get_binlog_start_alter_seq_no();
+    flags2|= FL_DDL;
   }
 
   DBUG_ASSERT(thd_arg->lex->sql_command != SQLCOM_CREATE_SEQUENCE ||
@@ -3381,11 +2930,11 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 
 /*
   Used to record GTID while sending binlog to slave, without having to
-  fully contruct every Gtid_log_event() needlessly.
+  fully construct every Gtid_log_event() needlessly.
 */
 bool
 Gtid_log_event::peek(const uchar *event_start, size_t event_len,
-                     enum enum_binlog_checksum_alg checksum_alg,
+                     enum_binlog_checksum_alg checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                      uchar *flags2, const Format_description_log_event *fdev)
 {
@@ -3416,9 +2965,9 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 
 
 bool
-Gtid_log_event::write()
+Gtid_log_event::write(Log_event_writer *writer)
 {
-  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
+  uchar buf[max_data_length];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -3433,10 +2982,7 @@ Gtid_log_event::write()
   }
 
   if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA)
-#ifndef DBUG_OFF
-      && DBUG_EVALUATE_IF("negate_xid_from_gtid", 0, 1)
-#endif
-  )
+      && !DBUG_IF("negate_xid_from_gtid"))
   {
     int4store(&buf[write_len],   xid.formatID);
     buf[write_len +4]=   (uchar) xid.gtrid_length;
@@ -3444,19 +2990,28 @@ Gtid_log_event::write()
     write_len+= 6;
     long data_length= xid.bqual_length + xid.gtrid_length;
 
-#ifndef DBUG_OFF
-    if (DBUG_EVALUATE_IF("negate_xid_data_from_gtid", 0, 1))
+    if (!DBUG_IF("negate_xid_data_from_gtid"))
     {
-#endif
-    memcpy(buf+write_len, xid.data, data_length);
-    write_len+= data_length;
-#ifndef DBUG_OFF
+      memcpy(buf+write_len, xid.data, data_length);
+      write_len+= data_length;
     }
-#endif
   }
 
+#ifndef DBUG_OFF
+  /*
+    The following debug_dbug flags which simulate invalid events are only
+    valid for pre-FL_EXTRA_THREAD_ID events (i.e. before 11.5). So do not write
+    the thread id attribute when simulating these invalid events.
+  */
+  if (DBUG_IF("negate_xid_from_gtid") ||
+      DBUG_IF("negate_xid_data_from_gtid") ||
+      DBUG_IF("inject_fl_extra_multi_engine_into_gtid") ||
+      DBUG_IF("negate_alter_fl_from_gtid"))
+    flags_extra&= ~FL_EXTRA_THREAD_ID;
+#endif
+
   DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
-    flags_extra|= FL_EXTRA_MULTI_ENGINE;
+    flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
   });
   if (flags_extra > 0)
   {
@@ -3464,13 +3019,27 @@ Gtid_log_event::write()
     write_len++;
   }
   DBUG_EXECUTE_IF("inject_fl_extra_multi_engine_into_gtid", {
-    flags_extra&= ~FL_EXTRA_MULTI_ENGINE;
+    flags_extra&= ~FL_EXTRA_MULTI_ENGINE_E1;
   });
 
-  if (flags_extra & FL_EXTRA_MULTI_ENGINE)
+  if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
   {
     buf[write_len]= extra_engines;
     write_len++;
+  }
+
+  if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1)
+      && !DBUG_IF("negate_alter_fl_from_gtid")
+  )
+  {
+    int8store(buf + write_len, sa_seq_no);
+    write_len+= 8;
+  }
+
+  if (flags_extra & FL_EXTRA_THREAD_ID)
+  {
+    int4store(buf + write_len, thread_id);
+    write_len+= 4;
   }
 
   if (write_len < GTID_HEADER_LEN)
@@ -3478,9 +3047,30 @@ Gtid_log_event::write()
     bzero(buf+write_len, GTID_HEADER_LEN-write_len);
     write_len= GTID_HEADER_LEN;
   }
-  return write_header(write_len) ||
-         write_data(buf, write_len) ||
-         write_footer();
+
+  if (unlikely(pad_to_size > write_len))
+  {
+    if (write_header(writer, pad_to_size) ||
+        write_data(writer, buf, write_len))
+      return true;
+
+    pad_to_size-= write_len;
+
+    char pad_buf[IO_SIZE];
+    bzero(pad_buf,  pad_to_size);
+    while (pad_to_size)
+    {
+      uint64 size= pad_to_size >= IO_SIZE ? IO_SIZE : pad_to_size;
+      if (write_data(writer, pad_buf, size))
+        return true;
+      pad_to_size-= size;
+    }
+    return write_footer(writer);
+  }
+
+  return write_header(writer, write_len) ||
+         write_data(writer, buf, write_len) ||
+         write_footer(writer);
 }
 
 
@@ -3496,7 +3086,7 @@ Gtid_log_event::write()
 int
 Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
                                       ulong ev_offset,
-                                      enum enum_binlog_checksum_alg checksum_alg)
+                                      enum_binlog_checksum_alg checksum_alg)
 {
   uchar flags2;
   if (packet->length() - ev_offset < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
@@ -3536,6 +3126,20 @@ Gtid_log_event::pack_info(Protocol *protocol)
     p= strmov(p, " cid=");
     p= longlong10_to_str(commit_id, p, 10);
   }
+  if (flags_extra & FL_START_ALTER_E1)
+  {
+    p= strmov(p, " START ALTER");
+  }
+  if (flags_extra & FL_COMMIT_ALTER_E1)
+  {
+    p= strmov(p, " COMMIT ALTER id=");
+    p= longlong10_to_str(sa_seq_no, p, 10);
+  }
+  if (flags_extra & FL_ROLLBACK_ALTER_E1)
+  {
+    p= strmov(p, " ROLLBACK ALTER id=");
+    p= longlong10_to_str(sa_seq_no, p, 10);
+  }
 
   protocol->store(buf, p-buf, &my_charset_bin);
 }
@@ -3545,11 +3149,28 @@ static char gtid_begin_string[] = "BEGIN";
 int
 Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  Relay_log_info *rli= rgi->rli;
   ulonglong bits= thd->variables.option_bits;
+
+  if (unlikely(thd->transaction->all.ha_list || (bits & OPTION_GTID_BEGIN)))
+  {
+    rli->report(WARNING_LEVEL, 0, NULL,
+                "Rolling back unfinished transaction (no COMMIT "
+                "or ROLLBACK in relay log). This indicates a corrupt binlog "
+                "on the master, possibly caused by disk full or other write "
+                "error.");
+    rgi->cleanup_context(thd, 1);
+    bits= thd->variables.option_bits;
+  }
+
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
+  thd->variables.pseudo_thread_id= this->thread_id;
   rgi->gtid_ev_flags2= flags2;
+
+  rgi->gtid_ev_flags_extra= flags_extra;
+  rgi->gtid_ev_sa_seq_no= sa_seq_no;
   thd->reset_for_next_command();
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
@@ -3561,7 +3182,7 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 
   DBUG_ASSERT((bits & OPTION_GTID_BEGIN) == 0);
 
-  Master_info *mi=rgi->rli->mi;
+  Master_info *mi= rli->mi;
   switch (flags2 & (FL_DDL | FL_TRANSACTIONAL))
   {
     case FL_TRANSACTIONAL:
@@ -3751,7 +3372,7 @@ Gtid_list_log_event::to_packet(String *packet)
 
 
 bool
-Gtid_list_log_event::write()
+Gtid_list_log_event::write(Log_event_writer *writer)
 {
   char buf[128];
   String packet(buf, sizeof(buf), system_charset_info);
@@ -3759,9 +3380,9 @@ Gtid_list_log_event::write()
   packet.length(0);
   if (to_packet(&packet))
     return true;
-  return write_header(get_data_size()) ||
-         write_data(packet.ptr(), packet.length()) ||
-         write_footer();
+  return write_header(writer, get_data_size()) ||
+         write_data(writer, packet.ptr(), packet.length()) ||
+         write_footer(writer);
 }
 
 
@@ -3820,6 +3441,12 @@ Gtid_list_log_event::pack_info(Protocol *protocol)
   uint32 i;
   bool first;
 
+  /*
+    For output consistency and ease of reading, we sort the GTID list in
+    ascending order
+  */
+  qsort(list, count, sizeof(rpl_gtid), compare_glle_gtids);
+
   buf.length(0);
   buf.append(STRING_WITH_LEN("["));
   first= true;
@@ -3849,14 +3476,14 @@ void Intvar_log_event::pack_info(Protocol *protocol)
 #endif
 
 
-bool Intvar_log_event::write()
+bool Intvar_log_event::write(Log_event_writer *writer)
 {
   uchar buf[9];
   buf[I_TYPE_OFFSET]= (uchar) type;
   int8store(buf + I_VAL_OFFSET, val);
-  return write_header(sizeof(buf)) ||
-         write_data(buf, sizeof(buf)) ||
-         write_footer();
+  return write_header(writer, sizeof(buf)) ||
+         write_data(writer, buf, sizeof(buf)) ||
+         write_footer(writer);
 }
 
 
@@ -3928,14 +3555,14 @@ void Rand_log_event::pack_info(Protocol *protocol)
 #endif
 
 
-bool Rand_log_event::write()
+bool Rand_log_event::write(Log_event_writer *writer)
 {
   uchar buf[16];
   int8store(buf + RAND_SEED1_OFFSET, seed1);
   int8store(buf + RAND_SEED2_OFFSET, seed2);
-  return write_header(sizeof(buf)) ||
-         write_data(buf, sizeof(buf)) ||
-         write_footer();
+  return write_header(writer, sizeof(buf)) ||
+         write_data(writer, buf, sizeof(buf)) ||
+         write_footer(writer);
 }
 
 
@@ -4116,6 +3743,15 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 
   general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
+  /*
+    Use the time from the current Xid_log_event for the generated
+    Xid_log_event in binlog_commit_flush_xid_caches().
+    This ensures that the time for Xid_log_events does not change
+    and allows slaves to give a consistent value for
+    Slave_last_event_time.
+  */
+  thd->start_time= when;
+
   res= do_commit();
   if (!res && rgi->gtid_pending)
   {
@@ -4207,12 +3843,12 @@ int Xid_log_event::do_commit()
 #endif
 
 
-bool Xid_log_event::write()
+bool Xid_log_event::write(Log_event_writer *writer)
 {
   DBUG_EXECUTE_IF("do_not_write_xid", return 0;);
-  return write_header(sizeof(xid)) ||
-         write_data((uchar*)&xid, sizeof(xid)) ||
-         write_footer();
+  return write_header(writer, sizeof(xid)) ||
+         write_data(writer, (uchar*)&xid, sizeof(xid)) ||
+         write_footer(writer);
 }
 
 /**************************************************************************
@@ -4258,7 +3894,7 @@ int XA_prepare_log_event::do_commit()
 #endif // HAVE_REPLICATION
 
 
-bool XA_prepare_log_event::write()
+bool XA_prepare_log_event::write(Log_event_writer *writer)
 {
   uchar data[1 + 4 + 4 + 4]= {one_phase,};
   uint8 one_phase_byte= one_phase;
@@ -4269,14 +3905,14 @@ bool XA_prepare_log_event::write()
 
   DBUG_ASSERT(xid_subheader_no_data == sizeof(data) - 1);
 
-  return write_header(sizeof(one_phase_byte) + xid_subheader_no_data +
+  return write_header(writer, sizeof(one_phase_byte) + xid_subheader_no_data +
                       static_cast<XID*>(xid)->gtrid_length +
                       static_cast<XID*>(xid)->bqual_length) ||
-         write_data(data, sizeof(data)) ||
-         write_data((uchar*) static_cast<XID*>(xid)->data,
+         write_data(writer, data, sizeof(data)) ||
+         write_data(writer, (uchar*) static_cast<XID*>(xid)->data,
                      static_cast<XID*>(xid)->gtrid_length +
                      static_cast<XID*>(xid)->bqual_length) ||
-         write_footer();
+         write_footer(writer);
 }
 
 
@@ -4365,7 +4001,9 @@ void User_var_log_event::pack_info(Protocol* protocol)
     case STRING_RESULT:
     {
       /* 15 is for 'COLLATE' and other chars */
-      char buf_mem[FN_REFLEN + 512 + 1 + 2*MY_CS_NAME_SIZE+15];
+      char buf_mem[FN_REFLEN + 512 + 1 + 15 +
+                   MY_CS_CHARACTER_SET_NAME_SIZE +
+                   MY_CS_COLLATION_NAME_SIZE];
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       CHARSET_INFO *cs;
       buf.length(0);
@@ -4386,10 +4024,10 @@ void User_var_log_event::pack_info(Protocol* protocol)
           return;
         old_len= buf.length();
         if (buf.reserve(old_len + val_len * 2 + 3 + sizeof(" COLLATE ") +
-                        MY_CS_NAME_SIZE))
+                        MY_CS_COLLATION_NAME_SIZE))
           return;
         beg= const_cast<char *>(buf.ptr()) + old_len;
-        end= str_to_hex(beg, val, val_len);
+        end= str_to_hex(beg, (uchar*)val, val_len);
         buf.length(old_len + (end - beg));
         if (buf.append(STRING_WITH_LEN(" COLLATE ")) ||
             buf.append(cs->coll_name))
@@ -4408,7 +4046,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
 #endif // HAVE_REPLICATION
 
 
-bool User_var_log_event::write()
+bool User_var_log_event::write(Log_event_writer *writer)
 {
   char buf[UV_NAME_LEN_SIZE];
   char buf1[UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE + 
@@ -4472,17 +4110,19 @@ bool User_var_log_event::write()
 
   uchar unsig= m_is_unsigned ? CHUNK_UNSIGNED : CHUNK_SIGNED;
   uchar data_type_name_length= (uchar) m_data_type_name.length;
-  return write_header(event_length) ||
-         write_data(buf, sizeof(buf))   ||
-         write_data(name, name_len)     ||
-         write_data(buf1, buf1_length) ||
-         write_data(pos, val_len) ||
-         write_data(&unsig, unsigned_len) ||
-         write_data(&data_type_name_chunk_signature,
+  return write_header(writer, event_length) ||
+         write_data(writer, buf, sizeof(buf))   ||
+         write_data(writer, name, name_len)     ||
+         write_data(writer, buf1, buf1_length) ||
+         write_data(writer, pos, val_len) ||
+         write_data(writer, &unsig, unsigned_len) ||
+         write_data(writer, &data_type_name_chunk_signature,
                     data_type_name_chunk_signature_length) ||
-         write_data(&data_type_name_length, data_type_name_length_length) ||
-         write_data(m_data_type_name.str, (uint) m_data_type_name.length) ||
-         write_footer();
+         write_data(writer, &data_type_name_length,
+                    data_type_name_length_length) ||
+         write_data(writer, m_data_type_name.str,
+                    (uint) m_data_type_name.length) ||
+         write_footer(writer);
 }
 
 
@@ -4634,10 +4274,9 @@ User_var_log_event::do_shall_skip(rpl_group_info *rgi)
   written all DROP TEMPORARY TABLE (prepared statements' deletion is
   TODO only when we binlog prep stmts).  We used to clean up
   slave_load_tmpdir, but this is useless as it has been cleared at the
-  end of LOAD DATA INFILE.  So we have nothing to do here.  The place
-  were we must do this cleaning is in
-  Start_log_event_v3::do_apply_event(), not here. Because if we come
-  here, the master was sane.
+  end of LOAD DATA INFILE.  So we have nothing to do here.  The place were we
+  must do this cleaning is in Format_description_log_event::do_apply_event(),
+  not here. Because if we come here, the master was sane.
 
   This must only be called from the Slave SQL thread, since it calls
   Relay_log_info::flush().
@@ -4671,178 +4310,6 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
 
 
 /**************************************************************************
-	Create_file_log_event methods
-**************************************************************************/
-
-Create_file_log_event::
-Create_file_log_event(THD* thd_arg, sql_exchange* ex,
-		      const char* db_arg, const char* table_name_arg,
-                      List<Item>& fields_arg,
-                      bool is_concurrent_arg,
-                      enum enum_duplicates handle_dup,
-                      bool ignore,
-		      uchar* block_arg, uint block_len_arg, bool using_trans)
-  :Load_log_event(thd_arg, ex, db_arg, table_name_arg, fields_arg,
-                  is_concurrent_arg,
-                  handle_dup, ignore, using_trans),
-   fake_base(0), block(block_arg), event_buf(0), block_len(block_len_arg),
-   file_id(thd_arg->file_id = mysql_bin_log.next_file_id())
-{
-  DBUG_ENTER("Create_file_log_event");
-  sql_ex.force_new_format();
-  DBUG_VOID_RETURN;
-}
-
-
-/*
-  Create_file_log_event::write_data_body()
-*/
-
-bool Create_file_log_event::write_data_body()
-{
-  bool res;
-  if ((res= Load_log_event::write_data_body()) || fake_base)
-    return res;
-  return write_data("", 1) ||
-         write_data(block, block_len);
-}
-
-
-/*
-  Create_file_log_event::write_data_header()
-*/
-
-bool Create_file_log_event::write_data_header()
-{
-  bool res;
-  uchar buf[CREATE_FILE_HEADER_LEN];
-  if ((res= Load_log_event::write_data_header()) || fake_base)
-    return res;
-  int4store(buf + CF_FILE_ID_OFFSET, file_id);
-  return write_data(buf, CREATE_FILE_HEADER_LEN) != 0;
-}
-
-
-/*
-  Create_file_log_event::write_base()
-*/
-
-bool Create_file_log_event::write_base()
-{
-  bool res;
-  fake_base= 1;                                 // pretend we are Load event
-  res= write();
-  fake_base= 0;
-  return res;
-}
-
-
-#if defined(HAVE_REPLICATION)
-void Create_file_log_event::pack_info(Protocol *protocol)
-{
-  char buf[SAFE_NAME_LEN*2 + 30 + 21*2], *pos;
-  pos= strmov(buf, "db=");
-  memcpy(pos, db, db_len);
-  pos= strmov(pos + db_len, ";table=");
-  memcpy(pos, table_name, table_name_len);
-  pos= strmov(pos + table_name_len, ";file_id=");
-  pos= int10_to_str((long) file_id, pos, 10);
-  pos= strmov(pos, ";block_len=");
-  pos= int10_to_str((long) block_len, pos, 10);
-  protocol->store(buf, (uint) (pos-buf), &my_charset_bin);
-}
-#endif /* defined(HAVE_REPLICATION) */
-
-
-/**
-  Create_file_log_event::do_apply_event()
-  Constructor for Create_file_log_event to intantiate an event
-  from the relay log on the slave.
-
-  @retval
-    0           Success
-  @retval
-    1           Failure
-*/
-
-#if defined(HAVE_REPLICATION)
-int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
-{
-  char fname_buf[FN_REFLEN];
-  char *ext;
-  int fd = -1;
-  IO_CACHE file;
-  Log_event_writer lew(&file, 0);
-  int error = 1;
-  Relay_log_info const *rli= rgi->rli;
-
-  THD_STAGE_INFO(thd, stage_making_temp_file_create_before_load_data);
-  bzero((char*)&file, sizeof(file));
-  ext= slave_load_file_stem(fname_buf, file_id, server_id, ".info",
-                            &rli->mi->connection_name);
-  /* old copy may exist already */
-  mysql_file_delete(key_file_log_event_info, fname_buf, MYF(0));
-  if ((fd= mysql_file_create(key_file_log_event_info,
-                             fname_buf, CREATE_MODE,
-                             O_WRONLY | O_BINARY | O_EXCL | O_NOFOLLOW,
-                             MYF(MY_WME))) < 0 ||
-      init_io_cache(&file, fd, IO_SIZE, WRITE_CACHE, (my_off_t)0, 0,
-		    MYF(MY_WME|MY_NABP)))
-  {
-    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
-                "Error in Create_file event: could not open file '%s'",
-                fname_buf);
-    goto err;
-  }
-
-  // a trick to avoid allocating another buffer
-  fname= fname_buf;
-  fname_len= (uint) (strmov(ext, ".data") - fname);
-  writer= &lew;
-  if (write_base())
-  {
-    strmov(ext, ".info"); // to have it right in the error message
-    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
-                "Error in Create_file event: could not write to file '%s'",
-                fname_buf);
-    goto err;
-  }
-  end_io_cache(&file);
-  mysql_file_close(fd, MYF(0));
-
-  // fname_buf now already has .data, not .info, because we did our trick
-  /* old copy may exist already */
-  mysql_file_delete(key_file_log_event_data, fname_buf, MYF(0));
-  if ((fd= mysql_file_create(key_file_log_event_data,
-                             fname_buf, CREATE_MODE,
-                             O_WRONLY | O_BINARY | O_EXCL | O_NOFOLLOW,
-                             MYF(MY_WME))) < 0)
-  {
-    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
-                "Error in Create_file event: could not open file '%s'",
-                fname_buf);
-    goto err;
-  }
-  if (mysql_file_write(fd, (uchar*) block, block_len, MYF(MY_WME+MY_NABP)))
-  {
-    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
-                "Error in Create_file event: write to '%s' failed",
-                fname_buf);
-    goto err;
-  }
-  error=0;					// Everything is ok
-
-err:
-  if (unlikely(error))
-    end_io_cache(&file);
-  if (likely(fd >= 0))
-    mysql_file_close(fd, MYF(0));
-  return error != 0;
-}
-#endif /* defined(HAVE_REPLICATION) */
-
-
-/**************************************************************************
 	Append_block_log_event methods
 **************************************************************************/
 
@@ -4857,14 +4324,14 @@ Append_block_log_event::Append_block_log_event(THD *thd_arg,
 }
 
 
-bool Append_block_log_event::write()
+bool Append_block_log_event::write(Log_event_writer *writer)
 {
   uchar buf[APPEND_BLOCK_HEADER_LEN];
   int4store(buf + AB_FILE_ID_OFFSET, file_id);
-  return write_header(APPEND_BLOCK_HEADER_LEN + block_len) ||
-         write_data(buf, APPEND_BLOCK_HEADER_LEN) ||
-         write_data(block, block_len) ||
-         write_footer();
+  return write_header(writer, APPEND_BLOCK_HEADER_LEN + block_len) ||
+         write_data(writer, buf, APPEND_BLOCK_HEADER_LEN) ||
+         write_data(writer, block, block_len) ||
+         write_footer(writer);
 }
 
 
@@ -4967,13 +4434,13 @@ Delete_file_log_event::Delete_file_log_event(THD *thd_arg, const char* db_arg,
 }
 
 
-bool Delete_file_log_event::write()
+bool Delete_file_log_event::write(Log_event_writer *writer)
 {
  uchar buf[DELETE_FILE_HEADER_LEN];
  int4store(buf + DF_FILE_ID_OFFSET, file_id);
- return write_header(sizeof(buf)) ||
-        write_data(buf, sizeof(buf)) ||
-        write_footer();
+ return write_header(writer, sizeof(buf)) ||
+        write_data(writer, buf, sizeof(buf)) ||
+        write_footer(writer);
 }
 
 
@@ -5002,130 +4469,6 @@ int Delete_file_log_event::do_apply_event(rpl_group_info *rgi)
 }
 #endif /* defined(HAVE_REPLICATION) */
 
-
-/**************************************************************************
-	Execute_load_log_event methods
-**************************************************************************/
-
-Execute_load_log_event::Execute_load_log_event(THD *thd_arg,
-                                               const char* db_arg,
-					       bool using_trans)
-  :Log_event(thd_arg, 0, using_trans), file_id(thd_arg->file_id), db(db_arg)
-{
-}
-  
-
-bool Execute_load_log_event::write()
-{
-  uchar buf[EXEC_LOAD_HEADER_LEN];
-  int4store(buf + EL_FILE_ID_OFFSET, file_id);
-  return write_header(sizeof(buf)) ||
-         write_data(buf, sizeof(buf)) ||
-         write_footer();
-}
-
-
-#if defined(HAVE_REPLICATION)
-void Execute_load_log_event::pack_info(Protocol *protocol)
-{
-  char buf[64];
-  uint length;
-  length= (uint) sprintf(buf, ";file_id=%u", (uint) file_id);
-  protocol->store(buf, (int32) length, &my_charset_bin);
-}
-
-
-/*
-  Execute_load_log_event::do_apply_event()
-*/
-
-int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
-{
-  char fname[FN_REFLEN+10];
-  char *ext;
-  int fd;
-  int error= 1, read_error;
-  IO_CACHE file;
-  Load_log_event *lev= 0;
-  Relay_log_info const *rli= rgi->rli;
-
-  ext= slave_load_file_stem(fname, file_id, server_id, ".info",
-                            &rli->mi->cmp_connection_name);
-  if ((fd= mysql_file_open(key_file_log_event_info,
-                           fname, O_RDONLY | O_BINARY | O_NOFOLLOW,
-                           MYF(MY_WME))) < 0 ||
-      init_io_cache(&file, fd, IO_SIZE, READ_CACHE, (my_off_t)0, 0,
-		    MYF(MY_WME|MY_NABP)))
-  {
-    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
-                "Error in Exec_load event: could not open file '%s'",
-                fname);
-    goto err;
-  }
-  if (!(lev= (Load_log_event*)
-        Log_event::read_log_event(&file, &read_error,
-                                  rli->relay_log.description_event_for_exec,
-                                  opt_slave_sql_verify_checksum)) ||
-      lev->get_type_code() != NEW_LOAD_EVENT)
-  {
-    rli->report(ERROR_LEVEL, 0, rgi->gtid_info(), "Error in Exec_load event: "
-                    "file '%s' appears corrupted", fname);
-    goto err;
-  }
-  lev->thd = thd;
-  /*
-    lev->do_apply_event should use rli only for errors i.e. should
-    not advance rli's position.
-
-    lev->do_apply_event is the place where the table is loaded (it
-    calls mysql_load()).
-  */
-
-  if (lev->do_apply_event(0,rgi,1)) 
-  {
-    /*
-      We want to indicate the name of the file that could not be loaded
-      (SQL_LOADxxx).
-      But as we are here we are sure the error is in rli->last_slave_error and
-      rli->last_slave_errno (example of error: duplicate entry for key), so we
-      don't want to overwrite it with the filename.
-      What we want instead is add the filename to the current error message.
-    */
-    char *tmp= my_strdup(PSI_INSTRUMENT_ME, rli->last_error().message, MYF(MY_WME));
-    if (tmp)
-    {
-      rli->report(ERROR_LEVEL, rli->last_error().number, rgi->gtid_info(),
-                  "%s. Failed executing load from '%s'", tmp, fname);
-      my_free(tmp);
-    }
-    goto err;
-  }
-  /*
-    We have an open file descriptor to the .info file; we need to close it
-    or Windows will refuse to delete the file in mysql_file_delete().
-  */
-  if (fd >= 0)
-  {
-    mysql_file_close(fd, MYF(0));
-    end_io_cache(&file);
-    fd= -1;
-  }
-  mysql_file_delete(key_file_log_event_info, fname, MYF(MY_WME));
-  memcpy(ext, ".data", 6);
-  mysql_file_delete(key_file_log_event_data, fname, MYF(MY_WME));
-  error = 0;
-
-err:
-  delete lev;
-  if (fd >= 0)
-  {
-    mysql_file_close(fd, MYF(0));
-    end_io_cache(&file);
-  }
-  return error;
-}
-
-#endif /* defined(HAVE_REPLICATION) */
 
 /**************************************************************************
 	Begin_load_query_log_event methods
@@ -5180,14 +4523,14 @@ Execute_load_query_log_event(THD *thd_arg, const char* query_arg,
 
 
 bool
-Execute_load_query_log_event::write_post_header_for_derived()
+Execute_load_query_log_event::write_post_header_for_derived(Log_event_writer *writer)
 {
   uchar buf[EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN];
   int4store(buf, file_id);
   int4store(buf + 4, fn_pos_start);
   int4store(buf + 4 + 4, fn_pos_end);
   *(buf + 4 + 4 + 4)= (uchar) dup_handling;
-  return write_data(buf, EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN);
+  return write_data(writer, buf, EXECUTE_LOAD_QUERY_EXTRA_HEADER_LEN);
 }
 
 
@@ -5355,8 +4698,7 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg,
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                              m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                             m_width,
-                             false)))
+                             m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
@@ -5477,6 +4819,7 @@ inline void restore_empty_query_table_list(LEX *lex)
 
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  DBUG_ASSERT(rgi);
   Relay_log_info const *rli= rgi->rli;
   TABLE* table;
   DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
@@ -5510,12 +4853,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ASSERT(rgi->thd == thd);
 
   /*
-    If there is no locks taken, this is the first binrow event seen
-    after the table map events.  We should then lock all the tables
-    used in the transaction and proceed with execution of the actual
-    event.
+    Where a Query_log_event can rely on the normal command execution logic to
+    set/reset the slave thread's timer; a Rows_log_event update needs to set
+    the timer itself
   */
-  if (!thd->lock)
+  thd->set_query_timer_if_needed();
+
+  /*
+    If there are no tables open, this must be the first row event seen
+    after the table map events. We should then open and lock all tables
+    used in the transaction and proceed with execution of the actual event.
+  */
+  if (!thd->open_tables)
   {
     /*
       Lock_tables() reads the contents of thd->lex, so they must be
@@ -5598,6 +4947,18 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         lex->query_tables_last= &tables->next_global;
       }
     }
+
+    /*
+      It is needed to set_time():
+      1) it continues the property that "Time" in SHOW PROCESSLIST shows how
+      much slave is behind
+      2) it will be needed when we allow replication from a table with no
+      TIMESTAMP column to a table with one.
+      So we call set_time(), like in SBR. Presently it changes nothing.
+      3) vers_set_hist_part() requires proper query time.
+    */
+    thd->set_time(when, when_sec_part);
+
     if (unlikely(open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0)))
     {
 #ifdef WITH_WSREP
@@ -5746,17 +5107,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       }
     }
 
-#ifdef HAVE_QUERY_CACHE
     /*
       Moved invalidation right before the call to rows_event_stmt_cleanup(),
       to avoid query cache being polluted with stale entries,
+      Query cache is not invalidated on wsrep applier here
     */
-# ifdef WITH_WSREP
-    /* Query cache is not invalidated on wsrep applier here */
     if (!(WSREP(thd) && wsrep_thd_is_applying(thd)))
-# endif /* WITH_WSREP */
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif /* HAVE_QUERY_CACHE */
   }
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
@@ -5770,7 +5127,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     Rows_log_event::Db_restore_ctx restore_ctx(this);
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions_and_rollback();
-    table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
+    table->file->prepare_for_modify(true,
+                                  get_general_type_code() != WRITE_ROWS_EVENT);
 
     /*
       table == NULL means that this table should not be replicated
@@ -5778,20 +5136,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       which tested replicate-* rules).
     */
 
-    /*
-      It's not needed to set_time() but
-      1) it continues the property that "Time" in SHOW PROCESSLIST shows how
-      much slave is behind
-      2) it will be needed when we allow replication from a table with no
-      TIMESTAMP column to a table with one.
-      So we call set_time(), like in SBR. Presently it changes nothing.
-    */
-    thd->set_time(when, when_sec_part);
-
     if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
-    /*
+    Rpl_table_data rpl_data= *(RPL_TABLE_LIST*)table->pos_in_table_list;
+
+    /* 
       Set tables write and read sets.
 
       Read_set contains all slave columns (in case we are going to fetch
@@ -5804,22 +5154,39 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
 
     bitmap_set_all(table->read_set);
-    if (get_general_type_code() == DELETE_ROWS_EVENT ||
-        get_general_type_code() == UPDATE_ROWS_EVENT)
-      bitmap_intersect(table->read_set,&m_cols);
-
     bitmap_set_all(table->write_set);
     table->rpl_write_set= table->write_set;
 
-    /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
-    MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
-                             &m_cols_ai : &m_cols);
-    bitmap_intersect(table->write_set, after_image);
+    if (rpl_data.copy_fields)
+      /* always full rows, all bits set */;
+    else
+    if (get_general_type_code() == WRITE_ROWS_EVENT)
+      bitmap_copy(table->write_set, &m_cols); // for sequences
+    else // If online alter, leave all columns set (i.e. skip intersects)
+    if (!thd->slave_thread || !table->s->online_alter_binlog)
+    {
+      bitmap_intersect(table->read_set,&m_cols);
+      if (get_general_type_code() == UPDATE_ROWS_EVENT)
+        bitmap_intersect(table->write_set, &m_cols_ai);
+      table->mark_columns_per_binlog_row_image();
+      if (table->vfield)
+        table->mark_virtual_columns_for_write(0);
+    }
 
-    this->slave_exec_mode= slave_exec_mode_options; // fix the mode
+    if (table->versioned())
+    {
+      bitmap_set_bit(table->read_set, table->s->vers.start_fieldno);
+      bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
+      bitmap_set_bit(table->read_set, table->s->vers.end_fieldno);
+      bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
+    }
+    m_table->mark_columns_per_binlog_row_image();
+
+    if (!rpl_data.is_online_alter())
+      this->slave_exec_mode= (enum_slave_exec_mode)slave_exec_mode_options;
 
     // Do event specific preparations 
-    error= do_before_row_operations(rli);
+    error= do_before_row_operations(rgi);
 
     /*
       Bug#56662 Assertion failed: next_insert_id == 0, file handler.cc
@@ -5831,7 +5198,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
-      thd->variables.sql_mode= MODE_NO_AUTO_VALUE_ON_ZERO;
+      thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)
+                               | MODE_NO_AUTO_VALUE_ON_ZERO;
 
     // row processing loop
 
@@ -5844,18 +5212,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     THD_STAGE_INFO(thd, stage_executing);
     do
     {
-      /* in_use can have been set to NULL in close_tables_for_reopen */
-      THD* old_thd= table->in_use;
-      if (!table->in_use)
-        table->in_use= thd;
+      DBUG_ASSERT(table->in_use);
 
       error= do_exec_row(rgi);
 
       if (unlikely(error))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
       DBUG_ASSERT(error != HA_ERR_RECORD_DELETED);
-
-      table->in_use = old_thd;
 
       if (unlikely(error))
       {
@@ -5866,7 +5229,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                              ignored_error_code(actual_error) : 0);
 
 #ifdef WITH_WSREP
-        if (WSREP(thd) && thd->wsrep_applier &&
+        if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
             wsrep_ignored_error_code(this, actual_error))
         {
           idempotent_error= true;
@@ -5904,8 +5267,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (likely(error == 0) && !transactional_table)
         thd->transaction->all.modified_non_trans_table=
           thd->transaction->stmt.modified_non_trans_table= TRUE;
+      if (likely(error == 0))
+      {
+        m_row_count++;
+        error= thd->killed_errno();
+        if (error && !thd->is_error())
+          my_error(error, MYF(0));
+      }
     } // row processing loop
     while (error == 0 && (m_curr_row != m_rows_end));
+
+    thd->inc_examined_row_count(m_row_count);
 
     /*
       Restore the sql_mode after the rows event is processed.
@@ -5923,7 +5295,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                         const_cast<Relay_log_info*>(rli)->abort_slave= 1;);
     }
 
-    if (unlikely(error= do_after_row_operations(rli, error)) &&
+    if (unlikely(error= do_after_row_operations(error)) &&
         ignored_error_code(convert_handler_error(error, thd, table)))
     {
 
@@ -5934,34 +5306,40 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       thd->clear_error(1);
       error= 0;
     }
+
+    if (unlikely(error))
+    {
+      if (rpl_data.is_online_alter())
+        goto err;
+      slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
+                              get_type_str(),
+                              RPL_LOG_NAME, log_pos);
+      /*
+        @todo We should probably not call
+        reset_current_stmt_binlog_format_row() from here.
+  
+        Note: this applies to log_event_old.cc too.
+        /Sven
+      */
+      thd->reset_current_stmt_binlog_format_row();
+      thd->is_slave_error= 1;
+      /* remove trigger's tables */
+      goto err;
+    }
   } // if (table)
 
-  
-  if (unlikely(error))
-  {
-    slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
-                             get_type_str(),
-                             RPL_LOG_NAME, log_pos);
-    /*
-      @todo We should probably not call
-      reset_current_stmt_binlog_format_row() from here.
+  DBUG_ASSERT(error == 0);
 
-      Note: this applies to log_event_old.cc too.
-      /Sven
-    */
-    thd->reset_current_stmt_binlog_format_row();
-    thd->is_slave_error= 1;
-    /* remove trigger's tables */
-    goto err;
-  }
+  /*
+    Remove trigger's tables. In case of ONLINE ALTER TABLE, event doesn't own
+    the table (hence, no tables are locked), and therefore no cleanup should be
+    done after each event.
+  */
+  if (rgi->tables_to_lock_count)
+    restore_empty_query_table_list(thd->lex);
 
-  /* remove trigger's tables */
-  restore_empty_query_table_list(thd->lex);
-
-#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
   if (WSREP(thd) && wsrep_thd_is_applying(thd))
-    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif /* WITH_WSREP && HAVE_QUERY_CACHE */
+    query_cache_invalidate_locked_for_write(thd, rgi->tables_to_lock);
 
   if (get_flags(STMT_END_F))
   {
@@ -5973,11 +5351,16 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
+  thd->reset_query_timer();
   DBUG_RETURN(error);
 
 err:
-  restore_empty_query_table_list(thd->lex);
-  rgi->slave_close_thread_tables(thd);
+  if (rgi->tables_to_lock_count)
+  {
+    restore_empty_query_table_list(thd->lex);
+    rgi->slave_close_thread_tables(thd);
+  }
+  thd->reset_query_timer();
   DBUG_RETURN(error);
 }
 
@@ -6085,7 +5468,7 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
 /**
    The method either increments the relay log position or
    commits the current statement and increments the master group 
-   possition if the event is STMT_END_F flagged and
+   position if the event is STMT_END_F flagged and
    the statement corresponds to the autocommit query (i.e replicated
    without wrapping in BEGIN/COMMIT)
 
@@ -6129,22 +5512,22 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
 #endif /* defined(HAVE_REPLICATION) */
 
 
-bool Rows_log_event::write_data_header()
+bool Rows_log_event::write_data_header(Log_event_writer *writer)
 {
-  uchar buf[ROWS_HEADER_LEN_V2];        // No need to init the buffer
+  uchar buf[ROWS_HEADER_LEN_V1];        // No need to init the buffer
   DBUG_ASSERT(m_table_id != UINT32_MAX);
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master",
                   {
                     int4store(buf + 0, (ulong) m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (write_data(buf, 6));
+                    return (write_data(writer, buf, 6));
                   });
   int6store(buf + RW_MAPID_OFFSET, m_table_id);
   int2store(buf + RW_FLAGS_OFFSET, m_flags);
-  return write_data(buf, ROWS_HEADER_LEN);
+  return write_data(writer, buf, ROWS_HEADER_LEN_V1);
 }
 
-bool Rows_log_event::write_data_body()
+bool Rows_log_event::write_data_body(Log_event_writer *writer)
 {
   /*
      Note that this should be the number of *bits*, not the number of
@@ -6159,13 +5542,13 @@ bool Rows_log_event::write_data_body()
   DBUG_ASSERT(static_cast<size_t>(sbuf_end - sbuf) <= sizeof(sbuf));
 
   DBUG_DUMP("m_width", sbuf, (size_t) (sbuf_end - sbuf));
-  res= res || write_data(sbuf, (size_t) (sbuf_end - sbuf));
+  res= res || write_data(writer, sbuf, (size_t) (sbuf_end - sbuf));
 
   bitmap= (uchar*) my_alloca(bitmap_size);
   bitmap_export(bitmap, &m_cols);
 
   DBUG_DUMP("m_cols", bitmap, bitmap_size);
-  res= res || write_data(bitmap, bitmap_size);
+  res= res || write_data(writer, bitmap, bitmap_size);
   /*
     TODO[refactor write]: Remove the "down cast" here (and elsewhere).
    */
@@ -6175,17 +5558,17 @@ bool Rows_log_event::write_data_body()
     bitmap_export(bitmap, &m_cols_ai);
 
     DBUG_DUMP("m_cols_ai", bitmap, bitmap_size);
-    res= res || write_data(bitmap, bitmap_size);
+    res= res || write_data(writer, bitmap, bitmap_size);
   }
   DBUG_DUMP("rows", m_rows_buf, data_size);
-  res= res || write_data(m_rows_buf, (size_t) data_size);
+  res= res || write_data(writer, m_rows_buf, (size_t) data_size);
   my_afree(bitmap);
 
   return res;
 }
 
 
-bool Rows_log_event::write_compressed()
+bool Rows_log_event::write_compressed(Log_event_writer *writer)
 {
   uchar *m_rows_buf_tmp= m_rows_buf;
   uchar *m_rows_cur_tmp= m_rows_cur;
@@ -6199,7 +5582,7 @@ bool Rows_log_event::write_compressed()
                           (uint32)(m_rows_cur_tmp - m_rows_buf_tmp), &comlen))
   {
     m_rows_cur= comlen + m_rows_buf;
-    ret= Log_event::write();
+    ret= Log_event::write(writer);
   }
   my_safe_afree(m_rows_buf, alloc_size);
   m_rows_buf= m_rows_buf_tmp;
@@ -6241,15 +5624,15 @@ Annotate_rows_log_event::Annotate_rows_log_event(THD *thd,
 }
 
 
-bool Annotate_rows_log_event::write_data_header()
+bool Annotate_rows_log_event::write_data_header(Log_event_writer *writer)
 { 
   return 0;
 }
 
 
-bool Annotate_rows_log_event::write_data_body()
+bool Annotate_rows_log_event::write_data_body(Log_event_writer *writer)
 {
-  return write_data(m_query_txt, m_query_len);
+  return write_data(writer, m_query_txt, m_query_len);
 }
 
 
@@ -6381,8 +5764,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulonglong tid,
               (tbl->s->db.str[tbl->s->db.length] == 0));
   DBUG_ASSERT(tbl->s->table_name.str[tbl->s->table_name.length] == 0);
 
-  binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
-                                                   sizeof(Binlog_type_info));
+  binlog_type_info_array= thd->alloc<Binlog_type_info>(m_table->s->fields);
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
 
@@ -6553,11 +5935,24 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   DBUG_RETURN(res);
 }
 
+table_def Table_map_log_event::get_table_def()
+{
+  return table_def(m_coltype, m_colcnt,
+                   m_field_metadata, m_field_metadata_size,
+                   m_null_bits, m_flags);
+}
+
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
   RPL_TABLE_LIST *table_list;
   char *db_mem, *tname_mem, *ptr;
   size_t dummy_len, db_mem_length, tname_mem_length;
+  /*
+    The database name can be changed to a longer name after get_rewrite_db().
+    Allocate the maximum possible size.
+  */
+  const size_t db_mem_alloced= NAME_LEN + 1;
+  const size_t tname_mem_alloced= NAME_LEN + 1;
   void *memory;
   Rpl_filter *filter;
   Relay_log_info const *rli= rgi->rli;
@@ -6568,17 +5963,23 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (!(memory= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                 &table_list, (uint) sizeof(RPL_TABLE_LIST),
-                                &db_mem, (uint) NAME_LEN + 1,
-                                &tname_mem, (uint) NAME_LEN + 1,
+                                &db_mem, (uint) db_mem_alloced,
+                                &tname_mem, (uint) tname_mem_alloced,
                                 NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  db_mem_length= strmov(db_mem, m_dbnam) - db_mem;
-  tname_mem_length= strmov(tname_mem, m_tblnam) - tname_mem;
   if (lower_case_table_names)
   {
-    my_casedn_str(files_charset_info, (char*)tname_mem);
-    my_casedn_str(files_charset_info, (char*)db_mem);
+    db_mem_length= files_charset_info->casedn_z(m_dbnam, m_dblen,
+                                                db_mem, db_mem_alloced);
+    tname_mem_length= files_charset_info->casedn_z(m_tblnam, m_tbllen,
+                                                   tname_mem,
+                                                   tname_mem_alloced);
+  }
+  else
+  {
+    db_mem_length= strmov(db_mem, m_dbnam) - db_mem;
+    tname_mem_length= strmov(tname_mem, m_tblnam) - tname_mem;
   }
 
   /* call from mysql_client_binlog_statement() will not set rli->mi */
@@ -6591,39 +5992,32 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   LEX_CSTRING tmp_db_name=  {db_mem, db_mem_length };
   LEX_CSTRING tmp_tbl_name= {tname_mem, tname_mem_length };
 
-  table_list->init_one_table(&tmp_db_name, &tmp_tbl_name, 0, TL_WRITE);
-  table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
-  table_list->updating= 1;
+  /*
+    The memory allocated by the table_def structure (i.e., not the
+    memory allocated *for* the table_def structure) is released
+    inside rpl_group_info::clear_tables_to_lock() by calling the
+    table_def destructor explicitly.
+  */
+  new(table_list) RPL_TABLE_LIST(&tmp_db_name, &tmp_tbl_name, TL_WRITE,
+                                 get_table_def(),
+                                 m_flags & TM_BIT_HAS_TRIGGERS_F);
+
+  table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ?
+                                         0: m_table_id;
   table_list->required_type= TABLE_TYPE_NORMAL;
+  table_list->open_type= OT_BASE_ONLY;
+  DBUG_ASSERT(table_list->updating);
 
   DBUG_PRINT("debug", ("table: %s is mapped to %llu",
                        table_list->table_name.str,
                        table_list->table_id));
-  table_list->master_had_triggers= ((m_flags & TM_BIT_HAS_TRIGGERS_F) ? 1 : 0);
-  DBUG_PRINT("debug", ("table->master_had_triggers=%d", 
+  DBUG_PRINT("debug", ("table->master_had_triggers=%d",
                        (int)table_list->master_had_triggers));
 
   enum_tbl_map_status tblmap_status= check_table_map(rgi, table_list);
   if (tblmap_status == OK_TO_PROCESS)
   {
     DBUG_ASSERT(thd->lex->query_tables != table_list);
-
-    /*
-      Use placement new to construct the table_def instance in the
-      memory allocated for it inside table_list.
-
-      The memory allocated by the table_def structure (i.e., not the
-      memory allocated *for* the table_def structure) is released
-      inside Relay_log_info::clear_tables_to_lock() by calling the
-      table_def destructor explicitly.
-    */
-    new (&table_list->m_tabledef)
-      table_def(m_coltype, m_colcnt,
-                m_field_metadata, m_field_metadata_size,
-                m_null_bits, m_flags);
-    table_list->m_tabledef_valid= TRUE;
-    table_list->m_conv_table= NULL;
-    table_list->open_type= OT_BASE_ONLY;
 
     /*
       We record in the slave's information that the table should be
@@ -6669,8 +6063,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
           execute in a user session 
          */
         my_error(ER_SLAVE_FATAL_ERROR, MYF(0), buf);
-    } 
-    
+    }
+
+    table_list->~RPL_TABLE_LIST();
     my_free(memory);
   }
 
@@ -6695,7 +6090,7 @@ int Table_map_log_event::do_update_pos(rpl_group_info *rgi)
 
 #endif /* defined(HAVE_REPLICATION) */
 
-bool Table_map_log_event::write_data_header()
+bool Table_map_log_event::write_data_header(Log_event_writer *writer)
 {
   DBUG_ASSERT(m_table_id != UINT32_MAX);
   uchar buf[TABLE_MAP_HEADER_LEN];
@@ -6703,14 +6098,14 @@ bool Table_map_log_event::write_data_header()
                   {
                     int4store(buf + 0, (ulong) m_table_id);
                     int2store(buf + 4, m_flags);
-                    return (write_data(buf, 6));
+                    return (write_data(writer, buf, 6));
                   });
   int6store(buf + TM_MAPID_OFFSET, m_table_id);
   int2store(buf + TM_FLAGS_OFFSET, m_flags);
-  return write_data(buf, TABLE_MAP_HEADER_LEN);
+  return write_data(writer, buf, TABLE_MAP_HEADER_LEN);
 }
 
-bool Table_map_log_event::write_data_body()
+bool Table_map_log_event::write_data_body(Log_event_writer *writer)
 {
   DBUG_ASSERT(m_dbnam != NULL);
   DBUG_ASSERT(m_tblnam != NULL);
@@ -6731,17 +6126,17 @@ bool Table_map_log_event::write_data_body()
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
-  return write_data(dbuf,      sizeof(dbuf)) ||
-         write_data(m_dbnam,   m_dblen+1) ||
-         write_data(tbuf,      sizeof(tbuf)) ||
-         write_data(m_tblnam,  m_tbllen+1) ||
-         write_data(cbuf, (size_t) (cbuf_end - cbuf)) ||
-         write_data(m_coltype, m_colcnt) ||
-         write_data(mbuf, (size_t) (mbuf_end - mbuf)) ||
-         write_data(m_field_metadata, m_field_metadata_size),
-         write_data(m_null_bits, (m_colcnt + 7) / 8) ||
-         write_data((const uchar*) m_metadata_buf.ptr(),
-                                  m_metadata_buf.length());
+  return write_data(writer, dbuf,      sizeof(dbuf)) ||
+         write_data(writer, m_dbnam,   m_dblen+1) ||
+         write_data(writer, tbuf,      sizeof(tbuf)) ||
+         write_data(writer, m_tblnam,  m_tbllen+1) ||
+         write_data(writer, cbuf, (size_t) (cbuf_end - cbuf)) ||
+         write_data(writer, m_coltype, m_colcnt) ||
+         write_data(writer, mbuf, (size_t) (mbuf_end - mbuf)) ||
+         write_data(writer, m_field_metadata, m_field_metadata_size),
+         write_data(writer, m_null_bits, (m_colcnt + 7) / 8) ||
+         write_data(writer, (const uchar*) m_metadata_buf.ptr(),
+                                           m_metadata_buf.length());
  }
 
 /**
@@ -6832,7 +6227,7 @@ void Table_map_log_event::init_metadata_fields()
 
   if (binlog_row_metadata == BINLOG_ROW_METADATA_FULL)
   {
-    if (DBUG_EVALUATE_IF("dont_log_column_name", 0, init_column_name_field()) ||
+    if ((!DBUG_IF("dont_log_column_name") && init_column_name_field()) ||
         init_charset_field(&is_enum_or_set_field, ENUM_AND_SET_DEFAULT_CHARSET,
                            ENUM_AND_SET_COLUMN_CHARSET) ||
         init_set_str_value_field() ||
@@ -7000,7 +6395,7 @@ bool Table_map_log_event::init_column_name_field()
 bool Table_map_log_event::init_set_str_value_field()
 {
   StringBuffer<1024> buf;
-  TYPELIB *typelib;
+  const TYPELIB *typelib;
 
   /*
     SET string values are stored in the same format:
@@ -7030,7 +6425,7 @@ bool Table_map_log_event::init_set_str_value_field()
 bool Table_map_log_event::init_enum_str_value_field()
 {
   StringBuffer<1024> buf;
-  TYPELIB *typelib;
+  const TYPELIB *typelib;
 
   /* ENUM is same to SET columns, see comment in init_set_str_value_field */
   for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
@@ -7169,15 +6564,15 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   m_type = WRITE_ROWS_COMPRESSED_EVENT_V1;
 }
 
-bool Write_rows_compressed_log_event::write()
+bool Write_rows_compressed_log_event::write(Log_event_writer *writer)
 {
-  return Rows_log_event::write_compressed();
+  return Rows_log_event::write_compressed(writer);
 }
 
 
 #if defined(HAVE_REPLICATION)
 int 
-Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
+Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
 {
   int error= 0;
 
@@ -7225,7 +6620,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
   /*
    * Fixed Bug#45999, In RBR, Store engine of Slave auto-generates new
    * sequence numbers for auto_increment fields if the values of them are 0.
-   * If generateing a sequence number is decided by the values of
+   * If generating a sequence number is decided by the values of
    * table->auto_increment_field_not_null and SQL_MODE(if includes
    * MODE_NO_AUTO_VALUE_ON_ZERO) in update_auto_increment function.
    * SQL_MODE of slave sql thread is always consistency with master's.
@@ -7255,8 +6650,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
 }
 
 int 
-Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const,
-                                              int error)
+Write_rows_log_event::do_after_row_operations(int error)
 {
   int local_error= 0;
 
@@ -7297,7 +6691,8 @@ Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *
 
 bool Rows_log_event::process_triggers(trg_event_type event,
                                       trg_action_time_type time_type,
-                                      bool old_row_is_record1)
+                                      bool old_row_is_record1,
+                                      bool *skip_row_indicator)
 {
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
@@ -7306,12 +6701,14 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   {
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
-                                                old_row_is_record1);
+                                                old_row_is_record1,
+                                                skip_row_indicator);
   }
   else
     result= m_table->triggers->process_triggers(thd, event,
                                                 time_type,
-                                                old_row_is_record1);
+                                                old_row_is_record1,
+                                                skip_row_indicator);
 
   DBUG_RETURN(result);
 }
@@ -7326,6 +6723,46 @@ last_uniq_key(TABLE *table, uint keyno)
       return 0;
   return 1;
 }
+
+
+/*
+  We need to set the null bytes to ensure that the filler bit are
+  all set when returning.  There are storage engines that just set
+  the necessary bits on the bytes and don't set the filler bits
+  correctly.
+*/
+static void
+normalize_null_bits(TABLE *table)
+{
+  if (table->s->null_bytes > 0)
+  {
+    DBUG_ASSERT(table->s->last_null_bit_pos < 8);
+    /*
+      Normalize any unused null bits.
+
+      We need to set the highest (8 - last_null_bit_pos) bits to 1, except that
+      if last_null_bit_pos is 0 then there are no unused bits and we should set
+      no bits to 1.
+
+      When N = last_null_bit_pos != 0, we can get a mask for this with
+
+        0xff << N = (0xff << 1) << (N-1) = 0xfe << (N-1) = 0xfe << ((N-1) & 7)
+
+      And we can get a mask=0 for the case N = last_null_bit_pos = 0 with
+
+        0xfe << 7 = 0xfe << ((N-1) & 7)
+
+     Thus we can set the desired bits in all cases by OR-ing with
+     (0xfe << ((N-1) & 7)), avoiding a conditional jump.
+    */
+    table->record[0][table->s->null_bytes - 1]|=
+      (uchar)(0xfe << ((table->s->last_null_bit_pos - 1) & 7));
+    /* Normalize the delete marker bit, if any. */
+    table->record[0][0]|=
+      !(table->s->db_create_options & HA_OPTION_PACK_RECORD);
+  }
+}
+
 
 /**
    Check if an error is a duplicate key error.
@@ -7369,7 +6806,7 @@ is_duplicate_key_error(int errcode)
 
   The row to be inserted can contain values only for selected columns. The 
   missing columns are filled with default values using @c prepare_record() 
-  function. If a matching record is found in the table and @c overwritte is
+  function. If a matching record is found in the table and @c overwrite is
   true, the missing columns are taken from it.
 
   @param  rli   Relay log info (needed for row unpacking).
@@ -7387,12 +6824,11 @@ is_duplicate_key_error(int errcode)
   @c ha_update_row() or first deleted and then new record written.
 */ 
 
-int
-Rows_log_event::write_row(rpl_group_info *rgi,
-                          const bool overwrite)
+int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
 {
   DBUG_ENTER("write_row");
-  DBUG_ASSERT(m_table != NULL && thd != NULL);
+  DBUG_ASSERT(m_table != NULL);
+  DBUG_ASSERT(thd != NULL);
 
   TABLE *table= m_table;  // pointer to event's table
   int error;
@@ -7445,21 +6881,26 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   if (table->s->long_unique_table)
     table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
 
+  bool trg_skip_row= false;
   if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE, true,
+                                &trg_skip_row)))
   {
     DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
   }
+
+  /* In case any of triggers signals to skip the current row, do it. */
+  if (trg_skip_row)
+    return false;
 
   // Handle INSERT.
   if (table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
-    bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
-    table->file->column_bitmaps_signal();
     // Check whether a row came from unversioned table and fix vers fields.
     if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
       table->vers_update_fields();
+    table->vers_fix_old_timestamp(rgi);
   }
 
   /* 
@@ -7476,10 +6917,8 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     error= update_sequence();
   else while (unlikely(error= table->file->ha_write_row(table->record[0])))
   {
-    if (error == HA_ERR_LOCK_DEADLOCK ||
-        error == HA_ERR_LOCK_WAIT_TIMEOUT ||
-        (keynum= table->file->get_dup_key(error)) < 0 ||
-        !overwrite)
+    if (error == HA_ERR_LOCK_DEADLOCK || error == HA_ERR_LOCK_WAIT_TIMEOUT ||
+        (keynum= table->file->get_dup_key(error)) < 0 || !overwrite)
     {
       DBUG_PRINT("info",("get_dup_key returns %d)", keynum));
       /*
@@ -7629,7 +7068,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
       DBUG_PRINT("info",("Deleting offending row and trying to write new one again"));
       if (invoke_triggers &&
           unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE,
-                                    TRUE)))
+                                    true, &trg_skip_row)))
         error= HA_ERR_GENERIC; // in case if error is not set yet
       else
       {
@@ -7639,17 +7078,18 @@ Rows_log_event::write_row(rpl_group_info *rgi,
           table->file->print_error(error, MYF(0));
           DBUG_RETURN(error);
         }
-        if (invoke_triggers &&
+        if (invoke_triggers && !trg_skip_row &&
             unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER,
-                                      TRUE)))
+                                      true, nullptr)))
           DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
       }
       /* Will retry ha_write_row() with the offending row removed. */
     }
   }
 
-  if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, TRUE)))
+  if (invoke_triggers && !trg_skip_row &&
+      unlikely(process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, true,
+                                nullptr)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
   DBUG_RETURN(error);
@@ -7753,7 +7193,7 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
 
 #if defined(HAVE_REPLICATION)
-uint8 Write_rows_log_event::get_trg_event_map()
+uint8 Write_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_INSERT) | trg2bit(TRG_EVENT_UPDATE) |
          trg2bit(TRG_EVENT_DELETE);
@@ -7765,16 +7205,19 @@ uint8 Write_rows_log_event::get_trg_event_map()
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION)
-/*
-  Compares table->record[0] and table->record[1]
+/**
+  @brief Compares table->record[0] and table->record[1]
 
-  Returns TRUE if different.
+  @returns true if different.
 */
 static bool record_compare(TABLE *table, bool vers_from_plain= false)
 {
-  bool result= FALSE;
+  bool result= false;
+  bool all_values_set= bitmap_is_set_all(&table->has_value_set);
+
   /**
     Compare full record only if:
+    - all fields were given values
     - there are no blob fields (otherwise we would also need 
       to compare blobs contents as well);
     - there are no varchar fields (otherwise we would also need
@@ -7785,24 +7228,24 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
     */
   if ((table->s->blob_fields + 
        table->s->varchar_fields + 
-       table->s->null_fields) == 0)
+       table->s->null_fields) == 0
+      && all_values_set)
   {
-    result= cmp_record(table,record[1]);
+    normalize_null_bits(table);
+    result= cmp_record(table, record[1]);
     goto record_compare_exit;
   }
 
   /* Compare null bits */
-  if (memcmp(table->null_flags,
-	     table->null_flags+table->s->rec_buff_length,
-	     table->s->null_bytes))
-  {
-    result= TRUE;				// Diff in NULL value
-    goto record_compare_exit;
-  }
+  if (all_values_set && memcmp(table->null_flags,
+                               table->null_flags + table->s->rec_buff_length,
+                               table->s->null_bytes))
+    goto record_compare_differ;                         // Diff in NULL value
 
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
+    Field *f= *ptr;
     /*
       If the table is versioned, don't compare using the version if there is a
       primary key. If there isn't a primary key, we need the version to
@@ -7812,27 +7255,118 @@ static bool record_compare(TABLE *table, bool vers_from_plain= false)
       because the implicit row_end value will be set to the maximum value for
       the latest row update (which is what we care about).
     */
-    if (table->versioned() && (*ptr)->vers_sys_field() &&
+    if (table->versioned() && f->vers_sys_field() &&
         (table->s->primary_key < MAX_KEY ||
-         (vers_from_plain && table->vers_start_field() == (*ptr))))
+         (vers_from_plain && table->vers_start_field() == f)))
       continue;
-    /**
-      We only compare field contents that are not null.
-      NULL fields (i.e., their null bits) were compared 
-      earlier.
+
+    /*
+      We only compare fields that exist on the master (or in ONLINE
+      ALTER case, that were in the original table).
     */
-    if (!(*(ptr))->is_null())
+    if (!all_values_set)
     {
-      if ((*ptr)->cmp_binary_offset(table->s->rec_buff_length))
-      {
-        result= TRUE;
-        goto record_compare_exit;
-      }
+      if (!f->has_explicit_value() &&
+          /* Don't skip row_end if replicating unversioned -> versioned */
+          !(vers_from_plain && table->vers_end_field() == f))
+        continue;
+      if (f->is_null() != f->is_null(table->s->rec_buff_length))
+        goto record_compare_differ;
     }
+
+    if (!f->is_null() && !f->vcol_info &&
+        f->cmp_binary_offset(table->s->rec_buff_length))
+      goto record_compare_differ;
   }
 
 record_compare_exit:
   return result;
+record_compare_differ:
+  return true;
+}
+/**
+  Traverses default item expr of a field, and underlying field's default values.
+  If it is an extra field and has no value replicated, then its default expr
+  should be also checked.
+ */
+class Rpl_key_part_checker: public Field_enumerator
+{
+  bool online_alter;
+  Field *next_number_field;
+  bool field_usable;
+public:
+
+
+  void visit_field(Item_field *item) override
+  {
+    if (!field_usable)
+      return;
+    field_usable= check_field(item->field);
+  }
+
+  bool check_field(Field *f)
+  {
+    if (f->has_explicit_value())
+      return true;
+
+    if ((!f->vcol_info && !online_alter) || f == next_number_field)
+      return false;
+
+    Virtual_column_info *computed= f->vcol_info ? f->vcol_info
+                                   : f->default_value;
+
+    if (computed == NULL)
+      return true; // No DEFAULT, or constant DEFAULT
+
+    // Deterministic DEFAULT or vcol expression
+    return !(computed->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
+           && !computed->expr->walk(&Item::enumerate_field_refs_processor,
+                                    false, this)
+           && field_usable;
+  }
+
+  Rpl_key_part_checker(bool online_alter, Field *next_number_field):
+    online_alter(online_alter), next_number_field(next_number_field),
+    field_usable(true) {}
+};
+
+
+/**
+  Newly added fields with non-deterministic defaults (i.e. DEFAULT(RANDOM()),
+  CURRENT_TIMESTAMP, AUTO_INCREMENT) should be excluded from key search.
+  Basically we exclude all the default-filled fields based on
+  has_explicit_value bitmap.
+*/
+uint Rows_log_event::find_key_parts(const KEY *key) const
+{
+  RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
+  const bool online_alter= tl->m_online_alter_copy_fields;
+  uint p;
+
+  if (!m_table->s->keys_in_use.is_set(uint(key - m_table->key_info)))
+    return 0;
+
+  if (!online_alter)
+  {
+    if (m_cols.n_bits >= m_table->s->fields) // replicated more than slave has
+      return key->user_defined_key_parts;
+    if (m_table->s->virtual_fields == 0)
+    {
+      for (p= 0; p < key->user_defined_key_parts; p++)
+        if (key->key_part[p].fieldnr > m_cols.n_bits) // extra
+          break;
+      return p;
+    }
+  }
+
+  Rpl_key_part_checker key_part_checker(online_alter,
+                                        m_table->found_next_number_field);
+  for (p= 0; p < key->user_defined_key_parts; p++)
+  {
+    if (!key_part_checker.check_field(key->key_part[p].field))
+      break;
+  }
+  return p;
 }
 
 
@@ -7840,76 +7374,129 @@ record_compare_exit:
   Find the best key to use when locating the row in @c find_row().
 
   A primary key is preferred if it exists; otherwise a unique index is
-  preferred. Else we pick the index with the smalles rec_per_key value.
+  preferred. Else we pick the index with the smallest rec_per_key value.
 
-  If a suitable key is found, set @c m_key, @c m_key_nr and @c m_key_info
-  member fields appropriately.
+  If a suitable key is found, set @c m_key, @c m_key_nr, @c m_key_info,
+  and @c m_usable_key_parts member fields appropriately.
 
   @returns Error code on failure, 0 on success.
 */
-int Rows_log_event::find_key()
+int Rows_log_event::find_key(const rpl_group_info *rgi)
 {
-  uint i, best_key_nr, last_part;
-  KEY *key, *UNINIT_VAR(best_key);
+  DBUG_ASSERT(m_table);
+  RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
+  uint i, best_key_nr= 0, best_usable_key_parts= 0;
+  KEY *key;
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
-  DBUG_ASSERT(m_table);
 
-  best_key_nr= MAX_KEY;
-
-  /*
-    Keys are sorted so that any primary key is first, followed by unique keys,
-    followed by any other. So we will automatically pick the primary key if
-    it exists.
-  */
-  for (i= 0, key= m_table->key_info; i < m_table->s->keys; i++, key++)
+  if ((best_key_nr= tl->cached_key_nr) != ~0U)
   {
-    if (!m_table->s->keys_in_use.is_set(i))
-      continue;
-    /*
-      We cannot use a unique key with NULL-able columns to uniquely identify
-      a row (but we can still select it for range scan below if nothing better
-      is available).
-    */
-    if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
-    {
-      best_key_nr= i;
-      best_key= key;
-      break;
-    }
-    /*
-      We can only use a non-unique key if it allows range scans (ie. skip
-      FULLTEXT indexes and such).
-    */
-    last_part= key->user_defined_key_parts - 1;
-    DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
-                        key->name.str, last_part, key->rec_per_key[last_part]));
-    if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
-      continue;
+    DBUG_ASSERT(best_key_nr <= MAX_KEY); // use the cached value
+    best_usable_key_parts= tl->cached_usable_key_parts;
+  }
+  else
+  {
+    best_key_nr= MAX_KEY;
 
-    tmp= key->rec_per_key[last_part];
-    if (best_key_nr == MAX_KEY || (tmp > 0 && tmp < best_rec_per_key))
+    /*
+      if the source (in the row event) and destination (in m_table) records
+      don't have the same structure, some keys below might be unusable
+      for find_row().
+
+      If it's a replication and slave table (m_table) has less columns
+      than the master's - easy, all keys are usable.
+
+      If slave's table has more columns, but none of them are generated -
+      then any column beyond m_cols.n_bits makes an index unusable.
+
+      If slave's table has generated columns or it's the online alter table
+      where arbitrary structure conversion is possible (in the replication case
+      one table must be a prefix of the other, see table_def::compatible_with)
+      we cannot deduce what destination columns will be affected by m_cols,
+      we have to actually unpack one row and examine has_explicit_value()
+    */
+
+    if (tl->m_online_alter_copy_fields ||
+        (m_cols.n_bits < m_table->s->fields &&
+         m_table->s->virtual_fields))
     {
-      best_key_nr= i;
-      best_key= key;
-      best_rec_per_key= tmp;
+      const uchar *curr_row_end= m_curr_row_end;
+      Check_level_instant_set clis(m_table->in_use, CHECK_FIELD_IGNORE);
+      if (int err= unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
+                              &curr_row_end, &m_master_reclength, m_rows_end))
+        DBUG_RETURN(err);
     }
+
+    /*
+      Keys are sorted so that any primary key is first, followed by unique keys,
+      followed by any other. So we will automatically pick the primary key if
+      it exists.
+    */
+    for (i= 0, key= m_table->key_info; i < m_table->s->keys; i++, key++)
+    {
+      uint usable_key_parts= find_key_parts(key);
+      if (usable_key_parts == 0)
+        continue;
+      /*
+        We cannot use a unique key with NULL-able columns to uniquely identify
+        a row (but we can still select it for range scan below if nothing better
+        is available).
+      */
+      if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME &&
+           usable_key_parts == key->user_defined_key_parts)
+      {
+        best_key_nr= i;
+        best_usable_key_parts= usable_key_parts;
+        break;
+      }
+      /*
+        We can only use a non-unique key if it allows range scans (ie. skip
+        FULLTEXT indexes and such).
+      */
+      uint last_part= usable_key_parts - 1;
+      DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
+                          key->name.str, last_part, key->rec_per_key[last_part]));
+      if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
+        continue;
+
+      tmp= key->rec_per_key[last_part];
+      if (best_key_nr == MAX_KEY || (tmp > 0 && tmp < best_rec_per_key))
+      {
+        best_key_nr= i;
+        best_usable_key_parts= usable_key_parts;
+        best_rec_per_key= tmp;
+      }
+    }
+    tl->cached_key_nr= best_key_nr;
+    tl->cached_usable_key_parts= best_usable_key_parts;
   }
 
-  if (best_key_nr == MAX_KEY)
-  {
-    m_key_info= NULL;
-    DBUG_RETURN(0);
-  }
-
-  // Allocate buffer for key searches
-  m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, best_key->key_length, MYF(MY_WME));
-  if (m_key == NULL)
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  m_key_info= best_key;
   m_key_nr= best_key_nr;
+  m_usable_key_parts= best_usable_key_parts;
+  if (best_key_nr == MAX_KEY)
+    m_key_info= NULL;
+  else
+  {
+    m_key_info= m_table->key_info + best_key_nr;
 
-  DBUG_RETURN(0);;
+    if (!use_pk_position())
+    {
+      // Allocate buffer for key searches
+      m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, m_key_info->key_length, MYF(MY_WME));
+      if (m_key == NULL)
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+  }
+
+  DBUG_EXECUTE_IF("rpl_report_chosen_key",
+                  push_warning_printf(m_table->in_use,
+                                      Sql_condition::WARN_LEVEL_NOTE,
+                                      ER_UNKNOWN_ERROR, "Key chosen: %d",
+                                      m_key_nr == MAX_KEY ?
+                                      -1 : m_key_nr););
+
+  DBUG_RETURN(0);
 }
 
 
@@ -7970,6 +7557,14 @@ static int row_not_found_error(rpl_group_info *rgi)
          ? HA_ERR_KEY_NOT_FOUND : HA_ERR_RECORD_CHANGED;
 }
 
+bool Rows_log_event::use_pk_position() const
+{
+  return m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION
+      && m_table->s->primary_key < MAX_KEY
+      && m_key_nr == m_table->s->primary_key
+      && m_usable_key_parts == m_table->key_info->user_defined_key_parts;
+}
+
 static int end_of_file_error(rpl_group_info *rgi)
 {
   return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
@@ -8011,11 +7606,13 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 {
   DBUG_ENTER("Rows_log_event::find_row");
 
-  DBUG_ASSERT(m_table && m_table->in_use != NULL);
+  DBUG_ASSERT(m_table);
+  DBUG_ASSERT(m_table->in_use != NULL);
 
   TABLE *table= m_table;
   int error= 0;
   bool is_table_scan= false, is_index_scan= false;
+  Check_level_instant_set clis(table->in_use, CHECK_FIELD_IGNORE);
 
   /*
     rpl_row_tabledefs.test specifies that
@@ -8032,25 +7629,26 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   {
     Field *row_end= table->vers_end_field();
     DBUG_ASSERT(table->read_set);
-    bitmap_set_bit(table->read_set, row_end->field_index);
     // check whether master table is unversioned
     if (row_end->val_int() == 0)
     {
-      bitmap_set_bit(table->write_set, row_end->field_index);
       // Plain source table may have a PRIMARY KEY. And row_end is always
       // a part of PRIMARY KEY. Set it to max value for engine to find it in
       // index. Needed for an UPDATE/DELETE cases.
       table->vers_end_field()->set_max();
       m_vers_from_plain= true;
     }
-    table->file->column_bitmaps_signal();
+    else if (m_table->versioned(VERS_TIMESTAMP))
+    {
+      /* Change row_end in record[0] to new end date if old server */
+      m_table->vers_fix_old_timestamp(rgi);
+    }
   }
 
   DBUG_PRINT("info",("looking for the following record"));
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
 
-  if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      table->s->primary_key < MAX_KEY)
+  if (use_pk_position())
   {
     /*
       Use a more efficient method to fetch the record given by
@@ -8071,7 +7669,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
                                  table->s->reclength) == 0);
 
     */
-    int error;
     DBUG_PRINT("info",("locating record using primary key (position)"));
 
     error= table->file->ha_rnd_pos_by_record(table->record[0]);
@@ -8087,11 +7684,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
   // We can't use position() - try other methods.
   
-  /* 
-    We need to retrieve all fields
-    TODO: Move this out from this function to main loop 
-   */
-  table->use_all_columns();
+  normalize_null_bits(table);
 
   /*
     Save copy of the record in table->record[1]. It might be needed 
@@ -8129,20 +7722,13 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     DBUG_DUMP("key data", m_key, m_key_info->key_length);
 #endif
 
-    /*
-      We need to set the null bytes to ensure that the filler bit are
-      all set when returning.  There are storage engines that just set
-      the necessary bits on the bytes and don't set the filler bits
-      correctly.
-    */
-    if (table->s->null_bytes > 0)
-      table->record[0][table->s->null_bytes - 1]|=
-        256U - (1U << table->s->last_null_bit_pos);
-
-    if (unlikely((error= table->file->ha_index_read_map(table->record[0],
-                                                        m_key,
-                                                        HA_WHOLE_KEY,
-                                                        HA_READ_KEY_EXACT))))
+    const enum ha_rkey_function find_flag=
+      m_usable_key_parts == m_key_info->user_defined_key_parts
+      ? HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT;
+    error= table->file->ha_index_read_map(table->record[0], m_key,
+                                          make_keypart_map(m_usable_key_parts),
+                                          find_flag);
+    if (unlikely(error))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
       if (error == HA_ERR_KEY_NOT_FOUND)
@@ -8174,10 +7760,10 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       found.  I can see no scenario where it would be incorrect to
       chose the row to change only using a PK or an UNNI.
     */
-    if (table->key_info->flags & HA_NOSAME)
+    if (find_flag == HA_READ_KEY_EXACT && table->key_info->flags & HA_NOSAME)
     {
       /* Unique does not have non nullable part */
-      if (!(table->key_info->flags & (HA_NULL_PART_KEY)))
+      if (!(table->key_info->flags & HA_NULL_PART_KEY))
       {
         error= 0;
         goto end;
@@ -8250,9 +7836,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* Continue until we find the right record or have made a full loop */
     do
     {
-      error= table->file->ha_rnd_next(table->record[0]);
-
-      if (unlikely(error))
+      if (unlikely((error= table->file->ha_rnd_next(table->record[0]))))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
       switch (error) {
 
@@ -8314,16 +7898,16 @@ Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
   m_type= DELETE_ROWS_COMPRESSED_EVENT_V1;
 }
 
-bool Delete_rows_compressed_log_event::write()
+bool Delete_rows_compressed_log_event::write(Log_event_writer *writer)
 {
-  return Rows_log_event::write_compressed();    
+  return Rows_log_event::write_compressed(writer);
 }
 
 
 #if defined(HAVE_REPLICATION)
 
 int 
-Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
+Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
 {
   /*
     Increment the global status delete count variable
@@ -8331,23 +7915,14 @@ Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability
   if (get_flags(STMT_END_F))
     status_var_increment(thd->status_var.com_stat[SQLCOM_DELETE]);
 
-  if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      m_table->s->primary_key < MAX_KEY)
-  {
-    /*
-      We don't need to allocate any memory for m_key since it is not used.
-    */
-    return 0;
-  }
   if (do_invoke_trigger())
     m_table->prepare_triggers_for_delete_stmt_or_event();
 
-  return find_key();
+  return find_key(rgi);
 }
 
 int 
-Delete_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
-                                               int error)
+Delete_rows_log_event::do_after_row_operations(int error)
 {
   m_table->file->ha_index_or_rnd_end();
   my_free(m_key);
@@ -8401,16 +7976,16 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif
     thd_proc_info(thd, message);
 
+    bool trg_skip_row= false;
     if (invoke_triggers &&
-        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE)))
+        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, false,
+                                  &trg_skip_row)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
-    if (likely(!error))
+    if (likely(!error) && !trg_skip_row)
     {
-      m_table->mark_columns_per_binlog_row_image();
       if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
       {
         Field *end= m_table->vers_end_field();
-        bitmap_set_bit(m_table->write_set, end->field_index);
         store_record(m_table, record[1]);
         end->set_time();
         error= m_table->file->ha_update_row(m_table->record[1],
@@ -8420,10 +7995,10 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
       {
         error= m_table->file->ha_delete_row(m_table->record[0]);
       }
-      m_table->default_column_bitmaps();
     }
-    if (invoke_triggers && likely(!error) &&
-        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, FALSE)))
+    if (invoke_triggers && likely(!error) && !trg_skip_row &&
+        unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER, false,
+                                  nullptr)))
       error= HA_ERR_GENERIC; // in case if error is not set yet
     m_table->file->ha_index_or_rnd_end();
   }
@@ -8434,7 +8009,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* defined(HAVE_REPLICATION) */
 
 #if defined(HAVE_REPLICATION)
-uint8 Delete_rows_log_event::get_trg_event_map()
+uint8 Delete_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_DELETE);
 }
@@ -8464,9 +8039,9 @@ Update_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
   m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;
 }
 
-bool Update_rows_compressed_log_event::write()
+bool Update_rows_compressed_log_event::write(Log_event_writer *writer)
 {
-  return Rows_log_event::write_compressed();
+  return Rows_log_event::write_compressed(writer);
 }
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)
@@ -8474,8 +8049,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols_ai,
                           m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
-                          m_width,
-                          false)))
+                          m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
@@ -8487,7 +8061,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
 #if defined(HAVE_REPLICATION)
 
 int 
-Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability *const)
+Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
 {
   /*
     Increment the global status update count variable
@@ -8496,7 +8070,7 @@ Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability
     status_var_increment(thd->status_var.com_stat[SQLCOM_UPDATE]);
 
   int err;
-  if ((err= find_key()))
+  if ((err= find_key(rgi)))
     return err;
 
   if (do_invoke_trigger())
@@ -8506,8 +8080,7 @@ Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability
 }
 
 int 
-Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability *const, 
-                                               int error)
+Update_rows_log_event::do_after_row_operations(int error)
 {
   /*error= ToDo:find out what this should really be, this triggers close_scan in nbd, returning error?*/
   m_table->file->ha_index_or_rnd_end();
@@ -8528,6 +8101,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const LEX_CSTRING &table_name= m_table->s->table_name;
   const char quote_char=
     get_quote_char_for_identifier(thd, table_name.str, table_name.length);
+  bool trg_skip_row= false;
   my_snprintf(msg, sizeof msg,
               "Update_rows_log_event::find_row() on table %c%.*s%c",
               quote_char, int(table_name.length), table_name.str, quote_char);
@@ -8543,11 +8117,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  // Temporary fix to find out why it fails [/Matz]
-  memcpy(m_table->read_set->bitmap, m_cols.bitmap, (m_table->read_set->n_bits + 7) / 8);
-  memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
-
-  m_table->mark_columns_per_binlog_row_image();
 
   int error= find_row(rgi);
   if (unlikely(error))
@@ -8628,16 +8197,26 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 
   thd_proc_info(thd, message);
   if (invoke_triggers &&
-      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, true,
+                                &trg_skip_row)))
   {
     error= HA_ERR_GENERIC; // in case if error is not set yet
     goto err;
   }
 
+  if (trg_skip_row)
+  {
+    error= 0;
+    goto err;
+  }
   if (m_table->versioned())
   {
-    if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
-      m_table->vers_update_fields();
+    if (m_table->versioned(VERS_TIMESTAMP))
+    {
+      if (m_vers_from_plain)
+        m_table->vers_update_fields();
+      m_table->vers_fix_old_timestamp(rgi);
+    }
     if (!history_change && !m_table->vers_end_field()->is_max())
     {
       tl->trg_event_map|= trg2bit(TRG_EVENT_DELETE);
@@ -8653,10 +8232,10 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     error= vers_insert_history_row(m_table);
     restore_record(m_table, record[2]);
   }
-  m_table->default_column_bitmaps();
 
   if (invoke_triggers && likely(!error) &&
-      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE)))
+      unlikely(process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, true,
+                                nullptr)))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
 
@@ -8670,7 +8249,7 @@ err:
 
 
 #if defined(HAVE_REPLICATION)
-uint8 Update_rows_log_event::get_trg_event_map()
+uint8 Update_rows_log_event::get_trg_event_map() const
 {
   return trg2bit(TRG_EVENT_UPDATE);
 }
@@ -8756,23 +8335,23 @@ int Incident_log_event::do_apply_event(rpl_group_info *rgi)
 
 
 bool
-Incident_log_event::write_data_header()
+Incident_log_event::write_data_header(Log_event_writer *writer)
 {
   DBUG_ENTER("Incident_log_event::write_data_header");
   DBUG_PRINT("enter", ("m_incident: %d", m_incident));
   uchar buf[sizeof(int16)];
   int2store(buf, (int16) m_incident);
-  DBUG_RETURN(write_data(buf, sizeof(buf)));
+  DBUG_RETURN(write_data(writer, buf, sizeof(buf)));
 }
 
 bool
-Incident_log_event::write_data_body()
+Incident_log_event::write_data_body(Log_event_writer *writer)
 {
   uchar tmp[1];
   DBUG_ENTER("Incident_log_event::write_data_body");
   tmp[0]= (uchar) m_message.length;
-  DBUG_RETURN(write_data(tmp, sizeof(tmp)) ||
-              write_data(m_message.str, m_message.length));
+  DBUG_RETURN(write_data(writer, tmp, sizeof(tmp)) ||
+              write_data(writer, m_message.str, m_message.length));
 }
 
 

@@ -1,4 +1,5 @@
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 
@@ -69,6 +70,7 @@ insert into t1 select * from t1;
 
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='firstmatch=off';
+--sorted_result
 select * from 
   json_table('[{"color": "blue", "price": 50},
                      {"color": "red", "price": 100}]',
@@ -144,6 +146,7 @@ create view v2 as select * from   json_table('[{"co\\\\lor": "blue", "price": 50
 select * from v2;
 drop view v2;
 
+--source include/explain-no-costs.inc
 explain format=json select * from
   json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 explain select * from
@@ -414,7 +417,7 @@ SELECT * FROM JSON_TABLE(CONVERT('{"x":1}' USING utf8mb4), '$' COLUMNS(a INT PAT
 --echo #
 SET NAMES utf8;
 SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$.*', b VARCHAR(40) PATH '$[*]', c VARCHAR(8) PATH '$**.*')) AS jt ) AS sq;
-SET NAMES default;
+SET NAMES latin1;
 
 --echo #
 --echo # MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
@@ -422,7 +425,7 @@ SET NAMES default;
 SET NAMES utf8;
 CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
 DROP TABLE t1;
-SET NAMES default;
+SET NAMES latin1;
 
 
 --echo #
@@ -920,3 +923,220 @@ drop view v;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo #  MDEV-27743 Remove Lex::charset
+--echo #
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+
+
+--echo #
+--echo # MDEV-29446 Change SHOW CREATE TABLE to display default collations
+--echo #
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+# ENUM is not supported yet in JSON_TABLE.
+# But if it is eventually supported, the below
+# test should be modified to make sure that "CHARACTER SET BINARY"
+# is not followed by "COLLATE BINARY".
+--error ER_PARSE_ERROR
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
+--echo #
+
+--echo # Multi-update with JSON_TABLE
+
+create table  t1 ( name  varchar(10), 
+   color varchar(10),
+   price decimal(8,2),
+   instock BOOLEAN);
+
+insert into t1 values ("Laptop", "black", 20000, 1);
+insert into t1 values ("Jacket", "brown", 5000, 1);
+insert into t1 values ("Jeans", "blue", 5000, 1);
+
+select * from t1;
+
+set @json='
+[
+  {"name":"Laptop", "color":"black", "price":"1000", "ordered":"3"},
+  {"name":"Jeans",  "color":"blue",  "ordered":"0"},
+  {"name":"Phone",  "color":"red",  "ordered":"0"}
+]';
+
+select * from json_table(@json, '$[*]' 
+  columns(
+   name  varchar(10) path '$.name', 
+   color varchar(10) path '$.color',
+   price decimal(8,2) path '$.price',
+   ordered boolean path '$.ordered' ) 
+) as jt;
+
+explain update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=3;
+
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=2;
+
+select * from t1;
+
+explain update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+
+update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+select * from t1;
+
+
+-- error ER_NON_UPDATABLE_TABLE
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0, jt1.ordered=1  where t1.name=jt1.name;
+
+select * from t1;
+
+drop table t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

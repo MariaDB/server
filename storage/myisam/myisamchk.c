@@ -15,12 +15,14 @@
 
 /* Describe, check and repair of MyISAM tables */
 
+#define VER "2.7"
 #include "fulltext.h"
 #include "my_default.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_bit.h>
+#include <welcome_copyright_notice.h>
 
 static uint decode_bits;
 static char **default_argv;
@@ -53,7 +55,6 @@ static const char *field_pack[]=
 static const char *myisam_stats_method_str="nulls_unequal";
 
 static void get_options(int *argc,char * * *argv);
-static void print_version(void);
 static void usage(void);
 static int myisamchk(HA_CHECK *param, char *filename);
 static void descript(HA_CHECK *param, register MI_INFO *info, char * name);
@@ -273,7 +274,7 @@ static struct my_option my_long_options[] =
   { "key_buffer_size", OPT_KEY_BUFFER_SIZE, "",
     &check_param.use_buffers, &check_param.use_buffers, 0,
     GET_ULL, REQUIRED_ARG, KEY_BUFFER_INIT, MALLOC_OVERHEAD,
-    SIZE_T_MAX, MALLOC_OVERHEAD,  IO_SIZE, 0},
+    SIZE_T_MAX, 0,  IO_SIZE, 0},
   { "key_cache_block_size", OPT_KEY_CACHE_BLOCK_SIZE,  "",
     &opt_key_cache_block_size,
     &opt_key_cache_block_size, 0,
@@ -287,24 +288,24 @@ static struct my_option my_long_options[] =
     &check_param.read_buffer_length,
     &check_param.read_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
     READ_BUFFER_INIT, MALLOC_OVERHEAD,
-    INT_MAX32, MALLOC_OVERHEAD, 1L, 0},
+    INT_MAX32, 0, 1L, 0},
   { "write_buffer_size", OPT_WRITE_BUFFER_SIZE, "",
     &check_param.write_buffer_length,
     &check_param.write_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
     READ_BUFFER_INIT, MALLOC_OVERHEAD,
-    INT_MAX32, MALLOC_OVERHEAD, 1L, 0},
+    INT_MAX32, 0, 1L, 0},
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Deprecated. myisam_sort_buffer_size alias is being used",
     &check_param.sort_buffer_length,
     &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
     SORT_BUFFER_INIT, MIN_SORT_BUFFER + MALLOC_OVERHEAD,
-    SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
+    SIZE_T_MAX, 0, 1L, 0},
   { "myisam_sort_buffer_size", OPT_SORT_BUFFER_SIZE, 
     "Alias of sort_buffer_size parameter",
     &check_param.sort_buffer_length,
     &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
     SORT_BUFFER_INIT, MIN_SORT_BUFFER + MALLOC_OVERHEAD,
-    SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
+    SIZE_T_MAX, 0, 1L, 0},
   { "sort_key_blocks", OPT_SORT_KEY_BLOCKS, "",
     &check_param.sort_key_blocks,
     &check_param.sort_key_blocks, 0, GET_ULONG, REQUIRED_ARG,
@@ -329,13 +330,6 @@ static struct my_option my_long_options[] =
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s  Ver 2.7 for %s at %s\n", my_progname, SYSTEM_TYPE,
-	 MACHINE_TYPE);
-}
 
 
 static void usage(void)
@@ -463,9 +457,8 @@ static void usage(void)
 
 const char *myisam_stats_method_names[] = {"nulls_unequal", "nulls_equal",
                                            "nulls_ignored", NullS};
-TYPELIB myisam_stats_method_typelib= {
-  array_elements(myisam_stats_method_names) - 1, "",
-  myisam_stats_method_names, NULL};
+TYPELIB myisam_stats_method_typelib=
+                        CREATE_TYPELIB_FOR(myisam_stats_method_names);
 
 	 /* Read options */
 
@@ -868,7 +861,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
     DBUG_RETURN(1);
   }
   share=info->s;
-  share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+  share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
   share->tot_locks-= share->r_locks;
   share->r_locks=0;
 
@@ -1057,7 +1050,8 @@ static int myisamchk(HA_CHECK *param, char * filename)
 	  */
 	  my_bool update_index=1;
 	  for (key=0 ; key < share->base.keys; key++)
-	    if (share->keyinfo[key].flag & (HA_BINARY_PACK_KEY|HA_FULLTEXT))
+	    if (share->keyinfo[key].flag & HA_BINARY_PACK_KEY ||
+                share->keyinfo[key].key_alg == HA_KEY_ALG_FULLTEXT)
 	      update_index=0;
 
 	  error=mi_sort_records(param,info,filename,param->opt_sort_key,
@@ -1330,7 +1324,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
   {
     keyseg=keyinfo->seg;
     if (keyinfo->flag & HA_NOSAME) text="unique ";
-    else if (keyinfo->flag & HA_FULLTEXT) text="fulltext ";
+    else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT) text="fulltext ";
     else text="multip.";
 
     pos=buff;
@@ -1507,7 +1501,7 @@ static int mi_sort_records(HA_CHECK *param,
     param->error_printed=0;
     DBUG_RETURN(0);				/* Nothing to do */
   }
-  if (keyinfo->flag & HA_FULLTEXT)
+  if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     mi_check_print_warning(param,"Can't sort table '%s' on FULLTEXT key %d",
 			   name,sort_key+1);

@@ -1,0 +1,167 @@
+--echo #
+--echo # MDEV-27576 Use DESC indexes for MIN/MAX optimization
+--echo #
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+create or replace table t1 (a int, key(a desc)) engine=innodb;
+insert into t1 select seq * 2 from seq_1_to_100 order by rand(1);
+
+let $query=
+select max(a) from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a < 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a > 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a <= 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a >= 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a <= 99;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a >= 99;
+eval explain $query;
+eval $query;
+
+# the other side
+
+let $query=
+select max(a) from t1 where a > 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a > 1000;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a < 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a < 0;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a >= 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a >= 1000;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a <= 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a <= 0;
+eval explain $query;
+eval $query;
+
+let $query=
+select max(a) from t1 where a >= 99;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1 where a <= 99;
+eval explain $query;
+eval $query;
+
+# double reversion
+let $query=
+select max(200 - a) from t1;
+replace_column 9 100;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(200 - a) from t1;
+replace_column 9 100;
+eval explain $query;
+eval $query;
+
+# more complex key situations
+create or replace table t1 (a int, b int, key(a desc, b asc)) engine=innodb;
+insert into t1 select seq * 2, seq * 2 from seq_1_to_100 order by rand(1);
+
+let $query=
+select max(a) from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(a) from t1;
+eval explain $query;
+eval $query;
+
+create or replace table t1 (a int, b int, key(a asc), key (b desc)) engine=innodb;
+insert into t1 select seq * 2, seq * 2 from seq_1_to_100 order by rand(1);
+
+let $query=
+select max(b) from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(b) from t1;
+eval explain $query;
+eval $query;
+
+create or replace table t1 (a int, b int, key (b desc)) engine=innodb;
+insert into t1 select seq * 2, seq * 2 from seq_1_to_100 order by rand(1);
+
+let $query=
+select max(b) from t1;
+eval explain $query;
+eval $query;
+
+let $query=
+select min(b) from t1;
+eval explain $query;
+eval $query;
+
+# float example in the comment
+CREATE OR REPLACE TABLE t1 (a FLOAT, KEY (a DESC));
+INSERT INTO t1 VALUES (0.1234),(0.6789);
+let $query=
+SELECT MAX(a) FROM t1 WHERE a <= 0.6789;
+eval explain $query;
+eval $query;
+
+# Cleanup
+drop table t1;
+--echo #
+--echo # end of test 11.4
+--echo #

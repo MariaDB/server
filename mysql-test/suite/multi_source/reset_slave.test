@@ -11,7 +11,7 @@
 --replace_result $SERVER_MYPORT_1 MYPORT_1
 eval change master 'master1' to 
 master_port=$SERVER_MYPORT_1, 
-master_host='127.0.0.1', 
+master_host='127.0.0.1', master_ssl_verify_server_cert=0,
 master_user='root';
 
 start slave 'master1';

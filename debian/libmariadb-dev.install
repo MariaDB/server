@@ -1,3 +1,4 @@
+usr/bin/mariadb-config
 usr/bin/mariadb_config
 usr/include/mariadb/errmsg.h
 usr/include/mariadb/ma_list.h
@@ -28,6 +29,8 @@ usr/lib/*/libmariadbclient.a
 usr/lib/*/libmariadbclient.so
 usr/lib/*/libmysqlservices.a
 usr/lib/*/pkgconfig/libmariadb.pc
+usr/lib/*/pkgconfig/mariadb.pc
 usr/share/aclocal/mysql.m4
 usr/share/man/man1/mariadb_config.1
 usr/share/man/man1/mysql_config.1
+usr/share/man/man3/*.3

@@ -2,11 +2,6 @@
 // $Id: ha_sphinx.h 4818 2014-09-24 08:53:38Z tomat $
 //
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface // gcc class implementation
-#endif
-
-
 #if MYSQL_VERSION_ID>=50515
 #define TABLE_ARG	TABLE_SHARE
 #elif MYSQL_VERSION_ID>50100
@@ -72,14 +67,28 @@ public:
 	uint			max_supported_key_length () const override		{ return MAX_KEY_LENGTH; }
 	uint			max_supported_key_part_length () const override	{ return MAX_KEY_LENGTH; }
 
-	#if MYSQL_VERSION_ID>50100
-	double	scan_time () override	{ return (double)( stats.records+stats.deleted )/20.0 + 10; }	///< called in test_quick_select to determine if indexes should be used
-	#else
-	virtual double	scan_time ()	{ return (double)( records+deleted )/20.0 + 10; }				///< called in test_quick_select to determine if indexes should be used
-	#endif
-
-        double read_time(uint index, uint ranges, ha_rows rows) override
-	{ return ranges + (double)rows/20.0 + 1; }					///< index read time estimate
+	IO_AND_CPU_COST	scan_time () override
+	{
+          IO_AND_CPU_COST cost;
+          cost.io= 0;
+          cost.cpu= (double) (stats.records+stats.deleted) * DISK_READ_COST;
+          return cost;
+        }
+        IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                    ulonglong blocks) override
+	{
+          IO_AND_CPU_COST cost;
+          cost.io= ranges;
+          cost.cpu= 0;
+          return cost;
+        }
+        IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override
+	{
+          IO_AND_CPU_COST cost;
+          cost.io= 0;
+          cost.cpu= 0;
+          return cost;
+        }
 
 public:
 	int				open ( const char * name, int mode, uint test_if_locked ) override;

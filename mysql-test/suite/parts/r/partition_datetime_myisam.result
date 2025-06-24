@@ -9,7 +9,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
@@ -39,7 +39,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975-01-01 0:1:1'), ('2020-12-31 10:11:12'), ('1980-10-14 13:14:15'), ('2000-06-15 14:15:16');
@@ -136,7 +136,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
@@ -166,7 +166,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975-01-01'), ('2020-12-31'), ('1980-10-14'), ('2000-06-15');
@@ -290,7 +290,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -330,7 +330,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` date NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -368,7 +368,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
@@ -398,7 +398,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('0:1:1'), ('10:11:12'), ('13:14:15'), ('14:15:16');
@@ -497,7 +497,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (second(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -509,67 +509,67 @@ SUBPARTITIONS 3
 select count(*) from t3;
 count(*)
 59
-select * from t3;
-a
-10:00:01
-10:00:02
-10:00:03
-10:00:04
-10:00:05
-10:00:06
-10:00:07
-10:00:08
-10:00:09
-10:00:10
-10:00:11
-10:00:12
-10:00:13
-10:00:14
-10:00:15
-10:00:16
-10:00:17
-10:00:18
-10:00:19
-10:00:20
-10:00:21
-10:00:22
-10:00:23
-10:00:24
-10:00:25
-10:00:26
-10:00:27
-10:00:28
-10:00:29
-10:00:30
-10:00:31
-10:00:32
-10:00:33
-10:00:34
-10:00:35
-10:00:36
-10:00:37
-10:00:38
-10:00:39
-10:00:40
-10:00:41
-10:00:42
-10:00:43
-10:00:44
-10:00:45
-10:00:46
-10:00:47
-10:00:48
-10:00:49
-10:00:50
-10:00:51
-10:00:52
-10:00:53
-10:00:54
-10:00:55
-10:00:56
-10:00:57
-10:00:58
-10:00:59
+select a, second(a), if(second(a)<16,1,if(second(a)<31,2,if(second(a)<45,3,4))) from t3;
+a	second(a)	if(second(a)<16,1,if(second(a)<31,2,if(second(a)<45,3,4)))
+10:00:01	1	1
+10:00:02	2	1
+10:00:03	3	1
+10:00:04	4	1
+10:00:05	5	1
+10:00:06	6	1
+10:00:07	7	1
+10:00:08	8	1
+10:00:09	9	1
+10:00:10	10	1
+10:00:11	11	1
+10:00:12	12	1
+10:00:13	13	1
+10:00:14	14	1
+10:00:15	15	1
+10:00:16	16	2
+10:00:17	17	2
+10:00:18	18	2
+10:00:19	19	2
+10:00:20	20	2
+10:00:21	21	2
+10:00:22	22	2
+10:00:23	23	2
+10:00:24	24	2
+10:00:25	25	2
+10:00:26	26	2
+10:00:27	27	2
+10:00:28	28	2
+10:00:29	29	2
+10:00:30	30	2
+10:00:31	31	3
+10:00:32	32	3
+10:00:33	33	3
+10:00:34	34	3
+10:00:35	35	3
+10:00:36	36	3
+10:00:37	37	3
+10:00:38	38	3
+10:00:39	39	3
+10:00:40	40	3
+10:00:41	41	3
+10:00:42	42	3
+10:00:43	43	3
+10:00:44	44	3
+10:00:45	45	4
+10:00:46	46	4
+10:00:47	47	4
+10:00:48	48	4
+10:00:49	49	4
+10:00:50	50	4
+10:00:51	51	4
+10:00:52	52	4
+10:00:53	53	4
+10:00:54	54	4
+10:00:55	55	4
+10:00:56	56	4
+10:00:57	57	4
+10:00:58	58	4
+10:00:59	59	4
 drop table t3;
 create table t4 (a time not null, primary key(a)) engine='MyISAM' 
 partition by list (second(a)) subpartition by key (a)
@@ -584,7 +584,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` time NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (second(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -669,7 +669,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
@@ -699,7 +699,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975-01-01 0:1:1'), ('2020-12-31 10:11:12'), ('1980-10-14 13:14:15'), ('2000-06-15 14:15:16');
@@ -798,7 +798,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -838,7 +838,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` datetime NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (month(`a`))
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 3
@@ -876,7 +876,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
@@ -906,7 +906,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` year(4) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 12
 insert into t2 values ('1975'), ('2020'), ('1980'), ('2000');

@@ -20,6 +20,11 @@ WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 --source include/wait_condition.inc
 
 SET GLOBAL innodb_max_dirty_pages_pct=90.0;
+--disable_cursor_protocol
+select variable_value into @innodb_async_writes_total_count_before
+ from information_schema.global_status
+ where variable_name='innodb_async_writes_total_count';
+--enable_cursor_protocol
 
 --disable_cursor_protocol
 SELECT variable_value INTO @log_writes FROM information_schema.global_status
@@ -47,6 +52,13 @@ SET GLOBAL innodb_max_dirty_pages_pct=0.0;
 
 # Without the MDEV-24917 fix, we would time out here.
 --source include/wait_condition.inc
+
+select (cast(variable_value as unsigned) >
+ cast(@innodb_async_writes_total_count_before as unsigned))
+ as innodb_async_writes_grow
+ from information_schema.global_status
+ where variable_name='innodb_async_writes_total_count';
+
 DROP TABLE t;
 
 SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;

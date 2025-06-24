@@ -383,10 +383,9 @@ SET @@character_set_client = 1;
 SELECT @@character_set_client;
 @@character_set_client
 big5
+# latin2_czech_cs is not a default collation
 SET @@character_set_client = 2;
-SELECT @@character_set_client;
-@@character_set_client
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@character_set_client = 3;
 SELECT @@character_set_client;
 @@character_set_client
@@ -395,20 +394,19 @@ SET @@character_set_client = 36;
 SELECT @@character_set_client;
 @@character_set_client
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@character_set_client = 99;
-SELECT @@character_set_client;
-@@character_set_client
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@character_set_client = 100;
 ERROR 42000: Unknown character set: '100'
 SET @@global.character_set_client = 1;
 SELECT @@global.character_set_client;
 @@global.character_set_client
 big5
+# latin2_czech_cs is not a default collation
 SET @@global.character_set_client = 2;
-SELECT @@global.character_set_client;
-@@global.character_set_client
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@global.character_set_client = 3;
 SELECT @@global.character_set_client;
 @@global.character_set_client
@@ -417,10 +415,10 @@ SET @@global.character_set_client = 36;
 SELECT @@global.character_set_client;
 @@global.character_set_client
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@global.character_set_client = 99;
-SELECT @@global.character_set_client;
-@@global.character_set_client
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@global.character_set_client = 100;
 ERROR 42000: Unknown character set: '100'
 SET @total_charset = (SELECT count(*) FROM INFORMATION_SCHEMA.CHARACTER_SETS);
@@ -497,5 +495,21 @@ SELECT @@session.character_set_client =
 WHERE VARIABLE_NAME='character_set_client') AS res;
 res
 1
+#
+# MDEV-28769 Assertion `(m_ci->state & 32) || m_with_collate' failed in Lex_exact_charset_opt_extended_collate::Lex_exact_charset_opt_extended_collate on SET NAMES
+#
+SET GLOBAL character_set_client=2;
+ERROR 42000: Unknown character set: '2'
+#
+# MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+#
+SET @@pseudo_slave_mode=1;
+SET character_set_client=2/*latin2_czech_cs*/;
+SHOW VARIABLES LIKE 'character_set_client';
+Variable_name	Value
+character_set_client	latin2
+SET @@pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
 SET @@global.character_set_client = @global_start_value;
 SET @@session.character_set_client = @session_start_value;

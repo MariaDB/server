@@ -2338,11 +2338,7 @@ Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave
 UPDATE t1 SET a=1 LIMIT 1;
-Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted
 DELETE FROM t1 LIMIT 1;
-Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted
 CREATE PROCEDURE p1()
 BEGIN
 INSERT INTO t1 SELECT * FROM t1 LIMIT 1;
@@ -2546,17 +2542,13 @@ master-bin.000001	#	Annotate_rows	#	#	insert into t2(a) values(new.a)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Annotate_rows	#	#	insert into t3(a) values(new.a)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE t1,t2,t3;
 SET SESSION binlog_format = STATEMENT;
-CREATE TABLE t1 (a VARCHAR(1000));
+CREATE TABLE t1 (a VARBINARY(1000));
 INSERT INTO t1 VALUES (CURRENT_USER());
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
@@ -2609,6 +2601,9 @@ INSERT INTO t1 VALUES (VERSION());
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
 INSERT INTO t1 VALUES (RAND());
+INSERT INTO t1 VALUES (RANDOM_BYTES(1000));
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
 DELETE FROM t1;
 SET TIME_ZONE= '+03:00';
 SET TIMESTAMP=1000000;
@@ -2632,7 +2627,7 @@ a
 16:46:40
 1970-01-12 16:46:40
 16:46:40
-1970-01-12 16:46:40
+16:46:40
 1970-01-12 16:46:40
 1970-01-12 16:46:40
 1000000

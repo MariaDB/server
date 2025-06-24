@@ -19,6 +19,7 @@
 #define USE_MY_FUNC			/* We need at least my_malloc */
 #endif
 
+#define VER "1.0"
 #include "maria_def.h"
 #include "trnman_public.h"
 #include "trnman.h"
@@ -33,6 +34,7 @@
 #endif
 #include <my_getopt.h>
 #include <my_handler_errors.h>
+#include <welcome_copyright_notice.h>
 
 #if SIZEOF_LONG_LONG > 4
 #define BITS_SAVED 64
@@ -239,7 +241,8 @@ int main(int argc, char **argv)
   if (!opt_ignore_control_file &&
       (no_control_file= ma_control_file_open(FALSE,
                                              (opt_require_control_file ||
-                                              !silent), FALSE)) &&
+                                              !silent), FALSE,
+                                             control_file_open_flags)) &&
        opt_require_control_file)
   {
     error= 1;
@@ -351,12 +354,6 @@ static struct my_option my_long_options[] =
    &opt_wait, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s Ver 1.0 for %s on %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
-}
 
 
 static void usage(void)
@@ -526,7 +523,7 @@ static MARIA_HA *open_maria_file(char *name,int mode)
     }
     if (verbose)
       puts("Recompressing already compressed table");
-    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifing it */
+    share->options&= ~HA_OPTION_READ_ONLY_DATA; /* We are modifying it */
   }
   if (! force_pack && share->state.state.records != 0 &&
       (share->state.state.records <= 1 ||
@@ -1500,7 +1497,7 @@ test_space_compress(HUFF_COUNTS *huff_counts, my_off_t records,
   min_pos= -2;
   huff_counts->counts[(uint) ' ']=space_count;
 
-	/* Test with allways space-count */
+	/* Test with always space-count */
   new_length=huff_counts->bytes_packed+length_bits*records/8;
   if (new_length+1 < min_pack)
   {
@@ -2908,7 +2905,7 @@ static char *make_old_name(char *new_name, char *old_name)
   return fn_format(new_name,old_name,"",OLD_EXT,2+4);
 }
 
-	/* rutines for bit writing buffer */
+	/* routines for bit writing buffer */
 
 static void init_file_buffer(File file, pbool read_buffer)
 {

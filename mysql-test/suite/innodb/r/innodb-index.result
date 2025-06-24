@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;
 create table t1(a varchar(2) primary key) engine=innodb;
 insert into t1 values('');
@@ -579,7 +580,7 @@ t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL,
   `d` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 alter table t1 add index (b);
 insert into t1 values(10,10,'kkk','iii');
 select * from t1;
@@ -610,7 +611,7 @@ t1	CREATE TABLE `t1` (
   `d` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 alter table t1 add unique index (c), add index (d);
 insert into t1 values(11,11,'aaa','mmm');
 select * from t1;
@@ -669,7 +670,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `c` (`c`),
   KEY `b` (`b`),
   KEY `d` (`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -853,10 +854,10 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 explain select * from t1 order by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	
 drop table t1;
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET FOREIGN_KEY_CHECKS=0;
@@ -1598,8 +1599,8 @@ create table t1(f1 int not null, f2 int not null,
 primary key (f1), unique key(f1, f2))engine=innodb;
 insert into t1 values(1,3), (2,2);
 alter table t1 drop primary key, lock=none;
-alter table t1 drop index f1, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try LOCK=SHARED
+alter table t1 drop index f1, algorithm=inplace, lock=none;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Dropping a primary key is not allowed without also adding a new primary key. Try ALGORITHM=COPY
 drop table t1;
 #
 #  BUG#21612714 ALTER TABLE SORTING SKIPPED WHEN CHANGE PK AND DROP
@@ -1947,3 +1948,62 @@ Warnings:
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 DROP TABLE t;
+#
+#  MDEV-27374  InnoDB table becomes corrupt after renaming DESC-indexed column
+#
+CREATE TABLE t1 (a VARCHAR(8), PRIMARY KEY(a DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN a TO b, ALGORITHM=INPLACE;
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+NAME
+b
+DROP TABLE t1;
+#
+#  MDEV-27432 ASC/DESC primary and unique keys cause index
+#	inconsistency between InnoDB and server
+#
+CREATE TABLE t1 (id INT NOT NULL, UNIQUE(id DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY (id), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+#
+#  MDEV-27445 Index inconsistency and assertion failure after
+#	renaming virtual column with DESC key
+#
+CREATE TABLE t1(a INT, b INT AS (a), KEY(a, b DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN IF EXISTS b TO v;
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+#
+#  MDEV-27592 DESC primary index fails to set wide format
+#	while renaming the column
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(8), b INT, KEY(a DESC,b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'foo',10);
+ALTER TABLE t1 RENAME COLUMN b TO c, ALGORITHM=INPLACE;
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id ORDER BY INDEX_ID DESC LIMIT 1;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+NAME
+a
+c
+DROP TABLE t1;
+# End of 10.8 tests
+#
+# MDEV-35849: index records in a wrong order
+#
+CREATE TABLE t (pk INT PRIMARY KEY, a VARCHAR(1), KEY (a DESC)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,NULL),(2,'x');
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+# End of 11.8 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

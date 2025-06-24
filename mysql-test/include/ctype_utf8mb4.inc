@@ -53,11 +53,11 @@ select CONVERT(_koi8r'ВАСЯ' USING utf8mb4) LIKE CONVERT(_koi8r'вася' USING utf8m
 # "a\0" < "a"
 # "a\0" < "a "
 
-SELECT 'a' = 'a ';
-SELECT 'a\0' < 'a';
-SELECT 'a\0' < 'a ';
-SELECT 'a\t' < 'a';
-SELECT 'a\t' < 'a ';
+SELECT 'a' = 'a ' collate utf8mb4_general_ci;
+SELECT 'a\0' < 'a' collate utf8mb4_general_ci;
+SELECT 'a\0' < 'a ' collate utf8mb4_general_ci;
+SELECT 'a\t' < 'a' collate utf8mb4_general_ci;
+SELECT 'a\t' < 'a ' collate utf8mb4_general_ci;
 
 #
 # The same for binary collation
@@ -68,7 +68,7 @@ SELECT 'a\0' < 'a ' collate utf8mb4_bin;
 SELECT 'a\t' < 'a' collate utf8mb4_bin;
 SELECT 'a\t' < 'a ' collate utf8mb4_bin;
 
-eval CREATE TABLE t1 (a char(10) character set utf8mb4 not null) ENGINE $engine;
+eval CREATE TABLE t1 (a char(10) character set utf8mb4 collate utf8mb4_general_ci not null) ENGINE $engine;
 INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
 --sorted_result
 SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
@@ -985,7 +985,7 @@ DROP TABLE t1;
 #
 # Bug#17313: N'xxx' and _utf8mb4'xxx' are not equivalent
 #
-eval CREATE TABLE t1 (item varchar(255)) default character set utf8mb4 ENGINE $engine;
+eval CREATE TABLE t1 (item varchar(255)) default character set utf8mb4 collate utf8mb4_general_ci ENGINE $engine;
 INSERT INTO t1 VALUES (N'\\');
 INSERT INTO t1 VALUES (_utf8mb4'\\');
 INSERT INTO t1 VALUES (N'Cote d\'Ivoire');
@@ -1255,12 +1255,12 @@ SHOW VARIABLES LIKE 'character\_set\_%';
 SET @@character_set_server=@save_character_set_server;
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 USE crashtest;
-eval CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb4 ENGINE $engine;
+eval CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_general_ci ENGINE $engine;
 INSERT INTO crashtest VALUES ('35'), ('36'), ('37');
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4) COLLATE utf8mb4_general_ci;
 INSERT INTO crashtest VALUES ('-1000');
-EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4);
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4);
+EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4) COLLATE utf8mb4_general_ci;
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4) COLLATE utf8mb4_general_ci;
 DROP TABLE crashtest;
 DROP DATABASE crashtest;
 USE test;
@@ -1559,7 +1559,7 @@ DROP TABLE IF EXISTS t1;
 eval CREATE TABLE t1 (
         predicted_order int NOT NULL,
         utf8mb4_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb4 ENGINE $engine;
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE $engine;
 INSERT INTO t1 VALUES (19, x'E0B696'), (30, x'E0B69AE0B798'), (61, x'E0B6AF'), (93, x'E0B799'), (52, x'E0B6A6'), (73, x'E0B6BBE0B78AE2808D'), (3, x'E0B686'), (56, x'E0B6AA'), (55, x'E0B6A9'), (70, x'E0B6B9'), (94, x'E0B79A'), (80, x'E0B785'), (25, x'E0B69AE0B791'), (48, x'E0B6A2'), (13, x'E0B690'), (86, x'E0B793'), (91, x'E0B79F'), (81, x'E0B786'), (79, x'E0B784'), (14, x'E0B691'), (99, x'E0B78A'), (8, x'E0B68B'), (68, x'E0B6B7'), (22, x'E0B69A'), (16, x'E0B693'), (33, x'E0B69AE0B7B3'), (38, x'E0B69AE0B79D'), (21, x'E0B683'), (11, x'E0B68E'), (77, x'E0B782'), (40, x'E0B69AE0B78A'), (101, x'E0B78AE2808DE0B6BB'), (35, x'E0B69AE0B79A'), (1, x'E0B7B4'), (9, x'E0B68C'), (96, x'E0B79C'), (6, x'E0B689'), (95, x'E0B79B'), (88, x'E0B796'), (64, x'E0B6B3'), (26, x'E0B69AE0B792'), (82, x'E0B78F'), (28, x'E0B69AE0B794'), (39, x'E0B69AE0B79E'), (97, x'E0B79D'), (2, x'E0B685'), (75, x'E0B780'), (34, x'E0B69AE0B799'), (69, x'E0B6B8'), (83, x'E0B790'), (18, x'E0B695'), (90, x'E0B7B2'), (17, x'E0B694'), (72, x'E0B6BB'), (66, x'E0B6B5'), (59, x'E0B6AD'), (44, x'E0B69E'), (15, x'E0B692'), (23, x'E0B69AE0B78F'), (65, x'E0B6B4'), (42, x'E0B69C'), (63, x'E0B6B1'), (85, x'E0B792'), (47, x'E0B6A1'), (49, x'E0B6A3'), (92, x'E0B7B3'), (78, x'E0B783'), (36, x'E0B69AE0B79B'), (4, x'E0B687'), (24, x'E0B69AE0B790'), (87, x'E0B794'), (37, x'E0B69AE0B79C'), (32, x'E0B69AE0B79F'), (29, x'E0B69AE0B796'), (43, x'E0B69D'), (62, x'E0B6B0'), (100, x'E0B78AE2808DE0B6BA'), (60, x'E0B6AE'), (45, x'E0B69F'), (12, x'E0B68F'), (46, x'E0B6A0'), (50, x'E0B6A5'), (51, x'E0B6A4'), (5, x'E0B688'), (76, x'E0B781'), (89, x'E0B798'), (74, x'E0B6BD'), (10, x'E0B68D'), (57, x'E0B6AB'), (71, x'E0B6BA'), (58, x'E0B6AC'), (27, x'E0B69AE0B793'), (54, x'E0B6A8'), (84, x'E0B791'), (31, x'E0B69AE0B7B2'), (98, x'E0B79E'), (53, x'E0B6A7'), (41, x'E0B69B'), (67, x'E0B6B6'), (7, x'E0B68A'), (20, x'E0B682');
 SELECT predicted_order, hex(utf8mb4_encoding) FROM t1 ORDER BY utf8mb4_encoding COLLATE utf8mb4_sinhala_ci;
 DROP TABLE t1;
@@ -1644,7 +1644,7 @@ DROP TABLE IF EXISTS t1;
 eval CREATE TABLE t1 (
         u_decimal int NOT NULL,
         utf8mb4_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb4 ENGINE $engine;
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE $engine;
 # Source of the following values: http://www.fileformat.info/info/unicode/block/index.htm
 # SINGLE BARLINE
 INSERT INTO t1 VALUES (119040, x'f09d8480'),
@@ -1685,7 +1685,7 @@ DROP TABLE IF EXISTS t2;
 eval CREATE TABLE t2 (
         u_decimal int NOT NULL,
         utf8mb3_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb3 ENGINE $engine;
+) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci ENGINE $engine;
 # LATIN CAPITAL LETTER VEND
 INSERT INTO t2 VALUES (42856, x'ea9da8');
 # SMALL COMMERCIAL AT
@@ -1720,40 +1720,40 @@ SELECT count(*) FROM t1, t2
 # Alter from 4-byte charset to 3-byte charset, error
 --disable_warnings
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci;
 --enable_warnings
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT u_decimal,hex(utf8mb4_encoding),utf8mb4_encoding FROM t1;
 
 # Alter table from utf8 to utf8mb4
-ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb4;
+ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t2;
 --sorted_result
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 
 # Alter table back from utf8mb4 to utf8
-ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb3;
+ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 SHOW CREATE TABLE t2;
 --sorted_result
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 
 # ALter of utf8mb4 column to utf8
 --disable_warnings
-ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb3;
+ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 --enable_warnings
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 
 # ALter of utf8 column to utf8mb4
-ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb4;
+ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 
 # ALter of utf8 column to utf8mb4
-ALTER TABLE t2 MODIFY utf8mb3_encoding VARCHAR(10) CHARACTER SET utf8mb4;
+ALTER TABLE t2 MODIFY utf8mb3_encoding VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t2;
 --sorted_result
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
@@ -1764,7 +1764,7 @@ DROP TABLE IF EXISTS t3;
 eval CREATE TABLE t3 (
         u_decimal int NOT NULL,
         utf8mb3_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8 ENGINE $engine;
+) CHARACTER SET utf8 COLLATE utf8_general_ci ENGINE $engine;
 
 # Insert select utf8mb4 (4-byte) into utf8 (3-byte), error
 #--error ER_INVALID_CHARACTER_STRING
@@ -1776,7 +1776,7 @@ DROP TABLE IF EXISTS t4;
 eval CREATE TABLE t4 (
         u_decimal int NOT NULL,
         utf8mb4_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb4 ENGINE $engine;
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE $engine;
 
 # Insert select utf8 (3-byte) into utf8mb4 (4-byte)
 INSERT INTO t3 SELECT * FROM t2;
@@ -1791,11 +1791,11 @@ DROP TABLE t4;
 --echo #
 SELECT CHARSET(CONCAT(_utf8mb4'a',_utf8'b'));
 
-eval CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 NOT NULL) ENGINE $engine;
+eval CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL) ENGINE $engine;
 INSERT INTO t1 VALUES (x'ea9da8'),(x'f48fbfbf');
 SELECT CONCAT(utf8mb4, _utf8 x'ea9da8') FROM t1 LIMIT 0;
 
-eval CREATE TABLE t2 (utf8mb3 VARCHAR(10) CHARACTER SET utf8mb3 NOT NULL) ENGINE $engine;
+eval CREATE TABLE t2 (utf8mb3 VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL) ENGINE $engine;
 INSERT INTO t2 VALUES (x'ea9da8');
 
 SELECT HEX(CONCAT(utf8mb4, utf8mb3)) FROM t1,t2 ORDER BY 1;
@@ -1816,7 +1816,7 @@ DROP TABLE t2;
 --echo # Check that mixing utf8mb4 with an invalid utf8 constant returns error
 --echo #
 # This should perhaps be changed to return ER_INVALID_CHARACTER_STRING
-eval CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4) ENGINE $engine;
+eval CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci) ENGINE $engine;
 INSERT INTO t1 VALUES (x'f48fbfbf');
 --error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT CONCAT(utf8mb4, _utf8 '©') FROM t1;
@@ -1837,7 +1837,8 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (
   id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  a VARCHAR(10) CHARACTER SET utf8mb4, KEY(a,id)
+  a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+  KEY(a,id)
 );
 INSERT INTO t1 (a) VALUES (0x61);
 INSERT INTO t1 (a) VALUES (0xC280),(0xDFBF);

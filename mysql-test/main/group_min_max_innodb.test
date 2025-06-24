@@ -162,7 +162,7 @@ CREATE TABLE t1 (
   i1 INTEGER NOT NULL,
   i2 INTEGER NOT NULL,
   UNIQUE KEY k1 (c1,i2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t1 SELECT 'A',i1,i1 FROM t0;
 INSERT INTO t1 SELECT 'B',i1,i1 FROM t0;
@@ -176,7 +176,7 @@ CREATE TABLE t2 (
   i1 INTEGER NOT NULL,
   i2 INTEGER NOT NULL,
   UNIQUE KEY k2 (c1,i1,i2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t2 SELECT 'A',i1,i1 FROM t0;
 INSERT INTO t2 SELECT 'B',i1,i1 FROM t0;
@@ -255,13 +255,16 @@ drop table t1,t2;
 --echo #
 --echo # MDEV-30143: Segfault on select query using index for group-by and filesort
 --echo #
-CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB;
+CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('Albania','AXA'),('Australia','AUS'),('American Samoa','AMSA'),('Bahamas','BS');
 
-CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB;
+CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES
 ('BERM','African Methodist Episcopal'),('AUS','Anglican'),('BERM','Anglican'),('BS','Anglican'),('BS','Baptist'),('BS','Methodist');
+-- disable_result_log
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
+-- enable_result_log
 
 let query=
 SELECT t1.a

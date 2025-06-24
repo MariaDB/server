@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 #
@@ -537,4 +538,5 @@ INSERT INTO t1 VALUES(1);
 DROP TABLE t1;
 # End of 10.5 tests
 # End of 10.6 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

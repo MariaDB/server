@@ -26,8 +26,8 @@ Created 2/23/1996 Heikki Tuuri
 
 #include "btr0pcur.h"
 #include "buf0rea.h"
+#include "btr0sea.h"
 #include "rem0cmp.h"
-#include "trx0trx.h"
 #include "ibuf0ibuf.h"
 
 /**************************************************************//**
@@ -158,20 +158,14 @@ before_first:
 		cursor->rel_pos = BTR_PCUR_ON;
 	}
 
-	if (index->is_ibuf()) {
-		ut_ad(!index->table->not_redundant());
-		cursor->old_n_fields = uint16_t(rec_get_n_fields_old(rec));
-	} else {
-		cursor->old_n_fields = static_cast<uint16>(
-			dict_index_get_n_unique_in_tree(index));
-		if (index->is_spatial() && !page_rec_is_leaf(rec)) {
-			ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
-			      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
-			/* For R-tree, we have to compare
-			the child page numbers as well. */
-			cursor->old_n_fields
-				= DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
-		}
+	cursor->old_n_fields = static_cast<uint16>(
+		dict_index_get_n_unique_in_tree(index));
+	if (index->is_spatial() && !page_rec_is_leaf(rec)) {
+		ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
+		      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+		/* For R-tree, we have to compare
+		the child page numbers as well. */
+		cursor->old_n_fields = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
 	}
 
 	cursor->old_n_core_fields = index->n_core_fields;
@@ -221,24 +215,18 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
                                              btr_latch_mode *latch_mode,
                                              mtr_t *mtr)
 {
-  static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
-  static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
-  static_assert((BTR_SEARCH_PREV ^ BTR_MODIFY_PREV) ==
-                (RW_S_LATCH ^ RW_X_LATCH), "");
-
   buf_block_t *const block=
     buf_page_optimistic_fix(pcur->btr_cur.page_cur.block, pcur->old_page_id);
 
   if (!block)
     return false;
 
-  if (*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF)
+  if (*latch_mode != BTR_SEARCH_PREV)
+  {
+    ut_ad(*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF);
     return buf_page_optimistic_get(block, rw_lock_type_t(*latch_mode),
                                    pcur->modify_clock, mtr);
-
-  ut_ad(*latch_mode == BTR_SEARCH_PREV || *latch_mode == BTR_MODIFY_PREV);
-  const rw_lock_type_t mode=
-    rw_lock_type_t(*latch_mode & (RW_X_LATCH | RW_S_LATCH));
+  }
 
   uint64_t modify_clock;
   uint32_t left_page_no;
@@ -264,18 +252,20 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   {
     prev= buf_page_get_gen(page_id_t(pcur->old_page_id.space(),
                                      left_page_no), block->zip_size(),
-                           mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
+                           RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
     if (!prev ||
         page_is_comp(prev->page.frame) != page_is_comp(block->page.frame) ||
         memcmp_aligned<2>(block->page.frame, prev->page.frame, 2) ||
         memcmp_aligned<2>(block->page.frame + PAGE_HEADER + PAGE_INDEX_ID,
                           prev->page.frame + PAGE_HEADER + PAGE_INDEX_ID, 8))
       goto fail;
+    btr_search_drop_page_hash_index(prev, pcur->index());
   }
   else
     prev= nullptr;
 
-  mtr->upgrade_buffer_fix(savepoint, mode);
+  mtr->upgrade_buffer_fix(savepoint, RW_S_LATCH);
+  btr_search_drop_page_hash_index(block, pcur->index());
 
   if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
       UNIV_UNLIKELY(block->page.is_freed()) ||
@@ -348,12 +338,9 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	ut_a(old_n_core_fields <= index->n_core_fields);
 	ut_a(old_n_fields);
 
-	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
-	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
+	static_assert(int{BTR_SEARCH_PREV} == (4 | BTR_SEARCH_LEAF), "");
 
-	switch (restore_latch_mode | 4) {
-	case BTR_SEARCH_PREV:
-	case BTR_MODIFY_PREV:
+	if ((restore_latch_mode | 4) == BTR_SEARCH_PREV) {
 		/* Try optimistic restoration. */
 		if (btr_pcur_optimistic_latch_leaves(this, &restore_latch_mode,
 						     mtr)) {
@@ -450,9 +437,9 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	rec_offs_init(offsets);
 	restore_status ret_val= restore_status::NOT_SAME;
 	if (rel_pos == BTR_PCUR_ON && btr_pcur_is_on_user_rec(this)) {
-		ulint n_matched_fields= 0;
+		uint16_t n_matched_fields= 0;
 		if (!cmp_dtuple_rec_with_match(
-		      tuple, btr_pcur_get_rec(this),
+		      tuple, btr_pcur_get_rec(this), index,
 		      rec_get_offsets(btr_pcur_get_rec(this), index, offsets,
 			index->n_core_fields, ULINT_UNDEFINED, &heap),
 		      &n_matched_fields)) {
@@ -524,11 +511,11 @@ btr_pcur_move_to_next_page(
 	}
 
 	dberr_t err;
-        bool first_access = false;
+	bool first_access = false;
 	buf_block_t* next_block = btr_block_get(
 		*cursor->index(), next_page_no,
 		rw_lock_type_t(cursor->latch_mode & (RW_X_LATCH | RW_S_LATCH)),
-		page_is_leaf(page), mtr, &err, &first_access);
+		mtr, &err, &first_access);
 
 	if (UNIV_UNLIKELY(!next_block)) {
 		return err;
@@ -548,7 +535,7 @@ btr_pcur_move_to_next_page(
 	const auto s = mtr->get_savepoint();
 	mtr->rollback_to_savepoint(s - 2, s - 1);
 	if (first_access) {
-		buf_read_ahead_linear(next_block->page.id(), ibuf_inside(mtr));
+		buf_read_ahead_linear(next_block->page.id());
 	}
 	return DB_SUCCESS;
 }
@@ -574,20 +561,13 @@ btr_pcur_move_backward_from_page(
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
 	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
-	const auto latch_mode = cursor->latch_mode;
-	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
-
 	btr_pcur_store_position(cursor, mtr);
 
 	mtr_commit(mtr);
 
 	mtr_start(mtr);
 
-	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
-	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
-
-	if (UNIV_UNLIKELY(cursor->restore_position(
-				  btr_latch_mode(4 | latch_mode), mtr)
+	if (UNIV_UNLIKELY(cursor->restore_position(BTR_SEARCH_PREV, mtr)
 			  == btr_pcur_t::CORRUPTED)) {
 		return true;
 	}
@@ -619,7 +599,7 @@ btr_pcur_move_backward_from_page(
 
 	mtr->rollback_to_savepoint(1);
 	ut_ad(block == mtr->at_savepoint(0));
-	cursor->latch_mode = latch_mode;
+	cursor->latch_mode = BTR_SEARCH_LEAF;
 	cursor->old_rec = nullptr;
 	return false;
 }
@@ -636,7 +616,7 @@ btr_pcur_move_to_prev(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
-	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+	ut_ad(cursor->latch_mode == BTR_SEARCH_LEAF);
 
 	cursor->old_rec = nullptr;
 

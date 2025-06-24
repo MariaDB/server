@@ -98,7 +98,7 @@ static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
 
 static MYSQL_SYSVAR_STR(principal_name, srv_principal_name,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
-                        "GSSAPI target name - service principal name for Kerberos authentication.",
+                        "GSSAPI target name - service principal name for Kerberos authentication",
                         NULL,
                         NULL,
                         "");
@@ -109,12 +109,7 @@ static const char* mech_names[] = {
   "",
   NULL
 };
-static TYPELIB mech_name_typelib = {
-  3,
-  "mech_name_typelib",
-  mech_names,
-  NULL
-};
+static TYPELIB mech_name_typelib = CREATE_TYPELIB_FOR(mech_names);
 static MYSQL_SYSVAR_ENUM(mech_name, srv_mech,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
                         "GSSAPI mechanism",
@@ -141,7 +136,7 @@ static struct st_mysql_auth server_handler= {
   gssapi_auth, NULL, NULL
 };
 
-maria_declare_plugin(gssapi_server)
+maria_declare_plugin(auth_gssapi)
 {
   MYSQL_AUTHENTICATION_PLUGIN,
   &server_handler,

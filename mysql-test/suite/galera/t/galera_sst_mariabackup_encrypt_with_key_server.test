@@ -1,5 +1,5 @@
 #
-# This test checks that if SST SSL is not explicitly donfigured mariabackup SST
+# This test checks if SST SSL is not explicitly configured mariabackup SST
 # uses server SSL configuration if present.
 # Initial SST happens via mariabackup, so there is not much to do in the body
 # of the test

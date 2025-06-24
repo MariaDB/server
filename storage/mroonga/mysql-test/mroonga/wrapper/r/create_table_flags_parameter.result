@@ -9,7 +9,7 @@ memos	CREATE TABLE `memos` (
   `content` varchar(64) NOT NULL,
   PRIMARY KEY (`content`),
   FULLTEXT KEY `content` (`content`) `FLAGS`='WITH_POSITION|WITH_WEIGHT'
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='ENGINE "InnoDB"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='ENGINE "InnoDB"'
 SELECT mroonga_command("dump --dump_plugins no --dump_schema no");
 mroonga_command("dump --dump_plugins no --dump_schema no")
 column_create memos#content index COLUMN_INDEX|WITH_WEIGHT|WITH_POSITION memos

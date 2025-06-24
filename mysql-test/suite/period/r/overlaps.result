@@ -10,8 +10,22 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`id`)
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+def	test	PRIMARY	def	test	t	p
+create or replace table t_multi(id int, id2 int, s date, e date,
+period for very_interesting_period(s,e),
+primary key(id, very_interesting_period without overlaps),
+unique(id2, very_interesting_period without overlaps)
+);
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+def	test	PRIMARY	def	test	t	p
+def	test	PRIMARY	def	test	t_multi	very_interesting_period
+def	test	id2	def	test	t_multi	very_interesting_period
+drop table t_multi;
 insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-05-01', '2003-07-01');
 insert into t values (1, '2003-02-01', '2003-04-01');
@@ -148,7 +162,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   UNIQUE KEY `u` (`u`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (1, 3, '2003-04-01', '2003-05-01');
@@ -167,7 +181,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   UNIQUE KEY `u` (`u`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t values (2, NULL, '2003-03-01', '2003-05-01');
 insert into t values (2, NULL, '2003-03-01', '2003-05-01');
 ERROR 23000: Duplicate entry '2-2003-05-01-2003-03-01' for key 'PRIMARY'
@@ -211,7 +225,7 @@ t	CREATE TABLE `t` (
   `y` int(11) DEFAULT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop y;
 create or replace table t1 like t;
 show create table t1;
@@ -222,7 +236,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps));
@@ -313,7 +327,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   UNIQUE KEY `f` (`f`,`p` WITHOUT OVERLAPS)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1000
 (PARTITION `p1` HISTORY ENGINE = InnoDB,
  PARTITION `p2` HISTORY ENGINE = InnoDB,

@@ -15,7 +15,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+/ in mysqld.1.err
+FOUND 1 /Cannot create /path/to/non-existent/ib_logfile101/ in mysqld.1.err
 # Successfully let InnoDB create tablespaces
 # restart: --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_file --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_file --innodb-undo-directory=MYSQLTEST_VARDIR/tmp/log_file --innodb-undo-logs=20 --innodb-undo-tablespaces=3 --innodb-data-file-path=ibdata1:16M;ibdata2:10M:autoextend
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
@@ -184,7 +184,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Expected to open innodb_undo_tablespaces=3 but was able to find only 1/ in mysqld.1.err
+FOUND 1 /InnoDB: Failed to open the undo tablespace/ in mysqld.1.err
 bak_ib_logfile0
 bak_ibdata1
 bak_ibdata2
@@ -214,7 +214,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Expected to open innodb_undo_tablespaces=3 but was able to find only 0/ in mysqld.1.err
+FOUND 2 /InnoDB: Failed to open the undo tablespace/ in mysqld.1.err
 bak_ib_logfile0
 bak_ibdata1
 bak_ibdata2
@@ -255,7 +255,6 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
 bak_ib_logfile0
 bak_ibdata1
 bak_ibdata2
@@ -263,7 +262,6 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-ib_logfile0
 ibdata1
 ibdata2
 undo001
@@ -289,8 +287,20 @@ WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
-NOT FOUND /Resizing redo log from 1\*\d+ to 3\*\d+ bytes; LSN=\d+/ in mysqld.1.err
-# restart
+# restart: --innodb-log-write-ahead-size=513
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb-log-write-ahead-size=4095
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb-log-write-ahead-size=10000
+SELECT @@innodb_log_write_ahead_size;
+@@innodb_log_write_ahead_size
+4096
 # Cleanup
 bak_ib_logfile0
 bak_ibdata1

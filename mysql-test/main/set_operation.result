@@ -221,7 +221,7 @@ NULL	UNIT RESULT	<unit8,9,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 16	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNIT RESULT	<unit1,15,16>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select `__14`.`1` AS `1` from (/* select#8 */ select `__7`.`1` AS `1` from (/* select#2 */ select 1 AS `1` except /* select#3 */ select 5 AS `5` union /* select#4 */ select 6 AS `6`) `__7` union /* select#9 */ select `__8`.`2` AS `2` from (/* select#5 */ select 2 AS `2` intersect /* select#6 */ select 3 AS `3` intersect /* select#7 */ select 4 AS `4`) `__8` except /* select#12 */ select `__11`.`7` AS `7` from (/* select#10 */ select 7 AS `7` intersect /* select#11 */ select 8 AS `8`) `__11`) `__14` union all /* select#15 */ select `__15`.`9` AS `9` from (/* select#13 */ select 9 AS `9` union all /* select#14 */ select 10 AS `10`) `__15` except all /* select#16 */ select 11 AS `11`
+Note	1003	/* select#1 */ select `__14`.`1` AS `1` from (/* select#8 */ select `__7`.`1` AS `1` from (/* select#2 */ select 1 AS `1` except /* select#3 */ select 5 AS `5` union all /* select#4 */ select 6 AS `6`) `__7` union /* select#9 */ select `__8`.`2` AS `2` from (/* select#5 */ select 2 AS `2` intersect /* select#6 */ select 3 AS `3` intersect /* select#7 */ select 4 AS `4`) `__8` except /* select#12 */ select `__11`.`7` AS `7` from (/* select#10 */ select 7 AS `7` intersect /* select#11 */ select 8 AS `8`) `__11`) `__14` union all /* select#15 */ select `__15`.`9` AS `9` from (/* select#13 */ select 9 AS `9` union all /* select#14 */ select 10 AS `10`) `__15` except all /* select#16 */ select 11 AS `11`
 (select 1 union all select 2)
 union
 (select 3 union all select 4);
@@ -242,7 +242,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select `__5`.`1` AS `1` from (/* select#2 */ select 1 AS `1` union /* select#3 */ select 2 AS `2`) `__5` union /* select#6 */ select `__6`.`3` AS `3` from (/* select#4 */ select 3 AS `3` union /* select#5 */ select 4 AS `4`) `__6`
+Note	1003	/* select#1 */ select `__5`.`1` AS `1` from (/* select#2 */ select 1 AS `1` union all /* select#3 */ select 2 AS `2`) `__5` union /* select#6 */ select `__6`.`3` AS `3` from (/* select#4 */ select 3 AS `3` union /* select#5 */ select 4 AS `4`) `__6`
 (select 1 intersect all select 2)
 except
 select 3;
@@ -258,7 +258,7 @@ NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 4	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	EXCEPT RESULT	<except1,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select `__4`.`1` AS `1` from (/* select#2 */ select 1 AS `1` intersect /* select#3 */ select 2 AS `2`) `__4` except /* select#4 */ select 3 AS `3`
+Note	1003	/* select#1 */ select `__4`.`1` AS `1` from (/* select#2 */ select 1 AS `1` intersect all /* select#3 */ select 2 AS `2`) `__4` except /* select#4 */ select 3 AS `3`
 (select 1 intersect all select 2 intersect all select 3)
 intersect
 (select 4 intersect all select 5);
@@ -278,7 +278,7 @@ NULL	INTERSECT RESULT	<intersect2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 NULL	INTERSECT RESULT	<intersect5,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 NULL	INTERSECT RESULT	<intersect1,7>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	/* select#1 */ select `__6`.`1` AS `1` from (/* select#2 */ select 1 AS `1` intersect /* select#3 */ select 2 AS `2` intersect /* select#4 */ select 3 AS `3`) `__6` intersect /* select#7 */ select `__7`.`4` AS `4` from (/* select#5 */ select 4 AS `4` intersect /* select#6 */ select 5 AS `5`) `__7`
+Note	1003	/* select#1 */ select `__6`.`1` AS `1` from (/* select#2 */ select 1 AS `1` intersect all /* select#3 */ select 2 AS `2` intersect all /* select#4 */ select 3 AS `3`) `__6` intersect /* select#7 */ select `__7`.`4` AS `4` from (/* select#5 */ select 4 AS `4` intersect /* select#6 */ select 5 AS `5`) `__7`
 # test set operations with table value constructor
 (values (1,1),(1,1),(1,1),(2,2),(2,2),(3,3),(9,9))
 INTERSECT ALL
@@ -571,192 +571,284 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 8,
             "operation": "UNION",
-            "table": {
-              "table_name": "<derived2>",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100,
-              "materialized": {
-                "query_block": {
-                  "union_result": {
-                    "table_name": "<intersect2,3,4>",
-                    "access_type": "ALL",
-                    "query_specifications": [
-                      {
-                        "query_block": {
-                          "select_id": 2,
-                          "table": {
-                            "table_name": "t2",
-                            "access_type": "ALL",
-                            "rows": 6,
-                            "filtered": 100
-                          }
-                        }
-                      },
-                      {
-                        "query_block": {
-                          "select_id": 3,
-                          "operation": "INTERSECT",
-                          "table": {
-                            "message": "No tables used"
-                          }
-                        }
-                      },
-                      {
-                        "query_block": {
-                          "select_id": 4,
-                          "operation": "INTERSECT",
-                          "table": {
-                            "table_name": "<derived5>",
-                            "access_type": "ALL",
-                            "rows": 10,
-                            "filtered": 100,
-                            "materialized": {
-                              "query_block": {
-                                "union_result": {
-                                  "query_specifications": [
-                                    {
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "<derived2>",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100,
+                  "materialized": {
+                    "query_block": {
+                      "union_result": {
+                        "table_name": "<intersect2,3,4>",
+                        "access_type": "ALL",
+                        "query_specifications": [
+                          {
+                            "query_block": {
+                              "select_id": 2,
+                              "cost": "REPLACED",
+                              "nested_loop": [
+                                {
+                                  "table": {
+                                    "table_name": "t2",
+                                    "access_type": "ALL",
+                                    "loops": 1,
+                                    "rows": 6,
+                                    "cost": "REPLACED",
+                                    "filtered": 100
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "query_block": {
+                              "select_id": 3,
+                              "operation": "INTERSECT",
+                              "table": {
+                                "message": "No tables used"
+                              }
+                            }
+                          },
+                          {
+                            "query_block": {
+                              "select_id": 4,
+                              "operation": "INTERSECT",
+                              "cost": "REPLACED",
+                              "nested_loop": [
+                                {
+                                  "table": {
+                                    "table_name": "<derived5>",
+                                    "access_type": "ALL",
+                                    "loops": 1,
+                                    "rows": 10,
+                                    "cost": "REPLACED",
+                                    "filtered": 100,
+                                    "materialized": {
                                       "query_block": {
-                                        "select_id": 5,
-                                        "table": {
-                                          "table_name": "t1",
-                                          "access_type": "ALL",
-                                          "rows": 5,
-                                          "filtered": 100
-                                        }
-                                      }
-                                    },
-                                    {
-                                      "query_block": {
-                                        "select_id": 6,
-                                        "operation": "UNION",
-                                        "table": {
-                                          "table_name": "t1",
-                                          "access_type": "ALL",
-                                          "rows": 5,
-                                          "filtered": 100
+                                        "union_result": {
+                                          "query_specifications": [
+                                            {
+                                              "query_block": {
+                                                "select_id": 5,
+                                                "cost": "REPLACED",
+                                                "nested_loop": [
+                                                  {
+                                                    "table": {
+                                                      "table_name": "t1",
+                                                      "access_type": "ALL",
+                                                      "loops": 1,
+                                                      "rows": 5,
+                                                      "cost": "REPLACED",
+                                                      "filtered": 100
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "query_block": {
+                                                "select_id": 6,
+                                                "operation": "UNION",
+                                                "cost": "REPLACED",
+                                                "nested_loop": [
+                                                  {
+                                                    "table": {
+                                                      "table_name": "t1",
+                                                      "access_type": "ALL",
+                                                      "loops": 1,
+                                                      "rows": 5,
+                                                      "cost": "REPLACED",
+                                                      "filtered": 100
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          ]
                                         }
                                       }
                                     }
-                                  ]
+                                  }
                                 }
-                              }
+                              ]
                             }
                           }
-                        }
+                        ]
                       }
-                    ]
+                    }
                   }
                 }
               }
-            }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 7,
             "operation": "EXCEPT",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 9,
             "operation": "UNION",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 6,
-              "filtered": 100
-            }
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 6,
+                  "cost": "REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 10,
             "operation": "UNION",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 11,
             "operation": "EXCEPT",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 6,
-                "filtered": 100
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "65",
-              "join_type": "BNL"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 5,
+                    "rows": 6,
+                    "cost": "REPLACED",
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "65",
+                  "join_type": "BNL"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 12,
             "operation": "UNION",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100,
-              "attached_condition": "t1.a < 4"
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 6,
-                "filtered": 100
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.a < 4"
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "65",
-              "join_type": "BNL"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 5,
+                    "rows": 6,
+                    "cost": "REPLACED",
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "65",
+                  "join_type": "BNL"
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 13,
             "operation": "UNION",
-            "table": {
-              "table_name": "t3",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100
-            }
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 5,
+                  "cost": "REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
           }
         }
       ]

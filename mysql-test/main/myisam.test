@@ -7,6 +7,8 @@
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
+--source include/test_db_charset_latin1.inc
+
 #
 # Test problem with CHECK TABLE;
 #
@@ -435,7 +437,6 @@ drop table t1;
 #
 # space-stripping in _mi_prefix_search: BUG#5284
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a varchar(150) NOT NULL, KEY (a)); 
 INSERT t1 VALUES ("can \tcan"); 
 INSERT t1 VALUES ("can   can"); 
@@ -540,7 +541,7 @@ DROP TABLE t1,t2;
 #
 # Test RTREE index
 #
---error 1235, 1289
+--error ER_WRONG_ARGUMENTS
 CREATE TABLE t1 (`a` int(11) NOT NULL default '0', `b` int(11) NOT NULL default '0', UNIQUE KEY `a` USING RTREE (`a`,`b`)) ENGINE=MyISAM;
 # INSERT INTO t1 VALUES (1,1),(1,1);
 # DELETE FROM rt WHERE a<1;
@@ -590,6 +591,9 @@ create table t1 ( a tinytext, b char(1), index idx (a(1),b) );
 insert into t1 values (null,''), (null,'');
 explain select count(*) from t1 where a is null;
 select count(*) from t1 where a is null;
+insert into t1 values (1,''), (2,'');
+explain select count(*) from t1 where a is null;
+set statement optimizer_scan_setup_cost= 0 for explain select count(*) from t1 where a is null;
 drop table t1;
 
 #
@@ -1123,7 +1127,7 @@ drop table t1;
 create table t1 (c1 int) engine=myisam pack_keys=0;
 create table t2 (c1 int) engine=myisam pack_keys=1;
 create table t3 (c1 int) engine=myisam pack_keys=default;
---error 1064
+--error ER_PARSE_ERROR
 create table t4 (c1 int) engine=myisam pack_keys=2;
 drop table t1, t2, t3;
 
@@ -1310,9 +1314,9 @@ create table t1 (a int not null, key `a` (a) key_block_size=1025);
 show create table t1;
 drop table t1;
 
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int not null, key key_block_size=1024 (a));
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int not null, key `a` key_block_size=1024 (a));
 
 #
@@ -1673,6 +1677,9 @@ DROP TABLE t1, t2, t3;
 --echo #
 --echo # BUG#51307 - widespread corruption with partitions and insert...select
 --echo #
+
+call mtr.add_suppression("Enabling keys got errno 12 on test.t1, retrying");
+
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 SET myisam_sort_buffer_size=4;
@@ -1825,3 +1832,122 @@ DROP TABLE t1;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-27303 Table corruption after insert into a non-InnoDB table with DESC index
+--echo #
+create table t1 (
+  a bigint default 0,
+  b bigint default 0,
+  c binary(128) not null,
+  d datetime default '0000-00-00 00:00:00',
+  key (c desc,b,d,a)
+) engine=aria;
+insert into t1 (c) values
+  ('xx'),('bb'),('tt'),('pp'),('mm'),('yy'),('rr'),('bb'),('yy'),('gg'),
+  ('dd'),('fx'),('wi'),('ix'),('ox'),('mu'),('ux'),('pm'),('mx'),('xu'),
+  ('ul'),('lp'),('px'),('lp'),('xx'),('pq'),('qs'),('se'),('ee'),('xx'),
+  ('rv'),('ff'),('vj'),('jy'),('yn'),('nc'),('nx'),('hj'),('ji'),('ik'),
+  ('kk'),('ww'),('xx'),('yd'),('dw'),('wk'),('kr'),('dd'),('rj'),('jf'),
+  ('bx'),('fc'),('cp'),('pm'),('mw'),('wy'),('yl'),('li'),('ic'),('he'),
+  ('ci'),('il'),('lz'),('zd'),('gz'),('xd'),('ze'),('dm'),('ms'),('xd'),
+  ('sw'),('we'),('nb'),('tx'),('vr'),('xw'),('aa'),('ah'),('hd'),('jl'),
+  ('lf'),('fw'),('wx'),('xh'),('hr'),('zx'),('vw'),('rm'),('mx'),('xt'),
+  ('tp'),('ps'),('sh'),('ga'),('df'),('as'),('gz'),('xd'),('yy'),('xr');
+check table t1 extended;
+drop table t1;
+
+--echo #
+--echo # MDEV-27309 Server crash or ASAN memcpy-param-overlap upon INSERT into Aria/MyISAM table with DESC key
+--echo #
+CREATE TABLE t1 (id INT, c BINARY(80), PRIMARY KEY(id));
+ALTER  TABLE t1 ADD KEY(c DESC, id);
+INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
+--echo #
+create table t (id int, c char(128) not null, key (c desc));
+insert into t values (1,''),(2,'foo'),(3,''),(4,'bar');
+select c from t order by c;
+drop table t;
+
+--echo #
+--echo # MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+--echo #
+create table t (c char(8), key(c desc)) character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+check table t extended;
+select distinct c from t;
+select c from t;
+drop table t;
+
+--echo #
+--echo # MDEV-27434 DESC attribute does not work with auto-increment on secondary column of multi-part index
+--echo #
+create table t (a int auto_increment, b int, unique(b,a desc)) engine=myisam;
+insert ignore into t (b) values (10),(10),(10);
+select * from t;
+drop table t;
+
+--echo #
+--echo # MDEV-27585 Auto-increment on secondary column increments unexpectedly with DESC key
+--echo #
+create table t (c char(16), i int auto_increment, index (c,i desc)) engine=myisam collate latin1_swedish_ci;
+insert into t (c) values ('ä'),('a');
+select hex(c),c,i from t order by c, i;
+drop table t;
+
+--echo #
+--echo # MDEV-27617 HANDLER KEY > (x) does not work with DESC keys, Spider is affected and returns wrong results
+--echo #
+create table t (a int, b char(1), primary key(a desc)) engine=myisam;
+insert into t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
+handler t open;
+--echo # MUST return 2,'g'. '>' always means READ_AFTER_KEY. desc or not.
+handler t read `primary` > (3);
+handler t close;
+drop table t;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #
+
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY(pk), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,5);
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='index_merge_sort_intersection=on';
+SELECT pk FROM t1 WHERE pk > 2 AND a IS NULL;
+SET @@optimizer_switch= @save_optimizer_switch;
+drop table t1;
+
+--echo #
+--echo # MDEV-30104 Server crashes in handler_rowid_filter_check upon ANALYZE TABLE
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2); # Optional, fails either way
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2); # Optional, fails either way
+
+CREATE TABLE t4 (pk INT, f CHAR(8), PRIMARY KEY(pk), KEY(f)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'o'),(2,'x');
+
+ANALYZE TABLE t1, t2, t3, t4 PERSISTENT FOR ALL; # Optional, fails either way
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON 1) ON 2 IN (SELECT pk FROM t4 WHERE f < 's');
+
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+
+DROP TABLE t1, t2, t3, t4;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

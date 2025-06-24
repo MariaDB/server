@@ -46,9 +46,9 @@ drop view mysql.user_bak;
 # pretend it's an upgrade from 10.0
 alter table mysql.user drop column default_role, drop column max_statement_time;
 
-# but mysql_upgrade_info tells otherwise
-remove_file $datadir/mysql_upgrade_info;
-write_file $datadir/mysql_upgrade_info;
+# but mariadb_upgrade_info tells otherwise
+remove_file $datadir/mariadb_upgrade_info;
+write_file $datadir/mariadb_upgrade_info;
 10.1.10-MariaDB
 EOF
 
@@ -64,7 +64,7 @@ source include/switch_to_mysql_user.inc;
 drop view mysql.user_bak;
 
 alter table mysql.user drop column default_role, drop column max_statement_time;
-remove_file $datadir/mysql_upgrade_info;
+remove_file $datadir/mariadb_upgrade_info;
 
 --echo # upgrade from 10.0 - engines are enabled
 --replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
@@ -74,8 +74,8 @@ select table_catalog, table_schema, table_name, table_type, engine, row_format, 
 
 drop table t1, t2;
 
-remove_file $datadir/mysql_upgrade_info;
-# This is needed as mysql_upgrade can load the plugins
+remove_file $datadir/mariadb_upgrade_info;
+# This is needed as mariadb_upgrade can load the plugins
 uninstall plugin blackhole;
 uninstall plugin archive;
 

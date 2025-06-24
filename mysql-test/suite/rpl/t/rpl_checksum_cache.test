@@ -44,7 +44,7 @@ connection master;
 # 1. the event size is much less than the cache's buffer
 #
 
-flush status;
+flush global status;
 show status like "binlog_cache_use";
 show status like "binlog_cache_disk_use";
 --disable_warnings
@@ -108,7 +108,7 @@ sync_slave_with_master;
 #
 connection master;
 
-flush status;
+flush global status;
 let $t2_data_size= `select 3 * @@global.binlog_cache_size`;
 let $t2_aver_size= `select 2 * @@global.binlog_cache_size`;
 let $t2_max_rand=  `select 1 * @@global.binlog_cache_size`;
@@ -152,7 +152,7 @@ sync_slave_with_master;
 
 connection master;
 
-flush status;
+flush global status;
 let $t3_data_size= `select 2 * @@global.binlog_cache_size`;
 let $t3_aver_size= `select (9 * @@global.binlog_cache_size) / 10`;
 let $t3_max_rand=  `select (2 * @@global.binlog_cache_size) / 10`;
@@ -196,7 +196,7 @@ sync_slave_with_master;
 #
 
 connection master;
-flush status;
+flush global status;
 
 delimiter |;
 eval create procedure test.p1 (n int) 
@@ -247,6 +247,102 @@ let $diff_tables=master:test.t3, slave:test.t3;
 source include/diff_tables.inc;
 
 
+--echo *** Test switching checksum algorithm while ongoing transactions have pre-computed checksum in their binlog cache ***
+
+--connection master
+CREATE TABLE t4 (a INT, b INT, c VARCHAR(1024), PRIMARY KEY (a,b)) ENGINE=InnoDB;
+
+# Create a couple transactions that will precompute checksums but commit
+# without them.
+
+BEGIN;
+INSERT INTO t4 VALUES (1, 1, "small, pre-computed checksums");
+
+--connection server_1
+BEGIN;
+INSERT INTO t4 VALUES (2, 1, "big, pre-computed checksums");
+--let $i= 20
+--disable_query_log
+while ($i) {
+  eval INSERT INTO t4 VALUES (2, 22-$i, REPEAT("x", FLOOR(RAND()*100) + 831));
+  dec $i;
+}
+--enable_query_log
+
+# Disable checksums dynamically, so MYSQL_BIN_LOG::write_cache() will have
+# to drop the pre-computed checksums.
+set @@global.binlog_checksum = NONE;
+
+--connection master
+INSERT INTO t4 VALUES (1, 2, "done");
+COMMIT;
+--connection server_1
+INSERT INTO t4 VALUES (2, 22, "done");
+COMMIT;
+
+# Create a couple transactions that will not precompute checksums but commit
+# with them.
+
+--connection master
+BEGIN;
+INSERT INTO t4 VALUES (3, 1, "small, no pre-computed checksums");
+
+--connection server_1
+BEGIN;
+INSERT INTO t4 VALUES (4, 1, "big, no pre-computed checksums");
+--let $i= 20
+--disable_query_log
+while ($i) {
+  eval INSERT INTO t4 VALUES (4, 22-$i, REPEAT("x", FLOOR(RAND()*100) + 853));
+  dec $i;
+}
+--enable_query_log
+
+# Enable checksums dynamically, so MYSQL_BIN_LOG::write_cache() will have
+# to recompute the checksums.
+set @@global.binlog_checksum = CRC32;
+
+--connection master
+INSERT INTO t4 VALUES (3, 2, "done");
+COMMIT;
+--connection server_1
+INSERT INTO t4 VALUES (4, 22, "done");
+COMMIT;
+
+sync_slave_with_master;
+
+
+--echo *** Test the --binlog-legacy-event-pos option.
+--connection master
+FLUSH BINARY LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+
+--let $query_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $query_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO t4 VALUES (5, 1, "Zero end_log_pos");
+COMMIT;
+--let $end_log_pos= query_get_value(SHOW BINLOG EVENTS IN "$query_file" FROM $query_pos LIMIT 3, End_log_pos, 2)
+if ($end_log_pos!=0) {
+  eval SHOW BINLOG EVENTS IN "$query_file";
+  --die Wrong End_log_pos=$end_log_pos, expected zero.
+}
+
+set @@global.binlog_legacy_event_pos= 1;
+--let $query_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO t4 VALUES (6, 1, "Non-zero end_log_pos");
+COMMIT;
+--let $end_log_pos= query_get_value(SHOW BINLOG EVENTS IN "$query_file" FROM $query_pos LIMIT 3, End_log_pos, 2)
+if ($end_log_pos==0) {
+  eval SHOW BINLOG EVENTS IN "$query_file";
+  --die Wrong End_log_pos=$end_log_pos, expected non-zero.
+}
+set @@global.binlog_legacy_event_pos= 0;
+
+sync_slave_with_master;
+
+
 connection master;
 
 begin;
@@ -255,7 +351,7 @@ delete from t2;
 delete from t3;
 commit;
 
-drop table t1, t2, t3;
+drop table t1, t2, t3, t4;
 set @@global.binlog_cache_size = @save_binlog_cache_size;
 set @@global.binlog_checksum = @save_binlog_checksum;
 set @@global.master_verify_checksum = @save_master_verify_checksum;

@@ -5,7 +5,7 @@ fl1 tinyint default 0,
 fl2 tinyint default 0,
 index idx1(nm, fl1),
 index idx2(fl2)
-) engine=myisam;
+) engine=myisam charset=latin1;
 create table name (
 pk int primary key auto_increment,
 nm bigint
@@ -28,6 +28,9 @@ set statement optimizer_adjust_secondary_key_costs=0 for
 explain select * from t1  where nm like '500%' AND fl2 = 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
+Warnings:
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 set @trace=(select trace from information_schema.optimizer_trace);
 select json_detailed(json_extract(@trace, '$**.considered_access_paths'));
 json_detailed(json_extract(@trace, '$**.considered_access_paths'))
@@ -37,15 +40,51 @@ json_detailed(json_extract(@trace, '$**.considered_access_paths'))
             "access_type": "ref",
             "index": "idx2",
             "used_range_estimates": true,
-            "rowid_filter_skipped": "worst/max seeks clipping",
-            "rows": 492,
-            "cost": 492.3171406,
+            "filter": 
+            {
+                "rowid_filter_index": "idx1",
+                "index_only_cost": 0.045598762,
+                "filter_startup_cost": 0.000899465,
+                "find_key_and_filter_lookup_cost": 0.03086808,
+                "filter_selectivity": 0.001,
+                "original_rows": 492,
+                "new_rows": 0.492,
+                "original_access_cost": 0.59235049,
+                "with_filter_access_cost": 0.077013594,
+                "original_found_rows_cost": 0.546751728,
+                "with_filter_found_rows_cost": 5.467517e-4,
+                "org_cost": 0.60809449,
+                "filter_cost": 0.077928803,
+                "filter_used": true
+            },
+            "rows": 0.492,
+            "cost": 0.077928803,
             "chosen": true
         },
         {
+            "filter": 
+            {
+                "rowid_filter_index": "idx2",
+                "index_only_cost": 0.000881127,
+                "filter_startup_cost": 0.066293508,
+                "find_key_and_filter_lookup_cost": 8.646449e-5,
+                "filter_selectivity": 0.492,
+                "original_rows": 1,
+                "new_rows": 0.492,
+                "original_access_cost": 0.001992411,
+                "with_filter_access_cost": 0.001514343,
+                "original_found_rows_cost": 0.001111284,
+                "with_filter_found_rows_cost": 5.467517e-4,
+                "org_cost": 0.002024411,
+                "filter_cost": 0.067823595,
+                "filter_used": false
+            },
             "access_type": "range",
-            "resulting_rows": 0.492,
-            "cost": 1.448699097,
+            "range_index": "idx1",
+            "rows": 1,
+            "rows_after_filter": 1,
+            "rows_out": 0.492,
+            "cost": 0.002574553,
             "chosen": true
         }
     ]
@@ -57,6 +96,9 @@ set statement optimizer_adjust_secondary_key_costs=2 for
 explain select * from t1  where nm like '500%' AND fl2 = 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
+Warnings:
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 set @trace=(select trace from information_schema.optimizer_trace);
 select json_detailed(json_extract(@trace, '$**.considered_access_paths'));
 json_detailed(json_extract(@trace, '$**.considered_access_paths'))
@@ -66,15 +108,51 @@ json_detailed(json_extract(@trace, '$**.considered_access_paths'))
             "access_type": "ref",
             "index": "idx2",
             "used_range_estimates": true,
-            "rowid_filter_key": "idx1",
-            "rows": 492,
-            "cost": 3.814364688,
+            "filter": 
+            {
+                "rowid_filter_index": "idx1",
+                "index_only_cost": 0.045598762,
+                "filter_startup_cost": 0.000899465,
+                "find_key_and_filter_lookup_cost": 0.03086808,
+                "filter_selectivity": 0.001,
+                "original_rows": 492,
+                "new_rows": 0.492,
+                "original_access_cost": 0.59235049,
+                "with_filter_access_cost": 0.077013594,
+                "original_found_rows_cost": 0.546751728,
+                "with_filter_found_rows_cost": 5.467517e-4,
+                "org_cost": 0.60809449,
+                "filter_cost": 0.077928803,
+                "filter_used": true
+            },
+            "rows": 0.492,
+            "cost": 0.077928803,
             "chosen": true
         },
         {
+            "filter": 
+            {
+                "rowid_filter_index": "idx2",
+                "index_only_cost": 0.000881127,
+                "filter_startup_cost": 0.066293508,
+                "find_key_and_filter_lookup_cost": 8.646449e-5,
+                "filter_selectivity": 0.492,
+                "original_rows": 1,
+                "new_rows": 0.492,
+                "original_access_cost": 0.001992411,
+                "with_filter_access_cost": 0.001514343,
+                "original_found_rows_cost": 0.001111284,
+                "with_filter_found_rows_cost": 5.467517e-4,
+                "org_cost": 0.002024411,
+                "filter_cost": 0.067823595,
+                "filter_used": false
+            },
             "access_type": "range",
-            "resulting_rows": 0.492,
-            "cost": 1.448699097,
+            "range_index": "idx1",
+            "rows": 1,
+            "rows_after_filter": 1,
+            "rows_out": 0.492,
+            "cost": 0.002574553,
             "chosen": true
         }
     ]
@@ -82,39 +160,17 @@ json_detailed(json_extract(@trace, '$**.considered_access_paths'))
 drop table t1, name, flag2;
 select @@optimizer_adjust_secondary_key_costs;
 @@optimizer_adjust_secondary_key_costs
-fix_reuse_range_for_ref,fix_card_multiplier
+0
 set @@optimizer_adjust_secondary_key_costs=7;
+Warnings:
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	1292	Truncated incorrect optimizer_adjust_secondary_ke... value: '7'
 select @@optimizer_adjust_secondary_key_costs;
 @@optimizer_adjust_secondary_key_costs
-adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by
+2
 set @@optimizer_adjust_secondary_key_costs=default;
-#
-# MDEV-33306 Optimizer choosing incorrect index in 10.6, 10.5 but not in 10.4
-#
-create table t1 (a int primary key, b int, c int, d int, key(b),key(c)) engine=innodb;
-insert into t1 select seq, mod(seq,10), mod(seq,2), seq from seq_1_to_50000;
-explain select b, sum(d) from t1 where c=0 group by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	c	b	5	NULL	#	Using where
-select b, sum(d) from t1 where c=0 group by b;
-b	sum(d)
-0	125025000
-2	124985000
-4	124995000
-6	125005000
-8	125015000
-set @@optimizer_adjust_secondary_key_costs="disable_forced_index_in_group_by";
-explain select b, sum(d) from t1 where c=0 group by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	c	NULL	NULL	NULL	#	Using where; Using temporary; Using filesort
-select b, sum(d) from t1 where c=0 group by b;
-b	sum(d)
-0	125025000
-2	124985000
-4	124995000
-6	125005000
-8	125015000
-drop table t1;
+Warnings:
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 #
 # MDEV-34664: fix_innodb_cardinality
 #
@@ -136,18 +192,21 @@ count(distinct b)	count(distinct b,c)	count(distinct b,c,d)
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
-t1	1	b	1	b	A	22	NULL	NULL	YES	BTREE			NO
-t1	1	b	2	c	A	50	NULL	NULL	YES	BTREE			NO
-t1	1	b	3	d	A	250	NULL	NULL	YES	BTREE			NO
+t1	1	b	1	b	A	11	NULL	NULL	YES	BTREE			NO
+t1	1	b	2	c	A	25	NULL	NULL	YES	BTREE			NO
+t1	1	b	3	d	A	125	NULL	NULL	YES	BTREE			NO
 explain select * from t1,t2 where t1.b=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t1	ref	b	b	5	test.t2.a	45	Using index
+1	SIMPLE	t1	ref	b	b	5	test.t2.a	90	Using index
 set @@optimizer_adjust_secondary_key_costs=8;
+Warnings:
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	1292	Truncated incorrect optimizer_adjust_secondary_ke... value: '8'
 explain select * from t1,t2 where t1.b=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t1	ref	b	b	5	test.t2.a	45	Using index
+1	SIMPLE	t1	ref	b	b	5	test.t2.a	90	Using index
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
@@ -169,12 +228,14 @@ connect  user2, localhost, root,,;
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	a	A	1000	NULL	NULL		BTREE			NO
-t1	1	b	1	b	A	22	NULL	NULL	YES	BTREE			NO
-t1	1	b	2	c	A	50	NULL	NULL	YES	BTREE			NO
-t1	1	b	3	d	A	250	NULL	NULL	YES	BTREE			NO
+t1	1	b	1	b	A	11	NULL	NULL	YES	BTREE			NO
+t1	1	b	2	c	A	25	NULL	NULL	YES	BTREE			NO
+t1	1	b	3	d	A	125	NULL	NULL	YES	BTREE			NO
 connection default;
 disconnect user2;
 drop table t1,t2;
 set global userstat=@save_userstat;
 set global innodb_stats_persistent_sample_pages=@save_ispsp;
 set @@optimizer_adjust_secondary_key_costs=default;
+Warnings:
+Warning	4200	The variable '@@optimizer_adjust_secondary_key_costs' is ignored. It only exists for compatibility with old installations and will be removed in a future release

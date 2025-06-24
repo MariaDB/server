@@ -33,7 +33,7 @@ INSERT INTO t2 VALUES(1, 't2, text 1');
 
 ******************** DELETE ********************
 DELETE FROM t1 WHERE a = 1;
-DELETE FROM t2 WHERE b <> UUID();
+DELETE FROM t2 WHERE b <> SYS_GUID();
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
@@ -64,7 +64,7 @@ DELETE FROM t2;
 
 ******************** INSERT ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
-INSERT INTO t1 VALUES(2, UUID());
+INSERT INTO t1 VALUES(2, SYS_GUID());
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 VALUES (1, 't1, text 1') ON DUPLICATE KEY UPDATE b = 't2, text 1';
 DELETE FROM t1 WHERE a = 2;
@@ -143,7 +143,7 @@ INSERT INTO t1 VALUES(1, 't1, text 1');
 INSERT INTO t1 VALUES(2, 't1, text 2');
 INSERT INTO t1 VALUES(3, 't1, text 3');
 REPLACE INTO t1 VALUES(1, 't1, text 11');
-REPLACE INTO t1 VALUES(2, UUID());
+REPLACE INTO t1 VALUES(2, SYS_GUID());
 REPLACE INTO t1 SET a=3, b='t1, text 33';
 DELETE FROM t1 WHERE a = 2;
 SELECT COUNT(*) FROM t1;
@@ -178,7 +178,7 @@ DELETE FROM t2;
 
 ******************** SELECT ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
-SELECT * FROM t1 WHERE b <> UUID() ORDER BY a;
+SELECT * FROM t1 WHERE b <> SYS_GUID() ORDER BY a;
 a	b
 1	t1, text 1
 DELETE FROM t1;
@@ -203,7 +203,7 @@ DELETE FROM t2;
 ******************** UNION ********************
 INSERT INTO t1 VALUES(1, 't1, text 1');
 INSERT INTO t2 VALUES(1, 't2, text 1');
-SELECT * FROM t1 UNION SELECT * FROM t2 WHERE t2.b <> UUID();
+SELECT * FROM t1 UNION SELECT * FROM t2 WHERE t2.b <> SYS_GUID();
 a	b
 1	t1, text 1
 1	t2, text 1
@@ -430,7 +430,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES (5, 'before savepoint s2');
 SAVEPOINT s2;
 INSERT INTO t1 VALUES (6, 'after savepoint s2');
-INSERT INTO t1 VALUES (7, CONCAT('with UUID() ',UUID()));
+INSERT INTO t1 VALUES (7, CONCAT('with SYS_GUID() ',SYS_GUID()));
 RELEASE SAVEPOINT s2;
 COMMIT;
 DELETE FROM t1 WHERE a = 7;
@@ -563,7 +563,7 @@ test_rpl.t1	check	status	OK
 ******************** CHECKSUM TABLE ********************
 CHECKSUM TABLE t1;
 Table	Checksum
-test_rpl.t1	1837058639
+test_rpl.t1	3445341981
 
 ******************** OPTIMIZE TABLE ********************
 OPTIMIZE TABLE t1;
@@ -574,7 +574,7 @@ test_rpl.t1	optimize	status	OK
 ******************** REPAIR TABLE ********************
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test_rpl.t1	repair	note	The storage engine for the table doesn't support repair
+test_rpl.t1	repair	status	OK
 
 ******************** SET VARIABLE ********************
 SET @test_rpl_var = 1;
@@ -598,7 +598,7 @@ UPDATE t1 SET b = 'test' WHERE a = 201;
 END|
 CREATE PROCEDURE p2 ()
 BEGIN
-UPDATE t1 SET b = UUID() WHERE a = 202;
+UPDATE t1 SET b = SYS_GUID() WHERE a = 202;
 END|
 INSERT  INTO t1 VALUES(201, 'test 201');
 CALL p1();
@@ -683,12 +683,12 @@ Warnings:
 Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection slave;
 USE test_rpl;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -743,12 +743,12 @@ connection master;
 ALTER EVENT e1 RENAME TO e2;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection slave;
 USE test_rpl;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+test_rpl	e2	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	SLAVESIDE_DISABLED	1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -790,7 +790,7 @@ DELETE FROM t2;
 INSERT INTO t1 VALUES(1, 'test1');
 INSERT INTO t1 VALUES(2, 'test2');
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = 1;
-CREATE VIEW v2 AS SELECT * FROM t1 WHERE b <> UUID();
+CREATE VIEW v2 AS SELECT * FROM t1 WHERE b <> SYS_GUID();
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`a` = 1	latin1	latin1_swedish_ci
@@ -850,7 +850,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2 WHERE b <> UUID()
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2 WHERE b <> SYS_GUID()
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
 master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -864,7 +864,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, UUID())
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, SYS_GUID())
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -912,7 +912,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; REPLACE INTO t1 VALUES(1, 't1, text 11')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t1 VALUES(2, UUID())
+master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t1 VALUES(2, SYS_GUID())
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -1007,7 +1007,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (5, 'before savepoint s2')
 master-bin.000001	#	Query	#	#	SAVEPOINT `s2`
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (6, 'after savepoint s2')
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (7, CONCAT('with UUID() ',UUID()))
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (7, CONCAT('with SYS_GUID() ',SYS_GUID()))
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -1049,7 +1049,7 @@ END
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`()
 BEGIN
-UPDATE t1 SET b = UUID() WHERE a = 202;
+UPDATE t1 SET b = SYS_GUID() WHERE a = 202;
 END
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT  INTO t1 VALUES(201, 'test 201')
@@ -1061,7 +1061,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT  INTO t1 VALUES(202, 'test 202')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	UPDATE t1 SET b = UUID() WHERE a = 202
+master-bin.000001	#	Annotate_rows	#	#	UPDATE t1 SET b = SYS_GUID() WHERE a = 202
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -1124,7 +1124,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT * FROM t1 WHERE a = 1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS SELECT * FROM t1 WHERE b <> UUID()
+master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS SELECT * FROM t1 WHERE b <> SYS_GUID()
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; ALTER ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT * FROM t1 WHERE a = 2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#

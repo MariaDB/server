@@ -410,7 +410,7 @@ void ftparser_call_deinitializer(MI_INFO *info)
     {
       MYSQL_FTPARSER_PARAM *ftparser_param=
         &info->ftparser_param[keyinfo->ftkey_nr * MAX_PARAM_NR + j];
-      if (keyinfo->flag & HA_FULLTEXT && ftparser_param->mysql_add_word)
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT && ftparser_param->mysql_add_word)
       {
         if (keyinfo->parser->deinit)
           keyinfo->parser->deinit(ftparser_param);

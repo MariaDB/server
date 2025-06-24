@@ -368,3 +368,101 @@ a
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 # End of 10.6 tests
+#
+# MDEV-34447: Memory leakage is detected on running the test main.ps against the server 11.1
+#
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+PREPARE stmt FROM 'UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+EXECUTE stmt;
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+EXECUTE stmt;
+SELECT * FROM t1;
+id	value
+1	1
+2	1
+3	NULL
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+# Memory leak also could take place on running the DELETE statement
+# with the LIMIT clause. Check it.
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+CREATE PROCEDURE p1(p1 INT)
+DELETE FROM t1 LIMIT p1;
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+# Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# End of 10.11 tests
+#
+# MDEV-34649: Memory leaks on running DELETE statement in PS mode with positional parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(30)) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES (1, 'one'), (0, NULL), (3, 'three'), (4, 'four');
+PREPARE stmt FROM 'DELETE FROM t1 WHERE b=?' ;
+SET @arg00=NULL;
+EXECUTE stmt USING @arg00;
+SET @arg00='one';
+EXECUTE stmt USING @arg00;
+# Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+# End of 11.1
+#
+# MDEV-34517: Memory leak on re-compilation of a failing statement inside a stored routine
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+SELECT * FROM t1;
+SET @save_dbug = @@debug_dbug;
+CALL p1();
+a
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
+# Recompilation of the statement 'SELECT * FORM t1' on
+# the second run of the procedure p1 shouldn't result in memory leaks
+CALL p1();
+a
+SET @@debug_dbug='-d,sp_instr_reparsing_1st_time';
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+# Recompilation is requested the second time
+SET @@debug_dbug='+d,sp_instr_reparsing_2nd_time';
+CALL p1();
+a
+SET @@debug_dbug='-d,sp_instr_reparsing_2nd_time';
+# Clean up
+SET @@debug_dbug=@save_dbug;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# End of 11.2 tests
+# MDEV-36079: Stored routine with a cursor crashes on
+# the second execution if a DDL statement happened
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT a FROM t1;
+OPEN cur;
+FETCH cur INTO va;
+SELECT va;
+CLOSE cur;
+END;
+$
+CALL p1;
+va
+1
+ALTER TABLE t1 MODIFY a INT UNSIGNED;
+CALL p1;
+va
+1
+# Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 11.8 tests

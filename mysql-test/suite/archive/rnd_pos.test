@@ -5,7 +5,7 @@ source include/have_archive.inc;
 source include/have_sequence.inc;
 source include/have_partition.inc;
 
-create table t1(c1 int not null, c2 double not null, c3 char(255) not null) engine=archive;
+create table t1(c1 int not null, c2 double not null, c3 char(255) not null) engine=archive charset=latin1;
 insert t1 select seq, seq+0.7, concat('row with c1 = ', seq) from seq_1_to_10;
 explain partitions select c1,c3 from t1 order by c2;
 set max_length_for_sort_data = 4;

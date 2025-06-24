@@ -1,4 +1,6 @@
 SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 DROP TABLE t1;

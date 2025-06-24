@@ -14,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.12)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.12.0)
 
 IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   # Setting build type to RelWithDebInfo as none was specified.
@@ -31,13 +31,13 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135)
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135 CMP0091)
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
 ENDFOREACH()
 
-PROJECT(MySQL)
+PROJECT(MariaDB)
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -78,16 +78,11 @@ ENDIF()
 # This is used by TokuDB only
 SET(MYSQL_PROJECT_NAME_DOCSTRING "MySQL project name")
 
-IF(CMAKE_VERSION VERSION_LESS "3.1")
-  IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
-  ENDIF()
-ELSE()
-  SET(CMAKE_C_STANDARD 99)
-  SET(CMAKE_CXX_STANDARD 11)
-ENDIF()
+# C and C++ standards (e.g. -std=c++17)
+SET(CMAKE_C_STANDARD 99)
+SET(CMAKE_CXX_STANDARD 17)
 
+# Lower case package names from PROJECT are used if not explictly upper case.
 SET(CPACK_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MariaDB: a very fast and robust SQL database server")
 SET(CPACK_PACKAGE_URL "http://mariadb.org")
@@ -123,6 +118,10 @@ ENDFOREACH()
 ENDIF()
 
 FIND_PACKAGE(Git)
+
+IF(WIN32 AND (CMAKE_VERSION VERSION_GREATER "3.21"))
+ OPTION(INSTALL_RUNTIME_DEPENDENCIES "Install runtime dependencies" ON)
+ENDIF()
 
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
@@ -160,6 +159,7 @@ INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
 INCLUDE(pcre)
+INCLUDE(libfmt)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -291,7 +291,7 @@ ENDIF()
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 
-IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
   # Enable extra checks when using a recent enough version of GNU libstdc++
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS")
 ENDIF()
@@ -365,6 +365,7 @@ IF(WIN32)
 ELSE()
   SET(DEFAULT_MYSQL_HOME ${CMAKE_INSTALL_PREFIX})
   SET(SHAREDIR ${INSTALL_MYSQLSHAREDIRABS})
+  SET(HOSTNAME "uname -n" CACHE STRING "Command for determining hostname")
 ENDIF()
 
 SET(DEFAULT_BASEDIR "${DEFAULT_MYSQL_HOME}")
@@ -409,7 +410,8 @@ ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 IF(_FILE_OFFSET_BITS)
   ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=${_FILE_OFFSET_BITS})
 ENDIF()
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include
+                    ${CMAKE_SOURCE_DIR}/include/providers)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
@@ -421,6 +423,7 @@ MYSQL_CHECK_READLINE()
 SET(MALLOC_LIBRARY "system")
 
 CHECK_PCRE()
+CHECK_LIBFMT()
 ADD_SUBDIRECTORY(tpool)
 CHECK_SYSTEMD()
 
@@ -513,7 +516,7 @@ ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(extra/aws_sdk)
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
-  SET(EXPORTED comp_err comp_sql factorial)
+  SET(EXPORTED comp_err comp_sql factorial uca-dump)
   IF(NOT WITHOUT_SERVER)
     SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)
   ENDIF()
@@ -579,6 +582,14 @@ ENDIF()
 
 INCLUDE(build_depends)
 
+OPTION(WITH_SBOM "Generate Software Bill of Materials (SBOM)" "${SBOM_DEFAULT}")
+MARK_AS_ADVANCED(WITH_SBOM)
+IF(WITH_SBOM)
+  INCLUDE(generate_sbom)
+  GENERATE_SBOM()
+ENDIF()
+
+INSTALL_RUNTIME_DEPS()
 INCLUDE(CPack)
 
 IF(WIN32 AND SIGNCODE)
@@ -630,7 +641,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill mariadb-upgrade-service)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

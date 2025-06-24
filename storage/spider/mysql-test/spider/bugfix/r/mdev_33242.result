@@ -1,4 +1,6 @@
 set @old_old_mode=@@global.old_mode;
 set global old_mode=4;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 INSTALL SONAME 'ha_spider.so';
 set global old_mode=@old_old_mode;

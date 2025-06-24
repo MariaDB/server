@@ -1,0 +1,348 @@
+create table t1 (id int auto_increment primary key, v vector(8) not null, vector index (v)) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(8) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert t1 (v) values
+(x'106d263fdf68ba3eb08d533f97d46e3fd1e1ec3edc4c123f984c563f621a233f'),
+(x'd55bee3c56eb9e3e84e3093f838dce3eb7cd653fe32d7d3f12de133c5715d23e'),
+(x'fcd5553f3822443f5dae413f2593493f7777363f5f7f113ebf12373d4d145a3f'),
+(x'7493093fd9a27d3e9b13783f8c66653f0bd7d23e50db983d251b013f1dba133f'),
+(x'2e30373fae331a3eba94153ee32bce3e3311b33d5bc75d3f6c25653eb769113f'),
+(x'381d5f3f2781de3e4f011f3f9353483f9bb37e3edd622d3eabecb63ec246953e'),
+(x'4ee5dc3e214b103f0e7e583f5f36473e79d7823ea872ec3e3ab2913d1b84433f'),
+(x'8826243f7d20f03e5135593f83ba653e44572d3fa87e8e3e943e0e3f649a293f'),
+(x'3859ac3e7d21823ed3f5753fc79c143e61d39c3cee39ba3eb0b0133e815c173f'),
+(x'cff0d93c32941e3f64b22a3f1e4f083f4ea2563fbff4a63e12a4703f6c824b3f');
+start transaction;
+insert t1 values
+(30, x'f8e2413ed4ff773fef8b893eba487b3febee3f3f9e6f693f5961fd3ee479303d');
+delete from t1 where id=1;
+update t1 set v=x'a17e353e91676a3f8005c53e319b2d3f1410133fc018153e8dca3e3f3144ac3e' where id=2;
+savepoint foo;
+insert t1 values
+(31, x'6129683f90fe1f3e1437bc3ed8c8f63dd141033f21e3a93e54346c3f8c4e043f'),
+(32, x'1ec8b83d398c4d3f2efb463f23947a3fa1a5093fdde6303e5580413f51569b3e');
+delete from t1 where id=5;
+rollback to savepoint foo;
+insert t1 values
+(33, x'86d1003d4262033f8086713ffc4a633e317e933c4dce013d9c4d573fca83b93e');
+commit;
+start transaction;
+insert t1 values
+(40, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f'),
+(41, x'71046a3e85329b3e05240e3f45c9283f1847363f98d47d3f4224b73d487b613f');
+delete from t1 where id=7;
+rollback;
+select id,vec_distance_euclidean(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
+id	d
+2	0.87814
+10	0.88562
+30	1.01626
+7	1.02639
+5	1.03081
+select id,vec_distance_euclidean(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
+id	d
+2	0.94269
+33	0.94775
+30	1.11140
+10	1.11863
+8	1.14057
+create table t2 (id int auto_increment primary key, v vector(6) not null, vector index (v)) engine=innodb;
+insert t2 (v) values
+(x'45cf153f830a313f7a0a113fb1ff533f47a1533fcf9e6e3f'),
+(x'4b311d3fdd82423f35ba7d3fa041223dfd7db03e72d5833e'),
+(x'f0d4123f6fc1833ea30a483fd9649d3cb94d733f4574a63d'),
+(x'7ff8a53bf68e4a3e66e3563f214dea3e63372f3ec24d513f'),
+(x'4709683f0d44473f8a045f3f40f3693df7f1303fdb98b73e'),
+(x'09de2b3f5db80d3fb4405f3f64aadc3ecfa6183f823c733f'),
+(x'a93a143f7f71e33d0cde5c3ff106373fd6f6233fc1f4fc3e'),
+(x'11236e3de44a0d3f8241023d44d8383f2f70733f44d65c3f'),
+(x'b5e47c3f35d3413fad8a533d5945133f66dbf33d92c6103f');
+start transaction;
+insert t1 values
+(50, x'acae183f56ddc43e5093983d280df53e6fa2093f79c01a3eb1591f3f423a0e3d'),
+(51, x'6285303f42ef6e3f355e313f3e96a53e70959b3edd720b3ec07f733e5bc8603f');
+insert t2 values
+(20, x'58dc7d3fc9feaa3e19e26b3f31820c3f93070b3fc4e36e3f'),
+(21, x'35e05d3f18e8513fb81a3d3f8acf7d3e794a1d3c72f9613f');
+commit;
+select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1 order by d limit 5;
+id	d
+6	0.93093
+5	0.97063
+30	0.98144
+50	1.07986
+2	1.09071
+select id,vec_distance_euclidean(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
+id	d
+21	0.43559
+20	0.64350
+6	0.69420
+2	0.79716
+9	0.82985
+connect con2, localhost, root;
+select get_lock('a:5', 10);
+get_lock('a:5', 10)
+1
+connection default;
+select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1
+where get_lock(concat('a:', id), 10)+id < 11 order by d limit 3;
+connection con2;
+delete from t1 where id=2;
+select release_all_locks();
+release_all_locks()
+1
+disconnect con2;
+connection default;
+id	d
+6	0.93093
+5	0.97063
+2	1.09071
+drop table t1, t2;
+#
+# MDEV-34989 After selecting from empty table with vector key the next insert hangs
+#
+create table t (v vector(5) not null, vector key(v)) engine=InnoDB;
+select vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') as e from t order by e limit 1;
+e
+insert into t values (x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
+drop table t;
+#
+# MDEV-35039 Number of indexes inside InnoDB differs from that defined in MariaDB after altering table with vector key
+#
+create table t (v vector(1) not null, vector index (v)) row_format=compressed engine=innodb;
+alter table t add f int;
+insert into t values (x'00000000',1);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` vector(1) NOT NULL,
+  `f` int(11) DEFAULT NULL,
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED
+drop table t;
+#
+# MDEV-35055 ASAN errors in TABLE_SHARE::lock_share upon committing transaction after FLUSH on table with vector key
+#
+create table t (pk int primary key, v vector(3) not null, vector index(v)) engine=innodb;
+start transaction;
+insert into t values (1,vec_fromtext('[1,2,3]'));
+connect con1,localhost,root;
+flush tables;
+disconnect con1;
+connection default;
+commit;
+drop table t;
+#
+# MDEV-35060 Assertion failure upon DML on table with vector under lock
+#
+create table t (a int, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,x'00000000'),(2,x'00000000');
+lock table t write;
+delete from t;
+drop table t;
+#
+# MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+#
+connect con1,localhost,root;
+create table t (a int, v vector(1) not null, vector(v)) engine=innodb;
+xa start 'x';
+insert into t values (1,x'00000000');
+xa end 'x';
+xa prepare 'x';
+ERROR HY000: Got error 138 "Unsupported extension used for table" from storage engine mhnsw
+disconnect con1;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+DROP TABLE t;
+#
+# MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
+#
+create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb;
+alter table t add vector (v);
+drop table t;
+#
+# MDEV-35159 Assertion `tab->join->select_limit < (~ (ha_rows) 0)' fails upon forcing vector key
+#
+create table t (v vector(1) not null, vector vec(v), unique vu(v)) engine=innodb;
+select * from t force index(vec) order by v;
+v
+drop table t;
+#
+# MDEV-35203 ASAN errors or assertion failures in row_sel_convert_mysql_key_to_innobase upon query from table with usual key on vector field
+#
+create table t (v vector(1), key(v)) engine=innodb;
+select v from t where v = vec_fromtext('[1]');
+v
+drop table t;
+#
+# MDEV-35130 Assertion fails in trx_t::check_bulk_buffer upon CREATE.. SELECT with vector key
+#
+CREATE TABLE t (pk INT PRIMARY KEY, v VECTOR(5) NOT NULL, VECTOR(v)) ENGINE=InnoDB SELECT 1 AS pk, x'f09baa3ea172763f123def3e0c7fe53e288bf33e' AS v;
+DROP TABLE t;
+#
+# MDEV-35287 ER_KEY_NOT_FOUND upon INSERT into InnoDB table with vector key under READ COMMITTED
+#
+set unique_checks=0, foreign_key_checks=0;
+set session transaction isolation level read committed;
+create table t (v vector(1) not null, vector (v)) engine=innodb;
+insert into t values (0x31313131),(0x32323232);
+drop table t;
+set unique_checks=default, foreign_key_checks=default;
+set session transaction isolation level repeatable read;
+#
+# MDEV-35214 Server crashes in FVectorNode::gref_len with insufficient mhnsw_max_cache_size
+#
+set global mhnsw_max_cache_size= 1024*1024*2;
+create table t (v vector(1) not null, vector(v)) engine=innodb;
+start transaction;
+insert into t select 0x30303030 from seq_1_to_200;
+select v from t order by vec_distance_euclidean(v, 0x31313131) limit 2;
+v
+0000
+0000
+commit;
+drop table t;
+set global mhnsw_max_cache_size= default;
+#
+# MDEV-35319 ER_LOCK_DEADLOCK not detected upon DML on table with vector key, server crashes
+#
+create table t (pk int, b vector(1) not null, vector(b), primary key (pk)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+start transaction;
+insert into t values (3,0x33333333);
+connect con1,localhost,root;
+DELETE from t;
+connection default;
+set innodb_lock_wait_timeout= 1;
+delete from t;
+rollback;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+drop table t;
+disconnect con1;
+connection default;
+#
+# MDEV-35338 - Non-copying ALTER does not pad VECTOR column,
+#              vector search further does not work
+#
+create or replace table t (a int, v vector(1) not null, primary key (a)) engine=InnoDB;
+insert into t values (1,0x38383838),(2,0x37373737),(3,0x31313131);
+alter table t modify v vector(2) not null;
+select hex(v) from t order by a;
+hex(v)
+3838383800000000
+3737373700000000
+3131313100000000
+drop table t;
+#
+# MDEV-35793: Server crashes in
+# Item_func_vec_distance_common::get_const_arg
+#
+create table t (pk int primary key, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+select distinct vec_distance_euclidean(v, 0x30303030) as d from t order by pk;
+d
+0.00000
+0.00000
+drop table t;
+#
+# MDEV-36005 Server crashes when checking/updating a table having vector key after enabling innodb_force_primary_key
+#
+create table t (v vector (3) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=1;
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+set global innodb_force_primary_key=0;
+drop table t;
+create table t (v vector (1) not null,vector index (v)) engine=innodb;
+set global innodb_force_primary_key=1;
+insert into t values (0x31313131);
+insert into t values (0x32323232);
+drop table t;
+create table t (v vector (1) not null,vector index (v)) engine=innodb;
+ERROR 42000: This table type requires a primary key
+set global innodb_force_primary_key=0;
+#
+# MDEV-35922 Server crashes in mhnsw_read_first upon using vector key with views
+#
+create table t (pk int primary key, v vector(1) not null, vector(v)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+create view v as select * from t;
+select pk from v order by vec_distance_euclidean(v, 0x30303030) limit 2;
+pk
+1
+2
+drop view v;
+drop table t;
+#
+# MDEV-35069 - IMPORT TABLESPACE does not work for tables with vector,
+#              although allowed
+#
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v) m=5) engine=InnoDB;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+create table t2 like t1;
+alter table t2 discard tablespace;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t2 order by d limit 3;
+ERROR HY000: Tablespace has been discarded for table `t2`
+flush table t1 for export;
+db.opt
+t1#i#01.cfg
+t1#i#01.ibd
+t1.cfg
+t1.frm
+t1.ibd
+t2.frm
+unlock tables;
+alter table t2 import tablespace;
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t2 order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+drop table t1, t2;
+# End of 11.7 tests
+#
+# MDEV-36163 InnoDB assert with vector index under LOCK TABLES
+#
+create table t (a int,v vector (1) not null,vector index (v)) engine=innodb;
+lock table t write;
+insert into t values (1,0x30303030);
+insert into t values (1,0x31313131);
+drop table t;
+#
+# MDEV-36177 InnoDB: Failing assertion: prebuilt->select_lock_type != LOCK_NONE || srv_read_only_mode || trx->read_view.is_open()
+#
+create table t (id int key,v vector (1) not null,vector index (v)) engine=innodb;
+flush tables t for export;
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+d
+select vec_distance_euclidean (v,0x30303030) d from t order by d limit 1;
+d
+unlock tables;
+drop table t;
+#
+# MDEV-36188 assert with vector index and very long PK
+#
+create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
+ERROR 42000: Primary key was too long for vector indexes, max length is 256 bytes
+# End of 11.8 tests

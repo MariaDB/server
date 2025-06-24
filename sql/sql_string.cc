@@ -16,10 +16,6 @@
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include <m_string.h>
 #include <m_ctype.h>
@@ -68,7 +64,7 @@ bool Binary_string::real_alloc(size_t length)
        null character is inserted at the appropriate position.
 
    - If the String does not keep a private buffer on the heap, such a buffer
-     will be allocated and the string copied accoring to its length, as found
+     will be allocated and the string copied according to its length, as found
      in String::length().
  
    For C compatibility, the new string buffer is null terminated if it was
@@ -214,7 +210,8 @@ bool Binary_string::set_fcvt(double num, uint decimals)
 }
 
 
-bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
+bool String::set_real_with_type(double num, uint decimals, CHARSET_INFO *cs,
+                                my_gcvt_arg_type type)
 {
   char buff[FLOATING_POINT_BUFFER];
   uint dummy_errors;
@@ -223,12 +220,11 @@ bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
   set_charset(cs);
   if (decimals >= FLOATING_POINT_DECIMALS)
   {
-    len= my_gcvt(num, MY_GCVT_ARG_DOUBLE, sizeof(buff) - 1, buff, NULL);
+    len= my_gcvt(num, type, sizeof(buff) - 1, buff, NULL);
     return copy(buff, (uint)len, &my_charset_latin1, cs, &dummy_errors);
   }
   len= my_fcvt(num, decimals, buff, NULL);
-  return copy(buff, (uint32) len, &my_charset_latin1, cs,
-              &dummy_errors);
+  return copy(buff, (uint32) len, &my_charset_latin1, cs, &dummy_errors);
 }
 
 
@@ -344,7 +340,7 @@ bool String::needs_conversion(size_t arg_length,
   Checks that the source string can just be copied to the destination string
   without conversion.
   Unlike needs_conversion it will require conversion on incoming binary data
-  to ensure the data are verified for vailidity first.
+  to ensure the data are verified for validity first.
 
   @param arg_length   Length of string to copy.
   @param from_cs      Character set to copy from
@@ -389,7 +385,7 @@ bool String::needs_conversion_on_storage(size_t arg_length,
   cs			Character set for 'str'
 
   NOTES
-    For real multi-byte, ascii incompatible charactser sets,
+    For real multi-byte, ascii incompatible character sets,
     like UCS-2, add leading zeros if we have an incomplete character.
     Thus, 
       SELECT _ucs2 0xAA 
@@ -957,7 +953,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
       "from" typically points to a temporary buffer inside Item_xxx::val_str(),
       or to Item::str_value, and thus is "less permanent" than "to".
 
-      Reallocating "to" may give more benifits:
+      Reallocating "to" may give more benefits:
       - "to" can point to a "more permanent" storage and can be reused
         for multiple rows, e.g. str_buffer in Protocol::send_result_set_row(),
         which is passed to val_str() for all string type rows.
@@ -1130,7 +1126,6 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
   return (uint) my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
                         nchars, this, this);
 }
-
 
 
 /*

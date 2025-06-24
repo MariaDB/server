@@ -114,6 +114,8 @@ FULLTEXT(title,body)) ENGINE=InnoDB;
 INSERT INTO mdev19073 (title, body) VALUES
 ('MySQL Tutorial', 'DBMS stands for Database...');
 CREATE FULLTEXT INDEX idx ON mdev19073(title, body);
+Warnings:
+Note	1831	Duplicate index `idx`. This is deprecated and will be disallowed in a future release
 CREATE TABLE mdev19073_2 LIKE mdev19073;
 INSERT INTO mdev19073_2 (title, body) VALUES
 ('MySQL Tutorial', 'DBMS stands for Database...');
@@ -158,6 +160,8 @@ DROP TABLE mdev19073, mdev19073_2;
 # MDEV-28706  Redundant InnoDB table fails during alter
 #
 SET @@global.innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (
 col_int INTEGER, col_text TEXT,
 col_text_1 TEXT

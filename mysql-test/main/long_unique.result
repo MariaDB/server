@@ -22,7 +22,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	t1
 Non_unique	0
@@ -41,7 +41,7 @@ Ignored	NO
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
-Character set:       latin1_swedish_ci (8)
+Character set:       ? (0)
 Data records:                   10  Deleted blocks:                 0
 Recordlength:                   12
 
@@ -129,7 +129,7 @@ insert into t1 values(1),(2),(3),(4),(5),(8),(7);
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
-Character set:       latin1_swedish_ci (8)
+Character set:       ? (0)
 Data records:                    7  Deleted blocks:                 0
 Recordlength:                   12
 
@@ -148,7 +148,7 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1,2);
 ERROR 23000: Duplicate entry '1' for key 'a'
 insert into t1 values(2,2);
@@ -175,7 +175,7 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 #now add some column with name db_row_hash;
 alter table t1 add column db_row_hash_1 int unique;
 show create table t1;
@@ -186,7 +186,7 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_1` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(45,1,55),(46,1,55);
 ERROR 23000: Duplicate entry '55' for key 'db_row_hash_1'
 insert into t1 values(45,1,55),(45,1,55);
@@ -209,7 +209,7 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_2` int(11) DEFAULT NULL,
   `db_row_hash_3` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -225,7 +225,7 @@ t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # try to change the blob unique name;
 alter table t1 change column a aa blob ;
 show create table t1;
@@ -238,7 +238,7 @@ t1	CREATE TABLE `t1` (
   `aa` blob DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -256,7 +256,7 @@ t1	CREATE TABLE `t1` (
   `aa` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -276,7 +276,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`),
   UNIQUE KEY `clm` (`clm_changed`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -295,7 +295,7 @@ t1	CREATE TABLE `t1` (
   `clm_changed` blob DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `a` (`aa`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -329,7 +329,7 @@ insert into t1 values(7,1);
 ERROR 23000: Duplicate entry '1' for key 'b'
 drop table t1;
 #table with multiple  long blob column and varchar text column ;
-create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique);
+create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique) charset=latin1;
 insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555),
 ('sachin',341,'fdf','gfgfgfg','hghgr'),('maria',345,'frter','dasd','utyuty'),
 (123456789034567891,353534,53453453453456,64565464564564,45435345345345),
@@ -671,7 +671,7 @@ t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 #now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
-unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h));
+unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h)) charset=latin1;
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
 ('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb')
 ,(null,null,null,null,null,null,null,null),(null,null,null,null,null,null,null,null);
@@ -1095,7 +1095,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
@@ -1133,7 +1133,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `e` (`e`),
   UNIQUE KEY `a` (`a`,`c`) USING HASH,
   UNIQUE KEY `b` (`b`,`d`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE			NO
@@ -1195,20 +1195,20 @@ ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY'
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 DB_ROW_HASH_1	DB_ROW_HASH_2
 11	1
-22	2
-33	3
-44	4
+11	1
+11	1
 11	1
 22	2
-33	3
-44	4
-11	1
+22	2
+22	2
 22	2
 33	3
-44	4
-11	1
-22	2
 33	3
+33	3
+33	3
+44	4
+44	4
+44	4
 44	4
 select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
 DB_ROW_HASH_1	DB_ROW_HASH_2
@@ -1238,7 +1238,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3000)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 value(concat(repeat('s',3000),'1'));
 insert into t1 value(concat(repeat('s',3000),'2'));
 ERROR 23000: Duplicate entry 'sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss...' for key 'a'
@@ -1261,7 +1261,7 @@ t1	CREATE TABLE `t1` (
   `d` longblob DEFAULT NULL,
   UNIQUE KEY `a` (`a`(3500),`b`) USING HASH,
   UNIQUE KEY `c` (`c`(4500),`d`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	NULL	3500	NULL	YES	HASH			NO
@@ -1281,7 +1281,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`),
   UNIQUE KEY `b` (`b`) USING HASH,
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1,23,1,33);
 insert into t1 values(2,23,1,33);
 ERROR 23000: Duplicate entry '23' for key 'b'
@@ -1294,7 +1294,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH,
   KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t2 values(1,1);
 insert into t2 values(2,1);
 drop table t2;
@@ -1308,7 +1308,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob NOT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1);
 insert into t1 values(3);
 insert into t1 values(1);
@@ -1335,7 +1335,7 @@ t1	CREATE TABLE `t1` (
   `c` blob NOT NULL,
   UNIQUE KEY `a` (`a`) USING HASH,
   UNIQUE KEY `b` (`b`,`c`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1, 2, 3);
 insert into t1 values (2, 1, 3);
 insert into t1 values (2, 1, 3);
@@ -1353,7 +1353,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`(65535)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #64 indexes
 create table t1 ( a63 blob unique, a62 blob unique, a61 blob unique, a60 blob unique, a59 blob unique, a58 blob unique, a57 blob unique, a56 blob unique, a55 blob unique, a54 blob unique, a53 blob unique, a52 blob unique, a51 blob unique, a50 blob unique, a49 blob unique, a48 blob unique, a47 blob unique, a46 blob unique, a45 blob unique, a44 blob unique, a43 blob unique, a42 blob unique, a41 blob unique, a40 blob unique, a39 blob unique, a38 blob unique, a37 blob unique, a36 blob unique, a35 blob unique, a34 blob unique, a33 blob unique, a32 blob unique, a31 blob unique, a30 blob unique, a29 blob unique, a28 blob unique, a27 blob unique, a26 blob unique, a25 blob unique, a24 blob unique, a23 blob unique, a22 blob unique, a21 blob unique, a20 blob unique, a19 blob unique, a18 blob unique, a17 blob unique, a16 blob unique, a15 blob unique, a14 blob unique, a13 blob unique, a12 blob unique, a11 blob unique, a10 blob unique, a9 blob unique, a8 blob unique, a7 blob unique, a6 blob unique, a5 blob unique, a4 blob unique, a3 blob unique, a2 blob unique, a1 blob unique, a blob unique);;
@@ -1372,7 +1372,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(a blob);
 alter table t1 add index(a);
@@ -1383,7 +1383,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(a text, key(a));
 Warnings:
@@ -1392,8 +1392,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
-  KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(a varchar(4000));
 alter table t1 add index(a);
@@ -1403,8 +1403,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(4000) DEFAULT NULL,
-  KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (pk int, a int, b int, primary key(pk), key(pk,a));
 alter table t1 modify a text;
@@ -1419,7 +1419,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),
   KEY `pk` (`pk`,`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-19705: Assertion `tmp >= 0' failed in best_access_path

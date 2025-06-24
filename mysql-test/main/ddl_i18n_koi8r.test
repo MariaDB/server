@@ -674,7 +674,7 @@ use mysqltest1|
 --echo
 --echo ---> Dump of mysqltest1
 
---exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --compact --triggers --databases mysqltest1
+--exec $MYSQL_DUMP --no-autocommit=0 --character-sets-dir=$MYSQL_SHAREDIR/charsets --compact --triggers --databases mysqltest1
 
 --echo
 --echo ---> Dumping mysqltest1 to ddl_i18n_koi8r.triggers.mysqltest1.sql
@@ -684,7 +684,7 @@ use mysqltest1|
 --echo
 --echo ---> Dump of mysqltest2
 
---exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --compact --triggers --databases mysqltest2
+--exec $MYSQL_DUMP --no-autocommit=0 --character-sets-dir=$MYSQL_SHAREDIR/charsets --compact --triggers --databases mysqltest2
 
 --echo
 --echo ---> Dumping mysqltest2 to ddl_i18n_koi8r.triggers.mysqltest2.sql

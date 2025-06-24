@@ -559,21 +559,23 @@ show create table `a1\``b1`;
 Table	Create Table
 a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `a1\``b1` VALUES (1),(2);
+INSERT INTO `a1\``b1` VALUES
+(1),
+(2);
 insert `a1\``b1` values (4),(5);
 show create table `a1\``b1`;
 Table	Create Table
 a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from `a1\``b1`;
 a
 1
@@ -589,7 +591,7 @@ show create table "a1\""b1";
 Table	Create Table
 a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 /*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -597,13 +599,15 @@ CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO "a1\""b1" VALUES (1),(2);
+INSERT INTO "a1\""b1" VALUES
+(1),
+(2);
 insert "a1\""b1" values (4),(5);
 show create table "a1\""b1";
 Table	Create Table
 a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from "a1\""b1";
 a
 1
@@ -613,15 +617,11 @@ set sql_mode=default;
 create table t1 (a text);
 select count(*) from t1;
 count(*)
-42
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
-42
-truncate table t1;
-select count(*) from t1;
-count(*)
-0
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -629,7 +629,11 @@ count(*)
 truncate table t1;
 select count(*) from t1;
 count(*)
-42
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -640,7 +644,7 @@ drop table t1;
 # MDEV-15538 '-N' Produce html output wrong
 #
 <TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
-WARNING: option '--enable-cleartext-plugin' is obsolete.
+WARNING: option --enable-cleartext-plugin is obsolete.
 1
 1
 # End of 10.3 tests
@@ -675,6 +679,33 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-30327 Client crashes in print_last_query_cost
+#
+# End of 11.0 tests
+#
+# show whether server cert was verified
+#
+create user ser@localhost identified by "ass";
+MYSQL --disable-ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is UNKNOWN
+
+
+MYSQL --ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is OK
+
+
+drop user ser@localhost;
+#
+# MDEV-32473 --disable-ssl doesn't disable it
+#
+MYSQL --ssl-verify-server-cert --disable-ssl -e "\s"
+
+SSL:			Not in use
+
+

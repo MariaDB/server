@@ -1,0 +1,280 @@
+--echo #
+--echo # MDEV-12459: The information_schema tables for getting temporary tables
+--echo #             info is missing, at least for innodb, there is no
+--echo #             INNODB_TEMP_TABLE_INFO
+--echo #
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+--source include/have_innodb.inc
+
+--echo # -------------------------------
+--echo # Test shadowing of a base table
+--echo # -------------------------------
+
+create database some_db;
+use some_db;
+
+--echo # Creating temporary table with the same name shadows the base table
+--echo # in `show create` and by design, should not raise any warning
+create table t(t int);
+create temporary table t(t int);
+show create table t;
+select table_schema, table_name, temporary from information_schema.tables where table_name='t';
+drop table t;
+drop table t;
+use test;
+
+--echo # ------------------------
+--echo # IS.tables tests
+--echo # ------------------------
+
+--echo # Create first temporary table
+create temporary table test.t_temp(t int);
+insert into t_temp values (1),(2), (3);
+
+--echo # Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+--echo # Create the base table with the same name (both should be visible)
+# Create the base table with the same name as temporary table.
+create table test.t_temp(t int);
+insert into t_temp values (-1),(-2);
+
+--echo # Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+
+create database my_db;
+--echo # Create the temporary table with the same name in new DB
+create temporary table my_db.t_temp (t int);
+insert into my_db.t_temp values (-2),(-1);
+--echo # Show results
+--horizontal_results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+  order by table_schema desc, table_name desc, table_type desc;
+
+connect (con1,localhost,root,,my_db,,);
+
+--echo # Create the temporary table with the same name in new connection
+create temporary table t_temp(t int);
+insert into t_temp values (4),(5),(6), (7);
+--echo # Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+   order by table_schema desc, table_name desc, table_type desc;
+
+connection default;
+
+--echo # Show results in default connection
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+  order by table_schema desc, table_name desc, table_type desc;
+
+--echo # Check shadowing and (no)warning with explicit referencing database
+create table some_db.my_t (t int);
+show warnings;
+create temporary table some_db.my_t (t int);
+show warnings;
+
+--echo # Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+  order by table_schema desc, table_name desc, table_type desc;
+
+# Check with sequences
+use test;
+create table t1 (a int);
+create sequence s1;
+create temporary table t1 (b int);
+create temporary sequence s1;
+create temporary sequence s2;
+select table_schema, table_name, table_type, temporary from information_schema.tables where table_schema = 'test'
+  order by table_schema desc, table_name desc, table_type desc;
+
+drop table t1;
+drop table t1;
+drop table s1;
+drop table s1;
+drop table s2;
+
+# First we are removing temporary table and after base table
+drop table some_db.my_t;
+drop table some_db.my_t;
+
+disconnect con1;
+
+# Drop both temporary and "real" table from test.
+drop table test.t_temp;
+drop table test.t_temp;
+
+drop database my_db;
+drop database some_db;
+
+# Wait till all disconnects are completed
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-28332: Alter on temporary table causes ER_TABLE_EXISTS_ERROR note
+--echo #
+create table t (a int);
+create temporary table t (b int);
+alter table t add c int;
+
+# Cleanup
+drop temporary table t;
+drop table t;
+
+--echo #
+--echo # MDEV-28334: SHOW TABLE STATUS shows all temporary tables
+--echo #             ignoring database and conditions
+--echo #
+
+create temporary table test.tmp_in_test (a int);
+create table test.base_in_test (t int);
+# The base table with the same name as temporary table
+create table test.tmp_in_test (t int);
+# The temporary InnoDB table - CREATE TIME should be NULL, MDEV-28333
+create temporary table test.tmp_innodb_in_test (a int) engine=InnoDB;
+
+create database mysqltest;
+use mysqltest;
+
+# This should show tables from currently used DB
+# no temporary tables created and empty result set should be returned
+show table status;
+
+# The same as before
+show table status in mysqltest;
+
+# This should show all tables from `test` DB
+--replace_column 12 # 13 # 14 #
+--horizontal_results
+show table status in test;
+
+# The same as before
+--replace_column 12 # 13 # 14 #
+--horizontal_results
+show table status from test;
+
+
+--echo # check that InnoDB temporary table
+--echo # has a NULL value for `Create time` column (MDEV-28333)
+select create_time from information_schema.tables where table_name='tmp_innodb_in_test';
+
+# This shouldn't give any results
+show table status like 'nonexisting';
+
+# Cleanup
+drop database mysqltest;
+drop table test.base_in_test;
+# We need first to drop temporary table that shadows the base table
+drop table test.tmp_in_test;
+drop table test.tmp_in_test;
+
+--echo #
+--echo # MDEV-28453: SHOW commands are inconsistent for temporary tables
+--echo #
+create database mysqltest;
+use mysqltest;
+create table t (a int, key(a)) engine=Aria;
+create temporary table t (b int, key(b)) engine=MyISAM;
+create table base_table(t int);
+create temporary table tmp_table (b int, key(b));
+create sequence s1;
+create temporary sequence s1;
+create temporary sequence s2;
+
+# This should show all tables
+show tables;
+# This should show all tables with additional table_type
+show full tables;
+# This is already showing all tables (not related to bug)
+--replace_column 12 # 13 # 14 #
+show table status;
+# This is showing temporary table as expected since it is shadowing base table
+show columns in t;
+# This is showing temporary table as expected since it is shadowing base table
+show index in t;
+
+# Cleanup
+drop database mysqltest;
+use test;
+
+# many instances of the table temp table:
+show full tables;
+select * from tmp_innodb_in_test, tmp_innodb_in_test x;
+show full tables;
+drop temporary tables tmp_innodb_in_test;
+
+# non-existent db
+create temporary table foo.t1 (a int); # yup, that works
+select table_schema, table_name from information_schema.tables where table_type='temporary';
+drop temporary table foo.t1;
+
+--echo #
+--echo # MDEV-28351 Assertion `this->file->children_attached' failed in ha_myisammrg::info
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+insert into t1 values (1);
+CREATE TEMPORARY TABLE t2 (a INT) ENGINE=MERGE UNION=(t1);
+CREATE TABLE t3 (a INT) ENGINE=MERGE UNION=(t1);
+--sorted_result
+--replace_column 10 X 11 X 12 X 13 X 15 X 16 X 22 X
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test';
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-31618: Server crashes in
+--echo #             process_i_s_table_temporary_tables/get_all_tables
+--echo #
+
+CREATE TEMPORARY SEQUENCE seq1;
+# Check show temp tables before alter
+SHOW FULL TABLES;
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+--error 4086
+ALTER TABLE `seq1` CHANGE `cache_size` cache_size int;
+# Check show temp tables after alter
+SHOW FULL TABLES;
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+
+CREATE OR REPLACE TEMPORARY SEQUENCE seq1;
+# Check show temp tables after create/replace alter
+SHOW FULL TABLES;
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+DROP TABLE seq1;
+DROP TABLE mysqltest.s1;
+DROP TABLE mysqltest.s2;
+
+--echo #
+--echo # MDEV-31618: Server crashes in
+--echo #             process_i_s_table_temporary_tables/get_all_tables after alter in rename
+--echo #
+# Check on temporary tables
+CREATE  table seq1 (a bigint, b int);
+CREATE  TEMPORARY TABLE tmp LIKE seq1;
+INSERT  tmp SELECT * FROM seq1;
+ALTER  TABLE tmp RENAME TO seq1;
+--error 4086,1060
+ALTER TABLE seq1 CHANGE a b int ;
+--error 1050
+RENAME  TABLE seq1 TO seq1;
+show  full tables;
+drop table seq1;
+drop table seq1;
+
+# Check on sequences
+CREATE  SEQUENCE seq2;
+CREATE  TEMPORARY sequence tmp;
+show  full tables;
+ALTER  table `tmp` RENAME TO seq1;
+show  full tables;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER TABLE `seq1` CHANGE `cache_size` cache_size int ;
+show  full tables;
+--error ER_TABLE_EXISTS_ERROR
+RENAME  TABLE seq1 TO seq1;
+show  full tables;
+RENAME  TABLE seq1 TO seq3;
+show  full tables;
+drop table seq2;
+show  full tables;
+drop table seq3;
+show  full tables;

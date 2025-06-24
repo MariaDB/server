@@ -20,12 +20,14 @@
 #define USE_MY_FUNC
 #endif
 
+#define VER "1.4"
 #include "myisamdef.h"
 #include <my_tree.h>
 #include <stdarg.h>
 #ifdef HAVE_GETRUSAGE
 #include <sys/resource.h>
 #endif
+#include <welcome_copyright_notice.h>
 
 #define FILENAME(A) (A ? A->show_name : "Unknown")
 
@@ -248,8 +250,7 @@ static void get_options(register int *argc, register char ***argv)
 	/* Fall through */
       case 'I':
       case '?':
-	printf("%s  Ver 1.4 for %s at %s\n",my_progname,SYSTEM_TYPE,
-	       MACHINE_TYPE);
+	print_version();
 	puts("By Monty, for your professional use\n");
 	if (version)
 	  break;

@@ -1,0 +1,15 @@
+#
+# MDEV-9158 file_key_management should support reading from a named pipe
+#
+# Test checks if opening a too large key file, file key plugin will only read max key file size bytes and extra bytes will be ignored.
+select seq,repeat(md5(seq), 200)
+into outfile 'MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key'
+          fields terminated by ';'
+     from seq_1_to_1000;
+#Large key file will read max size bytes, which is 1MB
+call mtr.add_suppression("filekeys-data-too-large.key too large, must be less than 1048576 bytes");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+INSTALL SONAME 'file_key_management';
+ERROR HY000: File MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key too large, must be less than 1048576 bytes
+FOUND 1 /filekeys-data-too-large.key too large, must be less than 1048576 bytes/ in mysqld.1.err

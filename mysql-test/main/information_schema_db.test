@@ -56,7 +56,7 @@ create table t1
  f2 varchar(100) not null,
  primary key (f1), unique key (f2));
 
-connect (user1,localhost,mysqltest_1,,);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 --disable_result_log
 select * from information_schema.tables;
@@ -115,8 +115,7 @@ grant all on testdb_1.* to testdb_1@localhost with grant option;
 create user testdb_2@localhost;
 grant all on test.* to testdb_2@localhost with grant option;
 
-connect (testdb_1,localhost,testdb_1,,test);
-use testdb_1;
+connect (testdb_1,localhost,testdb_1,,testdb_1);
 create table t1 (f1 char(4));
 create view v1 as select f1 from t1;
 grant insert on v1 to testdb_2@localhost;
@@ -227,7 +226,7 @@ create view testdb_1.v1 as select * from testdb_1.t1;
 grant show view on testdb_1.* to mysqltest_1@localhost;
 grant select on testdb_1.v1 to mysqltest_1@localhost;
 
-connect (user1,localhost,mysqltest_1,,test);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 select table_schema, table_name, view_definition from information_schema.views
 where table_name='v1';
@@ -332,3 +331,121 @@ drop database db;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-23729 INFORMATION_SCHEMA Table info. about user locked due to
+--echo # max_password_errors
+--echo #
+--echo # MDEV-32218 message to notify end-user N-days prior the password get
+--echo # expired
+--echo #
+
+--disable_service_connection
+set @old_max_password_errors=@@max_password_errors;
+set global max_password_errors=2;
+
+# must use replace_regex for case insensitive replacement
+let $hostname_re= `select concat('/@\'', @@hostname, '\'/@HOSTNAME/i')`;
+
+# set the password_last_changed value
+set timestamp= unix_timestamp('2020-01-02 2:3:4');
+
+create user nice_user;
+create user naughty_user identified by 'naughty_user_passwd';
+
+alter user naughty_user password expire interval 10 day;
+
+--sorted_result
+--replace_regex $hostname_re
+eval select * from information_schema.users;
+
+alter user nice_user password expire interval 10 day;
+--sorted_result
+--replace_regex $hostname_re
+select * from information_schema.users;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(con1, localhost, naughty_user, wrong_passwd);
+
+--sorted_result
+--replace_regex $hostname_re
+select * from information_schema.users;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(con1, localhost, naughty_user, wrong_passwd);
+
+--sorted_result
+--replace_regex $hostname_re
+select * from information_schema.users;
+
+
+--echo # Show all users that are blocked due to max_password_errors reached.
+select user from information_schema.users
+where password_errors >= @@global.max_password_errors;
+
+
+set global max_password_errors=3;
+
+connect(con1, localhost, naughty_user, naughty_user_passwd);
+connection default;
+
+--sorted_result
+--replace_regex $hostname_re
+select * from information_schema.users;
+disconnect con1;
+
+--echo # test FLUSH PRIVILEGES
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(con1, localhost, naughty_user, wrong_passwd);
+select * from information_schema.users where user like '''naughty%';
+flush privileges;
+select * from information_schema.users where user like '''naughty%';
+
+--echo # Test unprivileged output
+
+connect(con2, localhost, nice_user);
+set timestamp= unix_timestamp('2020-01-02 2:3:4');
+# timestamp was normal at the login moment, so the password was expired
+set password= password('nice_passwd');
+
+--sorted_result
+--replace_regex $hostname_re
+select * from information_schema.users;
+
+--echo # Delete user while some connection is still alive, then select.
+connection default;
+drop user nice_user;
+connection con2;
+# and here you are, select from your table
+--error ER_INVALID_CURRENT_USER
+select * from information_schema.users;
+
+disconnect con2;
+connection default;
+drop user naughty_user;
+set global max_password_errors=@old_max_password_errors;
+
+--echo # more password expiration tests
+set global default_password_lifetime= 2;
+create user u1@localhost password expire;
+create user u2@localhost password expire default;
+create user u3@localhost password expire interval 10 day;
+create user u4@localhost password expire interval 20 day;
+create user u5@localhost password expire never;
+set timestamp= unix_timestamp('2020-01-17 2:3:4');
+
+select * from information_schema.users where user like '''u_''%';
+set global default_password_lifetime= default;
+select * from information_schema.users where user like '''u_''%';
+
+drop user u1@localhost;
+drop user u2@localhost;
+drop user u3@localhost;
+drop user u4@localhost;
+drop user u5@localhost;
+--enable_service_connection
+
+--echo # End of 10.0 tests

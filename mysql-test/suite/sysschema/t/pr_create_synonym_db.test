@@ -30,7 +30,7 @@ CALL sys.create_synonym_db('test', 'test2');
 # Ensure test2 is still empty
 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'test2';
 
-# Use a reserved identifer, Bug #22011361
+# Use a reserved identifier, Bug #22011361
 CALL sys.create_synonym_db('test', 'is');
 # Verify there's one view in is per table and view in test
 SELECT TABLE_NAME, SECURITY_TYPE FROM information_schema.VIEWS WHERE TABLE_SCHEMA = 'is' ORDER BY TABLE_NAME;
@@ -62,8 +62,34 @@ create table a(a int);
 create table t (b int);
 create table b(a int);
 create temporary table b (a int);
---error ER_SIGNAL_EXCEPTION
 call sys.create_synonym_db('db','db_copy');
+
+use db_copy;
+show tables;
 
 drop database db;
 drop database db_copy;
+--echo # MDEV-28343: sys.create_synonym_db fails with ER_VIEW_SELECT_TMPTABLE
+--echo #             when schema contains temporary tables
+--echo #
+
+create database mytestdb;
+use mytestdb;
+create table t (b int);
+# This temporary table will not be created as an view in synonym db
+create temporary table tmp (a int);
+call sys.create_synonym_db('mytestdb','db_syn1');
+use db_syn1;
+show tables;
+drop database db_syn1;
+
+use mytestdb;
+# This temporary table will shadow the base table and no views will be created
+create temporary table t (b int);
+call sys.create_synonym_db('mytestdb','db_syn1');
+
+use db_syn1;
+show tables;
+
+drop database mytestdb;
+drop database db_syn1;

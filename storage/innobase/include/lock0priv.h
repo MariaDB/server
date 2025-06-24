@@ -259,7 +259,7 @@ updated but the lock prevents insert of a user record to the end of
 the page.
 	Next key locks will prevent the phantom problem where new rows
 could appear to SELECT result sets after the select operation has been
-performed. Prevention of phantoms ensures the serilizability of
+performed. Prevention of phantoms ensures the serializability of
 transactions.
 	What should we check if an insert of a new record is wanted?
 Only the lock on the next record on the same page, because also the
@@ -497,14 +497,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	return(bit);
 }
 
-/*********************************************************************//**
-Gets the first or next record lock on a page.
+/** Gets the first or next record lock on a page.
+@param lock a record lock
 @return next lock, NULL if none exists */
 UNIV_INLINE
-lock_t*
-lock_rec_get_next_on_page(
-/*======================*/
-	lock_t*		lock);		/*!< in: a record lock */
+lock_t *lock_rec_get_next_on_page(const lock_t *lock);
 
 /*********************************************************************//**
 Gets the next explicit lock request on a record.

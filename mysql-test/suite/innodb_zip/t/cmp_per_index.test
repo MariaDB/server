@@ -8,6 +8,7 @@
 -- source include/have_innodb_16k.inc
 # include/restart_mysqld.inc does not work in embedded mode
 -- source include/not_embedded.inc
+--source include/test_db_charset_latin1.inc
 
 -- vertical_results
 
@@ -91,3 +92,5 @@ ORDER BY 1, 2, 3;
 DROP TABLE t;
 
 SET GLOBAL innodb_cmp_per_index_enabled=@save_enabled;
+
+--source include/test_db_charset_restore.inc

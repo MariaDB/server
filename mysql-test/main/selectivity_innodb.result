@@ -3,6 +3,7 @@ set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=0;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t0,t1,t2,t3;
 select @@global.use_stat_tables;
 @@global.use_stat_tables
@@ -45,7 +46,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` i
 drop table t1;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP DATABASE IF EXISTS dbt3_s001;
-CREATE DATABASE dbt3_s001;
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
 use dbt3_s001;
 === Q2 ===
 set optimizer_use_condition_selectivity=5;
@@ -57,7 +58,7 @@ part, supplier, partsupp, nation, region
 where
 p_partkey = ps_partkey
 and s_suppkey = ps_suppkey
-and p_size = 9
+and (p_size = 9 or p_size =19999)
 and p_type like '%TIN'
 	and s_nationkey = n_nationkey
 and n_regionkey = r_regionkey
@@ -77,18 +78,18 @@ and r_name = 'ASIA'
 order by
 s_acctbal desc, n_name, s_name, p_partkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.31	Using where; Using temporary; Using filesort
-1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using temporary; Using filesort
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.63	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
 1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
-2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
 2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
 2	DEPENDENT SUBQUERY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
+2	DEPENDENT SUBQUERY	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	20.00	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.part.p_partkey' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`part`.`p_size` = 9 and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
+Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and (`dbt3_s001`.`part`.`p_size` = 9 or `dbt3_s001`.`part`.`p_size` = 19999) and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`region`.`r_regionkey` = `dbt3_s001`.`nation`.`n_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
 set optimizer_use_condition_selectivity=4;
 explain extended
 select
@@ -123,13 +124,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
 1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
-2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
 2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
 2	DEPENDENT SUBQUERY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
+2	DEPENDENT SUBQUERY	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	20.00	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.part.p_partkey' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`part`.`p_size` = 9 and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
+Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_acctbal` AS `s_acctbal`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`nation`.`n_name` AS `n_name`,`dbt3_s001`.`part`.`p_partkey` AS `p_partkey`,`dbt3_s001`.`part`.`p_mfgr` AS `p_mfgr`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`dbt3_s001`.`supplier`.`s_comment` AS `s_comment` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`part`.`p_size` = 9 and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`nation`.`n_regionkey` = `dbt3_s001`.`region`.`r_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_type` like '%TIN' and `dbt3_s001`.`partsupp`.`ps_supplycost` = <expr_cache><`dbt3_s001`.`part`.`p_partkey`>((/* select#2 */ select min(`dbt3_s001`.`partsupp`.`ps_supplycost`) from `dbt3_s001`.`partsupp` join `dbt3_s001`.`supplier` join `dbt3_s001`.`nation` join `dbt3_s001`.`region` where `dbt3_s001`.`supplier`.`s_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`region`.`r_regionkey` = `dbt3_s001`.`nation`.`n_regionkey` and `dbt3_s001`.`region`.`r_name` = 'ASIA' and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey`)) order by `dbt3_s001`.`supplier`.`s_acctbal` desc,`dbt3_s001`.`nation`.`n_name`,`dbt3_s001`.`supplier`.`s_name`,`dbt3_s001`.`part`.`p_partkey`
 === Q15 ===
 create view revenue0 (supplier_no, total_revenue) as
 select l_suppkey, sum(l_extendedprice * (1 - l_discount))
@@ -148,9 +149,9 @@ and total_revenue = (select max(total_revenue) from revenue0)
 order by s_suppkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	index	PRIMARY	PRIMARY	4	NULL	10	100.00	
-1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	1	100.00	Using where
 3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	229	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	229	100.00	
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	100.00	
 4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	229	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where `revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey` and `revenue0`.`total_revenue` = (/* select#2 */ select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`) order by `dbt3_s001`.`supplier`.`s_suppkey`
@@ -169,9 +170,9 @@ and total_revenue = (select max(total_revenue) from revenue0)
 order by s_suppkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	index	PRIMARY	PRIMARY	4	NULL	10	100.00	
-1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	1	100.00	Using where
 3	DERIVED	lineitem	range	i_l_shipdate,i_l_suppkey	i_l_shipdate	4	NULL	229	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	228	100.00	
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	10	100.00	
 4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	229	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where `revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey` and `revenue0`.`total_revenue` = (/* select#2 */ select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`) order by `dbt3_s001`.`supplier`.`s_suppkey`
@@ -334,7 +335,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
 1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
-2	MATERIALIZED	lineitem	index	NULL	PRIMARY	8	NULL	6005	100.00	
+2	MATERIALIZED	lineitem	index	NULL	i_l_orderkey_quantity	13	NULL	6005	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (/* select#2 */ select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where `dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey` and `<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` and `dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
@@ -368,7 +369,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
 1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
-2	MATERIALIZED	lineitem	index	NULL	PRIMARY	8	NULL	6005	100.00	
+2	MATERIALIZED	lineitem	index	NULL	i_l_orderkey_quantity	13	NULL	6005	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (/* select#2 */ select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where `dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey` and `<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` and `dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey` group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
@@ -491,11 +492,11 @@ order by s_name
 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	100.00	Using where; Using filesort
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 1	PRIMARY	nation	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	part	ALL	PRIMARY	NULL	NULL	NULL	200	100.00	Using where
 2	MATERIALIZED	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
-4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	100.00	Using where
+4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	14.40	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_suppkey' of SELECT #4 was resolved in SELECT #2
@@ -546,14 +547,13 @@ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	part	ALL	PRIMARY	NULL	NULL	NULL	200	4.17	Using where
-2	MATERIALIZED	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	4.17	Using where
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	11.99	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	14.40	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_suppkey' of SELECT #4 was resolved in SELECT #2
-Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
+Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
 select sql_calc_found_rows
 s_name, s_address
 from supplier, nation
@@ -602,14 +602,13 @@ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.03	Using where
-2	MATERIALIZED	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.03	Using where
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	7.11	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	14.40	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_suppkey' of SELECT #4 was resolved in SELECT #2
-Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
+Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
 select sql_calc_found_rows
 s_name, s_address
 from supplier, nation
@@ -658,14 +657,13 @@ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
-2	MATERIALIZED	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	6.40	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	14.40	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_suppkey' of SELECT #4 was resolved in SELECT #2
-Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
+Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
 select sql_calc_found_rows
 s_name, s_address
 from supplier, nation
@@ -714,14 +712,13 @@ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
-2	MATERIALIZED	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
+1	PRIMARY	partsupp	eq_ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	8	dbt3_s001.part.p_partkey,dbt3_s001.supplier.s_suppkey	1	6.40	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	14.40	Using where
 Warnings:
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_partkey' of SELECT #4 was resolved in SELECT #2
 Note	1276	Field or reference 'dbt3_s001.partsupp.ps_suppkey' of SELECT #4 was resolved in SELECT #2
-Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
+Note	1003	/* select#1 */ select sql_calc_found_rows `dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address` from `dbt3_s001`.`supplier` semi join (`dbt3_s001`.`part` join `dbt3_s001`.`partsupp`) join `dbt3_s001`.`nation` where `dbt3_s001`.`supplier`.`s_nationkey` = `dbt3_s001`.`nation`.`n_nationkey` and `dbt3_s001`.`nation`.`n_name` = 'UNITED STATES' and `dbt3_s001`.`partsupp`.`ps_partkey` = `dbt3_s001`.`part`.`p_partkey` and `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`partsupp`.`ps_availqty` > <expr_cache><`dbt3_s001`.`partsupp`.`ps_partkey`,`dbt3_s001`.`partsupp`.`ps_suppkey`>((/* select#4 */ select 0.5 * sum(`dbt3_s001`.`lineitem`.`l_quantity`) from `dbt3_s001`.`lineitem` where `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`partsupp`.`ps_suppkey` and `dbt3_s001`.`lineitem`.`l_shipDATE` >= <cache>(cast('1993-01-01' as date)) and `dbt3_s001`.`lineitem`.`l_shipDATE` < <cache>(cast('1993-01-01' as date) + interval '1' year))) and `dbt3_s001`.`part`.`p_name` like 'g%' order by `dbt3_s001`.`supplier`.`s_name` limit 10
 select sql_calc_found_rows
 s_name, s_address
 from supplier, nation
@@ -808,10 +805,9 @@ explain extended
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t1`.`a` > 3
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`b` = `test`.`t1`.`a` and `test`.`t1`.`a` > 3
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 a
 drop table t1,t2;
@@ -946,7 +942,7 @@ set optimizer_switch='index_condition_pushdown=off';
 EXPLAIN EXTENDED
 SELECT * FROM t1, t2 WHERE a > 9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1	0.00	Using where
+1	SIMPLE	t1	range	a	a	5	NULL	1	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	8	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` > 9
@@ -1257,11 +1253,11 @@ EXPLAIN EXTENDED
 SELECT * FROM language, country, continent
 WHERE country_group = lang_group AND lang_group IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	country	ALL	NULL	NULL	NULL	NULL	2	0.00	Using where
-1	SIMPLE	language	ALL	NULL	NULL	NULL	NULL	6	0.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	language	ALL	NULL	NULL	NULL	NULL	6	16.67	Using where
+1	SIMPLE	country	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	continent	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test`.`language`.`lang_group` AS `lang_group`,`test`.`language`.`lang` AS `lang`,`test`.`country`.`code` AS `code`,`test`.`country`.`country_group` AS `country_group`,`test`.`continent`.`cont_group` AS `cont_group`,`test`.`continent`.`cont` AS `cont` from `test`.`language` join `test`.`country` join `test`.`continent` where `test`.`language`.`lang_group` = `test`.`country`.`country_group` and `test`.`country`.`country_group` is null
+Note	1003	select `test`.`language`.`lang_group` AS `lang_group`,`test`.`language`.`lang` AS `lang`,`test`.`country`.`code` AS `code`,`test`.`country`.`country_group` AS `country_group`,`test`.`continent`.`cont_group` AS `cont_group`,`test`.`continent`.`cont` AS `cont` from `test`.`language` join `test`.`country` join `test`.`continent` where `test`.`country`.`country_group` = `test`.`language`.`lang_group` and `test`.`language`.`lang_group` is null
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table language, country, continent;
 set use_stat_tables=@save_use_stat_tables;
@@ -1384,14 +1380,14 @@ test.t2	analyze	status	OK
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t1.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.00	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t2.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.00	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
@@ -1485,13 +1481,13 @@ set use_stat_tables=@save_use_stat_tables;
 #
 set use_stat_tables='preferably';
 set optimizer_use_condition_selectivity=3;
-create table t1(col1 char(32));
+create table t1(col1 char(32)) charset=latin1;
 insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
-create table t2(col1 text);
+create table t2(col1 text) charset=latin1;
 insert into t2 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t2;
 Table	Op	Msg_type	Msg_text
@@ -1653,27 +1649,51 @@ drop function f1;
 #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/30, (rand(1001)*1000)/40 from seq_1_to_1000;
+analyze table t1 ;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+select count(*) from t1 where b=2;
+count(*)
+42
+select count(*) from t1 where a in (17,51,5);
+count(*)
+62
 # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	3.91	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	6.20	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`a` in (17,51,5)
 explain extended select * from t1 use index () where b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	2.34	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	4.20	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`b` = 2
 # Now, the equality is used for ref access, while the range condition
 # gives selectivity data
 explain extended select * from t1 where a in (17,51,5) and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	b,a	b	5	const	24	2.90	Using where
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	42 (6%)	6.30	Using where; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
+truncate table t1;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select count(*) from t1 where b=2;
+count(*)
+59
+select count(*) from t1 where a in (17,51,5);
+count(*)
+29
+explain extended select * from t1 where a in (17,51,5) and b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	b,a	a|b	5|5	NULL	29 (6%)	5.90	Using index condition; Using where; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
 drop table t1;
@@ -1685,7 +1705,7 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 #
 set @@optimizer_use_condition_selectivity=2;
 set names utf8;
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 use world;
 CREATE TABLE Country (
 Code char(3) NOT NULL default '',
@@ -1781,8 +1801,8 @@ explain extended select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
 where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	10	NULL	11	100.00	Using index condition; Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.d	1	100.00	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	Using index
 Warnings:
 Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`c` and `test`.`t3`.`a` = `test`.`t1`.`d` and `test`.`t1`.`a` = 50 and `test`.`t1`.`b` <= 100
 select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
@@ -1802,9 +1822,9 @@ set optimizer_use_condition_selectivity=2;
 explain extended select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
 where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	a	a	10	NULL	11	11.00	Using index condition; Using where
+1	SIMPLE	t1	range	a	a	10	NULL	11	100.00	Using index condition; Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.d	1	100.00	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	Using index
 Warnings:
 Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`c` and `test`.`t3`.`a` = `test`.`t1`.`d` and `test`.`t1`.`a` = 50 and `test`.`t1`.`b` <= 100
 select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
@@ -1820,6 +1840,18 @@ b	a	a	b
 7	7	8	8
 8	8	9	9
 9	9	10	10
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain extended select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	11	100.00	Using index condition; Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	100.00	
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.d	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`c` and `test`.`t3`.`a` = `test`.`t1`.`d` and `test`.`t1`.`a` = 50 and `test`.`t1`.`b` <= 100
 set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 drop table t1,t2,t3;
 #
@@ -1867,7 +1899,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 3	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-3	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+3	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
 set statement optimizer_use_condition_selectivity=4 for explain SELECT * FROM t1
 WHERE
 EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
@@ -1875,7 +1907,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 3	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-3	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+3	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
 set @query="EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65";
 set statement optimizer_use_condition_selectivity=2 for explain SELECT * FROM t1
 WHERE
@@ -1884,7 +1916,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 3	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-3	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+3	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
 set statement optimizer_use_condition_selectivity=4 for explain SELECT * FROM t1
 WHERE
 EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
@@ -1892,7 +1924,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 3	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-3	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+3	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
 explain SELECT * FROM t1
 WHERE
 EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
@@ -1900,7 +1932,7 @@ WHERE A.a=t1.a AND t2.b < 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	100	Using where; Using index
 2	DEPENDENT SUBQUERY	A	ref	PRIMARY,a	a	5	test.t1.a	1	Using index
-2	DEPENDENT SUBQUERY	t2	ref|filter	a,b	a|b	5|5	test.A.id	1 (19%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	t2	ref	a,b	a	5	test.A.id	1	Using where
 set optimizer_switch= @save_optimizer_switch;
 drop table t1,t2;
 #
@@ -1932,7 +1964,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN EXTENDED SELECT * from t1 where t1.a >= 81;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	66.41	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	66.67	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` >= 81
 SELECT HEX(a), b from t1 where t1.a >= 81;
@@ -1956,7 +1988,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	39.84	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	40.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
 SET optimizer_use_condition_selectivity=3;
@@ -1978,6 +2010,118 @@ set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivi
 set histogram_size=@save_histogram_size;
 set use_stat_tables= @save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
+#
+# MDEV-20595
+# Assertion `0 < sel && sel <= 2.0' failed in table_cond_selectivity
+#
+create table t1 (id int, a int, PRIMARY KEY(id), key(a));
+insert into t1 select seq,seq from seq_1_to_100;
+create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
+insert into t2 select seq,seq,seq from seq_1_to_100;
+set optimizer_use_condition_selectivity=2;
+EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	const	PRIMARY,a	PRIMARY	4	const	1	
+1	SIMPLE	B	ref	a	a	5	const	1	Using index
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+#
+# MDEV-30360 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
+# with LIMIT .. OFFSET
+#
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY(b), KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES
+(3,'a'),(2,'g'),(5,'v'),(9,'n'),(6,'u'),
+(7,'s'),(0,'z'),(3,'z'),(NULL,'m'),(6,'r');
+CREATE TABLE t2 (pk INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2);
+SELECT STRAIGHT_JOIN pk FROM t1 JOIN t2 ON a = pk WHERE b >= 'A' ORDER BY t2.pk LIMIT 8 OFFSET 1;
+pk
+DROP TABLE t1, t2;
+#
+# MDEV-30659 Server crash on EXPLAIN SELECT/SELECT on table with
+# engine Aria for LooseScan Strategy
+#
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+c2 integer, c3 integer) engine=aria;
+insert into t1(c1,c2,c3)
+values (1,1,1), (1,2,2), (1,3,3),
+(2,1,4), (2,2,5), (2,3,6),
+(2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and
+c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	1	
+drop table t1;
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+c2 integer, c3 integer) engine=aria;
+create trigger trg_t1 before update on t1 for each row
+begin
+set new.old_c1=old.c1;
+set new.old_c2=old.c2;
+end;
+/
+insert into t1 (c1,c2,c3) values
+(1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create table t2 as select * from t1;
+truncate table t1;
+insert into t1 select * from t2;
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	1	
+drop trigger trg_t1;
+drop table t1,t2;
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+c2 integer, c3 integer) engine=aria;
+insert into t1 (c1,c2,c3) values
+(1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+create table t2 as select * from t1;
+truncate table t1;
+insert into t1 select * from t2;
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	2	
+drop table t1,t2;
+#
+# MDEV-31864 Assertion `d >= 0' failed in COST_ADD with join_cache_level
+# > 2 and partitions
+#
+SET join_cache_level= 3;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT);
+INSERT INTO t2 VALUES (3,4),(5,6);
+CREATE TABLE t3 (d INT, e INT) PARTITION BY RANGE COLUMNS (d) (p1 VALUES LESS THAN (1000), pn VALUES LESS THAN (MAXVALUE));
+ANALYZE TABLE t1, t2, t3 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+a	b	c	d	e
+1	NULL	NULL	NULL	NULL
+2	NULL	NULL	NULL	NULL
+set join_cache_level= default;
+DROP TABLE t1, t2, t3;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 set @tmp_ust= @@use_stat_tables;
 set @tmp_oucs= @@optimizer_use_condition_selectivity;
@@ -2068,7 +2212,7 @@ drop table t1,t2,t3;
 #
 set use_stat_tables = preferably;
 set optimizer_use_condition_selectivity=3;
-CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -2181,3 +2325,61 @@ set optimizer_use_condition_selectivity= @tmp_oucs;
 set @@global.histogram_size=@save_histogram_size;
 SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
+#
+# MDEV-30313 Sporadic assertion `cond_selectivity <= 1.0' failure in get_range_limit_read_cost
+#
+CREATE TABLE t (a CHAR(8), b INT, c TIMESTAMP, KEY(b,c)) ENGINE=InnoDB;
+INSERT INTO t VALUES
+('g',1,'1980-09-26'),('l',2,'1979-10-07'),('e',3,'1992-04-22'),
+('v',9,'1975-09-21'),('w',3,'1973-10-06'),('y',8,'1986-10-28'),
+('a',4,'2015-02-15'),('v',9,'1980-01-13'),('f',1,'1972-02-27'),
+('z',7,'1981-05-25'),('z',8,'1980-06-14'),('c',9,'1985-01-24'),
+('x',5,'1999-12-14'),('h',3,'1994-12-18'),('j',6,'1985-08-17'),
+('b',6,'1989-08-02'),('h',6,'2024-07-06'),('h',4,'2024-02-10'),
+('s',1,'1981-07-21'),('c',2,'1988-09-16'),('e',3,'1981-08-26'),
+('a',2,'1986-05-23'),('l',0,'1997-12-19'),('b',5,'2018-05-01'),
+('q',2,'1990-01-01'),('v',9,'1982-10-12'),('x',2,'2005-04-29'),
+('f',8,'2005-08-20'),('d',3,'2002-01-24'),('b',9,'1982-02-04'),
+('a',4,'1978-04-12'),('c',9,'1984-06-08'),('n',9,'1983-10-19'),
+('l',1,'2023-01-05'),('f',2,'1988-11-18'),('a',9,'1977-11-11'),
+('k',2,'1980-09-27'),('i',7,'1988-08-09'),('e',4,'1992-07-30'),
+('l',5,'1980-01-01'),('h',5,'2011-12-24'),('d',6,'2035-03-28'),
+('h',7,'1994-05-14'),('y',1,'1990-01-01'),('x',6,'1981-09-12'),
+('x',9,'1980-01-01'),('s',9,'1995-11-09'),('i',4,'1980-01-01'),
+('p',4,'1980-01-01'),('a',6,'2026-05-05'),('c',6,'1991-09-23'),
+('l',8,'1980-01-01'),('n',4,'1999-09-15'),('b',1,'2011-07-23'),
+('a',9,'1980-01-01'),('a',0,'1977-12-21'),('v',6,'1986-10-29'),
+('r',0,'1997-03-27'),('a',9,'2000-05-05'),('x',1,'1990-01-01'),
+('n',7,'1985-08-01'),('m',6,'1994-09-14'),('s',9,'2009-09-27'),
+('r',8,'2028-10-30'),('e',6,'1982-08-31'),('x',0,'1989-12-21'),
+('d',0,'1984-06-24'),('r',6,'1982-02-11'),('a',3,'1997-10-22'),
+('s',9,'2007-08-29'),('a',3,'1990-01-01'),('o',1,'2015-02-10'),
+('x',0,'1978-08-30'),('k',5,'1989-06-15'),('b',0,'1984-08-21'),
+('v',0,'1990-01-01'),('a',9,'1993-06-23'),('n',5,'1979-11-10'),
+('o',8,'2024-08-31'),('k',6,'1983-12-25'),('y',5,'2013-02-19'),
+('a',9,'1989-12-03'),('k',4,'1973-08-07'),('o',7,'1988-03-19'),
+('o',3,'2007-01-07'),('t',6,'1990-02-22'),('f',4,'2032-10-22'),
+('p',0,'1977-09-12'),('f',3,'2036-11-26'),('a',9,'2008-06-26'),
+('k',2,'2004-09-11'),('x',1,'2005-07-28'),('s',8,'2027-08-28'),
+('a',8,'2000-06-11'),('a',7,'2005-05-20'),('u',9,'1980-01-01'),
+('v',5,'1990-01-01'),('x',7,'1984-11-01'),('a',1,'2006-05-14');
+SELECT b FROM t WHERE a > 'a' GROUP BY b HAVING b >= 6 OR b <= 0;
+b
+0
+6
+7
+8
+9
+DROP TABLE t;
+#
+# MDEV-30693: Assertion `dbl_records <= s->records' failed in apply_selectivity_for_table on SELECT
+#
+set @tmp_oucs= @@optimizer_use_condition_selectivity;
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+SELECT * FROM (SELECT * FROM t1) a JOIN (SELECT * FROM (SELECT * FROM t1 GROUP BY c) d WHERE c>1) b ON a.c=b.c;
+c	c
+DROP TABLE t1;
+SET optimizer_use_condition_selectivity=@tmp_oucs;
+#
+# End of 11.0 tests
+#

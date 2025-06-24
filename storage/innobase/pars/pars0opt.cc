@@ -354,6 +354,11 @@ opt_calc_index_goodness(
 	n_fields = dict_index_get_n_unique_in_tree(index);
 
 	for (j = 0; j < n_fields; j++) {
+		if (UNIV_UNLIKELY(index->fields[j].descending)) {
+			/* The internal InnoDB SQL parser does not
+			work with indexes that use DESC order. */
+			return 0;
+		}
 
 		col_no = dict_index_get_nth_col_no(index, j);
 
@@ -406,7 +411,7 @@ opt_calc_index_goodness(
 
 /*******************************************************************//**
 Calculates the number of matched fields based on an index goodness.
-@return number of excatly or partially matched fields */
+@return number of exactly or partially matched fields */
 UNIV_INLINE
 ulint
 opt_calc_n_fields_from_goodness(

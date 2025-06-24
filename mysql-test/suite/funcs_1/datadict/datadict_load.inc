@@ -14,7 +14,7 @@
 # ------------------------------------------------------------------------------
 # Get the size of ONE known colum and check the size against some values to
 # be able to use the correct --replace_result statement. Using this only the
-# one pair of 'wrong' values is replaced and not all occurrencies of all
+# one pair of 'wrong' values is replaced and not all occurrences of all
 # possible pairs of values. See bug #12777 for details.
 --disable_cursor_protocol
 SELECT character_maximum_length INTO @CML
@@ -72,7 +72,7 @@ let $engine_memory= `SELECT @ENGINE_MEMORY = 1`;
 --disable_warnings
 DROP DATABASE IF EXISTS test1;
 --enable_warnings
-CREATE DATABASE test1;
+CREATE DATABASE test1 CHARACTER SET latin1;
 USE test;
 
 if ($engine_innodb)

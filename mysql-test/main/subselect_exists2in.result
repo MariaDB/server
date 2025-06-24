@@ -10,11 +10,11 @@ drop table t1;
 #
 # LP BUG#884657 Wrong result with exists2in , correlated subquery
 #
-CREATE TABLE t1 ( a varchar(1)) ;
+CREATE TABLE t1 ( a varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c'),('b');
-CREATE TABLE t2 ( b varchar(1)) ;
+CREATE TABLE t2 ( b varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('v'),('v'),('c'),(NULL),('x'),('i'),('e'),('p'),('s'),('j'),('z'),('c'),('a'),('q'),('y'),(NULL),('r'),('v'),(NULL),('r');
-CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) ;
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (29,'c');
 SELECT *
 FROM t1, t2
@@ -51,8 +51,8 @@ c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	aa	aa	4	NULL	2	100.00	Using index
-1	PRIMARY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t1	index	aa	aa	4	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t3	ref	bb	bb	4	test.t1.a	1	100.00	FirstMatch(t1)
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t3`) where `test`.`t3`.`b` = `test`.`t1`.`a`
@@ -65,10 +65,10 @@ explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	4	func	1	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t3`.`b` from `test`.`t3` where <cache>(`test`.`t1`.`a`) = `test`.`t3`.`b`))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in t3 on bb)))
 -- EXIST2IN then MATERIALIZATION
 set optimizer_switch='exists_to_in=on,in_to_exists=off,semijoin=off,materialization=on,subquery_cache=off';
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
@@ -91,7 +91,7 @@ explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t3	ref	bb	bb	4	test.t1.a	1	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(/* select#2 */ select `test`.`t3`.`a` from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` limit 1)
@@ -103,7 +103,7 @@ drop table t1,t2,t3;
 # 
 create table t1 (
 a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 insert into t1 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
 ('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
@@ -146,7 +146,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 create table t2 (
 a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 insert into t2 select * from t1;
 insert into t2 (a1, a2, b, c, d) values
 ('a','a',NULL,'a777','xyz'),('a','a',NULL,'a888','xyz'),('a','a',NULL,'a999','xyz'),
@@ -174,7 +174,7 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 create table t3 (
 a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
-);
+) charset=latin1;
 insert into t3 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
 ('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
@@ -297,23 +297,28 @@ d	a	b	e412	e412	h412
 d	b	a	i421	i421	l421
 d	b	b	m422	m422	o422
 drop table t1, t2, t3;
+#
+# LP BUG#901835 - incorrect semi-join conversion after exists2in
+#
 CREATE TABLE t1 ( a INT );
-INSERT INTO t1 VALUES (7),(0);
+INSERT INTO t1 VALUES (7),(0),(100);
 CREATE TABLE t2 ( b INT );
-INSERT INTO t2 VALUES (0),(8);
+INSERT INTO t2 VALUES (0),(8),(1000),(2000),(3000),(4000),(5000);
+insert into t2 select seq from seq_6000_to_6100;
 SELECT * FROM t1 WHERE
 EXISTS ( SELECT * FROM t2 WHERE b = a )
 OR a > 0;
 a
 7
 0
+100
 explain extended
 SELECT * FROM t1 WHERE
 EXISTS ( SELECT * FROM t2 WHERE b = a )
 OR a > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	108	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b` from `test`.`t2` where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`b`)))) or `test`.`t1`.`a` > 0
@@ -370,9 +375,9 @@ set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
 drop table t1,t2,t3;
 # multi condition test
-CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) ;
+CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c', 'c'), ('b', 'b');
-CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) ;
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (29,'c','c');
 INSERT INTO t3 VALUES (2,'c','c');
 alter table t1 add index aa (a,a1);
@@ -386,7 +391,7 @@ explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	index	bb	bb	8	NULL	2	100.00	Using where; Using index; LooseScan
-1	PRIMARY	t1	ref	aa	aa	8	test.t3.b,test.t3.b1	2	100.00	Using index
+1	PRIMARY	t1	ref	aa	aa	8	test.t3.b,test.t3.b1	1	50.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -400,7 +405,7 @@ explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	8	func,func	2	100.00	Using index; Using where
+2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	8	func,func	1	100.00	Using index; Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -428,7 +433,7 @@ explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ref	bb	bb	8	test.t1.a,test.t1.a1	2	100.00	Using index
+2	DEPENDENT SUBQUERY	t3	ref	bb	bb	8	test.t1.a,test.t1.a1	1	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -579,7 +584,7 @@ set optimizer_switch='exists_to_in=on';
 # MDEV-243 Wrong result (extra or missing rows) with
 # exists_to_in + materialization, EXISTS subquery
 #
-SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=off,exists_to_in=on';
+SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=off,exists_to_in=on';
 CREATE TABLE t1 ( a VARCHAR(1), b VARCHAR(1) );
 INSERT INTO t1 VALUES ('v','v'),('s','v');
 SELECT * FROM t1 AS alias
@@ -591,7 +596,7 @@ SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(alias); Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(alias); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
@@ -622,7 +627,7 @@ SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; Start temporary; End temporary
 Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
@@ -713,14 +718,15 @@ set optimizer_switch='exists_to_in=on';
 # correct calculation of reserved items (postreview-fix)
 #
 create table t1 (col1 int, col2 int, col3 int);
-insert into t1 values (1,2,3),(2,3,4),(4,5,6);
+insert into t1 values (1,2,3),(2,3,4),(4,5,6),(7,8,9);
 create table t2 as select * from t1;
+insert into t2 select seq,seq,seq from seq_1000_to_1200;
 explain extended
 select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	205	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.col1' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.col2' of SELECT #2 was resolved in SELECT #1
@@ -730,6 +736,7 @@ col1	col2	col3
 1	2	3
 2	3	4
 4	5	6
+7	8	9
 drop table t1,t2;
 #
 # MDEV-3879: Exists2In: Wrong result (extra row) and unexpected
@@ -902,9 +909,8 @@ WHERE EXISTS ( SELECT * FROM t1 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch
 3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
@@ -922,9 +928,8 @@ WHERE EXISTS ( SELECT * FROM t1 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch
 3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1

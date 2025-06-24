@@ -172,7 +172,7 @@
  where l_partkey between 1 and 10 group by l_partkey;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 -1	SIMPLE	lineitem	range	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	NULL	#	Using where; Using index for group-by
-+1	SIMPLE	lineitem	range	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	NULL	#	Using where; Using index
++1	SIMPLE	lineitem	range	i_l_suppkey_partkey,i_l_partkey	i_l_suppkey_partkey	5	NULL	#	Using where; Using index
  flush status;
  select max(l_orderkey) from lineitem
  where l_partkey between 1 and 10 group by l_partkey;
@@ -240,7 +240,7 @@
  select straight_join * from t0,  part ignore index (primary)
  where p_partkey=t0.a and p_size=1;
  a	p_partkey	p_name	p_mfgr	p_brand	p_type	p_size	p_container	p_retailprice	p_comment
-@@ -494,7 +494,7 @@
+@@ -495,7 +495,7 @@
  select * from t1, t3 where t3.col1=t1.a and  t3.col2=t1.a and t3.pk1=t1.a;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
  1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
@@ -249,7 +249,7 @@
  drop table t1,t2,t3;
  #
  # Bug mdev-4340: performance regression with extended_keys=on   
-@@ -714,13 +714,13 @@
+@@ -726,13 +726,13 @@
  select * from t1 force index(index_date_updated) 
  where index_date_updated= 10 and index_id < 800;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -265,30 +265,30 @@
  drop table t0,t1,t2;
  #
  # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
-@@ -755,11 +755,12 @@
-     "select_id": 1,
-     "table": {
-       "table_name": "t1",
--      "access_type": "range",
-+      "access_type": "ref",
-       "possible_keys": ["f2"],
-       "key": "f2",
--      "key_length": "3070",
--      "used_key_parts": ["f2", "pk1"],
-+      "key_length": "3066",
-+      "used_key_parts": ["f2"],
-+      "ref": ["const"],
-       "rows": 1,
-       "filtered": 100,
-       "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
-@@ -788,8 +789,8 @@
-       "access_type": "range",
-       "possible_keys": ["k1"],
-       "key": "k1",
--      "key_length": "3011",
--      "used_key_parts": ["pk1", "f2", "pk2"],
-+      "key_length": "3007",
-+      "used_key_parts": ["pk1", "f2"],
-       "rows": 1,
-       "filtered": 100,
-       "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
+@@ -770,11 +770,12 @@
+       {
+         "table": {
+           "table_name": "t1",
+-          "access_type": "range",
++          "access_type": "ref",
+           "possible_keys": ["f2"],
+           "key": "f2",
+-          "key_length": "3070",
+-          "used_key_parts": ["f2", "pk1"],
++          "key_length": "3066",
++          "used_key_parts": ["f2"],
++          "ref": ["const"],
+           "loops": 1,
+           "rows": 1,
+           "cost": "COST_REPLACED",
+@@ -810,8 +811,8 @@
+           "access_type": "range",
+           "possible_keys": ["k1"],
+           "key": "k1",
+-          "key_length": "3011",
+-          "used_key_parts": ["pk1", "f2", "pk2"],
++          "key_length": "3007",
++          "used_key_parts": ["pk1", "f2"],
+           "loops": 1,
+           "rows": 1,
+           "cost": "COST_REPLACED",

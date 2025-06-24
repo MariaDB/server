@@ -1,45 +1,125 @@
 drop table if exists t1;
 create table t1 (x blob);
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('a','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','a'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('ab','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','ab'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abc','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abc'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcd','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcd'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcde','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcde'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcdef','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcdef'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcdefg','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcdefg'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcdefgh','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcdefgh'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcdefghi','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcdefghi'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcdefghij','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcdefghij'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('abcdefghijk','The quick red fox jumped over the lazy brown dog'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','abcdefghijk'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('The quick red fox jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('quick red fox jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('red fox jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('fox jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('dog!','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('dog!!','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('dog!!!','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('dog!!!!','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('dog!!!!!','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 insert into t1 values (des_encrypt('jumped over the lazy brown dog','sabakala'));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 select hex(x), hex(des_decrypt(x,'sabakala')) from t1;
 hex(x)	hex(des_decrypt(x,'sabakala'))
 FFA185A4656D113445E31D7A5B31BB57671A4CA9E21E63FE5D9C801E0CC7AA6190C13E269C2AE8D8060D3FB3FEA94FEC7FB006B9DCAC3E3E41	NULL
@@ -82,6 +162,8 @@ FF3FC2E42D7C840905	646F6721212121
 FF9723312D26D9E6DA01D01A784A64DB9D	646F672121212121
 FF8333F3DD21E4488F967E03DD12394813A49F72848BB49473D3CB1C8A1AACF220	6A756D706564206F76657220746865206C617A792062726F776E20646F67
 FF8333F3DD21E4488F967E03DD12394813A49F72848BB49473D3CB1C8A1AACF220	6A756D706564206F76657220746865206C617A792062726F776E20646F67
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(x,'sabakala') as s from t1 having s like '%dog%';
 s
 The quick red fox jumped over the lazy brown dog
@@ -101,87 +183,145 @@ dog!!!!
 dog!!!!!
 jumped over the lazy brown dog
 jumped over the lazy brown dog
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 drop table t1;
 select hex(des_encrypt("hello")),des_decrypt(des_encrypt("hello"));
 hex(des_encrypt("hello"))	des_decrypt(des_encrypt("hello"))
 85D6DC8859F9759BBB	hello
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(des_encrypt("hello",4));
 des_decrypt(des_encrypt("hello",4))
 hello
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(des_encrypt("hello",'test'),'test');
 des_decrypt(des_encrypt("hello",'test'),'test')
 hello
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select hex(des_encrypt("hello")),hex(des_encrypt("hello",5)),hex(des_encrypt("hello",'default_password'));
 hex(des_encrypt("hello"))	hex(des_encrypt("hello",5))	hex(des_encrypt("hello",'default_password'))
 85D6DC8859F9759BBB	85D6DC8859F9759BBB	FFD6DC8859F9759BBB
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 select des_decrypt(des_encrypt("hello"),'default_password');
 des_decrypt(des_encrypt("hello"),'default_password')
 hello
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(des_encrypt("hello",4),'password4');
 des_decrypt(des_encrypt("hello",4),'password4')
 hello
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_encrypt("hello",10);
 des_encrypt("hello",10)
 NULL
 Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 Warning	1108	Incorrect parameters to procedure 'des_encrypt'
 select des_encrypt(NULL);
 des_encrypt(NULL)
 NULL
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 select des_encrypt(NULL, 10);
 des_encrypt(NULL, 10)
 NULL
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 select des_encrypt(NULL, NULL);
 des_encrypt(NULL, NULL)
 NULL
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 select des_encrypt(10, NULL);
 des_encrypt(10, NULL)
 NULL
 Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 Warning	1108	Incorrect parameters to procedure 'des_encrypt'
 select des_encrypt("hello", NULL);
 des_encrypt("hello", NULL)
 NULL
 Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 Warning	1108	Incorrect parameters to procedure 'des_encrypt'
 select des_decrypt("hello",10);
 des_decrypt("hello",10)
 hello
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(NULL);
 des_decrypt(NULL)
 NULL
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(NULL, 10);
 des_decrypt(NULL, 10)
 NULL
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(NULL, NULL);
 des_decrypt(NULL, NULL)
 NULL
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt(10, NULL);
 des_decrypt(10, NULL)
 10
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select des_decrypt("hello", NULL);
 des_decrypt("hello", NULL)
 hello
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 SET @a=des_decrypt(des_encrypt("hello"));
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 flush des_key_file;
 select @a = des_decrypt(des_encrypt("hello"));
 @a = des_decrypt(des_encrypt("hello"))
 1
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select hex("hello");
 hex("hello")
 68656C6C6F
 select hex(des_decrypt(des_encrypt("hello",4),'password2'));
 hex(des_decrypt(des_encrypt("hello",4),'password2'))
 NULL
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 select hex(des_decrypt(des_encrypt("hello","hidden")));
 hex(des_decrypt(des_encrypt("hello","hidden")))
 NULL
 Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 Warning	1108	Incorrect parameters to procedure 'des_decrypt'
 explain extended select des_decrypt(des_encrypt("hello",4),'password2'), des_decrypt(des_encrypt("hello","hidden"));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 Note	1003	select des_decrypt(des_encrypt('hello',4),'password2') AS `des_decrypt(des_encrypt("hello",4),'password2')`,des_decrypt(des_encrypt('hello','hidden')) AS `des_decrypt(des_encrypt("hello","hidden"))`
 #
 # Start of 10.1 tests
@@ -196,6 +336,7 @@ SELECT * FROM t1 WHERE a=1 AND DES_ENCRYPT('test',a)=_latin1 'abc' COLLATE latin
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and des_encrypt('test',`test`.`t1`.`a`) = 'abc'
 DROP TABLE t1;
 #
@@ -212,13 +353,16 @@ a VARCHAR(30),
 b BLOB DEFAULT DES_ENCRYPT(a, 'passwd'),
 c TEXT DEFAULT DES_DECRYPT(b, 'passwd')
 );
+Warnings:
+Warning	1287	'des_encrypt' is deprecated and will be removed in a future release
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT NULL,
   `b` blob DEFAULT des_encrypt(`a`,'passwd'),
   `c` text DEFAULT des_decrypt(`b`,'passwd')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('test');
 SELECT c FROM t1;
 c

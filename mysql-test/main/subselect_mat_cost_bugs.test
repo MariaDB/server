@@ -85,7 +85,7 @@ CREATE TABLE t1 (
   c4 varchar(1) DEFAULT NULL,
   PRIMARY KEY (pk),
   KEY c2 (c2),
-  KEY c3 (c3,c2));
+  KEY c3 (c3,c2)) CHARSET=latin1;
 
 INSERT INTO t1 VALUES (10,7,8,'v','v');
 INSERT INTO t1 VALUES (11,1,9,'r','r');
@@ -111,7 +111,7 @@ CREATE TABLE t2 (
   c4 varchar(1) DEFAULT NULL,
   PRIMARY KEY (pk),
   KEY c2 (c2),
-  KEY c3 (c3,c2));
+  KEY c3 (c3,c2)) CHARSET=latin1;
 
 INSERT INTO t2 VALUES (1,NULL,2,'w','w');
 INSERT INTO t2 VALUES (2,7,9,'m','m');
@@ -319,7 +319,7 @@ drop table t1, t2;
 
 --echo #
 --echo # MWL#89: test introduced after Sergey Petrunia's review - test that
---echo # keyparts wihtout index prefix are used with the IN-EXISTS strategy.
+--echo # keyparts without index prefix are used with the IN-EXISTS strategy.
 --echo # 
 
 create table t1 (c1 int);
@@ -436,10 +436,10 @@ set optimizer_switch= @optimizer_switch_save;
 
 CREATE TABLE t1 (
  pk1 int, a1 varchar(3), b1 varchar(3), PRIMARY KEY (pk1), KEY(a1), KEY(b1)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'foo','bar'),(2,'bar','foo');
 
-CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 VARCHAR(3), KEY(a2)) ENGINE=MyISAM;
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 VARCHAR(3), KEY(a2)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t2 VALUES (1,'abc'),(2,'xyz'),(3,'foo');
 
 SELECT 'qux' IN ( SELECT a1 FROM t1 INNER JOIN t2 WHERE a2 = b1 AND pk2 = 3 ) as exp;
@@ -452,10 +452,10 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (i1 INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1);
 
-CREATE TABLE t2 (i2 int, c2 varchar(3), KEY(i2,c2)) ENGINE=MyISAM;
+CREATE TABLE t2 (i2 int, c2 varchar(3), KEY(i2,c2)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t2 VALUES (1,'abc'),(2,'foo');
 
-CREATE TABLE t3 (pk3 int PRIMARY KEY, c3 varchar(3)) ENGINE=MyISAM;
+CREATE TABLE t3 (pk3 int PRIMARY KEY, c3 varchar(3)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t3 VALUES (1,'foo'),(2,'bar');
 
 SELECT * FROM t1 WHERE i1 NOT IN ( 

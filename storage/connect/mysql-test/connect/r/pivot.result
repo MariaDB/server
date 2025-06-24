@@ -6,7 +6,7 @@ Who  CHAR(10) NOT NULL,
 Week INT(2) NOT NULL,
 What CHAR(12) NOT NULL,
 Amount DOUBLE(8,2))
-ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
 SELECT * FROM expenses;
 Who	Week	What	Amount
 Joe	3	Beer	18.00
@@ -42,7 +42,7 @@ Week INT(2) NOT NULL,
 Beer DOUBLE(8,2) FLAG=1,
 Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=expenses;
 ALTER TABLE pivex OPTION_LIST='port=PORT';
 SELECT * FROM pivex;
 Who	Week	Beer	Car	Food
@@ -74,7 +74,7 @@ Week INT(2) NOT NULL,
 Beer DOUBLE(8,2) FLAG=1,
 Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT
 SRCDEF='select who, week, what, sum(amount) as amount from expenses where week in (4,5) group by who, week, what';
 Warnings:
 Warning	1105	Cannot check looping reference
@@ -97,7 +97,7 @@ What CHAR(12) NOT NULL,
 `3` DOUBLE(8,2) FLAG=1,
 `4` DOUBLE(8,2) FLAG=1,
 `5` DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=expenses;
 ALTER TABLE pivex OPTION_LIST='PivotCol=Week,port=PORT';
 SELECT * FROM pivex;
 Who	What	3	4	5
@@ -110,7 +110,7 @@ Joe	Beer	18.00	49.00	14.00
 Joe	Car	20.00	0.00	0.00
 Joe	Food	31.00	34.00	12.00
 #
-# Using scalar functions and expresssions
+# Using scalar functions and expressions
 #
 DROP TABLE pivex;
 CREATE TABLE pivex (
@@ -119,7 +119,7 @@ What CHAR(12) NOT NULL,
 First  DOUBLE(8,2) FLAG=1,
 Middle DOUBLE(8,2) FLAG=1,
 Last   DOUBLE(8,2) FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT
 SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Last'' else ''Middle'' end as wk, sum(amount) * 6.56 as amnt from expenses group by who, what, wk';
 Warnings:
 Warning	1105	Cannot check looping reference
@@ -173,7 +173,7 @@ cat    INT NOT NULL DEFAULT 0 FLAG=1,
 rabbit INT NOT NULL DEFAULT 0 FLAG=1,
 bird   INT NOT NULL DEFAULT 0 FLAG=1,
 fish   INT NOT NULL DEFAULT 0 FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
 SELECT * FROM pivet;
 name	dog	cat	rabbit	bird	fish
 John	2	0	0	0	0
@@ -190,7 +190,7 @@ CREATE TABLE pivet (
 name VARCHAR(12) NOT NULL,
 dog  INT NOT NULL DEFAULT 0 FLAG=1,
 cat  INT NOT NULL DEFAULT 0 FLAG=1)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
 SELECT * FROM pivet;
 ERROR HY000: Got error 122 'Cannot find matching column' from CONNECT
 ALTER TABLE pivet OPTION_LIST='PivotCol=race,groupby=1,accept=1';
@@ -211,7 +211,7 @@ name VARCHAR(12) NOT NULL,
 dog   INT NOT NULL DEFAULT 0 FLAG=1,
 cat   INT NOT NULL DEFAULT 0 FLAG=1,
 other INT NOT NULL DEFAULT 0 FLAG=2)
-ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
 SELECT * FROM pivet;
 name	dog	cat	other
 John	2	0	0
@@ -239,7 +239,7 @@ id	name	cnt
 3	apple	2
 4	cherry	4
 5	durazno	2
-CREATE TABLE fruit_pivot ENGINE=CONNECT TABLE_TYPE=pivot TABNAME=fruit;
+CREATE TABLE fruit_pivot ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=pivot TABNAME=fruit;
 SELECT * FROM fruit_pivot;
 id	apple	banana	cherry	durazno
 1	1	0	0	0

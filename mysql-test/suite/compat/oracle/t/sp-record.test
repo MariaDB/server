@@ -1,0 +1,840 @@
+--echo # Start of 11.8 tests
+
+--echo # 
+--echo # MDEV-34317 DECLARE TYPE type_name IS RECORD (..) with scalar members in stored routines
+--echo # 
+
+set sql_mode=oracle;
+
+--echo #
+--echo # Basic RECORD
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+  str VARCHAR(1024);
+BEGIN
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || '; ' ||
+   'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+   'loc_id:    ' || dept_rec.loc_id;
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD fields with anchored type
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+);
+
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    t1.dept_id%TYPE,
+    dept_name  t1.dept_name%TYPE,
+    mgr_id     t1.mgr_id%TYPE,
+    loc_id     t1.loc_id%TYPE
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+  str VARCHAR(1024);
+BEGIN
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || '; ' ||
+   'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+   'loc_id:    ' || dept_rec.loc_id;
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a VARCHAR(5) CHARACTER SET utf8mb4, b INT, c DOUBLE);
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE RecT IS RECORD (
+    a t1.a%TYPE,
+    b t1.b%TYPE,
+    c t1.c%TYPE
+  );
+  rec RecT:= RecT('a',2,3.5);
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # RECORD using SUBTYPE
+--echo # This is not supported yet
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+);
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+DECLARE
+  SUBTYPE DeptRecTyp IS t1%ROWTYPE;
+  dept_rec DeptRecTyp;
+  str VARCHAR(1024);
+BEGIN
+  dept_rec.dept_id  := 11;
+  dept_rec.dept_name:= 'a';
+  dept_rec.mgr_id   := 201;
+  dept_rec.loc_id   := 1700;
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || '; ' ||
+   'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+   'loc_id:    ' || dept_rec.loc_id;
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # RECORD with NOT NULL or default clauses
+--echo # This is not supported yet
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4) NOT NULL := 10,
+    dept_name  VARCHAR2(30) NOT NULL := 'Administration',
+    mgr_id     NUMBER(6) := 200,
+    loc_id     NUMBER(4) := 1700
+  );
+  dept_rec DeptRecTyp;
+  str VARCHAR(1024);
+BEGIN
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || chr(13) ||
+   'mgr_id:    ' || dept_rec.mgr_id    || chr(13) ||
+   'loc_id:    ' || dept_rec.loc_id;
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Nested RECORDs
+--echo # This is not supported yet
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+DECLARE
+  TYPE name_rec IS RECORD (
+    first  VARCHAR(64),
+    last   VARCHAR(64)
+  );
+ 
+  TYPE contact IS RECORD (
+    name  name_rec,     -- a nested record
+    phone VARCHAR(32)
+  );
+  person contact;
+  str VARCHAR(1024);
+BEGIN
+  person.name.first := 'John';
+  person.name.last := 'Brown';
+  person.phone := '1-654-222-1234';
+
+  str:= 
+    person.name.first  || ' ' ||
+    person.name.last   || ', ' ||
+    person.phone;
+
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD duplicate type declaration
+--echo #
+DELIMITER $$;
+--error ER_SP_DUP_DECL
+DECLARE
+  TYPE RcType IS RECORD (
+    a NUMBER(4)
+  );
+  TYPE RcType IS RECORD (
+    b NUMBER(4)
+  );
+BEGIN
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD with no field
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE RcType IS RECORD (
+  );
+  rec RcType;
+  str VARCHAR(1024);
+BEGIN
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD field test
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE RcType IS RECORD (
+    int11 INT,
+    dec103 DECIMAL(10,3),
+    flt0 FLOAT,
+    dbl0 DOUBLE,
+    enum0 ENUM('a','b'),
+    bit3 BIT(3),
+
+    varchar10 VARCHAR(10),
+    text1 TEXT,
+    tinytext1 TINYTEXT,
+    mediumtext1 MEDIUMTEXT CHARACTER SET utf8,
+    longtext1 LONGTEXT,
+
+    time3 TIME(3),
+    datetime4 DATETIME(4),
+    timestamp5 TIMESTAMP(5),
+    date0 DATE
+  );
+  rec1,rec2 RcType:= RcType(4, 11.2, 6.7, 111.43234663, 'a', b'101',
+                            'bbbb', 'TEXT', 'TINY', 'MEDIUM', 'LONG',
+                            '10:14:22','2001-07-22 10:14:22', '2001-07-22 12:12:12', '2001-07-22');
+  rec3 RcType;
+BEGIN
+  SELECT rec1.int11, rec2.timestamp5, rec3.date0;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD with field manipulations
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec DeptRecTyp;
+  test INT:=4;
+BEGIN
+  dept_rec.dept_id:= 2;
+  test:= test + dept_rec.dept_id;
+  dept_rec.dept_id:= 5;
+  SELECT dept_rec.dept_id, test;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD comparison
+--echo #
+DELIMITER $$;
+DECLARE
+   TYPE DeptRecTyp IS RECORD (
+     dept_id    NUMBER(4),
+     dept_name  VARCHAR(20)
+   );
+   dept_rec1 DeptRecTyp := DeptRecTyp(1,'a');
+   dept_rec2 DeptRecTyp := DeptRecTyp(1,'a');
+BEGIN
+   SELECT dept_rec1 = dept_rec2;
+   dept_rec2.dept_id:= 2;
+   SELECT dept_rec1 = dept_rec2;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD comparison
+--echo # RECORD type comparison is not supported for records with only
+--echo # one field (bug, see MDEV-35274)
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec1 DeptRecTyp;
+  dept_rec2 DeptRecTyp;
+BEGIN
+  SELECT dept_rec1 = dept_rec2;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD assignment with the same type
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec1 DeptRecTyp:= DeptRecTyp(11);
+  dept_rec2 DeptRecTyp:= DeptRecTyp(12);
+BEGIN
+  dept_rec1:= dept_rec2;
+  SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD assignment with different types, but the same fields
+--echo # This fails in ORACLE TODO
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp1 IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  TYPE DeptRecTyp2 IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec1 DeptRecTyp1:= DeptRecTyp1(11);
+  dept_rec2 DeptRecTyp2:= DeptRecTyp2(12);
+BEGIN
+  dept_rec1:= dept_rec2;
+  SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD assignment with different types
+--echo # This fails in ORACLE with
+--echo # PLS-00382: expression is of wrong type
+--echo # In MariaDB we need to set sql_mode='strict_all_tables'
+--echo # to get a similar effect. Otherwise we only get a warning.
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp1 IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  TYPE DeptRecTyp2 IS RECORD (
+    dept_id    VARCHAR2(30)
+  );
+  dept_rec1 DeptRecTyp1:= DeptRecTyp1(11);
+  dept_rec2 DeptRecTyp2:= DeptRecTyp2('a');
+BEGIN
+  dept_rec1:= dept_rec2;
+  SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD assignment with anchored ROWTYPE from table
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4)
+);
+INSERT INTO t1 VALUES(12);
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec1 DeptRecTyp:= DeptRecTyp(11);
+  dept_rec2 t1%ROWTYPE;
+BEGIN
+  SELECT dept_id INTO dept_rec2 FROM t1 WHERE ROWNUM < 2;
+  dept_rec1:= dept_rec2;
+  SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # RECORD assignment with anchored ROWTYPE from cursor (1)
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4)
+);
+INSERT INTO t1 VALUES(12);
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  CURSOR c1 IS SELECT * FROM t1;
+  dept_rec1 DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+  DECLARE
+    dept_rec2 c1%ROWTYPE;
+  BEGIN
+    SELECT dept_id INTO dept_rec2 FROM t1 WHERE ROWNUM < 2;
+    dept_rec1:= dept_rec2;
+    SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # RECORD assignment with anchored ROWTYPE from cursor (2)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4),
+    b VARCHAR(10)
+  );
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 DeptRecTyp:=DeptRecTyp(11,'a');
+    rec2 cur1%ROWTYPE;
+  BEGIN
+    rec2.a:= 10;
+    rec2.b:= 'bbb';
+
+    rec1:= rec2;
+    SELECT rec1.dept_id, rec2.a;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # RECORD within stored procedures
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1() AS
+  TYPE DeptRecTyp IS RECORD(dept_id    NUMBER(4));
+  dept_rec DeptRecTyp;
+BEGIN
+END;
+$$
+DELIMITER ;$$
+DROP PROCEDURE p1;
+
+--echo #
+--echo # SELECT INTO RECORD (??)
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+);
+INSERT INTO t1 VALUES(12, 'b',202,2000);
+
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    t1.dept_id%TYPE,
+    dept_name  t1.dept_name%TYPE,
+    mgr_id     t1.mgr_id%TYPE,
+    loc_id     t1.loc_id%TYPE
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+  str VARCHAR(1024);
+BEGIN
+  SELECT * INTO dept_rec FROM t1 WHERE ROWNUM <= 1;
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || '; ' ||
+   'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+   'loc_id:    ' || dept_rec.loc_id;
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # INSERT RECORDs INTO table
+--echo # Not supported (?)
+--echo # This is supported in Oracle with `VALUES row_constructor_list`
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+);
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    t1.dept_id%TYPE,
+    dept_name  t1.dept_name%TYPE,
+    mgr_id     t1.mgr_id%TYPE,
+    loc_id     t1.loc_id%TYPE
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+  str VARCHAR(1024);
+BEGIN
+  INSERT INTO t1 VALUES dept_rec;
+  SELECT * FROM t1;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # UPDATE table using RECORD
+--echo # This is supported in Oracle
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4)
+);
+INSERT INTO t1 VALUES(12);
+
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+   TYPE DeptRecTyp IS RECORD(dept_id    NUMBER(4));
+   dept_rec DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+   UPDATE t1 SET ROW = dept_rec WHERE dept_id = 12;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # Wrong parameter count to RECORD's constructor (actual < expected)
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201);
+  str VARCHAR(1024);
+BEGIN
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || '; ' ||
+   'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+   'loc_id:    ' || dept_rec.loc_id;
+  select str;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Wrong parameter count to RECORD's constructor (actual > expected)
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30),
+    mgr_id     NUMBER(6),
+    loc_id     NUMBER(4)
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700,2000);
+  str VARCHAR(1024);
+BEGIN
+  str:= 
+   'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+   'dept_name: ' || dept_rec.dept_name || '; ' ||
+   'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+   'loc_id:    ' || dept_rec.loc_id;
+  SELECT str;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Case insensitivity test for RECORD variable
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11);
+  str VARCHAR(1024);
+BEGIN
+  SELECT DEPT_rec.DEPT_id;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Quoted indentifier test for RECORD variable
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  "dept/rec" DeptRecTyp:= DeptRecTyp(11);
+  str VARCHAR(1024);
+BEGIN
+  SELECT "dept/rec".dept_id;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD type used in a stored PROCEDURE
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(v NUMBER) AS
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+  SELECT dept_rec.dept_id + v;
+END;
+$$
+DELIMITER ;$$
+CALL p1(4);
+DROP PROCEDURE p1;
+
+--echo #
+--echo # RECORD type used in a stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1(v NUMBER)
+RETURN NUMBER IS
+  TYPE DeptRecTyp IS RECORD (
+    dept_id    NUMBER(4)
+  );
+  dept_rec DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+  RETURN dept_rec.dept_id + v;
+END;
+$$
+DELIMITER ;$$
+SELECT f1(4);
+DROP FUNCTION f1;
+
+--echo #
+--echo # RECORD keyword as identifier (sp var name)
+--echo #
+DELIMITER $$;
+DECLARE
+  RECORD NUMBER(4);
+BEGIN
+  SELECT RECORD;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD keyword as identifier (function name)
+--echo #
+DELIMITER $$;
+--disable_warnings
+CREATE FUNCTION RECORD(a IN NUMBER) 
+RETURN NUMBER 
+IS b NUMBER(11,2);
+BEGIN
+    b:= a;
+    RETURN(b); 
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION RECORD;
+--enable_warnings
+
+
+SET sql_mode=default;
+
+--echo #
+--echo # Basic RECORD, anonymous block sql_mode=default;
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+BEGIN NOT ATOMIC
+  DECLARE TYPE DeptRecTyp IS RECORD (
+    dept_id    INT
+  );
+  DECLARE dept_rec DeptRecTyp DEFAULT DeptRecTyp(11);
+  SELECT dept_rec.dept_id;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Basic RECORD, stored procedure sql_mode=default;
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE TYPE DeptRecTyp IS RECORD (
+    dept_id    INT
+  );
+  DECLARE dept_rec DeptRecTyp DEFAULT DeptRecTyp(11);
+  SELECT dept_rec.dept_id;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_DOES_NOT_EXIST
+CALL p1();
+--error ER_SP_DOES_NOT_EXIST
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Basic RECORD, stored function sql_mode=default;
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE TYPE DeptRecTyp IS RECORD (
+    dept_id    INT
+  );
+  DECLARE dept_rec DeptRecTyp DEFAULT DeptRecTyp(11);
+  RETURN dept_rec.dept_id;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_DOES_NOT_EXIST
+SELECT f1();
+--error ER_SP_DOES_NOT_EXIST
+DROP FUNCTION f1;
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Ensure keyword TYPE can still be used when sql_mode=ORACLE
+--echo # for DATABASE
+--echo #
+CREATE DATABASE TYPE;
+DROP DATABASE TYPE;
+
+--echo #
+--echo # Ensure keyword TYPE can still be used when sql_mode=ORACLE
+--echo # for TABLE
+--echo #
+CREATE TABLE TYPE(a INTEGER);
+INSERT INTO TYPE VALUES (1);
+SELECT * FROM TYPE;
+DROP TABLE TYPE;
+
+
+--echo #
+--echo # Ensure keyword TYPE can still be used when sql_mode=ORACLE
+--echo # for COLUMN name
+--echo #
+CREATE TABLE t1(TYPE INTEGER);
+INSERT INTO t1 VALUES (1);
+SELECT TYPE FROM t1 WHERE TYPE=1;
+SELECT b.TYPE FROM t1 b WHERE b.TYPE=1;
+DROP TABLE t1;
+
+--echo #
+--echo # Ensure that DATE field of a record maps correctly to MariaDB
+--echo # DATETIME
+--echo #
+DELIMITER $$;
+DECLARE
+   TYPE rec_t IS RECORD (
+     a INT,
+     b DATE
+   );
+   rec rec_t:= rec_t(1,'2021-01-01 10:20:30');
+BEGIN
+  CREATE TABLE t1 AS SELECT rec.a, rec.b;
+  SHOW CREATE TABLE t1;
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Ensure that nested record types are properly parsed (without crash, etc)
+--echo #
+SET sql_mode=ORACLE;
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+DECLARE
+   TYPE rec_t IS RECORD (
+     a INT,
+     b DATE
+   );
+   rec rec_t:= rec_t(1,'2021-01-01 10:20:30');
+   TYPE rec2_t IS RECORD
+   (
+     a INT,
+     b rec_t
+   );
+BEGIN
+   NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Multiple RECORD variable declaration+initialization test
+--echo #
+DELIMITER $$;
+DECLARE
+TYPE rec_t IS RECORD (
+  a  NUMBER(4),
+  b  VARCHAR2(30)
+);
+rec0, rec1, rec2 rec_t := rec_t(1,'a'); BEGIN
+SELECT rec0.a || rec0.b AS r0, rec1.a || rec1.b AS t1, rec2.a || rec2.b AS r2; END;
+$$
+DELIMITER ;$$
+
+--echo # End of 11.8 tests

@@ -379,10 +379,9 @@ SET @@character_set_filesystem = 1;
 SELECT @@character_set_filesystem;
 @@character_set_filesystem
 big5
+# latin2_czech_cs is not a default collation
 SET @@character_set_filesystem = 2;
-SELECT @@character_set_filesystem;
-@@character_set_filesystem
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@character_set_filesystem = 3;
 SELECT @@character_set_filesystem;
 @@character_set_filesystem
@@ -391,10 +390,10 @@ SET @@character_set_filesystem = 36;
 SELECT @@character_set_filesystem;
 @@character_set_filesystem
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@character_set_filesystem = 99;
-SELECT @@character_set_filesystem;
-@@character_set_filesystem
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@character_set_filesystem = 100;
 ERROR 42000: Unknown character set: '100'
 SET @total_charset = (SELECT count(*) FROM INFORMATION_SCHEMA.CHARACTER_SETS);

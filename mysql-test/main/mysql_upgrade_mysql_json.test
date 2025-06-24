@@ -26,7 +26,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 show create table mysql_json_test;
 
 --exec $MYSQL_UPGRADE --force 2>&1
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 show create table mysql_json_test;
 select * from mysql_json_test;

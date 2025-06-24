@@ -1,6 +1,6 @@
 --- max_record_size.result
-+++ max_record_size.reject
-@@ -12,7 +12,7 @@
++++ max_record_size,8k,compact.reject
+@@ -13,7 +13,7 @@
  c9 CHAR(255), c10 CHAR(255), c11 CHAR(255), c12 CHAR(255),
  c13 CHAR(255), c14 CHAR(255), c15 CHAR(255), c16 CHAR(255)
  ) ENGINE=INNODB;
@@ -9,7 +9,7 @@
  CREATE TABLE t1 (
  c1 VARCHAR(255), c2 VARCHAR(255), c3 VARCHAR(255), c4 VARCHAR(255),
  c5 VARCHAR(255), c6 VARCHAR(255), c7 VARCHAR(255), c8 VARCHAR(255),
-@@ -26,7 +26,7 @@
+@@ -27,7 +27,7 @@
  c9 VARCHAR(255), c10 VARCHAR(255), c11 VARCHAR(255), c12 VARCHAR(255),
  c13 VARCHAR(255), c14 VARCHAR(255), c15 VARCHAR(255), c16 VARCHAR(255)
  ) ENGINE=INNODB;
@@ -18,7 +18,7 @@
  CREATE TABLE t1 (
  c1 VARCHAR(788), c2 VARCHAR(788), c3 VARCHAR(788), c4 VARCHAR(788),
  c5 VARCHAR(788)
-@@ -36,7 +36,7 @@
+@@ -37,7 +37,7 @@
  c1 VARCHAR(788), c2 VARCHAR(788), c3 VARCHAR(788), c4 VARCHAR(788),
  c5 VARCHAR(788), c6 VARCHAR(788)
  ) ENGINE=INNODB;
@@ -27,9 +27,10 @@
  CREATE TABLE t1 (
  c1 TEXT, c2 TEXT, c3 TEXT, c4 TEXT, c5 TEXT
  ) ENGINE=INNODB;
-@@ -44,4 +44,4 @@
+@@ -45,5 +45,5 @@
  CREATE TABLE t1 (
  c1 TEXT, c2 TEXT, c3 TEXT, c4 TEXT, c5 TEXT, c6 TEXT
  ) ENGINE=INNODB;
 -ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 +ERROR 42000: Row size too large (> 4030). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

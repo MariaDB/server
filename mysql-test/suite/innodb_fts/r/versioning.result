@@ -1,4 +1,5 @@
 # Upgrade test
+DROP TABLE mysql.innodb_table_stats, mysql.innodb_index_stats;
 SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 ERROR HY000: Index articles is corrupted

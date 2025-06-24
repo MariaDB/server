@@ -842,7 +842,7 @@ pk	a	b	bit_or
 12	2	2048	2048
 drop table t2;
 #
-# Try RANGE PRECEDING|FOLLWING n
+# Try RANGE PRECEDING|FOLLOWING n
 #
 create table t1 (
 part_id int,
@@ -1449,19 +1449,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t0.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t0.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "rows": 10,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 10,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1478,21 +1487,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "filesort": {
       "sort_key": "t1.a",
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "sum(t1.b)"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "sum(t1.b)"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 10,
+                "cost": "COST_REPLACED",
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -1509,19 +1527,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "sum(t1.b)"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "sum(t1.b)"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 10,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 10,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1540,22 +1567,31 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "having_condition": "MX in (3,5,7)",
     "filesort": {
       "sort_key": "t1.b",
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "t1.b"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.b"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 10,
+                "cost": "COST_REPLACED",
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -1688,19 +1724,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.c, t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.c, t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 3,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1714,19 +1759,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 3,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1740,19 +1794,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.c, t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.c, t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 3,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1766,19 +1829,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.c, t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.c, t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 3,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1820,21 +1892,30 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "filesort": {
       "sort_key": "row_number() over ( order by t1.s1,t1.s2) desc",
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "t1.s1, t1.s2"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.s1, t1.s2"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 6,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 6,
+                "cost": "COST_REPLACED",
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -1974,20 +2055,29 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "duplicate_removal": {
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "t1.part_id, t1.a"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.part_id, t1.a"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 9,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 9,
+                "cost": "COST_REPLACED",
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -2145,19 +2235,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.a, t1.pk"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.a, t1.pk"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 11,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 11,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -2206,19 +2305,28 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.a, t1.b"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.a, t1.b"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 6,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 6,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -3247,7 +3355,7 @@ SHOW CREATE TABLE fv_result;
 Table	Create Table
 fv_result	CREATE TABLE `fv_result` (
   `somedate` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM fv_result;
 somedate
 2017-07-20 12:47:56
@@ -3444,20 +3552,28 @@ GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
 HAVING @A := 'qwerty';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
 GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
 HAVING @A := 'qwerty';
 BIT_OR(100) OVER ()
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 explain
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
 GROUP BY LEFT('2018-08-24', 100)
 HAVING @A := 'qwerty';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
 GROUP BY LEFT('2018-08-24', 100)
 HAVING @A := 'qwerty';
 BIT_OR(100) OVER ()
+Warnings:
+Warning	1292	Truncated incorrect BOOLEAN value: 'qwerty'
 create table t1 (a int);
 explain
 SELECT DISTINCT BIT_OR(100) OVER () FROM t1
@@ -3793,35 +3909,48 @@ INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
 ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "`row_number() OVER()`",
-          "r_loops": 1,
-          "r_total_time_ms": "REPLACED",
-          "r_used_priority_queue": false,
-          "r_output_rows": 3,
-          "r_buffer_size": "REPLACED",
-          "r_sort_mode": "sort_key,rowid"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "`row_number() OVER()`",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 3,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,rowid"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 3,
-          "r_rows": 3,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 3,
+              "r_rows": 3,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -3891,7 +4020,7 @@ DROP TABLE t1;
 # MDEV-18916: crash in Window_spec::print_partition() with decimals
 #
 SELECT cast((rank() over w1) as decimal (53,56));
-ERROR 42000: Too big scale 56 specified for 'rank() over w1'. Maximum is 38
+ERROR 42000: Too big scale specified for 'rank() over w1'. Maximum is 38
 SELECT cast((rank() over w1) as decimal (53,30));
 ERROR HY000: Window specification with name 'w1' is not defined
 #
@@ -4360,7 +4489,7 @@ t2	CREATE TABLE `t2` (
   `pk` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
   `bit_or` bigint(21) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 pk	a	b
 1	0	1
@@ -4375,7 +4504,7 @@ t2	CREATE TABLE `t2` (
   `pk` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
   `bit_or` bigint(21) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 pk	a	bit_or
 1	0	18446744073709551615
@@ -4479,7 +4608,7 @@ WHERE type = 2
 ON w1.flat = w2.flat;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<derived6>	ref	key0	key0	1	v1.flat	2	100.00	Using where
+1	PRIMARY	<derived6>	ref	key0	key0	1	v1.flat	1	100.00	Using where
 6	DERIVED	w	index	NULL	PRIMARY	6	NULL	3	100.00	Using where; Using index; Using temporary; Using filesort
 7	DEPENDENT SUBQUERY	sw	eq_ref	PRIMARY	PRIMARY	6	func,func,func	1	100.00	Using index condition
 4	DERIVED	w	index	NULL	PRIMARY	6	NULL	3	100.00	Using where; Using index; Using temporary; Using filesort
@@ -4527,7 +4656,7 @@ WHERE type = 2
 ON w1.flat = w2.flat;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	<derived6>	ref	key0	key0	1	w1.flat	2	100.00	Using where
+1	PRIMARY	<derived6>	ref	key0	key0	1	w1.flat	1	100.00	Using where
 6	DERIVED	w	index	NULL	PRIMARY	6	NULL	3	100.00	Using where; Using index; Using temporary; Using filesort
 7	DEPENDENT SUBQUERY	sw	eq_ref	PRIMARY	PRIMARY	6	func,func,func	1	100.00	Using index condition
 2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using temporary

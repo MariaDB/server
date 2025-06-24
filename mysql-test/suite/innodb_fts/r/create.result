@@ -187,4 +187,27 @@ FTS_DOC_ID bigint unsigned not null,
 unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
 fulltext (f2))
 engine=innodb;
-ERROR 42000: Incorrect index name 'FTS_DOC_ID_INDEX'
+ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
+#
+# MDEV-26938 Support descending indexes internally in InnoDB
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
+UNIQUE KEY FTS_DOC_ID_INDEX(FTS_DOC_ID DESC), FULLTEXT(b))
+ENGINE=InnoDB;
+ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
+CREATE TABLE t1(a INT PRIMARY KEY, b TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
+UNIQUE KEY FTS_DOC_ID_INDEX(FTS_DOC_ID DESC)) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` text DEFAULT NULL,
+  `FTS_DOC_ID` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `FTS_DOC_ID_INDEX` (`FTS_DOC_ID` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
+ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
+ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
+DROP TABLE t1;

@@ -653,7 +653,7 @@ DROP TABLE t1,t2,t3;
 
 #
 # BUG#47995: Mark user functions as unsafe
-# BUG#49222: Mare RAND() unsafe
+# BUG#49222: Mark RAND() unsafe
 #
 # Test that the system functions that are supposed to be marked unsafe
 # generate a warning.  Each INSERT statement below should generate a
@@ -661,7 +661,7 @@ DROP TABLE t1,t2,t3;
 #
 SET SESSION binlog_format = STATEMENT;
 
-CREATE TABLE t1 (a VARCHAR(1000));
+CREATE TABLE t1 (a VARBINARY(1000));
 INSERT INTO t1 VALUES (CURRENT_USER());       #marked unsafe before BUG#47995
 INSERT INTO t1 VALUES (FOUND_ROWS());         #marked unsafe before BUG#47995
 INSERT INTO t1 VALUES (GET_LOCK('tmp', 1));   #marked unsafe in BUG#47995
@@ -680,6 +680,7 @@ INSERT INTO t1 VALUES (UUID());               #marked unsafe before BUG#47995
 INSERT INTO t1 VALUES (UUID_SHORT());         #marked unsafe before BUG#47995
 INSERT INTO t1 VALUES (VERSION());            #marked unsafe in BUG#47995
 INSERT INTO t1 VALUES (RAND());               #marked unsafe in BUG#49222
+INSERT INTO t1 VALUES (RANDOM_BYTES(1000));   #marked unsafe in MDEV-25704
 DELETE FROM t1;
 
 # Since we replicate the TIMESTAMP variable, functions affected by the

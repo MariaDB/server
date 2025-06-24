@@ -25,7 +25,7 @@ select sec_to_time(90011e-1), sec_to_time(1234567890123e30);
 select sec_to_time(1234567890123), sec_to_time('99999999999999999999999999999');
 select now()-curdate()*1000000-curtime();
 select strcmp(current_timestamp(),concat(current_date()," ",current_time())) as exp;
-select strcmp(localtime(),concat(current_date()," ",current_time())) as exp;
+select strcmp(localtime(),current_time()) as exp;
 select strcmp(localtimestamp(),concat(current_date()," ",current_time())) as exp;
 select date_format("1997-01-02 03:04:05", "%M %W %D %Y %y %m %d %h %i %s %w") as exp;
 select date_format("1997-01-02", concat("%M %W %D ","%Y %y %m %d %h %i %s %w")) as exp;
@@ -276,7 +276,6 @@ select unix_timestamp('1969-12-01 19:00:01');
 select from_unixtime(-1);
 # check for from_unixtime(2^31-1) and from_unixtime(2^31)
 select from_unixtime(2147483647);
-select from_unixtime(2147483648);
 select from_unixtime(0);
 
 #
@@ -285,18 +284,14 @@ select from_unixtime(0);
 # unix_timestamp are consistent, when working with boundary dates.
 #
 select unix_timestamp(from_unixtime(2147483647));
-select unix_timestamp(from_unixtime(2147483648));
 
 # check for invalid dates
 
 # bad year
-select unix_timestamp('2039-01-20 01:00:00');
 select unix_timestamp('1968-01-20 01:00:00');
 # bad month
-select unix_timestamp('2038-02-10 01:00:00');
 select unix_timestamp('1969-11-20 01:00:00');
 # bad day
-select unix_timestamp('2038-01-20 01:00:00');
 select unix_timestamp('1969-12-30 01:00:00');
 
 #
@@ -306,12 +301,9 @@ select unix_timestamp('2038-01-17 12:00:00');
 
 #
 # Check positive shift. (it happens only on
-# platfroms with unsigned time_t, such as QNX)
+# platforms with unsigned time_t, such as QNX)
 #
 select unix_timestamp('1970-01-01 03:00:01');
-
-# check bad date, close to the boundary (we cut them off in the very end)
-select unix_timestamp('2038-01-19 07:14:07');
 
 #
 # Bug #28759: DAYNAME() and MONTHNAME() return binary string
@@ -846,6 +838,23 @@ SET TIMESTAMP=1; SELECT UTC_TIMESTAMP();
 #reset back the timestamp value
 SET TIMESTAMP=0;
 
+--echo #
+--echo # MDEV-11341 STR_TO_DATE does not return NULL for invalid dates
+--echo #
+
+SELECT STR_TO_DATE('1949-02-30','%Y-%m-%d');
+SELECT STR_TO_DATE('1949-02-28','%Y-%m-%d');
+SELECT STR_TO_DATE('1949-06-31','%Y-%m-%d');
+SELECT STR_TO_DATE('2000-02-29','%Y-%m-%d');
+SELECT STR_TO_DATE('1900-02-29','%Y-%m-%d');
+
+SET sql_mode=ALLOW_INVALID_DATES;
+SELECT STR_TO_DATE('1949-02-30','%Y-%m-%d');
+SELECT STR_TO_DATE('1949-02-28','%Y-%m-%d');
+SELECT STR_TO_DATE('1949-06-31','%Y-%m-%d');
+SELECT STR_TO_DATE('2000-02-29','%Y-%m-%d');
+SELECT STR_TO_DATE('1900-02-29','%Y-%m-%d');
+SET sql_mode=DEFAULT;
 
 --echo End of 5.0 tests
 
@@ -1719,7 +1728,7 @@ SET sql_mode=DEFAULT;
 
 # The below query can return warning sporadically
 --disable_warnings
-DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
+DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(SYS_GUID()))));
 --enable_warnings
 
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
@@ -3069,7 +3078,7 @@ SELECT
 --enable_warnings
 
 --echo # HOUR is max_useful_hour() (inside INTERVAL DAY TO SECOND range)
---echo # Expect max TIME(0) + zero fraction + TIME warnings + no INTEVAL warnings
+--echo # Expect max TIME(0) + zero fraction + TIME warnings + no INTERVAL warnings
 SELECT
   ADDTIME(TIME'00:00:00', 876494155959) AS ci,
   ADDTIME(TIME'00:00:00', 876494155959)+0 AS c0,
@@ -3279,4 +3288,101 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 11.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34829 LOCALTIME returns a wrong data type
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2024-08-28 14:47:00');
+SELECT LOCALTIME;
+EXPLAIN EXTENDED SELECT LOCALTIME;
+CREATE TABLE t1 AS SELECT LOCALTIME;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # End of 11.6 tests
+--echo #
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-15751 CURRENT_TIMESTAMP should return a TIMESTAMP [WITH TIME ZONE?]
+--echo #
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (localtimestamp TIMESTAMP);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (current_timestamp TIMESTAMP);
+
+CREATE TABLE t1 AS
+SELECT
+  localtimestamp,
+  localtimestamp(),
+  localtimestamp(0),
+  localtimestamp(1),
+  localtimestamp(2),
+  localtimestamp(3),
+  localtimestamp(4),
+  localtimestamp(5),
+  localtimestamp(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 AS
+SELECT
+  current_timestamp(),
+  current_timestamp(0),
+  current_timestamp(1),
+  current_timestamp(2),
+  current_timestamp(3),
+  current_timestamp(4),
+  current_timestamp(5),
+  current_timestamp(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS
+SELECT
+  sysdate(),
+  sysdate(0),
+  sysdate(1),
+  sysdate(2),
+  sysdate(3),
+  sysdate(4),
+  sysdate(5),
+  sysdate(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS
+SELECT
+  from_unixtime(1000000e0),
+  from_unixtime(1000000),
+  from_unixtime(1000000.1),
+  from_unixtime(1000000.12),
+  from_unixtime(1000000.123),
+  from_unixtime(1000000.1234),
+  from_unixtime(1000000.12345),
+  from_unixtime(1000000.123456),
+  from_unixtime(1000000.1234567),
+  from_unixtime(1000000.12345678),
+  from_unixtime(1000000.123456789),
+  from_unixtime(1000000.1234567891),
+  from_unixtime(1000000.12345678912);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
 --echo #

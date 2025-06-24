@@ -19,7 +19,7 @@ DELIMITER $$
 
 CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
         IN in_db VARCHAR(64), IN in_table VARCHAR(64),
-        OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY', 'SEQUENCE', 'SYSTEM VIEW')
+        OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY', 'SEQUENCE', 'SYSTEM VIEW', 'TEMPORARY SEQUENCE')
     )
     COMMENT '
              Description
@@ -39,36 +39,44 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              in_table (VARCHAR(64)):
                The name of the table to check the existence of.
 
-             out_exists ENUM('''', ''BASE TABLE'', ''VIEW'', ''TEMPORARY''):
+             out_exists ENUM('''', ''BASE TABLE'', ''VIEW'', ''TEMPORARY'', ''SEQUENCE'', ''SYSTEM VIEW'', ''TEMPORARY SEQUENCE''):
                The return value: whether the table exists. The value is one of:
-                 * ''''             - the table does not exist neither as a base table, view, sequence nor temporary table.
-                 * ''BASE TABLE''   - the table name exists as a permanent base table table.
-                 * ''VIEW''         - the table name exists as a view.
-                 * ''TEMPORARY''    - the table name exists as a temporary table.
-                 * ''SEQUENCE''     - the table name exists as a sequence.
-                 * ''SYSTEM VIEW''  - the table name exists as a system view.
+                 * ''''                    - the table does not exist neither as a base table, view, sequence nor temporary table/sequence.
+                 * ''BASE TABLE''          - the table name exists as a permanent base table table.
+                 * ''VIEW''                - the table name exists as a view.
+                 * ''TEMPORARY''           - the table name exists as a temporary table.
+                 * ''SEQUENCE''            - the table name exists as a sequence.
+                 * ''SYSTEM VIEW''         - the table name exists as a system view.
+                 * ''TEMPORARY SEQUENCE''  - the table name exists as a temporary sequence.
 
              Example
              --------
 
-             mysql> CREATE DATABASE db1;
+             MariaDB [sys]> CREATE DATABASE db1;
              Query OK, 1 row affected (0.07 sec)
 
-             mysql> use db1;
+             MariaDB [sys]> use db1;
              Database changed
-             mysql> CREATE TABLE t1 (id INT PRIMARY KEY);
+
+             MariaDB [sys]> CREATE TABLE t1 (id INT PRIMARY KEY);
              Query OK, 0 rows affected (0.08 sec)
-             
-             mysql> CREATE TABLE t2 (id INT PRIMARY KEY);
+
+             MariaDB [sys]> CREATE TABLE t2 (id INT PRIMARY KEY);
              Query OK, 0 rows affected (0.08 sec)
-             
-             mysql> CREATE view v_t1 AS SELECT * FROM t1;
+
+             MariaDB [sys]> CREATE view v_t1 AS SELECT * FROM t1;
              Query OK, 0 rows affected (0.00 sec)
-             
-             mysql> CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+
+             MariaDB [sys]> CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
              Query OK, 0 rows affected (0.00 sec)
-             
-             mysql> CALL sys.table_exists(''db1'', ''t1'', @exists); SELECT @exists;
+
+             MariaDB [sys]> CREATE SEQUENCE s;
+             Query OK, 0 rows affected (0.00 sec)
+
+             MariaDB [sys]> CREATE TEMPORARY SEQUENCE s_temp;
+             Query OK, 0 rows affected (0.00 sec)
+
+             MariaDB [sys]> CALL sys.table_exists(''db1'', ''t1'', @exists); SELECT @exists;
              Query OK, 0 rows affected (0.00 sec)
 
              +------------+
@@ -78,7 +86,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              +------------+
              1 row in set (0.00 sec)
              
-             mysql> CALL sys.table_exists(''db1'', ''t2'', @exists); SELECT @exists;
+             MariaDB [sys]> CALL sys.table_exists(''db1'', ''t2'', @exists); SELECT @exists;
              Query OK, 0 rows affected (0.00 sec)
              
              +------------+
@@ -88,7 +96,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              +------------+
              1 row in set (0.01 sec)
 
-             mysql> CALL sys.table_exists(''db1'', ''v_t1'', @exists); SELECT @exists;
+             MariaDB [sys]> CALL sys.table_exists(''db1'', ''v_t1'', @exists); SELECT @exists;
              Query OK, 0 rows affected (0.00 sec)
 
              +---------+
@@ -118,7 +126,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              +-------------+
              1 row in set (0.001 sec)
 
-             mysql> CALL sys.table_exists(''db1'', ''t3'', @exists); SELECT @exists;
+             MariaDB [sys]> CALL sys.table_exists(''db1'', ''t3'', @exists); SELECT @exists;
              Query OK, 0 rows affected (0.01 sec)
 
              +---------+
@@ -127,6 +135,16 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              |         |
              +---------+
              1 row in set (0.00 sec)
+
+             MariaDB [sys]> CALL table_exists(''db1'', ''s_temp'', @exists); SELECT @exists;
+             Query OK, 0 rows affected (0.003 sec)
+
+             +--------------------+
+             | @exists            |
+             +--------------------+
+             | TEMPORARY SEQUENCE |
+             +--------------------+
+             1 row in set (0.001 sec)
             '
     SQL SECURITY INVOKER
     NOT DETERMINISTIC
@@ -135,65 +153,29 @@ BEGIN
     DECLARE v_error BOOLEAN DEFAULT FALSE;
     DECLARE db_quoted VARCHAR(64);
     DECLARE table_quoted VARCHAR(64);
-    DECLARE v_table_type VARCHAR(16) DEFAULT '';
-    DECLARE v_system_db BOOLEAN
-        DEFAULT LOWER(in_db) IN ('information_schema', 'performance_schema');
+    DECLARE v_table_type VARCHAR(30) DEFAULT '';
     DECLARE CONTINUE HANDLER FOR 1050 SET v_error = TRUE;
     DECLARE CONTINUE HANDLER FOR 1146 SET v_error = TRUE;
 
-    SET out_exists = '';
-    SET db_quoted = sys.quote_identifier(in_db);
-    SET table_quoted = sys.quote_identifier(in_table);
+    -- First check do we have multiple rows, what can happen if temporary table
+    -- and/or sequence is shadowing base table for example.
+    -- In such scenario return temporary.
+    SET v_table_type = (SELECT GROUP_CONCAT(TABLE_TYPE) FROM information_schema.TABLES WHERE
+                            TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
 
-    -- Verify whether the table name exists as a normal table
-    IF (EXISTS(SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table)) THEN
-        -- Unfortunately the only way to determine whether there is also a temporary table is to try to create
-        -- a temporary table with the same name. If it succeeds the table didn't exist as a temporary table.
-        IF v_system_db = FALSE THEN
-            SET @sys.tmp.table_exists.SQL = CONCAT('CREATE TEMPORARY TABLE ',
-                                                    db_quoted,
-                                                    '.',
-                                                    table_quoted,
-                                                    '(id INT PRIMARY KEY)');
-            PREPARE stmt_create_table FROM @sys.tmp.table_exists.SQL;
-            EXECUTE stmt_create_table;
-            DEALLOCATE PREPARE stmt_create_table;
-
-            -- The temporary table was created, i.e. it didn't exist. Remove it again so we don't leave garbage around.
-            SET @sys.tmp.table_exists.SQL = CONCAT('DROP TEMPORARY TABLE ',
-                                                                db_quoted,
-                                                                '.',
-                                                                table_quoted);
-            PREPARE stmt_drop_table FROM @sys.tmp.table_exists.SQL;
-            EXECUTE stmt_drop_table;
-            DEALLOCATE PREPARE stmt_drop_table;
-        END IF;
-        IF (v_error) THEN
-            SET out_exists = 'TEMPORARY';
-        ELSE
-            SET v_table_type = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
-            -- Don't fail on table_type='SYSTEM VERSIONED'
-            -- but return 'BASE TABLE' for compatibility with existing tooling
-            IF v_table_type = 'SYSTEM VERSIONED' THEN
-                SET out_exists = 'BASE TABLE';
-            ELSE
-                SET out_exists = v_table_type;
-            END IF;
-        END IF;
+    IF v_table_type LIKE '%,%' THEN
+        SET out_exists = 'TEMPORARY';
     ELSE
-        -- Check whether a temporary table exists with the same name.
-        -- If it does it's possible to SELECT from the table without causing an error.
-        -- If it does not exist even a PREPARE using the table will fail.
-        IF v_system_db = FALSE THEN
-            SET @sys.tmp.table_exists.SQL = CONCAT('SELECT COUNT(*) FROM ',
-                                                            db_quoted,
-                                                            '.',
-                                                            table_quoted);
-            PREPARE stmt_select FROM @sys.tmp.table_exists.SQL;
-            IF (NOT v_error) THEN
-                DEALLOCATE PREPARE stmt_select;
-                SET out_exists = 'TEMPORARY';
-            END IF;
+        IF v_table_type is NULL
+        THEN
+            SET v_table_type='';
+        END IF;
+        -- Don't fail on table_type='SYSTEM VERSIONED'
+        -- but return 'BASE TABLE' for compatibility with existing tooling
+        IF v_table_type = 'SYSTEM VERSIONED' THEN
+            SET out_exists = 'BASE TABLE';
+        ELSE
+            SET out_exists = v_table_type;
         END IF;
     END IF;
 END$$

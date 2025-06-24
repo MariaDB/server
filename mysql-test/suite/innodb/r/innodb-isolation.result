@@ -80,6 +80,7 @@ COUNT(*)
 #
 # Do some DML in the default connection and leave the transaction pending.
 #
+SET innodb_snapshot_isolation=OFF;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 UPDATE t1 SET c2 = c2 * 3 WHERE c1 = 1;
@@ -140,6 +141,7 @@ COUNT(*)
 # Connection 1 REPEATABLE READ
 #
 connect  con1,localhost,root,,;
+SET innodb_snapshot_isolation=OFF;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 ########## innodb_isolation_selects.inc ##########
@@ -971,7 +973,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t1	index	NULL	k2	5	NULL	#	Using index
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE c1 > (SELECT AVG(c1) FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	#	Using where; Using index
+1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	#	Using where
 2	SUBQUERY	t1	index	NULL	k2	5	NULL	#	Using index
 #
 # Make all indexes in t2 obsolete to the active repeatable read transaction

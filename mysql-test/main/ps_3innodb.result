@@ -1767,18 +1767,18 @@ t5	CREATE TABLE `t5` (
   `param02` decimal(65,38) DEFAULT NULL,
   `const03` double NOT NULL,
   `param03` double DEFAULT NULL,
-  `const04` varchar(3) NOT NULL,
-  `param04` longtext DEFAULT NULL,
+  `const04` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `param04` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `const05` varbinary(3) DEFAULT NULL,
   `param05` longblob DEFAULT NULL,
-  `const06` varchar(10) NOT NULL,
-  `param06` longtext DEFAULT NULL,
+  `const06` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `param06` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `const07` date DEFAULT NULL,
-  `param07` longtext DEFAULT NULL,
-  `const08` varchar(19) NOT NULL,
-  `param08` longtext DEFAULT NULL,
+  `param07` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `const08` varchar(19) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `param08` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `const09` datetime DEFAULT NULL,
-  `param09` longtext DEFAULT NULL,
+  `param09` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `const10` bigint(17) DEFAULT NULL,
   `param10` bigint(20) DEFAULT NULL,
   `const11` int(5) DEFAULT NULL,
@@ -1786,9 +1786,9 @@ t5	CREATE TABLE `t5` (
   `const12` binary(0) DEFAULT NULL,
   `param12` bigint(20) DEFAULT NULL,
   `param13` decimal(65,38) DEFAULT NULL,
-  `param14` longtext DEFAULT NULL,
+  `param14` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `param15` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t5 ;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def	test	t5	t5	const01	const01	3	1	1	N	36865	0	63

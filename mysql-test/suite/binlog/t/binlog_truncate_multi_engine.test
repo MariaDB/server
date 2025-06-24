@@ -12,6 +12,7 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_binlog_format_row.inc
+--source include/not_valgrind.inc
 
 --let $old_max_binlog_size= `select @@global.max_binlog_size`
 call mtr.add_suppression("Can.t init tc log");

@@ -7,7 +7,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL CHECK (`b` > 20),
   CONSTRAINT `min` CHECK (`a` + `b` > 100),
   CONSTRAINT `max` CHECK (`a` + `b` < 500)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (100,100);
 insert into t1 values (1,1);
 ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
@@ -58,7 +58,7 @@ t1	CREATE TABLE `t1` (
   CONSTRAINT `min` CHECK (`a` + `b` > 100),
   CONSTRAINT `max` CHECK (`a` + `b` < 500),
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(105,105,105);
 ERROR 23000: CONSTRAINT `t1.c` failed for `test`.`t1`
 insert into t1 values(249,249,9);
@@ -81,7 +81,7 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `min` CHECK (`a` + `b` > 100),
   CONSTRAINT `max` CHECK (`a` + `b` < 500),
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t2 drop constraint c;
 ERROR 42000: Can't DROP CONSTRAINT `c`; check that it exists
 alter table t2 drop constraint if exists c;
@@ -96,7 +96,7 @@ t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT 0 CHECK (`c` < 10),
   CONSTRAINT `max` CHECK (`a` + `b` < 500),
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 create or replace table t1 (a int, b int, constraint check (a>b));
 show create table t1;
@@ -105,7 +105,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` > `b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a int, b int,
 constraint CONSTRAINT_1 check (a>1),
 constraint check (b>1));
@@ -116,7 +116,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 1),
   CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 1)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a int, b int,
 constraint CONSTRAINT_1 check (a>1),
 constraint check (b>1),
@@ -129,7 +129,7 @@ t1	CREATE TABLE `t1` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 1),
   CONSTRAINT `CONSTRAINT_3` CHECK (`b` > 1),
   CONSTRAINT `CONSTRAINT_2` CHECK (`a` > `b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(c1 int, c2 int as (c1 + 1), check (c2 > 2));
 insert into t1(c1) values(1);
@@ -214,7 +214,7 @@ t	CREATE TABLE `t` (
   CONSTRAINT `b` CHECK (`a` < `b`),
   CONSTRAINT `a` CHECK (`a` > 0),
   CONSTRAINT `x` CHECK (`a` > 10)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Field constraint 'b' will fail
 insert into t values (-1, 0);
 ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
@@ -284,13 +284,13 @@ drop table t1;
 #
 # MDEV-26061 MariaDB server crash at Field::set_default
 #
-create table t1 (d timestamp check (default (d) is true)) as select 1;
+create table t1 (d timestamp not null default now() check (default (d) is true)) as select 1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() CHECK (default(`d`) is true),
+  `d` timestamp NOT NULL DEFAULT current_timestamp() CHECK (default(`d`) is true),
   `1` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # End of 10.3 tests
@@ -305,7 +305,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` varchar(2) DEFAULT NULL,
   CONSTRAINT `id` CHECK (`id` regexp '[a-z]')
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-32586 incorrect error about cyclic reference about JSON type virtual column
@@ -319,4 +319,63 @@ ERROR 23000: CONSTRAINT `t1.b` failed for `test`.`t1`
 drop table t1;
 #
 # End of 10.4 tests
+#
+#
+# MDEV-32439 INSERT IGNORE VALUES (one row) errors on constraint
+#
+CREATE TABLE t1 (v1 varchar(10), v2 varchar(10), constraint unequal check (v1 != v2));
+INSERT IGNORE INTO t1 VALUES (1,1);
+Warnings:
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+INSERT IGNORE INTO t1 VALUES (1,2),(2,2);
+Warnings:
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+INSERT IGNORE INTO t1 VALUES (3,3),(4,4);
+Warnings:
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SELECT * FROM t1;
+v1	v2
+1	2
+DROP TABLE t1;
+#
+# MDEV-32439 INSERT IGNORE VALUES (one row) errors on constraint
+#
+CREATE TABLE t1 (v1 varchar(10), v2 varchar(10), constraint unequal check (v1 != v2));
+INSERT IGNORE INTO t1 VALUES (1,1);
+Warnings:
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+INSERT IGNORE INTO t1 VALUES (1,2),(2,2);
+Warnings:
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+INSERT IGNORE INTO t1 VALUES (3,3),(4,4);
+Warnings:
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `unequal` failed for `test`.`t1`
+SELECT * FROM t1;
+v1	v2
+1	2
+DROP TABLE t1;
+#
+# End of 11.4 tests
 #

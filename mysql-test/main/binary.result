@@ -1,6 +1,6 @@
 drop table if exists t1,t2;
-create table t1 (name char(20) not null, primary key (name));
-create table t2 (name char(20) binary not null, primary key (name));
+create table t1 (name char(20) not null, primary key (name)) charset=latin1;
+create table t2 (name char(20) binary not null, primary key (name)) charset=latin1;
 insert into t1 values ("å");
 insert into t1 values ("ä");
 insert into t1 values ("ö");
@@ -85,7 +85,7 @@ NULL
 select b from t1 having binary b like '';
 b
 drop table t1;
-create table t1 (a char(3) binary, b binary(3));
+create table t1 (a char(3) binary, b binary(3)) charset=latin1;
 insert into t1 values ('aaa','bbb'),('AAA','BBB');
 select upper(a),upper(b) from t1;
 upper(a)	upper(b)
@@ -116,7 +116,7 @@ select collation(a), collation(b), collation(binary 'ccc') from t1 limit 1;
 collation(a)	collation(b)	collation(binary 'ccc')
 latin1_bin	binary	binary
 drop table t1;
-create table t1( firstname char(20), lastname char(20));
+create table t1( firstname char(20), lastname char(20)) charset=latin1;
 insert into t1 values ("john","doe"),("John","Doe");
 select * from t1 where firstname='john' and firstname like binary 'john';
 firstname	lastname
@@ -139,7 +139,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` binary(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (col1 binary(4));
 insert into t1 values ('a'),('a ');
@@ -190,7 +190,7 @@ id numeric(20) NOT NULL,
 lang varchar(8) NOT NULL,
 msg varchar(32) NOT NULL,
 PRIMARY KEY (id,lang)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (33, 'en', 'zzzzzzz');
 INSERT INTO t1 VALUES (31, 'en', 'xxxxxxx');
 INSERT INTO t1 VALUES (32, 'en', 'yyyyyyy');

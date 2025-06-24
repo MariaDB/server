@@ -516,9 +516,7 @@ error:
 
 bool mrn_is_geo_key(const KEY *key_info)
 {
-  return key_info->algorithm == HA_KEY_ALG_UNDEF &&
-    KEY_N_KEY_PARTS(key_info) == 1 &&
-    key_info->key_part[0].field->type() == MYSQL_TYPE_GEOMETRY;
+  return key_info->algorithm == HA_KEY_ALG_RTREE;
 }
 
 int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
@@ -530,7 +528,6 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   char *sprit_ptr[2];
   char *tmp_ptr, *start_ptr;
 #endif
-  THD *thd = current_thd;
   MRN_DBUG_ENTER_FUNCTION();
 
 #if MYSQL_VERSION_ID >= 50500
@@ -592,13 +589,6 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
       case 5:
         MRN_PARAM_STR_LIST("table", index_table, i);
         break;
-      case 6:
-        push_warning_printf(thd, MRN_SEVERITY_WARNING,
-                            ER_WARN_DEPRECATED_SYNTAX,
-                            ER(ER_WARN_DEPRECATED_SYNTAX),
-                            "parser", "tokenizer");
-        MRN_PARAM_STR_LIST("parser", key_tokenizer, i);
-        break;
       case 9:
         MRN_PARAM_STR_LIST("tokenizer", key_tokenizer, i);
         break;
@@ -639,7 +629,7 @@ int mrn_parse_index_param(MRN_SHARE *share, TABLE *table)
     bool is_wrapper_mode = share->engine != NULL;
 
     if (is_wrapper_mode) {
-      if (!(key_info->flags & HA_FULLTEXT) && !mrn_is_geo_key(key_info)) {
+      if (key_info->algorithm != HA_KEY_ALG_FULLTEXT && !mrn_is_geo_key(key_info)) {
         continue;
       }
     }
@@ -935,6 +925,7 @@ MRN_SHARE *mrn_get_share(const char *table_name, TABLE *table, int *error)
       *wrap_table_share= *table->s;
       mrn_init_sql_alloc(current_thd, &(wrap_table_share->mem_root));
       wrap_table_share->keys = share->wrap_keys;
+      wrap_table_share->total_keys = share->wrap_keys;
       wrap_table_share->key_info = share->wrap_key_info;
       wrap_table_share->primary_key = share->wrap_primary_key;
       wrap_table_share->keys_in_use.init(share->wrap_keys);

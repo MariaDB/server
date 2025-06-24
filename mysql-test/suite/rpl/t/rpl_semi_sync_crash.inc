@@ -118,7 +118,7 @@ if (`select $server_to_crash = 2`)
 {
  --let $master_port=$SERVER_MYPORT_1
 }
-evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_use_gtid=SLAVE_POS;
+evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$new_master_port, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=SLAVE_POS;
 set global rpl_semi_sync_slave_enabled = 1;
 set @@global.gtid_slave_pos=@@global.gtid_binlog_pos;
 --source include/start_slave.inc

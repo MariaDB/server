@@ -11,7 +11,7 @@ ERROR HY000: Can't create table `test`.`t1` (errno: 2 "No such file or directory
 CREATE TABLE t1 (a int AUTO_INCREMENT KEY, b char(30))
 ENGINE archive DATA DIRECTORY = 'MYSQL_TMP_DIR/archive' INDEX DIRECTORY = 'MYSQL_TMP_DIR/archive';
 Warnings:
-Warning	1618	<INDEX DIRECTORY> option ignored
+Note	1618	INDEX DIRECTORY option ignored
 INSERT INTO t1 VALUES (NULL, "blue");
 INSERT INTO t1 VALUES (NULL, "red");
 INSERT INTO t1 VALUES (NULL, "yellow");
@@ -22,7 +22,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` char(30) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ARCHIVE AUTO_INCREMENT=4 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQL_TMP_DIR/archive/'
+) ENGINE=ARCHIVE AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci DATA DIRECTORY='MYSQL_TMP_DIR/archive/'
 DROP TABLE t1;
 # 
 # Be sure SQL MODE "NO_DIR_IN_CREATE" prevents the use of DATA DIRECTORY
@@ -35,7 +35,7 @@ NO_DIR_IN_CREATE
 CREATE TABLE t1 (a int AUTO_INCREMENT KEY, b char(30))
 ENGINE archive DATA DIRECTORY = 'MYSQL_TMP_DIR/archive';
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
 INSERT INTO t1 VALUES (NULL, "blue");
 INSERT INTO t1 VALUES (NULL, "red");
 INSERT INTO t1 VALUES (NULL, "yellow");

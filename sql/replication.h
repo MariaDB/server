@@ -83,7 +83,7 @@ typedef struct Trans_observer {
 
      @param param The parameter for transaction observers
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_commit)(Trans_param *param);
@@ -104,7 +104,7 @@ typedef struct Trans_observer {
 
      @note This hook is called wo/ any global mutex held
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_rollback)(Trans_param *param);
@@ -151,7 +151,7 @@ typedef struct Binlog_storage_observer {
      @param log_pos Binlog position after update
      @param flags flags for binlog storage
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_flush)(Binlog_storage_param *param,
@@ -171,7 +171,7 @@ typedef struct Binlog_storage_observer {
      @param log_pos Binlog position after update
      @param flags flags for binlog storage
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_sync)(Binlog_storage_param *param,
@@ -201,7 +201,7 @@ typedef struct Binlog_transmit_observer {
      @param log_file Binlog file name to transmit from
      @param log_pos Binlog position to transmit from
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*transmit_start)(Binlog_transmit_param *param,
@@ -212,7 +212,7 @@ typedef struct Binlog_transmit_observer {
 
      @param param Observer common parameter
      
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*transmit_stop)(Binlog_transmit_param *param);
@@ -232,7 +232,7 @@ typedef struct Binlog_transmit_observer {
      @param size Size of the header buffer
      @param len Header length reserved by this observer
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*reserve_header)(Binlog_transmit_param *param,
@@ -249,7 +249,7 @@ typedef struct Binlog_transmit_observer {
      @param log_file Binlog file name of the event packet to send
      @param log_pos Binlog position of the event packet to send
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*before_send_event)(Binlog_transmit_param *param,
@@ -263,7 +263,7 @@ typedef struct Binlog_transmit_observer {
      @param event_buf Binlog event packet buffer sent
      @param len length of the event packet buffer
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
    */
   int (*after_send_event)(Binlog_transmit_param *param,
@@ -277,7 +277,7 @@ typedef struct Binlog_transmit_observer {
 
      @param param Observer common parameter
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_reset_master)(Binlog_transmit_param *param);
@@ -320,7 +320,7 @@ typedef struct Binlog_relay_IO_observer {
 
      @param param Observer common parameter
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*thread_start)(Binlog_relay_IO_param *param);
@@ -330,7 +330,7 @@ typedef struct Binlog_relay_IO_observer {
 
      @param param Observer common parameter
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*thread_stop)(Binlog_relay_IO_param *param);
@@ -344,7 +344,7 @@ typedef struct Binlog_relay_IO_observer {
      @param param Observer common parameter
      @param flags binlog dump flags
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*before_request_transmit)(Binlog_relay_IO_param *param, uint32 flags);
@@ -358,7 +358,7 @@ typedef struct Binlog_relay_IO_observer {
      @param event_buf The event packet return after process
      @param event_len The length of event packet return after process
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_read_event)(Binlog_relay_IO_param *param,
@@ -373,7 +373,7 @@ typedef struct Binlog_relay_IO_observer {
      @param event_len Length of the event packet written to relay log
      @param flags flags for relay log
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_queue_event)(Binlog_relay_IO_param *param,
@@ -385,7 +385,7 @@ typedef struct Binlog_relay_IO_observer {
      
      @param param Observer common parameter
 
-     @retval 0 Sucess
+     @retval 0 Success
      @retval 1 Failure
   */
   int (*after_reset_slave)(Binlog_relay_IO_param *param);
@@ -398,7 +398,7 @@ typedef struct Binlog_relay_IO_observer {
    @param observer The transaction observer to register
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer already exists
 */
 int register_trans_observer(Trans_observer *observer, void *p);
@@ -409,7 +409,7 @@ int register_trans_observer(Trans_observer *observer, void *p);
    @param observer The transaction observer to unregister
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer not exists
 */
 int unregister_trans_observer(Trans_observer *observer, void *p);
@@ -420,7 +420,7 @@ int unregister_trans_observer(Trans_observer *observer, void *p);
    @param observer The binlog storage observer to register
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer already exists
 */
 int register_binlog_storage_observer(Binlog_storage_observer *observer, void *p);
@@ -431,7 +431,7 @@ int register_binlog_storage_observer(Binlog_storage_observer *observer, void *p)
    @param observer The binlog storage observer to unregister
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer not exists
 */
 int unregister_binlog_storage_observer(Binlog_storage_observer *observer, void *p);
@@ -442,7 +442,7 @@ int unregister_binlog_storage_observer(Binlog_storage_observer *observer, void *
    @param observer The binlog transmit observer to register
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer already exists
 */
 int register_binlog_transmit_observer(Binlog_transmit_observer *observer, void *p);
@@ -453,7 +453,7 @@ int register_binlog_transmit_observer(Binlog_transmit_observer *observer, void *
    @param observer The binlog transmit observer to unregister
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer not exists
 */
 int unregister_binlog_transmit_observer(Binlog_transmit_observer *observer, void *p);
@@ -464,7 +464,7 @@ int unregister_binlog_transmit_observer(Binlog_transmit_observer *observer, void
    @param observer The binlog relay IO observer to register
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer already exists
 */
 int register_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p);
@@ -475,32 +475,11 @@ int register_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *
    @param observer The binlog relay IO observer to unregister
    @param p pointer to the internal plugin structure
 
-   @retval 0 Sucess
+   @retval 0 Success
    @retval 1 Observer not exists
 */
 int unregister_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p);
 
-/**
-   Connect to master
-
-   This function can only used in the slave I/O thread context, and
-   will use the same master information to do the connection.
-
-   @code
-   MYSQL *mysql = mysql_init(NULL);
-   if (rpl_connect_master(mysql))
-   {
-     // do stuff with the connection
-   }
-   mysql_close(mysql); // close the connection
-   @endcode
-   
-   @param mysql address of MYSQL structure to use, pass NULL will
-   create a new one
-
-   @return address of MYSQL structure on success, NULL on failure
-*/
-MYSQL *rpl_connect_master(MYSQL *mysql);
 
 /**
    Get the value of user variable as an integer.
@@ -535,8 +514,7 @@ int get_user_var_int(const char *name,
    @retval 0 Success
    @retval 1 Variable not found
 */
-int get_user_var_real(const char *name,
-                      double *value, int *null_value);
+int get_user_var_real(const char *name, double *value, int *null_value);
 
 /**
    Get the value of user variable as a string.

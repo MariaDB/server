@@ -244,6 +244,7 @@ void tp_win_callback_prolog()
     thread_created++;
     tp_stats.num_worker_threads++;
     my_thread_init();
+    my_thread_set_name("worker_thread");
   }
 }
 

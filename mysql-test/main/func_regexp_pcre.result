@@ -62,7 +62,7 @@ INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
 INSERT INTO t2 VALUES ('\\p{L}'), /* buggy before v10.45 ('\\p{Ll}'),('\\p{Lu}'),*/ ('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
-SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 class	ch	ch RLIKE class
 [[:alpha:]]	1	0
 [[:alpha:]]	A	1
@@ -410,8 +410,8 @@ CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_REPLACE('abc','b','x');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -426,7 +426,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `REGEXP_REPLACE('abc','b','x')+0` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT REGEXP_REPLACE(NULL,'b','c');
 REGEXP_REPLACE(NULL,'b','c')
@@ -713,8 +713,8 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_SUBSTR('abc','b');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -729,7 +729,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `REGEXP_SUBSTR('abc','b')+0` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*') as exp;
 exp
@@ -833,8 +833,28 @@ exp
 # Testing a warning
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP @regCheck;
-0xE001 REGEXP @regCheck
+SELECT 0xE001 REGEXP @regCheck COLLATE latin1_bin;
+0xE001 REGEXP @regCheck COLLATE latin1_bin
+0
+Warnings:
+Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
+SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
+0xE001 REGEXP CAST(@regCheck AS CHAR)
+0
+Warnings:
+Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
+# Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
+# so a user variable and a literal in the pattern gave equal results
+# But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
+# so the query with a literal is performed as binary:
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
+c1
+1
+# while the query with a user variable is performed as string
+# with a warning, like in 11.4
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck AS c2;
+c2
 0
 Warnings:
 Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
@@ -850,7 +870,7 @@ SET @regCheck= _binary '\\xE0\\x01';
 SELECT 0xE001 REGEXP @regCheck;
 0xE001 REGEXP @regCheck
 1
-# Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+# Testing workaround N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
 SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;

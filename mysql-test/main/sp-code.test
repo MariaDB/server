@@ -509,7 +509,7 @@ show procedure code proc_26977_broken;
 
 show procedure code proc_26977_works;
 
-## This caust an error because of jump short cut
+## This causes an error because of jump short cut
 ## optimization.
 call proc_26977_broken(1);
 
@@ -1219,3 +1219,22 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo # Start of 11.8 tests
+
+--echo #
+--echo # MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(par1 INT, par2 INT DEFAULT 1)
+BEGIN
+  DECLARE var1 INT DEFAULT 5;
+  SELECT par1, par2 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+--echo # End of 11.8 tests

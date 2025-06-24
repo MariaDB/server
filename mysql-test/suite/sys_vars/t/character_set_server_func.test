@@ -23,11 +23,16 @@
 # Check if setting character_set_server is changed in new connection # 
 ######################################################################
 
+#save collation_server variables
+SET @global_collation_server = @@global.collation_server;
+SET @session_collation_server = @@session.collation_server;
+
 #save
 SET @global_character_set_server = @@global.character_set_server;
 SET @session_character_set_server = @@session.character_set_server;
 
 
+SET NAMES utf8mb4;
 SET @@global.character_set_server = utf8;
 connect (con1,localhost,root,,,,);
 connection con1;
@@ -49,6 +54,7 @@ connection default;
 #==============================================================================
 
 --source include/default_charset.inc
+select @@character_set_database,@@character_set_connection;
 select @@character_set_database=@@character_set_connection;
 SET @@global.character_set_server = utf8;
 CREATE DATABASE db1;
@@ -94,8 +100,8 @@ disconnect con1;
 
 #restore
 connection default;
-SET @@global.character_set_server = @global_character_set_server;
-SET @@session.character_set_server = @session_character_set_server;
+SET @@global.collation_server = @global_collation_server;
+SET @@session.collation_server = @session_collation_server;
 
 ############################################################
 # End of functionality Testing for character_set_server    #

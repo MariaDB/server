@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+set @@time_zone='+00:00';
+--source suite/versioning/sys_time.inc
 
 # TRT test
 
@@ -66,7 +68,8 @@ create or replace table t1 (
   period for system_time(s, e))
 with system versioning;
 insert into t1 values (1, null, null, 'foo');
-select i, c, e>TIMESTAMP'2038-01-01 00:00:00' AS current_row from t1;
+--replace_result $sys_time_max SYS_TIME_MAX
+--eval select i, c,  e>LEFT($sys_time_max, 10) AS current_row from t1;
 
 drop table t1;
 drop table t2;
@@ -86,3 +89,6 @@ create table t1 (pk int primary key, i int) with system versioning;
 replace into t1 values (1,10),(1,100),(1,1000);
 select pk,i,row_end > '2038-01-01' from t1 for system_time all;
 drop table t1;
+
+# Cleanup
+set @@time_zone=default;

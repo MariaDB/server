@@ -10,6 +10,7 @@ reset master;
 
 set @saved_binlog_format = @@global.binlog_format;
 create user mysqltest_1@localhost;
+GRANT SELECT on test.* to mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;
 
 connect (plain,localhost,mysqltest_1,,test);
@@ -28,7 +29,6 @@ connection plain;
 --echo [plain]
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 set session sql_log_bin = 1;
-
 
 # Testing setting both session and global BINLOG_FORMAT variable both
 # as root and as plain user.
@@ -55,12 +55,11 @@ connection default;
 set global binlog_format = @saved_binlog_format;
 drop user mysqltest_1@localhost;
 
-
 # Testing if REPLICATION CLIENT privilege is enough to execute
 # SHOW MASTER LOGS and SHOW BINARY.
 CREATE USER 'mysqltest_1'@'localhost';
 GRANT REPLICATION CLIENT ON *.* TO 'mysqltest_1'@'localhost';
---connect(rpl,localhost,mysqltest_1,,)
+--connect(rpl,localhost,mysqltest_1,,"*NO-ONE*")
 
 --connection rpl
 # We are only interested if the following commands succeed and not on
@@ -76,9 +75,12 @@ SHOW BINLOG STATUS;
 connection default;
 DROP USER 'mysqltest_1'@'localhost';
 
+--echo #
+--echo # End of 10.4 tests
+--echo #
 
 --echo #
---echo # Start of 10.5 test
+--echo # Start of 10.5 tests
 --echo #
 
 --echo #
@@ -94,11 +96,10 @@ REVOKE REPLICATION CLIENT ON *.* FROM user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 DROP USER user1@localhost;
 
-
---echo # Test if SHOW BINARY LOGS and SHOW BINGLOG STATUS are not allowed without REPLICATION CLIENT or SUPER
+--echo # Test if SHOW BINARY LOGS and SHOW BINLOG STATUS are not allowed without REPLICATION CLIENT
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
-REVOKE REPLICATION CLIENT, SUPER ON *.* FROM user1@localhost;
+REVOKE REPLICATION CLIENT ON *.* FROM user1@localhost;
 --connect(user1,localhost,user1,,)
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
@@ -111,11 +112,10 @@ SHOW BINLOG STATUS;
 --connection default
 DROP USER user1@localhost;
 
-
---echo # Test if PURGE BINARY LOGS is not allowed without BINLOG ADMIN or SUPER
+--echo # Test if PURGE BINARY LOGS is not allowed without BINLOG ADMIN
 CREATE USER user1@localhost;
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
-REVOKE BINLOG ADMIN, SUPER ON *.* FROM user1@localhost;
+REVOKE BINLOG ADMIN ON *.* FROM user1@localhost;
 --connect(user1,localhost,user1,,)
 --connection user1
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
@@ -124,28 +124,15 @@ PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
 --connection default
 DROP USER user1@localhost;
 
-
 --echo # Test if PURGE BINLOG is allowed with BINLOG ADMIN
 CREATE USER user1@localhost;
 GRANT BINLOG ADMIN ON *.* TO user1@localhost;
---connect(user1,localhost,user1,,)
+--connect(user1,localhost,user1,,"*NO-ONE*")
 --connection user1
 PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
 --disconnect user1
 connection default;
 DROP USER user1@localhost;
-
-
---echo # Test if PURGE BINLOG is allowed with SUPER
-CREATE USER user1@localhost;
-GRANT SUPER ON *.* TO user1@localhost;
---connect(user1,localhost,user1,,)
---connection user1
-PURGE BINARY LOGS BEFORE '2001-01-01 00:00:00';
---disconnect user1
-connection default;
-DROP USER user1@localhost;
-
 
 --echo # Test if SHOW BINLOG EVENTS is not allowed without BINLOG MONITOR
 CREATE USER user1@localhost;
@@ -159,11 +146,10 @@ SHOW BINLOG EVENTS;
 --connection default
 DROP USER user1@localhost;
 
-
 --echo # Test if SHOW BINLOG EVENTS is allowed with BINLOG MONITOR
 CREATE USER user1@localhost;
 GRANT BINLOG MONITOR ON *.* TO user1@localhost;
---connect(user1,localhost,user1,,)
+--connect(user1,localhost,user1,,"*NO-ONE*")
 --connection user1
 --disable_result_log
 SHOW BINLOG EVENTS;
@@ -182,6 +168,7 @@ DROP USER user1@localhost;
 
 CREATE USER user1@localhost;
 GRANT BINLOG REPLAY ON *.* TO user1@localhost;
+GRANT ALL ON test.* TO user1@localhost;
 RESET MASTER;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
@@ -194,7 +181,7 @@ RENAME TABLE t1 to t2;
 
 --connection default
 REVOKE BINLOG REPLAY ON *.* FROM user1@localhost;
-call mtr.add_suppression("Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation");
+call mtr.add_suppression("Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation");
 --echo # Privilege errors are expected now:
 --connection user1
 --error 1

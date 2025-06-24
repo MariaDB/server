@@ -29,7 +29,7 @@ INSERT INTO t1 VALUES (5,3),(5,6);
 ALTER TABLE t1 PARTITION BY KEY(b) PARTITIONS 3 ;
 ALTER TABLE t1 REPAIR PARTITION p1, p3;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 ALTER TABLE t1 ORDER BY b;
 DROP TABLE t1;
 #
@@ -43,7 +43,7 @@ PARTITION p1 VALUES LESS THAN MAXVALUE ) ;
 ALTER TABLE t1 DROP PARTITION p1;
 ALTER TABLE t1 ANALYZE PARTITION p0, p1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 ALTER TABLE t1 COMMENT 'altered';
 DROP TABLE t1;
 #
@@ -765,7 +765,7 @@ ERROR HY000: Field 'c' is of a not allowed type for this type of partitioning
 #
 CREATE TABLE t1 (a INT) PARTITION BY HASH(a);
 CREATE TEMPORARY TABLE tmp_t1 LIKE t1;
-ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
+ERROR HY000: Table storage engine 'partition' does not support the create option 'TEMPORARY'
 DROP TABLE t1;
 #
 # Bug#42954: SQL MODE 'NO_DIR_IN_CREATE' does not work with
@@ -782,16 +782,16 @@ SUBPARTITION BY HASH(TO_DAYS(purchased))
 DATA DIRECTORY = '/tmp/not-existing' 
 INDEX DIRECTORY = '/tmp/not-existing');
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL,
   `purchased` date DEFAULT NULL
-) ENGINE=<curr_engine> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=<curr_engine> DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (year(`purchased`))
 SUBPARTITION BY HASH (to_days(`purchased`))
 (PARTITION `p0` VALUES LESS THAN MAXVALUE ENGINE = <curr_engine>)
@@ -805,14 +805,14 @@ DATA DIRECTORY = '/tmp/not-existing'
 INDEX DIRECTORY = '/tmp/not-existing',
 SUBPARTITION sp1));
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL,
   `purchased` date DEFAULT NULL
-) ENGINE=<curr_engine> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=<curr_engine> DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (year(`purchased`))
 SUBPARTITION BY HASH (to_days(`purchased`))
 (PARTITION `p0` VALUES LESS THAN MAXVALUE
@@ -825,14 +825,14 @@ PARTITION BY RANGE(YEAR(purchased))
 DATA DIRECTORY = '/tmp/not-existing' 
 INDEX DIRECTORY = '/tmp/not-existing');
 Warnings:
-Warning	1618	<DATA DIRECTORY> option ignored
-Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	DATA DIRECTORY option ignored
+Warning	1618	INDEX DIRECTORY option ignored
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL,
   `purchased` date DEFAULT NULL
-) ENGINE=<curr_engine> DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=<curr_engine> DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (year(`purchased`))
 (PARTITION `p0` VALUES LESS THAN MAXVALUE ENGINE = <curr_engine>)
 DROP TABLE t1;
@@ -907,7 +907,7 @@ partitions 3
 (partition tablespace ts1,
 partition x2 tablespace ts2,
 partition x3 tablespace ts3);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ts1,
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '
 partition x2 tablespace ts2,
 partition x3 tablespace ts3)' at line 8
 CREATE TABLE t1 (
@@ -1793,7 +1793,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `p1` VALUES IN (1)
@@ -1823,7 +1823,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `p1` VALUES IN (1)
@@ -1860,7 +1860,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   KEY `inx_a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY HASH (`a`)
 (PARTITION `pUpTo10` VALUES LESS THAN (10)

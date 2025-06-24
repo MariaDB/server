@@ -35,7 +35,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_static.c my_symlink.c my_symlink2.c my_sync.c my_thr_init.c 
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
-				string.c thr_alarm.c thr_lock.c thr_mutex.c
+				string.c thr_lock.c thr_mutex.c
 				thr_rwlock.c thr_timer.c my_stack.c
                                 tree.c typelib.c base64.c my_memmem.c
                                 my_getpagesize.c
@@ -46,7 +46,9 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
-                                file_logger.c my_dlerror.c   crc32/crc32c.cc)
+                                file_logger.c my_dlerror.c   crc32/crc32c.cc
+                                my_timezone.cc  my_thread_name.cc
+                                my_virtual_mem.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -55,7 +57,6 @@ IF (WIN32)
     my_wincond.c
     my_winerr.c
     my_winfile.c
-    my_conio.c
     my_minidump.cc
     my_win_popen.cc)
 ENDIF()
@@ -65,21 +66,31 @@ IF(MSVC_INTEL)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET (MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32c_amd64.cc)
   ENDIF()
+ELSEIF(MSVC_ARM64)
+  SET (MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
+  ADD_DEFINITIONS(-DHAVE_ARMV8_CRC -DHAVE_ARMV8_CRC_CRYPTO_INTRINSICS -DHAVE_ARMV8_CRYPTO)
+  IF(CLANG_CL)
+    SET_SOURCE_FILES_PROPERTIES(
+      crc32/crc32_arm64.c
+      PROPERTIES
+      COMPILE_FLAGS "-march=armv8-a+crc+crypto"
+  )
+  ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i386|i686")
   SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_x86.c crc32/crc32c_x86.cc)
-  IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
+  IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
     SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c PROPERTIES
       COMPILE_FLAGS "-msse4.2 -mpclmul")
   ENDIF()
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32c_amd64.cc)
-    IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
+    IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "5")
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32c_amd64.cc PROPERTIES
         COMPILE_FLAGS "-msse4.2 -mpclmul")
     ENDIF()
   ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
-  IF(CMAKE_COMPILER_IS_GNUCC)
+  IF(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     include(CheckCXXSourceCompiles)
 
     CHECK_CXX_SOURCE_COMPILES("
@@ -148,10 +159,6 @@ IF(UNIX)
  SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_addr_resolve.c my_setuser.c)
 ENDIF()
 
-IF(HAVE_ALARM)
- SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_alarm.c)
-ENDIF()
-
 IF(HAVE_MLOCK)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_lockmem.c)
 ENDIF()
@@ -161,7 +168,9 @@ MAYBE_DISABLE_IPO(mysys)
 TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARIES}
  ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO})
 DTRACE_INSTRUMENT(mysys)
-
+IF(WIN32)
+  TARGET_LINK_LIBRARIES(mysys icuuc icuin)
+ENDIF()
 IF (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
   TARGET_LINK_LIBRARIES(mysys atomic)
 ENDIF()
@@ -171,7 +180,7 @@ IF(HAVE_BFD_H)
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp ws2_32 synchronization)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

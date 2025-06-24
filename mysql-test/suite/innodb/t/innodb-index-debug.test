@@ -106,7 +106,7 @@ SIGNAL opened WAIT_FOR flushed';
 send ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
-SET debug = '+d,row_log_tmpfile_fail';
+SET debug_dbug = '+d,row_log_tmpfile_fail';
 INSERT INTO t1 select NULL,'aaa','bbb' from t480;
 INSERT INTO t1 select NULL,'aaaa','bbbb' from t480;
 SET DEBUG_SYNC= 'now SIGNAL flushed';

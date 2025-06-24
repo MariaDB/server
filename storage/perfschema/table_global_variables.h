@@ -47,7 +47,7 @@ class table_global_variables_context : public PFS_table_context
 {
 public:
   table_global_variables_context(ulonglong hash_version, bool restore) :
-    PFS_table_context(hash_version, restore, THR_PFS_VG)  {}
+    PFS_table_context(hash_version, restore, &THR_PFS_VG)  {}
 };
 
 /**

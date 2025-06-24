@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET sql_mode=ORACLE;
 #
 # MDEV-10596 Allow VARCHAR and VARCHAR2 without length as a data type of routine parameters and in RETURN clause
@@ -21,7 +22,7 @@ DROP FUNCTION f1;
 CREATE FUNCTION f1(param NCHAR) RETURN NCHAR AS BEGIN RETURN param; END;;
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"(param NCHAR) RETURN varchar(2000) CHARSET utf8mb3 COLLATE utf8mb3_general_ci
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"(param NCHAR) RETURN varchar(2000) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
 AS BEGIN RETURN param; END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SELECT LENGTH(f1(REPEAT('a',2000)));;
 LENGTH(f1(REPEAT('a',2000)))
@@ -30,7 +31,7 @@ CREATE TABLE t1 AS SELECT f1(REPEAT('a',2000)) AS a;;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "a" varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "a" varchar(2000) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP FUNCTION f1;
@@ -85,7 +86,7 @@ DROP FUNCTION f1;
 CREATE FUNCTION f1(param NVARCHAR) RETURN NVARCHAR AS BEGIN RETURN param; END;;
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"(param NVARCHAR) RETURN varchar(4000) CHARSET utf8mb3 COLLATE utf8mb3_general_ci
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"(param NVARCHAR) RETURN varchar(4000) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci
 AS BEGIN RETURN param; END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SELECT LENGTH(f1(REPEAT('a',4000)));;
 LENGTH(f1(REPEAT('a',4000)))
@@ -94,7 +95,7 @@ CREATE TABLE t1 AS SELECT f1(REPEAT('a',4000)) AS a;;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "a" varchar(4000) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "a" varchar(4000) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP FUNCTION f1;
@@ -152,7 +153,7 @@ begin
 call p1(w,'0123456789');
 end;
 /
-ERROR 22001: Data too long for column 'pinout' at row 1
+ERROR 22001: Data too long for column 'pinout' at row 0
 declare w varchar(20);
 begin
 w:='aaa';
@@ -165,7 +166,7 @@ w:='aaa';
 call p1(w,'0123456789');
 end;
 /
-ERROR 22001: Data too long for column 'pinout' at row 1
+ERROR 22001: Data too long for column 'pinout' at row 0
 declare str varchar(6000);
 pout varchar(6000);
 begin
@@ -184,7 +185,7 @@ call p1(pout,str);
 select length(pout);
 end;
 /
-ERROR 22001: Data too long for column 'pinout' at row 1
+ERROR 22001: Data too long for column 'pinout' at row 0
 declare str varchar(40000);
 pout varchar(60000);
 begin
@@ -203,7 +204,7 @@ call p1(pout,str);
 select length(pout);
 end;
 /
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 declare str text(80000);
 pout text(80000);
 begin
@@ -240,7 +241,7 @@ CALL p2(11);
 LENGTH(pinout)
 10
 Warnings:
-Warning	1265	Data truncated for column 'pinout' at row 1
+Warning	1265	Data truncated for column 'pinout' at row 0
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 SET sql_mode=ORACLE;
@@ -261,12 +262,12 @@ CALL p2(65535);
 LENGTH(f1(str,padlen))
 65532
 Warnings:
-Warning	1265	Data truncated for column 'pin' at row 1
+Warning	1265	Data truncated for column 'pin' at row 0
 CALL p2(65536);
 LENGTH(f1(str,padlen))
 65532
 Warnings:
-Warning	1265	Data truncated for column 'pin' at row 1
+Warning	1265	Data truncated for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -290,9 +291,9 @@ CALL p2(21844);
 length(pout)
 21844
 CALL p2(21845);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(21846);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -316,9 +317,9 @@ CALL p2(21844);
 length(pout)
 21844
 CALL p2(21845);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(21846);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -339,13 +340,13 @@ CALL p2(65532);
 LENGTH(f1(str,padlen))
 65532
 CALL p2(65533);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(65534);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(65535);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(65536);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -366,9 +367,9 @@ CALL p2(21844);
 LENGTH(f1(str,padlen))
 21844
 CALL p2(21845);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(21846);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -389,9 +390,9 @@ CALL p2(21844);
 LENGTH(f1(str,padlen))
 21844
 CALL p2(21845);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(21846);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
 SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
@@ -412,12 +413,181 @@ CALL p2(65532);
 LENGTH(f1(str,padlen))
 65532
 CALL p2(65533);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(65534);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(65535);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 CALL p2(65536);
-ERROR 22001: Data too long for column 'pin' at row 1
+ERROR 22001: Data too long for column 'pin' at row 0
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+# 
+# MDEV-34316 sql_mode=ORACLE: Ignore the NOCOPY keyword in stored routine parameters
+# 
+SET sql_mode=ORACLE;
+# 
+# sql_mode=ORACLE. Test with function
+# 
+CREATE OR REPLACE FUNCTION example_func(
+p_in1 IN VARCHAR(255),
+p_in2 IN NOCOPY VARCHAR(255),
+p_out1 OUT INT,
+p_out2 OUT NOCOPY INT,
+p_in_out1 IN OUT VARCHAR(255),
+p_in_out2 IN OUT NOCOPY VARCHAR(255),
+p_in_out3 INOUT NUMBER,
+p_in_out4 INOUT NOCOPY NUMBER) RETURN NUMBER AS
+BEGIN
+RETURN 0;
+END;
+/
+DROP FUNCTION example_func;
+# 
+# sql_mode=ORACLE. Test with procedure
+# 
+CREATE OR REPLACE PROCEDURE example_proc(
+p_in1 IN VARCHAR(255),
+p_in2 IN NOCOPY VARCHAR(255),
+p_out1 OUT INT,
+p_out2 OUT NOCOPY INT,
+p_in_out1 IN OUT VARCHAR(255),
+p_in_out2 IN OUT NOCOPY VARCHAR(255),
+p_in_out3 INOUT NUMBER,
+p_in_out4 INOUT NOCOPY NUMBER) AS
+BEGIN
+END;
+/
+DROP PROCEDURE example_proc;
+SET sql_mode=DEFAULT;
+# 
+# sql_mode=DEFAULT to perform the negative test case. Test with function, IN NOCOPY
+# 
+CREATE OR REPLACE FUNCTION example_func(IN NOCOPY p_in INT) RETURNS INT
+BEGIN
+RETURN 0;
+END;
+$$
+ERROR HY000: Unknown data type: 'p_in'
+# 
+# sql_mode=DEFAULT to perform the negative test case. Test with function, OUT NOCOPY
+# 
+CREATE OR REPLACE FUNCTION example_func(OUT NOCOPY p_out INT) RETURNS INT
+BEGIN
+RETURN 0;
+END;
+$$
+ERROR HY000: Unknown data type: 'p_out'
+# 
+# sql_mode=DEFAULT to perform the negative test case. Test with function, INOUT NOCOPY
+# 
+CREATE OR REPLACE FUNCTION example_func(INOUT NOCOPY p_inout INT) RETURNS INT
+BEGIN
+RETURN 0;
+END;
+$$
+ERROR HY000: Unknown data type: 'p_inout'
+# 
+# sql_mode=DEFAULT to perform the negative test case. Test with procedure, IN NOCOPY
+# 
+CREATE OR REPLACE PROCEDURE example_proc(IN NOCOPY p_in INT)
+BEGIN
+END;
+$$
+ERROR HY000: Unknown data type: 'p_in'
+# 
+# sql_mode=DEFAULT to perform the negative test case. Test with procedure, OUT NOCOPY
+# 
+CREATE OR REPLACE PROCEDURE example_proc(OUT NOCOPY p_out INT)
+BEGIN
+END;
+$$
+ERROR HY000: Unknown data type: 'p_out'
+# 
+# sql_mode=DEFAULT to perform the negative test case. Test with procedure, INOUT NOCOPY
+# 
+CREATE OR REPLACE PROCEDURE example_proc(INOUT NOCOPY p_inout INT)
+BEGIN
+END;
+$$
+ERROR HY000: Unknown data type: 'p_inout'
+#
+# MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+#
+SET sql_mode=ORACLE;
+CREATE TABLE nocopy (a INT);
+DROP TABLE nocopy;
+CREATE TABLE t1 (nocopy int);
+SELECT nocopy AS nocopy FROM t1 AS nocopy;
+nocopy
+DROP TABLE t1;
+CREATE TABLE nocopy (nocopy INT);
+CREATE TRIGGER nocopy AFTER INSERT ON nocopy FOR EACH ROW BEGIN END;
+DROP TRIGGER nocopy;
+DROP TABLE nocopy;
+PREPARE nocopy FROM 'select 1';
+EXECUTE nocopy;
+1
+1
+DEALLOCATE PREPARE nocopy;
+CREATE FUNCTION nocopy (nocopy INT) RETURN INT AS
+BEGIN
+RETURN nocopy;
+END;
+$$
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+SELECT nocopy(1);
+nocopy(1)
+1
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+DROP FUNCTION nocopy;
+CREATE FUNCTION nocopy (nocopy nocopy INT) RETURN INT AS
+BEGIN
+RETURN nocopy;
+END;
+$$
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+SELECT nocopy(1);
+nocopy(1)
+1
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+DROP FUNCTION nocopy;
+CREATE PROCEDURE nocopy (nocopy INT) AS
+BEGIN
+SELECT nocopy;
+END;
+$$
+CALL nocopy(1);
+nocopy
+1
+DROP PROCEDURE nocopy;
+CREATE PROCEDURE nocopy (nocopy nocopy INT) AS
+BEGIN
+SELECT nocopy;
+END;
+$$
+CALL nocopy(1);
+nocopy
+1
+DROP PROCEDURE nocopy;
+DECLARE
+nocopy INT := 1;
+BEGIN
+<<nocopy>>
+WHILE 1
+LOOP
+SELECT nocopy;
+LEAVE nocopy;
+END LOOP;
+END;
+$$
+nocopy
+1
+#
+# End of 11.7 tests
+#

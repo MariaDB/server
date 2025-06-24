@@ -191,8 +191,8 @@ min(7)
 7
 explain select min(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select min(7) from t2i join t1i;
 min(7)
 NULL
@@ -207,8 +207,8 @@ max(7)
 7
 explain select max(7) from t2i join t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
-1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+1	SIMPLE	t2i	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 select max(7) from t2i join t1i;
 max(7)
 NULL
@@ -239,7 +239,7 @@ select 1, max(1) from t1i where 1=99;
 explain select count(*), min(7), max(7) from t1m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1m	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
 select count(*), min(7), max(7) from t1m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -253,7 +253,7 @@ count(*)	min(7)	max(7)
 explain select count(*), min(7), max(7) from t2m, t1i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2m	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	t1i	ALL	NULL	NULL	NULL	NULL	1	
 select count(*), min(7), max(7) from t2m, t1i;
 count(*)	min(7)	max(7)
 0	NULL	NULL
@@ -346,10 +346,10 @@ insert into t1 values ( 1,"e"),(2,"a"),( 3,"c"),(4,"d");
 alter table t1 drop primary key, add primary key (f2, f1);
 explain select distinct f1 a, f1 b from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	4	Using index; Using temporary
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
 explain select distinct f1, f2 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	4	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
 drop table t1;
 CREATE TABLE t1 (id int(11) NOT NULL PRIMARY KEY, name varchar(20),
 INDEX (name));
@@ -361,13 +361,13 @@ EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id
 WHERE t1.name LIKE 'A%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,name	name	23	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	PRIMARY,name	name	83	NULL	2	Using where; Using index
 1	SIMPLE	t2	ref	fkey	fkey	5	test.t1.id	1	Using index
 EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id
 WHERE t1.name LIKE 'A%' OR FALSE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,name	name	23	NULL	2	Using where; Using index
+1	SIMPLE	t1	range	PRIMARY,name	name	83	NULL	2	Using where; Using index
 1	SIMPLE	t2	ref	fkey	fkey	5	test.t1.id	1	Using index
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
@@ -396,7 +396,7 @@ test.t1	analyze	status	OK
 flush tables;
 EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	name	name	22	const	2	Using where; Using index
+1	SIMPLE	t1	range	name	name	164	NULL	2	Using where; Using index for group-by
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 name	dept
 rs5	cs10
@@ -405,7 +405,7 @@ DELETE FROM t1;
 # Masking (#) number in "rows" column of the following EXPLAIN output, as it may vary (bug#47746).
 EXPLAIN SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	name	name	22	const	#	Using where; Using index
+1	SIMPLE	t1	range	name	name	164	NULL	#	Using where; Using index for group-by
 SELECT DISTINCT t1.name, t1.dept FROM t1 WHERE t1.name='rs5';
 name	dept
 DROP TABLE t1;
@@ -992,7 +992,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='123'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='123'
 drop table t1;
 CREATE TABLE t1 (a CHAR(2), KEY (a)) ENGINE = InnoDB DEFAULT CHARSET=UTF8;
 INSERT INTO t1 VALUES ('uk'),('bg');
@@ -1185,7 +1185,7 @@ INSERT INTO t1 SELECT  a + 32, MOD(a + 32, 20), 1 FROM t1;
 INSERT INTO t1 SELECT  a + 64, MOD(a + 64, 20), 1 FROM t1;
 EXPLAIN SELECT b, SUM(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	5	NULL	128	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using temporary; Using filesort
 EXPLAIN SELECT SQL_BIG_RESULT b, SUM(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using filesort
@@ -1300,13 +1300,13 @@ EXPLAIN SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY a;
 id	1
 select_type	SIMPLE
 table	t1
-type	range
+type	index
 possible_keys	bkey
-key	bkey
-key_len	5
+key	PRIMARY
+key_len	4
 ref	NULL
 rows	32
-Extra	Using where; Using index; Using filesort
+Extra	Using where
 SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY a;
 a	b
 1	2
@@ -1395,13 +1395,13 @@ EXPLAIN SELECT * FROM t2 WHERE b=1 ORDER BY a;
 id	1
 select_type	SIMPLE
 table	t2
-type	ref
+type	index
 possible_keys	bkey
-key	bkey
-key_len	5
-ref	const
+key	PRIMARY
+key_len	4
+ref	NULL
 rows	16
-Extra	Using where; Using index; Using filesort
+Extra	Using where
 SELECT * FROM t2 WHERE b=1 ORDER BY a;
 a	b	c
 1	1	1
@@ -1552,7 +1552,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
   KEY `a` (`a`(1024))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1 (
 a INT,
@@ -1617,7 +1617,7 @@ c	b	d
 3	2	40
 EXPLAIN SELECT c,b   FROM t1 GROUP BY c,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	8	NULL	3	Using index
+1	SIMPLE	t1	index	NULL	c	8	NULL	3	
 SELECT c,b   FROM t1 GROUP BY c,b;
 c	b
 1	1
@@ -1768,14 +1768,14 @@ t1	CREATE TABLE `t1` (
   `b` char(4) NOT NULL,
   UNIQUE KEY `bb` (`b`),
   UNIQUE KEY `aa` (`a`(1))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1 (id int, type char(6), d int, INDEX idx(id,d)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES 
 (191, 'member', 1), (NULL, 'member', 3), (NULL, 'member', 4), (201, 'member', 2);
 EXPLAIN SELECT * FROM t1 WHERE id=191 OR id IS NULL ORDER BY d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	idx	NULL	NULL	NULL	4	Using where; Using filesort
+1	SIMPLE	t1	ref_or_null	idx	idx	5	const	3	Using index condition; Using filesort
 SELECT * FROM t1 WHERE id=191 OR id IS NULL ORDER BY d;
 id	type	d
 191	member	1
@@ -1785,13 +1785,16 @@ DROP TABLE t1;
 set @my_innodb_autoextend_increment=@@global.innodb_autoextend_increment;
 set global innodb_autoextend_increment=8;
 set global innodb_autoextend_increment=@my_innodb_autoextend_increment;
+#
+# Bug #37830: ORDER BY ASC/DESC - no difference
+#
 CREATE TABLE t1 (a int, b int, c int, PRIMARY KEY (a), KEY t1_b (b))
 ENGINE=InnoDB;
-INSERT INTO t1 (a,b,c) VALUES (1,1,1), (2,1,1), (3,1,1), (4,1,1);
+INSERT INTO t1 (a,b,c) VALUES (1,1,1), (2,1,1), (3,1,1), (4,1,1), (100,2,2);
 INSERT INTO t1 (a,b,c) SELECT a+4,b,c FROM t1;
 EXPLAIN SELECT a, b, c FROM t1 WHERE b = 1 ORDER BY a DESC LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	t1_b	t1_b	5	NULL	8	Using where
+1	SIMPLE	t1	ref	t1_b	t1_b	5	const	8	Using where
 SELECT a, b, c FROM t1 WHERE b = 1 ORDER BY a DESC LIMIT 5;
 a	b	c
 8	1	1
@@ -1840,7 +1843,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`f1`),
   KEY `f2_ref` (`f2`),
   CONSTRAINT `f2_ref` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Bug #36995: valgrind error in remove_const during subquery executions
@@ -2127,7 +2130,7 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `c2` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
   CONSTRAINT `f3` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION,
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`a`) ON UPDATE NO ACTION
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 create table t1 (a int auto_increment primary key) engine=innodb;
@@ -2286,10 +2289,10 @@ drop table t1, t2;
 #
 SET SESSION BINLOG_FORMAT=STATEMENT;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-select @@session.sql_log_bin, @@session.binlog_format, @@session.tx_isolation;
+select @@session.sql_log_bin, @@session.binlog_format, @@session.transaction_isolation;
 @@session.sql_log_bin	1
 @@session.binlog_format	STATEMENT
-@@session.tx_isolation	READ-COMMITTED
+@@session.transaction_isolation	READ-COMMITTED
 CREATE TABLE t1 ( a INT ) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 DROP TABLE t1;
@@ -2330,24 +2333,24 @@ EXPLAIN SELECT c FROM bar WHERE b>2;;
 id	1
 select_type	SIMPLE
 table	bar
-type	ALL
+type	range
 possible_keys	b
-key	NULL
-key_len	NULL
+key	b
+key_len	5
 ref	NULL
-rows	6
-Extra	Using where
+rows	5
+Extra	Using index condition
 EXPLAIN SELECT c FROM foo WHERE b>2;;
 id	1
 select_type	SIMPLE
 table	foo
-type	ALL
+type	range
 possible_keys	b
-key	NULL
-key_len	NULL
+key	b
+key_len	5
 ref	NULL
-rows	6
-Extra	Using where
+rows	5
+Extra	Using index condition
 EXPLAIN SELECT c FROM foo2 WHERE b>2;;
 id	1
 select_type	SIMPLE
@@ -2592,7 +2595,7 @@ BEGIN
 SET @b:= CONCAT('EXECUTED TRIGGER FOR ROW ',CAST(OLD.i AS CHAR));
 INSERT INTO t2 VALUES (@b);
 END||
-** DELETE is prevented by foreign key constrains but errors are silenced.
+** DELETE is prevented by foreign key constraints but errors are silenced.
 ** The AFTER trigger isn't fired.
 DELETE IGNORE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
 ** Tables are modified by best effort:
@@ -2970,7 +2973,7 @@ NULL	75
 EXPLAIN SELECT t1.id,t2.id FROM t2 LEFT JOIN t1 ON t1.id>=74 AND t1.id<=0
 WHERE t2.id=75 AND t1.id IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t1	const	PRIMARY	NULL	NULL	NULL	0	Impossible ON condition
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 DROP TABLE t1,t2;
 #
@@ -3033,7 +3036,7 @@ EXPLAIN SELECT * FROM t1 WHERE f1 IN
 3784744,4180925,4559596,3963734,3856391,4494153)
 AND f5 = 'abcdefghijklmnopwrst' AND f2 = 1221457 AND f4 = 0 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2	idx2,idx1,PRIMARY	7,60,4	NULL	1	Using intersect(idx2,idx1,PRIMARY); Using where
+1	SIMPLE	t1	index_merge	PRIMARY,idx1,idx2	idx2,idx1,PRIMARY	7,210,4	NULL	1	Using intersect(idx2,idx1,PRIMARY); Using where
 set optimizer_switch=@tmp_innodb_mysql;
 DROP TABLE t1;
 #
@@ -3066,7 +3069,7 @@ f1	f2	f3	f4
 EXPLAIN SELECT * FROM t1 WHERE f2 = 1 AND f4 = TRUE
 ORDER BY f1 DESC LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	f2,f4	f4	1	NULL	22	Using where
+1	SIMPLE	t1	index	f2,f4	PRIMARY	4	NULL	5	Using where
 DROP TABLE t1;
 #
 # Bug#54117 crash in thr_multi_unlock, temporary table
@@ -3114,8 +3117,8 @@ select_type	SIMPLE
 table	t1
 type	index
 possible_keys	NULL
-key	PRIMARY
-key_len	8
+key	b
+key_len	13
 ref	NULL
 rows	3
 Extra	Using index
@@ -3127,8 +3130,8 @@ select_type	SIMPLE
 table	t1
 type	index
 possible_keys	NULL
-key	PRIMARY
-key_len	8
+key	b
+key_len	18
 ref	NULL
 rows	3
 Extra	Using index
@@ -3203,7 +3206,7 @@ t2	CREATE TABLE `t2` (
   `fk` int(11) DEFAULT NULL,
   KEY `x` (`fk`),
   CONSTRAINT `x` FOREIGN KEY (`fk`) REFERENCES `t1` (`pk`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2, t1;
 #
 # Test for bug #11762012 - "54553: INNODB ASSERTS IN HA_INNOBASE::
@@ -3291,7 +3294,7 @@ SELECT t2.b FROM t1,t2 WHERE t1.a IN (SELECT 1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	1	Using index; FirstMatch(t1); Using join buffer (incremental, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	FirstMatch(t1); Using join buffer (incremental, BNL join)
 SELECT t2.b FROM t1,t2 WHERE t1.a IN (SELECT 1 FROM t2);
 b
 1

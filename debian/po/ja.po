@@ -15,8 +15,8 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: mariadb-10.6 10.0.32-1\n"
-"Report-Msgid-Bugs-To: mariadb-10.6@packages.debian.org\n"
+"Project-Id-Version: mariadb 10.0.32-1\n"
+"Report-Msgid-Bugs-To: mariadb@packages.debian.org\n"
 "POT-Creation-Date: 2019-07-23 19:16-0300\n"
 "PO-Revision-Date: 2016-05-01 11:27+0900\n"
 "Last-Translator: Takuma Yamada <tyamada@takumayamada.com>\n"
@@ -30,13 +30,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid "The old data directory will be saved at new location"
 msgstr "古いデータディレクトリは、新しい場所に保存されます"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid ""
 "A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
 "indicates a database binary format version that cannot automatically be "
@@ -48,7 +48,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
@@ -58,7 +58,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:2001
+#: ../mariadb-server.templates:2001
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
@@ -67,13 +67,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:3001
+#: ../mariadb-server.templates:3001
 msgid "Important note for NIS/YP users"
 msgstr "NIS/YP ユーザへの重要な注意"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:3001
+#: ../mariadb-server.templates:3001
 msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
@@ -83,7 +83,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.6.templates:3001
+#: ../mariadb-server.templates:3001
 msgid ""
 "You should also check the permissions and ownership of the /var/lib/mysql "
 "directory:"
@@ -91,13 +91,13 @@ msgstr "/var/lib/mysql の所有者権限をチェックする必要もありま
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.6.templates:4001
+#: ../mariadb-server.templates:4001
 msgid "Remove all MariaDB databases?"
 msgstr "すべての MariaDB データベースを削除しますか?"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.6.templates:4001
+#: ../mariadb-server.templates:4001
 msgid ""
 "The /var/lib/mysql directory which contains the MariaDB databases is about "
 "to be removed."
@@ -107,7 +107,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.6.templates:4001
+#: ../mariadb-server.templates:4001
 msgid ""
 "If you're removing the MariaDB package in order to later install a more "
 "recent version or if a different mariadb-server package is already using it, "

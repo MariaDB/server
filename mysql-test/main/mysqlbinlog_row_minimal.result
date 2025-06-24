@@ -1,5 +1,5 @@
-CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
-CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
 INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
 INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
@@ -10,56 +10,58 @@ DELETE FROM t1;
 DELETE FROM t2;
 FLUSH BINARY LOGS;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-# at 4
-#<date> server id 1  end_log_pos 256 CRC32 XXX 	Start: xxx
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Start: xxx
 ROLLBACK/*!*/;
-# at 256
-#<date> server id 1  end_log_pos 285 CRC32 XXX 	Gtid list []
-# at 285
-#<date> server id 1  end_log_pos 329 CRC32 XXX 	Binlog checkpoint master-bin.000001
-# at 329
-#<date> server id 1  end_log_pos 371 CRC32 XXX 	GTID 0-1-1 ddl
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Gtid list []
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl thread_id=TID
 /*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*M!100001 SET @@session.server_id=1*//*!*/;
 /*M!100001 SET @@session.gtid_seq_no=1*//*!*/;
-# at 371
-#<date> server id 1  end_log_pos 564 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 use `test`/*!*/;
 SET TIMESTAMP=X/*!*/;
-SET @@session.pseudo_thread_id=5/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.pseudo_thread_id=TID/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
 SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=#/*!*/;
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1))
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1
 /*!*/;
-# at 564
-#<date> server id 1  end_log_pos 606 CRC32 XXX 	GTID 0-1-2 ddl
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 ddl thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=2*//*!*/;
-# at 606
-#<date> server id 1  end_log_pos 792 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
-CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1))
+SET @@session.character_set_collations='utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci'/*!*/;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1
 /*!*/;
-# at 792
-#<date> server id 1  end_log_pos 834 CRC32 XXX 	GTID 0-1-3
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 834
-# at 908
-#<date> server id 1  end_log_pos 908 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "")
-#<date> server id 1  end_log_pos 964 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 964
-#<date> server id 1  end_log_pos 1033 CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -72,23 +74,23 @@ START TRANSACTION
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 1
-# at 1033
-#<date> server id 1  end_log_pos 1106 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 1106
-#<date> server id 1  end_log_pos 1148 CRC32 XXX 	GTID 0-1-4
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 1148
-# at 1224
-#<date> server id 1  end_log_pos 1224 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL)
-#<date> server id 1  end_log_pos 1280 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 1280
-#<date> server id 1  end_log_pos 1348 CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
@@ -101,23 +103,23 @@ START TRANSACTION
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9=NULL /* STRING(1) meta=65025 nullable=1 is_null=1 */
 # Number of rows: 1
-# at 1348
-#<date> server id 1  end_log_pos 1421 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 1421
-#<date> server id 1  end_log_pos 1463 CRC32 XXX 	GTID 0-1-5
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 1463
-# at 1541
-#<date> server id 1  end_log_pos 1541 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A")
-#<date> server id 1  end_log_pos 1597 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 1597
-#<date> server id 1  end_log_pos 1664 CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
@@ -130,23 +132,23 @@ START TRANSACTION
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 1
-# at 1664
-#<date> server id 1  end_log_pos 1737 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 1737
-#<date> server id 1  end_log_pos 1779 CRC32 XXX 	GTID 0-1-6
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 1779
-# at 1854
-#<date> server id 1  end_log_pos 1854 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A")
-#<date> server id 1  end_log_pos 1910 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 1910
-#<date> server id 1  end_log_pos 1980 CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
@@ -159,23 +161,23 @@ START TRANSACTION
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 1
-# at 1980
-#<date> server id 1  end_log_pos 2053 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 2053
-#<date> server id 1  end_log_pos 2095 CRC32 XXX 	GTID 0-1-7
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-7 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 2095
-# at 2149
-#<date> server id 1  end_log_pos 2149 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> INSERT INTO t2 SELECT * FROM t1
-#<date> server id 1  end_log_pos 2205 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
-# at 2205
-#<date> server id 1  end_log_pos 2372 CRC32 XXX 	Write_rows: table id 33 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id 33 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -221,23 +223,23 @@ START TRANSACTION
 ###   @8=7 /* INT meta=0 nullable=1 is_null=0 */
 ###   @9='A' /* STRING(1) meta=65025 nullable=1 is_null=0 */
 # Number of rows: 4
-# at 2372
-#<date> server id 1  end_log_pos 2445 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 2445
-#<date> server id 1  end_log_pos 2487 CRC32 XXX 	GTID 0-1-8
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-8 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=8*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 2487
-# at 2553
-#<date> server id 1  end_log_pos 2553 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL
-#<date> server id 1  end_log_pos 2609 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
-# at 2609
-#<date> server id 1  end_log_pos 2675 CRC32 XXX 	Update_rows: table id 33 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id 33 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -254,23 +256,23 @@ START TRANSACTION
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
-# at 2675
-#<date> server id 1  end_log_pos 2748 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 2748
-#<date> server id 1  end_log_pos 2790 CRC32 XXX 	GTID 0-1-9
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-9 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 2790
-# at 2827
-#<date> server id 1  end_log_pos 2827 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t1
-#<date> server id 1  end_log_pos 2883 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
-# at 2883
-#<date> server id 1  end_log_pos 2937 CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -284,23 +286,23 @@ START TRANSACTION
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
 # Number of rows: 4
-# at 2937
-#<date> server id 1  end_log_pos 3010 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 3010
-#<date> server id 1  end_log_pos 3052 CRC32 XXX 	GTID 0-1-10
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-10 thread_id=TID
 /*M!100001 SET @@session.gtid_seq_no=10*//*!*/;
 START TRANSACTION
 /*!*/;
-# at 3052
-# at 3089
-#<date> server id 1  end_log_pos 3089 CRC32 XXX 	Annotate_rows:
+# at #
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
 #Q> DELETE FROM t2
-#<date> server id 1  end_log_pos 3145 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
-# at 3145
-#<date> server id 1  end_log_pos 3199 CRC32 XXX 	Delete_rows: table id 33 flags: STMT_END_F
+#<date> server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id 33 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -314,13 +316,13 @@ START TRANSACTION
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
 # Number of rows: 4
-# at 3199
-#<date> server id 1  end_log_pos 3272 CRC32 XXX 	Query	thread_id=5	exec_time=x	error_code=0	xid=<xid>
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 3272
-#<date> server id 1  end_log_pos 3320 CRC32 XXX 	Rotate to master-bin.000002  pos: 4
+# at #
+#<date> server id 1  end_log_pos # CRC32 XXX 	Rotate to master-bin.000002  pos: 4
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
@@ -331,7 +333,7 @@ DROP TABLE t1,t2;
 # MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
 #
 FLUSH BINARY LOGS;
-CREATE TABLE t1 (pk INT PRIMARY KEY);
+CREATE TABLE t1 (pk INT PRIMARY KEY) CHARSET=latin1;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (1), (2) ON DUPLICATE KEY UPDATE pk= pk + 10;
 FLUSH BINARY LOGS;
@@ -352,12 +354,12 @@ CREATE TABLE `t1` (
 `ref_id` BIGINT(20) UNSIGNED NOT NULL,
 PRIMARY KEY (`id`),
 KEY `last_updated_KEY` (`last_updated`)
-);
+) CHARSET=latin1;
 CREATE TABLE `t2` (
 `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 `short_desc` VARCHAR(50) NOT NULL,
 PRIMARY KEY (`id`)
-);
+) CHARSET=latin1;
 INSERT INTO t2 (id, short_desc) VALUES (1, 'test');
 INSERT INTO t1 (id, is_deleted, ref_id) VALUES (1, b'0', 1);
 FLUSH BINARY LOGS;
@@ -366,11 +368,11 @@ SET t1.is_deleted = TRUE
 WHERE t1.id = 1;
 FLUSH BINARY LOGS;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at POS
-#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	GTID D-S-N
+#<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	GTID D-S-N thread_id=TID
 /*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*M!100001 SET @@session.server_id=1*//*!*/;
@@ -397,7 +399,7 @@ START TRANSACTION
 #<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0	xid=<xid>
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=TID/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;

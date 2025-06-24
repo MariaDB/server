@@ -12,7 +12,7 @@ drop procedure if exists check_instrument;
 
 # reset counters
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 
 # Print known global memory instruments (PSI_FLAG_GLOBAL),
 # see maintenance of count_global_expected below.
@@ -55,7 +55,7 @@ begin
   declare cmd_1 varchar(512);
   declare cmd_2 varchar(512);
   declare done integer default 0;
-  declare debug integer default 0;
+  declare dbg integer default 0;
 
   declare pfs_cursor CURSOR FOR
     select table_name from information_schema.tables
@@ -146,7 +146,7 @@ begin
 
       select concat("Checking table ", pfs_table_name, " ...") as status;
       select concat(cmd_1, pfs_table_name, cmd_2) into @cmd;
-      if debug = 1
+      if dbg = 1
       then
         select @cmd;
       end if;

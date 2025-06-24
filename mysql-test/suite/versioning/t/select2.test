@@ -165,7 +165,7 @@ insert into t1 values (1);
 create trigger read_end after update on t1
   for each row set @end = old.row_end;
 update t1 set a=2;
---replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+--replace_result 18446744073709551615 MAX_RESULT $sys_time_max_replace MAX_RESULT
 select @end;
 
 create or replace table t1 (a int) with system versioning;

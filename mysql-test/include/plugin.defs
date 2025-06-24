@@ -17,7 +17,7 @@
 # The PLUGVAR variable is not quoted, so you must remember to quote it
 # when using it in an INSTALL PLUGIN command.
 #
-# The envorinment variables can be used in tests. If adding a new plugin,
+# The environment variables can be used in tests. If adding a new plugin,
 # you are free to pick your variable name, but please keep it upper
 # case for consistency.
 #

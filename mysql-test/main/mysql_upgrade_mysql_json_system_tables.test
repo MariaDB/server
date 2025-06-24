@@ -33,7 +33,7 @@ SET @old_log_output= @@global.log_output;
 SET @@global.general_log = ON;
 SET @@global.log_output = "TABLE";
 --exec $MYSQL_UPGRADE -s --force 2>&1
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 SET @@global.general_log = @old_general_log;
 SET @@global.log_output = @old_log_output;
 

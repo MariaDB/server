@@ -1,0 +1,223 @@
+--- partition.result
++++ partition.reject
+@@ -2228,85 +2228,6 @@
+ (PARTITION `p0` HISTORY ENGINE = X,
+  PARTITION `pn` CURRENT ENGINE = X)
+ drop tables t1, tp1;
+-# Complex table
+-create or replace table t1 (
+-x int primary key auto_increment,
+-t timestamp(6) default '2001-11-11 11:11:11',
+-b blob(4096) compressed null,
+-c varchar(1033) character set utf8 not null,
+-u int,
+-unique key (x, u),
+-m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+-i1 tinyint, i2 smallint, i3 bigint,
+-index three(i1, i2, i3),
+-v1 timestamp(6) generated always as (t + interval 1 day),
+-v2 timestamp(6) generated always as (t + interval 1 month) stored,
+-s timestamp(6) as row start,
+-e timestamp(6) as row end,
+-period for system_time (s, e),
+-ps date, pe date,
+-period for app_time (ps, pe),
+-constraint check_constr check (u > -1))
+-with system versioning default charset=ucs2
+-partition by range(x) (
+-partition p0 values less than (10),
+-partition p1 values less than (20),
+-partition pn values less than maxvalue);
+-alter table t1 convert partition p1 to table tp1;
+-show create table tp1;
+-Table	Create Table
+-tp1	CREATE TABLE `tp1` (
+-  `x` int(11) NOT NULL AUTO_INCREMENT,
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
+-  `u` int(11) DEFAULT NULL,
+-  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+-  `i1` tinyint(4) DEFAULT NULL,
+-  `i2` smallint(6) DEFAULT NULL,
+-  `i3` bigint(20) DEFAULT NULL,
+-  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+-  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+-  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+-  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+-  `ps` date NOT NULL,
+-  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
+-  PRIMARY KEY (`x`,`e`),
+-  UNIQUE KEY `x` (`x`,`u`,`e`),
+-  KEY `three` (`i1`,`i2`,`i3`),
+-  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+-  CONSTRAINT `check_constr` CHECK (`u` > -1)
+-) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `x` int(11) NOT NULL AUTO_INCREMENT,
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
+-  `u` int(11) DEFAULT NULL,
+-  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+-  `i1` tinyint(4) DEFAULT NULL,
+-  `i2` smallint(6) DEFAULT NULL,
+-  `i3` bigint(20) DEFAULT NULL,
+-  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+-  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+-  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+-  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+-  `ps` date NOT NULL,
+-  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
+-  PRIMARY KEY (`x`,`e`),
+-  UNIQUE KEY `x` (`x`,`u`,`e`),
+-  KEY `three` (`i1`,`i2`,`i3`),
+-  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+-  CONSTRAINT `check_constr` CHECK (`u` > -1)
+-) ENGINE=X DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
+- PARTITION BY RANGE (`x`)
+-(PARTITION `p0` VALUES LESS THAN (10) ENGINE = X,
+- PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+-drop tables t1, tp1;
+ #
+ # MDEV-29841 Partition by system_time can be converted into table but not back
+ #
+@@ -2870,134 +2791,6 @@
+ Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+ drop prepare s;
+ affected rows: 0
+-# Complex table
+-set timestamp= unix_timestamp('2000-01-01 00:00:00');
+-affected rows: 0
+-create or replace table t1 (
+-x int primary key auto_increment,
+-t timestamp(6) default '2001-11-11 11:11:11',
+-b blob(4096) compressed null,
+-c varchar(1033) character set utf8 not null,
+-u int unique,
+-m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+-i1 tinyint, i2 smallint, i3 bigint,
+-index three(i1, i2, i3),
+-v1 timestamp(6) generated always as (t + interval 1 day),
+-v2 timestamp(6) generated always as (t + interval 1 month) stored,
+-s timestamp(6) as row start,
+-e timestamp(6) as row end,
+-period for system_time (s, e),
+-ps date, pe date,
+-period for app_time (ps, pe),
+-constraint check_constr check (u > -1))
+-with system versioning default charset=ucs2
+-partition by system_time interval 1 hour auto (
+-partition p2 history,
+-partition pn current);
+-affected rows: 0
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `x` int(11) NOT NULL AUTO_INCREMENT,
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
+-  `u` int(11) DEFAULT NULL,
+-  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+-  `i1` tinyint(4) DEFAULT NULL,
+-  `i2` smallint(6) DEFAULT NULL,
+-  `i3` bigint(20) DEFAULT NULL,
+-  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+-  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+-  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+-  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+-  `ps` date NOT NULL,
+-  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
+-  PRIMARY KEY (`x`,`e`),
+-  UNIQUE KEY `u` (`u`,`e`),
+-  KEY `three` (`i1`,`i2`,`i3`),
+-  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+-  CONSTRAINT `check_constr` CHECK (`u` > -1)
+-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
+- PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+-(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+- PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-affected rows: 1
+-insert into t1 (x, c, u, i1, i2, i3, ps, pe)
+-values (1, 'cc', 0, 1, 2, 3, '1999-01-01', '2000-01-01');
+-affected rows: 1
+-set timestamp= unix_timestamp('2000-01-01 01:00:00');
+-affected rows: 0
+-update t1 set x= x + 8;
+-affected rows: 1
+-info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `x` int(11) NOT NULL AUTO_INCREMENT,
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
+-  `u` int(11) DEFAULT NULL,
+-  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+-  `i1` tinyint(4) DEFAULT NULL,
+-  `i2` smallint(6) DEFAULT NULL,
+-  `i3` bigint(20) DEFAULT NULL,
+-  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+-  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+-  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+-  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+-  `ps` date NOT NULL,
+-  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
+-  PRIMARY KEY (`x`,`e`),
+-  UNIQUE KEY `u` (`u`,`e`),
+-  KEY `three` (`i1`,`i2`,`i3`),
+-  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+-  CONSTRAINT `check_constr` CHECK (`u` > -1)
+-) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
+- PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+-(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+- PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+- PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-affected rows: 1
+-set timestamp= unix_timestamp('2000-01-01 02:00:00');
+-affected rows: 0
+-update t1 set x= x - 8;
+-affected rows: 1
+-info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `x` int(11) NOT NULL AUTO_INCREMENT,
+-  `t` timestamp(6) NULL DEFAULT '2001-11-11 11:11:11.000000',
+-  `b` blob /*M!100301 COMPRESSED*/ DEFAULT NULL,
+-  `c` varchar(1033) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL,
+-  `u` int(11) DEFAULT NULL,
+-  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+-  `i1` tinyint(4) DEFAULT NULL,
+-  `i2` smallint(6) DEFAULT NULL,
+-  `i3` bigint(20) DEFAULT NULL,
+-  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+-  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+-  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+-  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+-  `ps` date NOT NULL,
+-  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
+-  PRIMARY KEY (`x`,`e`),
+-  UNIQUE KEY `u` (`u`,`e`),
+-  KEY `three` (`i1`,`i2`,`i3`),
+-  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+-  CONSTRAINT `check_constr` CHECK (`u` > -1)
+-) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci WITH SYSTEM VERSIONING
+- PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+-(PARTITION `p2` HISTORY ENGINE = DEFAULT_ENGINE,
+- PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+- PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
+- PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+-affected rows: 1
+ # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
+ set timestamp= unix_timestamp('2000-01-01 00:00:00');
+ create or replace table t1 (x int primary key) with system versioning

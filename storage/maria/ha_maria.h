@@ -16,10 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface                               /* gcc class implementation */
-#endif
-
 /* class for the maria handler */
 
 #include "maria_def.h"
@@ -66,8 +62,7 @@ public:
   ha_maria(handlerton *hton, TABLE_SHARE * table_arg);
   ~ha_maria() = default;
   handler *clone(const char *name, MEM_ROOT *mem_root) override final;
-  const char *index_type(uint key_number) override final;
-  ulonglong table_flags() const override final
+  ulonglong table_flags() const override
   { return int_table_flags; }
   ulong index_flags(uint inx, uint part, bool all_parts) const override final;
   uint max_supported_keys() const override final
@@ -77,8 +72,6 @@ public:
   { return max_supported_key_length(); }
   enum row_type get_row_type() const override final;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share) override final;
-  double scan_time() override final;
-
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override final;
   int write_row(const uchar * buf) override;
@@ -114,6 +107,8 @@ public:
   int remember_rnd_pos() override final;
   int restart_rnd_next(uchar * buf) override final;
   void position(const uchar * record) override final;
+  void update_optimizer_costs(OPTIMIZER_COSTS *costs) override final;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override final;
   int info(uint) override final;
   int info(uint, my_bool);
   int extra(enum ha_extra_function operation) override final;
@@ -153,13 +148,11 @@ public:
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt) override final;
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt) override;
   bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes) override final;
-#ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
                                      ulonglong *engine_data) override final;
-#endif
   MARIA_HA *file_ptr(void)
   {
     return file;
@@ -175,7 +168,8 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost) override final;
+                                      uint *flags, ha_rows limit,
+                                      Cost_estimate *cost) override final;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
                                 uint *flags, Cost_estimate *cost) override final;
@@ -183,6 +177,8 @@ public:
 
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond) override final;
+  bool rowid_filter_push(Rowid_filter* rowid_filter) override;
+  void rowid_filter_changed() override;
 
   int find_unique_row(uchar *record, uint unique_idx) override final;
 

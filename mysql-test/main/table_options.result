@@ -10,9 +10,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey`=vvv,
   KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`='1v1'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey1`='1v1'
 drop table t1;
-#reassiginig options in the same line
+#reassigning options in the same line
 create table t1 (a int fkey=vvv, key akey (a) dff=vvv) tkey1=1v1 TKEY1=DEFAULT tkey1=1v2 tkey2=2v1;
 Warnings:
 Warning	1911	Unknown option 'fkey'
@@ -24,7 +24,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey`=vvv,
   KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=1v2 `tkey2`=2v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey1`=1v2 `tkey2`=2v1
 #add option
 alter table t1 tkey4=4v1;
 Warnings:
@@ -34,7 +34,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey`=vvv,
   KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=1v2 `tkey2`=2v1 `tkey4`=4v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey1`=1v2 `tkey2`=2v1 `tkey4`=4v1
 #remove options 
 alter table t1 tkey3=DEFAULT tkey4=DEFAULT;
 Warnings:
@@ -45,7 +45,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey`=vvv,
   KEY `akey` (`a`) `dff`=vvv
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=1v2 `tkey2`=2v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey1`=1v2 `tkey2`=2v1
 drop table t1;
 create table t1 (a int fkey1=v1, key akey (a) kkey1=v1) tkey1=1v1 tkey1=1v2 TKEY1=DEFAULT tkey2=2v1 tkey3=3v1;
 Warnings:
@@ -59,7 +59,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey1`=v1,
   KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #change field with option with the same value
 alter table t1 change a a int `FKEY1`='v1';
 Warnings:
@@ -69,7 +69,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `FKEY1`='v1',
   KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #change field with option with a different value
 alter table t1 change a a int fkey1=v2;
 Warnings:
@@ -79,7 +79,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey1`=v2,
   KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #new column no options
 alter table t1 add column b int;
 show create table t1;
@@ -88,7 +88,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `fkey1`=v2,
   `b` int(11) DEFAULT NULL,
   KEY `akey` (`a`) `kkey1`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #new key with options
 alter table t1 add key bkey (b) kkey2=v1;
 Warnings:
@@ -100,7 +100,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   KEY `akey` (`a`) `kkey1`=v1,
   KEY `bkey` (`b`) `kkey2`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #new column with options
 alter table t1 add column c int fkey1=v1 fkey2=v2;
 Warnings:
@@ -114,7 +114,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
   KEY `akey` (`a`) `kkey1`=v1,
   KEY `bkey` (`b`) `kkey2`=v1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #new key no options
 alter table t1 add key ckey (c);
 show create table t1;
@@ -126,7 +126,7 @@ t1	CREATE TABLE `t1` (
   KEY `akey` (`a`) `kkey1`=v1,
   KEY `bkey` (`b`) `kkey2`=v1,
   KEY `ckey` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #drop column
 alter table t1 drop b;
 show create table t1;
@@ -136,7 +136,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL `fkey1`=v1 `fkey2`=v2,
   KEY `akey` (`a`) `kkey1`=v1,
   KEY `ckey` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #add column with options after delete
 alter table t1 add column b int fkey2=v1;
 Warnings:
@@ -149,7 +149,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL `fkey2`=v1,
   KEY `akey` (`a`) `kkey1`=v1,
   KEY `ckey` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 #add key 
 alter table t1 add key bkey (b) kkey2=v2;
 Warnings:
@@ -163,7 +163,7 @@ t1	CREATE TABLE `t1` (
   KEY `akey` (`a`) `kkey1`=v1,
   KEY `ckey` (`c`),
   KEY `bkey` (`b`) `kkey2`=v2
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey2`=2v1 `tkey3`=3v1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey2`=2v1 `tkey3`=3v1
 drop table t1;
 create table t1 (a int) tkey1=100;
 Warnings:
@@ -172,7 +172,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `tkey1`=100
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `tkey1`=100
 drop table t1;
 #error on unknown option
 SET SQL_MODE='';
@@ -192,17 +192,17 @@ show create table t0;
 Table	Create Table
 t0	CREATE TABLE `t0` (
   `a` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 TRANSACTIONAL=0
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 TRANSACTIONAL=0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 alter table t0 engine=myisam;
 alter table t1 engine=myisam;
 alter table t2 engine=myisam;
@@ -210,17 +210,17 @@ show create table t0;
 Table	Create Table
 t0	CREATE TABLE `t0` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 /* TRANSACTIONAL=0 */
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 /* TRANSACTIONAL=0 */
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 /* TRANSACTIONAL=1 */
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 /* TRANSACTIONAL=1 */
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 alter table t0 engine=myisam transactional=0;
 ERROR HY000: Unknown option 'transactional'
 alter table t1 engine=myisam transactional=1;
@@ -241,17 +241,17 @@ show create table t0;
 Table	Create Table
 t0	CREATE TABLE `t0` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci TRANSACTIONAL=0
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci TRANSACTIONAL=0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci TRANSACTIONAL=1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci TRANSACTIONAL=1
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t0,t1,t2;
 create table t1 (a int) foo=bar;
 Warnings:
@@ -260,13 +260,13 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `foo`=bar
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `foo`=bar
 set sql_mode=default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* `foo`=bar */
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `foo`=bar */
 alter table t1 engine=aria bar=foo;
 ERROR HY000: Unknown option 'bar'
 alter table t1 engine=aria;
@@ -274,7 +274,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 /* `foo`=bar */
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 /* `foo`=bar */
 drop table t1;
 #
 # End of 10.5 tests

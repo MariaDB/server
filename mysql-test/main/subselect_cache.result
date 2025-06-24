@@ -12,6 +12,7 @@ insert into t2 values (2,3),(3,4),(5,6),(4,1);
 * Test subquery as top item in different clauses
 *
 #single value subquery test (SELECT list)
+flush global status;
 flush status;
 select a, (select d from t2 where b=c) from t1;
 a	(select d from t2 where b=c)
@@ -44,44 +45,63 @@ analyze format=json
 select a, (select d from t2 where b=c) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 10,
           "r_hit_ratio": 60,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 4,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 4,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 18.75,
-              "attached_condition": "t1.b = t2.c"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 4,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 18.75,
+                  "attached_condition": "t1.b = t2.c",
+                  "r_filtered": 18.75
+                }
+              }
+            ]
           }
         }
       }
@@ -92,25 +112,36 @@ analyze format=json
 select a, (select d from t2 where b=c), (select d from t2 where b=c union select 1 order by 1 limit 1) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 10,
           "r_hit_ratio": 60,
           "query_block": {
@@ -123,21 +154,29 @@ ANALYZE
                 {
                   "query_block": {
                     "select_id": 3,
+                    "cost": "REPLACED",
                     "r_loops": 4,
                     "r_total_time_ms": "REPLACED",
-                    "table": {
-                      "table_name": "t2",
-                      "access_type": "ALL",
-                      "r_loops": 4,
-                      "rows": 4,
-                      "r_rows": 4,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
-                      "r_engine_stats": REPLACED,
-                      "filtered": 100,
-                      "r_filtered": 18.75,
-                      "attached_condition": "t1.b = t2.c"
-                    }
+                    "nested_loop": [
+                      {
+                        "table": {
+                          "table_name": "t2",
+                          "access_type": "ALL",
+                          "loops": 1,
+                          "r_loops": 4,
+                          "rows": 4,
+                          "r_rows": 4,
+                          "cost": "REPLACED",
+                          "r_table_time_ms": "REPLACED",
+                          "r_other_time_ms": "REPLACED",
+                          "r_engine_stats": REPLACED,
+                          "filtered": 100,
+                          "r_total_filtered": 18.75,
+                          "attached_condition": "t1.b = t2.c",
+                          "r_filtered": 18.75
+                        }
+                      }
+                    ]
                   }
                 },
                 {
@@ -155,26 +194,34 @@ ANALYZE
         }
       },
       {
-        "expression_cache": {
+        "subquery_cache": {
           "r_loops": 10,
           "r_hit_ratio": 60,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 4,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 4,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 18.75,
-              "attached_condition": "t1.b = t2.c"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 4,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 18.75,
+                  "attached_condition": "t1.b = t2.c",
+                  "r_filtered": 18.75
+                }
+              }
+            ]
           }
         }
       }
@@ -187,25 +234,39 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 4,
-              "filtered": 100,
-              "attached_condition": "t1.b = t2.c"
-            }
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 4,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.b = t2.c"
+                }
+              }
+            ]
           }
         }
       }
@@ -218,15 +279,22 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100
-    },
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "union_result": {
@@ -236,13 +304,20 @@ EXPLAIN
                 {
                   "query_block": {
                     "select_id": 3,
-                    "table": {
-                      "table_name": "t2",
-                      "access_type": "ALL",
-                      "rows": 4,
-                      "filtered": 100,
-                      "attached_condition": "t1.b = t2.c"
-                    }
+                    "cost": "COST_REPLACED",
+                    "nested_loop": [
+                      {
+                        "table": {
+                          "table_name": "t2",
+                          "access_type": "ALL",
+                          "loops": 1,
+                          "rows": 4,
+                          "cost": "COST_REPLACED",
+                          "filtered": 100,
+                          "attached_condition": "t1.b = t2.c"
+                        }
+                      }
+                    ]
                   }
                 },
                 {
@@ -260,17 +335,24 @@ EXPLAIN
         }
       },
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "rows": 4,
-              "filtered": 100,
-              "attached_condition": "t1.b = t2.c"
-            }
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 4,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.b = t2.c"
+                }
+              }
+            ]
           }
         }
       }
@@ -278,6 +360,7 @@ EXPLAIN
   }
 }
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select a, (select d from t2 where b=c) from t1;
 a	(select d from t2 where b=c)
@@ -308,6 +391,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	61
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (where)
+flush global status;
 flush status;
 select a from t1 where (select d from t2 where b=c);
 a
@@ -335,6 +419,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	31
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select a from t1 where (select d from t2 where b=c);
 a
@@ -363,6 +448,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	61
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (having)
+flush global status;
 flush status;
 select a from t1 where a > 0 having (select d from t2 where b=c);
 a
@@ -390,6 +476,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	31
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select a from t1 where a > 0 having (select d from t2 where b=c);
 a
@@ -418,6 +505,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	61
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (OUTER JOIN ON)
+flush global status;
 flush status;
 select ta.a, tb.a from t1 ta join t1 tb on (select d from t2 where tb.b=c);
 a	a
@@ -517,6 +605,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	442
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select ta.a, tb.a from t1 ta join t1 tb on (select d from t2 where tb.b=c);
 a	a
@@ -617,6 +706,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	472
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (GROUP BY)
+flush global status;
 flush status;
 select max(a) from t1  GROUP BY (select d from t2 where b=c);
 max(a)
@@ -640,6 +730,7 @@ Handler_read_rnd	4
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	36
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select max(a) from t1  GROUP BY (select d from t2 where b=c);
 max(a)
@@ -664,6 +755,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	86
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (distinct GROUP BY)
+flush global status;
 flush status;
 select distinct max(a) from t1  GROUP BY (select d from t2 where b=c);
 max(a)
@@ -687,6 +779,7 @@ Handler_read_rnd	4
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	41
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select distinct max(a) from t1  GROUP BY (select d from t2 where b=c);
 max(a)
@@ -711,6 +804,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	91
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (ORDER BY)
+flush global status;
 flush status;
 select a from t1 ORDER BY (select d from t2 where b=c);
 a
@@ -740,6 +834,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	31
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select a from t1 ORDER BY (select d from t2 where b=c);
 a
@@ -770,6 +865,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	61
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (distinct ORDER BY)
+flush global status;
 flush status;
 select distinct a from t1 ORDER BY (select d from t2 where b=c);
 a
@@ -793,6 +889,7 @@ Handler_read_rnd	4
 Handler_read_rnd_deleted	1
 Handler_read_rnd_next	36
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select distinct a from t1 ORDER BY (select d from t2 where b=c);
 a
@@ -817,6 +914,7 @@ Handler_read_rnd_deleted	1
 Handler_read_rnd_next	66
 set optimizer_switch='subquery_cache=on';
 #single value subquery test (LEFT JOIN ON)
+flush global status;
 flush status;
 select ta.a, tb.a from t1 ta left join t1 tb on (select d from t2 where tb.b=c);
 a	a
@@ -916,6 +1014,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	141
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select ta.a, tb.a from t1 ta left join t1 tb on (select d from t2 where tb.b=c);
 a	a
@@ -1078,6 +1177,7 @@ a	(select d from t2 where b=c) + 1
 4	7
 drop procedure p1;
 #IN subquery test
+flush global status;
 flush status;
 show status like "subquery_cache%";
 Variable_name	Value
@@ -1138,6 +1238,7 @@ Variable_name	Value
 Subquery_cache_hit	18
 Subquery_cache_miss	16
 # multicolumn NOT IN with NULLs
+flush global status;
 flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (b, a) not in (select d, c from t2) as SUBS from t1;
@@ -1178,6 +1279,7 @@ Variable_name	Value
 Subquery_cache_hit	6
 Subquery_cache_miss	6
 # multicolumn NOT IN with NULLs (other order)
+flush global status;
 flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (a, b) not in (select d, c from t2) as SUBS from t1;
@@ -1218,6 +1320,7 @@ Variable_name	Value
 Subquery_cache_hit	6
 Subquery_cache_miss	6
 # multicolumn IN with NULLs
+flush global status;
 flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (b, a) in (select d, c from t2) as SUBS from t1;
@@ -1258,6 +1361,7 @@ Variable_name	Value
 Subquery_cache_hit	6
 Subquery_cache_miss	6
 # multicolumn IN with NULLs (other order)
+flush global status;
 flush status;
 set optimizer_switch='subquery_cache=off';
 select a, b, (a, b) in (select d, c from t2) as SUBS from t1;
@@ -1610,6 +1714,7 @@ a	b	SUBS
 drop procedure p1;
 #several subqueries
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select a, b , exists (select * from t2 where b=d) as SUBSE, b in (select d from t2) as SUBSI, (select d from t2 where b=c) SUBSR from t1;
 a	b	SUBSE	SUBSI	SUBSR
@@ -1641,6 +1746,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	145
 set optimizer_switch='subquery_cache=on';
+flush global status;
 flush status;
 select a, b , exists (select * from t2 where b=d) as SUBSE, b in (select d from t2) as SUBSI, (select d from t2 where b=c) SUBSR from t1;
 a	b	SUBSE	SUBSI	SUBSR
@@ -1663,7 +1769,7 @@ Subquery_cache_miss	18
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	32
+Handler_read_key	29
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -1673,8 +1779,10 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	84
 #several subqueries (several levels)
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select a, b, (select exists (select * from t2 where b=d) from t2 where b=c) as SUNS1 from t1;
 a	b	SUNS1
@@ -1706,6 +1814,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	127
 set optimizer_switch='subquery_cache=on';
+flush global status;
 flush status;
 select a, b, (select exists (select * from t2 where b=d) from t2 where b=c) as SUNS1 from t1;
 a	b	SUNS1
@@ -1728,7 +1837,7 @@ Subquery_cache_miss	10
 show status like '%Handler_read%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	13
+Handler_read_key	12
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -1836,6 +1945,7 @@ POINT(1 1)
 POINT(3 3)
 DROP TABLE t1;
 #uncacheable queries test (random and side effect)
+flush global status;
 flush status;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (2), (4), (1), (3);
@@ -1902,6 +2012,7 @@ insert into t1 values (2,1), (3,1), (2,4), (3,4), (10,2), (20,2), (2,5),
 insert into t2 values (1,1),(3,3),(20,20);
 aggregate function as parameter of subquery
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select max(a), (select max(a) from t2 where max(a)=c) from t1 group by b;
 max(a)	(select max(a) from t2 where max(a)=c)
@@ -1929,6 +2040,7 @@ Handler_read_rnd	8
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	57
 set optimizer_switch='subquery_cache=on';
+flush global status;
 flush status;
 select max(a), (select max(a) from t2 where max(a)=c) from t1 group by b;
 max(a)	(select max(a) from t2 where max(a)=c)
@@ -1957,6 +2069,7 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	37
 argument of aggregate function as parameter of subquery (illegal use)
 set optimizer_switch='subquery_cache=off';
+flush global status;
 flush status;
 select max(a), (select a from t2 where a=c) from t1 group by b;
 max(a)	(select a from t2 where a=c)
@@ -1984,6 +2097,7 @@ Handler_read_rnd	8
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	57
 set optimizer_switch='subquery_cache=on';
+flush global status;
 flush status;
 select max(a), (select a from t2 where a=c) from t1 group by b;
 max(a)	(select a from t2 where a=c)
@@ -2020,6 +2134,7 @@ insert into t1 values
 create table t2 (pk int, a int, primary key(pk));
 insert into t2 select a,a from t0;
 set optimizer_switch='default,semijoin=on,materialization=on,subquery_cache=on';
+flush global status;
 flush status;
 select * from t1 where a in (select pk from t2);
 a	b
@@ -2059,6 +2174,7 @@ explain select * from t1 where a in (select pk from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+flush global status;
 flush status;
 select * from t1 where a in (select pk from t2);
 a	b
@@ -2097,6 +2213,7 @@ explain select * from t1 where a in (select pk from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+flush global status;
 flush status;
 select * from t1 where a in (select pk from t2);
 a	b
@@ -2135,6 +2252,7 @@ explain select * from t1 where a in (select pk from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	
+flush global status;
 flush status;
 select * from t1 where a in (select pk from t2);
 a	b
@@ -2854,70 +2972,70 @@ WHERE table1 .`col_varchar_key` )	field10
 1	NULL	w
 1	NULL	y
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
 SET @@optimizer_switch='subquery_cache=on';
 /* cache is on */ SELECT COUNT( DISTINCT table2 .`col_int_key` ) , (
 SELECT SUBQUERY2_t1 .`col_int_key`
@@ -2945,32 +3063,32 @@ WHERE table1 .`col_varchar_key` )	field10
 1	NULL	w
 1	NULL	y
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'b'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
-Warning	1292	Truncated incorrect DECIMAL value: 'e'
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1292	Truncated incorrect DECIMAL value: 'g'
-Warning	1292	Truncated incorrect DECIMAL value: 'h'
-Warning	1292	Truncated incorrect DECIMAL value: 'i'
-Warning	1292	Truncated incorrect DECIMAL value: 'j'
-Warning	1292	Truncated incorrect DECIMAL value: 'k'
-Warning	1292	Truncated incorrect DECIMAL value: 'l'
-Warning	1292	Truncated incorrect DECIMAL value: 'm'
-Warning	1292	Truncated incorrect DECIMAL value: 'n'
-Warning	1292	Truncated incorrect DECIMAL value: 'o'
-Warning	1292	Truncated incorrect DECIMAL value: 'p'
-Warning	1292	Truncated incorrect DECIMAL value: 'q'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 's'
-Warning	1292	Truncated incorrect DECIMAL value: 't'
-Warning	1292	Truncated incorrect DECIMAL value: 'u'
-Warning	1292	Truncated incorrect DECIMAL value: 'v'
-Warning	1292	Truncated incorrect DECIMAL value: 'w'
-Warning	1292	Truncated incorrect DECIMAL value: 'x'
-Warning	1292	Truncated incorrect DECIMAL value: 'y'
-Warning	1292	Truncated incorrect DECIMAL value: 'z'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'b'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'e'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'g'
+Warning	1292	Truncated incorrect BOOLEAN value: 'h'
+Warning	1292	Truncated incorrect BOOLEAN value: 'i'
+Warning	1292	Truncated incorrect BOOLEAN value: 'j'
+Warning	1292	Truncated incorrect BOOLEAN value: 'k'
+Warning	1292	Truncated incorrect BOOLEAN value: 'l'
+Warning	1292	Truncated incorrect BOOLEAN value: 'm'
+Warning	1292	Truncated incorrect BOOLEAN value: 'n'
+Warning	1292	Truncated incorrect BOOLEAN value: 'o'
+Warning	1292	Truncated incorrect BOOLEAN value: 'p'
+Warning	1292	Truncated incorrect BOOLEAN value: 'q'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 's'
+Warning	1292	Truncated incorrect BOOLEAN value: 't'
+Warning	1292	Truncated incorrect BOOLEAN value: 'u'
+Warning	1292	Truncated incorrect BOOLEAN value: 'v'
+Warning	1292	Truncated incorrect BOOLEAN value: 'w'
+Warning	1292	Truncated incorrect BOOLEAN value: 'x'
+Warning	1292	Truncated incorrect BOOLEAN value: 'y'
+Warning	1292	Truncated incorrect BOOLEAN value: 'z'
 drop table t1,t2,t3,t4;
 set @@optimizer_switch= default;
 #launchpad BUG#609045
@@ -3395,9 +3513,9 @@ WHERE table1 .`col_varchar_key` )	field10
 1	NULL	d
 1	NULL	f
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
 SET @@optimizer_switch = 'subquery_cache=on';
 /* cache is on */ SELECT COUNT( DISTINCT table2 .`col_int_key` ) , (
 SELECT SUBQUERY2_t1 .`col_int_key`
@@ -3412,9 +3530,9 @@ WHERE table1 .`col_varchar_key` )	field10
 1	NULL	d
 1	NULL	f
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
-Warning	1292	Truncated incorrect DECIMAL value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
+Warning	1292	Truncated incorrect BOOLEAN value: 'f'
 drop table t1,t2,t3,t4;
 set @@optimizer_switch= default;
 #launchpad BUG#611625

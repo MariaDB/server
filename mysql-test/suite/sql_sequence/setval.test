@@ -152,6 +152,116 @@ SELECT SETVAL(s, 10);
 
 # Cleanup
 DROP SEQUENCE s;
---enable_ps2_protocol
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+# out of bounds for the type: returns NULL
+create sequence s;
+select setval(s, 12345678901234567890);
+select nextval(s);
+drop sequence s;
+
+create sequence s increment -1;
+select setval(s, 12345678901234567890);
+select nextval(s);
+drop sequence s;
+
+create sequence s as smallint;
+select setval(s, 55555);
+select setval(s, -55555);
+select nextval(s);
+drop sequence s;
+
+create sequence s as smallint increment -1;
+select setval(s, 55555);
+select setval(s, -55555);
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned;
+select setval(s, -123);
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned increment -1;
+select setval(s, -123);
+select nextval(s);
+drop sequence s;
+
+# large setval values for bigint unsigned
+create sequence s as bigint unsigned;
+select setval(s, -123);
+select setval(s, 0);
+select nextval(s);
+select setval(s, 12345678901234567890);
+select nextval(s);
+select setval(s, 12345678901234567890);
+select nextval(s);
+select setval(s, 18446744073709551614, 0);
+select nextval(s);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+--error ER_SEQUENCE_RUN_OUT
+select setval(s, 12345678901234567890, 0, 1);
+alter sequence s cycle;
+select setval(s, 12345678901234567890, 0, 1);
+select nextval(s);
+drop sequence s;
+
+# extreme setval values for bigint unsigned
+create sequence s as bigint unsigned;
+--error ER_PARSE_ERROR
+select setval(s, 18446744073709551616);
+select setval(s, 18446744073709551615);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned;
+select setval(s, 18446744073709551615, 0);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned cycle;
+select setval(s, 18446744073709551615);
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned cycle;
+select setval(s, 18446744073709551615, 0);
+select nextval(s);
+drop sequence s;
+
+# a small range for bigint unsigned
+create sequence s as bigint unsigned minvalue 123 maxvalue 456;
+select setval(s, 100);
+select nextval(s);
+select setval(s, 500);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+
+create sequence s as smallint;
+select setval(s, 32767);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+--enable_ps2_protocol
+
+--echo #
+--echo # MDEV-33836 Assertion `(ulonglong) next_free_value % real_increment == (ulonglong) offset' failed in void sequence_definition::adjust_values(longlong)
+--echo #
+
+CREATE SEQUENCE s AS BIGINT UNSIGNED START WITH 9223372036854775800 INCREMENT 0;
+set @old_AUTO_INCREMENT_INCREMENT=@@global.AUTO_INCREMENT_INCREMENT;
+set global AUTO_INCREMENT_INCREMENT=100;
+SELECT SETVAL (s,12345678901234567890);
+drop sequence s;
+set global AUTO_INCREMENT_INCREMENT=@old_AUTO_INCREMENT_INCREMENT;
+
+--echo # End of 11.5 tests

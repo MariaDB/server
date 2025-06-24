@@ -3,6 +3,7 @@
 --source include/count_sessions.inc
 --source include/default_optimizer_switch.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 SET optimizer_switch='outer_join_with_cache=off';
 
@@ -273,7 +274,7 @@ drop view v1,v2;
 create table t1 (a int, b int, primary key(b));
 insert into t1 values (1,20), (2,30), (3,40), (4,50), (5,100);
 create view v1 (c) as select b from t1 where a<3;
-# simple select and explaint to be sure that it is MERGE
+# simple select and explain to be sure that it is MERGE
 select * from v1;
 explain extended select * from v1;
 # update test
@@ -494,7 +495,7 @@ drop view v1;
 create view v1 (a,a) as select 'a','a';
 
 #
-# updatablity should be transitive
+# updatability should be transitive
 #
 create table t1 (col1 int,col2 char(22));
 insert into t1 values(5,'Hello, world of views');
@@ -1082,10 +1083,11 @@ insert into t1 values (1);
 update v2 set s1 = 1;
 select * from v2;
 select * from t2;
-# scheck how VIEWs with subqueries work with prepared statements
+# check how VIEWs with subqueries work with prepared statements
 prepare stmt1 from "select * from v2;";
 execute stmt1;
 insert into t1 values (0);
+--sorted_result
 execute stmt1;
 deallocate prepare stmt1;
 drop view v2;
@@ -1103,7 +1105,7 @@ drop view v1;
 drop table t1;
 
 #
-# test of cascaded check option for whiew without WHERE clause
+# test of cascaded check option for view without WHERE clause
 #
 create table t1 (s1 tinyint);
 create view v1 as select * from t1 where s1 <> 0 with local check option;
@@ -1114,15 +1116,16 @@ drop view v2, v1;
 drop table t1;
 
 #
-# inserting single value with check option failed always get error
+# inserting single value with check option warns like 2 values
 #
 create table t1 (s1 int);
 create view v1 as select * from t1 where s1 < 5 with check option;
 #single value
--- error ER_VIEW_CHECK_FAILED
 insert ignore into v1 values (6);
+SHOW WARNINGS;
 #several values
 insert ignore into v1 values (6),(3);
+SHOW WARNINGS;
 select * from t1;
 drop view v1;
 drop table t1;
@@ -1187,7 +1190,7 @@ drop view v1;
 drop table t1;
 
 #
-# Trys update table from which we select using views and subqueries
+# Try update table from which we select using views and subqueries
 #
 create table t1 (s1 smallint);
 create view v1 as select * from t1 where 20 < (select (s1) from t1);
@@ -1715,7 +1718,7 @@ drop view v1;
 drop table t1;
 
 #
-# hide underlying tables names in case of imposibility to update (Bug#10773)
+# hide underlying tables names in case of impossibility to update (Bug#10773)
 #
 create table t1 (f59 int, f60 int, f61 int);
 insert into t1 values (19,41,32);
@@ -1877,7 +1880,9 @@ CREATE VIEW v1 AS SELECT id, f FROM t1 WHERE id <= 2;
 INSERT INTO t1 VALUES (2, 'foo2');
 INSERT INTO t1 VALUES (1, 'foo1');
 
+--sorted_result
 SELECT * FROM v1;
+--sorted_result
 SELECT * FROM v1;
 
 DROP VIEW v1;
@@ -2032,12 +2037,12 @@ create view abc as select * from t1 as abc;
 drop table t1;
 drop view abc;
 
-
-#
-# Bug#12993 View column rename broken in subselect
-#
+--echo #
+--echo # Bug#12993 View column rename broken in subselect
+--echo #
 
 flush status;
+flush global status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 --disable_cursor_protocol
@@ -4169,12 +4174,18 @@ FLUSH STATUS;
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
 
+analyze table t1,t2;
+explain extended SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
+
 CREATE VIEW v AS SELECT * FROM t2;
 EXPLAIN EXTENDED
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 FLUSH STATUS;
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
+
+set statement optimizer_where_cost=100 FOR explain extended SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
+
 DROP VIEW v;
 --enable_cursor_protocol
 
@@ -6841,3 +6852,58 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-29587: Allowing insert into a view with columns that
+--echo # are not part the table
+--echo #
+
+--echo # view with 2 the same fields
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and expression over the field
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and collation expression over the field
+CREATE TABLE table1 (x char(20));
+CREATE VIEW view1 AS SELECT x, x collate latin1_german1_ci as x1 FROM table1;
+INSERT INTO view1(x) VALUES ("ua");
+--echo # we can insert in the field with collation
+INSERT INTO view1(x1) VALUES ("ua");
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES ("ua","ua");
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and expression over other field
+CREATE TABLE table1 (x INT, y INT);
+CREATE VIEW view1 AS SELECT x, y + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo #
+--echo # End of 10.11 test
+--echo #
+
+--source include/test_db_charset_restore.inc

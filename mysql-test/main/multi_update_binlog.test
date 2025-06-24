@@ -22,7 +22,7 @@ CREATE TABLE `t2` (
   PRIMARY KEY  (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 ;
 
-# as the test is about to see erroed queries in binlog
+# as the test is about to see errored queries in binlog
 set @sav_binlog_format=  @@session.binlog_format;
 set @@session.binlog_format= mixed;
 

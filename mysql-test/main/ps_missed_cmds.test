@@ -130,7 +130,7 @@ EXECUTE stmt_1;
 --echo # were damaged. The second attempt to run 'DROP FUNCTION f1' using
 --echo # prepared statement expectedly results in issuing the error
 --echo # ER_SP_DOES_NOT_EXIST since the stored function was dropped on first
---echo # executuon of the prepared statement stmt_1.
+--echo # execution of the prepared statement stmt_1.
 --error ER_SP_DOES_NOT_EXIST
 EXECUTE stmt_1;
 
@@ -466,7 +466,7 @@ EXECUTE stmt_2;
 --echo # Prepare the current XA transaction for finalization
 EXECUTE stmt_3;
 
---echo # Rolback the current XA transaction
+--echo # Rollback the current XA transaction
 EXECUTE stmt_6;
 
 --echo # Execute the same prepared statement the second time to check that
@@ -589,51 +589,6 @@ EXECUTE stmt_2;
 DROP TABLE t1;
 DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;
-
---echo # Test Test case 25: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
---echo # can be executed as a prepared statement
-
-PREPARE stmt_1 FROM "CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB";
-PREPARE stmt_2 FROM "ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB";
-PREPARE stmt_3 FROM "DROP TABLESPACE ts1 ENGINE=InnoDB";
-
-# Since MariaDB supports for tablespaces only on syntax level disable warnings
-# before run CREATE/ALTER/DROP TABLESPACE statements in order to exclude
-# the following in result output
-#   Warning 1478 Table storage engine 'InnoDB' does not support the create option 'TABLESPACE
---disable_warnings
-
-EXECUTE stmt_1;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'CREATE TABLESPACE'
---echo # statement were damaged.
-# Since the 'CREATE TABLESPACE' statement is supported by MariaDB on syntax
-# level only the second invocation of the CREATE TABLESPACE statement for
-# the same tablespace name doesn't lead to error.
-EXECUTE stmt_1;
-
-EXECUTE stmt_2;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'ALTER TABLESPACE'
---echo # statement were damaged.
-EXECUTE stmt_2;
-
-EXECUTE stmt_3;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'DROP TABLESPACE'
---echo # statement were damaged.
-
-# Since the 'DROP TABLESPACE' statement is supported by MariaDB on syntax
-# level only the second invocation of the DROP TABLESPACE statement for
-# the same tablespace name doesn't lead to an error that tablespace
-# doesn't exist.
-EXECUTE stmt_3;
-
---enable_warnings
-
-DEALLOCATE PREPARE stmt_1;
-DEALLOCATE PREPARE stmt_2;
-DEALLOCATE PREPARE stmt_3;
 
 --enable_ps_protocol
 SET default_storage_engine= @save_storage_engine;

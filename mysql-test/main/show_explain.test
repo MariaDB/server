@@ -8,6 +8,7 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_innodb.inc
+--source include/have_perfschema.inc
 # Using valgrind can cause 'reap' to fail. See comment below
 --source include/not_valgrind.inc
 
@@ -15,7 +16,7 @@
 drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
 --enable_warnings
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 
 # 
 # Testcases in this file do not work with embedded server. The reason for this
@@ -48,14 +49,33 @@ alter table t1 add b int, add c int, add filler char(32);
 update t1 set b=a, c=a, filler='fooo';
 alter table t1 add key(a), add key(b);
 
+
 # 
-# Try killing a non-existent thread
+# Try to call SHOW EXPLAIN with a missing thread ID
+# 
+--error ER_PARSE_ERROR
+show explain for;
+
+# 
+# Also test MySQL-compatible syntax EXPLAIN FOR CONNECTION which was introduced for MDEV-10000
+# 
+--error ER_PARSE_ERROR
+explain for connection;
+
+# 
+# Try to call SHOW EXPLAIN/EXPLAIN FOR CONNECTION for a non-existent thread
 # 
 --error ER_NO_SUCH_THREAD
 show explain for 2000000000;
 
+--error ER_NO_SUCH_THREAD
+explain for connection 2000000000;
+
 --error ER_SET_CONSTANTS_ONLY
 show explain for (select max(a) from t0);
+
+--error ER_SET_CONSTANTS_ONLY
+explain for connection (select max(a) from t0);
 
 # 
 # Setup two threads and their ids
@@ -64,21 +84,27 @@ let $thr1=`select connection_id()`;
 connect (con1, localhost, root,,);
 connection con1;
 let $thr2=`select connection_id()`;
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 connection default;
 
 # SHOW EXPLAIN FOR <idle thread>
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp explain for connection $thr2;
+
 # SHOW EXPLAIN FOR <ourselves>
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr1;
 
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp explain for connection $thr1;
+
 let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
 
 #
-# Test SHOW EXPLAIN for simple queries
+# Test SHOW EXPLAIN/EXPLAIN FOR CONNECTION for simple queries
 #
 connection con1;
 set @show_explain_probe_select_id=1;
@@ -100,6 +126,14 @@ connection con1;
 reap;
 
 
+send select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+connection con1;
+reap;
+
+
 --echo # We can catch EXPLAIN, too.
 set @show_expl_tmp= @@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
@@ -107,6 +141,14 @@ send explain select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo # Same for EXPLAIN FOR CONNECTION
+send explain select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
 connection con1;
 reap;
 set optimizer_switch= @show_expl_tmp;
@@ -125,7 +167,7 @@ SET debug_dbug=@old_debug;
 
 
 --echo # UNION, second branch
-set @show_explain_probe_select_id=1;
+set @show_explain_probe_select_id=2;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send explain select a from t0 A union select a+1 from t0 B;
 connection default;
@@ -173,7 +215,7 @@ SET debug_dbug=@old_debug;
 --echo # correlated  subquery, explain
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
-send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+send explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
@@ -231,9 +273,7 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
-evalp kill query $thr2;
 connection con1;
---error ER_QUERY_INTERRUPTED
 reap;
 SET debug_dbug=@old_debug;
 
@@ -253,8 +293,24 @@ evalp show explain for $thr2;
 evalp show explain for $thr2;
 connection con1;
 reap;
+
+
+--echo #
+--echo # EXPLAIN FOR CONNECTION for an UPDATE
+--echo #
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+connection con1;
+reap;
 drop table t2;
 SET debug_dbug=@old_debug;
+
 
 --echo #
 --echo # Attempt SHOW EXPLAIN for a DELETE (UPD: now works)
@@ -276,6 +332,23 @@ drop table t2;
 SET debug_dbug=@old_debug;
 
 --echo #
+--echo # Attempt EXPLAIN FOR CONNECTION for a DELETE
+--echo # 
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
 --echo # Multiple SHOW EXPLAIN calls for one select 
 --echo # 
 create table t2 as select a as a, a as dummy from t0 limit 3;
@@ -289,6 +362,26 @@ evalp show explain for $thr2;
 evalp show explain for $thr2;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Multiple EXPLAIN FOR CONNECTION calls for one select 
+--echo # 
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
+--source include/wait_condition.inc
+evalp explain for connection $thr2;
 connection con1;
 reap;
 drop table t2;
@@ -409,9 +502,7 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
-evalp kill query $thr2;
 connection con1;
---error ER_QUERY_INTERRUPTED
 reap;
 SET debug_dbug=@old_debug;
 DROP VIEW v1;
@@ -1213,6 +1304,26 @@ connection con1;
 reap;
 
 drop table t0,t1,t2;
+
+--echo #
+--echo # MDEV-28124: Server crashes in Explain_aggr_filesort::print_json_members
+--echo # upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
+--echo #
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+connection con1;
+set @show_explain_probe_query= 'SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency';
+set debug_dbug='+d,explain_notify_tables_are_closed';
+
+# Statement guarantees to produce 0 on every run
+send SELECT count(*) - count(*) FROM sys.waits_by_user_by_latency;
+connection default;
+--source include/wait_condition.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp SHOW EXPLAIN FOR $thr2;
+
+connection con1;
+reap;
 
 --echo # End
 connection default;

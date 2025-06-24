@@ -260,10 +260,10 @@ class thread_pool_generic : public thread_pool
   /** Last time thread was created*/
   std::chrono::system_clock::time_point m_last_thread_creation;
 
-  /** Minimumum number of threads in this pool.*/
+  /** Minimum number of threads in this pool.*/
   unsigned int m_min_threads;
 
-  /** Maximimum number of threads in this pool. */
+  /** Maximum number of threads in this pool. */
   unsigned int m_max_threads;
 
   /* maintenance related statistics (see maintenance()) */
@@ -370,7 +370,7 @@ public:
     {
       if (pool)
       {
-        /* EXecute callback in threadpool*/
+        /* Execute callback in threadpool*/
         thr_timer_init(this, submit_task, this);
       }
       else
@@ -432,7 +432,7 @@ public:
       disarm();
     }
   };
-  timer_generic m_maintenance_timer;
+  timer_generic* m_maintenance_timer=nullptr;
   timer* create_timer(callback_func func, void *data) override
   {
     return new timer_generic(func, data, this);
@@ -740,9 +740,16 @@ bool thread_pool_generic::add_thread()
   reset the flag in thread_pool_generic::worker_main in new thread created. The
   flag must be reset back in case we fail to create the thread. If this flag is
   not reset all future attempt to create thread for this pool would not work as
-  we would return from here. */
-  if (m_thread_creation_pending.test_and_set())
-    return false;
+  we would return from here.
+
+  Do not use this flag for pool of fixed size.
+  (since they lack maintenence that would rectify the pool size, if it is too small)
+  */
+  if (m_min_threads != m_max_threads)
+  {
+    if (m_thread_creation_pending.test_and_set())
+      return false;
+  }
 
   worker_data *thread_data = m_thread_data_cache.get();
   m_active_threads.push_back(thread_data);
@@ -809,13 +816,16 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_min_threads(min_threads),
   m_max_threads(max_threads),
   m_last_thread_count(),
-  m_last_activity(),
-  m_maintenance_timer(thread_pool_generic::maintenance_func, this, nullptr)
+  m_last_activity()
 {
   set_concurrency();
 
   // start the timer
-  m_maintenance_timer.set_time(0, (int)m_timer_interval.count());
+  if (m_min_threads != m_max_threads)
+  {
+    m_maintenance_timer= new timer_generic(thread_pool_generic::maintenance_func, this, nullptr);
+    m_maintenance_timer->set_time(0, (int)m_timer_interval.count());
+  }
 }
 
 
@@ -922,7 +932,8 @@ void thread_pool_generic::switch_timer(timer_state_t state)
   long long period= (state == timer_state_t::OFF) ?
      m_timer_interval.count()*10: m_timer_interval.count();
 
-  m_maintenance_timer.set_period((int)period);
+  if (m_maintenance_timer)
+   m_maintenance_timer->set_period((int)period);
 }
 
 
@@ -939,8 +950,9 @@ thread_pool_generic::~thread_pool_generic()
   */
   m_aio.reset();
 
-  /* Also stop the maintanence task early. */
-  m_maintenance_timer.disarm();
+  /* Also stop the maintenance task early. */
+  if (m_maintenance_timer)
+    m_maintenance_timer->disarm();
 
   std::unique_lock<std::mutex> lk(m_mtx);
   m_in_shutdown= true;
@@ -956,6 +968,7 @@ thread_pool_generic::~thread_pool_generic()
   }
 
   lk.unlock();
+  delete m_maintenance_timer;
 }
 
 thread_pool *create_thread_pool_generic(int min_threads, int max_threads)

@@ -6,6 +6,8 @@ SET @@GLOBAL.log_output='TABLE';
 FLUSH SLOW LOGS;
 SET @@GLOBAL.slow_query_log=ON;
 SET @@GLOBAL.log_slow_admin_statements=ON;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET @saved_dbug = @@debug_dbug;
 SET SESSION debug_dbug="+d,simulate_slow_query";
 CREATE PROCEDURE show_slow_log()
@@ -19,6 +21,8 @@ $$
 # Expect all admin statements in the slow log (ON,DEFAULT)
 #
 SET @@SESSION.log_slow_admin_statements=ON;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET log_slow_filter=DEFAULT;
 TRUNCATE TABLE mysql.slow_log;
 CREATE TABLE t1 (a INT);
@@ -66,6 +70,8 @@ sql_text
 # Expect all admin statements in the slow log (ON,admin)
 #
 SET @@SESSION.log_slow_admin_statements=ON;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET log_slow_filter=admin;
 TRUNCATE TABLE mysql.slow_log;
 CREATE TABLE t1 (a INT);
@@ -100,6 +106,8 @@ sql_text
 # Expect none of admin DDL statements in the slow log (ON,filesort)
 #
 SET @@SESSION.log_slow_admin_statements=ON;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET log_slow_filter=filesort;
 TRUNCATE TABLE mysql.slow_log;
 CREATE TABLE t1 (a INT);
@@ -127,6 +135,8 @@ sql_text
 # Expect none of admin statements in the slow log (OFF,DEFAULT)
 #
 SET @@SESSION.log_slow_admin_statements=OFF;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET log_slow_filter=DEFAULT;
 TRUNCATE TABLE mysql.slow_log;
 CREATE TABLE t1 (a INT);
@@ -171,7 +181,11 @@ sql_text
 # prevent enabling globally suppressed logging by setting the session variable to ON.
 #
 SET @@GLOBAL.log_slow_admin_statements=OFF;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET @@SESSION.log_slow_admin_statements=ON;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 SET log_slow_filter=DEFAULT;
 TRUNCATE TABLE mysql.slow_log;
 CREATE TABLE t1 (a INT);
@@ -237,7 +251,7 @@ Warnings:
 Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` = "10" of type `int`
 EXPLAIN SELECT * FROM t1 WHERE a=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	a	a	13	NULL	32	Using where; Using index
+1	SIMPLE	t1	index	a	a	43	NULL	32	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` = "10" of type `int`
 FOUND 2 /# Warnings/ in log_slow_debug-1.log
@@ -247,7 +261,7 @@ SET note_verbosity="explain";
 FLUSH SLOW LOGS;
 EXPLAIN SELECT * FROM t1 WHERE a=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	a	a	13	NULL	32	Using where; Using index
+1	SIMPLE	t1	index	a	a	43	NULL	32	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` = "10" of type `int`
 FOUND 1 /# Warnings/ in log_slow_debug-2.log
@@ -264,7 +278,7 @@ Warnings:
 Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` = "10" of type `int`
 EXPLAIN SELECT * FROM t1 WHERE a=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	a	a	13	NULL	32	Using where; Using index
+1	SIMPLE	t1	index	a	a	43	NULL	32	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` = "10" of type `int`
 NOT FOUND /# Warnings/ in log_slow_debug-3.log
@@ -311,4 +325,6 @@ TRUNCATE mysql.slow_log;
 SET @@global.slow_query_log= @org_slow_query_log;
 SET @@global.log_output= @org_log_output;
 SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
+Warnings:
+Warning	1287	'@@log_slow_admin_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter' instead
 DROP PROCEDURE show_slow_log;

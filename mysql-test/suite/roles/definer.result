@@ -1,3 +1,4 @@
+call mtr.add_suppression('Event Scheduler:');
 create database mysqltest1;
 use mysqltest1;
 create table t1 (a int, b int, c int);
@@ -5,17 +6,21 @@ insert t1 values (1,10,100),(2,20,200);
 create role role1;
 grant select (a) on mysqltest1.t1 to role1;
 grant event,execute,trigger on mysqltest1.* to role1;
+grant select on test.* to role1;
 grant role1 to current_user;
 create role role2;
 grant insert,select on mysqltest1.t1 to role2;
 grant event,execute,trigger on mysqltest1.* to role2;
+grant select on test.* to role2;
 create user foo@localhost;
 grant create view on mysqltest1.* to foo@localhost;
+grant select, create view on test.* to foo@localhost;
 create role role4;
 grant select on mysqltest1.t1 to role4;
 grant role4 to foo@localhost;
+grant select on test.* to role4;
 create definer=current_role view test.v1 as select a+b,c from t1;
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 set role role1;
 create definer=current_role view test.v1 as select a+b,c from t1;
 show create view test.v1;
@@ -28,12 +33,12 @@ View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `test`.`v2` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 create definer=role3 view test.v3 as select a+b,c from t1;
 Warnings:
-Note	1449	The user specified as a definer ('role3'@'%') does not exist
+Note	1446	The user specified as a definer ('role3'@'%') does not exist
 show create view test.v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`role3`@`%` SQL SECURITY DEFINER VIEW `test`.`v3` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('role3'@'%') does not exist
+Note	1446	The user specified as a definer ('role3'@'%') does not exist
 connect  c1, localhost, foo,,mysqltest1;
 connection c1;
 show grants;
@@ -41,6 +46,7 @@ Grants for foo@localhost
 GRANT `role4` TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT CREATE VIEW ON `mysqltest1`.* TO `foo`@`localhost`
+GRANT SELECT, CREATE VIEW ON `test`.* TO `foo`@`localhost`
 select * from test.v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 select * from test.v2;
@@ -79,7 +85,7 @@ show create view test.v5;
 View	Create View	character_set_client	collation_connection
 v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4` SQL SECURITY DEFINER VIEW `test`.`v5` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('role4'@'') does not exist
+Note	1446	The user specified as a definer ('role4'@'') does not exist
 select * from test.v5;
 ERROR HY000: The user specified as a definer ('role4'@'') does not exist
 create user role4;
@@ -88,7 +94,7 @@ show create view test.v5;
 View	Create View	character_set_client	collation_connection
 v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4` SQL SECURITY DEFINER VIEW `test`.`v5` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
-Note	1449	The user specified as a definer ('role4'@'') does not exist
+Note	1446	The user specified as a definer ('role4'@'') does not exist
 select * from test.v5;
 ERROR HY000: The user specified as a definer ('role4'@'') does not exist
 flush tables;
@@ -103,14 +109,14 @@ drop user role4;
 create table t2 select * from t1;
 create definer=current_role trigger tr1 before insert on t2 for each row
 insert t1 values (111, 222, 333);
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 set role role1;
 create definer=current_role trigger tr1 before insert on t2 for each row
 insert t1 values (111, 222, 333);
 show create trigger tr1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` trigger tr1 before insert on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 set role none;
 insert t2 values (11,22,33);
 ERROR 42000: INSERT command denied to user ''@'' for table `mysqltest1`.`t1`
@@ -127,7 +133,7 @@ insert t1 values (111, 222, 333);
 show create trigger tr2;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` trigger tr2 before delete on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 delete from t2 where a=1;
 select * from t1;
 a	b	c
@@ -141,11 +147,11 @@ delete from t1 where a=111;
 create definer=role3 trigger tr3 before update on t2 for each row
 insert t1 values (111, 222, 333);
 Warnings:
-Note	1449	The user specified as a definer ('role3'@'%') does not exist
+Note	1446	The user specified as a definer ('role3'@'%') does not exist
 show create trigger tr3;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` trigger tr3 before update on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 update t2 set b=2 where a=2;
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
 select * from t1;
@@ -159,7 +165,7 @@ flush tables;
 show create trigger tr2;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2`@`` trigger tr2 before delete on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 delete from t2 where a=2;
 ERROR HY000: The user specified as a definer ('role2'@'%') does not exist
 select * from t1;
@@ -170,13 +176,13 @@ select * from t2;
 a	b	c
 2	20	200
 create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 set role role1;
 create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
 show create procedure pr1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 pr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pr1`()
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set role none;
 call pr1();
 ERROR 42000: INSERT command denied to user ''@'' for table `mysqltest1`.`t1`
@@ -188,7 +194,7 @@ create definer=role2 procedure pr2() insert t1 values (111, 222, 333);
 show create procedure pr2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 pr2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` PROCEDURE `pr2`()
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 call pr2();
 select * from t1;
 a	b	c
@@ -198,11 +204,11 @@ a	b	c
 delete from t1 where a=111;
 create definer=role3 procedure pr3() insert t1 values (111, 222, 333);
 Warnings:
-Note	1449	The user specified as a definer ('role3'@'%') does not exist
+Note	1446	The user specified as a definer ('role3'@'%') does not exist
 show create procedure pr3;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 pr3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` PROCEDURE `pr3`()
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 call pr3();
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
 select * from t1;
@@ -213,13 +219,13 @@ update mysql.proc set definer='role2@' where definer='role2';
 call pr2();
 ERROR HY000: The user specified as a definer ('role2'@'%') does not exist
 create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 set role role1;
 create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
 show create function fn1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 fn1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` FUNCTION `fn1`() RETURNS int(11)
-return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
+return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set role none;
 select fn1();
 ERROR 42000: SELECT command denied to user ''@'' for column 'b' in table 't1'
@@ -231,42 +237,42 @@ create definer=role2 function fn2() returns int return (select sum(a+b) from t1)
 show create function fn2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 fn2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` FUNCTION `fn2`() RETURNS int(11)
-return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
+return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select fn2();
 fn2()
 33
 create definer=role3 function fn3() returns int return (select sum(a+b) from t1);
 Warnings:
-Note	1449	The user specified as a definer ('role3'@'%') does not exist
+Note	1446	The user specified as a definer ('role3'@'%') does not exist
 show create function fn3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 fn3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` FUNCTION `fn3`() RETURNS int(11)
-return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
+return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select fn3();
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
 set global event_scheduler=on;
 create definer=current_role event e1 on schedule every 1 second starts '2000-01-01' do
 insert t1 values (111, 1, 0);
-ERROR 0L000: Invalid definer
+ERROR OP000: Invalid role specification `NONE`
 set role role1;
 create definer=current_role event e1 on schedule every 1 second starts '2000-01-01' do
 insert t1 values (111, 2, 0);
 show create event e1;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-e1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role1` EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
+e1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role1` EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set role none;
 create definer=role3 event e3 on schedule every 1 second starts '2000-01-01' do
 insert t1 values (111, 3, 0);
 Warnings:
-Note	1449	The user specified as a definer ('role3'@'%') does not exist
+Note	1446	The user specified as a definer ('role3'@'%') does not exist
 show create event e3;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-e3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role3`@`%` EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
+e3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role3`@`%` EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 create definer=role2 event e2 on schedule every 1 second starts '2000-01-01' do
 insert t1 values (111, 4, 0);
 show create event e2;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-e2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role2` EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0)	latin1	latin1_swedish_ci	latin1_swedish_ci
+e2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`role2` EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 set global event_scheduler=off;
 select distinct * from t1;
 a	b	c
@@ -276,7 +282,7 @@ a	b	c
 delete from t1 where a=111;
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test`;
 SET @saved_cs_client     = @@character_set_client;
@@ -311,7 +317,7 @@ SET character_set_client = utf8mb4;
   1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -320,18 +326,21 @@ CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1,10,100),(2,20,200);
+INSERT INTO `t1` VALUES
+(1,10,100),
+(2,20,200);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t2` VALUES (2,20,200);
+INSERT INTO `t2` VALUES
+(2,20,200);
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
@@ -640,7 +649,7 @@ grant r1 to user1;
 grant r1 to r2;
 grant r2 to user1;
 grant r3 to user1;
-connect  user1, localhost,user1,,,,,;
+connect  user1, localhost,user1,,"*NO-ONE*",,,;
 set role r2;
 use rtest;
 CREATE DEFINER=current_role() PROCEDURE user1_proc() SQL SECURITY INVOKER
@@ -654,7 +663,7 @@ user1_proc	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO
     SQL SECURITY INVOKER
 BEGIN
 SELECT NOW(), VERSION();
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # Currently one can not use as definer any role except CURRENT_ROLE
 #
@@ -662,7 +671,7 @@ CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
 BEGIN
 SELECT NOW(), VERSION();
 END;//
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 set role r1;
 CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
 BEGIN
@@ -674,7 +683,7 @@ user1_proc2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,N
     SQL SECURITY INVOKER
 BEGIN
 SELECT NOW(), VERSION();
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # Test to see if the user can still see the procedure code if the
 # role that owns it is granted to him indirectly.
@@ -686,7 +695,7 @@ user1_proc2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,N
     SQL SECURITY INVOKER
 BEGIN
 SELECT NOW(), VERSION();
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # One should not be able to see the procedure code if the role that owns
 # the procedure is not set by the user or is not in the subgraph of the
@@ -715,7 +724,7 @@ CREATE DEFINER=`user_like_role`@`%` PROCEDURE sensitive_proc() SQL SECURITY INVO
 BEGIN
 SELECT NOW(), VERSION();
 END;//
-connect  user_like_role, localhost, user_like_role,,,,,;
+connect  user_like_role, localhost, user_like_role,,"*NO-ONE*",,,;
 use rtest;
 show create procedure sensitive_proc;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
@@ -723,8 +732,8 @@ sensitive_proc	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USE
     SQL SECURITY INVOKER
 BEGIN
 SELECT NOW(), VERSION();
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
-connect  foo, localhost, foo,,,,,;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+connect  foo, localhost, foo,,"*NO-ONE*",,,;
 set role user_like_role;
 use rtest;
 #

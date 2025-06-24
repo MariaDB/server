@@ -57,7 +57,7 @@ drop table t1;
 
 # Test HEAP tables (with BTREE keys)
 
-create table t1 (text1 varchar(32) not NULL, KEY key1 using BTREE (text1)) engine=heap;
+create table t1 (text1 varchar(32) not NULL, KEY key1 using BTREE (text1)) engine=heap charset=latin1;
 insert into t1 values ('teststring'), ('nothing'), ('teststring\t');
 select * from t1 ignore key (key1) where text1='teststring' or 
   text1 like 'teststring_%' ORDER BY text1;
@@ -74,7 +74,7 @@ drop table t1;
 # Test InnoDB tables
 #
 
-create table t1 (text1 varchar(32) not NULL, KEY key1 (text1)) engine=innodb
+create table t1 (text1 varchar(32) not NULL, KEY key1 (text1)) engine=innodb charset=latin1
 stats_persistent=0;
 insert into t1 values ('teststring'), ('nothing'), ('teststring\t');
 check table t1;

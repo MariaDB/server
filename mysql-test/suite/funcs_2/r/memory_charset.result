@@ -17563,7 +17563,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_bin;
@@ -20104,7 +20104,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_czech_ci;
@@ -22645,7 +22645,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_danish_ci;
@@ -25186,7 +25186,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_estonian_ci;
@@ -27727,7 +27727,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
@@ -30268,7 +30268,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_hungarian_ci;
@@ -32809,7 +32809,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_icelandic_ci;
@@ -35350,7 +35350,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_latvian_ci;
@@ -37891,7 +37891,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_lithuanian_ci;
@@ -40432,7 +40432,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_persian_ci;
@@ -42973,7 +42973,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_polish_ci;
@@ -45514,7 +45514,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_roman_ci;
@@ -48055,7 +48055,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_romanian_ci;
@@ -50596,7 +50596,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_slovak_ci;
@@ -53137,7 +53137,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_slovenian_ci;
@@ -55678,7 +55678,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_spanish2_ci;
@@ -58219,7 +58219,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_spanish_ci;
@@ -60760,7 +60760,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_swedish_ci;
@@ -63301,7 +63301,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_turkish_ci;
@@ -65842,7 +65842,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=Memory CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
+t1	MEMORY	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_unicode_ci;

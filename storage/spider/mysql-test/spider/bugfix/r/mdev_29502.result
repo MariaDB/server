@@ -12,6 +12,8 @@ INSERT INTO t VALUES (23),(48);
 set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
 set spider_direct_aggregate=1;
 CREATE TABLE t1 (a INT KEY) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv_mdev_29502",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT MAX(a) FROM t1;
 MAX(a)
 48
@@ -40,6 +42,8 @@ DROP TABLE t, t1;
 CREATE TABLE t (a INT, b INT);
 INSERT INTO t VALUES (23, -1),(48, 97);
 CREATE TABLE t1 (a INT, b INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv_mdev_29502",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT MAX(a + b), SUM(a - b) FROM t1;
 MAX(a + b)	SUM(a - b)
 145	-25
@@ -50,6 +54,8 @@ DROP TABLE t, t1;
 CREATE TABLE t (a INT);
 INSERT INTO t VALUES (23),(97),(42);
 CREATE TABLE t1 (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv_mdev_29502",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT IF(COUNT(a > 0),'Y','N'), MAX(a) FROM t1;
 IF(COUNT(a > 0),'Y','N')	MAX(a)
 Y	97

@@ -176,7 +176,12 @@ int Url_http::send(const char* data, size_t data_length)
   char buf[1024];
   size_t len= 0;
 
-  addrinfo *addrs, *addr, filter= {0, AF_UNSPEC, SOCK_STREAM, 6, 0, 0, 0, 0};
+  addrinfo *addrs, *addr, filter;
+  bzero((void*) &filter, sizeof(filter));
+  filter.ai_family= AF_UNSPEC;
+  filter.ai_socktype= SOCK_STREAM;
+  filter.ai_protocol=6;
+
   int res= use_proxy() ?
     getaddrinfo(proxy_host.str, proxy_port.str, &filter, &addrs) :
     getaddrinfo(host.str, port.str, &filter, &addrs);

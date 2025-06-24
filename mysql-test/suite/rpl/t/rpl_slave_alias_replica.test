@@ -65,6 +65,7 @@ STOP REPLICA SQL_THREAD;
 --source include/wait_for_slave_sql_to_stop.inc
 --echo "Command: RESET SLAVE ALL --> RESET REPLICA ALL"
 RESET REPLICA ALL;
+set @@global.gtid_slave_pos= "";
 
 --connection master
 RESET MASTER;

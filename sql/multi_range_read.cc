@@ -20,6 +20,75 @@
 #include "key.h"
 #include "sql_statistics.h"
 #include "rowid_filter.h"
+#include "optimizer_defaults.h"
+#include "opt_hints.h"
+
+static void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
+                                Cost_estimate *cost);
+
+
+
+/*
+  The following calculation is the same as in multi_range_read_info()
+
+  @param cost              Total cost is stored here
+  @param keyno             Key number
+  @param n_ranges          Number of different ranges
+  @param multi_row_ranges  Number of ranges that are not EQ_REF
+  @param flags             Flags. Only HA_MRR_INDEX_ONLY is used.
+  @param total_rows        Number of rows expected to be read.
+  @param io_blocks         Number of blocks we expect to read for
+                           a not clustered index.
+  @param unassigned_single_point_ranges
+                           Number of blocks we have not yet read for
+                           a clustered index.
+*/
+
+void handler::calculate_costs(Cost_estimate *cost, uint keyno,
+                              uint n_ranges, uint multi_row_ranges,
+                              uint flags,
+                              ha_rows total_rows,
+                              ulonglong io_blocks,
+                              ulonglong unassigned_single_point_ranges)
+{
+  cost->reset(this);
+
+  if (!is_clustering_key(keyno))
+  {
+    cost->index_cost= ha_keyread_time(keyno, n_ranges,
+                                      total_rows + multi_row_ranges,
+                                      io_blocks);
+
+    if (!(flags & HA_MRR_INDEX_ONLY))
+    {
+      /* ha_rnd_pos_time includes ROW_COPY_COST */
+      cost->row_cost= ha_rnd_pos_time(total_rows);
+      /* Adjust io cost to data size */
+      cost->row_cost.io= MY_MIN(cost->row_cost.io, row_blocks());
+    }
+    else
+    {
+      /* Index only read */
+      cost->copy_cost= rows2double(total_rows) * KEY_COPY_COST;
+    }
+  }
+  else
+  {
+    /* Clustered index */
+    io_blocks= unassigned_single_point_ranges;
+    cost->index_cost= ha_keyread_time(keyno, n_ranges,
+                                      total_rows + multi_row_ranges,
+                                      io_blocks);
+    cost->copy_cost=  rows2double(total_rows) * ROW_COPY_COST;
+  }
+  /* Adjust io cost to data size */
+  cost->index_cost.io= MY_MIN(cost->index_cost.io, index_blocks(keyno));
+
+  cost->comp_cost= rows2double(total_rows) * WHERE_COST;
+  cost->setup_cost= MULTI_RANGE_READ_SETUP_COST;
+}
+
+
 
 /****************************************************************************
  * Default MRR implementation (MRR to non-MRR converter)
@@ -37,8 +106,8 @@
   @param n_ranges_arg    Number of ranges in the sequence, or 0 if the caller
                          can't efficiently determine it
   @param bufsz    INOUT  IN:  Size of the buffer available for use
-                         OUT: Size of the buffer that is expected to be actually
-                              used, or 0 if buffer is not needed.
+                         OUT: Size of the buffer that is expected to be
+                              actually used, or 0 if buffer is not needed.
   @param flags    INOUT  A combination of HA_MRR_* flags
   @param cost     OUT    Estimated cost of MRR access
 
@@ -56,10 +125,12 @@
                   contain scan parameters.
 */
 
+
 ha_rows
 handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                      void *seq_init_param, uint n_ranges_arg,
                                      uint *bufsz, uint *flags,
+                                     ha_rows top_limit,
                                      Cost_estimate *cost)
 {
   KEY_MULTI_RANGE range;
@@ -286,11 +357,15 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     (single_point_ranges - assigned_single_point_ranges).
 
     We don't add these to io_blocks as we don't want to penalize equal
-    readss (if we did, a range that would read 5 rows would be
+    reads (if we did, a range that would read 5 rows would be
     regarded as better than one equal read).
 
     Better to assume we have done a records_in_range() for the equal
     range and it's also cached.
+
+    One effect of this is that io_blocks for simple ranges are often 0,
+    as the blocks where already read by records_in_range and we assume
+    that we don't have to read it again.
   */
   io_blocks= (range_blocks_cnt - edge_blocks_cnt);
   unassigned_single_point_ranges+= (single_point_ranges -
@@ -299,41 +374,33 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   if (total_rows != HA_POS_ERROR)
   {
     set_if_smaller(total_rows, max_rows);
-
-    /* The following calculation is the same as in multi_range_read_info(): */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
-    cost->reset();
-    cost->avg_io_cost= cost->idx_avg_io_cost= avg_io_cost();
-
-    if (!is_clustering_key(keyno))
-    {
-      cost->idx_io_count= (double) io_blocks;
-      cost->idx_cpu_cost= (keyread_time(keyno, 0, total_rows) +
-                           n_ranges * IDX_LOOKUP_COST);
-      if (!(*flags & HA_MRR_INDEX_ONLY))
-        cost->cpu_cost= read_time(keyno, 0, total_rows);
-    }
-    else
+    calculate_costs(cost, keyno, n_ranges,
+                    n_ranges - (uint) single_point_ranges,
+                    *flags, total_rows,
+                    io_blocks, unassigned_single_point_ranges);
+    if (top_limit < total_rows)
     {
       /*
-        Clustered index
-        If all index dives are to a few blocks, then limit the
-        ranges used by read_time to the number of dives.
+        Calculate what the cost would be if we only have to read 'top_limit'
+        rows. This is the lowest possible cost when using the range
+        when we find the 'accepted rows' at once.
       */
-      io_blocks+= unassigned_single_point_ranges;
-      cost->idx_cpu_cost= n_ranges * IDX_LOOKUP_COST;
-      uint limited_ranges= (uint) MY_MIN((ulonglong) n_ranges, io_blocks);
-      cost->cpu_cost= read_time(keyno, limited_ranges, total_rows);
+      Cost_estimate limit_cost;
+      calculate_costs(&limit_cost, keyno, n_ranges,
+                      n_ranges - (uint)single_point_ranges,
+                      *flags, top_limit, io_blocks,
+                      unassigned_single_point_ranges);
+      cost->limit_cost= limit_cost.total_cost();
     }
-    cost->cpu_cost+= (rows2double(total_rows) / TIME_FOR_COMPARE +
-                      MULTI_RANGE_READ_SETUP_COST);
+    DBUG_PRINT("statistics",
+               ("key: %s  rows: %llu  total_cost: %.3f  io_blocks: %llu  "
+                "cpu_cost: %.3f",
+                table->s->keynames.type_names[keyno],
+                (ulonglong) total_rows, cost->total_cost(),
+                (ulonglong) (cost->row_cost.io + cost->index_cost.io),
+                (double) (cost->row_cost.cpu + cost->index_cost.cpu)));
   }
-  DBUG_PRINT("statistics",
-             ("key: %s  rows: %llu  total_cost: %.3f  io_blocks: %llu  "
-              "idx_io_count: %.3f  cpu_cost: %.3f  io_count: %.3f",
-              table->s->keynames.type_names[keyno],
-              (ulonglong) total_rows, cost->total_cost(), (ulonglong) io_blocks,
-              cost->idx_io_count, cost->cpu_cost, cost->io_count));
   DBUG_RETURN(total_rows);
 }
 
@@ -357,7 +424,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   @param keyno           Index number
   @param n_ranges        Estimated number of ranges (i.e. intervals) in the
                          range sequence.
-  @param n_rows          Estimated total number of records contained within all
+  @param total_rows      Estimated total number of records contained within all
                          of the ranges
   @param bufsz    INOUT  IN:  Size of the buffer available for use
                          OUT: Size of the buffer that will be actually used, or
@@ -372,7 +439,8 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     other Error or can't perform the requested scan
 */
 
-ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
+ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges,
+                                       uint total_rows,
                                        uint key_parts, uint *bufsz,
                                        uint *flags, Cost_estimate *cost)
 {
@@ -385,27 +453,32 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   *bufsz= 0; /* Default implementation doesn't need a buffer */
   *flags |= HA_MRR_USE_DEFAULT_IMPL;
 
-  cost->reset();
+  cost->reset(this);
+
   /* Produce the same cost as non-MRR code does */
   if (!is_clustering_key(keyno))
   {
-    /*
-      idx_io_count could potentially be increased with the number of
-      index leaf blocks we have to read for finding n_rows.
-    */
-    cost->idx_io_count=  n_ranges;
-    cost->idx_cpu_cost= (keyread_time(keyno, 0, n_rows) +
-                         n_ranges * IDX_LOOKUP_COST);
+    cost->index_cost= ha_keyread_time(keyno, n_ranges, total_rows, 0);
+
     if (!(*flags & HA_MRR_INDEX_ONLY))
     {
-      cost->cpu_cost= read_time(keyno, 0, n_rows);
+      /* ha_rnd_pos_time includes ROW_COPY_COST */
+      cost->row_cost= ha_rnd_pos_time(total_rows);
+    }
+    else
+    {
+      /* Index only read */
+      cost->copy_cost= rows2double(total_rows) * KEY_COPY_COST;
     }
   }
   else
   {
-    cost->cpu_cost= read_time(keyno, n_ranges, (uint)n_rows);
+    /* Clustering key */
+    cost->index_cost= ha_keyread_clustered_time(keyno, n_ranges, total_rows,
+                                                0);
+    cost->copy_cost= rows2double(total_rows) * ROW_COPY_COST;
   }
-  cost->cpu_cost+= rows2double(n_rows) / TIME_FOR_COMPARE;
+  cost->comp_cost= rows2double(total_rows) * WHERE_COST;
   return 0;
 }
 
@@ -1076,7 +1149,9 @@ int DsMrr_impl::dsmrr_init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
   buf_manager.reset_buffer_sizes= do_nothing;
   buf_manager.redistribute_buffer_space= do_nothing;
 
-  if (mode & (HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED))
+  if (!hint_key_state(thd, table, h_arg->active_index,
+                      MRR_HINT_ENUM, OPTIMIZER_SWITCH_MRR) ||
+      mode & (HA_MRR_USE_DEFAULT_IMPL | HA_MRR_SORTED))
     goto use_default_impl;
   
   /*
@@ -1348,7 +1423,7 @@ int DsMrr_impl::setup_two_handlers()
   {
     DBUG_ASSERT(secondary_file && secondary_file->inited==handler::INDEX);
     /* 
-      We get here when the access alternates betwen MRR scan(s) and non-MRR
+      We get here when the access alternates between MRR scan(s) and non-MRR
       scans.
 
       Calling primary_file->index_end() will invoke dsmrr_close() for this
@@ -1704,8 +1779,9 @@ ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows,
 */
 
 ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                 void *seq_init_param, uint n_ranges, 
-                                 uint *bufsz, uint *flags, Cost_estimate *cost)
+                                     void *seq_init_param, uint n_ranges,
+                                     uint *bufsz, uint *flags, ha_rows limit,
+                                     Cost_estimate *cost)
 {
   ha_rows rows;
   uint def_flags= *flags;
@@ -1715,7 +1791,9 @@ ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                            seq_init_param,
                                                            n_ranges, 
                                                            &def_bufsz, 
-                                                           &def_flags, cost);
+                                                           &def_flags,
+                                                           limit,
+                                                           cost);
   if (rows == HA_POS_ERROR)
   {
     /* Default implementation can't perform MRR scan => we can't either */
@@ -1826,10 +1904,16 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   THD *thd= primary_file->get_table()->in_use;
   TABLE_SHARE *share= primary_file->get_table_share();
 
+  const bool mrr_on= hint_key_state(thd, table, keyno, MRR_HINT_ENUM,
+                                    OPTIMIZER_SWITCH_MRR);
+  const bool force_dsmrr_by_hints=
+    hint_key_state(thd, table, keyno, MRR_HINT_ENUM, 0) ||
+    hint_table_state(thd, table, BKA_HINT_ENUM, false);
+
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
   bool using_cpk= primary_file->is_clustering_key(keyno);
   *flags &= ~HA_MRR_IMPLEMENTATION_FLAGS;
-  if (!optimizer_flag(thd, OPTIMIZER_SWITCH_MRR) ||
+  if (!(mrr_on || force_dsmrr_by_hints) ||
       *flags & HA_MRR_INDEX_ONLY ||
       (using_cpk && !doing_cpk_scan) || key_uses_partial_cols(share, keyno))
   {
@@ -1844,15 +1928,17 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
                               &dsmrr_cost))
     return TRUE;
 
-  bool force_dsmrr;
   /* 
     If mrr_cost_based flag is not set, then set cost of DS-MRR to be minimum of
     DS-MRR and Default implementations cost. This allows one to force use of
     DS-MRR whenever it is applicable without affecting other cost-based
-    choices.
+    choices. Note that if MRR or BKA hint is
+    specified, DS-MRR will be used regardless of cost.
   */
-  if ((force_dsmrr= !optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_COST_BASED)) &&
-      dsmrr_cost.total_cost() > cost->total_cost())
+  const bool force_dsmrr=
+    (force_dsmrr_by_hints ||
+     !optimizer_flag(thd, OPTIMIZER_SWITCH_MRR_COST_BASED));
+  if (force_dsmrr && dsmrr_cost.total_cost() > cost->total_cost())
     dsmrr_cost= *cost;
 
   if (force_dsmrr || dsmrr_cost.total_cost() <= cost->total_cost())
@@ -1922,7 +2008,8 @@ int DsMrr_impl::dsmrr_explain_info(uint mrr_mode, char *str, size_t size)
 }
 
 
-static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *cost);
+static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows,
+                                    Cost_estimate *cost);
 
 
 /**
@@ -1953,7 +2040,6 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   ha_rows rows_in_full_step;
   ha_rows rows_in_last_step;
   uint n_full_steps;
-  double index_read_cost;
 
   elem_size= primary_file->ref_length + 
              sizeof(void*) * (!MY_TEST(flags & HA_MRR_NO_ASSOCIATION));
@@ -1986,6 +2072,8 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   rows_in_full_step= max_buff_entries;
   rows_in_last_step= rows % max_buff_entries;
   
+  cost->reset(primary_file);
+
   /* Adjust buffer size if we expect to use only part of the buffer */
   if (n_full_steps)
   {
@@ -1994,27 +2082,21 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   }
   else
   {
-    cost->reset();
-    *buffer_size= (uint)MY_MAX(*buffer_size, 
-                      (size_t)(1.2*rows_in_last_step) * elem_size + 
-                      primary_file->ref_length + table->key_info[keynr].key_length);
+    *buffer_size= ((uint) MY_MAX(*buffer_size,
+                                 (size_t)(1.2*rows_in_last_step) * elem_size +
+                                 primary_file->ref_length +
+                                 table->key_info[keynr].key_length));
   }
   
   Cost_estimate last_step_cost;
+  last_step_cost.avg_io_cost= cost->avg_io_cost;
   get_sort_and_sweep_cost(table, rows_in_last_step, &last_step_cost);
   cost->add(&last_step_cost);
  
-  if (n_full_steps != 0)
-    cost->mem_cost= *buffer_size;
-  else
-    cost->mem_cost= (double)rows_in_last_step * elem_size;
-  
   /* Total cost of all index accesses */
-  index_read_cost= primary_file->keyread_time(keynr, 1, rows);
-  cost->add_io(index_read_cost, 1 /* Random seeks */);
-
-  cost->cpu_cost+= (rows2double(rows) / TIME_FOR_COMPARE +
-                   MULTI_RANGE_READ_SETUP_COST);
+  cost->index_cost= primary_file->ha_keyread_and_copy_time(keynr, 1, rows, 0);
+  cost->comp_cost= rows2double(rows) * primary_file->WHERE_COST;
+  cost->setup_cost= primary_file->MULTI_RANGE_READ_SETUP_COST;
   return FALSE;
 }
 
@@ -2038,54 +2120,16 @@ void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *cost)
   {
     get_sweep_read_cost(table, nrows, FALSE, cost);
     /* Add cost of qsort call: n * log2(n) * cost(rowid_comparison) */
-    double cmp_op= rows2double(nrows) * (1.0 / TIME_FOR_COMPARE_ROWID);
+    double cmp_op= rows2double(nrows) * ROWID_COMPARE_COST_THD(table->in_use);
     if (cmp_op < 3)
       cmp_op= 3;
     cost->cpu_cost += cmp_op * log2(cmp_op);
   }
-  else
-    cost->reset();
 }
 
 
 /**
   Get cost of reading nrows table records in a "disk sweep"
-
-  A disk sweep read is a sequence of handler->rnd_pos(rowid) calls that made
-  for an ordered sequence of rowids.
-
-  We assume hard disk IO. The read is performed as follows:
-
-   1. The disk head is moved to the needed cylinder
-   2. The controller waits for the plate to rotate
-   3. The data is transferred
-
-  Time to do #3 is insignificant compared to #2+#1.
-
-  Time to move the disk head is proportional to head travel distance.
-
-  Time to wait for the plate to rotate depends on whether the disk head
-  was moved or not. 
-
-  If disk head wasn't moved, the wait time is proportional to distance
-  between the previous block and the block we're reading.
-
-  If the head was moved, we don't know how much we'll need to wait for the
-  plate to rotate. We assume the wait time to be a variate with a mean of
-  0.5 of full rotation time.
-
-  Our cost units are "random disk seeks". The cost of random disk seek is
-  actually not a constant, it depends one range of cylinders we're going
-  to access. We make it constant by introducing a fuzzy concept of "typical 
-  datafile length" (it's fuzzy as it's hard to tell whether it should
-  include index file, temp.tables etc). Then random seek cost is:
-
-    1 = half_rotation_cost + move_cost * 1/3 * typical_data_file_length
-
-  We define half_rotation_cost as DISK_SEEK_BASE_COST=0.9.
-
-  If handler::avg_io_cost() < 1.0, then we will trust the handler
-  when it comes to the average cost (this is for example true for HEAP).
 
   @param table             Table to be accessed
   @param nrows             Number of rows to retrieve
@@ -2094,16 +2138,18 @@ void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *cost)
   @param cost         OUT  The cost.
 */
 
-void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted, 
-                         Cost_estimate *cost)
+static void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
+                                Cost_estimate *cost)
 {
   DBUG_ENTER("get_sweep_read_cost");
 
-  cost->reset();
+#ifndef OLD_SWEEP_COST
+  cost->row_cost= table->file->ha_rnd_pos_call_time(nrows);
+#else
   if (table->file->pk_is_clustering_key(table->s->primary_key))
   {
-    cost->cpu_cost= table->file->read_time(table->s->primary_key,
-                                           (uint) nrows, nrows);
+    cost->cpu_cost= table->file->ha_read_and_copy_time(table->s->primary_key,
+                                                       (uint) nrows, nrows);
   }
   else if ((cost->avg_io_cost= table->file->avg_io_cost()) >= 0.999)
   {
@@ -2125,7 +2171,9 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
                           DISK_SEEK_PROP_COST*n_blocks/busy_blocks);
     }
   }
-  DBUG_PRINT("info",("returning cost=%g", cost->total_cost()));
+  cost->cpu_cost+= rows2double(n_rows) * ROW_COPY_COST;
+#endif
+  DBUG_PRINT("info",("returning cost: %g", cost->total_cost()));
   DBUG_VOID_RETURN;
 }
 

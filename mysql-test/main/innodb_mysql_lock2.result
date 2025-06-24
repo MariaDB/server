@@ -12,8 +12,8 @@
 # This test makes sense only in REPEATABLE-READ mode as
 # in SERIALIZABLE mode all statements that read data take
 # shared lock on them to enforce its semantics.
-select @@session.tx_isolation;
-@@session.tx_isolation
+select @@session.transaction_isolation;
+@@session.transaction_isolation
 REPEATABLE-READ
 # Prepare playground by creating tables, views,
 # routines and triggers used in tests.
@@ -57,8 +57,6 @@ declare j int;
 select i from t1 where i = 1 into j;
 return j;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f2() returns int
 begin
 declare k int;
@@ -66,8 +64,6 @@ select i from t1 where i = 1 into k;
 insert into t2 values (k + 5);
 return 0;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f3() returns int
 begin
 return (select i from t1 where i = 3);
@@ -91,16 +87,12 @@ declare k int;
 select i from v1 where i = 1 into k;
 return k;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f7() returns int
 begin
 declare k int;
 select j from v2 where j = 1 into k;
 return k;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f8() returns int
 begin
 declare k int;
@@ -108,8 +100,6 @@ select i from v1 where i = 1 into k;
 insert into t2 values (k+5);
 return k;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f9() returns int
 begin
 update v2 set j=j+10 where j=1;
@@ -139,8 +129,6 @@ create procedure p2(inout p int)
 begin
 select i from t1 where i = 1 into p;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f14() returns int
 begin
 declare k int;
@@ -160,8 +148,6 @@ declare k int;
 select i from t1 where i=1 into k;
 set new.l= k+1;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create trigger t4_bu before update on t4 for each row
 begin
 if (select i from t1 where i=1) then

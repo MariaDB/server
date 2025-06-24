@@ -17,7 +17,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -43,7 +43,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -84,7 +84,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -108,7 +108,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -125,7 +125,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -151,7 +151,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -192,7 +192,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -216,7 +216,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -233,7 +233,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -259,7 +259,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -300,7 +300,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -324,7 +324,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -341,7 +341,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -367,7 +367,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -402,7 +402,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -426,7 +426,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -443,7 +443,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -469,7 +469,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -504,7 +504,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -528,7 +528,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -545,7 +545,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -571,7 +571,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -606,7 +606,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -630,7 +630,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -647,7 +647,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -673,7 +673,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -708,7 +708,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -732,7 +732,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -749,7 +749,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -775,7 +775,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -816,7 +816,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -840,7 +840,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -857,7 +857,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -883,7 +883,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -924,7 +924,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -948,7 +948,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 1	Original from partition p0
@@ -961,25 +961,13 @@ SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_1";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_1: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -992,7 +980,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1010,9 +998,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_1: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1025,7 +1025,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1049,7 +1049,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1061,25 +1061,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_2";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_2: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1092,7 +1080,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1110,9 +1098,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_2: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1125,7 +1125,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1149,7 +1149,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1161,25 +1161,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_3";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_3: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1192,7 +1180,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1210,9 +1198,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t2' to './test/#sql-exchange' (errno: 0 "Internal error/check (Not system error)")
-# State after failure
+# d,exchange_partition_fail_3: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1225,7 +1225,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1249,7 +1249,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1261,25 +1261,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_4";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_4: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1292,7 +1280,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1310,9 +1298,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_4: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1325,7 +1325,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1349,7 +1349,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1361,25 +1361,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_5";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_5: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1392,7 +1380,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1410,9 +1398,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t1#P#p0' to './test/t2' (errno: 0 "Internal error/check (Not system error)")
-# State after failure
+# d,exchange_partition_fail_5: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1425,7 +1425,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1449,7 +1449,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1461,25 +1461,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_6";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_6: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1492,7 +1480,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1510,9 +1498,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_6: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1525,7 +1525,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1549,7 +1549,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1561,25 +1561,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_7";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_7: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1592,7 +1580,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1610,9 +1598,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/#sql-exchange' to './test/t1#P#p0' (errno: 0 "Internal error/check (Not system error)")
-# State after failure
+# d,exchange_partition_fail_7: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1625,7 +1625,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1649,7 +1649,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1661,25 +1661,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_8";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_8: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1692,7 +1680,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1710,9 +1698,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_8: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1725,7 +1725,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1749,7 +1749,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -1761,25 +1761,13 @@ SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_9";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-SELECT * FROM t2;
-a	b
-5	Original from table t2
-6	Original from table t2
-7	Original from table t2
-8	Original from table t2
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = InnoDB
 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10),
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
-# State before failure
+# d,exchange_partition_fail_9: BEFORE failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1792,7 +1780,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1810,9 +1798,21 @@ a	b
 24	Original from partition p1
 3	Original from partition p0
 4	Original from partition p0
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(64) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+5	Original from table t2
+6	Original from table t2
+7	Original from table t2
+8	Original from table t2
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
-# State after failure
+# d,exchange_partition_fail_9: AFTER failure
 db.opt
 t1#P#p0.ibd
 t1#P#p1.ibd
@@ -1825,7 +1825,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = InnoDB,
  PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
@@ -1849,7 +1849,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	b
 1	Original from partition p0

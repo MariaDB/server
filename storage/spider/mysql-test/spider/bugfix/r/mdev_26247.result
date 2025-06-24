@@ -34,16 +34,22 @@ CREATE TABLE t1 (
 a11 int,
 primary key (a11)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 (
 a21 int,
 a22 int,
 primary key (a21, a22)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (
 a31 int,
 a32 int,
 primary key (a31, a32)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "t3"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a22 FROM t1 LEFT JOIN t2 ON a11 = a21 WHERE a11 IN (1);
 a22
 11

@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 # Bug #12429576 - Test an assertion failure on purge.
@@ -142,3 +143,4 @@ InnoDB		0 transactions not purged
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 DROP TABLE t1;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge, t12637786, t12963823;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

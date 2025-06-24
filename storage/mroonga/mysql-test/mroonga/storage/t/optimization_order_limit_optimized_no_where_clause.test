@@ -20,7 +20,7 @@
 drop table if exists t1;
 --enable_warnings
 
-flush status;
+flush global status;
 create table t1 (c1 int primary key, c2 int, c3 text, _id int, key idx1(c2), fulltext index ft(c3)) default charset utf8;
 insert into t1 values(1,10,"aa ii uu ee oo",null);
 insert into t1 values(2,20,"ka ki ku ke ko",null);

@@ -61,9 +61,9 @@ PORT SLAVE_PORT,
 SOCKET '',
 OWNER 'root');
 select * from mysql.servers order by db;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
-server_one	127.0.0.1	first_db	root		SLAVE_PORT		mysql	root
-server_two	127.0.0.1	second_db	root		SLAVE_PORT		mysql	root
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
+server_one	127.0.0.1	first_db	root		SLAVE_PORT		mysql	root	{"HOST": "127.0.0.1", "DATABASE": "first_db", "USER": "root", "PASSWORD": "", "PORT": "SLAVE_PORT", "SOCKET": "", "OWNER": "root"}
+server_two	127.0.0.1	second_db	root		SLAVE_PORT		mysql	root	{"HOST": "127.0.0.1", "DATABASE": "second_db", "USER": "root", "PASSWORD": "", "PORT": "SLAVE_PORT", "SOCKET": "", "OWNER": "root"}
 DROP TABLE IF EXISTS federated.old;
 Warnings:
 Note	1051	Unknown table 'federated.old'
@@ -161,7 +161,7 @@ drop table federated.t1;
 drop server 'server_one';
 drop server 'server_two';
 select * from mysql.servers order by db;
-Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 connection slave;
 drop table first_db.t1;
 drop table second_db.t1;
@@ -197,7 +197,7 @@ OWNER 'root');
 create user guest_select@localhost;
 grant select on federated.* to guest_select@localhost;
 create user guest_super@localhost;
-grant select,SUPER,RELOAD on *.* to guest_super@localhost;
+grant select,FEDERATED ADMIN,RELOAD on *.* to guest_super@localhost;
 create user guest_usage@localhost;
 grant usage on *.* to guest_usage@localhost;
 CREATE TABLE federated.t1 (
@@ -212,7 +212,7 @@ connect  conn_usage,127.0.0.1,guest_usage,,,$MASTER_MYPORT;
 connect  conn_super,127.0.0.1,guest_super,,,$MASTER_MYPORT;
 connection conn_select;
 alter server s1 options (database 'db_bogus');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 connection master;
 flush tables;
 select * from federated.t1;
@@ -220,7 +220,7 @@ id	name
 1	this is legitimate
 connection conn_usage;
 alter server s1 options (database 'db_bogus');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 connection master;
 flush tables;
 select * from federated.t1;
@@ -234,7 +234,7 @@ select * from federated.t1;
 Got one of the listed errors
 connection conn_select;
 drop server if exists 's1';
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 create server 's1' foreign data wrapper 'mysql' options
 (HOST '127.0.0.1',
 DATABASE 'db_legitimate',
@@ -243,7 +243,7 @@ PASSWORD 'foo',
 PORT SLAVE_PORT,
 SOCKET '',
 OWNER 'root');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 connection conn_super;
 drop server 's1';
 create server 's1' foreign data wrapper 'mysql' options

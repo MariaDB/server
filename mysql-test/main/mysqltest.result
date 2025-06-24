@@ -357,8 +357,8 @@ create table t1 (a varchar(100));
 insert into t1 values ('`select 42`');
 `select 42`
 insert into t1 values ('$dollar');
-$dollar
 `select 42`
+$dollar
 drop table t1;
 mysqltest: At line 1: query 'let $var2= `failing query`' failed: ER_PARSE_ERROR (1064): You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'failing query' at line 1
 mysqltest: At line 1: Missing required argument 'filename' to command 'source'
@@ -949,6 +949,10 @@ drop table t1;
 mysqltest: At line 1: query 'change_user root,,inexistent' failed: ER_BAD_DB_ERROR (1049): Unknown database 'inexistent'
 mysqltest: At line 1: query 'change_user inexistent,,test' failed: ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'inexistent'@'localhost' (using password: NO)
 mysqltest: At line 1: query 'change_user root,inexistent,test' failed: ER_ACCESS_DENIED_ERROR (1045): Access denied for user 'root'@'localhost' (using password: YES)
+change_user root,,test;
+change_user root,,;
+change_user root,,;
+change_user root,,test;
 REPLACED_FILE1.txt
 file1.txt
 file2.txt
@@ -989,4 +993,13 @@ select "foo\""bar";
 foo\"bar
 foo\"bar
 set sql_mode=default;
+#
+# MDEV-29344: engines/iuds.insert_time cannot run with PS protocol (syntax error)
+#
+SELECT 1 /* doesn't throw error */;
+1
+1
+SELECT 1 /* doesn't throw error */;
+1
+1
 End of tests

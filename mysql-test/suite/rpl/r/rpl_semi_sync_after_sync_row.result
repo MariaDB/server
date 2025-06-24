@@ -7,15 +7,17 @@ call mtr.add_suppression("Read semi-sync reply");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 call mtr.add_suppression("mysqld: Got an error reading communication packets");
 connection slave;
+set sql_log_bin=0;
 call mtr.add_suppression("Semi-sync slave .* reply");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
+set sql_log_bin=1;
 connection master;
 #
 # Uninstall semi-sync plugins on master and slave
 #
 connection slave;
 include/stop_slave.inc
-reset slave;
+include/reset_slave.inc
 set global rpl_semi_sync_master_enabled= 0;
 set global rpl_semi_sync_slave_enabled= 0;
 connection master;
@@ -260,7 +262,7 @@ Rpl_semi_sync_master_no_tx	12
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	15
-FLUSH NO_WRITE_TO_BINLOG STATUS;
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
 [ Semi-sync master status variables after FLUSH STATUS ]
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
@@ -314,7 +316,7 @@ Variable_name	Value
 Rpl_semi_sync_master_yes_tx	0
 connection slave;
 include/stop_slave.inc
-reset slave;
+include/reset_slave.inc
 include/kill_binlog_dump_threads.inc
 connection slave;
 include/start_slave.inc
@@ -346,7 +348,7 @@ Rpl_semi_sync_master_yes_tx	3
 #
 connection slave;
 include/stop_slave.inc
-reset slave;
+include/reset_slave.inc
 connection master;
 reset master;
 include/kill_binlog_dump_threads.inc

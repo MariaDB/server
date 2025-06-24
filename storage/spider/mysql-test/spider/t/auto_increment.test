@@ -93,16 +93,24 @@ eval CREATE TABLE tbl_a (
   PRIMARY KEY(col_a)
 ) $MASTER_1_ENGINE $MASTER_1_AUTO_INCREMENT_2_1 $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
+--enable_ps_protocol
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
 ALTER TABLE tbl_a MODIFY col_c MEDIUMINT NOT NULL DEFAULT 100;
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
+--enable_ps_protocol
 RENAME TABLE tbl_a TO tbl_x;
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_x;
+--enable_ps_protocol
 RENAME TABLE tbl_x TO tbl_a;
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
+--enable_ps_protocol
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
@@ -110,7 +118,9 @@ SHOW CREATE TABLE tbl_a;
 echo MASTER_1_AUTO_INCREMENT1;
 eval $MASTER_1_AUTO_INCREMENT1;
 --enable_query_log
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
+--enable_ps_protocol
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;
@@ -118,7 +128,9 @@ SHOW CREATE TABLE tbl_a;
 echo MASTER_1_AUTO_INCREMENT2;
 eval $MASTER_1_AUTO_INCREMENT2;
 --enable_query_log
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_a;
+--enable_ps_protocol
 INSERT INTO tbl_a () VALUES ();
 INSERT INTO tbl_a () VALUES ();
 SHOW CREATE TABLE tbl_a;

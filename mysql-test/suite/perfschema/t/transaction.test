@@ -90,10 +90,10 @@ CALL clear_transaction_tables();
 --echo # ========================================================================
 --echo #
 --connection con1
-SELECT @@global.tx_isolation;
+SELECT @@global.transaction_isolation;
 SELECT @@global.autocommit;
 SELECT @@global.binlog_format;
-SELECT @@tx_isolation;
+SELECT @@transaction_isolation;
 SELECT @@autocommit;
 SELECT @@binlog_format;
 
@@ -409,8 +409,6 @@ CALL clear_transaction_tables();
 --echo # STEP 8 - TRANSACTIONAL AND NON-TRANSACTIONAL TABLES
 --echo # ========================================================================
 --echo #
---echo ## MariaDB bug: MDEV-6012? MDEV-14436?
-set @mariadb_bug=1;
 
 ## Statements that work with non-transactional engines have no effect on the
 ## transaction state of the connection. For implicit transactions,
@@ -431,7 +429,7 @@ INSERT INTO nt1 VALUES (801, 'NON-TRANSACTIONAL');
 --echo #
 --echo ## Expect 0 transactions in events_transactions_current
 --connection default
-CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, @mariadb_bug);
+CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, 0);
 
 --connection con1
 COMMIT;
@@ -439,7 +437,7 @@ COMMIT;
 --echo #
 --echo ## Expect 0 transactions in events_transactions_history
 --connection default
-CALL transaction_verifier(1, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, @mariadb_bug);
+CALL transaction_verifier(1, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, 0);
 
 --echo #
 --echo #
@@ -454,7 +452,7 @@ INSERT INTO nt1 VALUES (802, 'NON-TRANSACTIONAL');
 --echo #
 --echo ## Expect 0 transactions in events_transactions_current
 --connection default
-CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, @mariadb_bug);
+CALL transaction_verifier(0, @con1_thread_id, 'transaction', '', 0, '', '', '', '', '', '', '', 0, 0, 0, 0);
 
 --echo #
 --echo ## Now transactional. Transaction should be started.
@@ -475,7 +473,7 @@ COMMIT;
 --echo ## Expect 1 committed transaction in events_transactions_current and history
 --connection default
 CALL transaction_verifier(0, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 0, 0, 0, 1);
-CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 0, 0, 0, 1+@mariadb_bug);
+CALL transaction_verifier(1, @con1_thread_id, 'transaction', 'COMMITTED', 0, '', '', '', '', 'READ WRITE', '', 'NO', 0, 0, 0, 1);
 CALL clear_transaction_tables();
 
 --echo #

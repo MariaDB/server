@@ -27,7 +27,6 @@ disconnect con1;
 connection default;
 DROP USER user1@localhost;
 
-
 --echo #
 --echo # Test that SERVER DDL statements are allowed with FEDERATED ADMIN
 --echo #
@@ -48,9 +47,9 @@ disconnect con1;
 connection default;
 DROP USER user1@localhost;
 
-
 --echo #
---echo # Test that SERVER DDL statements are allowed with SUPER
+--echo # Test that SERVER DDL statements are not allowed with SUPER
+--echo # but only with FEDERATED ADMIN
 --echo #
 
 CREATE USER user1@localhost IDENTIFIED BY '';
@@ -59,6 +58,15 @@ SHOW GRANTS FOR user1@localhost;
 
 connect (con1,localhost,user1,,);
 connection con1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE SERVER IF NOT EXISTS server_1
+  FOREIGN DATA WRAPPER mysql
+  OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+disconnect con1;
+connection default;
+REVOKE SUPER ON *.* FROM user1@localhost;
+GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
+connect (con1,localhost,user1,,);
 CREATE SERVER IF NOT EXISTS server_1
   FOREIGN DATA WRAPPER mysql
   OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
@@ -68,7 +76,6 @@ disconnect con1;
 
 connection default;
 DROP USER user1@localhost;
-
 
 --echo #
 --echo # End of 10.5 tests

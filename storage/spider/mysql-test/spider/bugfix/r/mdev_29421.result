@@ -7,6 +7,8 @@ CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t (c INT) ENGINE=InnoDB;
 CREATE TABLE t_s (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv", TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t1 (a INT) ENGINE=Spider;
 SELECT * FROM t1;
 ERROR HY000: Unable to connect to foreign data source: localhost

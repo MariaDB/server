@@ -867,15 +867,66 @@ SELECT CRC32('01234567'), CRC32('012345678');
 SELECT CRC32('~!@$%^*'),  CRC32('-0.0001');
 SELECT CRC32(99999999999999999999999999999999);
 SELECT CRC32(-99999999999999999999999999999999);
+#enable_after fix MDEV-28535
+--disable_view_protocol
+SELECT CRC32C(NULL), CRC32C(''), CRC32C('MariaDB'), CRC32C('mariadb');
+--enable_view_protocol
+SELECT CRC32(NULL,1),CRC32C(NULL,1), CRC32(1,''), CRC32C(1,'');
+SELECT CRC32(42,''),CRC32C(42,''),CRC32('42',''),CRC32C('42','');
+SELECT CRC32(42,NULL),CRC32C(42,NULL);
+SELECT CRC32 ('5c',''),CRC32 ('5c',0),CRC32 ('5c', '0'),CRC32 ('5c',NULL);
+SELECT CRC32C('5c',''),CRC32C('5c',0),CRC32C('5c', '0'),CRC32C('5c',NULL);
+SELECT CRC32('MariaDB',NULL),CRC32C('MariaDB',NULL);
+SELECT CRC32(CRC32('MySQL'),''),CRC32(CRC32('My'),'SQL'),CRC32(0,'MySQL');
+SELECT CRC32C(CRC32C('MariaDB'),''),CRC32C(CRC32C('Maria'),'DB'),CRC32C(0,'MariaDB');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select crc32(0,'My','SQL');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select crc32c(0,'Maria','DB');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select crc32();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select crc32c();
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select crc32('' as empty);
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select crc32c('' as empty);
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select crc32(0, '' as empty);
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select crc32c(0, '' as empty);
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select crc32(0 as zero, '');
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select crc32c(0 as zero, '');
+
+CREATE TEMPORARY TABLE t
+(a CHAR(2), i INT UNSIGNED, c INT UNSIGNED AS (CRC32C(i,a)));
+INSERT INTO t (a,i) VALUES ('DB',CRC32C('Maria'));
+SELECT * FROM t;
+DROP TEMPORARY TABLE t;
+
+select crc32(4294967296,''), hex(char(4294967296));
+select crc32(1e100,''), hex(char(1e100));
+select crc32(10.11,''), hex(char(10.11));
+select crc32(-1,''), hex(char(-1));
+select crc32('',''), hex(char(''));
+--disable_ps_protocol
+select crc32(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'a') as x;
+--enable_ps_protocol
+--disable_warnings
+select crc32(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'a') as x;
+--enable_warnings
 
 # Test cases for using the function in aggregate functions, group-by, having
 # and order-by clauses
 DROP TABLE IF EXISTS t;
 CREATE TABLE t(a INT, b VARCHAR(2));
 INSERT INTO t VALUES (1,'a'), (2,'qw'), (1,'t'), (3,'t');
-SELECT crc32(SUM(a)) FROM t;
-SELECT crc32(AVG(a)) FROM t GROUP BY b;
-SELECT crc32(MAX(b)) FROM t GROUP BY a;
+SELECT crc32(SUM(a)),crc32c(SUM(a)) FROM t;
+SELECT crc32(AVG(a)),crc32c(AVG(a)) FROM t GROUP BY b;
+SELECT crc32(MAX(b)),crc32c(MAX(b)) FROM t GROUP BY a;
 SELECT a, b, crc32(a) FROM t GROUP BY a,b HAVING crc32(MAX(a))=450215437;
 SELECT a,b,concat(a,b),crc32(concat(a,b)) FROM t ORDER BY crc32(concat(a,b));
 DROP TABLE t;
@@ -1903,7 +1954,7 @@ SELECT (GET_FORMAT(TIME,'JIS') DIV ATAN (TRUNCATE (0,'2000000000000000' DIV SIN(
 --echo # MDEV-21278 Assertion `is_unsigned() == attr.unsigned_flag' or Assertion `field.is_sane()' failed
 --echo #
 
-CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL),(NULL);
 SET SESSION SQL_MODE= 'NO_UNSIGNED_SUBTRACTION';
 --replace_column 1 xxx
@@ -1913,7 +1964,7 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2, t1;
 SET sql_mode=DEFAULT;
 
-CREATE  TABLE t1 (a TIMESTAMP);
+CREATE  TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL),(NULL);
 SET SESSION SQL_MODE= 'NO_UNSIGNED_SUBTRACTION';
 --replace_column 1 xxx

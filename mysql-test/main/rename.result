@@ -94,43 +94,45 @@ show create table t1_tmp;
 Table	Create Table
 t1_tmp	CREATE TEMPORARY TABLE `t1_tmp` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2_tmp;
 Table	Create Table
 t2_tmp	CREATE TEMPORARY TABLE `t2_tmp` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 rename table t1 to t1_tmp;
 rename table t2_tmp to t2;
 rename table t2 to tmp, tmp to t2;
 rename table t1_tmp to tmp, tmp to t1_tmp;
 show tables;
 Tables_in_test
+t2
+t1_tmp
 t1_tmp
 t2
 SHOW CREATE TABLE t1_tmp;
 Table	Create Table
 t1_tmp	CREATE TEMPORARY TABLE `t1_tmp` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1_tmp;
 SHOW CREATE TABLE t1_tmp;
 Table	Create Table
 t1_tmp	CREATE TABLE `t1_tmp` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1_tmp;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TEMPORARY TABLE `t2` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 CREATE TABLE t1 (a INT);
 insert into t1 values (1);

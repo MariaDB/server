@@ -7,7 +7,7 @@
 #
 # Steps:
 #    0 - Stop the slave and execute CHANGE MASTER command with
-#        master_use_gtid=  curren_pos and master_delay= 10
+#        master_delay= 10
 #    1 - On slave introduce a sleep of 15 seconds and check that the
 #        Seconds_Behind_Master is within specified master_delay limit. It should
 #        not be more that "10" seconds.
@@ -23,7 +23,7 @@ CREATE TABLE t1 (i INT);
 --sync_slave_with_master
 
 --source include/stop_slave.inc
-CHANGE MASTER TO MASTER_USE_GTID= current_pos, MASTER_DELAY= 10;
+CHANGE MASTER TO MASTER_DELAY= 10;
 --source include/start_slave.inc
 
 --connection master
@@ -41,13 +41,13 @@ INSERT INTO t1 VALUES (1);
 --source include/rpl_assert.inc
 
 # The row should be available in table after master_delay=20 seconds.
---let $assert_text= One row shoule be found in table t1.
+--let $assert_text= One row should be found in table t1.
 --let $assert_cond= COUNT(*) = 1 FROM t1
 --source include/rpl_assert.inc
 
 --echo "======= Clean up ========"
 STOP SLAVE;
-CHANGE MASTER TO MASTER_USE_GTID=no, MASTER_DELAY=0;
+CHANGE MASTER TO MASTER_DELAY=0;
 START SLAVE;
 
 --connection master

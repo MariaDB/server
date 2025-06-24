@@ -4,7 +4,7 @@
 # Slave should apply all statements in the transaction before stop if any
 # temporary table is created or dropped.
 #
-# USEAGE: 
+# USAGE:
 # --let $tmp_table_stm= a SQL statement 
 # --source suite/rpl/include/rpl_stop_slave.test
 #

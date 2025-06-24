@@ -53,6 +53,9 @@ DROP TABLE IF EXISTS ta_l;
 CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
 
 2.13
@@ -98,6 +101,9 @@ b char(1) DEFAULT NULL,
 c datetime DEFAULT NULL,
 PRIMARY KEY (a, b, c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
 connection master_1;
 SELECT a, b, c FROM ta_l FORCE INDEX(PRIMARY) WHERE a = 4 AND b >= 'b'
@@ -169,6 +175,9 @@ b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tc_l (
 a INT,
 b CHAR(1),
@@ -206,6 +215,9 @@ PRIMARY KEY(a),
 KEY idx1(b),
 KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
 INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
@@ -230,6 +242,9 @@ c INT DEFAULT 11,
 KEY idx1(b),
 KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT a, b, c FROM ta_l_int ORDER BY a;
 a	b	c
 1	2	3
@@ -298,10 +313,18 @@ CREATE TABLE t1 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_LOCK1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 CREATE TABLE t2 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_LOCK2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 LOCK TABLES t1 READ, t2 READ;
 UNLOCK TABLES;
 
@@ -316,6 +339,8 @@ PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_1
 MASTER_1_AUTO_INCREMENT_INCREMENT2
 MASTER_1_AUTO_INCREMENT_OFFSET2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
 'srv "s_2_1"')
 1
@@ -419,6 +444,8 @@ CREATE TABLE t1 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_READONLY1_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT id FROM t1 ORDER BY id;
 id
 777
@@ -451,6 +478,10 @@ CREATE TABLE t1 (
 id int(11) NOT NULL,
 PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_ERROR_MODE1_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'erm' is deprecated and will be removed in a future release
+Warning	1287	'ewm' is deprecated and will be removed in a future release
 SELECT id FROM t1 ORDER BY id;
 id
 Warnings:
@@ -463,7 +494,6 @@ DELETE FROM t1;
 Warnings:
 Error	12702	Remote table 'auto_test_remote.ter1_1' is not found
 Error	12702	Remote table 'auto_test_remote.ter1_1' is not found
-Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
 TRUNCATE t1;
 Warnings:
 Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
@@ -480,6 +510,8 @@ KEY idx1(a,b),
 KEY idx2(b),
 PRIMARY KEY(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_TEXT_KEY1_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values (null, null, '2048');
 insert into t1 values ('1', '1', '1');
 insert into t1 select a + 1,   b + 1,   c + 1   from t1;

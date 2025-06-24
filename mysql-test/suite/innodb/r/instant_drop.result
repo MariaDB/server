@@ -56,7 +56,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f3` int(11) NOT NULL,
   `f5` blob DEFAULT repeat('aaa',950)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select f3 from t1;
 f3
 2
@@ -98,7 +98,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   KEY `idx` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(f1 int, f2 int not null)engine=innodb;
 insert into t1 values(1, 2);
@@ -149,7 +149,7 @@ t2	CREATE TABLE `t2` (
   `f1` int(11) DEFAULT NULL,
   `f4` varchar(100) DEFAULT repeat('a',20),
   `f5` int(11) DEFAULT 10
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t2 add column f6 char(100) default repeat('a', 99), algorithm=instant;
 create table t3(f1 int, f2 int not null)engine=innodb;
 insert into t3 values(1, 2);
@@ -184,7 +184,7 @@ t2	CREATE TABLE `t2` (
   `f4` varchar(100) DEFAULT repeat('a',20),
   `f5` int(11) DEFAULT 10,
   `f6` char(100) DEFAULT repeat('a',99)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t3;
 f1	f3	f4
 1	1	4

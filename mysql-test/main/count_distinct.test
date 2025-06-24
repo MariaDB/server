@@ -2,10 +2,6 @@
 # Problem with count(distinct)
 #
 
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
 create table t1 (libname varchar(21) not null, city text, primary key (libname));
 create table t2 (isbn varchar(21) not null, author text, title text, primary key (isbn));
 create table t3 (isbn varchar(21) not null, libname varchar(21) not null, quantity int ,primary key (isbn,libname));
@@ -149,6 +145,17 @@ select count(distinct a) from t1;
 drop table t1;
 set @@tmp_table_size = default;
 
-#
-# End of 5.5 tests
-#
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-26452 SIGSEGV in Item::cleanup from Item::cleanup_processor
+--echo #
+create table t (a int,b date,primary key(a,b));
+select b,count(distinct a) from t group by b having b is null;
+drop table t;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

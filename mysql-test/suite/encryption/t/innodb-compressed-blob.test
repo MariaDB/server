@@ -9,13 +9,11 @@ call mtr.add_suppression("InnoDB: Recovery failed to read page");
 call mtr.add_suppression("InnoDB: Unable to decompress ..test.t[12]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t[12]\\.ibd'");
 call mtr.add_suppression("InnoDB: File '.*test/t[12]\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
+call mtr.add_suppression("Table `test`\\.`t[12]` is corrupted");
 
 --echo # Restart mysqld --file-key-management-filename=keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
-
-SET GLOBAL innodb_file_per_table = ON;
 
 set GLOBAL innodb_default_encryption_key_id=4;
 create table t1(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed;
@@ -30,9 +28,9 @@ insert into t3 values (1, repeat('secret',6000));
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 -- source include/restart_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 select count(*) from t1 FORCE INDEX (b) where b like 'secret%';
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 select count(*) from t2 FORCE INDEX (b) where b like 'secret%';
 select count(*) from t3 FORCE INDEX (b) where b like 'secret%';
 

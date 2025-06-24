@@ -1,18 +1,26 @@
 include/master-slave.inc
 [connection master]
 connection master;
-call mtr.add_suppression("Got an error reading communication packets");
 call mtr.add_suppression("Got an error writing communication packets");
-call mtr.add_suppression("Could not read packet");
-call mtr.add_suppression("Could not write packet");
+call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Could not read packet:.* vio_errno: 1158");
+call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
+set @save_semi_sync_master_enabled= @@global.rpl_semi_sync_master_enabled;
+set @save_semi_sync_wp= @@global.rpl_semi_sync_master_wait_point;
 set @save_bgc_count= @@global.binlog_commit_wait_count;
 set @save_bgc_usec= @@global.binlog_commit_wait_usec;
 set @save_debug_dbug= @@global.debug_dbug;
 set @@global.binlog_commit_wait_count=3;
 set @@global.binlog_commit_wait_usec=10000000;
 set @@global.debug_dbug="+d,testing_cond_var_per_thd";
+set @@global.rpl_semi_sync_master_enabled= 1;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
 # Ensure semi-sync is on
 connection slave;
+set @save_semi_sync_slave_enabled= @@global.rpl_semi_sync_master_enabled;
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled=1;
+include/start_slave.inc
 connection master;
 # Create three transactions to binlog group commit together
 connection master;
@@ -25,6 +33,7 @@ connection master;
 connection server_1;
 connection default;
 include/assert_grep.inc [Check that there is no 'Thread awaiting semi-sync ACK was awoken before its ACK' warning in error log.]
+connection slave;
 #
 # Cleanup
 connection master;
@@ -32,6 +41,7 @@ set @@global.binlog_commit_wait_count=@save_bgc_count;
 set @@global.binlog_commit_wait_usec=@save_bgc_usec;
 set @@global.debug_dbug=@save_debug_dbug;
 drop table t1, t2, t3;
+connection slave;
 #
 # MDEV-34122
 # If semi-sync is switched off then on while a transaction is
@@ -61,6 +71,8 @@ connection slave;
 # the informational message is displayed
 connection slave;
 include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
 connection server_1;
 start transaction;
 insert into t values (0);
@@ -103,4 +115,10 @@ drop table tn;
 set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
 set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
 set @@global.debug_dbug=@save_debug_dbug;
+set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
+set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
+connection slave;
+include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semi_sync_slave_enabled;
+include/start_slave.inc
 include/rpl_end.inc

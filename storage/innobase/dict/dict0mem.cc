@@ -159,7 +159,7 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
   table->mdl_name.m_name= table->name.m_name;
   table->is_system_db= dict_mem_table_is_system(table->name.m_name);
   table->space= space;
-  table->space_id= space ? space->id : ULINT_UNDEFINED;
+  table->space_id= space ? space->id : UINT32_MAX;
   table->n_t_cols= static_cast<unsigned>(n_cols + DATA_N_SYS_COLS) &
     dict_index_t::MAX_N_FIELDS;
   table->n_v_cols= static_cast<unsigned>(n_v_cols) &
@@ -691,8 +691,8 @@ dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	ulint		nth_col,/*!< in: column index */
-	const char*	from,	/*!< in: old column name */
-	const char*	to,	/*!< in: new column name */
+	const LEX_CSTRING &from,/*!< in: old column name */
+	const LEX_CSTRING &to,	/*!< in: new column name */
 	bool		is_virtual)
 				/*!< in: if this is a virtual column */
 {
@@ -707,10 +707,10 @@ dict_mem_table_col_rename(
 		s += len + 1;
 	}
 
-	ut_ad(!my_strcasecmp(system_charset_info, from, s));
+	ut_ad(Lex_ident_column(from).streq(Lex_cstring_strlen(s)));
 
 	dict_mem_table_col_rename_low(table, static_cast<unsigned>(nth_col),
-				      to, s, is_virtual);
+				      to.str, s, is_virtual);
 }
 
 /**********************************************************************//**
@@ -807,34 +807,37 @@ dict_mem_foreign_create(void)
 	DBUG_RETURN(foreign);
 }
 
+/** Duplicate a string to a memory heap, with lower-case conversion
+@param heap  memory heap where string is allocated
+@param cs    the character set of the string
+@param str   the source string
+@return own: a NUL-terminated lower-cased copy of str */
+static LEX_STRING mem_heap_alloc_casedn_z(mem_heap_t *heap,
+                                          CHARSET_INFO *cs,
+                                          const LEX_CSTRING &str) noexcept
+{
+  size_t nbytes= str.length * cs->casedn_multiply() + 1;
+  LEX_STRING res;
+  res.str= static_cast<char*>(mem_heap_alloc(heap, nbytes));
+  res.length= cs->casedn_z(str.str, str.length, res.str, nbytes);
+  return res;
+}
+
 /**********************************************************************//**
 Sets the foreign_table_name_lookup pointer based on the value of
 lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
 will point to foreign_table_name.  If 2, then another string is
 allocated from foreign->heap and set to lower case. */
 void
-dict_mem_foreign_table_name_lookup_set(
-/*===================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	bool		do_alloc)	/*!< in: is an alloc needed */
+dict_foreign_t::foreign_table_name_lookup_set()
 {
 	if (lower_case_table_names == 2) {
-		if (do_alloc) {
-			ulint	len;
-
-			len = strlen(foreign->foreign_table_name) + 1;
-
-			foreign->foreign_table_name_lookup =
-				static_cast<char*>(
-					mem_heap_alloc(foreign->heap, len));
-		}
-		strcpy(foreign->foreign_table_name_lookup,
-		       foreign->foreign_table_name);
-		my_casedn_str(system_charset_info,
-			      foreign->foreign_table_name_lookup);
+		LEX_STRING str= mem_heap_alloc_casedn_z(heap,
+				system_charset_info,
+				Lex_cstring_strlen(foreign_table_name));
+		foreign_table_name_lookup= str.str;
 	} else {
-		foreign->foreign_table_name_lookup
-			= foreign->foreign_table_name;
+		foreign_table_name_lookup = foreign_table_name;
 	}
 }
 
@@ -844,28 +847,15 @@ lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
 will point to referenced_table_name.  If 2, then another string is
 allocated from foreign->heap and set to lower case. */
 void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc)	/*!< in: is an alloc needed */
+dict_foreign_t::referenced_table_name_lookup_set()
 {
 	if (lower_case_table_names == 2) {
-		if (do_alloc) {
-			ulint	len;
-
-			len = strlen(foreign->referenced_table_name) + 1;
-
-			foreign->referenced_table_name_lookup =
-				static_cast<char*>(
-					mem_heap_alloc(foreign->heap, len));
-		}
-		strcpy(foreign->referenced_table_name_lookup,
-		       foreign->referenced_table_name);
-		my_casedn_str(system_charset_info,
-			      foreign->referenced_table_name_lookup);
+		LEX_STRING str= mem_heap_alloc_casedn_z(heap,
+				system_charset_info,
+				Lex_cstring_strlen(referenced_table_name));
+		referenced_table_name_lookup = str.str;
 	} else {
-		foreign->referenced_table_name_lookup
-			= foreign->referenced_table_name;
+		referenced_table_name_lookup = referenced_table_name;
 	}
 }
 
@@ -962,7 +952,7 @@ dict_mem_fill_vcol_set_for_base_col(
 		for (ulint j = 0; j < unsigned{v_col->num_base}; j++) {
 			if (strcmp(col_name, dict_table_get_col_name(
 					table,
-					v_col->base_col[j]->ind)) == 0) {
+					v_col->base_col[j]->ind).str) == 0) {
 
 				if (*v_cols == NULL) {
 					*v_cols = UT_NEW_NOKEY(dict_vcol_set());
@@ -1042,32 +1032,6 @@ dict_mem_table_free_foreign_vcol_set(
 			foreign->v_cols = NULL;
 		}
 	}
-}
-
-/**********************************************************************//**
-Adds a field definition to an index. NOTE: does not take a copy
-of the column name if the field is a column. The memory occupied
-by the column name may be released only after publishing the index. */
-void
-dict_mem_index_add_field(
-/*=====================*/
-	dict_index_t*	index,		/*!< in: index */
-	const char*	name,		/*!< in: column name */
-	ulint		prefix_len)	/*!< in: 0 or the column prefix length
-					in a MySQL index like
-					INDEX (textcol(25)) */
-{
-	dict_field_t*	field;
-
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	index->n_def++;
-
-	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
-
-	field->name = name;
-	field->prefix_len = prefix_len & ((1U << 12) - 1);
 }
 
 /**********************************************************************//**
@@ -1344,7 +1308,7 @@ dict_index_t::vers_history_row(
 		return 0 != memcmp(data, trx_id_max_bytes, len);
 	}
 	ut_ad(len == sizeof timestamp_max_bytes);
-	return 0 != memcmp(data, timestamp_max_bytes, len);
+	return !IS_MAX_TIMESTAMP(data);
 }
 
 /** Check if record in secondary index is historical row.

@@ -1,7 +1,7 @@
 SHOW STATUS LIKE 'Acl%';
 Variable_name	Value
 Acl_column_grants	0
-Acl_database_grants	2
+Acl_database_grants	0
 Acl_function_grants	0
 Acl_procedure_grants	0
 Acl_package_spec_grants	0
@@ -16,7 +16,7 @@ COLUMN_GRANTS
 0
 SELECT count(*) DATABASE_GRANTS from mysql.db;
 DATABASE_GRANTS
-2
+0
 SELECT count(*) FUNCTION_GRANTS from mysql.procs_priv where routine_type='FUNCTION';
 FUNCTION_GRANTS
 0
@@ -66,7 +66,7 @@ GRANT EXECUTE ON FUNCTION mysql.test_func TO r2;
 SHOW STATUS LIKE 'Acl%';
 Variable_name	Value
 Acl_column_grants	2
-Acl_database_grants	4
+Acl_database_grants	2
 Acl_function_grants	3
 Acl_procedure_grants	2
 Acl_package_spec_grants	0
@@ -81,7 +81,7 @@ COLUMN_GRANTS
 2
 SELECT count(*) DATABASE_GRANTS from mysql.db;
 DATABASE_GRANTS
-4
+2
 SELECT count(*) FUNCTION_GRANTS from mysql.procs_priv where routine_type='FUNCTION';
 FUNCTION_GRANTS
 3

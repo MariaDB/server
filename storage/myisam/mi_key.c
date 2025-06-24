@@ -58,19 +58,15 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
   uchar *pos;
   uchar *start;
   reg1 HA_KEYSEG *keyseg;
-  my_bool is_ft= info->s->keyinfo[keynr].flag & HA_FULLTEXT;
+  my_bool is_ft= info->s->keyinfo[keynr].key_alg == HA_KEY_ALG_FULLTEXT;
   DBUG_ENTER("_mi_make_key");
 
-  if (info->s->keyinfo[keynr].flag & HA_SPATIAL)
+  if (info->s->keyinfo[keynr].key_alg == HA_KEY_ALG_RTREE)
   {
     /*
       TODO: nulls processing
     */
-#ifdef HAVE_SPATIAL
     DBUG_RETURN(sp_make_key(info,keynr,key,record,filepos));
-#else
-    DBUG_ASSERT(0); /* mi_open should check that this never happens*/
-#endif
   }
 
   start=key;
@@ -158,9 +154,7 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
     {						/* Numerical column */
       if (type == HA_KEYTYPE_FLOAT)
       {
-	float nr;
-	float4get(nr,pos);
-	if (isnan(nr))
+	if (isnan(get_float(pos)))
 	{
 	  /* Replace NAN with zero */
 	  bzero(key,length);
@@ -225,7 +219,7 @@ uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
 {
   uchar *start_key=key;
   HA_KEYSEG *keyseg;
-  my_bool is_ft= info->s->keyinfo[keynr].flag & HA_FULLTEXT;
+  my_bool is_ft= info->s->keyinfo[keynr].key_alg == HA_KEY_ALG_FULLTEXT;
   DBUG_ENTER("_mi_pack_key");
 
   /* "one part" rtree key is 2*SPDIMS part key in MyISAM */
@@ -510,14 +504,6 @@ int mi_unpack_index_tuple(MI_INFO *info, uint keynr, uchar *record)
 }
 
 
-static int mi_check_rowid_filter_is_active(MI_INFO *info)
-{
-  if (info->rowid_filter_is_active_func == NULL)
-    return 0;
-  return info->rowid_filter_is_active_func(info->rowid_filter_func_arg);
-}
-
-
 /*
   Check the current index tuple: Check ICP condition and/or Rowid Filter
 
@@ -532,21 +518,23 @@ static int mi_check_rowid_filter_is_active(MI_INFO *info)
     Check result according to check_result_t definition
 */
 
-check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record)
+check_result_t mi_check_index_tuple_real(MI_INFO *info, uint keynr, uchar *record)
 {
-  int need_unpack= TRUE;
   check_result_t res= CHECK_POS;
+  DBUG_ASSERT(info->index_cond_func || info->rowid_filter_func);
+
+  if (mi_unpack_index_tuple(info, keynr, record))
+    return CHECK_ERROR;
 
   if (info->index_cond_func)
   {
-    if (mi_unpack_index_tuple(info, keynr, record))
-      res= CHECK_ERROR;
-    else if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
-              CHECK_OUT_OF_RANGE)
+    if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
+        CHECK_OUT_OF_RANGE)
     {
       /* We got beyond the end of scanned range */
       info->lastpos= HA_OFFSET_ERROR;             /* No active record */
       my_errno= HA_ERR_END_OF_FILE;
+      return res;
     }
 
     /*
@@ -555,25 +543,17 @@ check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record)
     */
     if (res != CHECK_POS)
       return res;
-
-    need_unpack= FALSE;
   }
 
   /* Check the Rowid Filter, if present */
-  if (mi_check_rowid_filter_is_active(info))
+  if (info->rowid_filter_func)
   {
-    /* Unpack the index tuple if we haven't done it already */
-    if (need_unpack && mi_unpack_index_tuple(info, keynr, record))
-      res= CHECK_ERROR;
-    else
+    if ((res= info->rowid_filter_func(info->rowid_filter_func_arg)) ==
+        CHECK_OUT_OF_RANGE)
     {
-      if ((res= info->rowid_filter_func(info->rowid_filter_func_arg)) ==
-           CHECK_OUT_OF_RANGE)
-      {
-        /* We got beyond the end of scanned range */
-        info->lastpos= HA_OFFSET_ERROR;             /* No active record */
-        my_errno= HA_ERR_END_OF_FILE;
-      }
+      /* We got beyond the end of scanned range */
+      info->lastpos= HA_OFFSET_ERROR;             /* No active record */
+      my_errno= HA_ERR_END_OF_FILE;
     }
   }
   return res;

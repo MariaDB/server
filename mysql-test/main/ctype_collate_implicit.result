@@ -1,0 +1,291 @@
+#
+# MDEV-30164 System variable for default collations
+#
+SET @@character_set_collations= ' utf8mb3 = utf8mb3_bin ,  LATIN1 = LATIN1_BIN ';
+SELECT @@character_set_collations;
+@@character_set_collations
+latin1=latin1_bin,utf8mb3=utf8mb3_bin
+SET @@character_set_collations='';
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations= ',,, utf8mb3 = utf8mb3_bin , ,  LATIN1 = LATIN1_BIN ,,';
+SELECT @@character_set_collations;
+@@character_set_collations
+latin1=latin1_bin,utf8mb3=utf8mb3_bin
+SET @@character_set_collations='';
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations= 'utf8mb3 = utf8mb3_bin LATIN1 = LATIN1_BIN ';
+ERROR 42000: Variable 'character_set_collations' can't be set to the value of 'utf8mb3 = utf8mb3_bin LATIN1 = LATIN1_BIN '
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations= ' 123 ';
+ERROR 42000: Variable 'character_set_collations' can't be set to the value of ' 123 '
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations= ' utf8mb3 ';
+ERROR 42000: Variable 'character_set_collations' can't be set to the value of ' utf8mb3 '
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations= ' utf8mb3 = ';
+ERROR 42000: Variable 'character_set_collations' can't be set to the value of ' utf8mb3 = '
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations= ' utf8mb3 = 123 ';
+ERROR 42000: Variable 'character_set_collations' can't be set to the value of ' utf8mb3 = 123 '
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+SELECT @@character_set_collations;
+@@character_set_collations
+utf8mb3=utf8mb3_bin
+SET @@character_set_collations='';
+SET @@character_set_collations='utf8mb3=utf8mb4_general_ci';
+ERROR 42000: COLLATION 'utf8mb4_general_ci' is not valid for CHARACTER SET 'utf8mb3'
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations='utf8mb4=utf8mb3_general_ci';
+ERROR 42000: COLLATION 'utf8mb3_general_ci' is not valid for CHARACTER SET 'utf8mb4'
+SELECT @@character_set_collations;
+@@character_set_collations
+
+SET @@character_set_collations='utf8mb3=utf8mb3_general_ci';
+SELECT @@character_set_collations;
+@@character_set_collations
+utf8mb3=utf8mb3_general_ci
+SET @@character_set_collations='utf8mb4=utf8mb4_general_ci,latin1=latin1_bin';
+SELECT @@character_set_collations;
+@@character_set_collations
+latin1=latin1_bin,utf8mb4=utf8mb4_general_ci
+SET @@character_set_collations='utf8mb4=uca1400_ai_ci,latin1=uca1400_ai_ci';
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+SELECT @@character_set_collations;
+@@character_set_collations
+latin1=latin1_bin,utf8mb4=utf8mb4_general_ci
+SELECT @@character_set_collations RLIKE 'utf8mb4=utf8mb4_general_ci' AS expect_true;
+expect_true
+1
+SET @@character_set_collations='utf8mb4=uca1400_ai_ci';
+SELECT @@character_set_collations;
+@@character_set_collations
+utf8mb4=utf8mb4_uca1400_ai_ci
+SET NAMES utf8mb4;
+SELECT @@collation_connection;
+@@collation_connection
+utf8mb4_uca1400_ai_ci
+SELECT collation('literal');
+collation('literal')
+utf8mb4_uca1400_ai_ci
+EXECUTE IMMEDIATE 'SELECT COLLATION(?)' USING 'literal';
+COLLATION(?)
+utf8mb4_uca1400_ai_ci
+CREATE VIEW v1 AS SELECT 'literal', collation('literal') as cl;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 'literal' AS `literal`,collation('literal') AS `cl`	utf8mb4	utf8mb4_uca1400_ai_ci
+SELECT * FROM v1;
+literal	cl
+literal	utf8mb4_uca1400_ai_ci
+DROP VIEW v1;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT COLLATE DEFAULT) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE DATABASE db1 CHARACTER SET utf8mb4;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+SELECT
+@@collation_connection AS conn,
+COLLATION('a') AS lit,
+COLLATION(CONCAT(1)) AS num,
+COLLATION(CAST(123 AS CHAR)) AS casti,
+COLLATION(_utf8mb4'a') AS litu,
+COLLATION(_utf8mb4 0x62) AS lituh,
+COLLATION(_utf8mb4 X'63') AS lituhs,
+COLLATION(CAST(123 AS CHAR CHARACTER SET utf8mb4)) AS castic,
+COLLATION(CHAR(0x61 USING utf8mb4)) AS chr,
+COLLATION(CONVERT('a' USING utf8mb4)) AS conv;;
+conn	utf8mb4_general_ci
+lit	utf8mb4_general_ci
+num	utf8mb4_general_ci
+casti	utf8mb4_general_ci
+litu	utf8mb4_uca1400_ai_ci
+lituh	utf8mb4_uca1400_ai_ci
+lituhs	utf8mb4_uca1400_ai_ci
+castic	utf8mb4_uca1400_ai_ci
+chr	utf8mb4_uca1400_ai_ci
+conv	utf8mb4_uca1400_ai_ci
+SET NAMES utf8mb4;
+SELECT
+@@collation_connection AS conn,
+COLLATION('a') AS lit,
+COLLATION(CONCAT(1)) AS num,
+COLLATION(CAST(123 AS CHAR)) AS casti,
+COLLATION(_utf8mb4'a') AS litu,
+COLLATION(_utf8mb4 0x62) AS lituh,
+COLLATION(_utf8mb4 X'63') AS lituhs,
+COLLATION(CAST(123 AS CHAR CHARACTER SET utf8mb4)) AS castic,
+COLLATION(CHAR(0x61 USING utf8mb4)) AS chr,
+COLLATION(CONVERT('a' USING utf8mb4)) AS conv;;
+conn	utf8mb4_uca1400_ai_ci
+lit	utf8mb4_uca1400_ai_ci
+num	utf8mb4_uca1400_ai_ci
+casti	utf8mb4_uca1400_ai_ci
+litu	utf8mb4_uca1400_ai_ci
+lituh	utf8mb4_uca1400_ai_ci
+lituhs	utf8mb4_uca1400_ai_ci
+castic	utf8mb4_uca1400_ai_ci
+chr	utf8mb4_uca1400_ai_ci
+conv	utf8mb4_uca1400_ai_ci
+SET character_set_collations='latin1=latin1_bin,utf8mb4=uca1400_ai_ci';
+SHOW CHARACTER SET LIKE 'latin1';
+Charset	Description	Default collation	Maxlen
+latin1	cp1252 West European	latin1_bin	1
+SELECT * FROM INFORMATION_SCHEMA.CHARACTER_SETS
+WHERE CHARACTER_SET_NAME='latin1';
+CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
+latin1	latin1_bin	cp1252 West European	1
+SHOW COLLATION LIKE 'latin1%';
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_german1_ci	latin1	5		Yes	1	PAD SPACE
+latin1_swedish_ci	latin1	8		Yes	1	PAD SPACE
+latin1_danish_ci	latin1	15		Yes	1	PAD SPACE
+latin1_german2_ci	latin1	31		Yes	2	PAD SPACE
+latin1_bin	latin1	47	Yes	Yes	1	PAD SPACE
+latin1_general_ci	latin1	48		Yes	1	PAD SPACE
+latin1_general_cs	latin1	49		Yes	1	PAD SPACE
+latin1_spanish_ci	latin1	94		Yes	1	PAD SPACE
+latin1_swedish_nopad_ci	latin1	1032		Yes	1	NO PAD
+latin1_nopad_bin	latin1	1071		Yes	1	NO PAD
+SELECT COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATIONS
+WHERE CHARACTER_SET_NAME LIKE 'latin1%';
+COLLATION_NAME	IS_DEFAULT
+latin1_german1_ci	
+latin1_swedish_ci	
+latin1_danish_ci	
+latin1_german2_ci	
+latin1_bin	Yes
+latin1_general_ci	
+latin1_general_cs	
+latin1_spanish_ci	
+latin1_swedish_nopad_ci	
+latin1_nopad_bin	
+SELECT COLLATION_NAME, FULL_COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE COLLATION_NAME LIKE 'latin1%';
+COLLATION_NAME	FULL_COLLATION_NAME	IS_DEFAULT
+latin1_german1_ci	latin1_german1_ci	
+latin1_swedish_ci	latin1_swedish_ci	
+latin1_danish_ci	latin1_danish_ci	
+latin1_german2_ci	latin1_german2_ci	
+latin1_bin	latin1_bin	Yes
+latin1_general_ci	latin1_general_ci	
+latin1_general_cs	latin1_general_cs	
+latin1_spanish_ci	latin1_spanish_ci	
+latin1_swedish_nopad_ci	latin1_swedish_nopad_ci	
+latin1_nopad_bin	latin1_nopad_bin	
+SHOW CHARACTER SET LIKE 'utf8mb4';
+Charset	Description	Default collation	Maxlen
+utf8mb4	UTF-8 Unicode	utf8mb4_uca1400_ai_ci	4
+SELECT * FROM INFORMATION_SCHEMA.CHARACTER_SETS
+WHERE CHARACTER_SET_NAME='utf8mb4';
+CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
+utf8mb4	utf8mb4_uca1400_ai_ci	UTF-8 Unicode	4
+SHOW COLLATION LIKE '%uca1400_ai_ci%';
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+uca1400_ai_ci	NULL	NULL	NULL	Yes	8	PAD SPACE
+SELECT COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATIONS
+WHERE COLLATION_NAME LIKE '%uca1400_ai_ci%';
+COLLATION_NAME	IS_DEFAULT
+uca1400_ai_ci	NULL
+SELECT COLLATION_NAME, FULL_COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE COLLATION_NAME LIKE '%uca1400_ai_ci%';
+COLLATION_NAME	FULL_COLLATION_NAME	IS_DEFAULT
+uca1400_ai_ci	utf8mb3_uca1400_ai_ci	
+uca1400_ai_ci	ucs2_uca1400_ai_ci	
+uca1400_ai_ci	utf8mb4_uca1400_ai_ci	Yes
+uca1400_ai_ci	utf16_uca1400_ai_ci	
+uca1400_ai_ci	utf32_uca1400_ai_ci	
+SET @@character_set_collations='';
+PREPARE stmt FROM 'SELECT '
+                  'COLLATION(CAST("x" AS CHAR CHARACTER SET utf8mb3)) AS a, '
+                  'COLLATION(_utf8mb3"x") AS b';
+EXECUTE stmt;
+a	b
+utf8mb3_general_ci	utf8mb3_general_ci
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+EXECUTE stmt;
+a	b
+utf8mb3_bin	utf8mb3_bin
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+PREPARE stmt FROM 'SELECT '
+                  'COLLATION(CAST("x" AS CHAR CHARACTER SET utf8mb3)) AS a, '
+                  'COLLATION(_utf8mb3"x") AS b';
+EXECUTE stmt;
+a	b
+utf8mb3_bin	utf8mb3_bin
+SET @@character_set_collations=DEFAULT;
+EXECUTE stmt;
+a	b
+utf8mb3_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
+SET NAMES utf8mb3;
+SET @@character_set_collations='';
+PREPARE stmt FROM 'CREATE TABLE t1 '
+    '(a TEXT CHARACTER SET utf8mb3 COLLATE DEFAULT COLLATE utf8mb3_general_ci)';
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+EXECUTE stmt;
+ERROR HY000: Conflicting declarations: 'COLLATE utf8mb3_bin' and 'COLLATE utf8mb3_general_ci'
+SET @@character_set_collations='';
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;

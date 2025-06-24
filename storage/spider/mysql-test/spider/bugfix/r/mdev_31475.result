@@ -14,6 +14,8 @@ set spider_same_server_link= 1;
 CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 (a INT, b VARCHAR(255), PRIMARY KEY(a)) ENGINE=Spider PARTITION BY RANGE (a) (PARTITION p1 VALUES LESS THAN (3), PARTITION p2 VALUES LESS THAN MAXVALUE COMMENT='srv "srv"');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DROP SERVER srv;
 SELECT * FROM t1;
 ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  srv

@@ -48,12 +48,12 @@ Warning	1911	Unknown option 'foo'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` int(11) INVISIBLE DEFAULT NULL,
+  `f1` int(11) DEFAULT NULL INVISIBLE,
   `f2` int(11) DEFAULT NULL COMMENT 'a comment',
   `f3` int(11) DEFAULT NULL `foo`='bar',
   `f4` int(11) DEFAULT NULL CHECK (`f4` < 10),
   `f5` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1;
 set sql_mode=default;
 #

@@ -34,7 +34,7 @@ connection default;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET STATEMENT innodb_snapshot_isolation=ON FOR
 CREATE TABLE t4 (b BLOB CHECK (b)) ENGINE=InnoDB AS SELECT b FROM t2;
-ERROR 22007: Truncated incorrect DOUBLE value: '2025-01-21 00:00:00'
+ERROR 22007: Truncated incorrect BOOLEAN value: '2025-01-21 00:00:00'
 connection con1;
 disconnect con1;
 connection default;

@@ -42,7 +42,7 @@ NUMERIC_PRECISION	bigint(21) unsigned	YES		NULL
 NUMERIC_SCALE	bigint(21) unsigned	YES		NULL	
 DATETIME_PRECISION	bigint(21) unsigned	YES		NULL	
 CHARACTER_SET_NAME	varchar(32)	YES		NULL	
-COLLATION_NAME	varchar(32)	YES		NULL	
+COLLATION_NAME	varchar(64)	YES		NULL	
 COLUMN_TYPE	longtext	NO		NULL	
 COLUMN_KEY	varchar(3)	NO		NULL	
 EXTRA	varchar(80)	NO		NULL	
@@ -50,6 +50,8 @@ PRIVILEGES	varchar(80)	NO		NULL
 COLUMN_COMMENT	varchar(1024)	NO		NULL	
 IS_GENERATED	varchar(6)	NO		NULL	
 GENERATION_EXPRESSION	longtext	YES		NULL	
+IS_SYSTEM_TIME_PERIOD_START	varchar(3)	NO		NULL	
+IS_SYSTEM_TIME_PERIOD_END	varchar(3)	NO		NULL	
 SHOW CREATE TABLE information_schema.COLUMNS;
 Table	Create Table
 COLUMNS	CREATE TEMPORARY TABLE `COLUMNS` (
@@ -67,14 +69,16 @@ COLUMNS	CREATE TEMPORARY TABLE `COLUMNS` (
   `NUMERIC_SCALE` bigint(21) unsigned,
   `DATETIME_PRECISION` bigint(21) unsigned,
   `CHARACTER_SET_NAME` varchar(32),
-  `COLLATION_NAME` varchar(32),
+  `COLLATION_NAME` varchar(64),
   `COLUMN_TYPE` longtext NOT NULL,
   `COLUMN_KEY` varchar(3) NOT NULL,
   `EXTRA` varchar(80) NOT NULL,
   `PRIVILEGES` varchar(80) NOT NULL,
   `COLUMN_COMMENT` varchar(1024) NOT NULL,
   `IS_GENERATED` varchar(6) NOT NULL,
-  `GENERATION_EXPRESSION` longtext
+  `GENERATION_EXPRESSION` longtext,
+  `IS_SYSTEM_TIME_PERIOD_START` varchar(3) NOT NULL,
+  `IS_SYSTEM_TIME_PERIOD_END` varchar(3) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.COLUMNS;
 Field	Type	Null	Key	Default	Extra
@@ -92,7 +96,7 @@ NUMERIC_PRECISION	bigint(21) unsigned	YES		NULL
 NUMERIC_SCALE	bigint(21) unsigned	YES		NULL	
 DATETIME_PRECISION	bigint(21) unsigned	YES		NULL	
 CHARACTER_SET_NAME	varchar(32)	YES		NULL	
-COLLATION_NAME	varchar(32)	YES		NULL	
+COLLATION_NAME	varchar(64)	YES		NULL	
 COLUMN_TYPE	longtext	NO		NULL	
 COLUMN_KEY	varchar(3)	NO		NULL	
 EXTRA	varchar(80)	NO		NULL	
@@ -100,6 +104,8 @@ PRIVILEGES	varchar(80)	NO		NULL
 COLUMN_COMMENT	varchar(1024)	NO		NULL	
 IS_GENERATED	varchar(6)	NO		NULL	
 GENERATION_EXPRESSION	longtext	YES		NULL	
+IS_SYSTEM_TIME_PERIOD_START	varchar(3)	NO		NULL	
+IS_SYSTEM_TIME_PERIOD_END	varchar(3)	NO		NULL	
 SELECT table_catalog, table_schema, table_name, column_name
 FROM information_schema.columns WHERE table_catalog IS NULL OR table_catalog <> 'def';
 table_catalog	table_schema	table_name	column_name
@@ -130,17 +136,17 @@ GRANT INSERT(f1, f2) ON db_datadict.t2 TO 'testuser2'@'localhost';
 SELECT * FROM information_schema.columns
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema, table_name, ordinal_position;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
-def	db_datadict	t1	f1	1	NULL	YES	char	10	10	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(10)	MUL		select,insert,update,references		NEVER	NULL
-def	db_datadict	t1	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			select,insert,update,references		NEVER	NULL
-def	db_datadict	t1	f3	3	NULL	YES	date	NULL	NULL	NULL	NULL	NULL	NULL	NULL	date			select,insert,update,references		NEVER	NULL
-def	db_datadict	t1	f4	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PRI	auto_increment	select,insert,update,references		NEVER	NULL
-def	db_datadict	t2	f1	1	NULL	NO	char	10	10	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(10)	PRI		select,insert,update,references		NEVER	NULL
-def	db_datadict	t2	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			select,insert,update,references		NEVER	NULL
-def	db_datadict	t2	f3	3	NULL	YES	date	NULL	NULL	NULL	NULL	NULL	NULL	NULL	date			select,insert,update,references		NEVER	NULL
-def	db_datadict	t2	f4	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PRI		select,insert,update,references		NEVER	NULL
-def	db_datadict	v1	f1	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(1)			select,insert,update,references		NEVER	NULL
-def	db_datadict	v1	f2	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(1)			select,insert,update,references		NEVER	NULL
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
+def	db_datadict	t1	f1	1	NULL	YES	char	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(10)	MUL		select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t1	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	text			select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t1	f3	3	NULL	YES	date	NULL	NULL	NULL	NULL	NULL	NULL	NULL	date			select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t1	f4	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PRI	auto_increment	select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t2	f1	1	NULL	NO	char	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(10)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t2	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	text			select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t2	f3	3	NULL	YES	date	NULL	NULL	NULL	NULL	NULL	NULL	NULL	date			select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	t2	f4	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	v1	f1	1	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(1)			select,insert,update,references		NEVER	NULL	NO	NO
+def	db_datadict	v1	f2	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(1)			select,insert,update,references		NEVER	NULL	NO	NO
 SHOW COLUMNS FROM db_datadict.t1;
 Field	Type	Null	Key	Default	Extra
 f1	char(10)	YES	MUL	NULL	
@@ -161,10 +167,10 @@ connect  testuser1, localhost, testuser1, , db_datadict;
 SELECT * FROM information_schema.columns
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema, table_name, ordinal_position;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
-def	db_datadict	t1	f1	1	NULL	YES	char	10	10	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(10)	MUL		select		NEVER	NULL
-def	db_datadict	t1	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			select		NEVER	NULL
-def	db_datadict	v1	f2	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(1)			select		NEVER	NULL
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
+def	db_datadict	t1	f1	1	NULL	YES	char	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(10)	MUL		select		NEVER	NULL	NO	NO
+def	db_datadict	t1	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	text			select		NEVER	NULL	NO	NO
+def	db_datadict	v1	f2	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(1)			select		NEVER	NULL	NO	NO
 SHOW COLUMNS FROM db_datadict.t1;
 Field	Type	Null	Key	Default	Extra
 f1	char(10)	YES	MUL	NULL	
@@ -178,9 +184,9 @@ connect  testuser2, localhost, testuser2, , db_datadict;
 SELECT * FROM information_schema.columns
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema, table_name, ordinal_position;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
-def	db_datadict	t2	f1	1	NULL	NO	char	10	10	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(10)	PRI		insert		NEVER	NULL
-def	db_datadict	t2	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			insert		NEVER	NULL
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
+def	db_datadict	t2	f1	1	NULL	NO	char	10	40	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	char(10)	PRI		insert		NEVER	NULL	NO	NO
+def	db_datadict	t2	f2	2	NULL	YES	text	65535	65535	NULL	NULL	NULL	utf8mb4	utf8mb4_uca1400_ai_ci	text			insert		NEVER	NULL	NO	NO
 SHOW COLUMNS FROM db_datadict.t1;
 ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table `db_datadict`.`t1`
 SHOW COLUMNS FROM db_datadict.t2;
@@ -231,6 +237,8 @@ PRIVILEGES	select,insert,update,references
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 SELECT table_name FROM information_schema.columns
 WHERE table_name LIKE 't1_my_table%';
 table_name
@@ -439,6 +447,8 @@ PRIVILEGES	select,insert,update,references
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 TABLE_CATALOG	def
 TABLE_SCHEMA	test
 TABLE_NAME	t1_my_tablex
@@ -461,6 +471,8 @@ PRIVILEGES	select,insert,update,references
 COLUMN_COMMENT	
 IS_GENERATED	NEVER
 GENERATION_EXPRESSION	NULL
+IS_SYSTEM_TIME_PERIOD_START	NO
+IS_SYSTEM_TIME_PERIOD_END	NO
 DROP VIEW test.t1_my_tablex;
 SELECT table_name FROM information_schema.columns
 WHERE table_name = 't1_my_tablex';

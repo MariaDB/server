@@ -11,7 +11,7 @@ Table	Create Table
 ids	CREATE TABLE `ids` (
   `id1` int(11) DEFAULT NULL,
   `id2` int(11) DEFAULT NULL
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM ids;
 id1	id2
 1	2

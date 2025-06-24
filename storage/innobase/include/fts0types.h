@@ -79,7 +79,7 @@ struct fts_index_cache_t {
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
-/** Stop word control infotmation. */
+/** Stop word control information. */
 struct fts_stopword_t {
 	ulint		status;		/*!< Status of the stopword tree */
 	ib_alloc_t*	heap;		/*!< The memory allocator to use */
@@ -289,6 +289,16 @@ fts_string_dup(
 						> 0 if n1 > n2 */
 	fts_string_t*		dst,		/*!< in: dup to here */
 	const fts_string_t*	src,		/*!< in: src string */
+	mem_heap_t*		heap);		/*!< in: heap to use */
+
+/******************************************************************//**
+Duplicate a string with lower case conversion. */
+UNIV_INLINE
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,
+	const fts_string_t&	src,		/*!< in: src string */
 	mem_heap_t*		heap);		/*!< in: heap to use */
 
 /******************************************************************//**

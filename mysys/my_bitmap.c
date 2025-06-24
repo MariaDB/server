@@ -97,7 +97,7 @@ static inline my_bitmap_map last_bit_mask(uint bits)
 /*
   Get a mask of the bits that are to be considered as 'on' at location
   starting with 'bits'.
-  This function has _inv in it's name as it's usage is invers compared
+  This function has _inv in its name as its usage is the inverse compared
   to last_bit_mask().
 
   For (bits & 63) it will return values from the series
@@ -133,56 +133,27 @@ void create_last_bit_mask(MY_BITMAP *map)
 }
 
 
-static inline void bitmap_lock(MY_BITMAP *map __attribute__((unused)))
-{
-  if (map->mutex)
-    mysql_mutex_lock(map->mutex);
-}
-
-static inline void bitmap_unlock(MY_BITMAP *map __attribute__((unused)))
-{
-  if (map->mutex)
-    mysql_mutex_unlock(map->mutex);
-}
-
-
 /*
   Initialize a bitmap object. All bits will be set to zero
 */
 
-my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
-                       my_bool thread_safe)
+my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits)
 {
   DBUG_ENTER("my_bitmap_init");
-  map->mutex= 0;
 
   if (!buf)
   {
     uint size_in_bytes= bitmap_buffer_size(n_bits);
-    uint extra= 0;
-    if (thread_safe)
-    {
-      size_in_bytes= ALIGN_SIZE(size_in_bytes);
-      extra= sizeof(mysql_mutex_t);
-    }
     if (!(buf= (my_bitmap_map*) my_malloc(key_memory_MY_BITMAP_bitmap,
-                                          size_in_bytes+extra, MYF(MY_WME))))
+                                          size_in_bytes, MYF(MY_WME))))
     {
       map->bitmap= 0;
       DBUG_RETURN(1);
     }
-    if (thread_safe)
-    {
-      map->mutex= (mysql_mutex_t *) ((char*) buf + size_in_bytes);
-      mysql_mutex_init(key_BITMAP_mutex, map->mutex, MY_MUTEX_INIT_FAST);
-    }
     map->bitmap_allocated= 1;
   }
   else
-  {
-    DBUG_ASSERT(thread_safe == 0);
     map->bitmap_allocated= 0;
-  }
 
   map->bitmap= buf;
   map->n_bits= n_bits;
@@ -197,8 +168,6 @@ void my_bitmap_free(MY_BITMAP *map)
   DBUG_ENTER("my_bitmap_free");
   if (map->bitmap)
   {
-    if (map->mutex)
-      mysql_mutex_destroy(map->mutex);
     if (map->bitmap_allocated)
       my_free(map->bitmap);
     map->bitmap=0;
@@ -248,12 +217,8 @@ my_bool bitmap_fast_test_and_set(MY_BITMAP *map, uint bitmap_bit)
 
 my_bool bitmap_test_and_set(MY_BITMAP *map, uint bitmap_bit)
 {
-  my_bool res;
   DBUG_ASSERT_BITMAP_AND_BIT(map, bitmap_bit);
-  bitmap_lock(map);
-  res= bitmap_fast_test_and_set(map, bitmap_bit);
-  bitmap_unlock(map);
-  return res;
+  return bitmap_fast_test_and_set(map, bitmap_bit);
 }
 
 /*
@@ -284,13 +249,8 @@ my_bool bitmap_fast_test_and_clear(MY_BITMAP *map, uint bitmap_bit)
 
 my_bool bitmap_test_and_clear(MY_BITMAP *map, uint bitmap_bit)
 {
-  my_bool res;
   DBUG_ASSERT_BITMAP_AND_BIT(map, bitmap_bit);
-
-  bitmap_lock(map);
-  res= bitmap_fast_test_and_clear(map, bitmap_bit);
-  bitmap_unlock(map);
-  return res;
+  return bitmap_fast_test_and_clear(map, bitmap_bit);
 }
 
 
@@ -584,9 +544,9 @@ uint bitmap_bits_set(const MY_BITMAP *map)
 
 
 /**
-  Copy bitmaps
+  Copy bitmaps (if source bigger tail is left unchanged)
 
-  @param map1   to-bitmap
+  @param map    to-bitmap
   @param map2   from-bitmap
 
   @notes
@@ -594,18 +554,19 @@ uint bitmap_bits_set(const MY_BITMAP *map)
   In this case, only up to to->n_bits will be copied.
 */
 
-void bitmap_copy(MY_BITMAP *map1, const MY_BITMAP *map2)
+void bitmap_copy(MY_BITMAP *map, const MY_BITMAP *map2)
 {
-  my_bitmap_map *to= map1->bitmap, *from= map2->bitmap;
-  uint map1_length= no_words_in_map(map1)*sizeof(my_bitmap_map);
-  uint map2_length= no_words_in_map(map2)*sizeof(my_bitmap_map);
-  uint length= MY_MIN(map1_length, map2_length);
-  DBUG_ASSERT_DIFFERENT_BITMAPS(map1,map2);
+  my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
+  uint len= no_words_in_map(map), len2 = no_words_in_map(map2);
+  DBUG_ASSERT_DIFFERENT_BITMAPS(map, map2);
 
-  memcpy(to, from, length);
-  if (length < map1_length)
-    bzero(to + length, map1_length - length);
-  *map1->last_word_ptr&= ~map1->last_bit_mask;
+  end= to + MY_MIN(len, len2 - 1);
+  while (to < end)
+    *to++ = *from++;
+
+  if (len2 <= len)
+    *to= (*from & ~map2->last_bit_mask) | (*to & map2->last_bit_mask);
+  *(map->last_word_ptr)&= ~map->last_bit_mask;
 }
 
 
@@ -684,26 +645,6 @@ uint bitmap_get_first_clear(const MY_BITMAP *map)
 found:
   /* find first zero bit by reverting all bits and find first bit */
   return my_find_first_bit(~*data_ptr) + i * sizeof(my_bitmap_map)*8;
-}
-
-
-uint bitmap_lock_set_next(MY_BITMAP *map)
-{
-  uint bit_found;
-  bitmap_lock(map);
-  bit_found= bitmap_set_next(map);
-  bitmap_unlock(map);
-  return bit_found;
-}
-
-
-void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit)
-{
-  bitmap_lock(map);
-  DBUG_ASSERT(map->bitmap);
-  DBUG_ASSERT(bitmap_bit < map->n_bits);
-  bitmap_clear_bit(map, bitmap_bit);
-  bitmap_unlock(map);
 }
 /*
   Functions to export/import bitmaps to an architecture independent format

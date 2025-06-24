@@ -1,4 +1,5 @@
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 USE test;
 drop table if exists tb2 ;
 create table tb2 (
@@ -55,7 +56,7 @@ f108 enum("1enum","2enum") not null default "1enum",
 f109 set("1set","2set") not null default "1set"
 ) engine = memory;
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/memory_tb2.txt'
 into table tb2 ;
 DROP DATABASE IF EXISTS test1;
@@ -116,7 +117,7 @@ f108 enum("1enum","2enum") not null default "1enum",
 f109 set("1set","2set") not null default "1set"
 ) engine = memory;
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/memory_tb2.txt'
 into table tb2 ;
 USE test;
@@ -22147,9 +22148,9 @@ DELETE FROM t1;
 DROP VIEW v1;
 CREATE VIEW v1 AS SELECT f1, f2, f3, 'HELLO' AS my_greeting FROM t1;
 INSERT INTO v1 SET f1 = 1;
-ERROR HY000: The target table v1 of the INSERT is not insertable-into
 SELECT * from t1;
 f1	f2	f3	f4
+1	NULL	NULL	NULL
 DELETE FROM t1;
 INSERT INTO v1 SET f1 = 1, my_greeting = 'HELLO';
 ERROR HY000: The target table v1 of the INSERT is not insertable-into
@@ -22919,3 +22920,4 @@ DROP DATABASE IF EXISTS test2;
 DROP DATABASE IF EXISTS test3;
 DROP DATABASE test1;
 DROP TABLE test.tb2;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

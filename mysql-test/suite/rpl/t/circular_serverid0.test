@@ -33,7 +33,7 @@ START SLAVE IO_THREAD;
 # This query also creates a Gtid event group whose Gtid will remain in
 # ignored status for too long causing a following group split.
 
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb CHARSET=latin1;
 --sync_slave_with_master M4
 
 # This INSERT will be logged as two Write_log events which the buggy
@@ -44,7 +44,7 @@ eval INSERT INTO `t1` VALUES (null, repeat('a', $row_size)), (null, repeat('b', 
 
 # START M2 IO thread and wait for its signal to follow with the SQL
 # thread start.  At this moment the SQL thread shall be having 2 and
-# "half" groups to execute.  The "hafl" one would be committed by the
+# "half" groups to execute.  The "half" one would be committed by the
 # buggy applier after which the IO is released to queue the rest of
 # the 3rd group which the SQL thread commits separately to complete
 # the split.

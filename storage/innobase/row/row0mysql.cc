@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,7 +44,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "fsp0file.h"
 #include "fts0fts.h"
 #include "fts0types.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "log0log.h"
 #include "pars0pars.h"
@@ -69,17 +68,17 @@ Created 9/17/2000 Heikki Tuuri
 
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static void row_mysql_delay_if_needed()
+static void row_mysql_delay_if_needed() noexcept
 {
   const auto delay= srv_dml_needed_delay;
   if (UNIV_UNLIKELY(delay != 0))
   {
     /* Adjust for purge_coordinator_state::refresh() */
-    mysql_mutex_lock(&log_sys.mutex);
+    log_sys.latch.rd_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
-    mysql_mutex_unlock(&log_sys.mutex);
-    const lsn_t lsn= log_sys.get_lsn();
+    const lsn_t lsn= log_sys.get_flushed_lsn();
+    log_sys.latch.rd_unlock();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -687,8 +686,12 @@ handle_new_error:
 			/* MariaDB will roll back the latest SQL statement */
 			break;
 		}
-		/* MariaDB will roll back the entire transaction. */
-		trx->bulk_insert = false;
+		/* For DML, InnoDB does partial rollback and clear
+		bulk buffer in row_mysql_handle_errors().
+		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
+		the bulk insert transaction will be rolled back inside
+		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
@@ -704,6 +707,7 @@ handle_new_error:
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
+	case DB_TEMP_FILE_WRITE_FAIL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
@@ -783,7 +787,7 @@ row_create_prebuilt(
 
         /* Maximum size of the buffer needed for conversion of INTs from
 	little endian format to big endian format in an index. An index
-	can have maximum 16 columns (MAX_REF_PARTS) in it. Therfore
+	can have maximum 16 columns (MAX_REF_PARTS) in it. Therefore
 	Max size for PK: 16 * 8 bytes (BIGINT's size) = 128 bytes
 	Max size Secondary index: 16 * 8 bytes + PK = 256 bytes. */
 #define MAX_SRCH_KEY_VAL_BUFFER         2* (8 * MAX_REF_PARTS)
@@ -981,7 +985,7 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table);
+		prebuilt->table->release();
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1209,7 +1213,7 @@ static dberr_t row_mysql_get_table_error(trx_t *trx, dict_table_t *table)
   }
 
   const int dblen= int(table->name.dblen());
-  sql_print_error("InnoDB .ibd file is missing for table %`.*s.%`s",
+  sql_print_error("InnoDB .ibd file is missing for table %.*sQ.%sQ",
                   dblen, table->name.m_name, table->name.m_name + dblen + 1);
   return DB_TABLESPACE_NOT_FOUND;
 }
@@ -1372,12 +1376,6 @@ error_exit:
 			all FTS indexes. */
 			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
 		}
-	}
-
-	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
-	} else {
-		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
 	/* Not protected by dict_sys.latch or table->stats_mutex_lock()
@@ -1605,7 +1603,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	ut_ad(table->stat_initialized);
+	ut_ad(table->stat_initialized());
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
@@ -1713,20 +1711,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
-		} else {
-			srv_stats.n_rows_deleted.inc(size_t(trx->id));
-		}
-
 		update_statistics = !srv_stats_include_delete_marked;
 	} else {
-		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
-		} else {
-			srv_stats.n_rows_updated.inc(size_t(trx->id));
-		}
-
 		update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 	}
@@ -1840,7 +1826,7 @@ void thd_get_query_start_data(THD *thd, char *buf);
 
 This is used in UPDATE CASCADE/SET NULL of a system versioned referenced table.
 
-node->historical_row: dtuple_t containing pointers of row changed by refertial
+node->historical_row: dtuple_t containing pointers of row changed by referential
 action.
 
 @param[in]	thr	current query thread
@@ -1939,8 +1925,6 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 			goto exit;
 
 		case DB_SUCCESS:
-			srv_stats.n_rows_inserted.inc(
-				static_cast<size_t>(trx->id));
 			dict_stats_update_if_needed(table, *trx);
 			goto exit;
 		}
@@ -2024,11 +2008,9 @@ row_update_cascade_for_mysql(
 				dict_table_n_rows_dec(node->table);
 
 				stats = !srv_stats_include_delete_marked;
-				srv_stats.n_rows_deleted.inc(size_t(trx->id));
 			} else {
 				stats = !(node->cmpl_info
 					  & UPD_NODE_NO_ORD_CHANGE);
-				srv_stats.n_rows_updated.inc(size_t(trx->id));
 			}
 
 			if (stats) {
@@ -2155,7 +2137,7 @@ row_create_index_for_mysql(
 
 	/* For temp-table we avoid insertion into SYSTEM TABLES to
 	maintain performance and so we have separate path that directly
-	just updates dictonary cache. */
+	just updates dictionary cache. */
 	if (!table->is_temporary()) {
 		ut_ad(trx->state == TRX_STATE_ACTIVE);
 		ut_ad(trx->dict_operation);
@@ -2200,7 +2182,7 @@ row_create_index_for_mysql(
 
 			err = dict_create_index_tree_in_mem(index, trx);
 #ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!index->search_info->ref_count);
+			ut_ad(!index->search_info.ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 			if (err != DB_SUCCESS) {
@@ -2341,12 +2323,7 @@ row_discard_tablespace(
 	2) Purge and rollback: we assign a new table id for the
 	table. Since purge and rollback look for the table based on
 	the table id, they see the table as 'dropped' and discard
-	their operations.
-
-	3) Insert buffer: we remove all entries for the tablespace in
-	the insert buffer tree. */
-
-	ibuf_delete_for_discarded_space(table->space_id);
+	their operations. */
 
 	table_id_t	new_id;
 
@@ -2454,15 +2431,23 @@ rollback:
   /* Note: The following cannot be rolled back. Rollback would see the
   UPDATE of SYS_INDEXES.TABLE_ID as two operations: DELETE and INSERT.
   It would invoke btr_free_if_exists() when rolling back the INSERT,
-  effectively dropping all indexes of the table. Furthermore, calls like
-  ibuf_delete_for_discarded_space() are already discarding data
-  before the transaction is committed.
+  effectively dropping all indexes of the table. Furthermore, we are
+  already discarding data before the transaction is committed.
 
   It would be better to remove the integrity-breaking
   ALTER TABLE...DISCARD TABLESPACE operation altogether. */
   table->file_unreadable= true;
   table->space= nullptr;
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
   table->flags2|= DICT_TF2_DISCARDED;
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
   err= row_discard_tablespace(trx, table);
   DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
                   log_buffer_flush_to_disk(); DBUG_SUICIDE(););
@@ -2482,7 +2467,6 @@ rollback:
   if (fts_exist)
     purge_sys.resume_FTS();
 
-  ibuf_delete_for_discarded_space(space_id);
   buf_flush_remove_pages(space_id);
   trx->op_info= "";
   return err;
@@ -2605,17 +2589,16 @@ row_rename_table_for_mysql(
 		/* Check for the table using lower
 		case name, including the partition
 		separator "P" */
-		memcpy(par_case_name, old_name,
-			strlen(old_name));
-		par_case_name[strlen(old_name)] = 0;
-		my_casedn_str(system_charset_info, par_case_name);
+		system_charset_info->casedn_z(
+				old_name, strlen(old_name),
+				par_case_name, sizeof(par_case_name));
 #else
 		/* On Windows platfrom, check
 		whether there exists table name in
 		system table whose name is
 		not being normalized to lower case */
 		normalize_table_name_c_low(
-			par_case_name, old_name, FALSE);
+			par_case_name, sizeof(par_case_name), old_name, FALSE);
 #endif
 		table = dict_table_open_on_name(par_case_name, true,
 						DICT_ERR_IGNORE_FK_NOKEY);

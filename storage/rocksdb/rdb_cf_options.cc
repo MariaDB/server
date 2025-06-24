@@ -14,10 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation  // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 
 /* This C++ files header file */
@@ -77,7 +73,7 @@ void Rdb_cf_options::get(const std::string &cf_name,
   // Get defaults.
   rocksdb::GetColumnFamilyOptionsFromString(*opts, m_default_config, opts);
 
-  // Get a custom confguration if we have one.
+  // Get a custom configuration if we have one.
   Name_to_config_t::iterator it = m_name_map.find(cf_name);
 
   if (it != m_name_map.end()) {

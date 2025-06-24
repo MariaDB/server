@@ -12,10 +12,10 @@ select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	mtr	
 2	test	uuid:4
-SET GLOBAL debug = '+d,crash_before_update_pos';
+SET GLOBAL debug_dbug = '+d,crash_before_update_pos';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -58,10 +58,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,crash_after_update_pos_before_apply';
+SET GLOBAL debug_dbug = '+d,crash_after_update_pos_before_apply';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -102,10 +102,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,crash_before_writing_xid';
+SET GLOBAL debug_dbug = '+d,crash_before_writing_xid';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -146,10 +146,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,half_binlogged_transaction';
+SET GLOBAL debug_dbug = '+d,half_binlogged_transaction';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -190,10 +190,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,crash_commit_before';
+SET GLOBAL debug_dbug = '+d,crash_commit_before';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -234,10 +234,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,crash_commit_after_log';
+SET GLOBAL debug_dbug = '+d,crash_commit_after_log';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -278,10 +278,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,crash_commit_after_prepare';
+SET GLOBAL debug_dbug = '+d,crash_commit_after_prepare';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
@@ -322,10 +322,10 @@ use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid
 1	test	uuid:3
-SET GLOBAL debug = '+d,crash_commit_after';
+SET GLOBAL debug_dbug = '+d,crash_commit_after';
 insert into t1 values(3);
 include/rpl_reconnect.inc
-SET GLOBAL debug = ``;
+SET GLOBAL debug_dbug = ``;
 use mysql;
 select * from slave_gtid_info;
 Id	Database_name	Last_gtid

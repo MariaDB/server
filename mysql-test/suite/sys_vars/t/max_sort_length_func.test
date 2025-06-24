@@ -31,9 +31,9 @@ SET @start_value= @@global.max_sort_length;
 #########################
 
 --echo ** creating tables **
-CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
-CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB);
-CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
+CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT) CHARSET=latin1;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB) CHARSET=latin1;
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT) CHARSET=latin1;
 
 --echo '#--------------------FN_DYNVARS_098_01-------------------------#'
 ##########################################################
@@ -195,6 +195,127 @@ INSERT INTO t2 set c = concat(repeat('x',68),'g','w');
 SELECT c from t2 ORDER BY c, id;
 --echo ** Results should not be sorted **
 
+DROP TABLE t, t1, t2;
+
+--echo #
+--echo # MDEV-27277 Add a warning when max_sort_length is reached
+--echo #
+set max_sort_length = 70;
+
+--echo # Table having a fixed-length string field
+create table t1(a char(100));
+
+insert into t1 values
+  ('ShortStr1'), ('ShortStr2'),
+  (concat(repeat('Str', 25), 'zzz')), (concat(repeat('Str', 25), 'yyy')),
+  (concat(repeat('Str', 25), 'xxx'));
+
+--echo # Strings are not sorted properly due to max_sort_length limitation
+select a from t1 order by a;
+
+--echo # Make sure there are warnings when a string function is used:
+select a from t1 order by coalesce(a);
+select a from t1 order by concat(a, '1');
+
+select a from t1 order by binary(a);
+
+--echo # Table having a variable-length string field and UTF16 encoding (2 bytes per char):
+create table t2(a varchar(100)) character set 'utf16';
+
+insert into t2 values
+  (concat(repeat('Str', 15), 'zzz')), (concat(repeat('Str', 15), 'yyy')),
+  (concat(repeat('Str', 15), 'xxx')),
+  ('shortString89'),
+  ('shortString51');
+
+set max_sort_length = 64;
+
+select * from t2 order by a;
+
+--echo # Table having text blobs
+create table t3(a text, b mediumtext, c longtext) character set 'utf16';
+insert into t3 values
+  (concat(repeat('Text', 20), '999'), concat(repeat('Medium', 15), '99'), concat(repeat('Long', 20), '99')),
+  (concat(repeat('Text', 20), '888'), concat(repeat('Medium', 15), '88'), concat(repeat('Long', 20), '88')),
+  (concat(repeat('Text', 20), '777'), concat(repeat('Medium', 15), '77'), concat(repeat('Long', 20), '77')),
+  ('shortString89', 'short123', 'short456'),
+  ('shortString51', 'short777', 'short897');
+
+select * from t3 order by a;
+
+select * from t3 order by b desc;
+select * from t3 order by coalesce(b) desc;
+
+select * from t3 order by c;
+
+select * from t3 order by c, a desc;
+
+--echo # Packing of sort keys will be applied here:
+select * from t3 order by a, c, b;
+
+select * from t3 order by a;
+
+--echo # Test a prepared statement re-execution (expecting warnings at both executions)
+prepare stmt from "select * from t2 order by a";
+execute stmt;
+execute stmt;
+
+--echo # Test a stored procedure
+create procedure p1() select * from t2 order by a;
+call p1();
+call p1();
+drop procedure p1;
+
+--echo # Test a stored function
+create function f1 () returns char(100) return (select a from t1 order by a limit 1);
+
+--disable_view_protocol # Because warnings display different number of strings
+select f1() as f1_res from t1 order by f1_res;
+--enable_view_protocol
+
+--echo # Test a view
+create view v1 as select f1() as f1_res from t1 order by f1_res;
+select * from v1;
+
+drop function f1;
+
+drop view v1;
+drop table t1, t2, t3;
+
+set max_sort_length = default;
+
+--echo #
+--echo # MDEV-35275 Unexpected WARN_SORTING_ON_TRUNCATED_LENGTH or assertion
+--echo #            failure in diagnostics area
+--echo #
+
+create table t1 (a int, b varchar(1024));
+insert into t1 values (1,repeat('x',513)), (2,repeat('y',650));
+
+insert into t1 select * from t1 order by b limit 1;
+
+update t1 set a = 3 order by b limit 1;
+
+delete from t1 where a < 3 order by b;
+
+--echo # Make sure warnings from previous statements do not overflow to next ones
+select a from t1;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-35307 Unexpected WARN_SORTING_ON_TRUNCATED_LENGTH or assertion
+--echo #            failure in diagnostics area #2
+--echo #
+
+--source include/have_innodb.inc
+
+create table t1 (a varchar(1024)) engine=innodb;
+insert into t1 values (repeat('a',1000)),(repeat('b',1000));
+insert into t1 (a) select a from t1 order by a;
+
+drop table t1;
+
 #
 # Cleanup
 #
@@ -203,7 +324,5 @@ connection default;
 
 disconnect test_con1;
 disconnect test_con2;
-
-DROP TABLE t, t1, t2;
 
 SET @@global.max_sort_length= @start_value;

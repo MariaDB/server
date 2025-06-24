@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2022, MariaDB Corporation.
+Copyright (c) 2014, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,25 +25,24 @@ Created May 26, 2009 Vasil Dimov
 *******************************************************/
 
 #pragma once
-#include <cstddef>
-
-/** The fil_space_t::id of the redo log. All persistent tablespaces
-have a smaller fil_space_t::id. */
-static constexpr size_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0;
-/** The fil_space_t::id of the innodb_temporary tablespace. */
-#define SRV_TMP_SPACE_ID		0xFFFFFFFEU
-
 #include "ut0byte.h"
 
+/** All persistent tablespaces have a smaller fil_space_t::id than this. */
+constexpr uint32_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0U;
+/** The fil_space_t::id of the innodb_temporary tablespace. */
+constexpr uint32_t SRV_TMP_SPACE_ID= 0xFFFFFFFEU;
+
 /* Possible values of innodb_compression_algorithm */
-#define PAGE_UNCOMPRESSED	0
-#define PAGE_ZLIB_ALGORITHM	1
-#define PAGE_LZ4_ALGORITHM	2
-#define PAGE_LZO_ALGORITHM	3
-#define PAGE_LZMA_ALGORITHM	4
+#define PAGE_UNCOMPRESSED		0
+#define PAGE_ZLIB_ALGORITHM		1
+#define PAGE_LZ4_ALGORITHM		2
+#define PAGE_LZO_ALGORITHM		3
+#define PAGE_LZMA_ALGORITHM		4
 #define PAGE_BZIP2_ALGORITHM	5
 #define PAGE_SNAPPY_ALGORITHM	6
-#define PAGE_ALGORITHM_LAST	PAGE_SNAPPY_ALGORITHM
+#define PAGE_ALGORITHM_LAST		PAGE_SNAPPY_ALGORITHM
+
+extern const char *page_compression_algorithms[];
 
 /** @name Flags for inserting records in order
 If records are inserted in order, there are the following
@@ -158,28 +157,20 @@ this many file pages */
 /* This has been replaced with either srv_page_size or page_zip->size. */
 
 /** @name The space low address page map
-The pages at FSP_XDES_OFFSET and FSP_IBUF_BITMAP_OFFSET are repeated
+The 2 pages at FSP_XDES_OFFSET are repeated
 every XDES_DESCRIBED_PER_PAGE pages in every tablespace. */
 /* @{ */
 /*--------------------------------------*/
 #define FSP_XDES_OFFSET			0U	/* !< extent descriptor */
-#define FSP_IBUF_BITMAP_OFFSET		1U	/* !< insert buffer bitmap */
-				/* The ibuf bitmap pages are the ones whose
-				page number is the number above plus a
-				multiple of XDES_DESCRIBED_PER_PAGE */
-
 #define FSP_FIRST_INODE_PAGE_NO		2U	/*!< in every tablespace */
 				/* The following pages exist
 				in the system tablespace (space 0). */
-#define FSP_IBUF_HEADER_PAGE_NO		3U	/*!< insert buffer
+#define FSP_IBUF_HEADER_PAGE_NO		3U	/*!< former change buffer
 						header page, in
 						tablespace 0 */
-#define FSP_IBUF_TREE_ROOT_PAGE_NO	4U	/*!< insert buffer
+#define FSP_IBUF_TREE_ROOT_PAGE_NO	4U	/*!< former change buffer
 						B-tree root page in
 						tablespace 0 */
-				/* The ibuf tree root page number in
-				tablespace 0; its fseg inode is on the page
-				number FSP_FIRST_INODE_PAGE_NO */
 #define FSP_TRX_SYS_PAGE_NO		5U	/*!< transaction
 						system header, in
 						tablespace 0 */

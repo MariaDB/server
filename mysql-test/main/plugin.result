@@ -1,5 +1,7 @@
 CREATE TABLE t1(a int) ENGINE=EXAMPLE;
 ERROR 42000: Unknown storage engine 'EXAMPLE'
+INSTALL PLUGIN non_exist SONAME 'ha_example';
+ERROR HY000: Can't find symbol 'non_exist' in library 'ha_example.so'
 INSTALL PLUGIN example SONAME 'ha_example';
 INSTALL PLUGIN EXAMPLE SONAME 'ha_example';
 ERROR HY000: Plugin 'EXAMPLE' already installed
@@ -12,7 +14,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -25,7 +27,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	DAEMON
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Sergei Golubchik
 PLUGIN_DESCRIPTION	Unusable Daemon
 PLUGIN_LICENSE	GPL
@@ -68,7 +70,7 @@ PLUGIN_STATUS	DELETED
 PLUGIN_TYPE	STORAGE ENGINE
 PLUGIN_TYPE_VERSION	#
 PLUGIN_LIBRARY	ha_example.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Brian Aker, MySQL AB
 PLUGIN_DESCRIPTION	Example storage engine
 PLUGIN_LICENSE	GPL
@@ -128,7 +130,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,f,f,f'
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ULL`=10000 `STR`='dskj' `one_or_two`='one' `YESNO`=0
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `ULL`=10000 `STR`='dskj' `one_or_two`='one' `YESNO`=0
 drop table t1;
 SET @OLD_SQL_MODE=@@SQL_MODE;
 SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
@@ -143,7 +145,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ULL`=10000000000000000000 `one_or_two`='ttt' `YESNO`=SSS
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `ULL`=10000000000000000000 `one_or_two`='ttt' `YESNO`=SSS
 #alter table
 alter table t1 ULL=10000000;
 Warnings:
@@ -153,7 +155,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `one_or_two`='ttt' `YESNO`=SSS `ULL`=10000000
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `one_or_two`='ttt' `YESNO`=SSS `ULL`=10000000
 alter table t1 change a a int complex='c,c,c';
 Warnings:
 Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX '(null)' -> 'c,c,c'
@@ -162,14 +164,14 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,c,c',
   `b` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `one_or_two`='ttt' `YESNO`=SSS `ULL`=10000000
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `one_or_two`='ttt' `YESNO`=SSS `ULL`=10000000
 alter table t1 one_or_two=two;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,c,c',
   `b` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `YESNO`=SSS `ULL`=10000000 `one_or_two`=two
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `YESNO`=SSS `ULL`=10000000 `one_or_two`=two
 drop table t1;
 #illegal value error
 SET SQL_MODE='';
@@ -184,7 +186,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ULL`=4660
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `ULL`=4660
 SET example_varopt_default=33;
 select create_options from information_schema.tables where table_schema='test' and table_name='t1';
 create_options
@@ -196,27 +198,27 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 create table t1 (a int) engine=example;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `VAROPT`=33
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `VAROPT`=33
 drop table t1;
 create table t1 (a int) engine=example varopt=15;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `varopt`=15
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `varopt`=15
 alter table t1 varopt=default;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `varopt`=33
+) ENGINE=EXAMPLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `varopt`=33
 drop table t1;
 SET @@SQL_MODE=@OLD_SQL_MODE;
 select 1;

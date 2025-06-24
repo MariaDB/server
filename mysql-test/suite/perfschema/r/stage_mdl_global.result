@@ -10,7 +10,6 @@ username	event_name	nesting_event_type
 username	event_name	nesting_event_type
 user1	stage/sql/starting	STATEMENT
 user1	stage/sql/starting	STATEMENT
-user1	stage/sql/starting	STATEMENT
 user1	stage/sql/Query end	STATEMENT
 user1	stage/sql/closing tables	STATEMENT
 user1	stage/sql/Query end	STATEMENT

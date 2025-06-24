@@ -63,13 +63,13 @@ while ($_rpl_server)
   --let $rpl_connection_name= server_$_rpl_server
   --source include/rpl_connection.inc
 
+  RESET MASTER;
   # Check if this server is configured to have a master
   if (`SELECT SUBSTRING('$rpl_master_list', 1 + ($_rpl_server - 1) * $rpl_server_count_length, $rpl_server_count_length) != ''`)
   {
     --source include/stop_slave.inc
-    RESET SLAVE;
+    --source include/reset_slave.inc
   }
-  RESET MASTER;
   --dec $_rpl_server
 }
 

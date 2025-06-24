@@ -69,7 +69,7 @@ table_name = 'test_ps_fetch' AND
 index_name = 'idx' AND
 stat_name = 'n_diff_pfx02';
 
-FLUSH TABLE test_ps_fetch;
+RENAME TABLE test_ps_fetch TO tmp, tmp TO test_ps_fetch;
 
 SELECT seq_in_index, column_name, cardinality
 FROM information_schema.statistics WHERE table_name = 'test_ps_fetch'
@@ -101,9 +101,9 @@ DROP TABLE t1;
 --echo # MDEV-33462 Disallow LOCK=NONE operation on statistics table
 --echo #
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE mysql.innodb_table_stats FORCE, LOCK=NONE;
+ALTER TABLE mysql.innodb_table_stats FORCE, LOCK=NONE, ALGORITHM=INPLACE;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE mysql.innodb_index_stats FORCE, LOCK=NONE;
+ALTER TABLE mysql.innodb_index_stats FORCE, LOCK=NONE, ALGORITHM=INPLACE;
 
 --echo #
 --echo #  MDEV-34474 InnoDB: Failing assertion: stat_n_leaf_pages > 0

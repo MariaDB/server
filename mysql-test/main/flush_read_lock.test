@@ -38,8 +38,8 @@ set local sql_mode="";
 --echo # ALTER TABLE, ANALYZE, OPTIMIZE and some others always
 --echo # issue an implicit commit, even if its argument is a
 --echo # temporary table. 
---echo # *Howewer* an implicit commit is a no-op if all engines
---echo # used since the start of transactiona are non-
+--echo # *However* an implicit commit is a no-op if all engines
+--echo # used since the start of transaction are non-
 --echo # transactional. Thus, for non-transactional engines,
 --echo # these operations are not blocked by FTWRL.
 --echo # This is class #3 -- compatible because do not take
@@ -1802,7 +1802,7 @@ set debug_sync= "RESET";
 --echo #       such changes are considered read only [sic!/QQ] this commit
 --echo #       is compatible with FTWRL.
 --echo #
---echo #       Let us demostrate this fact for some common DML statements.
+--echo #       Let us demonstrate this fact for some common DML statements.
 let $statement= delete from t3_temp_trans;
 let $cleanup_stmt= ;
 --source include/check_ftwrl_compatible.inc
@@ -2031,7 +2031,7 @@ delete from t1_base;
 delete from t2_base;
 
 --echo 
---echo # Check that COMMIT thas is issued after
+--echo # Check that COMMIT that is issued after
 --echo # FLUSH TABLES WITH READ LOCK is not blocked by
 --echo # FLUSH TABLES WITH READ LOCK from another connection.
 --echo # This scenario is used in innobackup.pl. The COMMIT goes
@@ -2269,3 +2269,35 @@ reap;
 disconnect con2;
 connection default;
 SET DEBUG_SYNC= 'RESET';
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-35417 InnoDB crashes under ... AND DISABLE CHECKPOINT
+--echo #
+
+# case 1
+set global innodb_stats_persistent=0;
+create table t (a int) engine=innodb;
+set global innodb_stats_persistent=1;
+alter table t add column b int;
+flush tables with read lock and disable checkpoint;
+--error ER_CANT_UPDATE_WITH_READLOCK
+insert into t values (1,2) ;
+unlock tables;
+drop table t;
+
+# case 2
+flush tables with read lock and disable checkpoint;
+create temporary table t(a int) engine=innodb;
+unlock tables;
+drop table t;
+
+# case 3
+--let $restart_parameters=--innodb-read-only
+--source include/restart_mysqld.inc
+flush tables with read lock and disable checkpoint;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo # End of 11.7 tests

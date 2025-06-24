@@ -33,6 +33,7 @@ pthread_handler_t ack_receive_handler(void *arg)
   Ack_receiver *recv= reinterpret_cast<Ack_receiver *>(arg);
 
   my_thread_init();
+  my_thread_set_name("Ack_receiver");
   recv->run();
   my_thread_end();
 
@@ -75,7 +76,7 @@ bool Ack_receiver::start()
 
     m_status= ST_UP;
 
-    if (DBUG_EVALUATE_IF("rpl_semisync_simulate_create_thread_failure", 1, 0) ||
+    if (DBUG_IF("rpl_semisync_simulate_create_thread_failure") ||
         pthread_attr_init(&attr) != 0 ||
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE) != 0 ||
 #ifndef _WIN32
@@ -189,7 +190,7 @@ void Ack_receiver::remove_slave(THD *thd)
     mysql_cond_broadcast(&m_cond);
     /*
       Wait until Ack_receiver::run() acknowledges remove of slave
-      As this is only sent under the mutex and after listners has
+      As this is only sent under the mutex and after listeners has
       been collected, we know that listener has ignored the found
       slave.
     */
@@ -244,7 +245,7 @@ void Ack_receiver::run()
 
   if (listener.got_error())
   {
-    sql_print_error("Got error %M starting ack receiver thread",
+    sql_print_error("Got error %iE starting ack receiver thread",
                     listener.got_error());
     return;
   }
@@ -307,7 +308,8 @@ void Ack_receiver::run()
 
     if (ret <= 0)
     {
-      ret= DBUG_EVALUATE_IF("rpl_semisync_simulate_select_error", -1, ret);
+
+      ret= DBUG_IF("rpl_semisync_simulate_select_error") ? -1 : ret;
 
       if (ret == -1 && errno != EINTR)
         sql_print_information("Failed to wait on semi-sync sockets, "

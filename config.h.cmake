@@ -30,7 +30,6 @@
 #cmakedefine HAVE_DLFCN_H 1
 #cmakedefine HAVE_EXECINFO_H 1
 #cmakedefine HAVE_FCNTL_H 1
-#cmakedefine HAVE_FCNTL_DIRECT 1
 #cmakedefine HAVE_FENV_H 1
 #cmakedefine HAVE_FLOAT_H 1
 #cmakedefine HAVE_FNMATCH_H 1
@@ -44,6 +43,7 @@
 #cmakedefine HAVE_IA64INTRIN_H 1
 #cmakedefine HAVE_IEEEFP_H 1
 #cmakedefine HAVE_INTTYPES_H 1
+#cmakedefine HAVE_IMMINTRIN_H 1
 #cmakedefine HAVE_KQUEUE 1
 #cmakedefine HAVE_LIMITS_H 1
 #cmakedefine HAVE_LINK_H 1
@@ -128,7 +128,6 @@
 /* Functions we may want to use. */
 #cmakedefine HAVE_ACCEPT4 1
 #cmakedefine HAVE_ACCESS 1
-#cmakedefine HAVE_ALARM 1
 #cmakedefine HAVE_ALLOCA 1
 #cmakedefine HAVE_BFILL 1
 #cmakedefine HAVE_INDEX 1
@@ -152,7 +151,6 @@
 #cmakedefine HAVE_GETCWD 1
 #cmakedefine HAVE_GETHOSTBYADDR_R 1
 #cmakedefine HAVE_GETHRTIME 1
-#cmakedefine HAVE_GETPAGESIZE 1
 #cmakedefine HAVE_GETPAGESIZES 1
 #cmakedefine HAVE_GETPASS 1
 #cmakedefine HAVE_GETPASSPHRASE 1
@@ -185,6 +183,7 @@
 #cmakedefine HAVE_MLOCKALL 1
 #cmakedefine HAVE_MMAP 1
 #cmakedefine HAVE_MMAP64 1
+#cmakedefine HAVE_MPROTECT 1
 #cmakedefine HAVE_PERROR 1
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
@@ -256,6 +255,7 @@
 #cmakedefine HAVE_SOCKADDR_IN6_SIN6_LEN 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_SEC 1
 #cmakedefine STRUCT_TIMESPEC_HAS_TV_NSEC 1
+#cmakedefine STRUCT_TM_HAS_TM_GMTOFF 1
 
 /* this means that valgrind headers and macros are available */
 #cmakedefine HAVE_VALGRIND_MEMCHECK_H 1
@@ -385,7 +385,6 @@
 #cmakedefine HAVE_GCC_C11_ATOMICS 1
 #cmakedefine HAVE_SOLARIS_ATOMIC 1
 #cmakedefine NO_FCNTL_NONBLOCK 1
-#cmakedefine NO_ALARM 1
 
 #cmakedefine _LARGE_FILES 1
 #cmakedefine _LARGEFILE_SOURCE 1
@@ -403,38 +402,27 @@
 #cmakedefine SIGNAL_WITH_VIO_CLOSE 1
 
 /* Windows stuff, mostly functions, that have Posix analogs but named differently */
-#cmakedefine S_IROTH @S_IROTH@
-#cmakedefine S_IFIFO @S_IFIFO@
-#cmakedefine IPPROTO_IPV6 @IPPROTO_IPV6@
-#cmakedefine IPV6_V6ONLY @IPV6_V6ONLY@
-#cmakedefine sigset_t @sigset_t@
-#cmakedefine mode_t @mode_t@
-#cmakedefine SIGQUIT @SIGQUIT@
-#cmakedefine SIGPIPE @SIGPIPE@
-#cmakedefine popen @popen@
-#cmakedefine pclose @pclose@
-#cmakedefine ssize_t @ssize_t@
-#cmakedefine strcasecmp @strcasecmp@
-#cmakedefine strncasecmp @strncasecmp@
-#cmakedefine snprintf @snprintf@
-#cmakedefine strtok_r @strtok_r@
-#cmakedefine strtoll @strtoll@
-#cmakedefine strtoull @strtoull@
-#cmakedefine vsnprintf @vsnprintf@
-#if defined(_MSC_VER) && (_MSC_VER > 1800)
+#ifdef _WIN32
+#define S_IROTH _S_IREAD
+#define S_IFIFO _S_IFIFO
+#define SIGQUIT SIGTERM
+#define SIGPIPE SIGINT
+#define sigset_t int
+#define mode_t int
+#define popen _popen
+#define pclose _pclose
+#define ssize_t SSIZE_T
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define strtok_r strtok_s
 #define tzname _tzname
 #define P_tmpdir "C:\\TEMP"
-#endif
-#if defined(_MSC_VER) && (_MSC_VER > 1310)
-# define HAVE_SETENV
 #define setenv(a,b,c) _putenv_s(a,b)
-#endif
-#define PSAPI_VERSION 1     /* for GetProcessMemoryInfo() */
 
-/* We don't want the min/max macros */
-#ifdef _WIN32
+#define HAVE_SETENV
 #define NOMINMAX 1
-#endif
+#define PSAPI_VERSION 2     /* for GetProcessMemoryInfo() */
+#endif /* _WIN32 */
 
 /*
   MySQL features
@@ -457,6 +445,11 @@
 
 /* This should mean case insensitive file system */
 #cmakedefine FN_NO_CASE_SENSE 1
+
+/* Whether an anonymous private mapping is unaccessible after
+madvise(MADV_DONTNEED) or madvise(MADV_FREE) or similar has been invoked;
+this is the case with Microsoft Windows VirtualFree(MEM_DECOMMIT) */
+#cmakedefine HAVE_UNACCESSIBLE_AFTER_MEM_DECOMMIT 1
 
 #cmakedefine HAVE_CHARSET_armscii8 1
 #cmakedefine HAVE_CHARSET_ascii 1
@@ -501,14 +494,7 @@
 #cmakedefine HAVE_EncryptAes128Ctr 1
 #cmakedefine HAVE_EncryptAes128Gcm 1
 #cmakedefine HAVE_des 1
-
-/*
-  Stuff that always need to be defined (compile breaks without it)
-*/
-#define HAVE_SPATIAL 1
-#define HAVE_RTREE_KEYS 1
-#define HAVE_QUERY_CACHE 1
-#define BIG_TABLES 1
+#cmakedefine HAVE_hkdf 1
 
 /*
   Important storage engines (those that really need define 

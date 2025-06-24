@@ -1,0 +1,442 @@
+replace_result InnoDB MyISAM;
+error ER_NO_INDEX_ON_TEMPORARY;
+create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+
+error ER_NOT_SUPPORTED_YET;
+create table t1 (id int auto_increment primary key,
+  u vector(5) not null, vector index (u),
+  v vector(5) not null, vector index (v));
+
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+replace_result InnoDB MyISAM;
+show create table t1;
+show keys from t1;
+drop table t1;
+set mhnsw_default_m=@@mhnsw_default_m+1;
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+replace_result InnoDB MyISAM;
+show create table t1;
+show keys from t1;
+drop table t1;
+create table t1 (id int auto_increment primary key, v vector(5) not null,
+  vector index (v) m=5);
+replace_result InnoDB MyISAM;
+show create table t1;
+show keys from t1;
+set mhnsw_default_m=default;
+
+query_vertical select * from information_schema.statistics where table_name='t1';
+# print unpack("H*",pack("f*",map{rand}1..5))
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+select id, hex(v), vec_totext(v) from t1;
+flush tables;
+# test with a valid query vector
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+# swapped arguments
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(x'b047263C9f87233fcfd27e3eae493e3f0329f43e', v) d from t1 order by d limit 3;
+# test with NULL (id is unpredictable)
+--replace_regex /(\.\d{5})\d+/\1/
+select id>0,vec_distance_euclidean(v, NULL) d from t1 order by d limit 3;
+# test with invalid query vector (id is unpredictable)
+--replace_regex /(\.\d{5})\d+/\1/
+select id>0,vec_distance_euclidean(v, x'123456') d from t1 order by d limit 3;
+--replace_regex /(\.\d{5})\d+/\1/
+select t1.id as id1, t2.id as id2, vec_distance_euclidean(t1.v, t2.v) from t1, t1 as t2 order by 3,1,2;
+
+# where clause
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 order by d limit 9;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 where id % 3 = 0 order by d limit 3;
+
+# subquery
+--replace_regex /(\.\d{5})\d+/\1/
+select * from (
+  select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+  from t1 where id < 10
+) u order by d limit 3;
+
+# see if order by uses index:
+--disable_view_protocol
+--disable_ps2_protocol
+--disable_cursor_protocol
+flush session status;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next'; # used
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+show status like 'handler_read_rnd_next'; # not used
+flush session status;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next'; # not used, wrong distance metric
+--enable_cursor_protocol
+--enable_ps2_protocol
+--enable_view_protocol
+
+# test delete
+delete from t1 where v = x'7b713f3e5258323f80d1113d673b2b3f66e3583f';
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263C9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+
+# test insert deleted vec
+insert t1 (v) values (x'7b713f3e5258323f80d1113d673b2b3f66e3583f');
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'b047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+
+# test update
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+update t1 set v=x'76EDFC3E4B57243F10F8423FB158713F020BAA3E' where v=x'6CA1D43E9DF91B3FE580DA3E1C247D3F147CF33E';
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+
+# test delete all and reinsert
+delete from t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'b047263c9f87233Fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 5;
+
+
+--error ER_TRUNCATED_WRONG_VALUE
+insert t1 (v) values ('');
+--error ER_TRUNCATED_WRONG_VALUE
+insert t1 (v) values (x'1234');
+--error ER_TRUNCATED_WRONG_VALUE
+insert t1 (v) values (x'12345678');
+
+drop table t1;
+let $datadir=`select @@datadir`;
+list_files $datadir/test;
+
+--echo # Check if CREATE TABLE ... LIKE inherits VECTOR index
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+create table t2 like t1;
+replace_result InnoDB MyISAM;
+show create table t2;
+drop table t1, t2;
+list_files $datadir/test;
+
+--echo # Test insert ... select with vector index
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+create table t2 like t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+insert into t2 select id+10, v from t1;
+insert into t1 select * from t2;
+select id, hex(v) from t1;
+drop table t1, t2;
+list_files $datadir/test;
+
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+truncate table t1;
+if ($MTR_COMBINATION_MYISAM) {
+--replace_result $datadir datadir
+--exec $MYISAMCHK -d $datadir/test/t1#i#01
+}
+if ($MTR_COMBINATION_ARIA) {
+--replace_result $datadir datadir
+--exec $MARIA_CHK -d $datadir/test/t1#i#01
+}
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+truncate table t1;
+if ($MTR_COMBINATION_MYISAM) {
+--replace_result $datadir datadir
+--exec $MYISAMCHK -d $datadir/test/t1#i#01
+}
+if ($MTR_COMBINATION_ARIA) {
+--replace_result $datadir datadir
+--exec $MARIA_CHK -d $datadir/test/t1#i#01
+}
+insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+select id, hex(v) from t1;
+replace_result InnoDB MyISAM;
+show create table t1;
+drop table t1;
+list_files $datadir/test;
+
+--echo # Test RENAME TABLE with vector index
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+list_files $datadir/test;
+rename table t1 to t2;
+list_files $datadir/test;
+create database test1;
+rename table test.t2 to test1.t1;
+list_files $datadir/test1;
+
+if ($MTR_COMBINATION_MYISAM) {
+remove_file $datadir/test1/t1#i#01.MYD;
+}
+if ($MTR_COMBINATION_ARIA) {
+remove_file $datadir/test1/t1#i#01.MAD;
+}
+if ($MTR_COMBINATION_INNODB) {
+call mtr.add_suppression('InnoDB: Cannot rename.*because the source file does not exist');
+call mtr.add_suppression('InnoDB: File ./test1/t1#i#01.ibd was not found');
+remove_file $datadir/test1/t1#i#01.ibd;
+}
+--error 7,29,ER_ERROR_ON_RENAME
+rename table test1.t1 to test1.t2;
+list_files $datadir/test1;
+disable_warnings;
+drop database test1;
+enable_warnings;
+list_files $datadir/test;
+
+--echo #
+--echo # Cosine distance
+--echo #
+create table t1 (id int auto_increment primary key, v vector(5) not null,
+  vector index (v) distance=cosine);
+replace_result InnoDB MyISAM;
+show create table t1;
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+# make sure the graph is loaded
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+
+--disable_view_protocol
+--disable_ps2_protocol
+--disable_cursor_protocol
+flush session status;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next';
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_cosine(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 use index () order by d limit 3;
+show status like 'handler_read_rnd_next';
+flush session status;
+--replace_regex /(\.\d{5})\d+/\1/
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
+show status like 'handler_read_rnd_next';
+--enable_cursor_protocol
+--enable_ps2_protocol
+--enable_view_protocol
+drop table t1;
+
+# distance to itself
+set @a=vec_fromtext('[94.542572,8.735560,60.050098,74.043800,90.068710,28.212160,70.854660,69.636841,35.620232,69.190628]');
+select vec_distance_cosine(@a, @a), vec_distance_euclidean(@a, @a);
+
+--echo # Test ALTER TABLE, CREATE/DROP INDEX
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+--echo # ADD/DROP COLUMN, ALGORITHM=COPY
+alter table t1 add column a int, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop column a, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP INDEX, ALGORITHM=COPY (non-vector)
+alter table t1 add index a(id), algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop index a, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # CREATE/DROP INDEX, ALGORITHM=COPY (non-vector)
+create index a on t1(id) algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+drop index a on t1;
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP COLUMN IF [NOT] EXISTS, ALGORITHM=COPY (non-vector)
+alter table t1 add column if not exists a int, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop column if exists a, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP INDEX, ALGORITHM=COPY (vector)
+alter table t1 drop index v, algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+alter table t1 add vector index v(v), algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # CREATE/DROP INDEX, ALGORITHM=COPY (vector)
+drop index v on t1;
+list_files $datadir/test;
+show create table t1;
+create vector index v on t1(v) algorithm=copy;
+list_files $datadir/test;
+show create table t1;
+
+--echo # ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 add index a(id), algorithm=inplace;
+alter table t1 add index a(id);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop index a, algorithm=inplace;
+alter table t1 drop index a;
+
+--echo # ADD/DROP INDEX, ALGORITHM=INPLACE (vector)
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop index v, algorithm=inplace;
+alter table t1 drop index v;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 add vector index v(v), algorithm=inplace;
+alter table t1 add vector index v(v);
+
+--echo # CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (vector)
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 change column v v vector(6) not null, algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop column v, algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 modify column v vector(7) not null, algorithm=inplace;
+
+--echo # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
+if ($MTR_COMBINATION_INNODB) {
+alter table t1 add column a varchar(10), algorithm=inplace;
+alter table t1 change column a a varchar(20), algorithm=inplace;
+alter table t1 modify column a varchar(30), algorithm=inplace;
+alter table t1 drop column a, algorithm=inplace;
+list_files $datadir/test;
+show create table t1;
+}
+
+--echo # ENABLE/DISABLE INDEXES
+alter table t1 disable keys;
+alter table t1 enable keys;
+list_files $datadir/test;
+show create table t1;
+
+--echo # RENAME COLUMN (vector)
+alter table t1 rename column v to w;
+list_files $datadir/test;
+show create table t1;
+alter table t1 rename column w to v;
+
+--echo # RENAME INDEX (vector)
+alter table t1 rename key v to w;
+list_files $datadir/test;
+show create table t1;
+alter table t1 rename key w to v;
+
+--echo # IF [NOT] EXISTS
+create vector index if not exists v on t1(v);
+drop index if exists v on t1;
+drop index if exists v on t1;
+list_files $datadir/test;
+show create table t1;
+create vector index if not exists v on t1(v);
+alter table t1 rename key if exists v to w;
+alter table t1 rename key if exists w to v;
+alter table t1 alter key if exists v ignored;
+alter table t1 alter key if exists v not ignored;
+
+--echo # ENGINE
+if ($MTR_COMBINATION_INNODB) {
+alter table t1 engine=myisam;
+list_files $datadir/test;
+show create table t1;
+alter table t1 engine=innodb;
+list_files $datadir/test;
+show create table t1;
+alter table t1 rename to t2, engine=myisam;
+list_files $datadir/test;
+show create table t2;
+alter table t2 rename to t1, engine=innodb;
+list_files $datadir/test;
+show create table t1;
+}
+
+--echo # CHANGE/MODIFY/DROP COLUMN (vector)
+--error ER_WRONG_ARGUMENTS
+alter table t1 modify column v int;
+--error ER_WRONG_ARGUMENTS
+alter table t1 change column v v int;
+--error ER_INDEX_CANNOT_HAVE_NULL
+alter table t1 modify column v vector(5);
+--error ER_INDEX_CANNOT_HAVE_NULL
+alter table t1 change column v v vector(6);
+alter table t1 modify column v vector(7) not null;
+list_files $datadir/test;
+show create table t1;
+alter table t1 change column v v vector(5) not null;
+list_files $datadir/test;
+show create table t1;
+alter table t1 drop column v;
+list_files $datadir/test;
+show create table t1;
+
+drop table t1;
+
+# This is supposed to test crash while filling indexes_option_struct array,
+# which doesn't happen because alloc_root(0) returns something. Add a test
+# anyway and fix indexes_option_struct array allocation.
+create table t1(v vector(5) not null, vector index(v));
+alter table t1 add column a int;
+drop table t1;
+
+--echo #
+--echo # MDEV-35292 - ALTER TABLE re-creating vector key is no-op with
+--echo #              non-copying alter algorithms (default)
+--echo #
+create table t (v vector(1) not null, vector(v) distance=euclidean);
+insert into t values (0x31313131); # Optional, fails either way
+alter table t drop index v, add vector(v) distance=cosine;
+show create table t;
+drop table t;

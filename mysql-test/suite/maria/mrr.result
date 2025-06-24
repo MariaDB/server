@@ -9,7 +9,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2(a int);
 insert into t2 select A.a + 10*(B.a + 10*C.a) from t1 A, t1 B, t1 C;
@@ -173,7 +173,7 @@ c-1022=w	filler
 c-1023=w	filler
 drop table if exists t4;
 create table t4 (a varchar(10), b int, c char(10), filler char(200),
-key idx1 (a, b, c));
+key idx1 (a, b, c)) charset=latin1;
 insert into t4 (filler) select concat('NULL-', 15-a) from t2 order by a limit 15;
 insert into t4 (a,b,c,filler) 
 select 'b-1',NULL,'c-1', concat('NULL-', 15-a) from t2 order by a limit 15;
@@ -326,10 +326,10 @@ SELECT table2 .`col_datetime_key`
 FROM t2 JOIN ( t1 table2 JOIN t2 table3 ON table3 .`col_varchar_key` < table2 .`col_varchar_key` ) ON table3 .`col_varchar_nokey` ;
 col_datetime_key
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
-Warning	1292	Truncated incorrect DECIMAL value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
+Warning	1292	Truncated incorrect BOOLEAN value: 'd'
 drop table t1, t2;
 set join_cache_level=@save_join_cache_level;
 CREATE TABLE t1(
@@ -364,9 +364,9 @@ EXPLAIN
 SELECT COUNT(t1.v) FROM t1, t2 IGNORE INDEX (idx), t3 IGNORE INDEX (idx)
 WHERE t3.v = t2.v AND t3.i < t2.i AND t3.pk > 0 AND t2.pk > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	idx	7	NULL	15	Using index
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	PRIMARY	NULL	NULL	NULL	25	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	index	NULL	idx	10	NULL	15	Using index
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	4	NULL	16	Using index condition; Using where; Rowid-ordered scan; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	range	PRIMARY	PRIMARY	4	NULL	25	Using index condition; Using where; Rowid-ordered scan; Using join buffer (flat, BNL join)
 SELECT COUNT(t1.v) FROM t1, t2, t3 
 WHERE t3.v = t2.v AND t3.i < t2.i AND t3.pk > 0 AND t2.pk > 0;
 COUNT(t1.v)
@@ -375,9 +375,9 @@ EXPLAIN
 SELECT COUNT(t1.v) FROM t1, t2, t3
 WHERE t3.v = t2.v AND t3.i < t2.i AND t3.pk > 0 AND t2.pk > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	idx	7	NULL	15	Using index
-1	SIMPLE	t2	ALL	PRIMARY,idx	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ref	PRIMARY,idx	idx	3	test.t2.v	2	Using index condition; Using where
+1	SIMPLE	t2	range	PRIMARY,idx	PRIMARY	4	NULL	16	Using index condition; Rowid-ordered scan
+1	SIMPLE	t3	ref	PRIMARY,idx	idx	6	test.t2.v	2	Using index condition; Using where
+1	SIMPLE	t1	index	NULL	idx	10	NULL	15	Using index; Using join buffer (flat, BNL join)
 set join_cache_level=@save_join_cache_level;
 DROP TABLE t1,t2,t3;
 #
@@ -392,6 +392,8 @@ col_varchar_1024_latin1_key varchar(1024) DEFAULT NULL,
 PRIMARY KEY (pk),
 KEY col_varchar_1024_latin1_key (col_varchar_1024_latin1_key)
 ) ENGINE=Aria;
+Warnings:
+Note	1071	Specified key was too long; max key length is 2300 bytes
 INSERT INTO t1 VALUES
 (1,'z'), (2,'abcdefjhjkl'), (3,'in'), (4,'abcdefjhjkl'), (6,'abcdefjhjkl'),
 (11,'zx'), (12,'abcdefjhjm'), (13,'jn'), (14,'abcdefjhjp'), (16,'abcdefjhjr');
@@ -405,7 +407,7 @@ WHERE
 table1.col_varchar_1024_latin1_key = table2.col_varchar_10_latin1 AND table1.pk<>0 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	table2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	table1	ref	PRIMARY,col_varchar_1024_latin1_key	col_varchar_1024_latin1_key	1027	test.table2.col_varchar_10_latin1	2	Using index condition(BKA); Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	table1	ref	PRIMARY,col_varchar_1024_latin1_key	col_varchar_1024_latin1_key	2303	test.table2.col_varchar_10_latin1	1	Using where
 SELECT count(*)
 FROM t1 AS table1, t2 AS table2
 WHERE

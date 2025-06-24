@@ -69,7 +69,9 @@ PARTITION BY LIST COLUMNS(`id`) (
     PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
 );
 
+--disable_ps_protocol
 SELECT * from tbl_b JOIN tbl_c ON tbl_b.id = tbl_c.id LEFT OUTER JOIN tbl_a ON tbl_a.id = tbl_b.id;
+--enable_ps_protocol
 
 --connection master_1
 DROP DATABASE auto_test_local;

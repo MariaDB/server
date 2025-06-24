@@ -10,15 +10,11 @@ ALTER EVENT ev1 RENAME TO ev2;
 ERROR 42000: Access denied for user 'userMW416'@'localhost' to database 'test'
 ALTER FUNCTION fun1 COMMENT 'foo';
 ERROR 42000: alter routine command denied to user 'userMW416'@'localhost' for routine 'test.fun1'
-ALTER LOGFILE GROUP lfg ADD UNDOFILE 'file' ENGINE=InnoDB;
-Got one of the listed errors
 ALTER PROCEDURE proc1 COMMENT 'foo';
 Got one of the listed errors
 ALTER SERVER srv OPTIONS (USER 'sally');
 Got one of the listed errors
 ALTER TABLE tbl DROP COLUMN col;
-Got one of the listed errors
-ALTER TABLESPACE tblspc DROP DATAFILE 'file' ENGINE=innodb;
 Got one of the listed errors
 ALTER VIEW vw AS SELECT 1;
 Got one of the listed errors
@@ -34,13 +30,9 @@ CREATE PROCEDURE proc1() BEGIN END;
 Got one of the listed errors
 CREATE INDEX idx ON tbl(id);
 Got one of the listed errors
-CREATE LOGFILE GROUP lfg ADD UNDOFILE 'undofile' ENGINE innodb;
-Got one of the listed errors
 CREATE SERVER srv FOREIGN DATA WRAPPER 'fdw' OPTIONS (USER 'user');
 Got one of the listed errors
 CREATE TABLE t (i int);
-Got one of the listed errors
-CREATE TABLESPACE tblspc ADD DATAFILE 'file' ENGINE=innodb;
 Got one of the listed errors
 CREATE TRIGGER trg BEFORE UPDATE ON t FOR EACH ROW BEGIN END;
 Got one of the listed errors
@@ -54,15 +46,11 @@ DROP FUNCTION fun1;
 Got one of the listed errors
 DROP INDEX idx ON t0;
 Got one of the listed errors
-DROP LOGFILE GROUP lfg;
-Got one of the listed errors
 DROP PROCEDURE proc1;
 Got one of the listed errors
 DROP SERVEr srv;
 Got one of the listed errors
 DROP TABLE t0;
-Got one of the listed errors
-DROP TABLESPACE tblspc;
 Got one of the listed errors
 DROP TRIGGER trg;
 Got one of the listed errors

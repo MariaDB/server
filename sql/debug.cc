@@ -35,7 +35,7 @@ static const LEX_CSTRING debug_crash_counter=
 static const LEX_CSTRING debug_error_counter=
 { STRING_WITH_LEN("debug_error_counter") };
 
-static bool debug_decrement_counter(const LEX_CSTRING *name)
+bool debug_decrement_counter(const LEX_CSTRING *name)
 {
   THD *thd= current_thd;
   user_var_entry *entry= (user_var_entry*)

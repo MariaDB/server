@@ -72,7 +72,7 @@ static inline int64 my_atomic_add64(int64 volatile *a, int64 v)
   64-bit Windows. Reads and writes to 64-bit values are not guaranteed to be
   atomic on 32-bit Windows.
 
-  https://msdn.microsoft.com/en-us/library/windows/desktop/ms684122(v=vs.85).aspx
+  https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
 */
 
 static inline int32 my_atomic_load32(int32 volatile *a)
@@ -84,7 +84,7 @@ static inline int32 my_atomic_load32(int32 volatile *a)
 
 static inline int64 my_atomic_load64(int64 volatile *a)
 {
-#ifdef _M_X64
+#if defined(_M_X64) || defined(_M_ARM64)
   int64 value= *a;
   MemoryBarrier();
   return value;
@@ -123,7 +123,7 @@ static inline void my_atomic_store32(int32 volatile *a, int32 v)
 
 static inline void my_atomic_store64(int64 volatile *a, int64 v)
 {
-#ifdef _M_X64
+#if defined(_M_X64) || defined(_M_ARM64)
   MemoryBarrier();
   *a= v;
 #else

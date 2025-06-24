@@ -9,7 +9,7 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -26,14 +26,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -56,7 +56,7 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -73,14 +73,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -104,7 +104,7 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -121,7 +121,7 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -138,14 +138,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -167,7 +167,7 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -184,14 +184,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -214,14 +214,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 3000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -249,7 +249,7 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -266,14 +266,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 2000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then
@@ -296,14 +296,14 @@ begin
 if isnull(new.a) then
 set new.a:= 1000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
 begin
 if isnull(new.b) then
 set new.b:= 3000;
 end if;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
 begin
 if isnull(new.a) then

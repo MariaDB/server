@@ -11,7 +11,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2(a int);
 insert into t2 select A.a + 10*(B.a + 10*C.a) from t1 A, t1 B, t1 C;
@@ -175,7 +175,7 @@ c-1022=w	filler
 c-1023=w	filler
 drop table if exists t4;
 create table t4 (a varchar(10), b int, c char(10), filler char(200),
-key idx1 (a, b, c));
+key idx1 (a, b, c)) charset=latin1;
 insert into t4 (filler) select concat('NULL-', 15-a) from t2 order by a limit 15;
 insert into t4 (a,b,c,filler) 
 select 'b-1',NULL,'c-1', concat('NULL-', 15-a) from t2 order by a limit 15;
@@ -482,7 +482,7 @@ col_varchar_key varchar(1) NOT NULL,
 col_varchar_nokey varchar(1) NOT NULL,
 PRIMARY KEY (pk),
 KEY col_varchar_key (col_varchar_key,col_int_key)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES 
 (10,8,'v','v'),(11,8,'f','f'), (12,5,'v','v'),
 (13,8,'s','s'),(14,8,'a','a'),(15,6,'p','p'),
@@ -517,7 +517,7 @@ table3.col_varchar_key = table2.col_varchar_nokey AND
 table3.pk<>0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	table2	ALL	col_varchar_key	NULL	NULL	NULL	40	Using where
-1	SIMPLE	table3	ref	PRIMARY,col_varchar_key	col_varchar_key	3	test.table2.col_varchar_key	5	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	table3	ALL	PRIMARY,col_varchar_key	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
 set join_cache_level= @save_join_cache_level;
 set join_buffer_size= @save_join_buffer_size;
 drop table t1;
@@ -572,8 +572,7 @@ Handler_mrr_rowid_refills	0
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(200), key(a));
-insert into t1 
-select A.a+10*B.a+100*C.a+1000*D.a, 123,'filler' from t0 A, t0 B, t0 C, t0 D;
+insert into t1 select seq, 123, 'filler' from seq_0_to_14999;
 explain select sum(b) from t1 where a < 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	9	Using index condition; Rowid-ordered scan

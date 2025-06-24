@@ -38,6 +38,6 @@ drop database mysqltest1;
 connection slave;
 stop slave;
 change master to master_user='root';
-start slave;
+include/start_slave.inc
 include/rpl_end.inc
 drop user rpl@localhost;

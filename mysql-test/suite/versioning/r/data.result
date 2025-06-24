@@ -1,0 +1,214 @@
+#
+# MDEV-16355 Add option for mysqldump to read data as of specific timestamp from system-versioned tables
+#
+create or replace table t1 (x int) with system versioning;
+set timestamp=unix_timestamp('1990-01-01 00:00');
+insert t1 (x) values (1),(2),(3);
+set timestamp=unix_timestamp('1990-08-03 00:00');
+delete from t1 where x=1;
+set timestamp=unix_timestamp('1991-01-02 00:00');
+delete from t1 where x=2;
+set timestamp=default;
+#MYSQL_DUMP --compact test
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(3);
+#MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(1),
+(2),
+(3);
+#MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
+/*M!999999\- enable the sandbox mode */ 
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+
+USE `test`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(1),
+(2),
+(3);
+#MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(2),
+(3);
+#MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+mariadb-dump: Incorrect DATETIME value: '1990-08-04 00:00' where 'abc'
+drop tables t1;
+#
+# MDEV-16029 mysqldump: dump and restore historical data
+#
+create or replace table t1 (x int) with system versioning;
+set timestamp=unix_timestamp('2010-10-10 10:10:10.101010');
+insert into t1 values (1), (2);
+set timestamp=unix_timestamp('2011-11-11 11:11:11.111111');
+delete from t1 where x = 1;
+set timestamp=default;
+select row_start, row_end into @s1, @e1 from t1 for system_time all where x = 1;
+select row_start, row_end into @s2, @e2 from t1 for system_time all where x = 2;
+create or replace table t2 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6)  as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+create or replace function check_fields(x int, row_start timestamp(6), row_end timestamp(6))
+returns char(50) deterministic
+return if (x = 1,
+if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
+if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+set @@system_versioning_insert_history= 0;
+# t2 has the same data as t1
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `t1` (`x`, row_start, row_end) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
+(2,'2010-10-10 10:10:10.101010','MAX_TIME');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+INSERT INTO `t2` (`x`, `row_start`, `row_end`) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
+(2,'2010-10-10 10:10:10.101010','MAX_TIME');
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+mariadb-dump: --dump-history can't be used with --as-of.
+mariadb-dump: --dump-history can't be used with --replace.
+mariadb-dump: --xml can't be used with --dump-history.
+# SQL dump with/without history
+## With history
+drop tables t1, t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+## Without history
+drop tables t1, t2;
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+2	CURRENT ROW
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+x	check_row_ts(row_start, row_end)
+2	CURRENT ROW
+## History and --no-create-info --skip-comments
+create or replace table t1 (x int) with system versioning;
+delete from t2;
+delete history from t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+## compact
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+create or replace table t1 (x int) with system versioning;
+# --tab with history
+drop tables t1, t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+set @@system_versioning_insert_history= 1;
+load data infile 'tmp/t1.txt' into table t1 (x, row_start, row_end);
+load data infile 'tmp/t2.txt' into table t2 (x, row_start, row_end);
+set @@system_versioning_insert_history= 0;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+select *, check_row_ts(row_start, row_end) from t2 for system_time all;
+x	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	CURRENT ROW
+drop tables t1, t2;
+drop function check_fields;
+#
+# MDEV-29730 mysqldump --dump-history creates broken dump if there are precision-versioned tables
+#
+create table t1 (x int,
+rs BIGINT unsigned as row start, re BiGiNt unsigned as row end,
+period for system_time (rs,re)) with system versioning engine=innodb;
+insert t1 (x) values (1);
+insert t1 (x) values (2);
+delete from t1 where x=1;
+mariadb-dump: Cannot use --dump-history for table `t1` with transaction-precise history
+mariadb-dump: Cannot use --dump-history for table `t1` with transaction-precise history
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `rs` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
+  `re` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`rs`, `re`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(2,XXX,18446744073709551615);
+drop table t1;

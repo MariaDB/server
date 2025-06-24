@@ -1,15 +1,23 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_stat_tables.inc
 --source include/have_innodb.inc
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+--source include/test_db_charset_latin1.inc
+
+set @SINGLE_PREC_TYPE='single_prec_hb';
+set @DOUBLE_PREC_TYPE='double_prec_hb';
+set @DEFAULT_HIST_TYPE='double_prec_hb';
+
+if ($histogram_type_override) {
+    eval set @SINGLE_PREC_TYPE=$histogram_type_override;
+    eval set @DOUBLE_PREC_TYPE=$histogram_type_override;
+    eval set @DEFAULT_HIST_TYPE=$histogram_type_override;
+}
 
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_histogram_size=@@global.histogram_size;
 set @@global.histogram_size=0,@@local.histogram_size=0;
-set @save_hist_type=@@histogram_type;
-set histogram_type='single_prec_hb';
+set @save_hist_type=@DEFAULT_HIST_TYPE;
+set histogram_type=@SINGLE_PREC_TYPE;
 
 DELETE FROM mysql.table_stats;
 --sorted_result
@@ -81,6 +89,7 @@ SELECT * FROM mysql.column_stats;
 SELECT * FROM mysql.index_stats;
 
 SELECT COUNT(*) FROM t1;
+
 
 SELECT * FROM mysql.column_stats
   WHERE db_name='test' AND table_name='t1' AND column_name='a';
@@ -178,30 +187,32 @@ DELETE FROM mysql.column_stats;
 set histogram_size=4;
 ANALYZE TABLE t1;
 
---sorted_result
+--source include/histogram_replaces.inc
 SELECT db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 DELETE FROM mysql.column_stats;
 
 set histogram_size=8;
-set histogram_type='DOUBLE_PREC_HB';
+set histogram_type=@DOUBLE_PREC_TYPE;
 ANALYZE TABLE t1;
 
---sorted_result
+--source include/histogram_replaces.inc
 SELECT db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 DELETE FROM mysql.column_stats;
 
 set histogram_size= 0;
-set histogram_type='single_prec_hb';
+set histogram_type=@SINGLE_PREC_TYPE;
 ANALYZE TABLE t1;
 
 
@@ -322,9 +333,7 @@ SELECT * FROM mysql.column_stats;
 --sorted_result
 SELECT * FROM mysql.index_stats;
 
---disable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_ps2_protocol
 eval
 SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
@@ -334,8 +343,6 @@ eval
 SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
   FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
---enable_ps2_protocol
---enable_cursor_protocol
 
 ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
 SHOW CREATE TABLE t1;
@@ -664,20 +671,22 @@ use world;
 set use_stat_tables='preferably';
 --disable_result_log
 set histogram_size=100;
-set histogram_type='SINGLE_PREC_HB';
+set histogram_type=@SINGLE_PREC_TYPE;
 ANALYZE TABLE CountryLanguage;
 set histogram_size=254;
-set histogram_type='DOUBLE_PREC_HB';
+set histogram_type=@DOUBLE_PREC_TYPE;
 ANALYZE TABLE City;
 FLUSH TABLES;
 --enable_result_log
 
 --disable_view_protocol
---query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
---query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
+--source include/histogram_replaces.inc
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
+--source include/histogram_replaces.inc
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
 --enable_view_protocol
 
-set histogram_type='single_prec_hb';
+set histogram_type=@SINGLE_PREC_TYPE;
 set histogram_size=0;
 
 use test;
@@ -721,11 +730,13 @@ set histogram_size=10;
 
 analyze table t1  persistent for all;
 
+--source include/histogram_replaces.inc
 select db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 set histogram_size=default;
 
@@ -740,20 +751,22 @@ create table t1 ( a int);
 insert into t1 values (1),(2),(3),(4),(5);
 
 set histogram_size=10;
-set histogram_type='double_prec_hb';
+set histogram_type=@DOUBLE_PREC_TYPE;
 
 show variables like 'histogram%';
 
 analyze table t1 persistent for all;
 
+--source include/histogram_replaces.inc
 select db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 set histogram_size=0;
-set histogram_type='single_prec_hb';
+set histogram_type=@SINGLE_PREC_TYPE;
 
 drop table t1;
 
@@ -790,10 +803,11 @@ set histogram_size=63;
 
 analyze table t2 persistent for all;
 
+--source include/histogram_replaces.inc
 select db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
   FROM mysql.column_stats;
 
 set histogram_size=0;
@@ -811,16 +825,17 @@ insert into t1 values(unhex('D879626AF872675F73E662F8'));
 analyze table t1 persistent for all;
 show warnings;
 
+--source include/histogram_replaces.inc
 select db_name, table_name, column_name,
        HEX(min_value), HEX(max_value),
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
   FROM mysql.column_stats;
 
 drop table t1;
 
 --echo #
---echo # MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+--echo # MDEV-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
 --echo # Encountered illegal value '' when converting to DECIMAL
 --echo #
 
@@ -924,11 +939,14 @@ set use_stat_tables=@save_use_stat_tables;
 --echo # MDEV-10134 Add full support for DEFAULT
 --echo #
 
-CREATE TABLE t1 (a BLOB, b TEXT DEFAULT DECODE_HISTOGRAM('SINGLE_PREC_HB',a));
+# disable for JSON histograms
+if (!$histogram_type_override) {
+CREATE TABLE t1 (a BLOB, b TEXT DEFAULT DECODE_HISTOGRAM(@SINGLE_PREC_TYPE,a));
 SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES (0x0000000000000000000000000101010101010101010202020303030304040404050505050606070707080809090A0A0B0C0D0D0E0E0F10111213131415161718191B1C1E202224292A2E33373B4850575F6A76818C9AA7B9C4CFDADFE5EBF0F4F8FAFCFF);
 SELECT b FROM t1;
 DROP TABLE t1;
+}
 
 --echo #
 --echo # End of 10.2 tests
@@ -975,6 +993,7 @@ INSERT INTO t1 SELECT id+9192 FROM t1;
 --echo # This query will should show a full table scan analysis.
 --echo #
 ANALYZE TABLE t1;
+--source include/histogram_replaces.inc
 select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
        DECODE_HISTOGRAM(hist_type, histogram)
 from mysql.column_stats;
@@ -982,9 +1001,10 @@ from mysql.column_stats;
 set analyze_sample_percentage=0.1;
 
 --echo #
---echo # This query will show an innacurate avg_frequency value.
+--echo # This query will show an inaccurate avg_frequency value.
 --echo #
 ANALYZE TABLE t1;
+--source include/histogram_replaces.inc
 select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
        DECODE_HISTOGRAM(hist_type, histogram)
 from mysql.column_stats;
@@ -994,6 +1014,7 @@ from mysql.column_stats;
 --echo #
 set analyze_sample_percentage=25;
 ANALYZE TABLE t1;
+--source include/histogram_replaces.inc
 select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
        DECODE_HISTOGRAM(hist_type, histogram)
 from mysql.column_stats;
@@ -1004,6 +1025,7 @@ set analyze_sample_percentage=0;
 --echo # Test self adjusting sampling level.
 --echo #
 ANALYZE TABLE t1;
+--source include/histogram_replaces.inc
 select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
        DECODE_HISTOGRAM(hist_type, histogram)
 from mysql.column_stats;
@@ -1015,14 +1037,16 @@ explain select * from t1;
 
 set analyze_sample_percentage=100;
 ANALYZE TABLE t1;
+--source include/histogram_replaces.inc
 select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
        DECODE_HISTOGRAM(hist_type, histogram)
 from mysql.column_stats;
 explain select * from t1;
 
-
+drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
+--source include/test_db_charset_restore.inc

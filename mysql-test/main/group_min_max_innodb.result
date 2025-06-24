@@ -73,10 +73,10 @@ insert into t1 values ( 1,"e"),(2,"a"),( 3,"c"),(4,"d");
 alter table t1 drop primary key, add primary key (f2, f1);
 explain select distinct f1 a, f1 b from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	4	Using index; Using temporary
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
 explain select distinct f1, f2 from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	4	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
 drop table t1;
 create table t1(pk int primary key) engine=innodb;
 create view v1 as select pk from t1 where pk < 20;
@@ -108,7 +108,7 @@ CREATE TABLE t1 (a CHAR(1), b CHAR(1), PRIMARY KEY (a,b)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('a', 'b'), ('c', 'd');
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 WHERE b = 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	2	NULL	2	Using where; Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT COUNT(DISTINCT a) FROM t1 WHERE b = 'b';
 COUNT(DISTINCT a)
 1
@@ -118,7 +118,7 @@ ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('a', 'b'), ('c', 'd');
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 WHERE b = 'b';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	2	NULL	2	Using where; Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT COUNT(DISTINCT a) FROM t1 WHERE b = 'b';
 COUNT(DISTINCT a)
 1
@@ -138,7 +138,7 @@ c1 CHAR(1) NOT NULL,
 i1 INTEGER NOT NULL,
 i2 INTEGER NOT NULL,
 UNIQUE KEY k1 (c1,i2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 SELECT 'A',i1,i1 FROM t0;
 INSERT INTO t1 SELECT 'B',i1,i1 FROM t0;
 INSERT INTO t1 SELECT 'C',i1,i1 FROM t0;
@@ -150,7 +150,7 @@ c1 CHAR(1) NOT NULL,
 i1 INTEGER NOT NULL,
 i2 INTEGER NOT NULL,
 UNIQUE KEY k2 (c1,i1,i2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 SELECT 'A',i1,i1 FROM t0;
 INSERT INTO t2 SELECT 'B',i1,i1 FROM t0;
 INSERT INTO t2 SELECT 'C',i1,i1 FROM t0;
@@ -162,7 +162,7 @@ ANALYZE TABLE t2;
 EXPLAIN SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' AND i2 = 17) OR ( c1 = 'F')
 GROUP BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	k1	k1	5	NULL	31	Using where; Using index
+1	SIMPLE	t1	range	k1	k1	5	NULL	31	Using where
 SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' AND i2 = 17) OR ( c1 = 'F')
 GROUP BY c1;
 c1	max(i2)
@@ -171,7 +171,7 @@ F	30
 EXPLAIN SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' OR ( c1 = 'F' AND i2 = 17))
 GROUP BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	k1	k1	5	NULL	31	Using where; Using index
+1	SIMPLE	t1	range	k1	k1	5	NULL	31	Using where
 SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' OR ( c1 = 'F' AND i2 = 17))
 GROUP BY c1;
 c1	max(i2)
@@ -180,7 +180,7 @@ F	17
 EXPLAIN SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' OR c1 = 'F' ) AND ( i2 = 17 )
 GROUP BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	k1	k1	5	NULL	1	Using where; Using index for group-by
+1	SIMPLE	t1	range	k1	k1	5	NULL	2	Using where
 SELECT c1, max(i2) FROM t1 WHERE (c1 = 'C' OR c1 = 'F' ) AND ( i2 = 17 )
 GROUP BY c1;
 c1	max(i2)
@@ -190,7 +190,7 @@ EXPLAIN SELECT c1, max(i2) FROM t1
 WHERE ((c1 = 'C' AND (i2 = 40 OR i2 = 30)) OR ( c1 = 'F' AND (i2 = 40 )))
 GROUP BY c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	k1	k1	5	NULL	3	Using where; Using index
+1	SIMPLE	t1	range	k1	k1	5	NULL	3	Using where
 SELECT c1, max(i2) FROM t1 
 WHERE ((c1 = 'C' AND (i2 = 40 OR i2 = 30)) OR ( c1 = 'F' AND (i2 = 40 )))
 GROUP BY c1;
@@ -200,7 +200,7 @@ EXPLAIN SELECT c1, i1, max(i2) FROM t2
 WHERE (c1 = 'C' OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 )
 GROUP BY c1,i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	9	NULL	60	Using where; Using index for group-by
+1	SIMPLE	t2	range	k2	k2	5	NULL	60	Using where
 SELECT c1, i1, max(i2) FROM t2
 WHERE (c1 = 'C' OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 )
 GROUP BY c1,i1;
@@ -211,7 +211,7 @@ EXPLAIN SELECT c1, i1, max(i2) FROM t2
 WHERE (((c1 = 'C' AND i1 < 40) OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 ))
 GROUP BY c1,i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	9	NULL	60	Using where; Using index for group-by
+1	SIMPLE	t2	range	k2	k2	5	NULL	60	Using where
 SELECT c1, i1, max(i2) FROM t2 
 WHERE (((c1 = 'C' AND i1 < 40) OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 ))
 GROUP BY c1,i1;
@@ -222,7 +222,7 @@ EXPLAIN SELECT c1, i1, max(i2) FROM t2
 WHERE ((c1 = 'C' AND i1 < 40) OR ( c1 = 'F' AND i1 < 35) OR ( i2 = 17 ))
 GROUP BY c1,i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	k2	k2	9	NULL	180	Using where; Using index
+1	SIMPLE	t2	index	k2	k2	9	NULL	180	Using where
 SELECT c1, i1, max(i2) FROM t2 
 WHERE ((c1 = 'C' AND i1 < 40) OR ( c1 = 'F' AND i1 < 35) OR ( i2 = 17 ))
 GROUP BY c1,i1;
@@ -311,12 +311,13 @@ drop table t1,t2;
 #
 # MDEV-30143: Segfault on select query using index for group-by and filesort
 #
-CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB;
+CREATE TABLE t1 (a varchar(35), b varchar(4)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('Albania','AXA'),('Australia','AUS'),('American Samoa','AMSA'),('Bahamas','BS');
-CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB;
+CREATE TABLE t2 (a varchar(4), b varchar(50), PRIMARY KEY (b,a), KEY (a)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES
 ('BERM','African Methodist Episcopal'),('AUS','Anglican'),('BERM','Anglican'),('BS','Anglican'),('BS','Baptist'),('BS','Methodist');
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
 EXPLAIN SELECT t1.a
 FROM (SELECT a FROM t2 GROUP BY a ORDER BY COUNT(DISTINCT b) LIMIT 1) dt
 JOIN t1 ON dt.a=t1.b;

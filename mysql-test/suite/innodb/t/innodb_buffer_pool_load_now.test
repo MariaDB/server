@@ -71,7 +71,7 @@ EOF
 
 --move_file $file $file.now
 
-# Complete purge (and change buffer merge).
+# Complete purge.
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
 
@@ -89,6 +89,13 @@ WHERE table_name = '`test`.`ib_bp_test`';
 
 # Load the table so that entries in the I_S table do not appear as NULL
 select count(*) from ib_bp_test LIMIT 0;
+
+--disable_cursor_protocol
+# Check that async reads are executed during bufferpool load
+select variable_value into @innodb_async_reads_total_count_before
+ from information_schema.global_status
+ where variable_name='innodb_async_reads_total_count';
+--enable_cursor_protocol
 
 # Load
 SET GLOBAL innodb_buffer_pool_load_now = ON;
@@ -109,6 +116,12 @@ SELECT variable_value
 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
 --enable_warnings
+
+select  (cast(variable_value as unsigned) >
+  cast(@innodb_async_reads_total_count_before as unsigned))
+  as async_reads_grow
+  from information_schema.global_status where variable_name='innodb_async_reads_total_count';
+
 
 SELECT COUNT(*) FROM information_schema.innodb_buffer_page_lru
 WHERE table_name = '`test`.`ib_bp_test`';

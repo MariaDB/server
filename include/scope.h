@@ -48,7 +48,7 @@ public:
   scope_exit &operator=(const scope_exit &)= delete;
 
   void release() { engaged_= false; }
-  void engage() { DBUG_ASSERT(!engaged_); engaged_= true; }
+  void engage() { assert(!engaged_); engaged_= true; }
 
   ~scope_exit()
   {

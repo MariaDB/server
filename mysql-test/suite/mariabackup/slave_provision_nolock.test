@@ -141,6 +141,7 @@ eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
 
 --replace_result $SERVER_MYPORT_1 PORT $provision_master_file MASTER_FILE $provision_master_pos MASTER_POS
 eval CHANGE MASTER TO
+  master_ssl_verify_server_cert=0,
   master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
   master_log_file= "$provision_master_file",
   master_log_pos= $provision_master_pos;

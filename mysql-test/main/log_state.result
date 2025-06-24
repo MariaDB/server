@@ -243,7 +243,7 @@ rows_examined	sql_text
 4	UPDATE t1 SET a=a+sleep(.02) WHERE a>2
 8	UPDATE t1 SET a=a+sleep(.02) ORDER BY a DESC
 1	UPDATE t2 set b=b+sleep(.02) limit 1
-4	UPDATE t1 SET a=a+sleep(.02) WHERE a in (SELECT b from t2)
+6	UPDATE t1 SET a=a+sleep(.02) WHERE a in (SELECT b from t2)
 6	DELETE FROM t1 WHERE a=a+sleep(.02) ORDER BY a LIMIT 2
 disconnect con2;
 connection default;
@@ -275,8 +275,44 @@ SELECT @@general_log_file = @my_glf;
 @@general_log_file = @my_glf
 1
 SET GLOBAL general_log_file = @old_general_log_file;
+#
+# MDEV-35720 Add query_time to statistics
+#
+connect  con2,localhost,root,,;
+set @s1=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+select sleep(3) into @a;
+set @s2=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+set @s3=(select variable_value from information_schema.global_status where
+variable_name='query_time');
+select @s1 >= 0.00 and @s1 <= 2.00 as "should be true";
+should be true
+1
+select @s2 >= 2.00 and @s2 < 10.00 as "should be true";
+should be true
+1
+select @s3 >= 3.00 as "should be true";
+should be true
+1
+disconnect con2;
+connection default;
+create procedure p1()
+begin
+select sleep(1) into @a;
+select sleep(2) into @a;
+end|
+connect  con2,localhost,root,,;
+call p1();
+set @s1=(select variable_value from information_schema.session_status where
+variable_name='query_time');
+select @s1 > 2.00 and @s1 < 10.00 as "should be true";
+should be true
+1
+disconnect con2;
 disconnect con1;
 connection default;
+drop procedure p1;
 SET GLOBAL long_query_time = @save_long_query_time;
 SET GLOBAL log_output = @old_log_output;
 SET global general_log = @old_general_log;

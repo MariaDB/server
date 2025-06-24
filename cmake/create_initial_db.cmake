@@ -30,7 +30,7 @@ ENDIF()
 
 # Create bootstrapper SQL script
 FILE(WRITE bootstrap.sql "use mysql;\n" )
-FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql)
+FOREACH(FILENAME mariadb_system_tables.sql mariadb_system_tables_data.sql mariadb_performance_tables.sql)
    FILE(STRINGS ${TOP_SRCDIR}/scripts/${FILENAME} CONTENTS)
    FOREACH(STR ${CONTENTS})
     IF(NOT STR MATCHES "@current_hostname")
@@ -39,7 +39,7 @@ FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_perf
   ENDFOREACH()
 ENDFOREACH()
 
-FOREACH(FILENAME ${TOP_SRCDIR}/scripts/fill_help_tables.sql ${TOP_SRCDIR}/scripts/mysql_sys_schema.sql)
+FOREACH(FILENAME ${TOP_SRCDIR}/scripts/fill_help_tables.sql ${TOP_SRCDIR}/scripts/mariadb_sys_schema.sql)
   FILE(READ ${FILENAME} CONTENTS)
   FILE(APPEND bootstrap.sql "${CONTENTS}")
 ENDFOREACH()

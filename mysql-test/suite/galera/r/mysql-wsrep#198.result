@@ -27,8 +27,8 @@ test.t2	optimize	note	Table does not support optimize, doing recreate + analyze 
 test.t2	optimize	status	OK
 connection node_2b;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
-test.t2	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
+test.t2	repair	status	OK
 DROP TABLE t1;
 DROP TABLE t2;
 connection node_1;

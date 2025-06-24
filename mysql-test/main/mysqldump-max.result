@@ -88,9 +88,9 @@ id	name
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test`;
 DROP TABLE IF EXISTS `t1`;
@@ -99,11 +99,16 @@ DROP TABLE IF EXISTS `t1`;
 CREATE TABLE `t1` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT DELAYED IGNORE INTO `t1` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED IGNORE INTO `t1` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -111,11 +116,16 @@ DROP TABLE IF EXISTS `t2`;
 CREATE TABLE `t2` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT DELAYED IGNORE INTO `t2` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED IGNORE INTO `t2` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t3`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -123,11 +133,16 @@ DROP TABLE IF EXISTS `t3`;
 CREATE TABLE `t3` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
-INSERT DELAYED IGNORE INTO `t3` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED IGNORE INTO `t3` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t3` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t4`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -135,11 +150,16 @@ DROP TABLE IF EXISTS `t4`;
 CREATE TABLE `t4` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
-INSERT DELAYED IGNORE INTO `t4` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED IGNORE INTO `t4` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t4` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t5`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -147,11 +167,16 @@ DROP TABLE IF EXISTS `t5`;
 CREATE TABLE `t5` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
-INSERT DELAYED IGNORE INTO `t5` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED IGNORE INTO `t5` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t5` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t6`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -159,11 +184,16 @@ DROP TABLE IF EXISTS `t6`;
 CREATE TABLE `t6` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
-INSERT IGNORE INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT IGNORE INTO `t6` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t6` ENABLE KEYS */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -173,7 +203,7 @@ INSERT IGNORE INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first val
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
 /*M!999999\- enable the sandbox mode */ 
 
@@ -186,9 +216,9 @@ INSERT IGNORE INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first val
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
 
 USE `test`;
 DROP TABLE IF EXISTS `t1`;
@@ -197,11 +227,16 @@ DROP TABLE IF EXISTS `t1`;
 CREATE TABLE `t1` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT DELAYED INTO `t1` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED INTO `t1` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -209,11 +244,16 @@ DROP TABLE IF EXISTS `t2`;
 CREATE TABLE `t2` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT DELAYED INTO `t2` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED INTO `t2` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t3`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -221,11 +261,16 @@ DROP TABLE IF EXISTS `t3`;
 CREATE TABLE `t3` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
-INSERT DELAYED INTO `t3` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED INTO `t3` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t3` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t4`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -233,11 +278,16 @@ DROP TABLE IF EXISTS `t4`;
 CREATE TABLE `t4` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
-INSERT DELAYED INTO `t4` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED INTO `t4` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t4` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t5`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -245,11 +295,16 @@ DROP TABLE IF EXISTS `t5`;
 CREATE TABLE `t5` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
-INSERT DELAYED INTO `t5` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT DELAYED INTO `t5` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t5` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t6`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -257,11 +312,16 @@ DROP TABLE IF EXISTS `t6`;
 CREATE TABLE `t6` (
   `id` int(8) DEFAULT NULL,
   `name` varchar(32) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
-INSERT INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT INTO `t6` VALUES
+(1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t6` ENABLE KEYS */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -271,7 +331,7 @@ INSERT INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
 drop table t1;
 drop table t2;

@@ -1,0 +1,56 @@
+# Auxiliary script for test binlog_row_image
+#
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 varchar(100),
+                 c3 INT DEFAULT 1000, c4 TEXT);
+CREATE TABLE t2 (c1 INT, c2 char(100), c3 INT DEFAULT 1000, c4 TEXT);
+
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir= `SELECT @@datadir`
+
+--let $img_mode= `SELECT @@binlog_row_image`
+--echo
+--echo #########################################################################
+--echo # binlog_row_image = $img_mode
+--echo #########################################################################
+--echo
+INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+                     (2, "insert_to_t1", 2, repeat('a', 20)),
+                     (3, "insert_to_t1", 3, repeat('a', 20));
+INSERT INTO t1(c1) VALUES(4);
+UPDATE t1 SET c2 = "only_c2_changed";
+UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t1 WHERE c1 = 1;
+
+--echo
+--echo # Verify that rows events are binlogged as expeced.
+--echo
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /^\# at .*// /.*SET (@@|TIMESTAMP).*// /.* end_log_pos .*// /xid=\d*/xid=<xid>/
+--exec $MYSQL_BINLOG --force-if-open --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
+
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir= `SELECT @@datadir`
+
+--echo
+--echo # t2 has no primary key.
+--echo # It will binlog full before and after image for all modes if the
+--echo # table has no primary key. FULL_NODUP follows the behavior.
+--echo
+INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+                     (2, "insert_to_t2", 2, repeat('a', 20)),
+                     (3, "insert_to_t2", 3, repeat('a', 20));
+INSERT INTO t2(c1) VALUES(4);
+UPDATE t2 SET c2 = "only_c2_changed";
+UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t2 WHERE c1 > 2;
+
+--echo
+--echo # Verify that rows events are binlogged as expeced.
+--echo
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /^\# at .*// /.*SET (@@|TIMESTAMP).*// /.* end_log_pos .*// /xid=\d*/xid=<xid>/
+--exec $MYSQL_BINLOG --force-if-open --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
+
+DROP TABLE t1, t2;

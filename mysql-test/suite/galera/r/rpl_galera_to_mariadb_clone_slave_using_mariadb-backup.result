@@ -16,7 +16,7 @@ connection slave;
 # Using_Gtid=No
 ### Master: Create and populate t1
 connection master;
-CREATE TABLE t1(a TEXT) ENGINE=InnoDB;
+CREATE TABLE t1(a TEXT) ENGINE=InnoDB CHARSET=latin1;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('tr#00:stmt#00 - slave run#0, before backup');
 INSERT INTO t1 VALUES ('tr#00:stmt#01 - slave run#0, before backup');
@@ -45,13 +45,13 @@ connection master;
 connection slave;
 ##############################################################
 ### Running `mariadb-backup --backup,--prepare` and checking
-### that xtrabackup_slave_info and xtrabackup_binlog_info are OK
+### that mariadb_backup_slave_info and mariadb_backup_binlog_info are OK
 ### Slave: Create a backup
 ### Slave: Prepare the backup
 ### Slave: xtrabackup files:
-############################ xtrabackup_slave_info
+############################ mariadb_backup_slave_info
 CHANGE MASTER TO MASTER_LOG_FILE='master_after_tr01_show_master_status_file', MASTER_LOG_POS=master_after_tr01_show_master_status_position;
-############################ xtrabackup_binlog_info
+############################ mariadb_backup_binlog_info
 slave_after_tr01_show_master_status_file	slave_after_tr01_show_master_status_position	slave_after_tr01_gtid_binlog_pos
 ############################
 ##############################################################
@@ -107,6 +107,8 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 ### Slave: Shutdown the server
 connection slave;
 ### Master: Run a transaction while the slave is shut down
@@ -134,9 +136,11 @@ tr#01:stmt#00 - slave run#0, before backup
 tr#01:stmt#01 - slave run#0, before backup
 tr#01:stmt#02 - slave run#0, before backup
 ### Slave: Execute the CHANGE MASTER statement to set up the host and port
-CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=###, MASTER_CONNECT_RETRY=1;
-### Slave: Execute the CHANGE MASTER statement from xtrabackup_slave_info
+CHANGE MASTER '' TO MASTER_USER='root', MASTER_HOST='127.0.0.1', MASTER_PORT=###, MASTER_CONNECT_RETRY=1, MASTER_SSL_VERIFY_SERVER_CERT=0;
+### Slave: Execute the CHANGE MASTER statement from mariadb_backup_slave_info
 CHANGE MASTER TO MASTER_LOG_FILE='master_after_tr01_show_master_status_file', MASTER_LOG_POS=master_after_tr01_show_master_status_position;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
 ### Slave: Execute START SLAVE
 include/start_slave.inc
 ### Master: Wait for the slave to apply all master events
@@ -199,6 +203,8 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 set global wsrep_on=OFF;
 RESET MASTER;

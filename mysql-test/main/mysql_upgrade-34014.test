@@ -18,7 +18,7 @@ FLUSH TABLES;
 SHOW CREATE DATABASE sys;
 
 --exec $MYSQL_UPGRADE --force 2>&1
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 SHOW CREATE DATABASE sys;
 
 --echo #

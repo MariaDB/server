@@ -8,7 +8,7 @@ DROP DATABASE IF EXISTS world;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -120,7 +120,6 @@ SELECT COUNT(*) FROM City WHERE Name BETWEEN 'G' AND 'K';
 SELECT COUNT(*) FROM City WHERE Population > 1000000;
 SELECT COUNT(*) FROM City WHERE Population > 500000;
 SELECT COUNT(*) FROM City WHERE Country LIKE 'C%';
-SELECT COUNT(*) FROM City WHERE Country LIKE 'B%';
 SELECT COUNT(*) FROM City WHERE Country LIKE 'J%';
 
 
@@ -447,7 +446,7 @@ CREATE TABLE t1 (
   f5 int,
   PRIMARY KEY (f1),
   KEY (f4)
-);
+) CHARSET=latin1;
 
 INSERT INTO t1 VALUES 
   (5,'H',1), (9,'g',0), (527,'i',0), (528,'y',1), (529,'S',6),

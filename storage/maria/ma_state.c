@@ -334,12 +334,10 @@ void _ma_update_status(void* param)
     DBUG_ASSERT(!info->s->base.born_transactional);
     share->state.state= *info->state;
     info->state= &share->state.state;
-#ifdef HAVE_QUERY_CACHE
     DBUG_PRINT("info", ("invalidator... '%s' (status update)",
                         info->s->data_file_name.str));
     DBUG_ASSERT(info->s->chst_invalidator != NULL);
     (*info->s->chst_invalidator)((const char *)info->s->data_file_name.str);
-#endif
 
   }
   info->append_insert_at_end= 0;
@@ -494,7 +492,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
               share->state_history.  Create a new history item for this
               commit and add it first in the state_history list. This
               ensures that all history items are stored in the list in
-              decresing trid order.
+              decreasing trid order.
             */
             if (!(history= my_malloc(PSI_INSTRUMENT_ME, sizeof(*history),
                                      MYF(MY_WME))))
@@ -781,12 +779,15 @@ void maria_versioning(MARIA_HA *info, my_bool versioning)
      Only used by block records
 */
 
-void _ma_set_share_data_file_length(MARIA_SHARE *share, ulonglong new_length)
+int _ma_set_share_data_file_length(MARIA_HA *info, ulonglong new_length)
 {
+  MARIA_SHARE *share= info->s;
+  my_bool updated= 0;
   if (!share->internal_table)
     mysql_mutex_lock(&share->intern_lock);
   if (share->state.state.data_file_length < new_length)
   {
+    updated= share->tracked;
     share->state.state.data_file_length= new_length;
     if (new_length >= share->base.max_data_file_length)
     {
@@ -795,7 +796,18 @@ void _ma_set_share_data_file_length(MARIA_SHARE *share, ulonglong new_length)
     }
   }
   if (!share->internal_table)
-  mysql_mutex_unlock(&share->intern_lock);
+    mysql_mutex_unlock(&share->intern_lock);
+  else
+  {
+    if (updated &&
+        _ma_update_tmp_file_size(&share->track_data,
+                                 share->state.state.data_file_length))
+    {
+      share->state.changed|= STATE_DATA_FILE_FULL;
+      return 1;
+    }
+  }
+  return 0;
 }
 
 

@@ -112,6 +112,8 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 108	zh_HK	Chinese - Hong Kong SAR	3	3	.	,	english
 109	el_GR	Greek - Greece	11	9	,	.	greek
 110	rm_CH	Romansh - Switzerland	9	9	,	'	english
+111	ka_GE	Georgian - Georgia	10	9	,	 	georgian
+112	sw_KE	Swahili - Kenya	8	8	.	,	swahili
 show locales;
 Id	Name	Description	Error_Message_Language
 0	en_US	English - United States	english
@@ -225,6 +227,8 @@ Id	Name	Description	Error_Message_Language
 108	zh_HK	Chinese - Hong Kong SAR	english
 109	el_GR	Greek - Greece	greek
 110	rm_CH	Romansh - Switzerland	english
+111	ka_GE	Georgian - Georgia	georgian
+112	sw_KE	Swahili - Kenya	swahili
 show locales like '%spanish%';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'like '%spanish%'' at line 1
 show locales where description like '%spanish%';

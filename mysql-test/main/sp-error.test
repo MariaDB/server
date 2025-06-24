@@ -4,15 +4,11 @@
 
 --source include/default_charset.inc
 
---disable_ps2_protocol
 # Backup the mysql.proc table
 --enable_prepare_warnings
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
 --disable_prepare_warnings
---enable_cursor_protocol
---enable_ps2_protocol
 # Make sure we don't have any procedures left.
 delete from mysql.proc;
 
@@ -805,7 +801,7 @@ begin
   return b;
 end|
 
-# Some things must be caught at invokation time
+# Some things must be caught at invocation time
 create function bug8408_f() returns int
 begin
   call bug8408_p();
@@ -980,7 +976,7 @@ drop table t1, t2;
 # Bug #11394 "Recursion in SP crash server" and bug #11600 "Stored
 # procedures: crash with function calling itself".
 # We have to disable recursion since in many cases LEX and many
-# Item's can't be used in reentrant way nowdays.
+# Item's can't be used in reentrant way nowadays.
 delimiter |;
 create function bug11394(i int) returns int
 begin

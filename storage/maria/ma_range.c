@@ -65,7 +65,6 @@ ha_rows maria_records_in_range(MARIA_HA *info, int inx,
     mysql_rwlock_rdlock(&keyinfo->root_lock);
 
   switch (keyinfo->key_alg) {
-#ifdef HAVE_RTREE_KEYS
   case HA_KEY_ALG_RTREE:
   {
     uchar *key_buff;
@@ -93,7 +92,6 @@ ha_rows maria_records_in_range(MARIA_HA *info, int inx,
     res= res ? res : 1;                       /* Don't return 0 */
     break;
   }
-#endif
   case HA_KEY_ALG_BTREE:
   default:
     start_pos= (min_key ?

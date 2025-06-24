@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2018, 2020, MariaDB
+   Copyright (c) 2018, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -148,7 +148,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
-		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
+                                        Field::image_type(key_info->algorithm));
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;
@@ -495,6 +495,7 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
   {
     int cmp;
     store_length= key_part->store_length;
+    int sort_order = (key_part->key_part_flag & HA_REVERSE_SORT) ? -1 : 1;
     if (key_part->null_bit)
     {
       /* This key part allows null values; NULL is lower than everything */
@@ -503,19 +504,19 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
       {
 	/* the range is expecting a null value */
 	if (!field_is_null)
-	  return 1;                             // Found key is > range
+	  return sort_order;                         // Found key is > range
         /* null -- exact match, go to next key part */
 	continue;
       }
       else if (field_is_null)
-	return -1;                              // NULL is less than any value
+	return -sort_order;                     // NULL is less than any value
       key++;					// Skip null byte
       store_length--;
     }
     if ((cmp=key_part->field->key_cmp(key, key_part->length)) < 0)
-      return -1;
+      return -sort_order;
     if (cmp > 0)
-      return 1;
+      return sort_order;
   }
   return 0;                                     // Keys are equal
 }
@@ -573,6 +574,9 @@ int key_rec_cmp(const KEY *const *key, const uchar *first_rec,
     /* loop over every key part */
     do
     {
+      const int GREATER= key_part->key_part_flag & HA_REVERSE_SORT ? -1 : +1;
+      const int LESS= -GREATER;
+
       field= key_part->field;
 
       if (key_part->null_bit)
@@ -593,12 +597,12 @@ int key_rec_cmp(const KEY *const *key, const uchar *first_rec,
             ; /* Fall through, no NULL fields */
           else
           {
-            DBUG_RETURN(+1);
+            DBUG_RETURN(GREATER);
           }
         }
         else if (!sec_is_null)
         {
-          DBUG_RETURN(-1);
+          DBUG_RETURN(LESS);
         }
         else
           goto next_loop; /* Both were NULL */
@@ -613,7 +617,7 @@ int key_rec_cmp(const KEY *const *key, const uchar *first_rec,
       if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
                                      key_part->length /
                                      field->charset()->mbmaxlen)))
-        DBUG_RETURN(result);
+        DBUG_RETURN(result * GREATER);
 next_loop:
       key_part++;
       key_part_num++;

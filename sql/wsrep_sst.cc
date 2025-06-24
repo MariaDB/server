@@ -21,6 +21,7 @@
 #include <mysqld.h>
 #include <m_ctype.h>
 #include <strfunc.h>
+#include <sql_base.h>
 #include <sql_class.h>
 #include <set_var.h>
 #include <sql_acl.h>
@@ -35,6 +36,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "debug_sync.h"
+#include "my_rnd.h"
 
 #include <my_service_manager.h>
 
@@ -58,17 +60,27 @@ my_bool wsrep_sst_donor_rejects_queries= FALSE;
 bool sst_joiner_completed            = false;
 bool sst_donor_completed             = false;
 
+struct sst_auth
+{
+  std::string name_;
+  std::string pswd_;
+  std::string remote_name_;
+  std::string remote_pswd_;
+};
+
 struct sst_thread_arg
 {
+  const char*     method_;
   const char*     cmd;
+  const sst_auth& auth_;
   char**          env;
   char*           ret_str;
   int             err;
   mysql_mutex_t   lock;
   mysql_cond_t    cond;
 
-  sst_thread_arg (const char* c, char** e)
-    : cmd(c), env(e), ret_str(0), err(-1)
+  sst_thread_arg (const char* m, const char* c, const sst_auth& auth, char** e)
+    : method_(m), cmd(c), auth_(auth), env(e), ret_str(0), err(-1)
   {
     mysql_mutex_init(key_LOCK_wsrep_sst_thread, &lock, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_wsrep_sst_thread, &cond, NULL);
@@ -107,8 +119,7 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
 
   WSREP_INFO("Donor monitor thread started to monitor");
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  wsp::thd thd;
 
   while (!sst_donor_completed)
   {
@@ -125,12 +136,14 @@ static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role donor) ongoing...");
     }
   }
 
   WSREP_INFO("Donor monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role donor) completed.\n");
 
   return NULL;
 }
@@ -144,8 +157,7 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
 
   WSREP_INFO("Joiner monitor thread started to monitor");
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  wsp::thd thd;
 
   while (!sst_joiner_completed)
   {
@@ -162,12 +174,14 @@ static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
                  "is not completed",
                  time_waited);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing...");
+        "WSREP state transfer (role joiner) ongoing...");
     }
   }
 
   WSREP_INFO("Joiner monitor thread ended with total time %lu sec", time_waited);
   mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+
+  sd_notify(0, "STATUS=WSREP state transfer (role joiner) completed.\n");
 
   return NULL;
 }
@@ -282,59 +296,43 @@ bool wsrep_sst_auth_check (sys_var *self, THD* thd, set_var* var)
     return 0;
 }
 
-static bool sst_auth_real_set (const char* value)
-{
-  const char* v= NULL;
-
-  if (value)
-  {
-    v= my_strdup(PSI_INSTRUMENT_ME, value, MYF(0));
-  }
-  else                                          // its NULL
-  {
-    wsrep_sst_auth_free();
-    return 0;
-  }
-
-  if (v)
-  {
-    // set sst_auth_real
-    if (sst_auth_real) { my_free((void *) sst_auth_real); }
-    sst_auth_real= v;
-
-    // mask wsrep_sst_auth
-    if (strlen(sst_auth_real))
-    {
-      if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
-      wsrep_sst_auth= my_strdup(PSI_INSTRUMENT_ME, WSREP_SST_AUTH_MASK, MYF(0));
-    }
-    else
-    {
-      if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
-      wsrep_sst_auth= NULL;
-    }
-
-    return 0;
-  }
-  return 1;
-}
-
 void wsrep_sst_auth_free()
 {
-  if (wsrep_sst_auth) { my_free((void *) wsrep_sst_auth); }
-  if (sst_auth_real) { my_free((void *) sst_auth_real); }
+  if (wsrep_sst_auth) { my_free(const_cast<char *>(wsrep_sst_auth)); }
+  if (sst_auth_real) { my_free(const_cast<char *>(sst_auth_real)); }
   wsrep_sst_auth= NULL;
   sst_auth_real= NULL;
 }
 
-bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
+bool wsrep_sst_auth_set (const char* value)
 {
-  return sst_auth_real_set (wsrep_sst_auth);
+  static const char* const auth_mask("********");
+  const char* v= NULL;
+
+  if (value && *value != '\0') // empty string means unset
+  {
+    // save new value
+    v= my_strdup(PSI_INSTRUMENT_ME, value, MYF(0));
+    if (!v) return 1;
+  }
+
+  // cleanup old values
+  wsrep_sst_auth_free();
+
+  if (v)
+  {
+    // mask wsrep_sst_auth
+    wsrep_sst_auth = my_strdup(PSI_INSTRUMENT_ME, auth_mask, MYF(0));
+    // set sst_auth_real to actual value
+    sst_auth_real= v;
+  }
+
+  return 0;
 }
 
-void wsrep_sst_auth_init ()
+bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  sst_auth_real_set(wsrep_sst_auth);
+  return wsrep_sst_auth_set(wsrep_sst_auth);
 }
 
 bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
@@ -359,7 +357,8 @@ bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_before_SE()
 {
-  return (wsrep_provider != NULL
+  return (wsrep_provider
+          && *wsrep_provider
           && strcmp (wsrep_provider,   WSREP_NONE)
           && strcmp (wsrep_sst_method, WSREP_SST_SKIP)
           && strcmp (wsrep_sst_method, WSREP_SST_MYSQLDUMP));
@@ -407,7 +406,7 @@ static bool wsrep_sst_complete (THD*                thd,
   return failed;
 }
 
-  /*
+/*
   If wsrep provider is loaded, inform that the new state snapshot
   has been received. Also update the local checkpoint.
 
@@ -574,15 +573,80 @@ static int generate_binlog_index_opt_val(char** ret)
   return 0;
 }
 
+// report progress event
+static void sst_report_progress(int const       from,
+                                long long const total_prev,
+                                long long const total,
+                                long long const complete)
+{
+  static char buf[128] = { '\0', };
+  static size_t const buf_len= sizeof(buf) - 1;
+  snprintf(buf, buf_len,
+           "{ \"from\": %d, \"to\": %d, \"total\": %lld, \"done\": %lld, "
+           "\"indefinite\": -1 }",
+           from, WSREP_MEMBER_JOINED, total_prev + total, total_prev +complete);
+  WSREP_DEBUG("REPORTING SST PROGRESS: '%s'", buf);
+}
+
+// process "complete" event from SST script feedback
+static void sst_handle_complete(const char* const input,
+                                long long const   total_prev,
+                                long long*        total,
+                                long long*        complete,
+                                int const         from)
+{
+  long long x;
+  int n= sscanf(input, " %lld", &x);
+  if (n > 0 && x > *complete)
+  {
+    *complete= x;
+    if (*complete > *total) *total= *complete;
+    sst_report_progress(from, total_prev, *total, *complete);
+  }
+}
+
+// process "total" event from SST script feedback
+static void sst_handle_total(const char* const input,
+                             long long*        total_prev,
+                             long long*        total,
+                             long long*        complete,
+                             int const         from)
+{
+  long long x;
+  int n= sscanf(input, " %lld", &x);
+  if (n > 0)
+  {
+    // new stage starts, update total_prev
+    *total_prev+= *total;
+    *total= x;
+    *complete= 0;
+    sst_report_progress(from, *total_prev, *total, *complete);
+  }
+}
+
+struct sst_thread_init
+{
+  sst_thread_init(const char* const errmsg, bool const abrt)
+  {
+    if (my_thread_init()) {
+      WSREP_ERROR("%s%s", errmsg, abrt ? " Aborting." : "");
+      if (abrt) unireg_abort(1);
+    }
+  }
+  ~sst_thread_init()
+  {
+    my_thread_end();
+  }
+};
+
 static void* sst_joiner_thread (void* a)
 {
   sst_thread_arg* arg= (sst_thread_arg*) a;
   int err= 1;
 
   {
-    THD* thd;
-    const char magic[]= "ready";
-    const size_t magic_len= sizeof(magic) - 1;
+    static const char magic[]= "ready";
+    static const size_t magic_len= sizeof(magic) - 1;
     const size_t out_len= 512;
     char out[out_len];
 
@@ -590,9 +654,9 @@ static void* sst_joiner_thread (void* a)
 
     wsp::process proc (arg->cmd, "r", arg->env);
 
-    if (proc.pipe() && !proc.error())
+    if (proc.from() && !proc.error())
     {
-      const char* tmp= my_fgets (out, out_len, proc.pipe());
+      const char* tmp= my_fgets (out, out_len, proc.from());
 
       if (!tmp || strlen(tmp) < (magic_len + 2) ||
           strncasecmp (tmp, magic, magic_len))
@@ -635,22 +699,51 @@ static void* sst_joiner_thread (void* a)
     wsrep_uuid_t  ret_uuid = WSREP_UUID_UNDEFINED;
     wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-    // in case of successfull receiver start, wait for SST
-    // completion/end
-    char* tmp= my_fgets (out, out_len, proc.pipe());
+    // current stage progress
+    long long total= 0;
+    long long complete= 0;
+    // previous stages cumulative progress
+    long long total_prev= 0;
 
-    proc.wait();
-
+    // in case of successful receiver start, wait for SST completion/end
+    const char* tmp= NULL;
     err= EINVAL;
 
-    if (!tmp)
+  wait_signal:
+    tmp= my_fgets (out, out_len, proc.from());
+
+    if (tmp)
     {
-      WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
-                  "joiner script.");
-      if (proc.error()) err= proc.error();
+      static const char magic_total[]= "total";
+      static const size_t total_len=strlen(magic_total);
+      static const char magic_complete[]= "complete";
+      static const size_t complete_len=strlen(magic_complete);
+      static const int from= WSREP_MEMBER_JOINER;
+
+      if (!strncasecmp (tmp, magic_complete, complete_len))
+      {
+        sst_handle_complete(tmp + complete_len, total_prev, &total, &complete,
+                            from);
+        goto wait_signal;
+      }
+      else if (!strncasecmp (tmp, magic_total, total_len))
+      {
+        sst_handle_total(tmp + total_len, &total_prev, &total, &complete, from);
+        goto wait_signal;
+      }
     }
     else
     {
+      WSREP_ERROR("Failed to read uuid:seqno and wsrep_gtid_domain_id from "
+                  "joiner script.");
+      proc.wait();
+      if (proc.error()) err= proc.error();
+    }
+
+    // this should be the final script output with GTID
+    if (tmp)
+    {
+      proc.wait();
       // Read state ID (UUID:SEQNO) followed by wsrep_gtid_domain_id (if any).
       unsigned long int domain_id= wsrep_gtid_domain_id;
       const char *pos= strchr(out, ' ');
@@ -724,43 +817,8 @@ err:
       Tell initializer thread that SST is complete
       For that initialize a THD
     */
-    if (my_thread_init())
-    {
-      WSREP_ERROR("my_thread_init() failed, can't signal end of SST. "
-                  "Aborting.");
-      unireg_abort(1);
-    }
-
-    thd= new THD(next_thread_id());
-
-    if (!thd)
-    {
-      WSREP_ERROR("Failed to allocate THD to restore view from local state, "
-                  "can't signal end of SST. Aborting.");
-      unireg_abort(1);
-    }
-
-    thd->security_ctx->skip_grants();
-    thd->system_thread= SYSTEM_THREAD_GENERIC;
-    thd->real_id= pthread_self();
-
-    wsrep_assign_from_threadvars(thd);
-    wsrep_store_threadvars(thd);
-
-    /* */
-    thd->variables.wsrep_on    = 0;
-    /* No binlogging */
-    thd->variables.sql_log_bin = 0;
-    thd->variables.option_bits &= ~OPTION_BIN_LOG;
-    /* No general log */
-    thd->variables.option_bits |= OPTION_LOG_OFF;
-    /* Read committed isolation to avoid gap locking */
-    thd->variables.tx_isolation= ISO_READ_COMMITTED;
-
-    wsrep_sst_complete (thd, -err, ret_gtid);
-
-    delete thd;
-    my_thread_end();
+    wsp::thd thd;
+    wsrep_sst_complete (thd.ptr, -err, ret_gtid);
   }
 
   return NULL;
@@ -1088,8 +1146,14 @@ static void copy_orig_argv (char* cmd_str)
   }
 }
 
+/* implementation of strchrnul for systems that don't have it */
+static const char* sst_strchrnul(const char* s, int c)
+{
+  const char* ret= strchr(s, c);
+  return ret ? ret : s + strlen(s);
+}
+
 static ssize_t sst_prepare_other (const char*  method,
-                                  const char*  sst_auth,
                                   const char*  addr_in,
                                   const char** addr_out)
 {
@@ -1138,7 +1202,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
                  (int)getpid(),
-                 0,
+                 wsrep_debug ? 1 : 0,
                  binlog_opt_val, binlog_index_opt_val);
 
   my_free(binlog_opt_val);
@@ -1153,19 +1217,20 @@ static ssize_t sst_prepare_other (const char*  method,
   if (extra_args)
     copy_orig_argv(cmd_str() + ret);
 
+  sst_auth auth;
+  if (sst_auth_real)
+  {
+    const char* col= sst_strchrnul(sst_auth_real, ':');
+    auth.name_ = std::string(sst_auth_real, col - sst_auth_real);
+    auth.pswd_ = std::string(':' == *col ? col + 1 : "");
+  }
+
   wsp::env env(NULL);
   if (env.error())
   {
     WSREP_ERROR("sst_prepare_other(): env. var ctor failed: %d", -env.error());
     return -env.error();
   }
-
-  if ((ret= sst_append_env_var(env, WSREP_SST_AUTH_ENV, sst_auth)))
-  {
-    WSREP_ERROR("sst_prepare_other(): appending auth failed: %d", ret);
-    return ret;
-  }
-
   if (data_home_dir)
   {
     if ((ret= sst_append_env_var(env, DATA_HOME_DIR_ENV, data_home_dir)))
@@ -1177,7 +1242,7 @@ static ssize_t sst_prepare_other (const char*  method,
   }
 
   pthread_t tmp, monitor;
-  sst_thread_arg arg(cmd_str(), env());
+  sst_thread_arg arg(method, cmd_str(), auth, env());
 
   mysql_mutex_lock (&arg.lock);
 
@@ -1304,7 +1369,7 @@ std::string wsrep_sst_prepare()
       unireg_abort(1);
     }
   }
-  //Attempt 2: wsrep_node_address
+  // Attempt 2: wsrep_node_address
   else if (wsrep_node_address && *wsrep_node_address)
   {
     addr_in_parser = new wsp::Address(wsrep_node_address);
@@ -1353,7 +1418,7 @@ std::string wsrep_sst_prepare()
 
   if (is_ipv6)
   {
-    /* wsrep_sst_*.sh scripts requite ipv6 addreses to be in square breackets */
+    /* wsrep_sst_*.sh scripts require ipv6 addresses to be in square brackets */
     ip_buf[0] = '[';
     /* the length (len) already includes the null byte: */
     memcpy(ip_buf + 1, address, len - 1);
@@ -1406,7 +1471,7 @@ std::string wsrep_sst_prepare()
                     "replaced by %s", method, WSREP_SST_MARIABACKUP);
          method = WSREP_SST_MARIABACKUP;
       }
-      // we already did SST at initializaiton, now engines are running
+      // we already did SST at initialization, now engines are running
       // sql_print_information() is here because the message is too long
       // for WSREP_INFO.
       sql_print_information ("WSREP: "
@@ -1419,8 +1484,7 @@ std::string wsrep_sst_prepare()
       return "";
     }
 
-    addr_len = sst_prepare_other (method, sst_auth_real,
-                                  addr_in, &addr_out);
+    addr_len = sst_prepare_other(method, addr_in, &addr_out);
     if (addr_len < 0)
     {
       WSREP_ERROR("Failed to prepare for '%s' SST. Unrecoverable.",
@@ -1443,34 +1507,339 @@ std::string wsrep_sst_prepare()
   return ret;
 }
 
-// helper method for donors
-static int sst_run_shell (const char* cmd_str, char** env, int max_tries)
+int run_sql_command(wsp::mysql& mysql, const char* query)
+{
+  int err= mysql.execute(query);
+  if (err)
+  {
+    WSREP_WARN("Error executing '%s': %d (%s)",
+               query, err, mysql.errstr());
+    return err;
+  }
+  return 0;
+}
+
+static int run_sql_command_thd(THD *thd, const char *query)
 {
   int ret= 0;
 
-  for (int tries=1; tries <= max_tries; tries++)
+  thd->reset_for_next_command();
+  thd->set_query((char*)query, strlen(query));
+
+  Parser_state ps;
+  if (ps.init(thd, thd->query(), thd->query_length()))
   {
-    wsp::process proc (cmd_str, "r", env);
+    WSREP_ERROR("SST query: %s failed", query);
+    ret= -1;
+  }
+  else
+  {
+    PSI_statement_locker *parent_locker= thd->m_statement_psi;
+    thd->set_query_id(next_query_id());
 
-    if (NULL != proc.pipe())
+    mysql_parse(thd, thd->query(), thd->query_length(), &ps);
+    if (thd->is_error())
     {
-      proc.wait();
+      int const err= thd->get_stmt_da()->sql_errno();
+      if (err)
+      {
+        WSREP_WARN ("Error executing '%s': %d (%s)",
+                    query, err, thd->get_stmt_da()->message());
+        ret= err;
+      }
+      thd->clear_error();
     }
+    thd->m_statement_psi= parent_locker;
+    thd->end_statement();
+    close_thread_tables(thd);
+    delete_explain_query(thd->lex);
+  }
 
-    if ((ret= proc.error()))
-    {
-      WSREP_ERROR("Try %d/%d: '%s' failed: %d (%s)",
-                  tries, max_tries, proc.cmd(), ret, strerror(ret));
-      sleep (1);
-    }
-    else
-    {
-      WSREP_DEBUG("SST script successfully completed.");
+  thd->reset_query();
+  thd->cleanup_after_query();
+  return ret;
+}
+
+
+#define SST_USER_PREFIX "wsrep.sst."
+
+static std::string
+generate_user_name(const char* const node_name)
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  time_t time_now;
+  time_now = tv.tv_sec;
+  struct tm tm_now;
+  (void)gmtime_r(&time_now, &tm_now);
+  char timestamp[32];
+  strftime(timestamp, sizeof(timestamp), "%y%m%d_%H%M%S", &tm_now);
+
+  return (std::string(SST_USER_PREFIX) + timestamp + "_" + node_name).substr
+          (0, USERNAME_CHAR_LENGTH);
+}
+
+void
+wsrep_sst_cleanup_user(THD* const thd)
+{
+  int err;
+  wsp::mysql mysql;
+  if ((err = mysql.errnum()) ||
+      (err = mysql.disable_replication()) ||
+      ((err = mysql.execute("DELETE FROM mysql.user WHERE user LIKE '" SST_USER_PREFIX "%';")) &&
+        err != ER_NO_SUCH_TABLE &&
+        err != ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE))
+  {
+    WSREP_WARN("Failed to clean up SST user(s): %d (%s)", err, mysql.errstr());
+  }
+}
+
+static std::string
+generate_password(int size) {
+  // Password characters are limited, because we are using these passwords
+  // within a bash script.
+  static const std::string g_allowed_pwd_chars(
+    "qwertyuiopasdfghjklzxcvbnm1234567890"
+    "QWERTYUIOPASDFGHJKLZXCVBNM");
+  // To guarantee MySQL password requirements: upper/lowercase, numbers,
+  // special characters
+  const char* const pwd_prefix("yx9!A-");
+
+  std::stringstream ss;
+  ss << pwd_prefix;
+  size -= strlen(pwd_prefix);
+
+  ulong const seed1= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
+  ulong const seed2= (ulong) time((time_t*) 0);
+  struct my_rnd_struct rand;
+  my_rnd_init(&rand, seed1 + (ulong)((size_t) &rand), seed2);
+
+  while (size > 0) {
+    int ch = ((int)(my_rnd(&rand) * 0xffff)) % g_allowed_pwd_chars.size();
+    ss << g_allowed_pwd_chars[ch];
+    --size;
+  }
+
+  return ss.str();
+}
+
+static const char**
+sst_user_grants(const std::string& method)
+{
+  static const char* mariabackup[] = {
+    "GRANT RELOAD, PROCESS, LOCK TABLES, BINLOG MONITOR ON *.* TO '%s'@'localhost';",
+    nullptr,
+    nullptr,
+    nullptr
+  };
+  static const char* rsync[] = {
+    nullptr,
+    nullptr
+  };
+  /* We don't know which privileges might be needed for custom SST scripts,
+   * so GRANT all */
+  static const char* other[] = {
+    "GRANT ALL ON *.* TO '%s'@localhost WITH GRANT OPTION;",
+    nullptr,
+    nullptr
+  };
+
+  if (method == "mariabackup-test") {
+    return mariabackup;
+  }
+  if (method == "rsync") {
+    assert(0); // should not attempt to create user for this SSST
+    return rsync;
+  }
+
+  return other;
+}
+
+/**
+ * cmds[] This array is filled with pairs of entries.
+          The first entry is the printf template for the query to be run:
+          optional %s will be filled with name and password.
+          The second entry is the string to be displayed if the query fails
+          (this can be NULL, in which case the actual query will be used)
+ */
+static int
+run_sql_commands(wsp::mysql& mysql,
+                 const char* cmds[],
+                 const std::string& name,
+                 const std::string& password)
+{
+  int ret = 0;
+  for (int index = 0; !ret && cmds[index]; index += 2)
+  {
+    int const cmd_len = 512;
+    char cmd_buf[cmd_len] = { 0,};
+
+    ret = snprintf(cmd_buf, cmd_len, cmds[index],
+                   name.c_str(), password.c_str());
+    if (ret < 0 || ret >= cmd_len) {
+      WSREP_ERROR("run_sql_commands(): snprintf() failed: %d", ret);
+      ret = (ret < 0 ? ret : -EMSGSIZE);
       break;
+    }
+    else {
+      WSREP_INFO("run_sql_commands(%p): '%s'",
+                  cmds, cmds[index + 1] ? cmds[index + 1] : cmd_buf);
+    }
+
+    ret = run_sql_command(mysql, cmd_buf);
+    if (ret) break;
+  }
+  return ret;
+}
+
+/*
+  Helper class to manage SST users
+ */
+class sst_user
+{
+  wsp::mysql* mysql_;
+  std::string const name_;
+  std::string const password_;
+  int err_;
+public:
+  /* ctor in case we need to create SST user */
+  sst_user(const std::string& method) :
+    mysql_(new wsp::mysql),
+    name_(generate_user_name(wsrep_node_name)),
+    password_(generate_password(32)),
+    err_(mysql_->errnum())
+  {
+    assert(method != "rsync"); // should not attempt to create user for this SST
+
+    // This array is filled with pairs of entries
+    // The first entry is the tmeplate query to be run
+    // The second entry is the string to be displayed if the query fails
+    // (this can be NULL, in which case the actual query will be used)
+    static const char *create_sst_user[] = {
+      "DROP USER IF EXISTS '%s'@localhost;",
+      nullptr,
+      "CREATE USER '%s'@localhost IDENTIFIED BY '%s';",
+      "CREATE USER '*'@localhost IDENTIFIED BY ***** ;", // mangled password for logging
+      nullptr,
+      nullptr
+    };
+
+    if (err_) {
+      WSREP_ERROR("sst_user::user() mysql connect failed: %d (%s)",
+                  err_, mysql_->errstr());
+      return;
+    }
+
+    err_ = mysql_->disable_replication();
+    if (err_) {
+      WSREP_ERROR("sst_user::user() disable replication failed: %d (%s)",
+                  err_, mysql_->errstr());
+      return;
+    }
+
+    err_ = run_sql_commands(*mysql_, create_sst_user, name_, password_);
+    if (err_) {
+      WSREP_ERROR("sst_user::user() create user failed: %d (%s)",
+                  err_, err_ < 0 ? strerror(-err_) : mysql_->errstr());
+      return;
+    }
+
+    err_ = run_sql_commands(*mysql_, sst_user_grants(method), name_, password_);
+    if (err_) {
+      WSREP_ERROR("sst_user::user() grant privileges failed: %d (%s)",
+                  err_, err_ < 0 ? strerror(-err_) : mysql_->errstr());
     }
   }
 
-  return -ret;
+  /* ctor in case SST user was externally supplied */
+  sst_user(const std::string& name, const std::string& password) :
+    mysql_(nullptr),
+    name_(name),
+    password_(password),
+    err_(0)
+  {}
+
+  ~sst_user()
+  {
+    if (mysql_) {
+      /* Need to cleanup SST user */
+      static const char *cmds[] = {
+        "DROP USER IF EXISTS '%s'@localhost;",
+        nullptr,
+        nullptr,
+        nullptr
+      };
+      err_ = run_sql_commands(*mysql_, cmds, name_, password_);
+      if (err_) {
+        WSREP_ERROR("sst_user::~user() user '%s' cleanup failed: %d (%s)",
+                    name_.c_str(),
+                    err_, err_ < 0 ? strerror(-err_) : mysql_->errstr());
+      }
+      delete mysql_;
+    }
+  }
+
+  const std::string& name() const { return name_; }
+  const std::string& password() const { return password_; }
+  int err() const { return err_; }
+};
+
+static int
+write_auth_info(FILE* const file, const char* method,
+                const sst_auth& auth, sst_user** ret_user)
+{
+  int err;
+  sst_user* user(nullptr);
+
+  try {
+    if (auth.name_.length() > 0) {
+      /* User supplied wsrep_sst_auth */
+      user= new sst_user(auth.name_, auth.pswd_);
+    }
+    else {
+      /* No wsrep_sst_auth, create a temporary user for SST */
+      user= new sst_user(method);
+    }
+    err= user->err();
+  }
+  catch (...) {
+    err= ENOMEM;
+  }
+  *ret_user= user;
+
+  if (err)
+  {
+    WSREP_ERROR("Failed to create SST user: %d (%s)", err, strerror(err));
+  }
+  else
+  {
+    int ret= fprintf(file,
+                     "sst_user=%s\n"
+                     "sst_password=%s\n",
+                     user->name().c_str(),
+                     user->password().c_str());
+    if (ret < 0)
+    {
+      WSREP_ERROR("write_auth_info(): fprintf(1) failed: %d", ret);
+      err= (ret < 0 ? ret : -EMSGSIZE);
+    }
+
+    if (auth.remote_name_.length())
+    {
+      ret= fprintf(file,
+                   "sst_remote_user=%s\n"
+                   "sst_remote_password=%s\n",
+                   auth.remote_name_.c_str(),
+                   auth.remote_pswd_.c_str());
+      if (ret < 0)
+      {
+        WSREP_ERROR("write_auth_info(): fprintf(2) failed: %d", ret);
+        err= (ret < 0 ? ret : -EMSGSIZE);
+      }
+    }
+  }
+
+  return err;
 }
 
 static void sst_reject_queries(my_bool close_conn)
@@ -1478,88 +1847,6 @@ static void sst_reject_queries(my_bool close_conn)
   WSREP_INFO("Rejecting client queries for the duration of SST.");
   if (TRUE == close_conn) wsrep_close_client_connections(FALSE);
 }
-
-static int sst_donate_mysqldump (const char*         addr,
-                                 const wsrep::gtid&  gtid,
-                                 bool                bypass,
-                                 char**              env) // carries auth info
-{
-  char host[256];
-  wsp::Address address(addr);
-  if (!address.is_valid())
-  {
-    WSREP_ERROR("Could not parse SST address : %s", addr);
-    return 0;
-  }
-  memcpy(host, address.get_address(), address.get_address_len());
-  int port= address.get_port();
-  bool extra_args;
-  size_t const cmd_len= estimate_cmd_len(&extra_args);
-  wsp::string cmd_str(cmd_len);
-
-  if (!cmd_str())
-  {
-    WSREP_ERROR("sst_donate_mysqldump(): "
-                "could not allocate cmd buffer of %zd bytes", cmd_len);
-    return -ENOMEM;
-  }
-
-  /*
-    we enable new client connections so that mysqldump donation can connect in,
-    but we reject local connections from modifyingcdata during SST, to keep
-    data intact
-  */
-  if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
-
-  make_wsrep_defaults_file();
-
-  std::ostringstream uuid_oss;
-  uuid_oss << gtid.id();
-  int ret= snprintf (cmd_str(), cmd_len,
-                     "wsrep_sst_mysqldump "
-                     WSREP_SST_OPT_ADDR " '%s' "
-                     WSREP_SST_OPT_PORT " '%u' "
-                     WSREP_SST_OPT_LPORT " '%u' "
-                     WSREP_SST_OPT_SOCKET " '%s' "
-                     WSREP_SST_OPT_DATA " '%s' "
-                     "%s"
-                     WSREP_SST_OPT_GTID " '%s:%lld,%d-%d-%llu' "
-                     WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
-                     "%s",
-                     addr, port, mysqld_port, mysqld_unix_port,
-                     mysql_real_data_home,
-                     wsrep_defaults_file,
-                     uuid_oss.str().c_str(), gtid.seqno().get(),
-                     wsrep_gtid_server.domain_id, wsrep_gtid_server.server_id,
-                     wsrep_gtid_server.seqno(),
-                     wsrep_gtid_server.domain_id,
-                     bypass ? " " WSREP_SST_OPT_BYPASS : "");
-
-  if (ret < 0 || size_t(ret) >= cmd_len)
-  {
-    WSREP_ERROR("sst_donate_mysqldump(): snprintf() failed: %d", ret);
-    return (ret < 0 ? ret : -EMSGSIZE);
-  }
-
-  if (extra_args)
-    copy_orig_argv(cmd_str() + ret);
-
-  WSREP_DEBUG("Running: '%s'", cmd_str());
-
-  ret= sst_run_shell (cmd_str(), env, 3);
-
-  wsrep::gtid sst_sent_gtid(ret == 0 ?
-                            gtid :
-                            wsrep::gtid(gtid.id(),
-                                        wsrep::seqno::undefined()));
-  Wsrep_server_state::instance().sst_sent(sst_sent_gtid, ret);
-
-  wsrep_donor_monitor_end();
-
-  return ret;
-}
-
-wsrep_seqno_t wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
 
 /*
   Create a file under data directory.
@@ -1609,28 +1896,7 @@ static int sst_create_file(const char *name, const char *content)
   return err;
 }
 
-static int run_sql_command(THD *thd, const char *query)
-{
-  thd->set_query((char *)query, strlen(query));
-
-  Parser_state ps;
-  if (ps.init(thd, thd->query(), thd->query_length()))
-  {
-    WSREP_ERROR("SST query: %s failed", query);
-    return -1;
-  }
-
-  mysql_parse(thd, thd->query(), thd->query_length(), &ps);
-  if (thd->is_error())
-  {
-    int const err= thd->get_stmt_da()->sql_errno();
-    WSREP_WARN ("Error executing '%s': %d (%s)",
-                query, err, thd->get_stmt_da()->message());
-    thd->clear_error();
-    return -1;
-  }
-  return 0;
-}
+wsrep_seqno_t wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
 
 static int sst_flush_tables(THD* thd)
 {
@@ -1656,7 +1922,7 @@ static int sst_flush_tables(THD* thd)
                  my_charset_latin1.cs_name.str);
   }
 
-  if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
+  if (run_sql_command_thd(thd, "FLUSH TABLES WITH READ LOCK"))
   {
     err= -1;
   }
@@ -1750,8 +2016,10 @@ static int sst_flush_tables(THD* thd)
 static void* sst_donor_thread (void* a)
 {
   sst_thread_arg* arg= (sst_thread_arg*)a;
+  std::string const method(arg->method_);
+  sst_auth const auth(arg->auth_);
 
-  WSREP_INFO("Running: '%s'", arg->cmd);
+  WSREP_INFO("Initiating SST/IST transfer on DONOR side (%s)", arg->cmd);
 
   int  err= 1;
   bool locked= false;
@@ -1764,32 +2032,86 @@ static void* sst_donor_thread (void* a)
   // seqno of complete SST
   wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-  // We turn off wsrep_on for this THD so that it can
-  // operate with wsrep_ready == OFF
-  // We also set this SST thread THD as system thread
-  wsp::thd thd(FALSE, true);
-  wsp::process proc(arg->cmd, "r", arg->env);
-
+  wsp::process proc(arg->cmd, "rw", arg->env);
   err= -proc.error();
 
-/* Inform server about SST script startup and release TO isolation */
+  if (err)
+  {
+    WSREP_ERROR("Failed to start SST process: %d", err);
+  }
+
+  /* Inform server about SST script startup and release TO isolation */
   mysql_mutex_lock   (&arg->lock);
   arg->err= -err;
   mysql_cond_signal  (&arg->cond);
   mysql_mutex_unlock (&arg->lock); //! @note arg is unusable after that.
+  arg= nullptr;
 
-  if (proc.pipe() && !err)
+  wsp::thd thd;
+
+  err = thd.err();
+  if (err)
   {
+    WSREP_ERROR("Can't initialize donor THD: %d", err);
+  }
+
+  sst_user* user(nullptr);
+
+  if (proc.to() && !err)
+  {
+    /* At this point SST process is waiting for input or EOF on STDIN.
+     * Create SST user and send sensitive information to it. */
+    err= write_auth_info(proc.to(), method.c_str(), auth, &user);
+    // Close the pipe, so that the SST process gets an EOF
+    proc.close_to();
+  }
+
+  /* This cleanups SST user on thread exit, i.e. on SST end, whether it was
+   * successfully created or not */
+  class cleanup_sst_user{
+    sst_user* const user_;
+  public:
+    cleanup_sst_user(sst_user* user) : user_(user) {}
+    ~cleanup_sst_user() {
+      WSREP_INFO("Cleaning up SST user.");
+      delete user_;
+    }
+  } cleanup_sst_user_guard(user);
+
+  if (proc.from() && !err)
+  {
+    long long total= 0;
+    long long complete= 0;
+    // total from previous stages
+    long long total_prev= 0;
+
 wait_signal:
-    out= my_fgets (out_buf, out_len, proc.pipe());
+    out= my_fgets (out_buf, out_len, proc.from());
 
     if (out)
     {
-      const char magic_flush[]= "flush tables";
-      const char magic_cont[]= "continue";
-      const char magic_done[]= "done";
+      static const char magic_flush[]= "flush tables";
+      static const char magic_cont[]= "continue";
+      static const char magic_done[]= "done";
+      static const size_t done_len=strlen(magic_done);
+      static const char magic_total[]= "total";
+      static const size_t total_len=strlen(magic_total);
+      static const char magic_complete[]= "complete";
+      static const size_t complete_len=strlen(magic_complete);
+      static const int from= WSREP_MEMBER_DONOR;
 
-      if (!strcasecmp (out, magic_flush))
+      if (!strncasecmp (out, magic_complete, complete_len))
+      {
+        sst_handle_complete(out + complete_len, total_prev, &total, &complete,
+                            from);
+        goto wait_signal;
+      }
+      else if (!strncasecmp (out, magic_total, total_len))
+      {
+        sst_handle_total(out + total_len, &total_prev, &total, &complete, from);
+        goto wait_signal;
+      }
+      else if (!strcasecmp (out, magic_flush))
       {
         err= sst_flush_tables (thd.ptr);
 
@@ -1834,7 +2156,7 @@ wait_signal:
         err=  0;
         goto wait_signal;
       }
-      else if (!strncasecmp (out, magic_done, strlen(magic_done)))
+      else if (!strncasecmp (out, magic_done, done_len))
       {
         err= sst_scan_uuid_seqno (out + strlen(magic_done) + 1,
                                   &ret_uuid, &ret_seqno);
@@ -1892,10 +2214,13 @@ wait_signal:
   return nullptr;
 }
 
+/* There used to be a separate method for mysqldump SST, but now everything
+ * goes through this method. */
 static int sst_donate_other (const char*        method,
                              const char*        addr,
                              const wsrep::gtid& gtid,
-                             bool               bypass,
+                             const bool         bypass,
+                             const sst_auth&    auth,
                              char**             env) // carries auth info
 {
   bool extra_args;
@@ -1946,7 +2271,7 @@ static int sst_donate_other (const char*        method,
                  "%s"
                  "%s",
                  method, addr, mysqld_port, mysqld_unix_port,
-                 0,
+                 wsrep_debug ? 1 : 0,
                  mysql_real_data_home,
                  wsrep_defaults_file,
                  uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_server.domain_id,
@@ -1968,7 +2293,7 @@ static int sst_donate_other (const char*        method,
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(FALSE);
 
   pthread_t tmp;
-  sst_thread_arg arg(cmd_str(), env);
+  sst_thread_arg arg(method, cmd_str(), auth, env);
 
   mysql_mutex_lock (&arg.lock);
 
@@ -2022,6 +2347,35 @@ int wsrep_sst_donate(const std::string& msg,
     return WSREP_CB_FAILURE;
   }
 
+  /* Set up auth info (from <user>:<password> strings) */
+  sst_auth auth;
+  if (sst_auth_real)
+  {
+    /* User supplied non-trivial wsrep_sst_auth, use it */
+    const char* col= sst_strchrnul(sst_auth_real, ':');
+    auth.name_ = std::string(sst_auth_real, col - sst_auth_real);
+    auth.pswd_ = std::string(':' == *col ? col + 1 : "");
+  }
+  else if (0 == strcmp(method, "rsync"))
+  {
+    /* This dummy auth info will prevent SST account creation for rsync SST -
+     * as it does not need any ATM. */
+    auth.name_ = "rsync";
+    auth.pswd_ = "none";
+  }
+  else
+  {
+    /* Empty auth will trigger automatic SST account creation. */
+  }
+  if (remote_auth())
+  {
+    /* wsp::string is just a dynamically allocated char* underneath
+     * so we can safely do all that arithmetics */
+    const char* col= sst_strchrnul(remote_auth(), ':');
+    auth.remote_name_ = std::string(remote_auth(), col - remote_auth());
+    auth.remote_pswd_ = std::string(':' == *col ? col + 1 : "");
+  }
+
   wsp::env env(NULL);
   if (env.error())
   {
@@ -2030,22 +2384,6 @@ int wsrep_sst_donate(const std::string& msg,
   }
 
   int ret;
-  if ((ret= sst_append_env_var(env, WSREP_SST_AUTH_ENV, sst_auth_real)))
-  {
-    WSREP_ERROR("wsrep_sst_donate_cb(): appending auth env failed: %d", ret);
-    return WSREP_CB_FAILURE;
-  }
-
-  if (remote_auth())
-  {
-    if ((ret= sst_append_env_var(env, WSREP_SST_REMOTE_AUTH_ENV,remote_auth())))
-    {
-      WSREP_ERROR("wsrep_sst_donate_cb(): appending remote auth env failed: "
-                  "%d", ret);
-      return WSREP_CB_FAILURE;
-    }
-  }
-
   if (data_home_dir)
   {
     if ((ret= sst_append_env_var(env, DATA_HOME_DIR_ENV, data_home_dir)))
@@ -2068,14 +2406,7 @@ int wsrep_sst_donate(const std::string& msg,
     return WSREP_CB_FAILURE;
   }
 
-  if (!strcmp (WSREP_SST_MYSQLDUMP, method))
-  {
-    ret= sst_donate_mysqldump(addr, current_gtid, bypass, env());
-  }
-  else
-  {
-    ret= sst_donate_other(method, addr, current_gtid, bypass, env());
-  }
+  ret= sst_donate_other(method, addr, current_gtid, bypass, auth, env());
 
-  return (ret >= 0 ? 0 : 1);
+  return (ret >= 0 ? WSREP_CB_SUCCESS : WSREP_CB_FAILURE);
 }

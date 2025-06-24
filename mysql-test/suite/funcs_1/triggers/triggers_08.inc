@@ -20,6 +20,7 @@ let $message= Testcase: 3.5:;
 	create User test_general@localhost;
 	set password for test_general@localhost = password('PWD');
 	revoke ALL PRIVILEGES, GRANT OPTION FROM test_general@localhost;
+        grant SELECT,UPDATE,DELETE,INSERT on test.* to test_general@localhost;
 
 	create User test_super@localhost;
 	set password for test_super@localhost = password('PWD');

@@ -15,6 +15,7 @@
 
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 #
@@ -34,7 +35,7 @@ drop database if exists world;
 
 set names utf8;
 
-create database world;
+create database world character set latin1;
 use world;
 
 --source include/world_schema.inc
@@ -76,15 +77,15 @@ set @@optimizer_switch = 'in_to_exists=on,semijoin=on,materialization=on,partial
 -- echo MATERIALIZATION: there are too many rows in the outer query
 -- echo to be looked up in the inner table.
 EXPLAIN
-SELECT Name FROM Country
+SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
        Name LIKE 'L%') AND
-      surfacearea > 1000000;
+      surfacearea > 100000;
 
-SELECT Name FROM Country
+SELECT count(*) FROM Country
 WHERE (Code IN (select Country from City where City.Population > 100000) OR
        Name LIKE 'L%') AND
-      surfacearea > 1000000;
+      surfacearea > 100000;
 
 -- echo Q1.1e:
 -- echo IN-EXISTS: the materialization cost is the same as above, but
@@ -115,10 +116,19 @@ SELECT *
          (select Language from CountryLanguage where Percentage > 50) OR
          City.name LIKE '%Island%');
 
+EXPLAIN
 SELECT *
   FROM Country, City
   WHERE City.Country = Country.Code AND
-        Country.SurfaceArea < 3000 AND Country.SurfaceArea > 10 AND
+        Country.SurfaceArea < 500 AND Country.SurfaceArea > 10 AND
+        (City.Name IN
+         (select Language from CountryLanguage where Percentage > 50) OR
+         City.name LIKE '%Island%');
+
+SELECT *
+  FROM Country, City
+  WHERE City.Country = Country.Code AND
+        Country.SurfaceArea < 500 AND Country.SurfaceArea > 10 AND
         (City.Name IN
          (select Language from CountryLanguage where Percentage > 50) OR
          City.name LIKE '%Island%');
@@ -211,7 +221,6 @@ WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English
 -- echo Countries that speak French OR Spanish, but do not speak English
 -- echo MATERIALIZATION because the outer query filters less rows than Q5-a,
 -- echo so there are more lookups.
-
 
 set statement optimizer_switch='rowid_filter=off' for
 EXPLAIN
@@ -371,17 +380,32 @@ drop index CountryCapital on Country;
 # TODO: the cost estimates for subqueries in the HAVING clause need to be changed
 # to take into account that the subquery predicate is executed #times ~ to the
 # number of groups, not number of rows
+
 EXPLAIN
 SELECT City.Name, City.Population
 FROM City JOIN Country ON City.Country = Country.Code
 GROUP BY City.Name
 HAVING City.Name IN (select Name from Country where population < 1000000);
+--source include/last_query_cost.inc
+
+EXPLAIN
+SELECT straight_join City.Name, City.Population
+FROM Country JOIN City ON City.Country = Country.Code
+GROUP BY City.Name
+HAVING City.Name IN (select Name from Country where population < 1000000);
+--source include/last_query_cost.inc
+
+EXPLAIN
+SELECT City.Name, City.Population
+FROM Country LEFT JOIN City ON City.Country = Country.Code
+GROUP BY City.Name
+HAVING City.Name IN (select Name from Country where population < 1000000);
+--source include/last_query_cost.inc
 
 SELECT City.Name, City.Population
 FROM City JOIN Country ON City.Country = Country.Code
 GROUP BY City.Name
 HAVING City.Name IN (select Name from Country where population < 1000000);
-
 
 -- echo
 -- echo 5. Subqueries with UNION
@@ -433,7 +457,8 @@ drop database world;
 #   IN_EXIST transformations are applied to both subqueries
 #   outer subquery is materialized while the inner subquery  is not
 #(IN_EXIST transformation is applied to it)
-#   inner subqyery is materialized while the outer subquery  is not (
+#   inner subquery is materialized while the outer subquery  is not (
 #IN_EXIST transformation is applied to it)
 
 set optimizer_switch=default;
+--source include/test_db_charset_restore.inc

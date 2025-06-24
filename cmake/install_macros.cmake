@@ -51,43 +51,27 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   ENDIF()
 ENDFUNCTION()
 
-# Installs manpage for given file (either script or executable)
-#
-FUNCTION(INSTALL_MANPAGE file)
-  IF(NOT UNIX)
+FUNCTION(INSTALL_MANPAGES COMP)
+  IF(WIN32)
     RETURN()
   ENDIF()
-  GET_FILENAME_COMPONENT(file_name "${file}" NAME)
-  SET(GLOB_EXPR 
-    ${CMAKE_SOURCE_DIR}/man/*${file}man.1*
-    ${CMAKE_SOURCE_DIR}/man/*${file}man.8*
-    ${CMAKE_BINARY_DIR}/man/*${file}man.1*
-    ${CMAKE_BINARY_DIR}/man/*${file}man.8*
-   )
-  IF(MYSQL_DOC_DIR)
-    SET(GLOB_EXPR
-      ${MYSQL_DOC_DIR}/man/*${file}man.1*
-      ${MYSQL_DOC_DIR}/man/*${file}man.8*
-      ${MYSQL_DOC_DIR}/man/*${file}.1*
-      ${MYSQL_DOC_DIR}/man/*${file}.8*
-      ${GLOB_EXPR}
-      )
-  ENDIF()
-
-  FILE(GLOB_RECURSE MANPAGES ${GLOB_EXPR})
-
-  IF(MANPAGES)
-    LIST(GET MANPAGES 0 MANPAGE)
-    STRING(REPLACE "${file}man.1" "${file}.1" MANPAGE "${MANPAGE}")
-    STRING(REPLACE "${file}man.8" "${file}.8" MANPAGE "${MANPAGE}")
-    IF(MANPAGE MATCHES "${file}.1")
-      SET(SECTION man1)
-    ELSE()
-      SET(SECTION man8)
+  FOREACH(f ${ARGN})
+    STRING(REGEX REPLACE "^.*\\.([1-8])$" "\\1" n ${f})
+    IF(NOT ${n})
+      MESSAGE(FATAL_ERROR "Wrong filename in INSTALL_MANPAGE(${f})")
     ENDIF()
-    INSTALL(FILES "${MANPAGE}" DESTINATION "${INSTALL_MANDIR}/${SECTION}"
-      COMPONENT ManPages)
-  ENDIF()
+    INSTALL(FILES ${f} DESTINATION ${INSTALL_MANDIR}/man${n} COMPONENT ${COMP})
+
+    STRING(REGEX REPLACE "\\.${n}$" "" f ${f})
+    LIST(FIND MARIADB_SYMLINK_FROMS ${f} i)
+    IF(i GREATER -1)
+      LIST(GET MARIADB_SYMLINK_TOS ${i} s)
+      SET(dst "${CMAKE_CURRENT_BINARY_DIR}/${s}.${n}")
+      FILE(WRITE ${dst} ".so man${n}/${f}.${n}")
+      INSTALL(FILES ${dst} DESTINATION ${INSTALL_MANDIR}/man${n}
+              COMPONENT ${COMP}Symlinks)
+    ENDIF()
+  ENDFOREACH()
 ENDFUNCTION()
 
 FUNCTION(INSTALL_SCRIPT)
@@ -109,8 +93,6 @@ FUNCTION(INSTALL_SCRIPT)
   ENDIF()
 
   INSTALL(PROGRAMS ${script} DESTINATION ${ARG_DESTINATION} COMPONENT ${COMP})
-  get_filename_component(dest "${script}" NAME)
-  INSTALL_MANPAGE(${dest})
 ENDFUNCTION()
 
 
@@ -140,7 +122,7 @@ FUNCTION(INSTALL_DOCUMENTATION)
   IF(RPM)
     SET(destination "${destination}/MariaDB-${group}-${VERSION}")
   ELSEIF(DEB)
-    SET(destination "${destination}/mariadb-${group}-${MAJOR_VERSION}.${MINOR_VERSION}")
+    SET(destination "${destination}/mariadb-${group}")
   ENDIF()
 
   INSTALL(FILES ${files} DESTINATION ${destination} COMPONENT ${ARG_COMPONENT})
@@ -217,7 +199,7 @@ FUNCTION(SIGN_TARGET target)
 ENDFUNCTION()
 
 # Installs targets, also installs pdbs on Windows.
-#
+# Also installs runtime dependencies
 #
 
 FUNCTION(MYSQL_INSTALL_TARGETS)
@@ -246,15 +228,68 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
     IF(SIGNCODE)
       SIGN_TARGET(${target} ${COMP})
     ENDIF()
-    # Install man pages on Unix
-    IF(UNIX)
-      INSTALL_MANPAGE($<TARGET_FILE:${target}>)
+    IF(INSTALL_RUNTIME_DEPENDENCIES)
+      # Populate INSTALLED_TARGETS list (stored as global property)
+      # The list is used in INSTALL_RUNTIME_DEPS
+      GET_PROPERTY(installed_targets GLOBAL PROPERTY INSTALLED_TARGETS)
+      IF(NOT installed_targets)
+        SET(installed_targets)
+      ENDIF()
+      LIST(APPEND installed_targets "${target}")
+      SET_PROPERTY(GLOBAL PROPERTY INSTALLED_TARGETS "${installed_targets}")
+      SET(RUNTIME_DEPS RUNTIME_DEPENDENCY_SET ${target})
     ENDIF()
+    INSTALL(TARGETS ${target} DESTINATION ${ARG_DESTINATION} ${COMP} ${RUNTIME_DEPS})
+    INSTALL_DEBUG_SYMBOLS(${target} ${COMP} INSTALL_LOCATION ${ARG_DESTINATION})
   ENDFOREACH()
+ENDFUNCTION()
 
-  INSTALL(TARGETS ${TARGETS} DESTINATION ${ARG_DESTINATION} ${COMP})
-  INSTALL_DEBUG_SYMBOLS(${TARGETS} ${COMP} INSTALL_LOCATION ${ARG_DESTINATION})
 
+# On Windows, installs runtime dependency for all targets
+FUNCTION(INSTALL_RUNTIME_DEPS)
+  IF(NOT WIN32 OR NOT INSTALL_RUNTIME_DEPENDENCIES)
+    RETURN()
+  ENDIF()
+  # Install all runtime dependencies
+
+  GET_PROPERTY(installed_targets GLOBAL PROPERTY INSTALLED_TARGETS)
+  # Exclude all dependencies that are shared libraries from the
+  # same build.
+  FOREACH(tgt ${installed_targets})
+    SET(exclude_libs)
+    GET_TARGET_PROPERTY(link_libraries ${tgt} LINK_LIBRARIES)
+    IF(link_libraries)
+      FOREACH(lib ${link_libraries})
+        IF(TARGET ${lib})
+          GET_TARGET_PROPERTY(type ${lib} TYPE)
+          IF(type MATCHES "SHARED")
+            LIST(APPEND exclude_libs "$<TARGET_FILE_BASE_NAME:${lib}>\\.dll")
+          ENDIF()
+        ENDIF()
+      ENDFOREACH()
+    ENDIF()
+
+    INSTALL(
+      RUNTIME_DEPENDENCY_SET
+      ${tgt}
+      COMPONENT RuntimeDeps
+      DESTINATION ${INSTALL_BINDIR}
+      PRE_EXCLUDE_REGEXES
+      "api-ms-" # Windows stuff
+      "ext-ms-"
+      "icuuc\\.dll" # Old Windows 10 (1809)
+      "icuin\\.dll"
+      ${exclude_libs}
+      "clang_rt" # ASAN libraries
+      "vcruntime"
+      POST_EXCLUDE_REGEXES
+      ".*system32/.*\\.dll" # Windows stuff
+      POST_INCLUDE_REGEXES
+      DIRECTORIES
+      ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
+      $<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>
+    )
+  ENDFOREACH()
 ENDFUNCTION()
 
 # Optionally install mysqld/client/embedded from debug build run. outside of the current build dir

@@ -49,6 +49,8 @@
   The bug is about undefined sessionCtxSz during compilation.
 */
 #define WOLFSSL_SESSION_ID_CTX
+#define WOLFSSL_KEY_GEN
+#define WOLFSSL_CERT_GEN
 
 /* TLSv1.3 definitions (all needed to build) */
 #define WOLFSSL_TLS13
@@ -81,5 +83,7 @@
 #cmakedefine WOLFSSL_X86_64_BUILD
 #cmakedefine WOLFSSL_SP_X86_64
 #cmakedefine WOLFSSL_SP_X86_64_ASM
+
+#define HAVE_ED25519
 
 #endif  /* WOLFSSL_USER_SETTINGS_H */

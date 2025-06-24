@@ -1,50 +1,61 @@
 client/mysqlbinlog.cc       ev->output_buf.copy(e->output_buf); warning: Possible null pointer dereference: e
-client/mysqldump.c   return buff; warning: Uninitialized variable: buff
-client/mysqldump.c   return buff; warning: Uninitialized variable: buff
+client/mysqldump.cc   return buff; warning: Uninitialized variable: buff
+client/mysqldump.cc   return buff; warning: Uninitialized variable: buff
+client/mysqldump.cc   return buff; warning: Uninitialized variable: buff
+include/my_byteorder.h   float4get(to, ((const uchar*)from)); error: Uninitialized variable: def_temp
 include/my_global.h #error "please add -DSTACK_DIRECTION=1 or -1 to your CPPFLAGS" error: #error "please add -DSTACK_DIRECTION=1 or -1 to your CPPFLAGS"
 include/my_global.h #error WHAT? sizeof(long long) < 8 ??? error: #error WHAT? sizeof(long long) < 8 ???
 include/mysql/psi/mysql_socket.h     result= send(mysql_socket.fd, buf, IF_WIN((int),) n, flags); error: syntax error
 include/mysql/psi/mysql_socket.h   result= send(mysql_socket.fd, buf, IF_WIN((int),) n, flags); error: syntax error
 include/mysql/psi/psi.h #error "You must include my_global.h in the code for the build to be correct." error: #error "You must include my_global.h in the code for the build to be correct."
+lexyy.cc  warning: Possible null pointer dereference: b
+lexyy.cc  warning: Possible null pointer dereference: b
 mysql-test/lib/My/SafeProcess/safe_process_win.cc         |FORMAT_MESSAGE_IGNORE_INSERTS, NULL, last_err , 0, (LPSTR)&message_text, error: Uninitialized variable: message_text
 mysys/file_logger.c   *l_perm= new_log; error: Uninitialized struct member: new_log.lock
 mysys/ma_dyncol.c   float8get(store_it_here->x.double_value, data); error: Uninitialized variable: def_temp
-mysys/mf_loadpath.c   strmake(to, from, FN_REFLEN-1); warning: Uninitialized variable: from
 mysys/my_compare.c       mi_float4get(f_1,a); error: Uninitialized variable: def_temp
 mysys/my_compare.c       mi_float4get(f_2,b); error: Uninitialized variable: def_temp
 mysys/my_compare.c       mi_float8get(d_1,a); error: Uninitialized variable: def_temp
 mysys/my_compare.c       mi_float8get(d_2,b); error: Uninitialized variable: def_temp
 mysys/my_symlink2.c     create_link= (linkname && strcmp(abs_linkname,filename)); error: Uninitialized variable: abs_linkname
+plugin/audit_null/audit_null.c static int audit_null_plugin_init(void *arg __attribute__((unused))) error: syntax error
+plugin/auth_ed25519/client_ed25519.c #error see libmariadb/plugins/auth/ed25519.c instead error: #error see libmariadb/plugins/auth/ed25519.c instead
+plugin/auth_ed25519/server_ed25519.c static int init(void *p __attribute__((unused))) error: syntax error
+plugin/fulltext/plugin_example.c static int simple_parser_plugin_init(void *arg __attribute__((unused))) error: syntax error
 plugin/sql_errlog/sql_errlog.c       (void) localtime_r(&event_time, &t); error: Uninitialized variable: &t
+plugin/sql_errlog/sql_errlog.c static void log_sql_errors(MYSQL_THD thd __attribute__((unused)), error: syntax error
+plugin/type_uuid/sql_type_uuid.h     bzero(m_buffer, sizeof(m_buffer)); error: syntax error
 sql-common/client_plugin.c     bzero(&unused, sizeof unused); error: va_list 'unused' used before va_start() was called.
 sql-common/client_plugin.c     plugin= add_plugin(mysql, plugin, 0, 0, unused); error: va_list 'unused' used before va_start() was called.
 sql/gen_lex_hash.cc   hash_map= (char*)realloc((char*)hash_map,size_hash_map); error: Common realloc mistake: 'hash_map' nulled but not freed upon failure
 sql/my_apc.cc     apc_calls->prev= qe; error: Non-local variable 'apc_calls->prev' will use pointer to local variable 'apc_request'.
 sql/my_apc.cc     apc_calls= qe; error: Non-local variable 'apc_calls' will use pointer to local variable 'apc_request'.
+sql/rpl_gtid.h   } error: va_list 'args' was opened but not closed by va_end().
+sql/rpl_gtid.h   } error: va_list 'args' was opened but not closed by va_end().
+sql/spatial.cc     if (!first_point && x == prev_x && y == prev_y) error: Uninitialized variable: prev_x
+sql/spatial.cc     if (!first_point && x == prev_x && y == prev_y) error: Uninitialized variable: prev_y
+sql/spatial.cc   *x= res_cx; warning: Uninitialized variable: res_cx
+sql/spatial.cc   *y= res_cy; warning: Uninitialized variable: res_cy
+sql/spatial.cc   float8get(*x, data); error: Uninitialized variable: def_temp
+sql/spatial.cc   float8get(*y, data + SIZEOF_STORED_DOUBLE); error: Uninitialized variable: def_temp
+sql/spatial.cc     float8get(res, ptr); error: Uninitialized variable: def_temp
+sql/spatial.cc     float8get(res, inv_array); error: Uninitialized variable: def_temp
+sql/spatial.h     float8get(*x, data); error: Uninitialized variable: def_temp
+sql/spatial.h     float8get(*y, data + SIZEOF_STORED_DOUBLE); error: Uninitialized variable: def_temp
+sql/spatial.h     float8get(*x, m_data); error: Uninitialized variable: def_temp
+sql/spatial.h     float8get(*y, data + SIZEOF_STORED_DOUBLE); error: Uninitialized variable: def_temp
+sql/spatial.h     float8get(x, px); error: Uninitialized variable: def_temp
+sql/spatial.h     float8get(y, py); error: Uninitialized variable: def_temp
 sql/sql_string.cc     memcpy(dots, STRING_WITH_LEN("...\0")); error: failed to expand 'memcpy', Wrong number of parameters for macro 'memcpy'.
-storage/cassandra/gen-cpp/Cassandra_server.skeleton.cpp     printf("get_count\n"); error: Found an exit path from function with non-void return type that has missing return statement
-storage/connect/connect.cc           rcb= valp->SetValue_char(kp, (int)lg); error: Uninitialized variable: lg
-storage/connect/connect.cc               rcb= valp->SetValue_char((char*)p, (int)lg); error: Uninitialized variable: lg
-storage/connect/macutil.cpp #error This is WINDOWS only DLL error: #error This is WINDOWS only DLL
-storage/connect/tabjson.cpp     Val->SetValue(jsp); warning: Possible null pointer dereference: Val
-storage/connect/tabmac.cpp #error This is a WINDOWS only table type error: #error This is a WINDOWS only table type
-storage/connect/taboccur.cpp   for (i = 0, pcrp = &qrp->Colresp; (crp = *pcrp); ) { warning: Uninitialized variable: *pcrp
-storage/connect/tabwmi.cpp #error This is a WINDOWS only table type error: #error This is a WINDOWS only table type
-storage/connect/unzip.c         us.z_filefunc = *pzlib_filefunc64_32_def; warning: Uninitialized variable: *pzlib_filefunc64_32_def.zopen32_file
-storage/connect/value.cpp     if ((t -= (n * FOURYEARS)) > 2000000000) error: Signed integer overflow for expression 'n*126230400'.
-storage/connect/zip.c         ziinit.z_filefunc = *pzlib_filefunc64_32_def; warning: Uninitialized variable: *pzlib_filefunc64_32_def.zopen32_file
 storage/federated/ha_federated.cc   DBUG_RETURN(retval); error: Uninitialized variable: retval
-storage/federatedx/federatedx_pushdown.cc   ha_federatedx *h= (ha_federatedx *) table->file; warning: Possible null pointer dereference: table
-storage/federatedx/federatedx_pushdown.cc   share= get_share(table->s->table_name.str, table); warning: Possible null pointer dereference: table
-storage/heap/hp_hash.c  float4get(nr, pos); error: Uninitialized variable: def_temp
 storage/heap/hp_hash.c  float8get(nr, pos); error: Uninitialized variable: def_temp
 storage/heap/hp_hash.c     float4get(f_1,key); error: Uninitialized variable: def_temp
 storage/heap/hp_hash.c     float8get(f_1,key); error: Uninitialized variable: def_temp
+storage/innobase/include/mtr0mtr.h   inline void memcpy(const buf_block_t &b, void *dest, const void *str, error: failed to expand 'memcpy', Wrong number of parameters for macro 'memcpy'.
 storage/maria/ma_create.c   DBUG_RETURN(my_pwrite(file, buf, sizeof(buf), error: Uninitialized variable: trid_buff
 storage/maria/ma_dbug.c       mi_float4get(f_1,key); error: Uninitialized variable: def_temp
 storage/maria/ma_dbug.c       mi_float8get(d_1,key); error: Uninitialized variable: def_temp
 storage/maria/ma_ft_parser.c   param->mysql_ftparam= &my_param; error: Address of local auto-variable assigned to a function parameter.
-storage/maria/ma_key.c  float4get(nr,pos); error: Uninitialized variable: def_temp
 storage/maria/ma_key.c  float8get(nr,pos); error: Uninitialized variable: def_temp
 storage/maria/ma_key.c     float4get(f_1,key); error: Uninitialized variable: def_temp
 storage/maria/ma_key.c     float8get(f_1,key); error: Uninitialized variable: def_temp
@@ -56,22 +67,31 @@ storage/maria/ma_open.c     float8get(state->rec_per_key_part[i], ptr);  ptr+= 8
 storage/maria/ma_open.c   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0; error: Uninitialized variable: buff
 storage/maria/ma_open.c   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0; error: Uninitialized variable: buff
 storage/maria/ma_recovery_util.c     va_start(args, format); error: va_start() or va_copy() called subsequently on 'args' without va_end() in between.
+storage/maria/ma_rt_mbr.c       RT_CMP_GET(float, mi_float4get, 4, nextflag); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_CMP_GET(double, mi_float8get, 8, nextflag); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_VOL_GET(float, mi_float4get, 4, (double)); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_VOL_GET(double, mi_float8get, 8, (double)); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_D_MBR_GET(float, mi_float4get, 4, (double)); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_D_MBR_GET(double, mi_float8get, 8, (double)); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_COMB_GET(float, mi_float4get, mi_float4store, 4); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_COMB_GET(double, mi_float8get, mi_float8store, 8); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_OVL_AREA_GET(float, mi_float4get, 4); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_OVL_AREA_GET(double, mi_float8get, 8); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_AREA_INC_GET(float, mi_float4get, 4); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_AREA_INC_GET(double, mi_float8get, 8); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_PERIM_INC_GET(float, mi_float4get, 4); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_PERIM_INC_GET(double, mi_float8get, 8); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_PAGE_MBR_GET(share, float, mi_float4get, mi_float4store, 4, to); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_mbr.c       RT_PAGE_MBR_GET(share, double, mi_float8get, mi_float8store, 8, to); error: Uninitialized variable: def_temp
+storage/maria/ma_rt_test.c       float8get(c,pos); error: Uninitialized variable: def_temp
 storage/maria/ma_search.c   if (flag == 0) warning: Uninitialized variable: flag
+storage/maria/ma_sp_key.c     float8get(ord, (const uchar*) *wkb); error: Uninitialized variable: def_temp
+storage/maria/ma_sp_test.c     float8get(c,key); error: Uninitialized variable: def_temp
+storage/maria/ma_sp_test.c         float8get(ord, wkb); error: Uninitialized variable: def_temp
+storage/maria/ma_sp_test.c           float8get(ord, wkb); error: Uninitialized variable: def_temp
 storage/maria/ma_write.c     key->data= key_buff; error: Address of local auto-variable assigned to a function parameter.
+storage/maria/ma_write.c   page_store_info(share, &page); error: Uninitialized variables: &page.org_size, &page.node, &page.link_offset
 storage/maria/tablockman.c   mysql_mutex_init(& lm->pool_mutex, MY_MUTEX_INIT_FAST); error: failed to expand 'mysql_mutex_init', Wrong number of parameters for macro 'mysql_mutex_init'.
-storage/myisam/ft_parser.c   param->mysql_ftparam= &my_param; error: Address of local auto-variable assigned to a function parameter.
-storage/myisam/mi_dbug.c       mi_float4get(f_1,key); error: Uninitialized variable: def_temp
-storage/myisam/mi_dbug.c       mi_float8get(d_1,key); error: Uninitialized variable: def_temp
-storage/myisam/mi_key.c  float4get(nr,pos); error: Uninitialized variable: def_temp
-storage/myisam/mi_key.c  float8get(nr,pos); error: Uninitialized variable: def_temp
-storage/myisam/mi_key.c     float4get(f_1,key); error: Uninitialized variable: def_temp
-storage/myisam/mi_key.c     float8get(f_1,key); error: Uninitialized variable: def_temp
-storage/myisam/mi_locking.c       write_error= (mysql_file_pwrite(share->kfile, buff, sizeof(buff), error: Uninitialized variable: buff
-storage/myisam/mi_open.c   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0; error: Uninitialized variable: buff
-storage/myisam/mi_open.c   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0; error: Uninitialized variable: buff
-storage/myisam/mi_open.c   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0; error: Uninitialized variable: buff
-storage/myisam/mi_search.c   if (flag == 0) warning: Uninitialized variable: flag
-storage/perfschema/pfs_global.cc     return NULL; error: Memory leak: ptr
 storage/sequence/sequence.cc maria_declare_plugin(sequence) error: syntax error
 strings/decimal.c   sanity(to); warning: Possible null pointer dereference: to
 strings/dump_map.c     if (fromstat[i]) error: Array 'fromstat[256]' accessed at index 256, which is out of bounds.

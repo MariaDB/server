@@ -8,9 +8,9 @@ drop table if exists t1, t2, t3, t4, t5, t1i, t2i, t3i;
 drop table if exists columns;
 drop table if exists t1_16, t2_16, t3_16;
 drop view if exists v1, v2, v1m, v2m;
-create table t1 (a1 char(8), a2 char(8));
-create table t2 (b1 char(8), b2 char(8));
-create table t3 (c1 char(8), c2 char(8));
+create table t1 (a1 char(8), a2 char(8)) charset=latin1;
+create table t2 (b1 char(8), b2 char(8)) charset=latin1;
+create table t3 (c1 char(8), c2 char(8)) charset=latin1;
 insert into t1 values ('1 - 00', '2 - 00');
 insert into t1 values ('1 - 01', '2 - 01');
 insert into t1 values ('1 - 02', '2 - 02');
@@ -23,9 +23,9 @@ insert into t3 values ('1 - 01', '2 - 01');
 insert into t3 values ('1 - 02', '2 - 02');
 insert into t3 values ('1 - 03', '2 - 03');
 insert into t3 values ('1 - 04', '2 - 04');
-create table t1i (a1 char(8), a2 char(8));
-create table t2i (b1 char(8), b2 char(8));
-create table t3i (c1 char(8), c2 char(8));
+create table t1i (a1 char(8), a2 char(8)) charset=latin1;
+create table t2i (b1 char(8), b2 char(8)) charset=latin1;
+create table t3i (c1 char(8), c2 char(8)) charset=latin1;
 create index it1i1 on t1i (a1);
 create index it1i2 on t1i (a2);
 create index it1i3 on t1i (a1, a2);
@@ -61,7 +61,7 @@ explain extended
 select * from t1 where a1 in (select b1 from t2 where b1 > '0');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`>(<in_optimizer>(`test`.`t1`.`a1`,`test`.`t1`.`a1` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1`))))
 select * from t1 where a1 in (select b1 from t2 where b1 > '0');
@@ -72,7 +72,7 @@ explain extended
 select * from t1 where a1 in (select b1 from t2 where b1 > '0' group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`>(<in_optimizer>(`test`.`t1`.`a1`,`test`.`t1`.`a1` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1`))))
 select * from t1 where a1 in (select b1 from t2 where b1 > '0' group by b1);
@@ -83,7 +83,7 @@ explain extended
 select * from t1 where (a1, a2) in (select b1, b2 from t2 where b1 > '0' group by b1, b2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1` and `test`.`t1`.`a2` = `<subquery2>`.`b2`))))
 select * from t1 where (a1, a2) in (select b1, b2 from t2 where b1 > '0' group by b1, b2);
@@ -94,7 +94,7 @@ explain extended
 select * from t1 where (a1, a2) in (select b1, min(b2) from t2 where b1 > '0' group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where; Using temporary
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1`,min(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`b1` > '0' group by `test`.`t2`.`b1` ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1` and `test`.`t1`.`a2` = `<subquery2>`.`min(b2)`))))
 select * from t1 where (a1, a2) in (select b1, min(b2) from t2 where b1 > '0' group by b1);
@@ -321,7 +321,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 4	MATERIALIZED	t2i	index	it2i2	it2i3	18	NULL	5	100.00	Using where; Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#2 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` > '0' ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery2>`.`b1` and `test`.`t1`.`a2` = `<subquery2>`.`b2`)))) and <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#3 */ select `test`.`t3`.`c1`,`test`.`t3`.`c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#4 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` where `test`.`t2i`.`b2` > '0' ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery4>`.`b1` and `test`.`t3`.`c2` = `<subquery4>`.`b2`)))) ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery3>`.`c1` and `test`.`t1`.`a2` = `<subquery3>`.`c2`))))
 select * from t1
@@ -451,8 +451,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 5	MATERIALIZED	t2i	index	it2i2	it2i3	18	NULL	5	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	99.22	Using where
-3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),<exists>(/* select#2 */ select `test`.`t1`.`a1`,`test`.`t1`.`a2` from `test`.`t1` where `test`.`t1`.`a1` > '0' and <cache>(`test`.`t1`.`a1`) = `test`.`t1`.`a1` and <cache>(`test`.`t1`.`a2`) = `test`.`t1`.`a2` union /* select#3 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` < '9' and <cache>(`test`.`t1`.`a1`) = `test`.`t2`.`b1` and <cache>(`test`.`t1`.`a2`) = `test`.`t2`.`b2`))) and <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),(`test`.`t1`.`a1`,`test`.`t1`.`a2`) in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1`,`test`.`t3`.`c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#5 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` where `test`.`t2i`.`b2` > '0' ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery5>`.`b1` and `test`.`t3`.`c2` = `<subquery5>`.`b2`)))) ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery4>`.`c1` and `test`.`t1`.`a2` = `<subquery4>`.`c2`))))
@@ -474,8 +474,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 5	MATERIALIZED	t2i	index	it2i2	it2i3	18	NULL	5	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	99.22	Using where
-3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2`,`test`.`t3`.`c1` AS `c1`,`test`.`t3`.`c2` AS `c2` from `test`.`t1` join `test`.`t3` where `test`.`t3`.`c1` = `test`.`t1`.`a1` and <expr_cache><`test`.`t1`.`a1`,`test`.`t1`.`a2`>(<in_optimizer>((`test`.`t1`.`a1`,`test`.`t1`.`a2`),<exists>(/* select#2 */ select `test`.`t1`.`a1`,`test`.`t1`.`a2` from `test`.`t1` where `test`.`t1`.`a1` > '0' and <cache>(`test`.`t1`.`a1`) = `test`.`t1`.`a1` and <cache>(`test`.`t1`.`a2`) = `test`.`t1`.`a2` union /* select#3 */ select `test`.`t2`.`b1`,`test`.`t2`.`b2` from `test`.`t2` where `test`.`t2`.`b1` < '9' and <cache>(`test`.`t1`.`a1`) = `test`.`t2`.`b1` and <cache>(`test`.`t1`.`a2`) = `test`.`t2`.`b2`))) and <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1`,`test`.`t3`.`c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`,`test`.`t3`.`c2`>(<in_optimizer>((`test`.`t3`.`c1`,`test`.`t3`.`c2`),(`test`.`t3`.`c1`,`test`.`t3`.`c2`) in ( <materialize> (/* select#5 */ select `test`.`t2i`.`b1`,`test`.`t2i`.`b2` from `test`.`t2i` where `test`.`t2i`.`b2` > '0' ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery5>`.`b1` and `test`.`t3`.`c2` = `<subquery5>`.`b2`)))) ), <primary_index_lookup>(`test`.`t3`.`c1` in <temporary table> on distinct_key where `test`.`t3`.`c1` = `<subquery4>`.`c1` and `test`.`t3`.`c2` = `<subquery4>`.`c2`))))
@@ -496,8 +496,8 @@ select * from t3
 where c1 in (select a1 from t1 where a1 > '0' UNION select b1 from t2 where b1 < '9');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	99.22	Using where
-3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	99.22	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DEPENDENT UNION	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`c1` AS `c1`,`test`.`t3`.`c2` AS `c2` from `test`.`t3` where <expr_cache><`test`.`t3`.`c1`>(<in_optimizer>(`test`.`t3`.`c1`,<exists>(/* select#2 */ select `test`.`t1`.`a1` from `test`.`t1` where `test`.`t1`.`a1` > '0' and <cache>(`test`.`t3`.`c1`) = `test`.`t1`.`a1` union /* select#3 */ select `test`.`t2`.`b1` from `test`.`t2` where `test`.`t2`.`b1` < '9' and <cache>(`test`.`t3`.`c1`) = `test`.`t2`.`b1`)))
@@ -711,7 +711,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t1_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DEPENDENT SUBQUERY	t2_16	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	99.22	Using where
+4	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where <expr_cache><concat(`test`.`t1`.`a1`,'x')>(<in_optimizer>(concat(`test`.`t1`.`a1`,'x'),<exists>(/* select#2 */ select left(`test`.`t1_16`.`a1`,8) from `test`.`t1_16` where <expr_cache><`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`>(<in_optimizer>((`test`.`t1_16`.`a1`,`test`.`t1_16`.`a2`),<exists>(/* select#3 */ select `test`.`t2_16`.`b1`,`test`.`t2_16`.`b2` from `test`.`t2_16` join `test`.`t2` where `test`.`t2`.`b2` = substr(`test`.`t2_16`.`b2`,1,6) and <expr_cache><`test`.`t2`.`b1`>(<in_optimizer>(`test`.`t2`.`b1`,`test`.`t2`.`b1` in ( <materialize> (/* select#4 */ select `test`.`t3`.`c1` from `test`.`t3` where `test`.`t3`.`c2` > '0' ), <primary_index_lookup>(`test`.`t2`.`b1` in <temporary table> on distinct_key where `test`.`t2`.`b1` = `<subquery4>`.`c1`)))) and <cache>(`test`.`t1_16`.`a1`) = `test`.`t2_16`.`b1` and <cache>(`test`.`t1_16`.`a2`) = `test`.`t2_16`.`b2`))) and <cache>(concat(`test`.`t1`.`a1`,'x')) = left(`test`.`t1_16`.`a1`,8))))
 drop table t1_16, t2_16, t3_16;
@@ -795,9 +795,9 @@ from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
 left(a1,7)	left(a2,7)
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_512
@@ -812,9 +812,9 @@ from t1_512
 where a1 in (select group_concat(b1) from t2_512 group by b2);
 left(a1,7)	left(a2,7)
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
 drop table t1_512, t2_512, t3_512;
 set @blob_len = 1024;
 set @suffix_len = @blob_len - @prefix_len;
@@ -896,9 +896,10 @@ from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
 left(a1,7)	left(a2,7)
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_1024
@@ -913,9 +914,10 @@ from t1_1024
 where a1 in (select group_concat(b1) from t2_1024 group by b2);
 left(a1,7)	left(a2,7)
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1_1024, t2_1024, t3_1024;
 set @blob_len = 1025;
 set @suffix_len = @blob_len - @prefix_len;
@@ -997,9 +999,10 @@ from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
 left(a1,7)	left(a2,7)
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 set @@group_concat_max_len = 256;
 explain extended select left(a1,7), left(a2,7)
 from t1_1025
@@ -1014,9 +1017,10 @@ from t1_1025
 where a1 in (select group_concat(b1) from t2_1025 group by b2);
 left(a1,7)	left(a2,7)
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop table t1_1025, t2_1025, t3_1025;
 create table t1bit (a1 bit(3), a2 bit(3));
 create table t2bit (b1 bit(3), b2 bit(3));
@@ -1142,7 +1146,7 @@ a
 explain extended
 select a from t1 group by a having a in (select c from t2 where d >= 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	range	NULL	it1a	4	NULL	8	100.00	Using index for group-by
+1	PRIMARY	t1	range	NULL	it1a	4	NULL	7	100.00	Using index for group-by
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a` having <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`c` from `test`.`t2` where `test`.`t2`.`d` >= 20 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`c`))))
@@ -1154,7 +1158,7 @@ create index iab on t1(a, b);
 explain extended
 select a from t1 group by a having a in (select c from t2 where d >= 20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	range	NULL	it1a	4	NULL	8	100.00	Using index for group-by
+1	PRIMARY	t1	range	NULL	it1a	4	NULL	7	100.00	Using index for group-by
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a` having <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`c` from `test`.`t2` where `test`.`t2`.`d` >= 20 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`c`))))
@@ -1166,7 +1170,7 @@ explain extended
 select a from t1 group by a
 having a in (select c from t2 where d >= some(select e from t3 where max(b)=e));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	range	NULL	iab	4	NULL	8	100.00	Using index for group-by
+1	PRIMARY	t1	range	NULL	iab	4	NULL	7	100.00	Using index for group-by
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 Warnings:
@@ -1257,7 +1261,7 @@ min(a1)
 NULL
 set @@optimizer_switch= @local_optimizer_switch;
 drop table t1,t2;
-create table t1 (a char(2), b varchar(10));
+create table t1 (a char(2), b varchar(10)) charset=latin1;
 insert into t1 values ('a',  'aaa');
 insert into t1 values ('aa', 'aaaa');
 explain select a,b from t1 where b in (select a from t1);
@@ -1510,13 +1514,15 @@ SET @@optimizer_switch='semijoin=on,materialization=on';
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE (f1,f2) IN (SELECT f1,f2 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	7	func,func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT COUNT(*) FROM t1 WHERE (f1,f2) IN (SELECT f1,f2 FROM t2);
 COUNT(*)
 2
 set @@optimizer_switch= @local_optimizer_switch;
 DROP TABLE t1, t2;
+#
+# BUG#46548 IN-subqueries return 0 rows with materialization=on
+#
 CREATE TABLE t1 (
 pk int,
 a varchar(1),
@@ -1524,18 +1530,21 @@ b varchar(4),
 c varchar(4),
 d varchar(4),
 PRIMARY KEY (pk)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo'),(2,'f','ffff','ffff','ffff');
+insert into t1 select seq,'x','xxxx','xxxx','xxxx' from seq_10_to_40;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii'),(2,'f','ffff','ffff','ffff');
+insert into t2 select -seq,'a','aaaa','aaaa','aaaa' from seq_1_to_20;
+insert into t2 select seq,'b','bbbb','bbbb','bbbb' from seq_100_to_200;
 set @local_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch=@optimizer_switch_local_default;
 SET @@optimizer_switch='semijoin=on,materialization=on';
 EXPLAIN SELECT pk FROM t1 WHERE (a) IN (SELECT a FROM t2 WHERE pk > 0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	33	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition; Using where; Rowid-ordered scan
+2	MATERIALIZED	t2	ALL	PRIMARY	NULL	NULL	NULL	123	Using where
 SELECT pk FROM t1 WHERE (a) IN (SELECT a FROM t2 WHERE pk > 0);
 pk
 2
@@ -1875,8 +1884,8 @@ DROP TABLE t1,t2;
 #
 # BUG#922254: Assertion `0' failed at item_cmpfunc.cc:5899: Item* Item_equal::get_first(JOIN_TAB*, Item*)
 #
-CREATE TABLE t1 ( a VARCHAR(3) );
-CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c) );
+CREATE TABLE t1 ( a VARCHAR(3)) CHARSET=latin1;
+CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('USA','Abilene'),('USA','Akron');
 EXPLAIN
 SELECT * FROM
@@ -1890,19 +1899,20 @@ WHERE alias4.c = alias3.b
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 3	MATERIALIZED	alias3	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	MATERIALIZED	alias4	ref	c	c	11	test.alias3.b	2	Using where; Using index
+3	MATERIALIZED	alias4	ref	c	c	11	test.alias3.b	1	Using where; Using index
 DROP TABLE t1,t2;
 #
 # BUG#928048: Query containing IN subquery with OR in the where clause returns a wrong result
 #
 create table t1 (a int, b int);
 insert into t1 values (7,5), (3,3), (5,4), (9,3);
+insert into t1 select seq,seq from seq_100_to_200;
 create table t2 (a int, b int, index i_a(a));
 insert into t2 values
 (4,2), (7,9), (7,4), (3,1), (5,3), (3,1), (9,4), (8,1);
 explain select * from t1 where t1.a in (select a from t2 where t2.a=7 or t2.b<=1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	105	Using where
 2	MATERIALIZED	t2	ALL	i_a	NULL	NULL	NULL	8	Using where
 select * from t1 where t1.a in (select a from t2 where t2.a=7 or t2.b<=1);
 a	b
@@ -1979,7 +1989,7 @@ DROP TABLE t1,t2;
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (7);
-CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c));
+CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c)) CHARSET=latin1;
 INSERT INTO t2 VALUES 
 (4,2,'v','v'), (6,1,'v','v'), (0,5,'x','x'), (7,1,'x','x'),
 (7,3,'i','i'), (7,1,'e','e'), (1,4,'p','p'), (1,2,'j','j');
@@ -2175,7 +2185,7 @@ id int(11) unsigned NOT NULL AUTO_INCREMENT,
 db varchar(254) NOT NULL DEFAULT '',
 PRIMARY KEY (id),
 UNIQUE KEY db (db)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 INSERT INTO t1 (db) VALUES ('mysqltest1'),('mysqltest2'),('mysqltest3'),('mysqltest4');
 drop database if exists mysqltest1;
 drop database if exists mysqltest2;
@@ -2194,9 +2204,8 @@ mysqltest1
 EXPLAIN EXTENDED
 SELECT db FROM t1 WHERE db IN (SELECT SCHEMA_NAME FROM information_schema.schemata) ORDER BY db DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
-1	PRIMARY	t1	eq_ref	db	db	764	information_schema.schemata.SCHEMA_NAME	1	100.00	Using where; Using index
-2	MATERIALIZED	schemata	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+1	PRIMARY	t1	index	db	db	764	NULL	4	100.00	Using index; Using temporary; Using filesort
+1	PRIMARY	schemata	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`db` AS `db` from `test`.`t1` semi join (`information_schema`.`schemata`) where `test`.`t1`.`db` = `information_schema`.`schemata`.`SCHEMA_NAME` order by `test`.`t1`.`db` desc
 drop table t1;
@@ -2228,8 +2237,10 @@ drop table t1;
 CREATE TABLE t1 (
 pk INT, f1 INT NOT NULL, f2 VARCHAR(3), f3 INT NULL, PRIMARY KEY(pk)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1,1,'foo',8), (2,5,'bar',7);
+create table t2 like t1;
+insert into t2 select * from t1;
 SELECT sq1.f2    FROM t1 AS sq1
-WHERE EXISTS ( SELECT * FROM t1 AS sq2
+WHERE EXISTS ( SELECT * FROM t2 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 f2
 foo
@@ -2241,18 +2252,17 @@ WHERE EXISTS ( SELECT * FROM t1 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	sq1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch
 2	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
 # this checks the result set above
 set optimizer_switch= 'materialization=off,semijoin=off';
 SELECT sq1.f2    FROM t1 AS sq1
-WHERE EXISTS ( SELECT * FROM t1 AS sq2
+WHERE EXISTS ( SELECT * FROM t2 AS sq2
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 f2
 foo
 set optimizer_switch= @local_optimizer_switch;
-DROP TABLE t1;
+DROP TABLE t1,t2;
 #
 # MDEV-12145: IN subquery used in WHERE of EXISTS subquery
 #
@@ -2275,10 +2285,9 @@ WHERE EXISTS ( SELECT * FROM t2, t3
 WHERE i3 = i2 AND f1 IN ( SELECT f3 FROM t3 ) );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	8	12.50	Using where; FirstMatch
 2	DEPENDENT SUBQUERY	t2	range	i2	i2	5	NULL	3	100.00	Using where; Using index; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t3	ref	i3	i3	5	test.t2.i2	2	100.00	Using index
-3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	8	100.00	
+2	DEPENDENT SUBQUERY	t3	ref	i3	i3	5	test.t2.i2	1	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.f1' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`f1` AS `f1` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`>(exists(/* select#2 */ select 1 from `test`.`t2` semi join (`test`.`t3`) join `test`.`t3` where `test`.`t3`.`i3` = `test`.`t2`.`i2` and `test`.`t1`.`f1` = `test`.`t3`.`f3` limit 1))
@@ -2314,9 +2323,8 @@ SELECT pk, f1, ( SELECT COUNT(*) FROM t2
 WHERE t1.pk IN ( SELECT f2 FROM t2 ) ) AS sq FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	DEPENDENT SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	20.00	Using where; FirstMatch
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`f1` AS `f1`,<expr_cache><`test`.`t1`.`pk`>((/* select#2 */ select count(0) from `test`.`t2` semi join (`test`.`t2`) where `test`.`t1`.`pk` = `test`.`t2`.`f2`)) AS `sq` from `test`.`t1`
@@ -2344,7 +2352,7 @@ sys_id char(32),
 PRIMARY KEY (sys_id),
 KEY idx1 (dispatch_group),
 KEY idx2 (assignment_group)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 CREATE TABLE t2 (
 ugroup varchar(32),
 user varchar(32),
@@ -2352,12 +2360,12 @@ sys_id char(32),
 PRIMARY KEY (sys_id),
 KEY idx3 (ugroup),
 KEY idx4 (user)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 CREATE TABLE t3 (
 type mediumtext,
 sys_id char(32),
 PRIMARY KEY (sys_id)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 set optimizer_switch='materialization=off';
 explain SELECT t1.assignment_group
 FROM t1, t3
@@ -2399,11 +2407,24 @@ WHERE t2.ugroup = t3_i.sys_id AND
 t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
 t2.user = '86826bf03710200044e0bfc8bcbe5d79');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t1	ref	idx1,idx2	idx1	35	test.t2.ugroup	2	Using where
+1	PRIMARY	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where; Start temporary
+1	PRIMARY	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
+1	PRIMARY	t1	ref	idx1,idx2	idx1	35	test.t3_i.sys_id	2	Using index condition; Using where; End temporary
 1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	32	test.t1.assignment_group	1	Using where; Using index
-2	MATERIALIZED	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where
-2	MATERIALIZED	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
+set statement optimizer_prune_level=1 for explain SELECT t1.assignment_group
+FROM t1, t3
+WHERE t1.assignment_group = t3.sys_id AND
+t1.dispatch_group IN
+(SELECT t2.ugroup
+FROM t2, t3 t3_i
+WHERE t2.ugroup = t3_i.sys_id AND 
+t3_i.type LIKE '59e22fb137032000158bbfc8bcbe5d52' AND
+t2.user = '86826bf03710200044e0bfc8bcbe5d79');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ref	idx3,idx4	idx4	35	const	2	Using index condition; Using where; Start temporary
+1	PRIMARY	t3_i	eq_ref	PRIMARY	PRIMARY	32	test.t2.ugroup	1	Using index condition; Using where
+1	PRIMARY	t1	ref	idx1,idx2	idx1	35	test.t3_i.sys_id	2	Using index condition; Using where; End temporary
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	32	test.t1.assignment_group	1	Using where; Using index
 SELECT t1.assignment_group
 FROM t1, t3
 WHERE t1.assignment_group = t3.sys_id AND
@@ -2435,8 +2456,7 @@ explain
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	8	test.t1.id,test.t1.id	3	Using where; FirstMatch(t1); Using join buffer (flat, BNLH join)
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 1
 1
@@ -2448,8 +2468,7 @@ explain
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	id	id	4	NULL	9	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 1
 1
@@ -2498,19 +2517,16 @@ drop procedure prepare_data;
 set @@optimizer_switch= @local_optimizer_switch;
 drop table t1,t2,t3;
 CREATE TABLE t1 ( id int NOT NULL, key(id));
-INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO t1 select seq from seq_11_to_39;
 CREATE TABLE t2 (i1 int NOT NULL, i2 int NOT NULL);
-INSERT INTO t2 VALUES  (11,11),(12,12),(13,13);
+INSERT INTO t2 select seq,seq+1 from seq_11_to_50;
 CREATE VIEW v1 AS SELECT t2.i1 FROM t2 where t2.i1 = t2.i2;
 explain SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	id	id	4	NULL	9	Using index
+1	PRIMARY	t1	index	id	id	4	NULL	29	Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	40	Using where
 SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
-1
-1
-1
 1
 drop table t1,t2;
 drop view v1;
@@ -2844,12 +2860,12 @@ PRIMARY KEY (pk)
 INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo'),(2,'f','ffff','ffff','ffff');
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii'),(2,'f','ffff','ffff','ffff');
+insert into t2 select -seq,"","","","" from seq_1_to_10;
 SET @@optimizer_switch='default,semijoin=on,materialization=on';
 EXPLAIN SELECT pk FROM t1 WHERE (a) IN (SELECT a FROM t2 WHERE pk > 0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition; Using where
+1	PRIMARY	t2	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition; Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT pk FROM t1 WHERE (a) IN (SELECT a FROM t2 WHERE pk > 0);
 pk
 2
@@ -3082,22 +3098,33 @@ NULL	NULL
 analyze format=json select a, a in (select b from t2) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -3107,20 +3134,28 @@ ANALYZE
           "r_partial_matches": 1,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3138,22 +3173,33 @@ NULL	NULL
 analyze format=json select a, a in (select b from t2) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -3162,20 +3208,28 @@ ANALYZE
           "r_index_lookups": 3,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 3,
-              "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 3,
+                  "r_rows": 3,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3194,42 +3248,61 @@ NULL	NULL
 analyze format=json select a, a in (select b from t2) from t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
           "r_strategy": "return NULL",
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3259,6 +3332,9 @@ NULL
 analyze format=json update t1 set a=a+1 where a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -3268,10 +3344,11 @@ ANALYZE
       "access_type": "ALL",
       "rows": 4,
       "r_rows": 4,
-      "r_filtered": 25,
+      "r_total_filtered": 25,
       "r_total_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
-      "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))"
+      "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))",
+      "r_filtered": 25
     },
     "subqueries": [
       {
@@ -3282,20 +3359,28 @@ ANALYZE
           "r_partial_matches": 1,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
@@ -3327,6 +3412,9 @@ NULL
 analyze format=json delete from t1 where a not in (select b from t2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -3336,10 +3424,11 @@ ANALYZE
       "access_type": "ALL",
       "rows": 2,
       "r_rows": 2,
-      "r_filtered": 0,
+      "r_total_filtered": 0,
       "r_total_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
-      "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))"
+      "attached_condition": "!(<in_optimizer>(t1.a,t1.a in (subquery#2)))",
+      "r_filtered": 0
     },
     "subqueries": [
       {
@@ -3350,20 +3439,28 @@ ANALYZE
           "r_partial_matches": 1,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }

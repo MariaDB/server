@@ -1,4 +1,5 @@
 drop table if exists t1, t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Bug#11765667: bug#58655: ASSERTION FAILED,
 #                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
@@ -2360,11 +2361,11 @@ b	c
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	ref	bc	bc	5	const	23	Using where; Using index
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+1	SIMPLE	t1	range	bc	bc	5	NULL	23	Using where; Using index
 DROP TABLE t1;
 #
 # Bug #45807: crash accessing partitioned table and sql_mode 
@@ -2642,7 +2643,7 @@ Note	1517	Duplicate partition name p5
 alter table t1 drop partition if exists p5;
 alter table t1 drop partition if exists p5;
 Warnings:
-Note	1507	Error in list of partitions to DROP
+Note	1507	Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (a INT) ENGINE=MyISAM PARTITION BY RANGE(a) (PARTITION p1 VALUES LESS THAN (0));
 ALTER TABLE t1 ADD PARTITION (PARTITION p2 VALUES LESS THAN (1));
@@ -2740,7 +2741,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	Using where
 explain extended select * from t2 where b=5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	19.61	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	0.10	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` = 5
 explain partitions select * from t2 where b=5;
@@ -2748,7 +2749,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain extended select * from t2 partition(p0)  where b=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	19.61	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	20.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` PARTITION (`p0`) where `test`.`t2`.`b` = 1
 set @@use_stat_tables= @save_use_stat_tables;
@@ -2890,3 +2891,42 @@ DROP TABLE t1;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-31494 Server crashes in ha_partition::index_blocks /
+# get_key_scans_params
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT, KEY(c)) PARTITION BY LIST (b) (PARTITION p0 VALUES IN (1,2), PARTITION p1 VALUES IN (3,4));
+INSERT INTO t2 VALUES (1,1),(2,2);
+explain SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+a	b	c
+DROP TABLE t1, t2;
+#
+# MDEV-31445 Server crashes in ha_partition::index_blocks /
+# cost_for_index_read
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT, d INT, KEY(d)) PARTITION BY KEY (c) PARTITIONS 2;
+CREATE TABLE t4 (e INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t3 VALUES (1,1),(2,2);
+INSERT INTO t4 VALUES (1),(2);
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t3	ref	d	d	5	test.t2.b	1	Using where
+2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+a	b	c	d
+1	NULL	NULL	NULL
+2	NULL	NULL	NULL
+drop table t1,t2,t3,t4;
+# End of 11.0 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

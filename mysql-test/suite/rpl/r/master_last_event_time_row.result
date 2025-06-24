@@ -1,0 +1,215 @@
+include/rpl_init.inc [topology=1->2->3]
+#
+# Initialize test data
+# Ensure that all slaves has master_last_event_time == NULL
+#
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+include/save_master_pos.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+#
+# Test *_last_event_time is updated at proper place.
+# Master_last_event_time should be updated by the IO thread when reading
+# in a new transaction from the primary.
+# Slave_last_event_time should be updated by the SQL thread
+#   1) immediately upon seeing the first transaction if the replica is
+#      starting fresh, or
+#   2) after committing a transaction.
+#
+connection server_2;
+start slave io_thread;
+include/sync_io_with_master.inc
+master_time:  (should be empty)
+slave_time:  (should be empty)
+# Sleep 2s to create a time gap between the header events (i.e.
+# Format_description and Gtid_list) and the transaction event to allow
+# proving that header events should not update
+# (Master|Slave)_last_event_time
+connect  server_1_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+set @@timestamp= TIMESTAMP;
+insert into t1 values (0);
+include/save_master_pos.inc
+connection server_2;
+include/sync_io_with_master.inc
+# For the first event, at execution start, Slave_last_event_time should
+# be updated to be 1 second prior to the time that the first transaction
+# was binlogged on the primary. This is to represent that the slave is
+# otherwise up-to-date. Note the table is locked to prevent the
+# transaction from committing (and thereby progressing
+# Slave_last_event_time to represent commit-time).
+connect  server_2_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+lock tables t1 write;
+connection server_2;
+start slave sql_thread;
+# Waiting for replica to start executing the transaction (yet get stuck on the table lock)
+connection server_2_2;
+unlock tables;
+connection server_2;
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+#
+# Test that changes are properly applied by server_2 and server_3
+#
+connection server_1;
+include/save_master_pos.inc
+connection server_2;
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
+# Show that the server_2 received the insert from master
+select * from t1;
+a
+0
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+connection server_3;
+include/start_slave.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+# Show that the server_3 received the insert from master
+select * from t1;
+a
+0
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+include/stop_slave.inc
+connection server_1;
+#
+# Test simple insert
+#
+connection server_1;
+insert into t1 values (1+sleep(3));
+#
+# Test that changes are properly applied by server_2 and server_3
+#
+connection server_1;
+include/save_master_pos.inc
+connection server_2;
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
+# Show that the server_2 received the insert from master
+select * from t1;
+a
+0
+1
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+connection server_3;
+include/start_slave.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+# Show that the server_3 received the insert from master
+select * from t1;
+a
+0
+1
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+include/stop_slave.inc
+connection server_1;
+#
+# Test insert with forced time
+#
+SET TIMESTAMP=unix_timestamp("2000-01-01");
+insert into t1 values (2+sleep(3));
+SET TIMESTAMP=DEFAULT;
+#
+# Test that changes are properly applied by server_2 and server_3
+#
+connection server_1;
+include/save_master_pos.inc
+connection server_2;
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
+# Show that the server_2 received the insert from master
+select * from t1;
+a
+0
+1
+2
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+connection server_3;
+include/start_slave.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+# Show that the server_3 received the insert from master
+select * from t1;
+a
+0
+1
+2
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+include/stop_slave.inc
+connection server_1;
+#
+# Test multi-transaction
+#
+begin;
+insert into t1 values (3+sleep(3));
+insert into t1 values (4+sleep(3));
+commit;
+#
+# Test that changes are properly applied by server_2 and server_3
+#
+connection server_1;
+include/save_master_pos.inc
+connection server_2;
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+include/save_master_pos.inc
+# Show that the server_2 received the insert from master
+select * from t1;
+a
+0
+1
+2
+3
+4
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+connection server_3;
+include/start_slave.inc
+include/wait_for_slave_param.inc [Relay_Master_Log_File]
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+# Show that the server_3 received the insert from master
+select * from t1;
+a
+0
+1
+2
+3
+4
+master <> NULL; Should be 1
+1
+master_time == slave_time ; Should be 1
+1
+include/stop_slave.inc
+connection server_1;
+# cleanup
+connection server_3;
+include/start_slave.inc
+connection server_1;
+drop table t1;
+include/rpl_end.inc
+# End of master_last_event_time_row

@@ -157,7 +157,7 @@ public:
 
 
 /*
-  Buffer manager interface. Mrr_reader objects use it to inqure DsMrr_impl
+  Buffer manager interface. Mrr_reader objects use it to inquire DsMrr_impl
   to manage buffer space for them.
 */
 typedef struct st_buffer_manager
@@ -573,7 +573,7 @@ public:
 
   ha_rows dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq, 
                             void *seq_init_param, uint n_ranges, uint *bufsz,
-                            uint *flags, Cost_estimate *cost);
+                           uint *flags, ha_rows limit, Cost_estimate *cost);
 
   int dsmrr_explain_info(uint mrr_mode, char *str, size_t size);
 private:

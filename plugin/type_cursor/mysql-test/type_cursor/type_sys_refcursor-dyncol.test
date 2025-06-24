@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS SYS_REFCURSOR
+BEGIN
+  DECLARE c0 SYS_REFCURSOR;
+  DECLARE c1 SYS_REFCURSOR;
+  OPEN c0 FOR SELECT 1;
+  OPEN c1 FOR SELECT 1;
+  RETURN c1;
+END;
+/
+DELIMITER ;/
+
+# SYS_REFCURSOR works like an integer.
+# QQ: Perhaps SYS_REFCURSOR should be disallowed as a COLUMN_CREATE() parameter.
+
+SET @a=(SELECT COLUMN_CREATE(1, f1()));
+SELECT COLUMN_GET(@a, 1 AS INT);
+
+# COLUMN_GET(dyncol, 1 AS SYS_REFCURSOR) is not supported
+--error ER_UNKNOWN_OPERATOR
+SELECT COLUMN_GET(@a, 1 AS SYS_REFCURSOR);
+
+DROP FUNCTION f1;

@@ -2,14 +2,14 @@
 
 # Set a known initial state for the test
 
-flush status;
+flush global status;
 flush hosts;
 flush user_resources;
 flush privileges;
 
 # Print critical setup
 
-#select @@global.debug;
+#select @@global.debug_dbug;
 #select @@global.max_connect_errors;
 #select @@global.max_user_connections;
 #select @@global.max_connections;

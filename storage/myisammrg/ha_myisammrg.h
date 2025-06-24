@@ -14,11 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 /* class for the the myisam merge handler */
 
 #include <myisammrg.h>
@@ -82,7 +77,6 @@ public:
 
   ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_myisammrg();
-  const char *index_type(uint key_number) override;
   ulonglong table_flags() const override
   {
     return (HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_NO_TRANSACTIONS |
@@ -100,15 +94,21 @@ public:
             HA_READ_ORDER | HA_KEYREAD_ONLY);
   }
   uint max_supported_keys()          const override { return MI_MAX_KEY; }
-  uint max_supported_key_length()    const override{ return HA_MAX_KEY_LENGTH; }
-  uint max_supported_key_part_length() const override { return HA_MAX_KEY_LENGTH; }
-  double scan_time() override
-  { return ulonglong2double(stats.data_file_length) / IO_SIZE + file->tables; }
-
+  uint max_supported_key_length()    const override { return HA_MAX_KEY_LENGTH; }
+  uint max_supported_key_part_length() const override
+  { return HA_MAX_KEY_LENGTH; }
+  IO_AND_CPU_COST scan_time() override
+  {
+    IO_AND_CPU_COST cost;
+    cost.io= (ulonglong2double(stats.data_file_length) / IO_SIZE +
+              file->tables),
+    cost.cpu= records() * ROW_NEXT_FIND_COST;
+    return cost;
+  }
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                                ulonglong blocks) override;
   int open(const char *name, int mode, uint test_if_locked) override;
-  int add_children_list(void);
-  int attach_children(void);
-  int detach_children(void);
   handler *clone(const char *name, MEM_ROOT *mem_root) override;
   int close(void) override;
   int write_row(const uchar * buf) override;
@@ -138,25 +138,71 @@ public:
   int extra_opt(enum ha_extra_function operation, ulong cache_size) override;
   int external_lock(THD *thd, int lock_type) override;
   uint lock_count(void) const override;
-  int create_mrg(const char *name, HA_CREATE_INFO *create_info);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info) override;
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 			     enum thr_lock_type lock_type) override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
   void append_create_info(String *packet) override;
-  MYRG_INFO *myrg_info() { return file; }
-  TABLE *table_ptr() { return table; }
   enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *,
                                                 Alter_inplace_info *) override;
   bool inplace_alter_table(TABLE *altered_table,
                            Alter_inplace_info *ha_alter_info) override;
   int check(THD* thd, HA_CHECK_OPT* check_opt) override;
   ha_rows records() override;
-  uint count_query_cache_dependant_tables(uint8 *tables_type) override;
-  my_bool
+  virtual uint count_query_cache_dependant_tables(uint8 *tables_type) override;
+  virtual my_bool
     register_query_cache_dependant_tables(THD *thd,
                                           Query_cache *cache,
                                           Query_cache_block_table **block,
                                           uint *n) override;
-  void set_lock_type(enum thr_lock_type lock) override;
+  virtual void set_lock_type(enum thr_lock_type lock) override;
+
+  /* Internal interface functions, not part of the normal handler interface */
+  int add_children_list(void);
+  int attach_children(void);
+  int detach_children(void);
+  int create_mrg(const char *name, HA_CREATE_INFO *create_info);
+  MYRG_INFO *myrg_info() { return file; }
+  TABLE *table_ptr()  { return table; }
+
+  /*
+    Make an exact copy an identifier on children_mem_root.
+
+    @param src    - The original identifier
+    @return       - {NULL,0} in case of EOM,
+                    or a non-NULL LEX_STRING with the identifier copy.
+  */
+  LEX_STRING make_child_ident(const LEX_CSTRING &src)
+  {
+    return lex_string_strmake_root(&children_mem_root, src.str, src.length);
+  }
+
+  /*
+    Make an exact copy or a lower-cased copy of an identifier
+    on children mem_root.
+
+    @param src    - The original identifier
+    @param casedn - If the name should be converted to lower case
+    @return       - {NULL,0} in case of EOM,
+                    or a non-NULL LEX_STRING with the identifier copy.
+  */
+  LEX_STRING make_child_ident_opt_casedn(const LEX_CSTRING &src, bool casedn)
+  {
+    return casedn ? lex_string_casedn_root(&children_mem_root,
+                                           &my_charset_utf8mb3_general_ci,
+                                           src.str, src.length) :
+                    make_child_ident(src);
+  }
+
+  /*
+    Make an optionally lower-cases filename_to_tablename-decoded identifier
+    in children mem_root.
+  */
+  LEX_STRING make_child_ident_filename_to_tablename(const char *src,
+                                                    bool casedn)
+  {
+    char buf[NAME_LEN];
+    size_t len= filename_to_tablename(src, buf, sizeof(buf));
+    return make_child_ident_opt_casedn({buf, len}, casedn);
+  }
 };

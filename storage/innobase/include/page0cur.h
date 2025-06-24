@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2022, MariaDB Corporation.
+Copyright (c) 2018, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -109,11 +109,6 @@ succeed, i.e., enough space available, NULL otherwise. The cursor stays at
 the same logical position, but the physical position may change if it is
 pointing to a compressed page that was reorganized.
 
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
 @return pointer to record if succeed, NULL otherwise */
 UNIV_INLINE
 rec_t*
@@ -142,11 +137,6 @@ page_cur_insert_rec_low(
 /***********************************************************//**
 Inserts a record next to page cursor on a compressed and uncompressed
 page.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
 
 @return pointer to inserted record
 @return nullptr on failure */
@@ -222,47 +212,38 @@ bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
                                size_t hdr_size, size_t data_size);
 
 MY_ATTRIBUTE((warn_unused_result))
-/****************************************************************//**
-Searches the right position for a page cursor. */
-bool
-page_cur_search_with_match(
-/*=======================*/
-	const dtuple_t*		tuple,	/*!< in: data tuple */
-	page_cur_mode_t		mode,	/*!< in: PAGE_CUR_L,
-					PAGE_CUR_LE, PAGE_CUR_G, or
-					PAGE_CUR_GE */
-	ulint*			iup_matched_fields,
-					/*!< in/out: already matched
-					fields in upper limit record */
-	ulint*			ilow_matched_fields,
-					/*!< in/out: already matched
-					fields in lower limit record */
-	page_cur_t*		cursor,	/*!< in/out: page cursor */
-	rtr_info_t*		rtr_info);/*!< in/out: rtree search stack */
-#ifdef BTR_CUR_HASH_ADAPT
-MY_ATTRIBUTE((warn_unused_result))
 /** Search the right position for a page cursor.
-@param[in]	tuple			key to be searched for
-@param[in]	mode			search mode
-@param[in,out]	iup_matched_fields	already matched fields in the
-upper limit record
-@param[in,out]	iup_matched_bytes	already matched bytes in the
-first partially matched field in the upper limit record
-@param[in,out]	ilow_matched_fields	already matched fields in the
-lower limit record
-@param[in,out]	ilow_matched_bytes	already matched bytes in the
-first partially matched field in the lower limit record
-@param[in,out]	cursor			page cursor */
-bool
-page_cur_search_with_match_bytes(
-	const dtuple_t*		tuple,
-	page_cur_mode_t		mode,
-	ulint*			iup_matched_fields,
-	ulint*			iup_matched_bytes,
-	ulint*			ilow_matched_fields,
-	ulint*			ilow_matched_bytes,
-	page_cur_t*		cursor);
-#endif /* BTR_CUR_HASH_ADAPT */
+@param tuple        search key
+@param mode         search mode
+@param iup_fields   matched fields in the upper limit record
+@param ilow_fields  matched fields in the low limit record
+@param cursor       page cursor
+@param rtr_info     R-tree search stack, or nullptr
+@return whether the page is corrupted */
+bool page_cur_search_with_match(const dtuple_t *tuple, page_cur_mode_t mode,
+                                uint16_t *iup_fields, uint16_t *ilow_fields,
+                                page_cur_t *cursor, rtr_info_t *rtr_info)
+  noexcept;
+
+/** Search the right position for a page cursor.
+@param tuple        search key
+@param mode         search mode
+@param iup_fields   matched fields in the upper limit record
+@param ilow_fields  matched fields in the low limit record
+@param cursor       page cursor
+@param iup_bytes    matched bytes after iup_fields
+@param ilow_bytes   matched bytes after ilow_fields
+@return whether the first partially matched field is in the lower limit record,
+or the page is corrupted */
+bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
+                                      page_cur_mode_t mode,
+                                      uint16_t *iup_fields,
+                                      uint16_t *ilow_fields,
+                                      page_cur_t *cursor,
+                                      uint16_t *iup_bytes,
+                                      uint16_t *ilow_bytes)
+  noexcept;
+
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */

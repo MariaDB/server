@@ -159,6 +159,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -271,3 +272,26 @@ CREATE TABLE t1 (a Mariadb_schema.date);
 ERROR HY000: Unknown data type: 'Mariadb_schema.date'
 CREATE TABLE t1 (a mariadb_schema.date);
 DROP TABLE t1;
+# End of 10.3 tests
+#
+# MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
+#
+create temporary table t1 (a int);
+create temporary table t2 (a int);
+create temporary table T1 (a int);
+show tables like 't1';
+Tables_in_test (t1)
+t1
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='t1';
+table_name
+t1
+show tables like '_1';
+Tables_in_test (_1)
+T1
+t1
+show tables like 't%';
+Tables_in_test (t%)
+t2
+t1
+# End of 11.2 tests

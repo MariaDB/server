@@ -21,10 +21,6 @@
   "public" interface to sys_var - server configuration variables.
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface                       /* gcc class implementation */
-#endif
-
 #include <my_getopt.h>
 #include <my_attribute.h>
 
@@ -85,12 +81,11 @@ protected:
   typedef bool (*on_update_function)(sys_var *self, THD *thd, enum_var_type type);
 
   int flags;            ///< or'ed flag_enum values
-  const SHOW_TYPE show_val_type; ///< what value_ptr() returns for sql_show.cc
+  SHOW_TYPE show_val_type; ///< what value_ptr() returns for sql_show.cc
   PolyLock *guard;      ///< *second* lock that protects the variable
   ptrdiff_t offset;     ///< offset to the value from global_system_variables
   on_check_function on_check;
   on_update_function on_update;
-  const char *const deprecation_substitute;
 
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
@@ -132,9 +127,11 @@ public:
   int scope() const { return flags & SCOPE_MASK; }
   virtual CHARSET_INFO *charset(THD *thd) const
   {
-    return system_charset_info;
+    return system_charset_info_for_i_s;
   }
   bool is_readonly() const { return flags & READONLY; }
+  void update_flags(int new_flags) { flags = new_flags; }
+  int get_flags() const { return flags; }
   /**
     the following is only true for keycache variables,
     that support the syntax @@keycache_name.variable_name
@@ -276,7 +273,7 @@ protected:
 /**
   A base class for everything that can be set with SET command.
   It's similar to Items, an instance of this is created by the parser
-  for every assigmnent in SET (or elsewhere, e.g. in SELECT).
+  for every assignment in SET (or elsewhere, e.g. in SELECT).
 */
 class set_var_base :public Sql_alloc
 {
@@ -366,6 +363,17 @@ public:
   int update(THD *thd) override;
 };
 
+/* For SET SESSION AUTHORIZATION */
+
+class set_var_authorization: public set_var_base
+{
+  LEX_USER *user;
+public:
+  set_var_authorization(LEX_USER *user_arg) : user(user_arg) {}
+  int check(THD *thd) override;
+  int update(THD *thd) override;
+};
+
 /* For SET ROLE */
 
 class set_var_role: public set_var_base
@@ -384,7 +392,7 @@ class set_var_default_role: public set_var_base
 {
   LEX_USER *user, *real_user;
   LEX_CSTRING role;
-  const char *real_role;
+  LEX_CSTRING real_role;
 public:
   set_var_default_role(LEX_USER *user_arg, LEX_CSTRING role_arg) :
     user(user_arg), role(role_arg) {}
@@ -466,6 +474,9 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
+#ifndef EMBEDDED_LIBRARY
+bool validate_redirect_url(char *str, size_t len);
+#endif
 const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
@@ -475,7 +486,7 @@ extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
   *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,
   *Sys_character_set_results_ptr;
 
-CHARSET_INFO *get_old_charset_by_name(const char *old_name);
+CHARSET_INFO *get_old_charset_by_name(const LEX_CSTRING &name);
 
 int sys_var_init();
 uint sys_var_elements();
@@ -488,5 +499,4 @@ void free_engine_list(plugin_ref *list);
 plugin_ref *copy_engine_list(plugin_ref *list);
 plugin_ref *temp_copy_engine_list(THD *thd, plugin_ref *list);
 char *pretty_print_engine_list(THD *thd, plugin_ref *list);
-
 #endif

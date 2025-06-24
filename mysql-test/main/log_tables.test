@@ -206,7 +206,7 @@ alter table mysql.slow_log engine=myisam;
 show create table mysql.general_log;
 show create table mysql.slow_log;
 
-# enable log tables and chek that new tables indeed work
+# enable log tables and check that new tables indeed work
 set global general_log='ON';
 set global slow_query_log='ON';
 
@@ -243,7 +243,7 @@ set global slow_query_log='OFF';
 # check that alter table doesn't work for other engines
 set @save_storage_engine= @@session.default_storage_engine;
 set default_storage_engine= MEMORY;
-# After fixing bug#35765 the error behaivor changed:
+# After fixing bug#35765 the error behavior changed:
 # If compiled in/enabled ER_UNSUPORTED_LOG_ENGINE
 # If not (i.e. not existant) it will show a warning
 # and use the current one.
@@ -288,7 +288,7 @@ CREATE TABLE `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log';
 
 CREATE TABLE `slow_log` (
   `start_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -305,7 +305,7 @@ CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` BIGINT(21) UNSIGNED NOT NULL,
   `rows_affected` bigint(20) unsigned NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='Slow log';
 
 set global general_log='ON';
 set global slow_query_log='ON';

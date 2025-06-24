@@ -9,6 +9,8 @@ CREATE SERVER s FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", D
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t1_SPIDER (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't1'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 AS SELECT a FROM t1_SPIDER;
 SELECT * FROM t2;
 a

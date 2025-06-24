@@ -1,12 +1,12 @@
 #
-# Bug when using comparions of strings and integers.
+# Bug when using comparisons of strings and integers.
 #
 
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
 
-CREATE TABLE t1 (id CHAR(12) not null, PRIMARY KEY (id));
+CREATE TABLE t1 (id CHAR(12) not null, PRIMARY KEY (id)) CHARSET=latin1;
 insert into t1 values ('000000000001'),('000000000002');
 explain select * from t1 where id=000000000001;
 select * from t1 where id=000000000001;
@@ -26,7 +26,7 @@ SELECT 'a\0' < 'a ';
 SELECT 'a\t' < 'a';
 SELECT 'a\t' < 'a ';
 
-CREATE TABLE t1 (a char(10) not null);
+CREATE TABLE t1 (a char(10) not null) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
 SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
 DROP TABLE t1;
@@ -99,7 +99,7 @@ DROP TABLE t1;
 # Check what happens when comparing to long string
 #
 
-CREATE TABLE t1 (a char(2), index (a));
+CREATE TABLE t1 (a char(2), index (a)) charset=latin1;
 insert into t1 values ("aa"),("bb");
 select * from t1 where a="aa";
 select * from t1 where a="aaa";

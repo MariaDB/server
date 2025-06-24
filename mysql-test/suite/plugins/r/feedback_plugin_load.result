@@ -21,22 +21,49 @@ ORDER BY VARIABLE_NAME;
 VARIABLE_VALUE>0	VARIABLE_NAME
 1	Collation used binary
 1	Collation used latin1_swedish_ci
+1	Collation used ucs2_general_ci
+1	Collation used ucs2_uca1400_ai_ci
+1	Collation used utf16_general_ci
+1	Collation used utf16_uca1400_ai_ci
+1	Collation used utf32_general_ci
+1	Collation used utf32_uca1400_ai_ci
 1	Collation used utf8mb3_bin
 1	Collation used utf8mb3_general_ci
+1	Collation used utf8mb3_uca1400_ai_ci
 1	Collation used utf8mb4_bin
+1	Collation used utf8mb4_general_ci
+1	Collation used utf8mb4_uca1400_ai_ci
 prepare stmt from "SELECT VARIABLE_VALUE>0, VARIABLE_NAME FROM INFORMATION_SCHEMA.FEEDBACK WHERE VARIABLE_NAME LIKE 'Collation used %' ORDER BY VARIABLE_NAME";
 execute stmt;
 VARIABLE_VALUE>0	VARIABLE_NAME
 1	Collation used binary
 1	Collation used latin1_swedish_ci
+1	Collation used ucs2_general_ci
+1	Collation used ucs2_uca1400_ai_ci
+1	Collation used utf16_general_ci
+1	Collation used utf16_uca1400_ai_ci
+1	Collation used utf32_general_ci
+1	Collation used utf32_uca1400_ai_ci
 1	Collation used utf8mb3_bin
 1	Collation used utf8mb3_general_ci
+1	Collation used utf8mb3_uca1400_ai_ci
 1	Collation used utf8mb4_bin
+1	Collation used utf8mb4_general_ci
+1	Collation used utf8mb4_uca1400_ai_ci
 execute stmt;
 VARIABLE_VALUE>0	VARIABLE_NAME
 1	Collation used binary
 1	Collation used latin1_swedish_ci
+1	Collation used ucs2_general_ci
+1	Collation used ucs2_uca1400_ai_ci
+1	Collation used utf16_general_ci
+1	Collation used utf16_uca1400_ai_ci
+1	Collation used utf32_general_ci
+1	Collation used utf32_uca1400_ai_ci
 1	Collation used utf8mb3_bin
 1	Collation used utf8mb3_general_ci
+1	Collation used utf8mb3_uca1400_ai_ci
 1	Collation used utf8mb4_bin
+1	Collation used utf8mb4_general_ci
+1	Collation used utf8mb4_uca1400_ai_ci
 deallocate prepare stmt;

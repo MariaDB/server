@@ -9,7 +9,7 @@ ORDER BY character_set_name;
 CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
 binary	binary	Binary pseudo charset	1
 latin1	latin1_swedish_ci	cp1252 West European	1
-utf8mb3	utf8mb3_general_ci	UTF-8 Unicode	3
+utf8mb3	utf8mb3_uca1400_ai_ci	UTF-8 Unicode	3
 
 SELECT *
 FROM information_schema.collations
@@ -18,11 +18,11 @@ AND (collation_name LIKE CONCAT(character_set_name,'_general_ci')
 OR
 collation_name LIKE CONCAT(character_set_name,'_bin'))
 ORDER BY collation_name;
-COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
-latin1_bin	latin1	47		Yes	1
-latin1_general_ci	latin1	48		Yes	1
-utf8mb3_bin	utf8mb3	83		Yes	1
-utf8mb3_general_ci	utf8mb3	33	Yes	Yes	1
+COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	PAD_ATTRIBUTE	COMMENT
+latin1_bin	latin1	47		Yes	1	PAD SPACE	cp1252 West European
+latin1_general_ci	latin1	48		Yes	1	PAD SPACE	cp1252 West European
+utf8mb3_bin	utf8mb3	83		Yes	1	PAD SPACE	UTF-8 Unicode
+utf8mb3_general_ci	utf8mb3	33		Yes	1	PAD SPACE	UTF-8 Unicode
 
 SELECT *
 FROM information_schema.collation_character_set_applicability
@@ -31,11 +31,11 @@ AND (collation_name LIKE CONCAT(character_set_name,'_general_ci')
 OR
 collation_name LIKE CONCAT(character_set_name,'_bin'))
 ORDER BY collation_name, character_set_name;
-COLLATION_NAME	CHARACTER_SET_NAME
-latin1_bin	latin1
-latin1_general_ci	latin1
-utf8mb3_bin	utf8mb3
-utf8mb3_general_ci	utf8mb3
+COLLATION_NAME	CHARACTER_SET_NAME	FULL_COLLATION_NAME	ID	IS_DEFAULT
+latin1_bin	latin1	latin1_bin	47	
+latin1_general_ci	latin1	latin1_general_ci	48	
+utf8mb3_bin	utf8mb3	utf8mb3_bin	83	
+utf8mb3_general_ci	utf8mb3	utf8mb3_general_ci	33	
 connection default;
 disconnect con;
 DROP USER dbdict_test@localhost;

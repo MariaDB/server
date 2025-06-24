@@ -26,7 +26,7 @@
 
 #include "rowid_filter.h"
 
-const char I_S_table_name[]= "OPTIMIZER_TRACE";
+const Lex_ident_i_s_table I_S_table_name= "OPTIMIZER_TRACE"_Lex_ident_i_s_table;
 
 /**
    Whether a list of tables contains information_schema.OPTIMIZER_TRACE.
@@ -43,7 +43,7 @@ bool list_has_optimizer_trace_table(const TABLE_LIST *tbl)
   for (; tbl; tbl= tbl->next_global)
   {
     if (tbl->schema_table &&
-        0 == strcmp(tbl->schema_table->table_name, I_S_table_name))
+        I_S_table_name.streq(tbl->schema_table->table_name))
       return true;
   }
   return false;
@@ -84,7 +84,7 @@ ST_FIELD_INFO optimizer_trace_info[]=
 
 
 /*
-  TODO: one-line needs to be implemented seperately
+  TODO: one-line needs to be implemented separately
 */
 const char *Opt_trace_context::flag_names[]= {"enabled", "default",
                                                NullS};
@@ -150,7 +150,7 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
     return;
   }
   Opt_trace_context *const trace= &thd->opt_trace;
-  if (!thd->trace_started())
+  if (unlikely(!thd->trace_started()))
   {
     /*
       @@optimizer_trace has "enabled=on" but trace is not started.
@@ -191,9 +191,8 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
   if (!(thd->main_security_ctx.check_access(GLOBAL_ACLS & ~GRANT_ACL)) &&
       (0 != strcmp(thd->main_security_ctx.priv_user,
                    thd->security_context()->priv_user) ||
-       0 != my_strcasecmp(system_charset_info,
-                          thd->main_security_ctx.priv_host,
-                          thd->security_context()->priv_host)))
+       !Lex_ident_host(Lex_cstring_strlen(thd->main_security_ctx.priv_host)).
+         streq(Lex_cstring_strlen(thd->security_context()->priv_host))))
     trace->missing_privilege();
 }
 
@@ -202,7 +201,7 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
   if (likely(!(thd->variables.optimizer_trace &
                Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread ||
-      !thd->trace_started())
+      likely(!thd->trace_started()))
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
@@ -236,7 +235,7 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
   if (likely(!(thd->variables.optimizer_trace &
               Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread ||
-      !thd->trace_started())
+      likely(!thd->trace_started()))
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
@@ -297,7 +296,7 @@ void opt_trace_disable_if_no_view_access(THD *thd, TABLE_LIST *view,
   if (likely(!(thd->variables.optimizer_trace &
                Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread ||
-      !thd->trace_started())
+      likely(!thd->trace_started()))
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
@@ -482,7 +481,7 @@ void Opt_trace_start::init(THD *thd,
                            const CHARSET_INFO *query_charset)
 {
   /*
-    if optimizer trace is enabled and the statment we have is traceable,
+    if optimizer trace is enabled and the statement we have is traceable,
     then we start the context.
   */
   const ulonglong var= thd->variables.optimizer_trace;
@@ -563,42 +562,48 @@ void Opt_trace_stmt::set_allowed_mem_size(size_t mem_size)
   current_json->set_size_limit(mem_size);
 }
 
+
+void get_table_name_for_trace(const JOIN_TAB *tab, String *out)
+{
+  char table_name_buffer[64];
+  DBUG_ASSERT(tab != NULL);
+  DBUG_ASSERT(tab->join->thd->trace_started());
+
+  if (tab->table && tab->table->derived_select_number)
+  {
+    /* Derived table name generation */
+    size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+                            "<derived%u>",
+                            tab->table->derived_select_number);
+    out->copy(table_name_buffer, len, &my_charset_bin);
+  }
+  else if (tab->bush_children)
+  {
+    JOIN_TAB *ctab= tab->bush_children->start;
+    size_t len= my_snprintf(table_name_buffer,
+                            sizeof(table_name_buffer)-1,
+                            "<subquery%d>",
+                            ctab->emb_sj_nest->sj_subq_pred->get_identifier());
+    out->copy(table_name_buffer, len, &my_charset_bin);
+  }
+  else
+  {
+    TABLE_LIST *real_table= tab->table->pos_in_table_list;
+    out->set(real_table->alias.str, real_table->alias.length, &my_charset_bin);
+  }
+}
+
 /*
   Prefer this when you are iterating over JOIN_TABs
 */
 
 void Json_writer::add_table_name(const JOIN_TAB *tab)
 {
-  DBUG_ASSERT(tab->join->thd->trace_started());
-  if (tab != NULL)
-  {
-    char table_name_buffer[SAFE_NAME_LEN];
-    if (tab->table && tab->table->derived_select_number)
-    {
-      /* Derived table name generation */
-      size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
-                             "<derived%u>",
-                             tab->table->derived_select_number);
-      add_str(table_name_buffer, len);
-    }
-    else if (tab->bush_children)
-    {
-      JOIN_TAB *ctab= tab->bush_children->start;
-      size_t len= my_snprintf(table_name_buffer,
-                           sizeof(table_name_buffer)-1,
-                           "<subquery%d>",
-                           ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-      add_str(table_name_buffer, len);
-    }
-    else
-    {
-      TABLE_LIST *real_table= tab->table->pos_in_table_list;
-      add_str(real_table->alias.str, real_table->alias.length);
-    }
-  }
-  else
-    DBUG_ASSERT(0);
+  String sbuf;
+  get_table_name_for_trace(tab, &sbuf);
+  add_str(sbuf.ptr(), sbuf.length());
 }
+
 
 void Json_writer::add_table_name(const TABLE *table)
 {
@@ -609,6 +614,7 @@ void Json_writer::add_table_name(const TABLE *table)
 void trace_condition(THD * thd, const char *name, const char *transform_type,
                     Item *item, const char *table_name)
 {
+  DBUG_ASSERT(thd->trace_started());
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_cond(thd, transform_type);
   trace_cond.add("condition", name);
@@ -624,8 +630,10 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
   Json_writer_object table_records(thd);
   table_records.add_table_name(tab);
   Json_writer_object table_rec(thd, "table_scan");
-  table_rec.add("rows", tab->found_records)
-           .add("cost", tab->read_time);
+  table_rec.
+    add("rows", tab->found_records).
+    add("read_cost", tab->read_time).
+    add("read_and_compare_cost", tab->cached_scan_and_compare_time);
 }
 
 
@@ -643,18 +651,26 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
     analysis of the various join orders.
 */
 
-void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables)
+void trace_plan_prefix(Json_writer_object *jsobj, JOIN *join, uint idx,
+                       table_map join_tables)
 {
-  THD *const thd= join->thd;
-  DBUG_ASSERT(thd->trace_started());
+  DBUG_ASSERT(join->thd->trace_started());
 
-  Json_writer_array plan_prefix(thd, "plan_prefix");
-  for (uint i= 0; i < idx; i++)
+  String prefix_str;
+  prefix_str.length(0);
+  for (uint i= join->const_tables; i < idx; i++)
   {
     TABLE_LIST *const tr= join->positions[i].table->tab_list;
     if (!(tr->map & join_tables))
-      plan_prefix.add_table_name(join->positions[i].table);
+    {
+      String str;
+      get_table_name_for_trace(join->positions[i].table, &str);
+      if (prefix_str.length() != 0)
+        prefix_str.append(',');
+      prefix_str.append(str);
+    }
   }
+  jsobj->add("plan_prefix", prefix_str.ptr(), prefix_str.length());
 }
 
 
@@ -681,23 +697,43 @@ void print_final_join_order(JOIN *join)
   for (j= join->join_tab,i=0 ; i < join->top_join_tab_count;
        i++, j++)
     best_order.add_table_name(j);
+  best_order.end();
+
+  /* Write information about the resulting join */
+  join_order.
+    add("rows", join->join_record_count).
+    add("cost", join->best_read);
 }
 
 
-void print_best_access_for_table(THD *thd, POSITION *pos,
-                                 enum join_type type)
+void print_best_access_for_table(THD *thd, POSITION *pos)
 {
   DBUG_ASSERT(thd->trace_started());
 
   Json_writer_object obj(thd, "chosen_access_method");
-  obj.add("type", type == JT_ALL ? "scan" : join_type_str[type]);
-  obj.add("records", pos->records_read);
-  obj.add("cost", pos->read_time);
-  obj.add("uses_join_buffering", pos->use_join_buffer);
+
+  obj.add("type", pos->type == JT_ALL ? "scan" : join_type_str[pos->type]);
+
+  if (pos->type == JT_EQ_REF || pos->type == JT_REF || pos->type == JT_FT)
+  {
+    obj.add("index", pos->key->table->key_info[pos->key->key].name);
+  }
+
+  if (pos->type == JT_RANGE)
+  {
+    obj.add("index",
+            pos->table->table->key_info[pos->table->quick->index].name);
+  }
+
+  obj.add("rows_read", pos->records_read)
+      .add("rows_out", pos->records_out)
+      .add("cost", pos->read_time)
+      .add("uses_join_buffering", pos->use_join_buffer);
+
   if (pos->range_rowid_filter_info)
   {
-    uint key_no= pos->range_rowid_filter_info->key_no;
-    obj.add("rowid_filter_key",
+    uint key_no= pos->range_rowid_filter_info->get_key_no();
+    obj.add("rowid_filter_index",
             pos->table->table->key_info[key_no].name);
   }
 }

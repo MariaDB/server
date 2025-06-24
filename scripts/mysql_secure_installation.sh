@@ -30,6 +30,12 @@ defaults_extra_file=
 defaults_group_suffix=
 no_defaults=
 
+case "$0" in
+  *mysql_secure_installation)
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-secure-installation' instead" 1>&2
+    ;;
+esac
+
 parse_arg()
 {
   echo "$1" | sed -e 's/^[^=]*=//'

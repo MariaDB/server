@@ -15,7 +15,7 @@ scores	CREATE TABLE `scores` (
   `family_name` varchar(30) NOT NULL,
   `score` int(11) NOT NULL,
   PRIMARY KEY (`given_name`,`family_name`,`score`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 insert into scores values("Taro", "Yamada", 29);
 insert into scores values("Taro", "Yamada", -12);
 insert into scores values("Jiro", "Yamada", 27);

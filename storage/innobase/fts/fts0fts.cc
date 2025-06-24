@@ -177,7 +177,7 @@ static const char* fts_config_table_insert_values_sql =
 		FTS_TABLE_STATE "', '0');\n"
 	"END;\n";
 
-/** FTS tokenize parmameter for plugin parser */
+/** FTS tokenize parameter for plugin parser */
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
@@ -412,7 +412,7 @@ fts_read_stopword(
 			}
 		} else {
 			ut_ad(len == sizeof timestamp_max_bytes);
-			if (0 != memcmp(data, timestamp_max_bytes, len)) {
+			if (!IS_MAX_TIMESTAMP(data)) {
 				return true;
 			}
 		}
@@ -1958,14 +1958,16 @@ fts_create_common_tables(
 	}
 
 	if (table->versioned()) {
-		index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
+		index = dict_mem_index_create(table,
+					      FTS_DOC_ID_INDEX.str,
 					      DICT_UNIQUE, 2);
-		dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
-		dict_mem_index_add_field(index, table->cols[table->vers_end].name(*table), 0);
+		dict_mem_index_add_field(index, FTS_DOC_ID.str, 0);
+		dict_mem_index_add_field(index, table->cols[table->vers_end].name(*table).str, 0);
 	} else {
-		index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
+		index = dict_mem_index_create(table,
+					      FTS_DOC_ID_INDEX.str,
 					      DICT_UNIQUE, 1);
-		dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
+		dict_mem_index_add_field(index, FTS_DOC_ID.str, 0);
 	}
 
 	error =	row_create_index_for_mysql(index, trx, NULL,
@@ -2030,7 +2032,7 @@ fts_create_one_index_table(
 			       FTS_INDEX_DOC_COUNT_LEN);
 
 	/* The precise type calculation is as follows:
-	least signficiant byte: MySQL type code (not applicable for sys cols)
+	least significant byte: MySQL type code (not applicable for sys cols)
 	second least : DATA_NOT_NULL | DATA_BINARY_TYPE
 	third least  : the MySQL charset-collation code (DATA_MTYPE_MAX) */
 
@@ -3415,7 +3417,7 @@ fts_add_doc_by_id(
 
 	/* Search based on Doc ID. Here, we'll need to consider the case
 	when there is no primary index on Doc ID */
-	const ulint n_uniq = table->fts_n_uniq();
+	const auto n_uniq = table->fts_n_uniq();
 	tuple = dtuple_create(heap, n_uniq);
 	dfield = dtuple_get_nth_field(tuple, 0);
 	dfield->type.mtype = DATA_INT;
@@ -3466,9 +3468,7 @@ fts_add_doc_by_id(
 			doc_pcur = &pcur;
 		} else {
 			dtuple_t*	clust_ref;
-			ulint		n_fields;
-
-			n_fields = dict_index_get_n_unique(clust_index);
+			auto n_fields = dict_index_get_n_unique(clust_index);
 
 			clust_ref = dtuple_create(heap, n_fields);
 			dict_index_copy_types(clust_ref, clust_index, n_fields);
@@ -3637,8 +3637,9 @@ fts_get_max_doc_id(
 
 	dfield = dict_index_get_nth_field(index, 0);
 
-#if 0 /* This can fail when renaming a column to FTS_DOC_ID_COL_NAME. */
-	ut_ad(innobase_strcasecmp(FTS_DOC_ID_COL_NAME, dfield->name) == 0);
+#if 0 /* This can fail when renaming a column to FTS_DOC_ID. */
+	ut_ad(Lex_ident_column(Lex_cstring_strlen(dfield->name)).
+		streq(FTS_DOC_ID));
 #endif
 
 	mtr.start();
@@ -3670,8 +3671,7 @@ fts_get_max_doc_id(
 					break;
 				}
 			} else {
-				if (0 == memcmp(data, timestamp_max_bytes,
-						sizeof timestamp_max_bytes)) {
+                                if (IS_MAX_TIMESTAMP(data)) {
 					break;
 				}
 			}
@@ -3754,7 +3754,8 @@ fts_doc_fetch_by_doc_id(
 					"  END IF;\n"
 					"END LOOP;\n"
 					"CLOSE c;",
-					select_str, FTS_DOC_ID_COL_NAME));
+					select_str,
+					FTS_DOC_ID.str));
 		} else {
 			ut_ad(option == FTS_FETCH_DOC_BY_ID_LARGE);
 
@@ -3790,8 +3791,9 @@ fts_doc_fetch_by_doc_id(
 					"  END IF;\n"
 					"END LOOP;\n"
 					"CLOSE c;",
-					FTS_DOC_ID_COL_NAME,
-					select_str, FTS_DOC_ID_COL_NAME));
+					FTS_DOC_ID.str,
+					select_str,
+					FTS_DOC_ID.str));
 		}
 		if (get_doc) {
 			get_doc->get_document_graph = graph;
@@ -4074,7 +4076,7 @@ fts_sync_begin(
 		ib::info() << "FTS SYNC for table " << sync->table->name
 			<< ", deleted count: "
 			<< ib_vector_size(cache->deleted_doc_ids)
-			<< " size: " << cache->total_size << " bytes";
+			<< " size: " << ib::bytes_iec{cache->total_size};
 	}
 }
 
@@ -4421,7 +4423,7 @@ or greater than fts_max_token_size.
 @param[in]	stopwords	stopwords rb tree
 @param[in]	cs		token charset
 @retval	true	if it is not stopword and length in range
-@retval	false	if it is stopword or lenght not in range */
+@retval	false	if it is stopword or length not in range */
 bool
 fts_check_token(
 	const fts_string_t*		token,
@@ -4458,13 +4460,12 @@ fts_add_token(
 		fts_string_t	t_str;
 		fts_token_t*	token;
 		ib_rbt_bound_t	parent;
-		ulint		newlen;
 
 		heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
 
 		t_str.f_n_char = str.f_n_char;
 
-		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply + 1;
+		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply() + 1;
 
 		t_str.f_str = static_cast<byte*>(
 			mem_heap_alloc(heap, t_str.f_len));
@@ -4474,24 +4475,19 @@ fts_add_token(
 		if (my_binary_compare(result_doc->charset)) {
 			memcpy(t_str.f_str, str.f_str, str.f_len);
 			t_str.f_str[str.f_len]= 0;
-			newlen= str.f_len;
+			t_str.f_len= str.f_len;
 		} else {
-			newlen = innobase_fts_casedn_str(
-				result_doc->charset, (char*) str.f_str, str.f_len,
-				(char*) t_str.f_str, t_str.f_len);
+			t_str.f_len= result_doc->charset->casedn_z(
+					(const char*) str.f_str, str.f_len,
+					(char *) t_str.f_str, t_str.f_len);
 		}
-
-		t_str.f_len = newlen;
-		t_str.f_str[newlen] = 0;
 
 		/* Add the word to the document statistics. If the word
 		hasn't been seen before we create a new entry for it. */
 		if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
 			fts_token_t	new_token;
 
-			new_token.text.f_len = newlen;
-			new_token.text.f_str = t_str.f_str;
-			new_token.text.f_n_char = t_str.f_n_char;
+			new_token.text = t_str;
 
 			new_token.positions = ib_vector_create(
 				result_doc->self_heap, sizeof(ulint), 32);
@@ -5245,7 +5241,7 @@ fts_add_doc_id_column(
 {
 	dict_mem_table_add_col(
 		table, heap,
-		FTS_DOC_ID_COL_NAME,
+		FTS_DOC_ID.str,
 		DATA_INT,
 		dtype_form_prtype(
 			DATA_NOT_NULL | DATA_UNSIGNED
@@ -5789,7 +5785,7 @@ fts_valid_stopword_table(
 
 		return(NULL);
 	} else {
-		if (strcmp(dict_table_get_col_name(table, 0), "value")) {
+		if (strcmp(dict_table_get_col_name(table, 0).str, "value")) {
 			ib::error() << "Invalid column name for stopword"
 				" table " << stopword_table_name << ". Its"
 				" first column must be named as 'value'.";
@@ -5814,7 +5810,7 @@ fts_valid_stopword_table(
 
 	if (row_end) {
 		*row_end = table->versioned()
-			? dict_table_get_col_name(table, table->vers_end)
+			? dict_table_get_col_name(table, table->vers_end).str
 			: "value"; /* for fts_load_user_stopword() */
 	}
 
@@ -5995,7 +5991,7 @@ fts_init_get_doc_id(
 				}
 			} else {
 				ut_ad(len == sizeof timestamp_max_bytes);
-				if (0 != memcmp(data, timestamp_max_bytes, len)) {
+				if (!IS_MAX_TIMESTAMP(data)) {
 					return true;
 				}
 			}

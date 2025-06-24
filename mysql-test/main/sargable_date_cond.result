@@ -1,0 +1,2007 @@
+drop table if exists t0,t1,t2,t3;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 from t0 A, t0 B;
+create table t2 (pk int primary key, a datetime, b date, key(a), key(b));
+insert into t2
+select
+A.a*10+B.a,
+date_add(date_add('2017-01-01', interval A.a*8 day), interval B.a hour),
+date_add('2017-01-01', interval A.a*7 day)
+from t1 A, t0 B;
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+#
+# "YEAR(datetime_col) CMP year_value", basic checks
+#
+select count(*) from t2 where year(a) < 2018;
+count(*)
+460
+# Compare the results, they must be equal:
+select count(*) from t2 where a < '2018-01-01';
+count(*)
+460
+explain format=json select count(*) from t2 where year(a) < 2018;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.063940854,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 451,
+          "cost": 0.063940854,
+          "filtered": 100,
+          "attached_condition": "t2.a < '2018-01-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+# Check rewrite for a prepared statement:
+execute immediate 
+"explain format=json select * from t2 where year(a) < ?"
+  using 2018;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "possible_keys": ["a"],
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 45.09999847,
+          "attached_condition": "t2.a < '2018-01-01 00:00:00'"
+        }
+      }
+    ]
+  }
+}
+prepare stmt from "select count(*) from t2 where year(a) < 2018";
+execute stmt;
+count(*)
+460
+execute stmt;
+count(*)
+460
+create or replace view v1 as select count(*) from t2 where year(a) < 2018;
+select * from v1;
+count(*)
+460
+create or replace procedure sp() select count(*) from t2 where year(a) < 2018;
+call sp();
+count(*)
+460
+call sp();
+count(*)
+460
+# Prepared statement with a placeholder
+prepare stmt from "select count(*) from t2 where year(a) < ?";
+execute stmt using 2018;
+count(*)
+460
+execute stmt using 2017;
+count(*)
+0
+select count(*) from t2 where year(a) <= 2018;
+count(*)
+920
+select count(*) from t2 where a < '2019-01-01';
+count(*)
+920
+explain format=json select count(*) from t2 where year(a) <= 2018;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.126438894,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 903,
+          "cost": 0.126438894,
+          "filtered": 100,
+          "attached_condition": "t2.a <= '2018-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where year(a) > 2018;
+count(*)
+80
+select count(*) from t2 where a > '2018-12-31 23:59:59.999999';
+count(*)
+80
+explain format=json select count(*) from t2 where year(a) > 2018;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.014752874,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 97,
+          "cost": 0.014752874,
+          "filtered": 100,
+          "attached_condition": "t2.a > '2018-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where year(a) >= 2018;
+count(*)
+540
+select count(*) from t2 where a >= '2018-01-01';
+count(*)
+540
+explain format=json select count(*) from t2 where year(a) >= 2018;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.077250914,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 549,
+          "cost": 0.077250914,
+          "filtered": 100,
+          "attached_condition": "t2.a >= '2018-01-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where year(a) = 2017;
+count(*)
+460
+select count(*) from t2 where a >= '2017-01-01' and a < '2018-01-01';
+count(*)
+460
+explain format=json select count(*) from t2 where year(a) = 2017;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.063940854,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 451,
+          "cost": 0.063940854,
+          "filtered": 100,
+          "attached_condition": "t2.a between '2017-01-01 00:00:00' and '2017-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+#
+# "YEAR(datetime_col) CMP year_value", reverse argument order
+#
+select count(*) from t2 where 2017 < year(a);
+count(*)
+540
+select count(*) from t2 where a >= '2018-01-01';
+count(*)
+540
+explain format=json select count(*) from t2 where 2017 < year(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.077250914,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 549,
+          "cost": 0.077250914,
+          "filtered": 100,
+          "attached_condition": "t2.a > '2017-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where a >= '2018-01-01';
+count(*)
+540
+explain format=json select count(*) from t2 where 2018 <= year(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.077250914,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 549,
+          "cost": 0.077250914,
+          "filtered": 100,
+          "attached_condition": "t2.a >= '2018-01-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where 2018 > year(a);
+count(*)
+460
+select count(*) from t2 where a < '2018-01-01';
+count(*)
+460
+explain format=json select count(*) from t2 where 2018 > year(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.063940854,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 451,
+          "cost": 0.063940854,
+          "filtered": 100,
+          "attached_condition": "t2.a < '2018-01-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where a < '2019-01-01';
+count(*)
+920
+explain format=json select count(*) from t2 where 2018 >= year(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.126438894,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 903,
+          "cost": 0.126438894,
+          "filtered": 100,
+          "attached_condition": "t2.a <= '2018-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where 2018 =  year(a);
+count(*)
+460
+select count(*) from t2 where a >= '2018-01-01' and a < '2019-01-01';
+count(*)
+460
+explain format=json select count(*) from t2 where 2018 =  year(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.064079124,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 452,
+          "cost": 0.064079124,
+          "filtered": 100,
+          "attached_condition": "t2.a between '2018-01-01 00:00:00' and '2018-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+#
+# "DATE(datetime_col) CMP date_value", basic checks
+#
+select count(*) from t2 where date(a) < '2017-06-01';
+count(*)
+190
+select count(*) from t2 where a < '2017-06-01';
+count(*)
+190
+explain format=json select count(*) from t2 where date(a) < '2017-06-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.027058904,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 186,
+          "cost": 0.027058904,
+          "filtered": 100,
+          "attached_condition": "t2.a < '2017-06-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where date(a) <= '2017-06-03';
+count(*)
+200
+select count(*) from t2 where a < '2017-06-04';
+count(*)
+200
+explain format=json select count(*) from t2 where date(a) <= '2017-06-03';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.028441604,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 196,
+          "cost": 0.028441604,
+          "filtered": 100,
+          "attached_condition": "t2.a <= '2017-06-03 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where date(a) > '2018-06-01';
+count(*)
+350
+select count(*) from t2 where a >= '2018-06-02';
+count(*)
+350
+explain format=json select count(*) from t2 where date(a) > '2018-06-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.051773094,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 363,
+          "cost": 0.051773094,
+          "filtered": 100,
+          "attached_condition": "t2.a > '2018-06-01 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where date(a) >= '2018-06-01';
+count(*)
+350
+select count(*) from t2 where a >= '2018-06-01';
+count(*)
+350
+explain format=json select count(*) from t2 where date(a) >= '2018-06-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.051773094,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 363,
+          "cost": 0.051773094,
+          "filtered": 100,
+          "attached_condition": "t2.a >= '2018-06-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where date(a) = '2017-06-02';
+count(*)
+10
+select count(*) from t2 where a >= '2017-06-02' and a < '2017-06-03';
+count(*)
+10
+explain format=json select count(*) from t2 where date(a) = '2017-06-02';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002723384,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 10,
+          "cost": 0.002723384,
+          "filtered": 100,
+          "attached_condition": "t2.a between '2017-06-02 00:00:00' and '2017-06-02 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+#
+# "DATE(datetime_col) CMP date_value", reverse order
+#
+select count(*) from t2 where '2017-06-01' > date(a);
+count(*)
+190
+select count(*) from t2 where '2017-06-01' > a;
+count(*)
+190
+explain format=json select count(*) from t2 where '2017-06-01' > date(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.027058904,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 186,
+          "cost": 0.027058904,
+          "filtered": 100,
+          "attached_condition": "t2.a < '2017-06-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where '2017-06-03' >= date(a);
+count(*)
+200
+select count(*) from t2 where '2017-06-03' >= a;
+count(*)
+200
+explain format=json select count(*) from t2 where '2017-06-03' >= date(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.028441604,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 196,
+          "cost": 0.028441604,
+          "filtered": 100,
+          "attached_condition": "t2.a <= '2017-06-03 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where '2018-06-01' < date(a);
+count(*)
+350
+select count(*) from t2 where '2018-06-02' <= a;
+count(*)
+350
+explain format=json select count(*) from t2 where '2018-06-01' < date(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.051773094,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 363,
+          "cost": 0.051773094,
+          "filtered": 100,
+          "attached_condition": "t2.a > '2018-06-01 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where '2018-06-01' <= date(a);
+count(*)
+350
+select count(*) from t2 where '2018-06-01' <= a;
+count(*)
+350
+explain format=json select count(*) from t2 where '2018-06-01' <= date(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.051773094,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 363,
+          "cost": 0.051773094,
+          "filtered": 100,
+          "attached_condition": "t2.a >= '2018-06-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where '2017-06-02' = date(a);
+count(*)
+10
+select count(*) from t2 where a >= '2017-06-02' and a < '2017-06-03';
+count(*)
+10
+explain format=json select count(*) from t2 where '2017-06-02' = date(a);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002723384,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 10,
+          "cost": 0.002723384,
+          "filtered": 100,
+          "attached_condition": "t2.a between '2017-06-02 00:00:00' and '2017-06-02 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+# Check rewrite of a more complicated query
+explain format=json select * from t2 as t21 force index(a),
+t2 as t22 force index(a)
+where year(t21.a) < 2018 and t21.b > '2017-11-01'
+  and date(t22.a) >= '2017-02-01' and t22.b > '2017-11-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 24.30027923,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t21",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 451,
+          "cost": 0.558056003,
+          "filtered": 56,
+          "index_condition": "t21.a < '2018-01-01 00:00:00'",
+          "attached_condition": "t21.b > '2017-11-01'"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t22",
+            "access_type": "range",
+            "possible_keys": ["a"],
+            "key": "a",
+            "key_length": "6",
+            "used_key_parts": ["a"],
+            "loops": 252.56,
+            "rows": 961,
+            "cost": 23.74222323,
+            "filtered": 56,
+            "index_condition": "t22.a >= '2017-02-01 00:00:00'",
+            "attached_condition": "t22.a >= '2017-02-01 00:00:00' and t22.b > '2017-11-01'"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "7Kb",
+          "join_type": "BNL",
+          "attached_condition": "t22.b > '2017-11-01'"
+        }
+      }
+    ]
+  }
+}
+#
+# Incorrect const values processing (no rewrite is possible)
+#
+explain format=json select * from t2 where year(a) = -1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) = -1"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) > -5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) > -5"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) < -1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) < -1"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) <= 10000;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) <= 10000"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) >= 10020;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) >= 10020"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where date(a) = '10000-01-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "cast(t2.a as date) = '10000-01-01'"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Warning	1292	Incorrect datetime value: '10000-01-01'
+explain format=json select * from t2 where date(a) < '-1-01-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "cast(t2.a as date) < '-1-01-01'"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Warning	1292	Incorrect datetime value: '-1-01-01'
+#
+# Try DATE function and DATE (not DATETIME) column:
+#
+select count(*) from t2 where date(b)< '2017-06-03';
+count(*)
+220
+select count(*) from t2 where b < '2017-06-03';
+count(*)
+220
+explain format=json select count(*) from t2 where date(b)< '2017-06-03';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.031207004,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "4",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "rows": 216,
+          "cost": 0.031207004,
+          "filtered": 100,
+          "attached_condition": "t2.b < '2017-06-03'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t2 where date(b)= '2017-06-04';
+count(*)
+10
+select count(*) from t2 where b >= '2017-06-04' and b < '2017-06-05';
+count(*)
+10
+explain format=json select count(*) from t2 where date(b)= '2017-06-04';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002723384,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "4",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "rows": 10,
+          "cost": 0.002723384,
+          "filtered": 100,
+          "attached_condition": "t2.b between '2017-06-04' and '2017-06-04'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+#
+# Check actual query results
+#
+insert into t2 values (10001,'2006-12-31 23:59:59','2006-12-31');
+insert into t2 values (10002,'2007-01-01 00:00:00','2007-01-01');
+insert into t2 values (10003,'2007-12-31 23:59:59','2007-12-31');
+insert into t2 values (10004,'2008-01-01 00:00:00','2008-01-01');
+explain format=json
+select * from t2 force index(b) where year(b)=2007;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.005042291,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "4",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "rows": 3,
+          "cost": 0.005042291,
+          "filtered": 100,
+          "index_condition": "t2.b between '2007-01-01' and '2007-12-31'"
+        }
+      }
+    ]
+  }
+}
+select * from t2 force index(b) where year(b)=2007;
+pk	a	b
+10002	2007-01-01 00:00:00	2007-01-01
+10003	2007-12-31 23:59:59	2007-12-31
+insert into t2 values (10010,'2006-12-31 00:00:00','2006-12-31');
+insert into t2 values (10011,'2006-12-30 23:59:59','2006-12-30');
+explain format=json
+select * from t2 force index(a) where date(a)='2006-12-31';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.005042291,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 3,
+          "cost": 0.005042291,
+          "filtered": 100,
+          "index_condition": "t2.a between '2006-12-31 00:00:00' and '2006-12-31 23:59:59'"
+        }
+      }
+    ]
+  }
+}
+select * from t2 force index(a) where date(a)='2006-12-31';
+pk	a	b
+10010	2006-12-31 00:00:00	2006-12-31
+10001	2006-12-31 23:59:59	2006-12-31
+#
+# Test the TIMESTAMP column
+#
+create table t3 (a timestamp, b date, key(a));
+# Insert data starting from 2016 since that year had a leap second
+# (https://en.wikipedia.org/wiki/Leap_second)
+set time_zone="UTC";
+insert into t3
+select
+timestampadd(hour, B.a, date_add('2016-01-01', interval A.a*8 day)),
+date_add('2016-01-01', interval A.a*7 day)
+from t1 A, t0 B;
+# Results of those two queries must be equal:
+select count(*) from t3 force index(a) where year(a)= 2016;
+count(*)
+460
+# The result must be the same as this query's:
+select count(*) from t3 force index(a) where a >= '2016-01-01 00:00:00'
+    and a <= '2016-12-31 23:59:59.999999';
+count(*)
+460
+explain format=json
+select count(*) from t3 force index(a) where year(a)= 2016;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.064493934,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 455,
+          "cost": 0.064493934,
+          "filtered": 100,
+          "attached_condition": "t3.a between '2016-01-01 00:00:00' and '2016-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+set time_zone= @@global.time_zone;
+#
+# Incorrect const values processing (no rewrite is possible)
+#
+explain format=json select * from t2 where year(a) = -1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) = -1"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) > -5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) > -5"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) < -1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) < -1"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) <= 10000;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) <= 10000"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where year(a) >= 10020;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "year(t2.a) >= 10020"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t2 where date(a) = '10000-01-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "cast(t2.a as date) = '10000-01-01'"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Warning	1292	Incorrect datetime value: '10000-01-01'
+explain format=json select * from t2 where date(a) < '-1-01-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "cast(t2.a as date) < '-1-01-01'"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Warning	1292	Incorrect datetime value: '-1-01-01'
+#
+# Composite indexes
+#
+create table t4 (a datetime, b int, key(a, b)) ;
+insert into t4 values ('2009-11-29 13:43:32', 2);
+insert into t4 values ('2009-10-15 12:15:11', 2);
+insert into t4 values ('2009-09-01 15:55:00', 3);
+insert into t4 values ('2009-08-23 12:07:47', 4);
+explain format=json select * from t4 where year(a) = 2009;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001893764,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.001893764,
+          "filtered": 100,
+          "attached_condition": "t4.a between '2009-01-01 00:00:00' and '2009-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where year(a) >= 2009;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001893764,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.001893764,
+          "filtered": 100,
+          "attached_condition": "t4.a >= '2009-01-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where year(a) < 2018;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001893764,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.001893764,
+          "filtered": 100,
+          "attached_condition": "t4.a < '2018-01-01 00:00:00'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where date(a) = '2009-12-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001478954,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.001478954,
+          "filtered": 100,
+          "attached_condition": "t4.a between '2009-12-01 00:00:00' and '2009-12-01 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where b = 2 and year(a) = 2009;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001893764,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "11",
+          "used_key_parts": ["a", "b"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.001893764,
+          "filtered": 100,
+          "attached_condition": "t4.b = 2 and t4.a between '2009-01-01 00:00:00' and '2009-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where b = 10 and year(a) > 2001;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001893764,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.001893764,
+          "filtered": 100,
+          "attached_condition": "t4.b = 10 and t4.a > '2001-12-31 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where b = 2 and date(a) = '2009-11-02';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001478954,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "11",
+          "used_key_parts": ["a", "b"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.001478954,
+          "filtered": 100,
+          "attached_condition": "t4.b = 2 and t4.a between '2009-11-02 00:00:00' and '2009-11-02 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+# Reverse order of fields in the index
+create table t5 (a datetime, b int, c varchar(20), key(b, a));
+insert into t5 values ('2009-11-29 13:43:32', 2, 'abc');
+insert into t5 values ('2009-10-15 12:15:11', 2, 'def');
+insert into t5 values ('2009-09-01 15:55:00', 3, 'gfd');
+insert into t5 values ('2009-08-23 12:07:47', 4, 'xyz');
+explain format=json select * from t5 where year(a) = 2009;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t5",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100,
+          "attached_condition": "t5.a between <cache>('2009-01-01 00:00:00') and <cache>('2009-12-31 23:59:59')"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t4 where date(a) = '2009-12-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.001478954,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.001478954,
+          "filtered": 100,
+          "attached_condition": "t4.a between '2009-12-01 00:00:00' and '2009-12-01 23:59:59'",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t5 where b = 2 and year(a) = 2009;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002037211,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t5",
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "11",
+          "used_key_parts": ["b", "a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.002037211,
+          "filtered": 70,
+          "index_condition": "t5.b = 2 and t5.a between '2009-01-01 00:00:00' and '2009-12-31 23:59:59'"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t5 where b = 10 and year(a) > 2001;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002574553,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t5",
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "11",
+          "used_key_parts": ["b", "a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002574553,
+          "filtered": 100,
+          "index_condition": "t5.b = 10 and t5.a > '2001-12-31 23:59:59'"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t5 where b = 3 and date(a) > '2009-09-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002574553,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t5",
+          "access_type": "range",
+          "possible_keys": ["b"],
+          "key": "b",
+          "key_length": "11",
+          "used_key_parts": ["b", "a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002574553,
+          "filtered": 100,
+          "index_condition": "t5.b = 3 and t5.a > '2009-09-01 23:59:59'"
+        }
+      }
+    ]
+  }
+}
+#
+# No rewrite for a non-indexed column
+#
+create table t6 (a datetime);
+insert into t6 values ('2009-11-29 13:43:32');
+insert into t6 values ('2009-10-15 12:15:11');
+insert into t6 values ('2009-09-01 15:55:00');
+insert into t6 values ('2009-08-23 12:07:47');
+explain format=json select * from t6 where year(a) = 2009;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t6",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100,
+          "attached_condition": "year(t6.a) = 2009"
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from t6 where date(a) = '2009-12-01';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t6",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100,
+          "attached_condition": "cast(t6.a as date) = '2009-12-01'"
+        }
+      }
+    ]
+  }
+}
+drop table t0,t1,t2,t3,t4,t5,t6;
+drop view v1;
+drop procedure sp;
+#
+# MDEV-30946 Index usage for DATE(datetime_column) = const
+#            does not work for DELETE and UPDATE
+#
+create table t1 (pk int primary key, a datetime, c int, key(a));
+insert into t1 (pk,a,c) values (1,'2009-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (2,'2009-11-29 03:23:32', 2);
+insert into t1 (pk,a,c) values (3,'2009-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (4,'2010-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (5,'2010-10-16 05:56:32', 2);
+insert into t1 (pk,a,c) values (6,'2011-11-29 13:43:32', 2);
+insert into t1 (pk,a,c) values (7,'2012-10-16 05:56:32', 2);
+# YEAR() conditions, UPDATE
+explain format=json update t1 set c = 0 where year(a) = 2010;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 2,
+      "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'"
+    }
+  }
+}
+update t1 set c = 0 where year(a) = 2010;
+select * from t1;
+pk	a	c
+1	2009-11-29 13:43:32	2
+2	2009-11-29 03:23:32	2
+3	2009-10-16 05:56:32	2
+4	2010-11-29 13:43:32	0
+5	2010-10-16 05:56:32	0
+6	2011-11-29 13:43:32	2
+7	2012-10-16 05:56:32	2
+explain format=json update t1 set c = 1
+where c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.011130435,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 7,
+          "cost": 0.011130435,
+          "filtered": 100,
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+explain format=json update t1 set c = 0
+where year(a) = 2010 and c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.003808422,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "index_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001617224,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.001617224,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+# Multi-table update
+create table t2 (a int);
+insert into t2 values (4),(5),(6);
+explain format=json update t1, t2 set c = 0
+where year(t1.a) = 2010 and t1.c = t2.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.014992165,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "6",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.003808422,
+          "filtered": 100,
+          "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 2,
+          "rows": 3,
+          "cost": 0.011183743,
+          "filtered": 100,
+          "attached_condition": "t2.a = t1.c"
+        }
+      }
+    ]
+  }
+}
+prepare stmt from "update t1 set c = 0 where year(a) = 2010";
+execute stmt;
+execute stmt;
+# YEAR() conditions, DELETE
+explain format=json delete from t1 where year(a) = 2010;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 2,
+      "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'"
+    }
+  }
+}
+delete from t1 where year(a) = 2010;
+select * from t1;
+pk	a	c
+1	2009-11-29 13:43:32	2
+2	2009-11-29 03:23:32	2
+3	2009-10-16 05:56:32	2
+6	2011-11-29 13:43:32	2
+7	2012-10-16 05:56:32	2
+explain format=json delete from t1
+where c < (select count(*) from t1 where year(a) = 2010);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010817625,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 5,
+          "cost": 0.010817625,
+          "filtered": 100,
+          "attached_condition": "t1.c < (subquery#2)"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.001478954,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "range",
+                "possible_keys": ["a"],
+                "key": "a",
+                "key_length": "6",
+                "used_key_parts": ["a"],
+                "loops": 1,
+                "rows": 1,
+                "cost": 0.001478954,
+                "filtered": 100,
+                "attached_condition": "t1.a between '2010-01-01 00:00:00' and '2010-12-31 23:59:59'",
+                "using_index": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+delete from t1 where c < (select count(*) from t1 where year(a) = 2010);
+prepare stmt from "delete from t1 where year(a) = 2009";
+execute stmt;
+execute stmt;
+select * from t1;
+pk	a	c
+6	2011-11-29 13:43:32	2
+7	2012-10-16 05:56:32	2
+# DATE() conditions, UPDATE
+explain format=json update t1 set c = 0 where date(a) = '2010-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a between '2010-10-16 00:00:00' and '2010-10-16 23:59:59'"
+    }
+  }
+}
+explain format=json update t1 set c = 0 where date(a) <= '2011-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a <= '2011-10-16 23:59:59'"
+    }
+  }
+}
+prepare stmt from "update t1 set c = 3 where date(a) = '2011-11-29'";
+execute stmt;
+execute stmt;
+select * from t1;
+pk	a	c
+6	2011-11-29 13:43:32	3
+7	2012-10-16 05:56:32	2
+# DATE() conditions, DELETE
+explain format=json delete from t1 where date(a) = '2010-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a between '2010-10-16 00:00:00' and '2010-10-16 23:59:59'"
+    }
+  }
+}
+explain format=json delete from t1 where date(a) <= '2011-10-16';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "6",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "attached_condition": "t1.a <= '2011-10-16 23:59:59'"
+    }
+  }
+}
+prepare stmt from "delete from t1 where date(a) <= '2012-01-01'";
+execute stmt;
+execute stmt;
+select * from t1;
+pk	a	c
+7	2012-10-16 05:56:32	2
+# Test partition pruning
+create table t3 (
+a datetime,
+key(a)
+) partition by range(year(a)) (
+partition p0 values less than (2022),
+partition p1 values less than (MAXVALUE)
+);
+insert into t3
+select date_add('2020-01-01', interval seq*10 day)
+from seq_1_to_100;
+# Must be only "p0" partition
+explain partitions select * from t3 where year(a) = 2020;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	p0	range	a	a	6	NULL	36	Using where; Using index
+explain partitions delete from t3 where year(a) = 2020;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	p0	ALL	a	NULL	NULL	NULL	73	Using where
+explain partitions update t3 set a = a + 1 where year(a) = 2020;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	p0	ALL	a	NULL	NULL	NULL	73	Using where; Using buffer
+drop tables t1,t2,t3;

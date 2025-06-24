@@ -113,7 +113,7 @@ while ($p_trx)
 
 
 --let $p_trx=$ro_cases
-# With diconnect
+# With disconnect
 while ($p_trx)
 {
 --connection master
@@ -285,7 +285,7 @@ create table tm (a int) engine=myisam;
   --disconnect master_$xid
   --source include/wait_until_disconnected.inc
 
-# With diconnect
+# With disconnect
 --connection master
   --source rpl_create_xa_prepared.inc
   --disconnect master_$xid
@@ -366,7 +366,7 @@ sync_slave_with_master;
 
 # set a strong isolation level to keep the read view below.
 # alternatively a long-running select can do that too even in read-committed
-set session tx_isolation='repeatable-read';
+set session transaction_isolation='repeatable-read';
 start transaction;
 # opens a read view to disable purge on the slave
 select * from t1;

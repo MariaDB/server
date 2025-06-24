@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, 2022, MariaDB Corporation.
+Copyright (c) 2020, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -147,7 +147,7 @@ private:
 #endif
 
 public:
-  /** In crash recovery or the change buffer, claim the ownership
+  /** In crash recovery, claim the ownership
   of the exclusive block lock to the current thread */
   void claim_ownership() { set_new_owner(pthread_self()); }
 

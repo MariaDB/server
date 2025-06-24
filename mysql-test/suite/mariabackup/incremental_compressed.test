@@ -12,12 +12,12 @@ let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
 CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 
---exec $XTRABACKUP --backup --target-dir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root
 
 ALTER TABLE t PARTITION BY KEY(pk);
 
 --echo # Incremental backup
---exec $XTRABACKUP --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root > $incremental_dir.log 2>&1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --protocol=tcp --port=$MASTER_MYPORT --user=root > $incremental_dir.log 2>&1
 --echo # Prepare fullbackup
 --exec $XTRABACKUP --prepare --target-dir=$basedir --user=root > $MYSQL_TMP_DIR/backup_prepare_0.log 2>&1
 --echo # Prepare incremental backup

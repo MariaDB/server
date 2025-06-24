@@ -1,0 +1,21 @@
+#
+# MDEV-20034 Add support for the pre-defined weak SYS_REFCURSOR
+#
+SET @@max_open_cursors=1;
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 CURSOR FOR SELECT 'c1val' FROM DUAL;
+OPEN c0 FOR SELECT 'c0val' FROM DUAL;
+OPEN c1;
+END;
+$$
+ERROR HY000: Too many open cursors; max 1 cursors allowed
+BEGIN NOT ATOMIC
+DECLARE c0 SYS_REFCURSOR;
+DECLARE c1 CURSOR FOR SELECT 'c1val' FROM DUAL;
+OPEN c1;
+OPEN c0 FOR SELECT 'c0val' FROM DUAL;
+END;
+$$
+ERROR HY000: Too many open cursors; max 1 cursors allowed
+SET @@max_open_cursors=DEFAULT;

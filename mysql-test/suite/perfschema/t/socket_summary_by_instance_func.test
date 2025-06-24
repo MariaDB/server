@@ -27,7 +27,7 @@
 #    - Connects                   in 4.5
 #
 
-# Embedded server does not supprt the performance_schema.
+# Embedded server does not support the performance_schema.
 --source include/not_embedded.inc
 --source include/not_windows.inc
 --source include/no_valgrind_without_big.inc
@@ -176,28 +176,6 @@ if(!$success)
 --disable_query_log
 
 #
-# Lower the resolution of the wait timer from the default 'CYCLE'
-# to 'NANOSECOND'.
-# Hint: The timer columns contains values in picoseconds independent
-#       of the timer resolution.
-#       The timer resolution has an impact on the precision of the value.
-# This should prevent the failures seen on some suspicious PB boxes where
-# - calculations exceeded the BIGINT UNSIGNED (data type of the counter columns)
-#   value range.
-# - we have reached from whatever reason 20 digit values 
-# The consequence for the current test is the following:
-#    The common sense rule
-#       In case COUNT_<A> increases than SUM_TIMER_<A> must also increase
-#    is no more valid because some action might need less time than the
-#    timer resolution.
-#
-let $wait_timer= `SELECT TIMER_NAME FROM performance_schema.setup_timers
-                  WHERE NAME = 'wait'`;
-UPDATE performance_schema.setup_timers
-SET TIMER_NAME = 'NANOSECOND'
-WHERE NAME = 'wait';
-
-#
 # Additional SCHEMA used for
 # - detection of our "worker" session within the PROCESSLIST.
 #   No other connection should use this schema as default schema.
@@ -260,7 +238,7 @@ CREATE TABLE mysqltest.my_socket_summary_by_instance (
   MAX_TIMER_MISC            DECIMAL(60,0) NOT NULL,
   pk VARCHAR(20),
   PRIMARY KEY(pk, EVENT_NAME, OBJECT_INSTANCE_BEGIN)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 
 
 # The CAST(... AS DECIMAL(60,0)) prevents errors which might show up in case
@@ -1149,7 +1127,7 @@ t2.COUNT_MISC                - t1.COUNT_MISC                = 0;
 --source ../include/socket_check1.inc
 
 --echo # 4.5 Check the differences caused by Connects
---echo #     Attention: Succesful Connects run an additional "DO 1".
+--echo #     Attention: Successful Connects run an additional "DO 1".
 --echo # 4.5.1 Connects do not charge anything into READ or WRITE counters
 --echo #       of the instance with EVENT_NAME NOT LIKE ('%client_connection%').
 --echo #       This mean all these counters must be 0.
@@ -1700,10 +1678,6 @@ if($print_details)
 #==================
 # Cleanup
 --disable_query_log
-eval
-UPDATE performance_schema.setup_timers
-SET TIMER_NAME = '$wait_timer'
-WHERE NAME = 'wait';
 DROP SCHEMA mysqltest;
 DROP SCHEMA mysqlsupertest;
 --connection con1

@@ -1,0 +1,168 @@
+#
+# Row specific tests for master_last_event_time
+#
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--let $rpl_skip_start_slave=1
+--let $rpl_topology=1->2->3
+--source include/rpl_init.inc
+
+--echo #
+--echo # Initialize test data
+--echo # Ensure that all slaves has master_last_event_time == NULL
+--echo #
+
+--connection server_1
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+--source include/save_master_pos.inc
+--connection server_2
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+--connection server_3
+SET STATEMENT sql_log_bin=0 FOR create table t1 (a int) engine=innodb;
+
+--echo #
+--echo # Test *_last_event_time is updated at proper place.
+--echo # Master_last_event_time should be updated by the IO thread when reading
+--echo # in a new transaction from the primary.
+--echo # Slave_last_event_time should be updated by the SQL thread
+--echo #   1) immediately upon seeing the first transaction if the replica is
+--echo #      starting fresh, or
+--echo #   2) after committing a transaction.
+--echo #
+
+--connection server_2
+start slave io_thread;
+--source include/sync_io_with_master.inc
+
+# Ensure Master_last_event_time and Slave_last_event_time are not yet set
+--let $master_time= `select Master_last_event_time from information_schema.slave_status`
+--echo master_time: $master_time (should be empty)
+--let $slave_time=`select Slave_last_event_time from information_schema.slave_status`
+--echo slave_time: $slave_time (should be empty)
+
+--echo # Sleep 2s to create a time gap between the header events (i.e.
+--echo # Format_description and Gtid_list) and the transaction event to allow
+--echo # proving that header events should not update
+--echo # (Master|Slave)_last_event_time
+--sleep 2
+
+--connect (server_1_1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--let $t1_time_begin= `select truncate(@@timestamp,0)`
+--replace_result $t1_time_begin TIMESTAMP
+--eval set @@timestamp= $t1_time_begin
+insert into t1 values (0);
+
+--source include/save_master_pos.inc
+
+--connection server_2
+--source include/sync_io_with_master.inc
+
+--let $mle_time= `select Master_last_event_time from information_schema.slave_status`
+--let $mle_time_unix= `select truncate(unix_timestamp("$mle_time"),0)`
+if (`SELECT ($mle_time_unix < $t1_time_begin)`)
+{
+  --echo # Expected timestamp (master binlog time): $t1_time_begin
+  --echo # Reported Master_last_event_time: $mle_time_unix ($mle_time)
+  --die Master_last_event_time did not correspond to time that the transaction was binlogged on primary
+}
+
+--let $slave_time= `select Slave_last_event_time from information_schema.slave_status`
+if (`select strcmp("$slave_time", "") != 0`)
+{
+  --echo # Slave_last_event_time: $slave_time
+  --die SQL thread was never started, Slave_last_event_time should be NULL
+}
+
+# Check that we also get the values from show all slaves status
+--let $time_diff= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
+if (`select strcmp("$time_diff", "NULL") != 0`)
+{
+  --echo # Master_Slave_time_diff: $time_diff
+  --die SQL thread was never started, Master_Slave_time_diff should be NULL
+}
+
+--echo # For the first event, at execution start, Slave_last_event_time should
+--echo # be updated to be 1 second prior to the time that the first transaction
+--echo # was binlogged on the primary. This is to represent that the slave is
+--echo # otherwise up-to-date. Note the table is locked to prevent the
+--echo # transaction from committing (and thereby progressing
+--echo # Slave_last_event_time to represent commit-time).
+
+--connect (server_2_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+lock tables t1 write;
+
+--connection server_2
+start slave sql_thread;
+
+--echo # Waiting for replica to start executing the transaction (yet get stuck on the table lock)
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+
+--let $slave_time= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
+--let $slave_time_unix= `select truncate(unix_timestamp("$slave_time"),0)`
+--let $expected_slave_time= `select ($t1_time_begin - 1)`
+if ($slave_time_unix != $expected_slave_time)
+{
+  --echo # Master_last_event_time: $mle_time_unix ($mle_time)
+  --echo # Slave_last_event_time: $slave_time_unix ($slave_time)
+  --echo # Expected value: $expected_slave_time
+  --die SQL thread has not yet committed its first transaction, Slave_last_event_time should be 1s before that transaction
+}
+
+# Master_Slave_time_diff isn't guaranteed to be 1 second, despite the
+# hard-coded logic to subtract 1s from the first non-group event that comes in.
+# This is because the Gtid and Xid events can be logged with different
+# timestamps, and Slave_last_event_time is updated using the Gtid log event,
+# and Master_last_event_time is updated using the Xid log event. So to ensure
+# that Master_Slave_time_diff is updated correctly for the first transaction,
+# it must also take into account the difference in timestamps of these events
+--let $xid_gtid_time_diff=`SELECT $mle_time_unix - $t1_time_begin`
+--let $time_diff= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
+if (`SELECT $time_diff != 1 + $xid_gtid_time_diff`)
+{
+  --echo # Master_Slave_time_diff: $time_diff
+  --echo # Xid Gtid Timestamp Difference: $xid_gtid_time_diff
+  --die SQL thread has not yet committed its first transaction, Master_Slave_time_diff should be updated to look up-to-date prior to this trx
+}
+
+--connection server_2_2
+unlock tables;
+
+--connection server_2
+--source include/sync_with_master.inc
+--source master_last_event_time.inc
+
+--echo #
+--echo # Test simple insert
+--echo #
+
+--connection server_1
+insert into t1 values (1+sleep(3));
+--source master_last_event_time.inc
+
+--echo #
+--echo # Test insert with forced time
+--echo #
+
+SET TIMESTAMP=unix_timestamp("2000-01-01");
+insert into t1 values (2+sleep(3));
+SET TIMESTAMP=DEFAULT;
+--source master_last_event_time.inc
+
+--echo #
+--echo # Test multi-transaction
+--echo #
+
+begin;
+insert into t1 values (3+sleep(3));
+insert into t1 values (4+sleep(3));
+commit;
+--source master_last_event_time.inc
+
+--echo # cleanup
+--connection server_3
+--source include/start_slave.inc
+--connection server_1
+drop table t1;
+--source include/rpl_end.inc
+--echo # End of master_last_event_time_row

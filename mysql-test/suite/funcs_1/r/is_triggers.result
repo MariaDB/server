@@ -33,7 +33,7 @@ Field	Type	Null	Key	Default	Extra
 TRIGGER_CATALOG	varchar(512)	NO		NULL	
 TRIGGER_SCHEMA	varchar(64)	NO		NULL	
 TRIGGER_NAME	varchar(64)	NO		NULL	
-EVENT_MANIPULATION	varchar(6)	NO		NULL	
+EVENT_MANIPULATION	varchar(20)	NO		NULL	
 EVENT_OBJECT_CATALOG	varchar(512)	NO		NULL	
 EVENT_OBJECT_SCHEMA	varchar(64)	NO		NULL	
 EVENT_OBJECT_TABLE	varchar(64)	NO		NULL	
@@ -50,15 +50,15 @@ CREATED	datetime(2)	YES		NULL
 SQL_MODE	varchar(8192)	NO		NULL	
 DEFINER	varchar(384)	NO		NULL	
 CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
-COLLATION_CONNECTION	varchar(32)	NO		NULL	
-DATABASE_COLLATION	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(64)	NO		NULL	
+DATABASE_COLLATION	varchar(64)	NO		NULL	
 SHOW CREATE TABLE information_schema.TRIGGERS;
 Table	Create Table
 TRIGGERS	CREATE TEMPORARY TABLE `TRIGGERS` (
   `TRIGGER_CATALOG` varchar(512) NOT NULL,
   `TRIGGER_SCHEMA` varchar(64) NOT NULL,
   `TRIGGER_NAME` varchar(64) NOT NULL,
-  `EVENT_MANIPULATION` varchar(6) NOT NULL,
+  `EVENT_MANIPULATION` varchar(20) NOT NULL,
   `EVENT_OBJECT_CATALOG` varchar(512) NOT NULL,
   `EVENT_OBJECT_SCHEMA` varchar(64) NOT NULL,
   `EVENT_OBJECT_TABLE` varchar(64) NOT NULL,
@@ -75,15 +75,15 @@ TRIGGERS	CREATE TEMPORARY TABLE `TRIGGERS` (
   `SQL_MODE` varchar(8192) NOT NULL,
   `DEFINER` varchar(384) NOT NULL,
   `CHARACTER_SET_CLIENT` varchar(32) NOT NULL,
-  `COLLATION_CONNECTION` varchar(32) NOT NULL,
-  `DATABASE_COLLATION` varchar(32) NOT NULL
+  `COLLATION_CONNECTION` varchar(64) NOT NULL,
+  `DATABASE_COLLATION` varchar(64) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.TRIGGERS;
 Field	Type	Null	Key	Default	Extra
 TRIGGER_CATALOG	varchar(512)	NO		NULL	
 TRIGGER_SCHEMA	varchar(64)	NO		NULL	
 TRIGGER_NAME	varchar(64)	NO		NULL	
-EVENT_MANIPULATION	varchar(6)	NO		NULL	
+EVENT_MANIPULATION	varchar(20)	NO		NULL	
 EVENT_OBJECT_CATALOG	varchar(512)	NO		NULL	
 EVENT_OBJECT_SCHEMA	varchar(64)	NO		NULL	
 EVENT_OBJECT_TABLE	varchar(64)	NO		NULL	
@@ -100,16 +100,16 @@ CREATED	datetime(2)	YES		NULL
 SQL_MODE	varchar(8192)	NO		NULL	
 DEFINER	varchar(384)	NO		NULL	
 CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
-COLLATION_CONNECTION	varchar(32)	NO		NULL	
-DATABASE_COLLATION	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(64)	NO		NULL	
+DATABASE_COLLATION	varchar(64)	NO		NULL	
 SELECT * FROM information_schema.triggers
 WHERE trigger_catalog IS NOT NULL OR event_object_catalog IS NOT NULL
 OR action_condition IS NOT NULL OR action_reference_old_table IS NOT NULL
 OR action_reference_new_table IS NOT NULL
 ORDER BY trigger_schema, trigger_name;
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-def	mtr	gs_insert	INSERT	def	mtr	global_suppressions	1	NULL	BEGIN   DECLARE dummy INT;   SELECT "" REGEXP NEW.pattern INTO dummy; END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-def	mtr	ts_insert	INSERT	def	mtr	test_suppressions	1	NULL	BEGIN   DECLARE dummy INT;   SELECT "" REGEXP NEW.pattern INTO dummy; END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+def	mtr	gs_insert	INSERT	def	mtr	global_suppressions	1	NULL	BEGIN   DECLARE dummy INT;   SELECT "" REGEXP NEW.pattern INTO dummy; END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+def	mtr	ts_insert	INSERT	def	mtr	test_suppressions	1	NULL	BEGIN   DECLARE dummy INT;   SELECT "" REGEXP NEW.pattern INTO dummy; END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 ##################################################################################
 # Testcase 3.2.18.2 + 3.2.18.3: INFORMATION_SCHEMA.TRIGGERS accessible information
 ##################################################################################
@@ -138,10 +138,10 @@ GRANT SELECT ON db_datadict.t1 TO 'testuser3'@'localhost';
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW TRIGGERS FROM db_datadict;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connect  testuser2, localhost, testuser2, , db_datadict;
 SHOW GRANTS FOR 'testuser2'@'localhost';
 Grants for testuser2@localhost
@@ -162,10 +162,10 @@ GRANT SELECT ON `db_datadict`.`t1` TO `testuser3`@`localhost`
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW TRIGGERS FROM db_datadict;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connect  testuser4, localhost, testuser4, , test;
 SHOW GRANTS FOR 'testuser4'@'localhost';
 Grants for testuser4@localhost
@@ -178,10 +178,10 @@ ERROR 42000: SELECT command denied to user 'testuser4'@'localhost' for table `db
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW TRIGGERS FROM db_datadict;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection default;
 disconnect testuser1;
 disconnect testuser2;
@@ -190,10 +190,10 @@ disconnect testuser4;
 SELECT * FROM information_schema.triggers
 WHERE trigger_name = 'trg1';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
-def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+def	db_datadict	trg1	INSERT	def	db_datadict	t1	1	NULL	SET @test_before = 2, new.f1 = @test_before	ROW	BEFORE	NULL	NULL	OLD	NEW	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW TRIGGERS FROM db_datadict;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @test_before = 2, new.f1 = @test_before	BEFORE	#		testuser1@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP USER 'testuser1'@'localhost';
 DROP USER 'testuser2'@'localhost';
 DROP USER 'testuser3'@'localhost';

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,8 +43,10 @@ typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 /** Check MAX(SPACE) FROM SYS_TABLES and store it in fil_system.
 Open each data file if an encryption plugin has been loaded.
 
-@param spaces  set of tablespace files to open */
-void dict_check_tablespaces_and_store_max_id(const std::set<uint32_t> *spaces);
+@param spaces  set of tablespace files to open
+@param upgrade whether we need to invoke ibuf_upgrade() */
+void dict_load_tablespaces(const std::set<uint32_t> *spaces= nullptr,
+                           bool upgrade= false);
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 @param[in,out]	table		Table object */
@@ -211,4 +213,12 @@ dict_process_sys_foreign_col_rec(
 					in referenced table */
 	ulint*		pos);		/*!< out: column position */
 
+/** This function gets the next system table record as it scans
+the table.
+@param pcur persistent cursor
+@param mtr  mini-transaction
+@return the next record if found
+@retval nullptr at the end of the table */
+const rec_t*
+dict_getnext_system_low(btr_pcur_t *pcur, mtr_t *mtr);
 #endif

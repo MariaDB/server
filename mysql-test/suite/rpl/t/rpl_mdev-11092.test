@@ -7,7 +7,7 @@
 
 ########################################################################################
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occured on the master. .*");
+call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occurred on the master. .*");
 call mtr.add_suppression("Write to binary log failed: Multi-row statements required more than .max_binlog_stmt_cache_size.* ");
 call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size.* ");
 call mtr.add_suppression("Incident event write to the binary log file failed");
@@ -17,6 +17,8 @@ let $old_max_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_
 let $old_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_cache_size", Value, 1);
 let $old_max_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_stmt_cache_size", Value, 1);
 let $old_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_stmt_cache_size", Value, 1);
+
+--source include/test_db_charset_latin1.inc
 
 --echo "*********** Annotate Event write failure **************"
 
@@ -540,4 +542,5 @@ if(!$log_error_)
 --eval SET GLOBAL debug_dbug = '$debug_save'
 DROP TABLE tm,ti;
 
+--source include/test_db_charset_restore.inc
 --source include/rpl_end.inc

@@ -21,6 +21,13 @@
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
 
+static struct st_mariadb_data_type plugin_descriptor_type_inet4=
+{
+  MariaDB_DATA_TYPE_INTERFACE_VERSION,
+  Type_handler_inet4::singleton()
+};
+
+
 static struct st_mariadb_data_type plugin_descriptor_type_inet6=
 {
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
@@ -169,6 +176,21 @@ static Plugin_function
 /*************************************************************************/
 
 maria_declare_plugin(type_inet)
+{
+  MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_type_inet4,// pointer to type-specific plugin descriptor
+  "inet4",                      // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Data type INET4",            // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_GAMMA // Maturity(see include/mysql/plugin.h)*/
+},
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_type_inet6,// pointer to type-specific plugin descriptor

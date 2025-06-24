@@ -37,51 +37,67 @@ set @tmp=@@join_cache_level, join_cache_level=6;
 select '$out' as X;
 X
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 500,
-      "r_rows": 500,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t1.a < 700 and t1.b is not null"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "hash_ALL",
-        "key": "#hash#$hj",
-        "key_length": "5",
-        "used_key_parts": ["b"],
-        "ref": ["test.t1.b"],
-        "r_loops": 1,
-        "rows": 500,
-        "r_rows": 500,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 20,
-        "attached_condition": "t2.a < 100"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 500,
+          "r_rows": 500,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t1.a < 700 and t1.b is not null",
+          "r_filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "18Kb",
-      "join_type": "BNLH",
-      "attached_condition": "t2.b = t1.b",
-      "r_loops": 500,
-      "r_filtered": 100,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 0.594
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "hash_ALL",
+            "key": "#hash#$hj",
+            "key_length": "5",
+            "used_key_parts": ["b"],
+            "ref": ["test.t1.b"],
+            "loops": 500,
+            "r_loops": 1,
+            "rows": 500,
+            "r_rows": 500,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 10,
+            "r_total_filtered": 20,
+            "attached_condition": "t2.a < 100",
+            "r_filtered": 20
+          },
+          "buffer_type": "flat",
+          "buffer_size": "18Kb",
+          "join_type": "BNLH",
+          "attached_condition": "t2.b = t1.b",
+          "r_loops": 500,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 0.594
+        }
+      }
+    ]
   }
 }
 set @out=(select json_extract(@js,'$**.block-nl-join.r_unpack_time_ms'));
@@ -121,50 +137,66 @@ set @tmp=@@join_cache_level, join_cache_level=6;
 select '$out' as X;
 X
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 1000,
-      "r_rows": 1000,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t1.a is not null"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "hash_ALL",
-        "key": "#hash#$hj",
-        "key_length": "5",
-        "used_key_parts": ["a"],
-        "ref": ["test.t1.a"],
-        "r_loops": 1,
-        "rows": 2000,
-        "r_rows": 2000,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 1000,
+          "r_rows": 1000,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t1.a is not null",
+          "r_filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "256Kb",
-      "join_type": "BNLH",
-      "attached_condition": "t2.a = t1.a and concat(t1.col1,t1.col2,t1.col3) = concat(t2.col1,t2.col2,t2.col3)",
-      "r_loops": 1000,
-      "r_filtered": 1.025630506,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 97.501
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "hash_ALL",
+            "key": "#hash#$hj",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t1.a"],
+            "loops": 1000,
+            "r_loops": 1,
+            "rows": 2000,
+            "r_rows": 2000,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 10,
+            "r_total_filtered": 100,
+            "r_filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "256Kb",
+          "join_type": "BNLH",
+          "attached_condition": "t2.a = t1.a and concat(t1.col1,t1.col2,t1.col3) = concat(t2.col1,t2.col2,t2.col3)",
+          "r_loops": 1000,
+          "r_filtered": 1.025630506,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 97.501
+        }
+      }
+    ]
   }
 }
 set @out=(select json_extract(@js,'$**.block-nl-join.r_other_time_ms'));

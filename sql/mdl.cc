@@ -538,7 +538,7 @@ public:
 
     /*
       In backup namespace DML/DDL may starve because of concurrent FTWRL or
-      BACKUP statements. This scenario is partically useless in real world,
+      BACKUP statements. This scenario is practically useless in real world,
       so we just return 0 here.
     */
     bitmap_t hog_lock_types_bitmap() const override
@@ -613,7 +613,7 @@ public:
 
   bool needs_notification(const MDL_ticket *ticket) const
   { return m_strategy->needs_notification(ticket); }
-  void notify_conflicting_locks(MDL_context *ctx)
+  void notify_conflicting_locks(MDL_context *ctx, bool abort_blocking)
   {
     for (const auto &conflicting_ticket : m_granted)
     {
@@ -624,7 +624,8 @@ public:
 
         ctx->get_owner()->
           notify_shared_lock(conflicting_ctx->get_owner(),
-                             conflicting_ctx->get_needs_thr_lock_abort());
+                             conflicting_ctx->get_needs_thr_lock_abort(),
+                             abort_blocking);
       }
     }
   }
@@ -2129,6 +2130,8 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
   if (lock->can_grant_lock(mdl_request->type, this, false))
   {
+    if (metadata_lock_info_plugin_loaded)
+      ticket->m_time= microsecond_interval_timer();
     lock->m_granted.add_ticket(ticket);
 
     mysql_prlock_unlock(&lock->m_rwlock);
@@ -2200,6 +2203,7 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
   DBUG_ASSERT(mdl_request->ticket->has_stronger_or_equal_type(ticket->m_type));
 
   ticket->m_lock= mdl_request->ticket->m_lock;
+  ticket->m_time= mdl_request->ticket->m_time;
   mdl_request->ticket= ticket;
 
   mysql_prlock_wrlock(&ticket->m_lock->m_rwlock);
@@ -2243,8 +2247,8 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
 
       /*
         If the conflicting thread is another parallel replication
-        thread for the same master and it's not in commit stage, then
-        the current transaction has started too early and something is
+        thread for the same master and it's not in commit or post-commit stages,
+        then the current transaction has started too early and something is
         seriously wrong.
       */
       if (conflicting_rgi_slave &&
@@ -2252,7 +2256,9 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
           conflicting_rgi_slave->rli == rgi_slave->rli &&
           conflicting_rgi_slave->current_gtid.domain_id ==
           rgi_slave->current_gtid.domain_id &&
-          !conflicting_rgi_slave->did_mark_start_commit)
+          !((conflicting_rgi_slave->did_mark_start_commit ||
+             conflicting_rgi_slave->worker_error)           ||
+            conflicting_rgi_slave->finish_event_group_called))
         return 1;                               // Fatal error
     }
   }
@@ -2327,6 +2333,22 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     DBUG_RETURN(TRUE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP(get_thd()))
+  {
+    THD* requester= get_thd();
+    bool requester_toi= wsrep_thd_is_toi(requester) || wsrep_thd_is_applying(requester);
+    WSREP_DEBUG("::acquire_lock is TOI %d for %s", requester_toi,
+                wsrep_thd_query(requester));
+    if (requester_toi)
+      THD_STAGE_INFO(requester, stage_waiting_ddl);
+    else
+      THD_STAGE_INFO(requester, stage_waiting_isolation);
+  }
+#endif /* WITH_WSREP */
+
+  if (metadata_lock_info_plugin_loaded)
+    ticket->m_time= microsecond_interval_timer();
   lock->m_waiting.add_ticket(ticket);
 
   /*
@@ -2339,10 +2361,10 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   /*
     Don't break conflicting locks if timeout is 0 as 0 is used
-    To check if there is any conflicting locks...
+    to check if there is any conflicting locks...
   */
   if (lock->needs_notification(ticket) && lock_wait_timeout)
-    lock->notify_conflicting_locks(this);
+    lock->notify_conflicting_locks(this, false);
 
   /*
     Ensure that if we are trying to get an exclusive lock for a slave
@@ -2375,14 +2397,44 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   find_deadlock();
 
-  struct timespec abs_timeout, abs_shortwait;
+  struct timespec abs_timeout, abs_shortwait, abs_abort_blocking_timeout;
+  bool abort_blocking_enabled= false;
+  double abort_blocking_timeout= slave_abort_blocking_timeout;
+  if (abort_blocking_timeout < lock_wait_timeout &&
+      m_owner->get_thd()->rgi_slave)
+  {
+    /*
+      After @@slave_abort_blocking_timeout seconds, kill non-replication
+      queries that are blocking a replication event (such as an ALTER TABLE)
+      from proceeding.
+    */
+    set_timespec_nsec(abs_abort_blocking_timeout,
+                      (ulonglong)(abort_blocking_timeout * 1000000000ULL));
+    abort_blocking_enabled= true;
+  }
   set_timespec_nsec(abs_timeout,
                     (ulonglong)(lock_wait_timeout * 1000000000ULL));
-  set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 
-  while (cmp_timespec(abs_shortwait, abs_timeout) <= 0)
+  for (;;)
   {
+    bool abort_blocking= false;
+    set_timespec(abs_shortwait, 1);
+    if (abort_blocking_enabled &&
+        cmp_timespec(abs_shortwait, abs_abort_blocking_timeout) >= 0)
+    {
+      /*
+        If a slave DDL has waited for --slave-abort-select-timeout, then notify
+        any blocking SELECT once before continuing to wait until the full
+        timeout.
+      */
+      abs_shortwait= abs_abort_blocking_timeout;
+      abort_blocking= true;
+      abort_blocking_enabled= false;
+    }
+    else if (cmp_timespec(abs_shortwait, abs_timeout) > 0)
+      break;
+
     /* abs_timeout is far away. Wait a short while and notify locks. */
     wait_status= m_wait.timed_wait(m_owner, &abs_shortwait, FALSE,
                                    mdl_request->key.get_wait_state_name());
@@ -2403,9 +2455,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
     mysql_prlock_wrlock(&lock->m_rwlock);
     if (lock->needs_notification(ticket))
-      lock->notify_conflicting_locks(this);
+      lock->notify_conflicting_locks(this, abort_blocking);
     mysql_prlock_unlock(&lock->m_rwlock);
-    set_timespec(abs_shortwait, 1);
   }
   if (wait_status == MDL_wait::EMPTY)
     wait_status= m_wait.timed_wait(m_owner, &abs_timeout, TRUE,

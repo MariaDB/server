@@ -277,7 +277,7 @@ static void make_ftype(register char * to, register int flag)
     *to++= (flag & O_APPEND) ? 'a' : 'w';  
   else if (flag & O_RDWR)          
   {
-    /* Add '+' after theese */    
+    /* Add '+' after these */
     if (flag & (O_TRUNC | O_CREAT))      
       *to++= 'w';    
     else if (flag & O_APPEND)      
@@ -291,6 +291,8 @@ static void make_ftype(register char * to, register int flag)
 
   if (flag & FILE_BINARY)    
     *to++='b';
+  else if (flag & O_TEXT)
+    *to++= 't';
 
   if (O_CLOEXEC)
     *to++= 'e';

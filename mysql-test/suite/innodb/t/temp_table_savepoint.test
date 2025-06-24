@@ -1,12 +1,13 @@
 --source include/have_innodb.inc
 --source include/innodb_row_format.inc
+--source include/test_db_charset_latin1.inc
 
 ####################################################################
 # TC to test temp-table DML optimization changes for correctness   #
 # Sceanrio covered in single testcase :                            #
 # - Tables with row format(redundant,dynamic,compact)              #
 # - Table with primary,composite,prefix,secondary index            #
-# - Insert/delete/update with transactioons                        #
+# - Insert/delete/update with transactions                         #
 # - Transaction with commit,rollback,savepoint statements          #
 # - Concurrency by execution of two clients creating tables with   #
 #    same names                                                    #
@@ -20,7 +21,7 @@
 ####################################################################
 
 # Create procedure to perform
-# 1. Create temp table with row types , index , sufficent data types
+# 1. Create temp table with row types , index , sufficient data types
 # 2. Perform DML with transaction
 delimiter |;
 create procedure populate_tables()
@@ -141,12 +142,7 @@ update ignore t5 set c1 = 20 where c1 = 140 ;
 select count(*) from t5 where c1 = 140;
 
 --replace_result $MYSQLTEST_VARDIR VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval select * into outfile "$MYSQLTEST_VARDIR/tmp/t5.outfile" from t5;
---enable_ps2_protocol
---enable_cursor_protocol
-
 
 create temporary table temp_1 engine = innodb as select * from t5 where 1=2;
 select count(*) from temp_1;
@@ -215,3 +211,5 @@ select count(*) from prep_1;
 drop prepare stm;
 drop prepare stm_1;
 drop prepare stm_2;
+
+--source include/test_db_charset_restore.inc

@@ -13,7 +13,7 @@ utc_timestamp(1)	2010-12-31 22:01:01.1
 utc_time(2)	22:01:01.12
 current_time(3)	01:01:01.123
 current_timestamp(4)	2011-01-01 01:01:01.1234
-localtime(5)	2011-01-01 01:01:01.12345
+localtime(5)	01:01:01.12345
 localtimestamp(6)	2011-01-01 01:01:01.123456
 time_to_sec('12:34:56')	45296
 time_to_sec('12:34:56.789')	45296.789
@@ -24,9 +24,9 @@ select time_to_sec(sec_to_time(11111)), time_to_sec(sec_to_time(11111.22222));
 time_to_sec(sec_to_time(11111))	11111
 time_to_sec(sec_to_time(11111.22222))	11111.22222
 select current_timestamp(7);
-ERROR 42000: Too big precision 7 specified for 'current_timestamp'. Maximum is 6
+ERROR 42000: Too big precision specified for 'current_timestamp'. Maximum is 6
 select curtime(7);
-ERROR 42000: Too big precision 7 specified for 'curtime'. Maximum is 6
+ERROR 42000: Too big precision specified for 'curtime'. Maximum is 6
 drop table if exists t1;
 create table t1 select sec_to_time(12345), sec_to_time(12345.6789),
 sec_to_time(1234567e-2), now(), curtime(0),
@@ -39,17 +39,17 @@ t1	CREATE TABLE `t1` (
   `sec_to_time(12345)` time DEFAULT NULL,
   `sec_to_time(12345.6789)` time(4) DEFAULT NULL,
   `sec_to_time(1234567e-2)` time(6) DEFAULT NULL,
-  `now()` datetime NOT NULL,
+  `now()` timestamp NOT NULL,
   `curtime(0)` time NOT NULL,
   `utc_timestamp(1)` datetime(1) NOT NULL,
   `utc_time(2)` time(2) NOT NULL,
   `current_time(3)` time(3) NOT NULL,
-  `current_timestamp(4)` datetime(4) NOT NULL,
-  `localtime(5)` datetime(5) NOT NULL,
+  `current_timestamp(4)` timestamp(4) NOT NULL,
+  `localtime(5)` time(5) NOT NULL,
   `localtimestamp(6)` datetime(6) NOT NULL,
   `time_to_sec(123456)` bigint(17) DEFAULT NULL,
   `time_to_sec('12:34:56.789')` decimal(19,3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1;
 sec_to_time(12345)	03:25:45
 sec_to_time(12345.6789)	03:25:45.6789
@@ -60,7 +60,7 @@ utc_timestamp(1)	2010-12-31 22:01:01.1
 utc_time(2)	22:01:01.12
 current_time(3)	01:01:01.123
 current_timestamp(4)	2011-01-01 01:01:01.1234
-localtime(5)	2011-01-01 01:01:01.12345
+localtime(5)	01:01:01.12345
 localtimestamp(6)	2011-01-01 01:01:01.123456
 time_to_sec(123456)	45296
 time_to_sec('12:34:56.789')	45296.789
@@ -133,7 +133,7 @@ t1	CREATE TABLE `t1` (
   `t4` time(4) DEFAULT NULL,
   `t5` time(5) DEFAULT NULL,
   `t6` time(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1;
 dauto	2011-01-02 12:13:14
 d0	2011-01-02 12:13:14
@@ -161,7 +161,7 @@ select cast(cast(@a as time(2)) as time(6));
 cast(cast(@a as time(2)) as time(6))
 12:13:14.120000
 select CAST(@a AS DATETIME(7));
-ERROR 42000: Too big precision 7 specified for '@`a`'. Maximum is 6
+ERROR 42000: Too big precision specified for '@`a`'. Maximum is 6
 SELECT CONVERT_TZ('2011-01-02 12:00:00', '+00:00', '+03:00') as exp;
 exp
 2011-01-02 15:00:00

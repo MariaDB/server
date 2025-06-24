@@ -9,6 +9,7 @@
 --source include/no_protocol.inc
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/check_digest.inc
 
 CREATE TABLE test.v1 (a int, b int);
 INSERT INTO test.v1 VALUES (1, 100), (2, 200), (3, 300);
@@ -116,7 +117,7 @@ SELECT b, a from test.v1;
 --echo # DIGESTS SEEN ON TABLE
 --echo #
 
-SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT, COUNT_STAR
+SELECT SCHEMA_NAME, check_digest(DIGEST), DIGEST_TEXT, COUNT_STAR
   FROM performance_schema.events_statements_summary_by_digest
   ORDER BY DIGEST_TEXT;
 
@@ -144,10 +145,13 @@ SELECT b, a from test.v1;
 --echo # DIGESTS SEEN ON VIEW
 --echo #
 
-SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT, COUNT_STAR
+call reset_digests;
+
+SELECT SCHEMA_NAME, check_digest(DIGEST), DIGEST_TEXT, COUNT_STAR
   FROM performance_schema.events_statements_summary_by_digest
   ORDER BY DIGEST_TEXT;
 
 DROP VIEW test.v1;
 DROP TABLE test.t1;
 
+--source include/check_digest_end.inc

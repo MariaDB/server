@@ -7,6 +7,7 @@
 --source include/long_test.inc
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
+--source include/test_db_charset_latin1.inc
 
 connection slave;
 set @saved_slave_type_conversions = @@global.slave_type_conversions;
@@ -72,8 +73,10 @@ call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be conve
 
 connection master;
 DROP TABLE t1;
+--source include/test_db_charset_restore.inc
 sync_slave_with_master;
 
 set global slave_type_conversions = @saved_slave_type_conversions;
+
 
 --source include/rpl_end.inc

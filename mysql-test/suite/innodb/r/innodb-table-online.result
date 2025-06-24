@@ -1,10 +1,9 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET GLOBAL innodb_monitor_reset_all=all;
 SET GLOBAL innodb_monitor_reset_all=default;
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
 call mtr.add_suppression("InnoDB: Error: table 'test/t1'");
 call mtr.add_suppression("MariaDB is trying to open a table handle but the .ibd file for");
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
 CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT NOT NULL, c3 CHAR(255) NOT NULL)
 ENGINE = InnoDB;
 INSERT INTO t1 VALUES (1,1,''), (2,2,''), (3,3,''), (4,4,''), (5,5,'');
@@ -39,11 +38,11 @@ SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR HY000: Out of memory.
-SET SESSION DEBUG = @saved_debug_dbug;
-SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
+SET SESSION DEBUG_DBUG = @saved_debug_dbug;
+SET SESSION DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR HY000: Out of memory.
-SET SESSION DEBUG = @saved_debug_dbug;
+SET SESSION DEBUG_DBUG = @saved_debug_dbug;
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 connection default;
 SHOW CREATE TABLE t1;
@@ -492,6 +491,6 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 disconnect con1;
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

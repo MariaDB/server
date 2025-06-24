@@ -1,0 +1,20 @@
+#
+# MDEV-32486 Assertion `!trx->alloc_line_no[id] || trx->alloc_line_no[id] == line_no' failed in spider_alloc_mem_calc
+#
+for master_1
+for child2
+for child3
+CREATE TABLE t (c INT) ENGINE=Spider REMOTE_PORT="1";
+DROP TABLE t;
+CREATE TABLE t (c INT) ENGINE=Spider COMMENT="WRAPPER 'mysql', SERVER 's',MONITORING_KIND '1'";
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  s
+CREATE TABLE t (c INT) ENGINE=Spider COMMENT="WRAPPER 'mysql',SRV 's',MONITORING_KIND '2'";
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  s
+CREATE TABLE t (c INT) ENGINE=Spider REMOTE_PORT="1";
+drop table t;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_32486
+#

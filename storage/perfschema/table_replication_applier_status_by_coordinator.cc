@@ -65,7 +65,7 @@ table_replication_applier_status_by_coordinator::m_share=
   "SERVICE_STATE ENUM('ON','OFF') not null comment 'ON (thread exists and is active or idle) or OFF (thread no longer exists).',"
   "LAST_ERROR_NUMBER INTEGER not null comment 'Last error number that caused the SQL/coordinator thread to stop.',"
   "LAST_ERROR_MESSAGE VARCHAR(1024) not null comment 'Last error message that caused the SQL/coordinator thread to stop.',"
-  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null comment 'Timestamp that shows when the most recent SQL/coordinator error occured.',"
+  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null comment 'Timestamp that shows when the most recent SQL/coordinator error occurred.',"
   "LAST_SEEN_TRANSACTION CHAR(57) not null comment 'The transaction the worker has last seen.',"
   "LAST_TRANS_RETRY_COUNT INTEGER not null comment 'Total number of retries attempted by last transaction.')") },
   false, /* m_perpetual */

@@ -17,10 +17,92 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "sql_test.h"
+#include "opt_trace.h"
+#include "opt_hints.h"
 
-/****************************************************************************
- * Index Condition Pushdown code starts
- ***************************************************************************/
+/*
+  Index Condition Pushdown Module
+  ===============================
+
+  Storage Engine API
+  ==================
+  SQL layer can push a condition to be checked for index tuple by calling
+
+    handler::idx_cond_push(uint keyno, Item *cond)
+
+  After that, the SQL layer is expected to start an index scan on the specified
+  index. The scan should be non-index-only (that is, do not use HA_EXTRA_KEYREAD
+  option).
+
+  Then, any call that reads rows from the index:
+
+    handler->some_index_read_function()
+
+  will check the index condition (see handler_index_cond_check()) and ignore
+  index tuples that do not match it.
+
+  Pushing index condition requires pushing end-of-range check, too
+  ================================================================
+
+  Suppose we're computing
+
+    select *
+    from t1
+    where key1 between 10 and 20 and extra_index_cond
+
+  by using a range scan on (10 <= key1 <= 20) and pushing extra_index_cond as
+  pushed index condition.
+  SQL could use these calls to read rows:
+
+    h->idx_cond_push(key1, extra_index_cond);
+    h->index_read_map(key1=10, HA_READ_KEY_OR_NEXT);  // (read-1)
+    while (h->index_next() != HA_ERR_END_OF_FILE) {   // (read-2)
+      if (cmp_key(h->record, "key1=20" ) < 0)
+        break; // end of range
+      //process row.
+    }
+
+  Suppose an index read function above (either (read-1) or (read-2)) encounters
+  key1=21. Suppose extra_index_cond evaluates to false for this row. Then, it
+  will proceed to read next row, e.g. key1=22. If extra_index_cond again
+  evaluates to false it will continue further. This way, the index scan can
+  continue till the end of the index, ignoring the fact that we are not
+  interested in rows with key1>20.
+
+  The solution is: whenever ICP is used, the storage engine must be aware of the
+  end of the range being scanned so it can stop the scan as soon as it is reached.
+
+  End-of-range checks
+  ===================
+  There are four call patterns:
+
+  1. Index Navigation commands. End of range check is setup with set_end_range
+  call:
+
+    handler->set_end_range(endpoint, direction);
+    handler->index_read_XXXX();
+    while (handler->index_next() == 0) // or index_prev()
+    { ... }
+
+  2. Range Read API. set_end_range is called from read_range_first:
+
+    handler->read_range_first(start_range, end_range);
+    while (handler->read_range_next() == 0) { ... }
+
+  3. Equality lookups
+
+     handler->index_read_map(lookup_tuple, HA_READ_KEY_EXACT);
+     while (handler->index_next_same() == 0) { ... }
+
+     Here, set_end_range is not necessary, because index scanning code
+     will not read index tuples that do not match the lookup tuple.
+
+  4. multi_range_read calls.
+     These either fall-back to Range Read API or use their own ICP
+     implementation with its own ICP checks.
+*/
+
+
 /* 
   Check if given expression uses only table fields covered by the given index
 
@@ -57,7 +139,7 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
   /* 
     Don't push down the triggered conditions. Nested outer joins execution 
     code may need to evaluate a condition several times (both triggered and
-    untriggered), and there is no way to put thi
+    untriggered), and there is no way to put this
     TODO: Consider cloning the triggered condition and using the copies for:
       1. push the first copy down, to have most restrictive index condition
          possible
@@ -334,13 +416,13 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
        than on a non-clustered key. This restriction should be 
        re-evaluated when WL#6061 is implemented.
   */
-  if ((tab->table->file->index_flags(keyno, 0, 1) &
-      HA_DO_INDEX_COND_PUSHDOWN) &&
-      optimizer_flag(tab->join->thd, OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN) &&
+  if ((tab->table->key_info[keyno].index_flags & HA_DO_INDEX_COND_PUSHDOWN) &&
+      hint_key_state(tab->join->thd, tab->table, keyno, ICP_HINT_ENUM,
+                     OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN) &&
       tab->join->thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
       tab->join->thd->lex->sql_command != SQLCOM_DELETE_MULTI &&
       tab->type != JT_CONST && tab->type != JT_SYSTEM &&
-      !tab->table->file->is_clustering_key(keyno)) // 6
+      !tab->table->is_clustering_key(keyno)) // 6
   {
     DBUG_EXECUTE("where",
                  print_where(tab->select_cond, "full cond", QT_ORDINARY););
@@ -355,6 +437,8 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
     {
       Item *idx_remainder_cond= 0;
       tab->pre_idx_push_select_cond= tab->select_cond;
+      Json_writer_object trace(tab->join->thd);
+      trace.add_table_name(tab);
       /*
         For BKA cache we store condition to special BKA cache field
         because evaluation of the condition requires additional operations
@@ -387,6 +471,7 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
           idx_remainder_cond= NULL;
         }
       }
+      trace.add("index_condition", idx_cond);
 
       /*
         Disable eq_ref's "lookup cache" if we've pushed down an index
@@ -424,6 +509,10 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
       }
       else
         tab->select_cond= idx_remainder_cond;
+
+      if (tab->select_cond)
+        trace.add("row_condition", tab->select_cond);
+
       if (tab->select)
       {
         DBUG_EXECUTE("where",

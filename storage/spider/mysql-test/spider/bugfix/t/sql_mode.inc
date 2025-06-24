@@ -36,7 +36,9 @@ eval CREATE TABLE tbl_a (
     PRIMARY KEY (pkey)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+--enable_ps_protocol
 
 --echo
 --echo select test

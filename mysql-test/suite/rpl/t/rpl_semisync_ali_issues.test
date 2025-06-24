@@ -284,7 +284,7 @@ INSERT INTO t1 VALUES (2);
 show status like 'Rpl_semi_sync_master_clients';
 
 --echo # Test failure of select error .
-SET GLOBAL debug = 'd,rpl_semisync_simulate_select_error';
+SET GLOBAL debug_dbug = 'd,rpl_semisync_simulate_select_error';
 # It can still receive ACK from semi-sync slave
 INSERT INTO t1 VALUES(3);
 sync_slave_with_master;
@@ -292,7 +292,7 @@ sync_slave_with_master;
 connection con1;
 --echo # Test failure of pthread_create
 SET GLOBAL rpl_semi_sync_master_enabled = 0;
-SET GLOBAL debug = 'd,rpl_semisync_simulate_create_thread_failure';
+SET GLOBAL debug_dbug = 'd,rpl_semisync_simulate_create_thread_failure';
 SET GLOBAL rpl_semi_sync_master_enabled= ON;
 
 --let $wait_condition= SELECT @@global.rpl_semi_sync_master_enabled = 0
@@ -300,7 +300,7 @@ SET GLOBAL rpl_semi_sync_master_enabled= ON;
 
 # Todo: implement the thread join failure simulation
 --echo # Test failure of pthread_join
-#SET GLOBAL DEBUG = 'd,rpl_semisync_simulate_thread_join_failure';
+#SET GLOBAL DEBUG_DBUG = 'd,rpl_semisync_simulate_thread_join_failure';
 #SET GLOBAL rpl_semi_sync_master_enabled= ON;
 #
 #--let $wait_condition= SELECT @@global.rpl_semi_sync_master_enabled = 0
@@ -310,7 +310,7 @@ SET GLOBAL rpl_semi_sync_master_enabled= OFF;
 --echo #
 --echo # Failure on registering semisync slave
 --echo #
-SET GLOBAL debug= 'd,rpl_semisync_simulate_add_slave_failure';
+SET GLOBAL debug_dbug= 'd,rpl_semisync_simulate_add_slave_failure';
 SET GLOBAL rpl_semi_sync_master_enabled= ON;
 
 connection slave;
@@ -324,7 +324,7 @@ connection con1;
 # Todo: implement the add_slave_failure simulation. Meanwhile
 # the status will be 1.
 # show status like 'Rpl_semi_sync_master_clients';
-SET GLOBAL debug='';
+SET GLOBAL debug_dbug='';
 
 --let $status_var= Rpl_semi_sync_master_clients
 --let $status_var_value= 1
@@ -423,6 +423,5 @@ SET GLOBAL rpl_semi_sync_master_enabled = 0;
 DROP TABLE t1;
 connection slave;
 SET GLOBAL rpl_semi_sync_slave_enabled = 0;
-stop slave;start slave;
 
 --source include/rpl_end.inc

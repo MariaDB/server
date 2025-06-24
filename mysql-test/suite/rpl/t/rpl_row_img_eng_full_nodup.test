@@ -1,0 +1,67 @@
+#Want to skip this test from daily Valgrind execution
+--source include/no_valgrind_without_big.inc
+#
+# This file contains tests for FULL_NODUP row image mode
+#
+
+--let $rpl_topology= 1->2->3
+--source include/rpl_init.inc
+-- source include/have_binlog_format_row.inc
+
+-- connection server_1
+-- source include/have_innodb.inc
+-- connection server_2
+-- source include/have_innodb.inc
+-- connection server_3
+-- source include/have_innodb.inc
+-- connection server_1
+
+#  Tests for different storage engines on each server,
+#  but same index structure on tables. The tests are conducted
+#  using FULL_NODUP binlog-row-image on all servers.
+#
+
+-- let $row_img_set=server_1:FULL_NODUP:N,server_2:FULL_NODUP:Y,server_3:FULL_NODUP:Y
+-- source include/rpl_row_img_set.inc
+
+-- let $row_img_test_script= include/rpl_row_img.test
+-- source include/rpl_row_img_general_loop.inc
+
+################################################################################
+# MDEV-33049 Assertion `marked_for_write_or_computed()' failed in bool
+#            Field_new_decimal::store_value(const my_decimal*, int*)
+#
+# In FULL_NODUP mode, the before image has all fields and the after image has
+# only updated fields. Crash happened when slave was unpacking a row event
+# if the new decimal field is null in the before image.
+################################################################################
+CREATE TABLE t1(c1 INT NOT NULL PRIMARY KEY, c2 varchar(10) DEFAULT NULL,
+                c3 decimal(12,4) DEFAULT NULL);
+INSERT INTO t1(c1) VALUES (1);
+--source include/save_master_pos.inc
+--let $datadir= `SELECT @@datadir`
+
+# It will generate a row event that c3 is only in before image and it is null.
+UPDATE t1 SET c2 = 'c2';
+
+# the UPDATE will crash the slave without this fix.
+--source include/rpl_sync.inc
+
+FLUSH BINARY LOGS;
+UPDATE t1 SET c2 = "c2_new";
+
+--echo # Use 'BINLOG' statement to apply the first update row event
+--echo # BINLOG statement is same to slave applier, it should work well.
+--exec $MYSQL_BINLOG --start-position=$_master_pos $datadir$_master_file > $MYSQLTEST_VARDIR/tmp/binlog.sql
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/binlog.sql
+
+--echo # After 'BINLOG' statement c2's value should be "c2"
+SELECT * FROM t1;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/binlog.sql
+DROP TABLE t1;
+
+-- let $row_img_set=server_1:FULL:N,server_2:FULL:Y,server_3:FULL:Y
+-- source include/rpl_row_img_set.inc
+
+--source include/rpl_end.inc

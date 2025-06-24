@@ -1,0 +1,156 @@
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+
+insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+                     (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+                     (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+                     (x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+                     (x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+                     (x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+                     (x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+                     (x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+                     (x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+                     (x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+
+# Error cases first.
+select vec_totext(x'aabbcc');
+select vec_totext(x'0000f07f');
+select vec_totext(x'0000f0ff');
+select vec_totext(x'0000807f');
+select vec_totext(x'000080ff');
+
+select hex(vec_fromtext('["a"]'));
+select hex(vec_fromtext('[]'));
+select hex(vec_fromtext('["a"]'));
+select hex(vec_fromtext('[{"a": "b"}]'));
+select hex(vec_fromtext('[null]'));
+select hex(vec_fromtext('[1, null]'));
+select hex(vec_fromtext('[1, ["a"]]'));
+select hex(vec_fromtext('[1, [2]]'));
+select hex(vec_fromtext('{"a":"b"}'));
+select hex(vec_fromtext('[1, 2, "z", 3]'));
+select hex(vec_fromtext('[1, 2, 3'));
+select hex(vec_fromtext('1, 2, 3]'));
+
+# Empty vectors ok.
+select hex(vec_fromtext('[]'));
+select vec_totext(x'');
+
+select id, vec_totext(t1.v) as a, vec_totext(vec_fromtext(vec_totext(t1.v))) as b,
+       vec_distance_euclidean(t1.v, vec_fromtext(vec_totext(t1.v))) < 0.000001 as c
+from t1;
+
+drop table t1;
+
+create table t1 as select vec_totext(x'55555555') x;
+show create table t1;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-35212 Server crashes in Item_func_vec_fromtext::val_str upon query from empty table
+--echo #
+select vec_fromtext(NULL);
+
+--echo #
+--echo # MDEV-35210 Vector type cannot store values which VEC_FromText produces and VEC_ToText accepts
+--echo #
+select vec_totext(0x77777777);
+select hex(vec_fromtext('[5.01922e33]'));
+
+--echo #
+--echo # MDEV-35215 ASAN errors in Item_func_vec_fromtext::val_str upon VEC_FROMTEXT with an invalid argument
+--echo #
+create table t (v vector(1));
+insert into t values (vec_fromtext('[0.93]'));
+select vec_fromtext(v) from t;
+drop table t;
+
+select vec_fromtext(0x00000000);
+
+--echo #
+--echo # MDEV-35220 Assertion `!item->null_value' failed upon VEC_TOTEXT call
+--echo #
+select vec_totext(`null`) from (values (null),(0x00000000)) x;
+
+--echo #
+--echo # MDEV-36011 Server crashes in Charset::mbminlen / Item_func_vec_fromtext::val_str upon mixing vector type with string
+--echo #
+select 0x31313131 in ('1111', vec_fromtext('[1]'));
+
+--echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-35450 VEC_DISTANCE() function to autouse the available index type
+--echo #
+
+create table t1 (a int primary key, b vector(5) not null, vector index (b) distance=euclidean);
+insert t1 values (0,vec_fromtext('[1,2,3,4,5]')), (1,vec_fromtext('[2,2,3,4,5]')),
+                 (2,vec_fromtext('[1,3,3,4,5]')), (3,vec_fromtext('[1,2,4,4,5]')),
+                 (4,vec_fromtext('[1,2,4,5,5]'));
+create table t2 (c int primary key, d vector(5) not null, vector index (d) distance=cosine);
+insert t2 select * from t1;
+create table t3 (e int primary key, f vector(5) not null);
+insert t3 select * from t1;
+
+--replace_regex /(\.\d{5})\d+/\1/
+select a,c,vec_distance(b,d),vec_distance_euclidean(b,d) from t1, t2 where a=(c+11)*13%5;
+--replace_regex /(\.\d{5})\d+/\1/
+select a,c,vec_distance(d,b),vec_distance_cosine(b,d) from t1, t2 where a=(c+11)*13%5;
+--replace_regex /(\.\d{5})\d+/\1/
+select a,e,vec_distance(b,f),vec_distance_euclidean(b,f) from t1, t3 where a=(e+11)*13%5;
+--replace_regex /(\.\d{5})\d+/\1/
+select e,c,vec_distance(f,d),vec_distance_cosine(d,f) from t2, t3 where e=(c+11)*13%5;
+--replace_regex /(\.\d{5})\d+/\1/
+select a,vec_distance(b,vec_fromtext('[5,4,3,2,1]')),vec_distance_euclidean(b,vec_fromtext('[5,4,3,2,1]')) from t1;
+--replace_regex /(\.\d{5})\d+/\1/
+select c,vec_distance(d,vec_fromtext('[5,4,3,2,1]')),vec_distance_cosine(d,vec_fromtext('[5,4,3,2,1]')) from t2;
+--error ER_VEC_DISTANCE_TYPE
+select e,vec_distance(f,vec_fromtext('[5,4,3,2,1]')) from t3;
+
+drop table t1, t2, t3;
+
+--echo #
+--echo # Item_func_vec_distance::do_get_copy()
+--echo #
+create table t1 (a vector(1) not null, vector(a));
+create algorithm=temptable view v1 as select * from t1;
+select * from v1 where vec_distance(a,0x30303030) > 0;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-35724 VEC_DISTANCE does not work in HAVING clause
+--echo #
+create table t (v vector(1) not null, vector(v));
+insert t values (0x31313131),(0x32323232);
+select v from t having vec_distance(v,0x30303030) > 0;
+drop table t;
+
+--echo #
+--echo # MDEV-35752 VEC_DISTANCE does not work in triggers
+--echo #
+create table t (id int primary key default 1, v vector(1) not null default 0x30303030, vector(v), d float);
+create trigger tr before insert on t for each row set new.d = vec_distance(new.v,0x30303030);
+insert t (v) values (0x31313131);
+--replace_regex /(\.\d{5})\d+/\1/
+select vec_distance(default(v), 0x31313131) from t;
+insert t (v) values (0x32323232) on duplicate key update d=vec_distance(values(v), 0x31313131);
+drop table t;
+
+--echo #
+--echo # MDEV-35778 Server crashes in Item_func_vec_distance::fix_length_and_dec upon using VEC_DISTANCE with temptable view
+--echo #
+create table t (x vector(1) not null, vector(x));
+insert into t values (0x31313131),(0x32323232);
+create algorithm=temptable view v as select * from t;
+select * from v order by vec_distance(0x30303030, x);
+drop view v;
+drop table t;
+
+--echo #
+--echo # MDEV-35919 Server crashes in Item_func_vec_distance::fix_length_and_dec upon reading from I_S table
+--echo #
+--error ER_VEC_DISTANCE_TYPE
+select vec_distance(value(key_cache_name), 0x30303030) from information_schema.key_caches;
+
+--echo # End of 11.8 tests

@@ -38,7 +38,7 @@ change master to IGNORE_SERVER_IDS= (10, 100);
 --echo *** must be 10, 100 ***
 let $ignore_list= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Server_Ids, 1);
 echo ignore server id list: $ignore_list;
-reset slave;
+--source include/reset_slave.inc
 --echo *** must be empty due to reset slave ***
 let $ignore_list= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Server_Ids, 1);
 echo ignore server id list: $ignore_list;
@@ -80,7 +80,7 @@ if (`select $slave_relay_pos1 - $slave_relay_pos0`)
 
 stop slave;
 source include/wait_for_slave_to_stop.inc;
-reset slave;
+--source include/reset_slave.inc
 change master to IGNORE_SERVER_IDS= (10, 100);
 --echo *** the list must remain (10, 100) after reset slave ***
 let $ignore_list= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Server_Ids, 1);

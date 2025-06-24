@@ -3,6 +3,7 @@ include/master-slave.inc
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 connection master;
 create user test;
+grant all on test.* to test;
 connection slave;
 connect  master2,127.0.0.1,test,,test,$MASTER_MYPORT,;
 connect  slave2,127.0.0.1,test,,test,$SLAVE_MYPORT,;
@@ -16,7 +17,7 @@ set global read_only=1;
 connection master1;
 select @@read_only;
 @@read_only
-1
+ON
 select * from t1;
 a
 1001
@@ -26,7 +27,7 @@ a
 connection slave;
 select @@read_only;
 @@read_only
-0
+OFF
 select * from t1;
 a
 1001
@@ -42,7 +43,7 @@ BEGIN;
 connection master;
 select @@read_only;
 @@read_only
-0
+OFF
 set global read_only=1;
 connection master1;
 *** On SUPER USER connection ***
@@ -51,9 +52,9 @@ insert into t2 values(2002);
 connection master2;
 *** On regular USER connection ***
 insert into t1 values(1003);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 insert into t2 values(2003);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection master1;
 *** SUPER USER COMMIT (must succeed) *** 
 COMMIT;
@@ -63,7 +64,7 @@ COMMIT;
 connection master;
 select @@read_only;
 @@read_only
-1
+ON
 set global read_only=0;
 connection master1;
 insert into t1 values(1004);
@@ -94,17 +95,17 @@ set global read_only=1;
 connection slave;
 select @@read_only;
 @@read_only
-1
+ON
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master;
 insert into t1 values(1005);
 insert into t2 values(2005);
@@ -136,9 +137,9 @@ a
 2005
 connection slave2;
 insert into t1 values(1006);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 insert into t2 values(2006);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 #
 # MDEV-30978: On slave XA COMMIT/XA ROLLBACK fail to return an error in read-only mode
 #
@@ -154,9 +155,9 @@ xa prepare '1';
 connection slave;
 connection slave2;
 xa commit '1';
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 xa rollback '1';
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection master;
 xa rollback '1';
 connection master;

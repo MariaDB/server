@@ -1,4 +1,3 @@
-set global innodb_file_per_table=1;
 CREATE TABLE ref_table1 (id int(11) NOT NULL, PRIMARY KEY(id)) ENGINE=InnoDB;
 CREATE TABLE ref_table2 (id int(11) NOT NULL, PRIMARY KEY(id)) ENGINE=InnoDB;
 CREATE TABLE `main` (
@@ -31,5 +30,5 @@ main	CREATE TABLE `main` (
   KEY `idx_1` (`ref_id1`),
   CONSTRAINT `FK_1` FOREIGN KEY (`ref_id1`) REFERENCES `ref_table1` (`id`),
   CONSTRAINT `FK_2` FOREIGN KEY (`ref_id2`) REFERENCES `ref_table2` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE  main, ref_table1, ref_table2;

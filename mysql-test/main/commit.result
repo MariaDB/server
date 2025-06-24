@@ -13,27 +13,27 @@ INSERT INTO t1 VALUES (1),(2);
 COMMIT;
 START TRANSACTION;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-ERROR 25001: Transaction characteristics can't be changed while a transaction is in progress
+ERROR 25001: TRANSACTION ISOLATION can't be set while a transaction is in progress
 COMMIT;
 SET @@autocommit=0;
 COMMIT;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 START TRANSACTION;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 Should be REPEATABLE READ
 SELECT * FROM t1;
 s1
 1
 2
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 Should be REPEATABLE READ
 INSERT INTO t1 VALUES (-1);
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 Should be REPEATABLE READ
 COMMIT;
@@ -310,25 +310,27 @@ COMMIT;
 #
 # Test 2: Check setting of variable.
 SET SESSION TRANSACTION READ WRITE;
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 0
 SET SESSION TRANSACTION READ ONLY;
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 1
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ WRITE;
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 0
 SET SESSION TRANSACTION READ ONLY, ISOLATION LEVEL REPEATABLE READ;
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 1
 START TRANSACTION;
 # Not allowed inside a transaction
 SET TRANSACTION READ ONLY;
-ERROR 25001: Transaction characteristics can't be changed while a transaction is in progress
+ERROR 25001: TRANSACTION READ ONLY can't be set while a transaction is in progress
+SET TRANSACTION READ WRITE;
+ERROR 25001: TRANSACTION READ WRITE can't be set while a transaction is in progress
 # But these are allowed.
 SET SESSION TRANSACTION READ ONLY;
 SET GLOBAL TRANSACTION READ ONLY;
@@ -528,16 +530,16 @@ DROP TABLE t1;
 # Test 7: SET TRANSACTION inside stored routines
 CREATE PROCEDURE p1() SET SESSION TRANSACTION READ ONLY;
 CALL p1();
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 1
 SET SESSION TRANSACTION READ WRITE;
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1() SET SESSION TRANSACTION READ ONLY,
 ISOLATION LEVEL SERIALIZABLE;
 CALL p1();
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 1
 SET SESSION TRANSACTION READ WRITE, ISOLATION LEVEL REPEATABLE READ;
 DROP PROCEDURE p1;
@@ -549,8 +551,8 @@ END|
 SELECT f1();
 f1()
 1
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 1
 SET SESSION TRANSACTION READ WRITE;
 DROP FUNCTION f1;
@@ -562,8 +564,8 @@ END|
 SELECT f1();
 f1()
 1
-SELECT @@tx_read_only;
-@@tx_read_only
+SELECT @@transaction_read_only;
+@@transaction_read_only
 1
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ WRITE;
 DROP FUNCTION f1;

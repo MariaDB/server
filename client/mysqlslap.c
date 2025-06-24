@@ -67,7 +67,7 @@ TODO:
 
 */
 
-#define SLAP_VERSION "1.0"
+#define VER "1.0"
 
 #define HUGE_STRING_LENGTH 8196
 #define RAND_STRING_SIZE 126
@@ -295,18 +295,7 @@ void set_mysql_connect_options(MYSQL *mysql)
 {
   if (opt_compress)
     mysql_options(mysql,MYSQL_OPT_COMPRESS,NullS);
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-                  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
+  SET_SSL_OPTS(mysql);
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
@@ -625,8 +614,9 @@ static struct my_option my_long_options[] =
    "engine after a `:', like memory:max_row=2300",
    &default_engine, &default_engine, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
-    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &host, &host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"init-command", 0,
    "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
@@ -707,13 +697,6 @@ static struct my_option my_long_options[] =
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, SLAP_VERSION,
-         MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
 
 
 static void usage(void)
@@ -1206,6 +1189,9 @@ get_options(int *argc,char ***argv)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
+
+  if (host == NULL)
+    host= getenv("MARIADB_HOST");
 
   /*
     If something is created and --no-drop is not specified, we drop the
@@ -2240,6 +2226,13 @@ generate_stats(conclusions *con, option_string *eng, stats *sptr)
   stats *ptr;
   unsigned int x;
 
+  if (eng && eng->string)
+    con->engine= eng->string;
+
+  /* Early return when iterations is 0 to avoid accessing uninitialized sptr */
+  if (iterations == 0)
+    return;
+
   con->min_timing= sptr->timing; 
   con->max_timing= sptr->timing;
   con->min_rows= sptr->rows;
@@ -2260,11 +2253,6 @@ generate_stats(conclusions *con, option_string *eng, stats *sptr)
       con->min_timing= ptr->timing;
   }
   con->avg_timing= con->avg_timing/iterations;
-
-  if (eng && eng->string)
-    con->engine= eng->string;
-  else
-    con->engine= NULL;
 }
 
 void

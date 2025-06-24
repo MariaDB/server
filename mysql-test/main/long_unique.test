@@ -136,7 +136,7 @@ insert into t1 values(7,1);
 drop table t1;
 
 --echo #table with multiple  long blob column and varchar text column ;
-create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique);
+create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique) charset=latin1;
 insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555),
 ('sachin',341,'fdf','gfgfgfg','hghgr'),('maria',345,'frter','dasd','utyuty'),
 (123456789034567891,353534,53453453453456,64565464564564,45435345345345),
@@ -236,7 +236,7 @@ show keys from t1;
 drop table t1;
 --echo #now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
-  unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h));
+  unique(a,b,c), unique(c,d,e),unique(e,f,g,h), unique(b,d,g,h)) charset=latin1;
 
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
 ('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb')
@@ -389,6 +389,7 @@ select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1;
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2;
 --error ER_BAD_FIELD_ERROR
 select * from t1 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
+--sorted_result
 select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
 select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
 --error ER_BAD_FIELD_ERROR

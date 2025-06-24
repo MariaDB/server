@@ -1,0 +1,398 @@
+'\" t
+.\"
+.TH "\fBMARIADB-INSTALL-DB\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-install-db
+.SH "NAME"
+mariadb-install-db \- initialize MariaDB data directory (mariadb-install-db is now a symlink to mariadb-install-db)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-install-db\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-install-db [\fR\fB\fIoptions\fR\fR\fB]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb-install-db\fR
+initializes the MariaDB data directory and creates the system tables that it contains, if they do not exist\&.
+.PP
+To invoke
+\fBmariadb-install-db\fR, use the following syntax:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-install-db [\fR\fB\fIoptions\fR\fR\fB]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Because the MariaDB server,
+\fBmariadbd\fR, needs to access the data directory when it runs later, you should either run
+\fBmariadb-install-db\fR
+from the same account that will be used for running
+\fBmariadbd\fR
+or run it as
+root
+and use the
+\fB\-\-user\fR
+option to indicate the user name that
+\fBmariadbd\fR
+will run as\&. It might be necessary to specify other options such as
+\fB\-\-basedir\fR
+or
+\fB\-\-datadir\fR
+if
+\fBmariadb-install-db\fR
+does not use the correct locations for the installation directory or data directory\&. For example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBbin/mariadb-install-db \-\-user=mysql \e\fR
+         \fB\-\-basedir=/opt/mysql/mysql \e\fR
+         \fB\-\-datadir=/opt/mysql/mysql/data\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBmariadb-install-db\fR
+needs to invoke
+\fBmariadbd\fR
+with the
+\fB\-\-bootstrap\fR
+and
+\fB\-\-skip\-grant\-tables\fR
+options (see
+Section\ \&2.3.2, \(lqTypical configure Options\(rq)\&. If MariaDB was configured with the
+\fB\-\-disable\-grant\-options\fR
+option,
+\fB\-\-bootstrap\fR
+and
+\fB\-\-skip\-grant\-tables\fR
+will be disabled\&. To handle this, set the
+mariadbd_BOOTSTRAP
+environment variable to the full path name of a server that has all options enabled\&.
+\fBmariadb-install-db\fR
+will use that server\&.
+.PP
+\fBmariadb-install-db\fR
+supports the following options, which can be specified on the command line or in the
+[mariadb-install-db]
+and (if they are common to
+\fBmariadbd\fR)
+[mariadbd]
+option file groups\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: basedir option
+.\" basedir option: mariadb-install-db
+\fB\-\-basedir=\fR\fB\fIpath\fR\fR
+.sp
+The path to the MariaDB installation directory\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: builddir option
+.\" builddir option: mariadb-install-db
+\fB\-\-builddir=\fIpath\fR
+.sp
+If using \fB--srcdir\fR with out-of-directory builds, you will need to set this 
+to the location of the build directory where built files reside.\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: cross-bootstrap option
+.\" cross-bootstrap option: mariadb-install-db
+\fB\-\-cross\-bootstrap\fR
+.sp
+For internal use. Used when building the MariaDB system tables on a different host than the target.\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: datadir option
+.\" datadir option: mariadb-install-db
+.\" mariadb-install-db: ldata option
+.\" ldata option: mariadb-install-db
+\fB\-\-datadir=\fR\fB\fIpath\fR\fR,
+\fB\-\-ldata=\fR\fB\fIpath\fR\fR
+.sp
+The path to the MariaDB data directory\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-install-db
+\fB\-\-defaults\-extra\-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
+Must be given as first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: defaults-file option
+.\" defaults-file option: mariadb-install-db
+\fB\-\-defaults\-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&.
+Must be given as first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: defaults-group-suffix option
+.\" defaults-group-suffix option: mariadb-install-db
+\fB\-\-defaults\-group\-suffix=\fR\fB\fIname\fR\fR
+.sp
+In addition to the given groups, also read groups with this suffix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: force option
+.\" force option: mariadb-install-db
+\fB\-\-force\fR
+.sp
+Cause
+\fBmariadb-install-db\fR
+to run even if DNS does not work\&. In that case, grant table entries that normally use host names will use IP addresses\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: help option
+.\" help option: mariadb-install-db
+\fB\-\-help\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: no-defaults option
+.\" no-defaults option: mariadb-install-db
+\fB\-\-no\-defaults\fR
+.sp
+Do not read default options from any option file\&. This must be given as the first argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: print-defaults option
+.\" print-defaults option: mariadb-install-db
+\fB\-\-print\-defaults\fR
+.sp
+Print the program argument list and exit\&.
+This must be given as the first argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: rpm option
+.\" rpm option: mariadb-install-db
+\fB\-\-rpm\fR
+.sp
+For internal use\&. This option is used by RPM files during the MariaDB installation process\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: skip-name-resolve option
+.\" skip-name-resolve option: mariadb-install-db
+\fB\-\-skip\-name\-resolve\fR
+.sp
+Use IP addresses rather than host names when creating grant table entries\&. This option can be useful if your DNS does not work\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: srcdir option
+.\" srcdir option: mariadb-install-db
+\fB\-\-srcdir=\fR\fB\fIpath\fR\fR
+.sp
+For internal use\&. The directory under which
+\fBmariadb-install-db\fR
+looks for support files such as the error message file and the file for populating the help tables\&.4\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: user option
+.\" user option: mariadb-install-db
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR
+.sp
+The login user name to use for running
+\fBmariadbd\fR\&. Files and directories created by
+\fBmariadbd\fR
+will be owned by this user\&. You must be
+root
+to use this option\&. By default,
+\fBmariadbd\fR
+runs using your current login name and files and directories that it creates will be owned by you\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: extra-file option
+.\" extra-file option: mariadb-install-db
+\fB\-\-extra-file=\fR\fB\fIfile_path\fR\fR
+.sp
+Add user defined SQL file, to be executed following regular database initialization.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: verbose option
+.\" verbose option: mariadb-install-db
+\fB\-\-verbose\fR
+.sp
+Verbose mode\&. Print more information about what the program does\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-install-db: windows option
+.\" windows option: mariadb-install-db
+\fB\-\-windows\fR
+.sp
+For internal use\&. This option is used for creating Windows distributions\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

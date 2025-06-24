@@ -1,0 +1,40 @@
+--echo #
+--echo # MDEV-9158 file_key_management should support reading from a named pipe
+--echo #
+source include/not_windows.inc;
+source include/have_innodb.inc;
+source include/have_sequence.inc;
+#
+# Test read key from named pipe
+#
+
+# large key file, >64K, which is the default value for F_SETPIPE_SZ
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval select seq,md5(seq)
+     into outfile '$MYSQLTEST_VARDIR/tmp/fifo-key.txt'
+          fields terminated by ';'
+     from seq_1_to_20000;
+
+exec mkfifo $MYSQLTEST_VARDIR/tmp/fifo.key;
+system cat $MYSQLTEST_VARDIR/tmp/fifo-key.txt > $MYSQLTEST_VARDIR/tmp/fifo.key 2>/dev/null &;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+INSTALL SONAME 'file_key_management';
+
+CREATE TABLE t1(c1 BIGINT NOT NULL, b CHAR(200)) ENGINE=INNODB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+SHOW CREATE TABLE t1;
+INSERT t1 VALUES (12345, REPEAT('1234567890', 20));
+
+ALTER TABLE t1 ENCRYPTION_KEY_ID=2;
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 ENCRYPTION_KEY_ID=3;
+SHOW CREATE TABLE t1;
+
+--echo # Reset mysqld
+DROP TABLE t1;
+remove_file $MYSQLTEST_VARDIR/tmp/fifo.key;
+remove_file $MYSQLTEST_VARDIR/tmp/fifo-key.txt;
+UNINSTALL SONAME 'file_key_management';
+
+--source include/restart_mysqld.inc
+

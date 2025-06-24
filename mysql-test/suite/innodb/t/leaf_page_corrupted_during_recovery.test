@@ -6,6 +6,7 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to read page 19 from file '
 call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page 19 in file .*t1\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Plugin initialization aborted at srv0start\\.cc.* with error Data structure corruption");
 call mtr.add_suppression("\\[ERROR\\] Plugin 'InnoDB' (init function|registration)");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");
 call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd).*: Index for table 't1' is corrupt; try to repair it");
 call mtr.add_suppression("InnoDB: btr_pcur_open_low level: 0 table: `test`\\.`t1` index: `PRIMARY`");

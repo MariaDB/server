@@ -30,6 +30,7 @@
 #define TT_USEFRM               1U
 #define TT_FOR_UPGRADE          2U
 #define TT_FROM_MYSQL           4U
+#define TT_FORCE                8U
 
 /* Bits set in out_flag */
 #define O_NEW_DATA	2U
@@ -112,9 +113,9 @@ typedef struct st_handler_check_param
   uint progress_counter;             /* How often to call _report_progress() */
   ulonglong progress, max_progress;
 
-  void (*init_fix_record)(void *);
   int (*fix_record)(struct st_myisam_info *info, uchar *record, int keynum);
-
+  void (*init_repair_thread)(void *);
+  void *init_repair_thread_arg;
   mysql_mutex_t print_msg_mutex;
   my_bool need_print_msg_lock;
   myf malloc_flags;

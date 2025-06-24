@@ -73,7 +73,7 @@ static WinIoInit win_io_init;
 
 
 SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
-                 unsigned long long offset)
+              unsigned long long offset)
 {
   OVERLAPPED ov{};
   ULARGE_INTEGER uli;
@@ -95,8 +95,8 @@ SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
   return -1;
 }
 
-SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
-                  unsigned long long offset)
+SSIZE_T pwrite(const native_file_handle &h, const void *buf, size_t count,
+               unsigned long long offset)
 {
   OVERLAPPED ov{};
   ULARGE_INTEGER uli;

@@ -119,7 +119,13 @@ bool Events::check_if_system_tables_error()
 {
   DBUG_ENTER("Events::check_if_system_tables_error");
 
-  if (!inited)
+  if (opt_noacl)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
+             opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
+    DBUG_RETURN(TRUE);
+  }
+  else if (!inited)
   {
     my_error(ER_EVENTS_DB_ERROR, MYF(0));
     DBUG_RETURN(TRUE);
@@ -341,7 +347,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (lock_object_name(thd, MDL_key::EVENT,
-                       parse_data->dbname.str, parse_data->name.str))
+                       parse_data->dbname, parse_data->name))
     DBUG_RETURN(TRUE);
 
   if (check_db_dir_existence(parse_data->dbname.str))
@@ -399,13 +405,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
       char buffer[1024];
       String log_query(buffer, sizeof(buffer), &my_charset_bin);
       if (create_query_string(thd, &log_query))
-      {
-        my_message_sql(ER_STARTUP,
-                       "Event Error: An error occurred while creating query "
-                       "string, before writing it into binary log.",
-                       MYF(ME_ERROR_LOG));
-        ret= true;
-      }
+        ret= true; // EE_OUTOFMEMORY set by my_malloc()
       else
       {
         /*
@@ -475,7 +475,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (lock_object_name(thd, MDL_key::EVENT,
-                       parse_data->dbname.str, parse_data->name.str))
+                       parse_data->dbname, parse_data->name))
     DBUG_RETURN(TRUE);
 
   if (check_db_dir_existence(parse_data->dbname.str))
@@ -509,8 +509,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
     /*
      Acquire mdl exclusive lock on target database name.
     */
-    if (lock_object_name(thd, MDL_key::EVENT,
-                         new_dbname->str, new_name->str))
+    if (lock_object_name(thd, MDL_key::EVENT, *new_dbname, *new_name))
       DBUG_RETURN(TRUE);
 
     /* Check that the target database exists */
@@ -611,8 +610,7 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
-  if (lock_object_name(thd, MDL_key::EVENT,
-                       dbname->str, name->str))
+  if (lock_object_name(thd, MDL_key::EVENT, *dbname, *name))
     DBUG_RETURN(TRUE);
   /* On error conditions my_error() is called so no need to handle here */
   if (!(ret= db_repository->drop_event(thd, dbname, name, if_exists)))
@@ -648,14 +646,12 @@ wsrep_error_label:
 */
 
 void
-Events::drop_schema_events(THD *thd, const char *db)
+Events::drop_schema_events(THD *thd, const LEX_CSTRING &db_lex)
 {
-  const LEX_CSTRING db_lex= { db, strlen(db) };
-
   DBUG_ENTER("Events::drop_schema_events");
-  DBUG_PRINT("enter", ("dropping events from %s", db));
+  DBUG_PRINT("enter", ("dropping events from %s", db_lex.str));
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db_lex).ok_for_lower_case_names());
 
   /*
     Sic: no check if the scheduler is disabled or system tables
@@ -721,15 +717,16 @@ send_show_create_event(THD *thd, Event_timed *et, Protocol *protocol)
 
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "character_set_client",
-                                         MY_CS_NAME_SIZE), mem_root);
+                                         MY_CS_CHARACTER_SET_NAME_SIZE),
+                                         mem_root);
 
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "collation_connection",
-                                         MY_CS_NAME_SIZE), mem_root);
+                                         MY_CS_COLLATION_NAME_SIZE), mem_root);
 
   field_list.push_back(new (mem_root)
                        Item_empty_string(thd, "Database Collation",
-                                         MY_CS_NAME_SIZE), mem_root);
+                                         MY_CS_COLLATION_NAME_SIZE), mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -822,9 +819,6 @@ Events::show_create_event(THD *thd, const LEX_CSTRING *dbname,
 int
 Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
 {
-  const char *db= NULL;
-  int ret;
-  char db_tmp[SAFE_NAME_LEN];
   DBUG_ENTER("Events::fill_schema_events");
 
   /*
@@ -843,16 +837,16 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   */
   if (thd->lex->sql_command == SQLCOM_SHOW_EVENTS)
   {
-    LEX_CSTRING *lexdb= &thd->lex->first_select_lex()->db;
+    const LEX_CSTRING *lexdb= &thd->lex->first_select_lex()->db;
     DBUG_ASSERT(lexdb);
     if (!is_infoschema_db(lexdb) && !is_perfschema_db(lexdb) &&
         check_access(thd, EVENT_ACL, lexdb->str, NULL, NULL, 0, 0))
       DBUG_RETURN(1);
-    db= normalize_db_name(lexdb->str, db_tmp, sizeof(db_tmp));
+    const DBNameBuffer db_tmp(*lexdb, lower_case_table_names);
+    const char *db= db_tmp.to_lex_cstring().str;
+    DBUG_RETURN(db_repository->fill_schema_events(thd, tables, db));
   }
-  ret= db_repository->fill_schema_events(thd, tables, db);
-
-  DBUG_RETURN(ret);
+  DBUG_RETURN(db_repository->fill_schema_events(thd, tables, NULL));
 }
 
 
@@ -885,20 +879,28 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   /*
     Was disabled explicitly from the command line
   */
-  if (opt_event_scheduler == Events::EVENTS_DISABLED ||
-      opt_noacl_or_bootstrap)
+  if (opt_event_scheduler == Events::EVENTS_DISABLED || opt_bootstrap)
     DBUG_RETURN(FALSE);
+  if (opt_noacl_or_bootstrap)
+  {
+    if (opt_event_scheduler == Events::EVENTS_ON)
+      sql_print_error("Event Scheduler will not function when starting with %s",
+                      opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
+    opt_event_scheduler= EVENTS_DISABLED;
+    DBUG_RETURN(FALSE);
+  }
 
   /* We need a temporary THD during boot */
   if (!thd)
   {
-
     if (!(thd= new THD(0)))
     {
       res= TRUE;
       goto end;
     }
     thd->store_globals();
+    thd->set_query_inner((char*) STRING_WITH_LEN("intern:Events::init"),
+                         default_charset_info);
     /*
       Set current time for the thread that handles events.
       Current time is stored in data member start_time of THD class.
@@ -915,6 +917,8 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     We will need Event_db_repository anyway, even if the scheduler is
     disabled - to perform events DDL.
   */
+  DBUG_ASSERT(db_repository == 0);
+
   if (!(db_repository= new Event_db_repository))
   {
     res= TRUE; /* fatal error: request unireg_abort */
@@ -922,13 +926,11 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   }
 
   /*
-    Since we allow event DDL even if the scheduler is disabled,
+    Since we allow event DDL even if the scheduler is off,
     check the system tables, as we might need them.
 
-    If run with --skip-grant-tables or --bootstrap, don't try to do the
-    check of system tables and don't complain: in these modes the tables
-    are most likely not there and we're going to disable the event
-    scheduler anyway.
+    If run with --skip-grant-tables or --bootstrap, we have already
+    disabled the event scheduler anyway.
   */
   if (Event_db_repository::check_system_tables(thd))
   {
@@ -942,7 +944,6 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     opt_event_scheduler= EVENTS_OFF;
     goto end;
   }
-
 
   DBUG_ASSERT(opt_event_scheduler == Events::EVENTS_ON ||
               opt_event_scheduler == Events::EVENTS_OFF);
@@ -1285,9 +1286,7 @@ Events::load_events_from_db(THD *thd)
   }
   my_printf_error(ER_STARTUP,
                   "Event Scheduler: Loaded %d event%s",
-                  MYF(ME_ERROR_LOG |
-                      (global_system_variables.log_warnings) ?
-                      ME_NOTE: 0),
+                  MYF(ME_ERROR_LOG | ME_NOTE),
                   count, (count == 1) ? "" : "s");
   ret= FALSE;
 

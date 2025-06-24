@@ -450,7 +450,7 @@ static const uchar sort_order_tis620[]=
     len			Length of tstr
 */
 
-static size_t thai2sortable(uchar *tstr, size_t len)
+static void thai2sortable(uchar *tstr, size_t len)
 {
   uchar	*p;
   size_t	tlen;
@@ -497,7 +497,6 @@ static size_t thai2sortable(uchar *tstr, size_t len)
       *p= to_lower_tis620[c]; 
     }
   }
-  return len;
 }
 
 
@@ -563,8 +562,8 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
   if (b_length)
     memcpy((char *)b, (char *)b0, b_length);
   b[b_length]= 0;	/* put end of string */
-  a_length= thai2sortable(a, a_length);
-  b_length= thai2sortable(b, b_length);
+  thai2sortable(a, a_length);
+  thai2sortable(b, b_length);
   
   end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
@@ -610,55 +609,73 @@ int my_strnncollsp_tis620_nopad(CHARSET_INFO * cs __attribute__((unused)),
   return my_strnncoll_tis620(cs, a0, a_length, b0, b_length, FALSE);
 }
 /*
-  strnxfrm replacment, convert Thai string to sortable string
+  strnxfrm replacement, convert Thai string to sortable string
 
   Arg: Destination buffer, source string, dest length and source length
   Ret: Converted string size
 */
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_tis620(CHARSET_INFO *cs,
                    uchar *dst, size_t dstlen, uint nweights,
                    const uchar *src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rc, rcpad;
   size_t len, dstlen0= dstlen;
   len= MY_MIN(dstlen, srclen);
   memcpy(dst, src, len);
-  len= thai2sortable(dst, len);
+  thai2sortable(dst, len);
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen); 
-  len= my_strxfrm_pad_desc_and_reverse(cs, dst, dst + len, dst + dstlen,
-                                       (uint)(dstlen - len), flags, 0);
+  rc.m_source_length_used= len;
+  rc.m_warnings= rc.m_source_length_used < srclen ?
+                 MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0;
+  rcpad= my_strxfrm_pad_desc_and_reverse(cs, dst, dst + len,
+                                         dst + dstlen0,
+                                         (uint)(nweights - len),
+                                         flags, 0);
+  len= rcpad.m_result_length;
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
   {
     size_t fill_length= dstlen0 - len;
     my_ci_fill(cs, (char*) dst + len, fill_length, cs->pad_char);
     len= dstlen0;
   }
-  return len;
+  rc.m_result_length= len;
+  rc.m_warnings|= rcpad.m_warnings;
+  return rc;
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_tis620_nopad(CHARSET_INFO *cs,
                          uchar *dst, size_t dstlen, uint nweights,
                          const uchar *src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rc, rcpad;
   size_t len, dstlen0= dstlen;
   len= MY_MIN(dstlen, srclen);
   memcpy(dst, src, len);
-  len= thai2sortable(dst, len);
+  thai2sortable(dst, len);
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen);
-  len= my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + len, dst + dstlen,
-                                             (uint)(dstlen - len), flags, 0);
+  rc.m_source_length_used= len;
+  rc.m_warnings= rc.m_source_length_used < srclen ?
+                 MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0;
+  rcpad= my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + len,
+                                               dst + dstlen0,
+                                               (uint)(nweights - len),
+                                               flags, 0);
+  len= rcpad.m_result_length;
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
   {
     size_t fill_length= dstlen0 - len;
     memset(dst + len, 0x00, fill_length);
     len= dstlen0;
   }
-  return len;
+  rc.m_result_length= len;
+  rc.m_warnings|= rcpad.m_warnings;
+  return rc;
 }
 
 
@@ -874,12 +891,14 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,	/* wildcmp   */
-    my_strcasecmp_8bit,
     my_instr_simple,				/* QQ: To be fixed */
     my_hash_sort_simple,
     my_propagate_simple,
     my_min_str_8bit_simple,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
@@ -892,12 +911,14 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,	/* wildcmp   */
-    my_strcasecmp_8bit,
     my_instr_simple,				/* QQ: To be fixed */
     my_hash_sort_simple_nopad,
     my_propagate_simple,
     my_min_str_8bit_simple_nopad,
-    my_max_str_8bit_simple
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic,
+    my_ci_eq_collation_generic
 };
 
 static MY_CHARSET_HANDLER my_charset_handler=
@@ -910,8 +931,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_mb_wc_tis620,	/* mb_wc     */
     my_wc_mb_tis620,	/* wc_mb     */
     my_mb_ctype_8bit,
-    my_caseup_str_8bit,
-    my_casedn_str_8bit,
     my_caseup_8bit,
     my_casedn_8bit,
     my_snprintf_8bit,
@@ -930,7 +949,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_generic
+    my_wc_to_printable_generic,
+    my_casefold_multiply_1,
+    my_casefold_multiply_1
 };
 
 
@@ -950,19 +971,17 @@ struct charset_info_st my_charset_tis620_thai_ci=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    &my_unicase_default,/* caseinfo     */
+    NULL,               /* casefold     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     4,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_ci_handler
 };
@@ -982,19 +1001,17 @@ struct charset_info_st my_charset_tis620_bin=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    &my_unicase_default,/* caseinfo     */
+    NULL,               /* casefold     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_bin_handler
 };
@@ -1015,19 +1032,17 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
     NULL,                  /* uca              */
     NULL,                  /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
-    &my_unicase_default,   /* caseinfo         */
+    NULL,                  /* casefold         */
     NULL,                  /* state_map        */
     NULL,                  /* ident_map        */
     4,                     /* strxfrm_multiply */
-    1,                     /* caseup_multiply  */
-    1,                     /* casedn_multiply  */
     1,                     /* mbminlen         */
     1,                     /* mbmaxlen         */
     0,                     /* min_sort_char    */
     255,                   /* max_sort_char    */
     ' ',                   /* pad char         */
     0,                     /* escape_with_backslash_is_dangerous */
-    1,                     /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_nopad_ci_handler
 };
@@ -1048,19 +1063,17 @@ struct charset_info_st my_charset_tis620_nopad_bin=
     NULL,                  /* uca              */
     NULL,                  /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
-    &my_unicase_default,   /* caseinfo         */
+    NULL,                  /* casefold         */
     NULL,                  /* state_map        */
     NULL,                  /* ident_map        */
     1,                     /* strxfrm_multiply */
-    1,                     /* caseup_multiply  */
-    1,                     /* casedn_multiply  */
     1,                     /* mbminlen         */
     1,                     /* mbmaxlen         */
     0,                     /* min_sort_char    */
     255,                   /* max_sort_char    */
     ' ',                   /* pad char         */
     0,                     /* escape_with_backslash_is_dangerous */
-    1,                     /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_nopad_bin_handler
 };

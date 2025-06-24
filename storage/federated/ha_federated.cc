@@ -284,7 +284,7 @@
     -------
 
     There is a test for MySQL Federated Storage Handler in ./mysql-test/t,
-    federatedd.test It starts both a slave and master database using
+    federated.test It starts both a slave and master database using
     the same setup that the replication tests use, with the exception that
     it turns off replication, and sets replication to ignore the test tables.
     After ensuring that you actually do have support for the federated storage
@@ -380,10 +380,6 @@
 #include "sql_analyse.h"         // append_escaped
 #include <mysql/plugin.h>
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #include "ha_federated.h"
 
 #include "m_string.h"
@@ -396,6 +392,8 @@
 #else
 #define MIN_PORT 0
 #endif
+
+static handlerton *federated_hton;
 
 /* Variables for federated share methods */
 static HASH federated_open_tables;              // To track open tables
@@ -415,8 +413,8 @@ static const uint sizeof_trailing_where= sizeof(" WHERE ") - 1;
 static handler *federated_create_handler(handlerton *hton,
                                          TABLE_SHARE *table,
                                          MEM_ROOT *mem_root);
-static int federated_commit(handlerton *hton, THD *thd, bool all);
-static int federated_rollback(handlerton *hton, THD *thd, bool all);
+static int federated_commit(THD *thd, bool all);
+static int federated_rollback(THD *thd, bool all);
 
 /* Federated storage engine handlerton */
 
@@ -461,6 +459,20 @@ static void init_federated_psi_keys(void)
 #endif /* HAVE_PSI_INTERFACE */
 
 /*
+  Federated doesn't need costs.disk_read_ratio as everything is one a
+  remote server and nothing is cached locally
+*/
+
+static void federated_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    Setting disk_read_ratios to 1.0, ensures we are using the costs
+    from rnd_pos_time() and scan_time()
+  */
+  costs->disk_read_ratio= 1.0;
+}
+
+/*
   Initialize the federated handler.
 
   SYNOPSIS
@@ -480,12 +492,13 @@ int federated_db_init(void *p)
   init_federated_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
 
-  handlerton *federated_hton= (handlerton *)p;
+  federated_hton= (handlerton *)p;
   federated_hton->db_type= DB_TYPE_FEDERATED_DB;
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;
   federated_hton->create= federated_create_handler;
   federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  federated_hton->update_optimizer_costs= federated_update_optimizer_costs;
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
 
   /*
@@ -910,7 +923,6 @@ ha_federated::ha_federated(handlerton *hton,
   bzero(&bulk_insert, sizeof(bulk_insert));
 }
 
-
 /*
   Convert MySQL result set row to handler internal format
 
@@ -995,7 +1007,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     *buf++= '0';
     *buf++= 'x';
-    buf= octet2hex(buf, (char*) ptr, len);
+    buf= octet2hex(buf, ptr, len);
     if (to->append((char*) buff, (uint)(buf - buff)))
       DBUG_RETURN(1);
   }
@@ -2376,7 +2388,7 @@ int ha_federated::index_read(uchar *buf, const uchar *key,
 
   NOTES
     This uses an internal result set that is deleted before function
-    returns.  We need to be able to be calable from ha_rnd_pos()
+    returns.  We need to be able to be callable from ha_rnd_pos()
 */
 
 int ha_federated::index_read_idx(uchar *buf, uint index, const uchar *key,
@@ -2880,11 +2892,11 @@ int ha_federated::info(uint flag)
                                                       &error);
 
     /*
-      size of IO operations (This is based on a good guess, no high science
-      involved)
+      Size of IO operations. This is used to calculate time to scan a table.
+      See handler.cc::keyread_time
     */
     if (flag & HA_STATUS_CONST)
-      stats.block_size= 4096;
+      stats.block_size= 1500;                   // Typical size of an TCP packet
 
   }
 
@@ -3127,6 +3139,7 @@ int ha_federated::real_connect()
 {
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
+  my_bool my_false= 0;
   DBUG_ENTER("ha_federated::real_connect");
 
   DBUG_ASSERT(mysql == NULL);
@@ -3143,16 +3156,12 @@ int ha_federated::real_connect()
     of table
   */
   /* this sets the csname like 'set names utf8' */
-  mysql_options(mysql,MYSQL_SET_CHARSET_NAME,
-                this->table->s->table_charset->cs_name.str);
+  mysql_options(mysql,MYSQL_SET_CHARSET_NAME, table->s->table_charset->cs_name.str);
+  mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   sql_query.length(0);
-  if (!mysql_real_connect(mysql,
-                          share->hostname,
-                          share->username,
-                          share->password,
-                          share->database,
-                          share->port,
+  if (!mysql_real_connect(mysql, share->hostname, share->username,
+                          share->password, share->database, share->port,
                           share->socket, 0))
   {
     stash_remote_error();
@@ -3259,7 +3268,7 @@ bool ha_federated::get_error_message(int error, String* buf)
   @details    Call @c mysql_store_result() to save a result set then
               append it to the stored results array.
 
-  @param[in]  mysql_arg  MySLQ connection structure.
+  @param[in]  mysql_arg  MySQL connection structure.
 
   @return     Stored result set (MYSQL_RES object).
 */
@@ -3301,10 +3310,10 @@ int ha_federated::external_lock(THD *thd, int lock_type)
 }
 
 
-static int federated_commit(handlerton *hton, THD *thd, bool all)
+static int federated_commit(THD *thd, bool all)
 {
   int return_val= 0;
-  ha_federated *trx= (ha_federated *) thd_get_ha_data(thd, hton);
+  ha_federated *trx= (ha_federated *) thd_get_ha_data(thd, federated_hton);
   DBUG_ENTER("federated_commit");
 
   if (all)
@@ -3319,7 +3328,7 @@ static int federated_commit(handlerton *hton, THD *thd, bool all)
       if (error && !return_val)
         return_val= error;
     }
-    thd_set_ha_data(thd, hton, NULL);
+    thd_set_ha_data(thd, federated_hton, NULL);
   }
 
   DBUG_PRINT("info", ("error val: %d", return_val));
@@ -3327,10 +3336,10 @@ static int federated_commit(handlerton *hton, THD *thd, bool all)
 }
 
 
-static int federated_rollback(handlerton *hton, THD *thd, bool all)
+static int federated_rollback(THD *thd, bool all)
 {
   int return_val= 0;
-  ha_federated *trx= (ha_federated *)thd_get_ha_data(thd, hton);
+  ha_federated *trx= (ha_federated *)thd_get_ha_data(thd, federated_hton);
   DBUG_ENTER("federated_rollback");
 
   if (all)
@@ -3345,7 +3354,7 @@ static int federated_rollback(handlerton *hton, THD *thd, bool all)
       if (error && !return_val)
         return_val= error;
     }
-    thd_set_ha_data(thd, hton, NULL);
+    thd_set_ha_data(thd, federated_hton, NULL);
   }
 
   DBUG_PRINT("info", ("error val: %d", return_val));

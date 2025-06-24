@@ -141,7 +141,7 @@ my_bool maria_upgrade()
       We start by renaming all log files, so that if we get a crash
       we will continue from where we left.
     */
-    uint i;
+    size_t i;
     MY_DIR *dir= my_dir(maria_data_root, MYF(MY_WME));
     if (!dir)
       DBUG_RETURN(1);

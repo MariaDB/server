@@ -44,6 +44,6 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`f1`),
   KEY `f3` (`f3`),
   KEY `f4` (`f4`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index=@save_adaptive;

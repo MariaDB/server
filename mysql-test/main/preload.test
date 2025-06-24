@@ -57,7 +57,7 @@ select count(*) from t1;
 select count(*) from t2;
 
 --disable_ps2_protocol
-flush tables; flush status;
+flush tables; flush global status;
 show status like "key_read%";
 
 select count(*) from t1 where b = 'test1';
@@ -65,14 +65,14 @@ show status like "key_read%";
 select count(*) from t1 where b = 'test1';
 show status like "key_read%";
 
-flush tables; flush status;
+flush tables; flush global status;
 select @@preload_buffer_size;
 load index into cache t1;
 show status like "key_read%";
 select count(*) from t1 where b = 'test1';
 show status like "key_read%";
 
-flush tables; flush status;
+flush tables; flush global status;
 show status like "key_read%";
 set session preload_buffer_size=256*1024;
 select @@preload_buffer_size;
@@ -81,7 +81,7 @@ show status like "key_read%";
 select count(*) from t1 where b = 'test1';
 show status like "key_read%";
 
-flush tables; flush status; 
+flush tables; flush global status; 
 show status like "key_read%";
 set session preload_buffer_size=1*1024;
 select @@preload_buffer_size;
@@ -91,12 +91,12 @@ select count(*) from t1 where b = 'test1';
 select count(*) from t2 where b = 'test1';
 show status like "key_read%";
 
-flush tables; flush status;
+flush tables; flush global status;
 show status like "key_read%";
 load index into cache t3, t2 key (primary,b) ;
 show status like "key_read%";
 
-flush tables; flush status;
+flush tables; flush global status;
 show status like "key_read%";
 load index into cache t3 key (b), t2 key (c) ;
 show status like "key_read%";

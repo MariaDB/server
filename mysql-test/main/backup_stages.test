@@ -255,11 +255,11 @@ COMMIT;
 SELECT * FROM t_permanent_innodb ORDER BY col1;
 SELECT * FROM t_permanent_myisam ORDER BY col1;
 SET AUTOCOMMIT = 0;
-SET GLOBAL tx_read_only = 1;
+SET GLOBAL transaction_read_only = 1;
 --connection con12
 BACKUP STAGE START;
 BACKUP STAGE END;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 0;
 DROP VIEW v_some_view;
 DROP TABLE t_con1_innodb;
 DROP TABLE t_con1_myisam;
@@ -277,8 +277,8 @@ LOCK TABLES t_permanent_myisam READ;
 LOCK TABLES t_permanent_innodb WRITE;
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE FLUSH;
 --connection con11
@@ -291,8 +291,8 @@ LOCK TABLES t_permanent_innodb WRITE;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE BLOCK_DDL;
 --connection con11
@@ -306,8 +306,8 @@ LOCK TABLES t_permanent_innodb WRITE;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE BLOCK_COMMIT;
 --connection con11
@@ -321,8 +321,8 @@ LOCK TABLES t_permanent_innodb WRITE;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE END;
 

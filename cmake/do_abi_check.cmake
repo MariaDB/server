@@ -82,7 +82,7 @@ FOREACH(file ${ABI_HEADERS})
       EXECUTE_PROCESS(COMMAND mv -v ${abi_check_out} ${file}.pp)
     ELSE(ABI_UPDATE)
       MESSAGE(FATAL_ERROR 
-        "ABI check found difference between ${file}.pp and ${abi_check_out}")
+        "ABI check found difference between ${abi_check_out} and ${file}.pp")
     ENDIF(ABI_UPDATE)
   ENDIF()
   FILE(REMOVE ${abi_check_out})

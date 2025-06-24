@@ -1,0 +1,54 @@
+# MDEV-30908 - Test SESSION_USER() function
+#
+# Check that SESSION_USER() returns the right user and host matching the
+# content of`mysql.user` table for the user executing the stored procedure.
+
+-- source include/not_embedded.inc
+
+--echo # Create a stored procedure which calls the different functions to retrieve the user
+CREATE FUNCTION test.func_session_user() RETURNS CHAR(80) SQL SECURITY DEFINER RETURN CONCAT(USER(), '; ', CURRENT_USER(), '; ', SESSION_USER());
+--echo # Create a view which calls the different functions to retrieve the user
+CREATE SQL SECURITY DEFINER VIEW test.view_session_user AS SELECT USER(), CURRENT_USER(), SESSION_USER();
+
+--echo # Create test_user
+CREATE USER 'test_user'@'%';
+GRANT EXECUTE, CREATE, DROP, SELECT ON test.* TO 'test_user'@'%';
+
+--echo # Connect as test_user
+connect (test_user_con,localhost,test_user,,);
+
+--echo # Check the function called directly
+SELECT USER(), CURRENT_USER(), SESSION_USER();
+--echo # Check the function inside of a stored procedure
+SELECT test.func_session_user();
+--echo # Check the function inside of a view
+SELECT * FROM test.view_session_user;
+
+--echo # Check SESSION_USER is allowed in virtual columns
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()));
+--echo # Check SESSION_USER is not allowed for indexed virtual columns
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()), INDEX idx (b));
+--echo # Check SESSION_USER is not allowed in virtual columns when CHECK constraints are provided
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()) CHECK (b <> ''));
+--echo # Check SESSION_USER is not allowed for stored virtual columns
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()) STORED);
+
+--echo # Check SESSION_USER is allowed as default
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) DEFAULT (SESSION_USER()));
+
+--echo # Test old mode SESSION_USER_IS_USER behaves properly
+SELECT @@OLD_MODE, @@GLOBAL.OLD_MODE;
+SELECT USER(), SESSION_USER();
+SET @@OLD_MODE = CONCAT(@@OLD_MODE, ',SESSION_USER_IS_USER');
+SELECT @@OLD_MODE, @@GLOBAL.OLD_MODE;
+SELECT USER(), SESSION_USER();
+
+--echo # Cleanup
+--connection default
+DROP USER 'test_user'@'%';
+DROP FUNCTION test.func_session_user;
+DROP VIEW test.view_session_user;
+DROP TABLE test.t1;

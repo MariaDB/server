@@ -142,21 +142,33 @@ at least ENUM and SET, and unsigned integer types are 'unsigned types'
 uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
-/******************************************************************//**
-Compares NUL-terminated UTF-8 strings case insensitively.
-@return 0 if a=b, <0 if a<b, >1 if a>b */
-int
-innobase_strcasecmp(
-/*================*/
-	const char*	a,	/*!< in: first string to compare */
-	const char*	b);	/*!< in: second string to compare */
-
 /** Strip dir name from a full path name and return only the file name
 @param[in]	path_name	full path name
 @return file name or "null" if no file name */
 const char*
 innobase_basename(
 	const char*	path_name);
+
+/******************************************************************//**
+Converts an identifier to a table name. */
+void
+innobase_convert_from_table_id(
+/*===========================*/
+	CHARSET_INFO*	cs,	/*!< in: the 'from' character set */
+	char*		to,	/*!< out: converted identifier */
+	const char*	from,	/*!< in: identifier to convert */
+	ulint		len);	/*!< in: length of 'to', in bytes; should
+				be at least 5 * strlen(to) + 1 */
+/******************************************************************//**
+Converts an identifier to UTF-8. */
+void
+innobase_convert_from_id(
+/*=====================*/
+	CHARSET_INFO*	cs,	/*!< in: the 'from' character set */
+	char*		to,	/*!< out: converted identifier */
+	const char*	from,	/*!< in: identifier to convert */
+	ulint		len);	/*!< in: length of 'to', in bytes;
+				should be at least 3 * strlen(to) + 1 */
 
 #ifdef WITH_WSREP
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
@@ -215,15 +227,6 @@ thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_lock_wait_timeout */
-
-/******************************************************************//**
-compare two character string case insensitively according to their charset. */
-int
-innobase_fts_text_case_cmp(
-/*=======================*/
-	const void*	cs,		/*!< in: Character set */
-	const void*	p1,		/*!< in: key */
-	const void*	p2);		/*!< in: node */
 
 /******************************************************************//**
 Returns true if transaction should be flagged as read-only.
@@ -402,11 +405,13 @@ Normalizes a table name string. A normalized name consists of the
 database name catenated to '/' and table name. An example:
 test/mytable. On Windows normalization puts both the database name and the
 table name always to lower case if "set_lower_case" is set to TRUE. */
-void
+size_t
 normalize_table_name_c_low(
 /*=======================*/
 	char*		norm_name,	/*!< out: normalized name as a
 					null-terminated string */
+	size_t		norm_name_size, /*!< in: number of bytes available
+					 in norm_name*/
 	const char*	name,		/*!< in: table name string */
 	bool		set_lower_case); /*!< in: true if we want to set
 					name to lower case */

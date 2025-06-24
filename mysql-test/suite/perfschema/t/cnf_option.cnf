@@ -2,7 +2,7 @@
 # Check server start options, read from a .cnf file
 
 # Use default setting for mysqld processes
-!include include/default_mysqld.cnf
+!include include/default_my.cnf
 
 [mysqld.1]
 loose-performance-schema-max-thread_instances=318

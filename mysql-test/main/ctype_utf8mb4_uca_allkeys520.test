@@ -1,0 +1,75 @@
+--source include/have_utf32.inc
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Start of 10.8 tests
+--echo #
+
+
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+--source include/ctype_unicode_allchars.inc
+
+#
+# Load allkeys.txt from Unicode-5.2.0
+#
+# The 5.2.0 file has four weight levels and an optional extra field
+# after the character name, e.g. "; QQK"
+#00A0  ; [*020A.0020.001B.00A0] # NO-BREAK SPACE; QQK
+#
+
+CREATE TABLE allkeys_txt (a TEXT, b TEXT, c TEXT) ENGINE=MyISAM;
+LOAD DATA INFILE '../../std_data/unicode/allkeys520.txt'
+INTO TABLE allkeys_txt FIELDS TERMINATED BY ';' (@a,@b,@qq)
+SET a=TRIM(@a), b=TRIM(REGEXP_SUBSTR(@b,'^[^#]*')), c=TRIM(REGEXP_SUBSTR(@b, '#.*$'));
+CREATE TABLE allkeys AS
+SELECT
+  a,
+  CONVERT(CAST(UNHEX(regexp_replace(regexp_replace(regexp_replace(a,'(\\b[0-9A-Z]{4}\\b)','-0000\\1-'),'(\\b[0-9A-Z]{5}\\b)','-000\\1-'),'[ -]','')) AS CHAR CHARACTER SET utf32) USING utf8mb4) COLLATE utf8mb4_bin AS str,
+  HEX(WEIGHT_STRING(CONVERT(CAST(UNHEX(regexp_replace(regexp_replace(regexp_replace(a,'(\\b[0-9A-Z]{4}\\b)','-0000\\1-'),'(\\b[0-9A-Z]{5}\\b)','-000\\1-'),'[ -]','')) AS CHAR CHARACTER SET utf32) USING utf8mb4) COLLATE utf8mb4_unicode_520_ci)) as ws,
+  REPLACE(REPLACE(REGEXP_REPLACE(b,'[[][.*](....)[.]....[.]....[.].{4,5}]','-\\1-'),'-0000-',''),'-','') AS wd,
+  c
+FROM allkeys_txt
+WHERE a RLIKE '^[0-9A-Z]';
+ALTER TABLE allkeys ADD KEY(str(3));
+
+#
+# Test explicit weights
+# Built-in default contractions are not supported.
+# The (NOT LIKE '% %') part of the condition filters out contractions.
+
+SELECT COUNT(*), SUM(ws<>wd) FROM allkeys WHERE a NOT LIKE '% %';
+SELECT a, ws, wd FROM allkeys WHERE ws<>wd AND a NOT LIKE '% %';
+
+
+#
+# Test implicit weights
+# Non-BMP characters all have the same weight FFFD.
+#
+
+SELECT
+  HEX(code),
+  HEX(WEIGHT_STRING(str COLLATE utf8mb4_unicode_520_ci)) AS ws,
+  CASE
+    WHEN code >= 0x3400 AND code <= 0x4DB5 THEN
+       CONCAT(LPAD(HEX(0xFB80 + (code >> 15)),4,'0'),
+              LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+    WHEN code >= 0x4E00 AND code <= 0x9FA5 THEN
+       CONCAT(LPAD(HEX(0xFB40 + (code >> 15)),4,'0'),
+              LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+    ELSE
+       CONCAT(LPAD(HEX(0xFBC0 + (code >> 15)),4,'0'),
+              LPAD(HEX(0x8000 | (code & 0x7FFF)),4,'0'))
+  END AS wd
+FROM allchars
+LEFT OUTER JOIN allkeys USING (str)
+WHERE allkeys.str IS NULL
+HAVING ws<>wd
+ORDER BY HEX(str);
+
+DROP TABLE allkeys_txt;
+DROP TABLE allkeys;
+DROP TABLE allchars;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

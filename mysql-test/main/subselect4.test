@@ -62,7 +62,7 @@ CREATE TABLE t3 LIKE t1;
 INSERT INTO t3 SELECT * FROM t1;
 
 --echo # Should not crash.
---echo # Should have 1 impossible where and 2 dependent subqs.
+--echo # Should have 1 impossible where and 2 dependent subqueries.
 EXPLAIN
 SELECT
   (SELECT 1 FROM t1,t2 WHERE t2.b > t3.b)
@@ -291,33 +291,6 @@ EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) AS RESULT FROM t1 GROUP B
 DROP TABLE t1,t2;
 
 --echo #
---echo # BUG#45928 "Differing query results depending on MRR and
---echo # engine_condition_pushdown settings"
---echo #
-
-CREATE TABLE `t1` (
-  `pk` int(11) NOT NULL AUTO_INCREMENT,
-  `time_nokey` time NOT NULL,
-  `varchar_key` varchar(1) NOT NULL,
-  `varchar_nokey` varchar(1) NOT NULL,
-  PRIMARY KEY (`pk`),
-  KEY `varchar_key` (`varchar_key`)
-) AUTO_INCREMENT=12 DEFAULT CHARSET=latin1;
-INSERT INTO `t1` VALUES (10,'00:00:00','i','i'),(11,'00:00:00','','');
-
-set @old_optimizer_switch          = @@session.optimizer_switch;
-
-SET SESSION OPTIMIZER_SWITCH = 'materialization=off,semijoin=off,loosescan=off,firstmatch=off,mrr=on,engine_condition_pushdown=on';
-
- SELECT `time_nokey` G1  FROM t1  WHERE ( `varchar_nokey`  , `varchar_key`  )  IN ( 
-SELECT `varchar_nokey`  , `varchar_nokey`  )  AND `varchar_key`  >= 'c' HAVING G1  ORDER 
-BY `pk`   ;
-
-set @@session.optimizer_switch          = @old_optimizer_switch;
-
-DROP TABLE t1;
-
---echo #
 --echo # During work with BUG#45863 I had problems with a query that was
 --echo # optimized differently in regular and prepared mode.
 --echo # Because there was a bug in one of the selected strategies, I became
@@ -331,19 +304,19 @@ CREATE TABLE t1
  (EMPNUM   CHAR(3) NOT NULL,
   EMPNAME  CHAR(20),
   GRADE    DECIMAL(4),
-  CITY     CHAR(15));
+  CITY     CHAR(15)) CHARSET=latin1;
 
 CREATE TABLE t2
  (PNUM     CHAR(3) NOT NULL,
   PNAME    CHAR(20),
   PTYPE    CHAR(6),
   BUDGET   DECIMAL(9),
-  CITY     CHAR(15));
+  CITY     CHAR(15)) CHARSET=latin1;
 
 CREATE TABLE t3
  (EMPNUM   CHAR(3) NOT NULL,
   PNUM     CHAR(3) NOT NULL,
-  HOURS    DECIMAL(5));
+  HOURS    DECIMAL(5)) CHARSET=latin1;
 
 INSERT INTO t1 VALUES ('E1','Alice',12,'Deale');
 INSERT INTO t1 VALUES ('E2','Betty',10,'Vienna');
@@ -481,7 +454,7 @@ INSERT INTO t2 VALUES (9,1);
 --echo # Enable Index condition pushdown
 --replace_column 1 #
 set @old_icp=@@optimizer_switch;
-SET SESSION optimizer_switch="engine_condition_pushdown=on";
+SET SESSION optimizer_switch="index_condition_pushdown=on";
 
 --echo
 SELECT pk
@@ -942,12 +915,12 @@ drop table t1, t2;
 --echo # LP BUG#641203 Query returns rows where no result is expected (impossible WHERE)
 --echo #
 
-CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL);
-CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL);
-INSERT INTO t2 VALUES ('k'), ('d');
-CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL);
+CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
+CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
+INSERT INTO t2 VALUES ('k'), ('d'),('x');
+CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
 INSERT INTO t3 VALUES ('a'), ('b'), ('c');
-CREATE TABLE t4 (c1 varchar(1) primary key);
+CREATE TABLE t4 (c1 varchar(1) primary key) CHARSET=latin1;
 INSERT INTO t4 VALUES ('k'), ('d');
 
 SET @save_optimizer_switch=@@optimizer_switch;
@@ -2115,7 +2088,7 @@ DROP TABLE t1,t2;
 --echo # MDEV-17606: Query returns wrong results (while using CHARACTER SET utf8)
 --echo #
 
-CREATE TABLE t1(l1 varchar(10), i2 int);
+CREATE TABLE t1(l1 varchar(10), i2 int) CHARSET=latin1;
 INSERT INTO t1 VALUES ('e',2),('o',6),('x',4);
 CREATE TABLE t2 (v1 varchar(10) CHARACTER SET utf8, KEY v1 (v1(3)));
 INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
@@ -2259,18 +2232,18 @@ drop table t1;
 --echo # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
 --echo #
 
-CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1));
+CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1)) CHARSET=latin1;
 INSERT INTO t1 VALUES
 (9,'y'),(4,'q'),(0,null),(0,'p'),(null,'j');
 
 CREATE TABLE t2 (pk int);
 INSERT INTO t2 VALUES (1),(2);
 
-CREATE TABLE t3 (v2 varchar(1));
+CREATE TABLE t3 (v2 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES
 ('p'),('j'),('y'),('q');
 
-CREATE TABLE t4 (v2 varchar(1));
+CREATE TABLE t4 (v2 varchar(1)) CHARSET=latin1;
 INSERT INTO t4 VALUES
 ('a'),('a'),('b'),('b'),('c'),('c'),
 ('d'),('d'),('e'),('e'),('f'),('f'),
@@ -2284,9 +2257,13 @@ INSERT INTO t4 VALUES
 SET @save_join_cache_level=@@join_cache_level;
 SET join_cache_level=0;
 
+explain select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
+
 select 1
 from t2 join t1 on
-('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 SET join_cache_level= @save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4;
@@ -2312,9 +2289,9 @@ set names 'utf8mb4';
 EXPLAIN
 SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
 
-set names 'utf8';
+set names utf8 collate utf8_general_ci;
 --echo #
---echo # IN predicate to IN subquery is performed as materialization is llowed
+--echo # IN predicate to IN subquery is performed as materialization is allowed
 --echo # The character set on the inner side is a proper subset of the outer side
 --echo #
 
@@ -2393,7 +2370,7 @@ CREATE TABLE t1 (
   key1 varchar(30) NOT NULL,
   col1 int(11) NOT NULL,
   filler char(100)
-);
+) CHARSET=latin1;
 insert into t1 select seq, seq, seq from seq_1_to_100;
 
 CREATE TABLE t10 (
@@ -2401,14 +2378,14 @@ CREATE TABLE t10 (
   col1 int,
   filler char(100),
   PRIMARY KEY (key1)
-);
+) CHARSET=latin1;
 insert into t10 select seq, seq, seq from seq_1_to_1000;
 
 CREATE TABLE t11 (
   key1 varchar(30) NOT NULL,
   filler char(100),
   PRIMARY KEY (key1)
-);
+) CHARSET=latin1;
 insert into t11 select seq, seq from seq_1_to_1000;
 
 
@@ -2686,3 +2663,4 @@ show status like 'Handler_read_rnd_next%';
 drop table t1,t2,t3;
 
 --echo # End of 10.4 tests
+

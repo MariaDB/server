@@ -385,7 +385,7 @@ start_log:
 
 		/* If encryption is enabled encrypt buffer before writing it
 		to file system. */
-		if (log_tmp_is_encrypted()) {
+		if (srv_encrypt_log) {
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset)) {
@@ -525,7 +525,7 @@ row_log_table_close_func(
 
 		/* If encryption is enabled encrypt buffer before writing it
 		to file system. */
-		if (log_tmp_is_encrypted()) {
+		if (srv_encrypt_log) {
 			if (!log_tmp_block_encrypt(
 				    log->tail.block, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
@@ -749,7 +749,7 @@ row_log_table_low_redundant(
 	ulint		avail_size;
 	mem_heap_t*	heap		= NULL;
 	dtuple_t*	tuple;
-	const ulint	n_fields = rec_get_n_fields_old(rec);
+	const auto	n_fields = rec_get_n_fields_old(rec);
 
 	ut_ad(index->n_fields >= n_fields);
 	ut_ad(index->n_fields == n_fields || index->is_instant());
@@ -1706,22 +1706,7 @@ err_exit:
 		if (error) {
 			goto err_exit;
 		}
-#ifdef UNIV_DEBUG
-		switch (btr_pcur_get_btr_cur(pcur)->flag) {
-		case BTR_CUR_DELETE_REF:
-		case BTR_CUR_DEL_MARK_IBUF:
-		case BTR_CUR_DELETE_IBUF:
-		case BTR_CUR_INSERT_TO_IBUF:
-			/* We did not request buffering. */
-			break;
-		case BTR_CUR_HASH:
-		case BTR_CUR_HASH_FAIL:
-		case BTR_CUR_BINARY:
-			goto flag_ok;
-		}
-		ut_ad(0);
-flag_ok:
-#endif /* UNIV_DEBUG */
+		ut_ad(pcur->btr_cur.flag == BTR_CUR_BINARY);
 
 		if (page_rec_is_infimum(btr_pcur_get_rec(pcur))
 		    || btr_pcur_get_low_match(pcur) < index->n_uniq) {
@@ -1729,8 +1714,8 @@ flag_ok:
 			found, because new_table is being modified by
 			this thread only, and all indexes should be
 			updated in sync. */
-			mtr->commit();
-			return(DB_INDEX_CORRUPT);
+			error = DB_INDEX_CORRUPT;
+			goto err_exit;
 		}
 
 		btr_cur_pessimistic_delete(&error, FALSE,
@@ -1790,22 +1775,8 @@ row_log_table_apply_delete(
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
-#ifdef UNIV_DEBUG
-	switch (btr_pcur_get_btr_cur(&pcur)->flag) {
-	case BTR_CUR_DELETE_REF:
-	case BTR_CUR_DEL_MARK_IBUF:
-	case BTR_CUR_DELETE_IBUF:
-	case BTR_CUR_INSERT_TO_IBUF:
-		/* We did not request buffering. */
-		break;
-	case BTR_CUR_HASH:
-	case BTR_CUR_HASH_FAIL:
-	case BTR_CUR_BINARY:
-		goto flag_ok;
-	}
-	ut_ad(0);
-flag_ok:
-#endif /* UNIV_DEBUG */
+
+	ut_ad(btr_pcur_get_btr_cur(&pcur)->flag == BTR_CUR_BINARY);
 
 	if (page_rec_is_infimum(btr_pcur_get_rec(&pcur))
 	    || btr_pcur_get_low_match(&pcur) < index->n_uniq) {
@@ -1939,19 +1910,8 @@ func_exit_committed:
 
 		return error;
 	}
-#ifdef UNIV_DEBUG
-	switch (btr_pcur_get_btr_cur(&pcur)->flag) {
-	case BTR_CUR_DELETE_REF:
-	case BTR_CUR_DEL_MARK_IBUF:
-	case BTR_CUR_DELETE_IBUF:
-	case BTR_CUR_INSERT_TO_IBUF:
-		ut_ad(0);/* We did not request buffering. */
-	case BTR_CUR_HASH:
-	case BTR_CUR_HASH_FAIL:
-	case BTR_CUR_BINARY:
-		break;
-	}
-#endif /* UNIV_DEBUG */
+
+	ut_ad(btr_pcur_get_btr_cur(&pcur)->flag == BTR_CUR_BINARY);
 
 	ut_ad(!page_rec_is_infimum(btr_pcur_get_rec(&pcur))
 	      && btr_pcur_get_low_match(&pcur) >= index->n_uniq);
@@ -2101,8 +2061,17 @@ func_exit_committed:
 		ut_free(pcur.old_rec_buf);
 		pcur.old_rec_buf = nullptr;
 
-		if (ROW_FOUND != row_search_index_entry(
-			    entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
+		error = btr_pcur_open(entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
+				      &pcur, &mtr);
+
+		if (error != DB_SUCCESS) {
+			ut_ad(0);
+			break;
+		}
+
+		if (btr_pcur_is_before_first_on_page(&pcur)
+		    || btr_pcur_get_low_match(&pcur)
+		    != dtuple_get_n_fields(entry)) {
 			ut_ad(0);
 			error = DB_CORRUPTION;
 			break;
@@ -2617,7 +2586,7 @@ all_done:
 			goto corruption;
 		}
 
-		if (log_tmp_is_encrypted()) {
+		if (srv_encrypt_log) {
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head, ofs)) {
@@ -2970,7 +2939,7 @@ row_log_allocate(
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 
-	if (log_tmp_is_encrypted()) {
+	if (srv_encrypt_log) {
 		log->crypt_head_size = log->crypt_tail_size = srv_sort_buf_size;
 		log->crypt_head = static_cast<byte *>(
 			my_large_malloc(&log->crypt_head_size, MYF(MY_WME)));
@@ -3538,7 +3507,7 @@ all_done:
 			goto corruption;
 		}
 
-		if (log_tmp_is_encrypted()) {
+		if (srv_encrypt_log) {
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head, ofs)) {

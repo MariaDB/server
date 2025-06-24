@@ -26,10 +26,10 @@ create procedure sp() select * from `v1
 flush tables;
 use test;
 
-exec $MYSQL_DUMP --compact --comments --routines --add-drop-database --databases 'mysqltest1
+exec $MYSQL_DUMP --compact --comments --routines --add-drop-database --databases --no-autocommit=0 'mysqltest1
 1tsetlqsym';
 
-exec $MYSQL_DUMP --compact --comments --routines --add-drop-database --databases 'mysqltest1
+exec $MYSQL_DUMP --compact --comments --routines --add-drop-database --databases --no-autocommit=0 'mysqltest1
 1tsetlqsym' | $MYSQL;
 
 show tables from `mysqltest1
@@ -45,11 +45,11 @@ create database `test\``
 
 show databases like 'test%';
 
-exec $MYSQL_DUMP --compact --comments --add-drop-database --databases 'test`' 'test\`
+exec $MYSQL_DUMP --compact --comments --add-drop-database --no-autocommit=0 --databases 'test`' 'test\`
 \! ls
 #';
 
-exec $MYSQL_DUMP --compact --comments --add-drop-database --databases 'test`' 'test\`
+exec $MYSQL_DUMP --compact --comments --add-drop-database --no-autocommit=0 --databases 'test`' 'test\`
 \! ls
 #' | $MYSQL;
 

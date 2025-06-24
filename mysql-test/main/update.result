@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2;
 create table t1 (a int auto_increment , primary key (a));
 insert into t1 values (NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
@@ -5,7 +6,7 @@ update t1 set a=a+10 where a > 34;
 update t1 set a=a+100 where a > 0;
 update t1 set a=a+100 where a=1 and a=2;
 update t1 set a=b+100 where a=1 and a=2;
-ERROR 42S22: Unknown column 'b' in 'SET'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 update t1 set a=b+100 where c=1 and a=2;
 ERROR 42S22: Unknown column 'c' in 'WHERE'
 update t1 set d=a+100 where a=1;
@@ -399,7 +400,7 @@ update t1 set `*f2`=1;
 drop table t1;
 create table t1(f1 int);
 update t1 set f2=1 order by f2;
-ERROR 42S22: Unknown column 'f2' in 'ORDER BY'
+ERROR 42S22: Unknown column 'f2' in 'SET'
 drop table t1;
 CREATE TABLE t1 (
 request_id int unsigned NOT NULL auto_increment,
@@ -751,7 +752,7 @@ explain extended
 update t1 set a1 = 'u'
   where a2 like 'xx%' and exists(select 1 from t1 where t1.a1 < 'c');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	49.22	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	50.00	Using where
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	50.00	Using where
 Warnings:
 Note	1003	/* select#1 */ update `test`.`t1` set `test`.`t1`.`a1` = 'u' where `test`.`t1`.`a2` like 'xx%'
@@ -765,3 +766,243 @@ ccc	yyy
 u	xxb
 drop table t1;
 # End of MariaDB 10.4 tests
+#
+# MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+#
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	4	5	5
+1	4	6	6
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+id	v
+2	3
+1	-1
+select * from t2;
+id	v
+5	-1
+6	-1
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	b	6	quxqux
+1	b	7	foofoof
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+id	v
+1	DELETED
+2	fo
+3	bar
+4	barr
+5	bazzz
+select * from t2;
+id	v
+6	DELETED
+7	DELETED
+8	barbarba
+9	quxquxqux
+10	bazbazbazb
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+id	v	id	v	id	v
+1	1000	10	100	11	111
+1	1000	10	100	22	222
+1	1000	10	100	33	333
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+id	v
+1	-1
+2	2000
+3	3000
+4	4000
+5	5000
+select * from t2;
+id	v
+10	-2
+20	200
+30	300
+40	400
+50	500
+select * from t3;
+id	v
+11	-3
+22	-3
+33	-3
+44	444
+55	555
+drop table t1, t2, t3;
+# End of MariaDB 10.11 tests
+#
+# MDEV-29189: Second execution of SF using UPDATE?DELETE
+#             after reported error by the first execution
+#
+CREATE TABLE t1 (c int);
+CREATE FUNCTION f1() RETURNS int
+BEGIN
+UPDATE t1 SET c=c+1;
+RETURN 1;
+END;//
+CREATE FUNCTION f2() RETURNS int
+BEGIN
+DELETE FROM t1 WHERE c < 7;
+RETURN 1;
+END;//
+INSERT INTO t1 VALUES (3), (7), (1);
+SELECT * FROM t1 WHERE f1() = 1;
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+SELECT f1();
+f1()
+1
+SELECT * FROM t1;
+c
+4
+8
+2
+SELECT * FROM t1 WHERE f2() = 1;
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+SELECT f2();
+f2()
+1
+SELECT * FROM t1;
+c
+8
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+# End of MariaDB 11.1 tests
+#
+# MDEV-25008: Delete query gets stuck on mariadb, same query works
+#             on MySQL 8.0.21
+#
+CREATE TABLE t1 (
+id int NOT NULL PRIMARY KEY,
+item_id varchar(100),
+seller_name varchar(400),
+variant varchar(400),
+FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+explain
+UPDATE t1 SET item_id="foo" WHERE id NOT IN
+(SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using where
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	#	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
+drop table t1;
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain update t1 set c = 5  where    b <= 2 and a not in (select b from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	b	b	5	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20000	Using where
+explain update t1 set c = 5  where    b <= 3 and a not in (select b from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	b	b	5	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	20000	
+drop table t1, t2;
+#
+# MDEV-35662 Assertion failure in diagnostics area upon EXPLAIN UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INET6);
+INSERT INTO t2 VALUES ('::'),('::');
+EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT b FROM t2) ORDER BY a LIMIT 1;
+ERROR HY000: Illegal parameter data types int and inet6 for operation '='
+DROP TABLE t1, t2;
+# End of 11.7 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+# MDEV-35955 Wrong result for UPDATE ... ORDER BY LIMIT which uses tmp.table
+#
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+insert into t1 (id, v) values (2,3),(1,4);
+insert into t2 (id, v) values (5,5),(6,6);
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	4	5	5
+1	4	6	6
+UPDATE t1, t2 SET t1.v=-1, t2.v=-1 ORDER BY t1.id, t2.id LIMIT 2;
+select * from t1;
+id	v
+2	3
+1	-1
+select * from t2;
+id	v
+5	-1
+6	-1
+drop table t1, t2;
+create table t1 (id int primary key, v text) engine=myisam;
+create table t2 (id int primary key, v text) engine=myisam;
+insert into t1 (id, v) values (1,'b'),(2,'fo'),(3,'bar'),(4,'barr'),(5,'bazzz');
+insert into t2 (id, v) values (6,'quxqux'),(7,'foofoof'),(8,'barbarba'),(9,'quxquxqux'),(10,'bazbazbazb');
+select t1.*, t2.* from t1, t2 order by t1.id, t2.id limit 2;
+id	v	id	v
+1	b	6	quxqux
+1	b	7	foofoof
+update t1, t2 set t1.v='DELETED', t2.v='DELETED' order by t1.id, t2.id limit 2;
+select * from t1;
+id	v
+1	DELETED
+2	fo
+3	bar
+4	barr
+5	bazzz
+select * from t2;
+id	v
+6	DELETED
+7	DELETED
+8	barbarba
+9	quxquxqux
+10	bazbazbazb
+drop table t1, t2;
+create table t1 (id int primary key, v int);
+create table t2 (id int primary key, v int);
+create table t3 (id int primary key, v int);
+insert into t1 (id, v) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000);
+insert into t2 (id, v) values (10, 100), (20, 200), (30, 300), (40, 400), (50, 500);
+insert into t3 (id, v) values (11, 111), (22, 222), (33, 333), (44, 444), (55, 555);
+select t1.*, t2.*, t3.* from t1, t2, t3 order by t1.id, t2.id, t3.id limit 3;
+id	v	id	v	id	v
+1	1000	10	100	11	111
+1	1000	10	100	22	222
+1	1000	10	100	33	333
+UPDATE t1, t2, t3 SET t1.v=-1, t2.v=-2, t3.v=-3 ORDER BY t1.id, t2.id, t3.id LIMIT 3;
+select * from t1;
+id	v
+1	-1
+2	2000
+3	3000
+4	4000
+5	5000
+select * from t2;
+id	v
+10	-2
+20	200
+30	300
+40	400
+50	500
+select * from t3;
+id	v
+11	-3
+22	-3
+33	-3
+44	444
+55	555
+drop table t1, t2, t3;
+# End of MariaDB 11.8 tests

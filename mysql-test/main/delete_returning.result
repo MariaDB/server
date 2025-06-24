@@ -211,3 +211,19 @@ id
 3
 set sql_mode=@sql_mode_save;
 DROP TABLE t1;
+#
+# MDEV-3953 Add columns for ROWS_EXAMINED, ROWS_SENT, and ROWS_READ to I_S and
+#           processlist
+#
+create table t1 (a int primary key, b int);
+insert into t1 select seq,seq+1 from seq_1_to_10;
+flush status;
+delete from t1 where a between 1 and 3 returning a,b;
+a	b
+1	2
+2	3
+3	4
+show status like "Rows_sent";
+Variable_name	Value
+Rows_sent	3
+drop table t1;

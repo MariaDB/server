@@ -40,7 +40,7 @@ show create table t1;
 
 INSERT INTO t1 VALUES (1, now(), 0);
 
-flush status;
+flush global status;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 
@@ -78,7 +78,7 @@ show create table t1;
 
 INSERT INTO t1 VALUES (1, now(), 0);
 
-flush status;
+flush global status;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_hits";
 
@@ -101,7 +101,7 @@ drop table t1;
 --echo #
 
 flush query cache;
-flush status;
+flush global status;
 
 SET GLOBAL query_cache_size=1024*1024*512;
   CREATE TABLE `t1` (

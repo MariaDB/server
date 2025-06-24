@@ -46,7 +46,7 @@ void fil_crypt_threads_signal(bool broadcast= false);
 /**
  * CRYPT_SCHEME_UNENCRYPTED
  *
- * Used as intermediate state when convering a space from unencrypted
+ * Used as intermediate state when converting a space from unencrypted
  * to encrypted
  */
 /**
@@ -74,7 +74,7 @@ struct key_struct
 extern ulong	srv_encrypt_tables;
 
 /** Mutex helper for crypt_data->scheme
-@param[in, out]	schme	encryption scheme
+@param[in, out]	scheme	encryption scheme
 @param[in]	exit	should we exit or enter mutex ? */
 void
 crypt_data_scheme_locker(
@@ -291,20 +291,20 @@ byte* fil_space_encrypt(
 
 /** Decrypt a page.
 @param]in]	space_id		space id
+@param[in]	fsp_flags		Tablespace flags
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
-@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
 @retval DB_SUCCESS on success
 @retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
-	ulint			space_id,
+	uint32_t		space_id,
+	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	ulint			fsp_flags,
 	byte*			src_frame);
 
 /******************************************************************

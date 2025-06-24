@@ -39,6 +39,9 @@
 #############################################################
 #                 Save initial value                        #
 #############################################################
+SET @global_collation_database = @@global.collation_database;
+SET @session_collation_database = @@session.collation_database;
+
 SET @global_start_value = @@global.character_set_database;
 SET @@global.character_set_database=@@character_set_client;
 SELECT @@global.character_set_database;
@@ -154,30 +157,42 @@ SELECT @@global.character_set_database;
 ##############################################################
 SET @@character_set_database = 1;
 SELECT @@character_set_database;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_database = 2;
-SELECT @@character_set_database;
+
 SET @@character_set_database = 3;
 SELECT @@character_set_database;
 SET @@character_set_database = 36;
 SELECT @@character_set_database;
-SET @@character_set_database = 99;
-SELECT @@character_set_database;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@character_set_database = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_database = 100;
 
 
 SET @@global.character_set_database = 1;
 SELECT @@global.character_set_database;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_database = 2;
-SELECT @@global.character_set_database;
+
 SET @@global.character_set_database = 3;
 SELECT @@global.character_set_database;
 SET @@global.character_set_database = 36;
 SELECT @@global.character_set_database;
-SET @@global.character_set_database = 99;
-SELECT @@global.character_set_database;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@global.character_set_database = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_database = 100;
 
@@ -263,8 +278,8 @@ SELECT @@session.character_set_database =
 ####################################
 #     Restore initial value        #
 ####################################
-SET @@global.character_set_database = @global_start_value;
-SET @@session.character_set_database = @session_start_value;
+SET @@global.collation_database = @global_collation_database;
+SET @@session.collation_database = @session_collation_database;
 
 #############################################################
 #               END OF character_set_database TESTS         #

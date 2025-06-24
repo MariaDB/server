@@ -8,10 +8,10 @@
 --echo # column create
 --echo #
 select hex(COLUMN_CREATE(1, NULL AS char character set utf8)) as exp;
-select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8)) as ex;
-select hex(COLUMN_CREATE(1, 1212 AS char character set utf8)) as ex;
-select hex(COLUMN_CREATE(1, 12.12 AS char character set utf8)) as ex;
-select hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8)) as ex;
+select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8 collate utf8_general_ci)) as ex;
+select hex(COLUMN_CREATE(1, 1212 AS char character set utf8 collate utf8_general_ci)) as ex;
+select hex(COLUMN_CREATE(1, 12.12 AS char character set utf8 collate utf8_general_ci)) as ex;
+select hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8 collate utf8_general_ci)) as ex;
 select hex(COLUMN_CREATE(1, NULL AS unsigned int));
 select hex(COLUMN_CREATE(1, 1212 AS unsigned int));
 select hex(COLUMN_CREATE(1, 7 AS unsigned int));
@@ -47,8 +47,8 @@ select hex(COLUMN_CREATE(1, "2011-04-05" AS date));
 select hex(COLUMN_CREATE(1, NULL AS time));
 select hex(COLUMN_CREATE(1, "0:45:49.000001" AS time)); 
 select hex(COLUMN_CREATE(1, NULL AS datetime));
-select hex(COLUMN_CREATE(1, "2011-04-05 0:45:49.000001" AS datetime)) as ex; 
-select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
+select hex(COLUMN_CREATE(1, "2011-04-05 0:45:49.000001" AS datetime)) as ex;
+select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8 collate utf8_general_ci,
 			 2, 1212 AS unsigned int,
 			 3, 1212 AS int,
 			 4, 12.12 AS double,

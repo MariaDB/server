@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
+--source include/innodb_stable_estimates.inc
+
 --echo # Tests for delete with INNODB
 
 --echo #
@@ -59,3 +61,200 @@ UPDATE t3 SET f = 'foo' ORDER BY f LIMIT 1;
 DROP TABLE t1, t2, t3;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-32212 DELETE with ORDER BY and semijoin optimization causing crash
+--echo #
+
+CREATE TABLE t1 (c1 INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c2 INT) ENGINE=InnoDB;
+INSERT INTO t1 values (1),(2),(3),(4),(5),(6);
+INSERT INTO t2 values (2);
+
+DELETE FROM t1 WHERE c1 IN (select c2 from t2);
+select * from t1;
+truncate t1;
+truncate t2;
+INSERT INTO t1 values (1),(2),(3),(4),(5),(6);
+INSERT INTO t2 values (2);
+--echo check sj optimization with order-by
+analyze DELETE FROM t1 WHERE c1 IN (select c2 from t2) ORDER BY c1;
+select * from t1;
+truncate t2;
+INSERT INTO t2 values (3);
+--echo disallows sj optimization
+analyze DELETE FROM t1 WHERE c1 IN (select c2 from t2) ORDER BY c1 limit 1;
+select * from t1;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-33533: multi-delete using rowid filter
+--echo #
+
+set @save_default_storage_engine=@@default_storage_engine;
+set default_storage_engine=InnoDB;
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+create index i_n_name on nation(n_name);
+analyze table
+  nation, lineitem, customer, orders, part, supplier, partsupp, region
+persistent for all;
+
+let $c1=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey =  c_custkey and
+        c_nationkey = n_nationkey and
+        n_name='PERU';
+
+eval
+explain
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+eval
+create table t as
+select orders.* from orders, customer, nation where $c1;
+
+eval
+explain
+delete from orders using orders, customer, nation where $c1;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from orders using orders, customer, nation where $c1;
+eval
+delete from orders using orders, customer, nation where $c1;
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+
+eval
+prepare stmt from "
+delete from orders using orders, customer, nation where $c1;
+";
+
+execute stmt;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+
+execute stmt;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders, customer, nation where $c1;
+
+deallocate prepare stmt;
+
+drop table t;
+
+let $c1=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey in (select c_custkey from customer
+                        where c_nationkey in (select n_nationkey from nation
+                                                where n_name='PERU'));
+
+eval
+explain
+select o_orderkey, o_totalprice from orders where $c1;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select o_orderkey, o_totalprice from orders where $c1;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+create table t as
+select * from orders where $c1;
+
+eval
+explain
+delete from orders where $c1;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from orders where $c1;
+eval
+delete from orders where $c1;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+drop table t;
+
+DROP DATABASE dbt3_s001;
+
+set default_storage_engine=@save_default_storage_engine;
+
+--echo #
+--echo # Additional tests of first table and rowid filter
+--echo #
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+set @save_default_storage_engine=@@default_storage_engine;
+set default_storage_engine=InnoDB;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+CREATE INDEX i_l_quantity ON lineitem(l_quantity);
+CREATE INDEX i_o_totalprice ON orders(o_totalprice);
+ANALYZE TABLE lineitem, orders;
+set optimizer_use_condition_selectivity=2;
+create table second(s_receiptDATE date, filler char(100), key(s_receiptDATE)) ;
+insert into second select date_add(l_receiptDATE, interval 1 day), 'helllo' from lineitem ;
+
+select count(*) from lineitem, second   WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND l_quantity > 47 and second.s_receiptDATE = date_add(l_receiptDATE, interval 1 day);
+
+--echo # lineitem should be first and with "Using rowid filter"
+explain delete lineitem FROM lineitem, second   WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND l_quantity > 47 and second.s_receiptDATE = date_add(l_receiptDATE, interval 1 day);
+
+delete lineitem FROM lineitem, second   WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND l_quantity > 47 and second.s_receiptDATE = date_add(l_receiptDATE, interval 1 day);
+
+--echo # Should be 0
+select count(*) from lineitem, second   WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND l_quantity > 47 and second.s_receiptDATE = date_add(l_receiptDATE, interval 1 day);
+
+drop database  dbt3_s001;
+set default_storage_engine=@save_default_storage_engine;
+
+--echo # End of 11.1 tests

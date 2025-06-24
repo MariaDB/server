@@ -1,0 +1,151 @@
+#
+# Purpose:
+#
+# This test ensures that the mariadb-binlog CLI tool can filter log events
+# using GTID ranges. More specifically, this test ensures the following
+# capabilities:
+#   1) GTIDs can be used to filter results on local binlog files
+#   2) GTIDs can be used to filter results from remote servers
+#   3) For a given GTID range, its start-position is exclusive and its
+#      stop-position is inclusive. This allows users to receive events strictly
+#      after what they already have.
+#   4) After the events have been written, the session server id and domain id
+#      are reset to their former values
+#
+#
+# Methodology:
+#
+# This test validates the expected capabilities using the following test cases
+# on both a local binlog file and remote server for all binlog formats.
+#   Test Case 1) The end of the binlog file resets the server and domain id of
+#                the session
+#   Test Case 2) Single GTID range specified
+#   Test Case 3) Single GTID range with different server_ids
+#   Test Case 4) Multiple GTID ranges specified
+#   Test Case 5) Multiple GTID ranges specified where the domain ids are
+#                listed in different orders between start/stop position
+#   Test Case 6) Only start position specified
+#   Test Case 7) Only stop position specified
+#   Test Case 8) Seq_no=0 in --start-position includes all events for a domain
+#   Test Case 9) Seq_no=0 in --stop-position excludes all events for a domain
+#   Test Case 10) Output stops for all domain ids when all --stop-position GTID
+#                 values have been hit.
+#   Test Case 11) All GTID events from other domains are printed until
+#                 the --stop-position values are hit
+#   Test Case 12) Scalar and GTID values can be used together for stop or start
+#                 position
+#   Test Case 13) If the start position is delayed within the binlog, events
+#                 occurring before that position are ignored
+#   Test Case 14) If start position is repeated, the last specification
+#                 overrides all previous ones
+#   Test Case 15) If stop position is repeated, the last specification
+#                 overrides all previous ones
+#   Test Case 16) Start position with --offset=<n> skips n events after the
+#                 first GTID is found
+#   Test Case 17) Start position with --start-datetime=<T> where T occurs
+#                 after the specified GTID results in no events before T
+#   Test Case 18) If --stop-position is specified, domains which are not present
+#                 in its list should be excluded from output
+#   Test Case 19) If the start and stop GTIDs in any domain are equal, the
+#                 domain should not have any output
+#   Test Case 20) If --start-position and --stop-position have different domain
+#                 ids, only events from GTIDs in the --stop-position list are
+#                 output
+#   Test Case 21) Successive binary logs (e.g. logs with previous logs that
+#                 have been purged) will write events when the --start-position
+#                 matches their Gtid_list_log_event state
+#   Test Case 22) Successive binary logs can be called with --stop-position and
+#                 without --start-position
+#
+# To validate for data consistency, each test case compares a checksum of
+# correct data against a variant created after replaying the binlog using
+# --(start|stop)-position. If the checksums are identical, the test passes.
+# If the checksums differ, data has been changed and the test fails.
+#
+# Additionally, this test validates the following error scenarios:
+#   Error Case 1) A GTID --start-position that does not mention all domains
+#                 that make up the binary log state should error
+#   Error Case 2) A GTID --start-position with any sequence numbers which
+#                 occur before the binary log state should result in error
+#   Error Case 3) A GTID --start-position with any sequence numbers that are not
+#                 eventually processed results in error
+#   Error Case 4) User provides invalid positions
+#   Error Case 5) User provides GTID ranges with repeated domain ids
+#
+# References:
+#   MDEV-4989: Support for GTID in mysqlbinlog
+#
+
+--source include/have_log_bin.inc
+
+--echo ###############################
+--echo #      Test Setup
+--echo ###############################
+
+## Save old state
+#
+let orig_gtid_domain_id = `select @@session.gtid_domain_id`;
+let orig_server_id = `select @@session.server_id`;
+RESET MASTER;
+
+
+--echo ######################################
+--echo #      Test Group 1
+--echo #      Run test cases on local log file
+--echo ######################################
+--let is_remote= 0
+--source include/mysqlbinlog_gtid_window_test_cases.inc
+
+--echo ######################################
+--echo #      Test Group 2
+--echo #      Run test cases on remote host
+--echo ######################################
+--let is_remote= 1
+--source include/mysqlbinlog_gtid_window_test_cases.inc
+
+# Note that error cases 1-3 are in mysqlbinlog_gtid_window_test_cases.inc
+# because we validate for error consistency of GTID state between
+# mariadb-binlog working on local files and receiving errors from a server
+
+--let err_out_= $MYSQLTEST_VARDIR/tmp/err.out
+--let tmp_out_= $MYSQLTEST_VARDIR/tmp/std.out
+
+--let $MYSQLD_DATADIR=`select @@datadir`
+--echo #
+--echo #   Error Case 4:
+--echo #   User provides invalid positions
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=z
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=z
+
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=1-
+
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-2
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=1-2
+
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=1-2-
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=1-2-
+
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=-1
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=-1
+
+--echo #
+--echo #   Error Case 5:
+--echo #   User provides GTID ranges with repeated domain ids
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1,0-1-8 --stop-position=0-1-4,0-1-12
+
+
+--echo ##############################
+--echo #      Cleanup
+--echo ##############################
+--eval SET @@global.gtid_domain_id= $orig_gtid_domain_id
+--eval SET @@global.server_id= $orig_server_id
+
+--echo # End of the tests

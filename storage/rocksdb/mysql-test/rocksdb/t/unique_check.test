@@ -107,14 +107,14 @@ truncate table t2;
 
 # 4) simulating T1 GetForUpdate() -> T2 GetForUpdate(). T2 should fail with lock wait timeout. 
 connection con1;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go';
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go1';
 send insert into t1 values (1,1);
 
 connection default;
 set debug_sync='now WAIT_FOR parked1';
 
 connection con2;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go';
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go2';
 send insert into t2 values (1,1,1);
 
 connection default;
@@ -128,7 +128,8 @@ insert into t1 values (1,2);
 insert into t2 values (2,1,2);
 
 connection default;
-set debug_sync='now SIGNAL go';
+set debug_sync='now SIGNAL go1';
+set debug_sync='now SIGNAL go2';
 
 connection con1;
 reap;
@@ -176,3 +177,11 @@ insert into t3 values (1, 1), (1, 1);
 set @@session.unique_checks = @old_val;
 # cleanup
 drop table t1, t2, t3;
+
+--echo #
+--echo # MDEV-35077 Assertion failure in myrocks::ha_rocksdb::position_to_correct_key upon using unique hash key
+--echo #
+ 
+CREATE TABLE t (s INT, UNIQUE(s) USING HASH) ENGINE=RocksDB;
+UPDATE t SET s = 1 WHERE s > 2;
+DROP TABLE t;

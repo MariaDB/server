@@ -4,6 +4,7 @@
 
 --source include/innodb_prefix_index_cluster_optimization.inc
 --source include/no_valgrind_without_big.inc
+--source include/have_sequence.inc
 
 --source include/innodb_stable_estimates.inc
 
@@ -162,7 +163,7 @@ show /*d*/ status like 'handler_read%';
 --echo #
 
 create table t0 (a int);
-insert into t0 values (1), (2), (3), (4), (5);
+insert into t0 select seq from seq_1_to_5;
 create index i_p_size on part(p_size);
 
 explain
@@ -202,7 +203,7 @@ set optimizer_switch=@save_optimizer_switch;
 --echo #
 --echo # LP Bug #915291: query using a materialized view
 --echo #                 + extended_keys = on
---echo # (valgrinf complains fixed by the patch for bug #914560)
+--echo # (valgrind complains fixed by the patch for bug #914560)
 --echo #
 
 SET optimizer_switch = 'derived_with_keys=on';
@@ -233,7 +234,7 @@ set optimizer_switch=@save_optimizer_switch;
 
 CREATE TABLE t1 (
   a int NOT NULL, b varchar(1) NOT NULL, KEY(a), KEY(b,a)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 VALUES
   (0,'j'), (8,'v'), (1,'c'), (8,'m'), (9,'d'), 
   (24,'d'), (6,'y'), (1,'t'), (6,'d'), (2,'s');
@@ -246,10 +247,11 @@ INSERT INTO t2 VALUES
   (15), (16), (17), (18), (19), (24);
 
 EXPLAIN
-SELECT a FROM t1 AS t, t2 
-  WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
-SELECT a FROM t1 AS t, t2 
-  WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+  WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+  WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+--source include/last_query_cost.inc
 
 DROP TABLE t1,t2;
 
@@ -622,7 +624,8 @@ CREATE TABLE t1 (
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+--source include/explain-no-costs.inc
+explain format=json
 select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
 drop table t1;
 
@@ -635,7 +638,8 @@ PRIMARY KEY (pk1,pk2),
 KEY k1(pk1,f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+--source include/explain-no-costs.inc
+explain format=json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 drop table t1;
 
@@ -653,7 +657,7 @@ CREATE TABLE t2 (
   a VARCHAR(20),
   KEY k1(a),
   PRIMARY KEY(pk)
-)ENGINE=INNODB;
+)ENGINE=INNODB CHARSET=latin1;
 
 INSERT INTO t2 SELECT a,a FROM t1;
 --replace_column 9 #

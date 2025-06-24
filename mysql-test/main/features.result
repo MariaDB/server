@@ -1,6 +1,6 @@
 drop table if exists t1;
 set sql_mode="";
-flush status;
+flush global status;
 show status like "feature%";
 Variable_name	Value
 Feature_application_time_periods	0
@@ -11,6 +11,8 @@ Feature_dynamic_columns	0
 Feature_fulltext	0
 Feature_gis	0
 Feature_insert_returning	0
+Feature_into_outfile	0
+Feature_into_variable	0
 Feature_invisible_columns	0
 Feature_json	0
 Feature_locale	0
@@ -124,7 +126,7 @@ select @a;
 1
 SHOW TRIGGERS IN test like 't1';
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg	INSERT	t1	set @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg	INSERT	t1	set @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop trigger trg;
 drop table t1;
 show status like "%trigger%";
@@ -174,7 +176,7 @@ create table t2 (b int, constraint foo check (b < 10));
 drop table t1, t2;
 show status like "feature_check_constraint";
 Variable_name	Value
-Feature_check_constraint	2
+Feature_check_constraint	4
 #
 # Feature insert...returning
 #
@@ -187,3 +189,23 @@ drop table t1;
 show status like "feature_insert_returning";
 Variable_name	Value
 Feature_insert_returning	1
+#
+# Feature into outfile/variables
+#
+create table t1(id1 int);
+insert into t1 values (1),(2);
+select * into outfile '../../tmp/features_outfile.1' from t1;
+select * from t1 into outfile '../../tmp/features_outfile.2';
+select id1 INTO @x from t1 where id1=1;
+select * from t1 where id1=1 into @y;
+select * from t1 where id1=@x;
+id1
+1
+select @x=@y;
+@x=@y
+1
+drop table t1;
+show status like "feature_into_%";
+Variable_name	Value
+Feature_into_outfile	4
+Feature_into_variable	2

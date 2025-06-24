@@ -11,6 +11,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 (c6 decimal(6,0)) ENGINE=InnoDB;
 CREATE TABLE t1_s (c6 decimal(6,0))
 ENGINE=SPIDER COMMENT='wrapper "mariadb", srv "srv", table "t1"' ;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 (c8 decimal(8,0), c6 decimal(6,0)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (123456), (654321);
 /* 1 */ SELECT 12345678, c6 FROM t1_s GROUP BY c6;
@@ -37,6 +39,8 @@ set spider_quick_mode= 0;
 set spider_quick_page_size= 1024;
 CREATE OR REPLACE TABLE t1_s (c6 decimal(6,0) key)
 ENGINE=SPIDER COMMENT='wrapper "mariadb", srv "srv", table "t1"' ;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 7 */ SELECT MAX(c6), SUM(c6) FROM t1_s;
 MAX(c6)	SUM(c6)
 777777	1555554

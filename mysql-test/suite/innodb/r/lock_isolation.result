@@ -14,6 +14,7 @@ a	b
 1	1
 2	2
 connect con_weird,localhost,root;
+SET innodb_snapshot_isolation=OFF;
 BEGIN;
 SELECT * FROM t;
 a	b

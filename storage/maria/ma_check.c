@@ -143,7 +143,7 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
   if (!info->s->base.born_transactional)
   {
     /*
-      There are no trids. Howver we want to set max_trid to make test of
+      There are no trids. However we want to set max_trid to make test of
       create_trid simpler.
     */
     param->max_trid= ~(TrID) 0;
@@ -569,11 +569,11 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
 
     if ((!(param->testflag & T_SILENT)))
       printf ("- check data record references index: %d\n",key+1);
-    if (keyinfo->flag & (HA_FULLTEXT | HA_SPATIAL))
+    if (keyinfo->key_alg > HA_KEY_ALG_BTREE)
       full_text_keys++;
     if (share->state.key_root[key] == HA_OFFSET_ERROR)
     {
-      if (share->state.state.records != 0 && !(keyinfo->flag & HA_FULLTEXT))
+      if (share->state.state.records != 0 && keyinfo->key_alg != HA_KEY_ALG_FULLTEXT)
         _ma_check_print_error(param, "Key tree %u is empty", key + 1);
       goto do_stat;
     }
@@ -594,7 +594,7 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
     param->max_level=0;
     if (chk_index(param, info,keyinfo, &page, &keys, param->key_crc+key,1))
       DBUG_RETURN(-1);
-    if (!(keyinfo->flag & (HA_FULLTEXT | HA_SPATIAL | HA_RTREE_INDEX)))
+    if (keyinfo->key_alg <= HA_KEY_ALG_BTREE)
     {
       if (keys != share->state.state.records)
       {
@@ -732,9 +732,8 @@ static int chk_index_down(HA_CHECK *param, MARIA_HA *info,
     if (page + keyinfo->block_length > max_length)
       goto err;
     /* Fix the remembered key file length. */
-    share->state.state.key_file_length= (max_length &
-                                          ~ (my_off_t) (keyinfo->block_length -
-                                                        1));
+    share->state.state.key_file_length=
+                        max_length & ~ (my_off_t) (keyinfo->block_length - 1);
     /* purecov: end */
   }
 
@@ -879,7 +878,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   DBUG_DUMP("buff", anc_page->buff, anc_page->size);
 
   /* TODO: implement appropriate check for RTree keys */
-  if (keyinfo->flag & (HA_SPATIAL | HA_RTREE_INDEX))
+  if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
     DBUG_RETURN(0);
 
   alloc_on_stack(*param->stack_end_ptr, temp_buff, temp_buff_alloced,
@@ -1038,7 +1037,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
     (*key_checksum)+= maria_byte_checksum(tmp_key.data, tmp_key.data_length);
     record= _ma_row_pos_from_key(&tmp_key);
 
-    if (keyinfo->flag & HA_FULLTEXT) /* special handling for ft2 */
+    if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT) /* special handling for ft2 */
     {
       uint off;
       int  subkeys;
@@ -1208,7 +1207,7 @@ static int check_keys_in_record(HA_CHECK *param, MARIA_HA *info, int extend,
     if (maria_is_key_active(share->state.key_map, keynr))
     {
       MARIA_KEY key;
-      if (!(keyinfo->flag & HA_FULLTEXT))
+      if (keyinfo->key_alg != HA_KEY_ALG_FULLTEXT)
       {
         (*keyinfo->make_key)(info, &key, keynr, info->lastkey_buff, record,
                              start_recpos, 0);
@@ -1218,11 +1217,8 @@ static int check_keys_in_record(HA_CHECK *param, MARIA_HA *info, int extend,
           /* We don't need to lock the key tree here as we don't allow
              concurrent threads when running maria_chk
           */
-          int search_result=
-#ifdef HAVE_RTREE_KEYS
-            (keyinfo->flag & (HA_SPATIAL | HA_RTREE_INDEX)) ?
+          int search_result= keyinfo->key_alg == HA_KEY_ALG_RTREE ?
             maria_rtree_find_first(info, &key, MBR_EQUAL | MBR_DATA) :
-#endif
             _ma_search(info, &key, SEARCH_SAME, share->state.key_root[keynr]);
           if (search_result)
           {
@@ -1671,7 +1667,7 @@ static int check_page_layout(HA_CHECK *param, MARIA_HA *info,
   }
   *free_slots_found= free_entries;
 
-  /* Check directry */
+  /* Check directory */
   dir_entry= page+ block_size - PAGE_SUFFIX_SIZE;
   first_dir_entry= (block_size - row_count * DIR_ENTRY_SIZE -
                     PAGE_SUFFIX_SIZE);
@@ -1743,7 +1739,7 @@ static int check_page_layout(HA_CHECK *param, MARIA_HA *info,
     This is for rows-in-block format.
 
     Before this, we have already called check_page_layout(), so
-    we know the block is logicaly correct (even if the rows may not be that)
+    we know the block is logically correct (even if the rows may not be that)
 
   RETURN
    0  ok
@@ -2214,8 +2210,7 @@ int maria_chk_data_link(HA_CHECK *param, MARIA_HA *info, my_bool extend)
     for (key=0 ; key < share->base.keys;  key++)
     {
       if (param->tmp_key_crc[key] != param->key_crc[key] &&
-          !(share->keyinfo[key].flag &
-            (HA_FULLTEXT | HA_SPATIAL | HA_RTREE_INDEX)))
+          share->keyinfo[key].key_alg <= HA_KEY_ALG_BTREE)
       {
 	_ma_check_print_error(param,"Checksum for key: %2d doesn't match "
                               "checksum for records",
@@ -2879,7 +2874,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
   }
   if (!share->internal_table &&
       mysql_file_chsize(share->kfile.file,
-                        share->state.state.key_file_length, 0, MYF(0)))
+                        share->state.state.key_file_length, 0, MYF(0)) > 0)
   {
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
@@ -2899,7 +2894,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
 
   if (param->testflag & T_SAFE_REPAIR)
   {
-    /* Don't repair if we loosed more than one row */
+    /* Don't repair if we lost more than one row */
     if (sort_info.new_info->s->state.state.records+1 < start_records)
     {
       share->state.state.records= start_records;
@@ -2991,8 +2986,9 @@ err:
   if (got_error)
   {
     if (! param->error_printed)
-      _ma_check_print_error(param,"%d for record at pos %s",my_errno,
-		  llstr(sort_param.start_recpos,llbuff));
+      _ma_check_print_error(param,"Got error %d for record at pos %s when creating index",
+                            my_errno,
+                            llstr(sort_param.start_recpos,llbuff));
     (void)_ma_flush_table_files_before_swap(param, info);
     if (sort_info.new_info && sort_info.new_info != sort_info.info)
     {
@@ -3043,7 +3039,7 @@ static int writekeys(MARIA_SORT_PARAM *sort_param)
   {
     if (maria_is_key_active(share->state.key_map, i))
     {
-      if (share->keyinfo[i].flag & HA_FULLTEXT )
+      if (share->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_ma_ft_add(info, i, key_buff, record, filepos))
 	  goto err;
@@ -3068,7 +3064,7 @@ static int writekeys(MARIA_SORT_PARAM *sort_param)
     {
       if (maria_is_key_active(share->state.key_map, i))
       {
-	if (share->keyinfo[i].flag & HA_FULLTEXT)
+	if (share->keyinfo[i].key_alg == HA_KEY_ALG_FULLTEXT)
         {
           if (_ma_ft_del(info,i,key_buff,record,filepos))
 	    break;
@@ -3359,7 +3355,7 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
     goto err;
   }
 
-  if ((nod_flag= page.node) || keyinfo->flag & HA_FULLTEXT)
+  if ((nod_flag= page.node) || keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     keypos= page.buff + share->keypage_header + nod_flag;
     endpos= page.buff + page.size;
@@ -3385,7 +3381,7 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
 	  !(*keyinfo->get_key)(&key, page.flag, nod_flag, &keypos))
 	break;
       DBUG_ASSERT(keypos <= endpos);
-      if (keyinfo->flag & HA_FULLTEXT)
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
       {
         uint off;
         int  subkeys;
@@ -3669,28 +3665,35 @@ err:
 
 int maria_zerofill(HA_CHECK *param, MARIA_HA *info, const char *name)
 {
-  my_bool error, reenable_logging,
+  my_bool error= 0, reenable_logging,
     zero_lsn= !(param->testflag & T_ZEROFILL_KEEP_LSN);
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("maria_zerofill");
   if ((reenable_logging= share->now_transactional))
     _ma_tmp_disable_logging_for_table(info, 0);
-  if (!(error= (maria_zerofill_index(param, info, name) ||
-                maria_zerofill_data(param, info, name) ||
-                _ma_set_uuid(info->s, 0))))
+
+  if (share->state.changed & (STATE_NOT_ZEROFILLED | (zero_lsn ? STATE_HAS_LSN : 0)))
+    error= (maria_zerofill_index(param, info, name) ||
+            maria_zerofill_data(param, info, name));
+  if (!error)
+    error= _ma_set_uuid(info->s, 0);
+
+  if (!error)
   {
     /*
-      Mark that we have done zerofill of data and index. If we zeroed pages'
-      LSN, table is movable.
+      Mark that we have done zerofill of data and index. If we zeroed the LSN
+      on the pages, table is movable.
     */
     share->state.changed&= ~STATE_NOT_ZEROFILLED;
     if (zero_lsn)
     {
-      share->state.changed&= ~(STATE_NOT_MOVABLE | STATE_MOVED);
+      share->state.changed&= ~(STATE_NOT_MOVABLE | STATE_MOVED | STATE_HAS_LSN);
       /* Table should get new LSNs */
       share->state.create_rename_lsn= share->state.is_of_horizon=
         share->state.skip_redo_lsn= LSN_NEEDS_NEW_STATE_LSNS;
     }
+    else
+      share->state.changed|= STATE_HAS_LSN;
     /* Ensure state is later flushed to disk, if within maria_chk */
     info->update= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
 
@@ -3971,7 +3974,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
     share->state.state.records=share->state.state.del=share->state.split=0;
     share->state.state.empty=0;
 
-    if (sort_param.keyinfo->flag & HA_FULLTEXT)
+    if (sort_param.keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                     sort_param.keyinfo->seg->charset->mbmaxlen;
@@ -4180,7 +4183,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
       skr=share->base.reloc*share->base.min_pack_length;
 #endif
     if (skr != sort_info.filelength)
-      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)))
+      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)) > 0)
 	_ma_check_print_warning(param,
 			       "Can't change size of datafile,  error: %d",
 			       my_errno);
@@ -4191,7 +4194,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
 
   if (!share->internal_table &&
       mysql_file_chsize(share->kfile.file,
-                        share->state.state.key_file_length, 0, MYF(0)))
+                        share->state.state.key_file_length, 0, MYF(0)) > 0)
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
 			   my_errno);
@@ -4225,7 +4228,7 @@ err:
   if (got_error)
   {
     if (! param->error_printed)
-      _ma_check_print_error(param,"%d when fixing table",my_errno);
+      _ma_check_print_error(param,"Got error %d when trying to repair table",my_errno);
     (void)_ma_flush_table_files_before_swap(param, info);
     if (sort_info.new_info && sort_info.new_info != sort_info.info)
     {
@@ -4495,6 +4498,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   for (i=key=0, istep=1 ; key < share->base.keys ;
        rec_per_key_part+=sort_param[i].keyinfo->keysegs, i+=istep, key++)
   {
+    sort_param[i].check_param= param;
     sort_param[i].key=key;
     sort_param[i].keyinfo=share->keyinfo+key;
     sort_param[i].seg=sort_param[i].keyinfo->seg;
@@ -4515,7 +4519,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     istep=1;
     if ((!(param->testflag & T_SILENT)))
       printf ("- Fixing index %d\n",key+1);
-    if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
+    if (sort_param[i].keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       sort_param[i].key_read=sort_maria_ft_key_read;
       sort_param[i].key_write=sort_maria_ft_key_write;
@@ -4562,7 +4566,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     total_key_length+=sort_param[i].key_length;
 #endif
 
-    if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
+    if (sort_param[i].keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
     {
       uint ft_max_word_len_for_sort=
         (FT_MAX_WORD_LEN_FOR_SORT *
@@ -4730,7 +4734,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       skr=share->base.reloc*share->base.min_pack_length;
 #endif
     if (skr != sort_info.filelength)
-      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)))
+      if (mysql_file_chsize(info->dfile.file, skr, 0, MYF(0)) > 0)
 	_ma_check_print_warning(param,
 			       "Can't change size of datafile,  error: %d",
 			       my_errno);
@@ -4740,7 +4744,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 
   if (!share->internal_table &&
       mysql_file_chsize(share->kfile.file,
-                        share->state.state.key_file_length, 0, MYF(0)))
+                        share->state.state.key_file_length, 0, MYF(0)) > 0)
     _ma_check_print_warning(param,
 			   "Can't change size of indexfile, error: %d",
                             my_errno);
@@ -4801,7 +4805,8 @@ err:
   if (got_error)
   {
     if (! param->error_printed)
-      _ma_check_print_error(param,"%d when fixing table",my_errno);
+      _ma_check_print_error(param,"Got error %d when repairing table with parallel repair",
+                            my_errno);
     (void)_ma_flush_table_files_before_swap(param, info);
     if (new_file >= 0)
     {
@@ -6322,7 +6327,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
                           "indexfile", my_errno);
     goto end;
   }
-  /* We are modifing */
+  /* We are modifying */
   (*org_info)->s->options&= ~HA_OPTION_READ_ONLY_DATA;
   _ma_readinfo(*org_info,F_WRLCK,0);
   (*org_info)->s->state.state.records= info.state->records;
@@ -6609,16 +6614,16 @@ static ha_checksum maria_byte_checksum(const uchar *buf, uint length)
 my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows)
 {
   uint key_maxlength=key->maxlength;
-  if (key->flag & HA_FULLTEXT)
+  if (key->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                   key->seg->charset->mbmaxlen;
     key_maxlength+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
+    return (ulonglong) rows * key_maxlength > maria_max_temp_length;
   }
-  return (key->flag & HA_SPATIAL) ||
-          (key->flag & (HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY | HA_FULLTEXT) &&
-	  ((ulonglong) rows * key_maxlength >
-	   (ulonglong) maria_max_temp_length));
+  return key->key_alg == HA_KEY_ALG_RTREE ||
+          (key->flag & (HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY) &&
+	  ((ulonglong) rows * key_maxlength > maria_max_temp_length));
 }
 
 /*

@@ -1,5 +1,9 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection master;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
@@ -961,7 +965,9 @@ include/rpl_stop_server.inc [server_number=1]
 include/rpl_start_server.inc [server_number=1]
 --> Master binlog: Server ver: 5.0.16-debug-log, Binlog ver: 4
 connection slave;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 START SLAVE;
 SELECT MASTER_POS_WAIT('master-bin.000001', 513) >= 0;
 MASTER_POS_WAIT('master-bin.000001', 513) >= 0
@@ -972,7 +978,7 @@ t1
 t2
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	INSERT INTO t2 VALUES(CURRENT_USER())	AFTER	#			latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	INSERT INTO t2 VALUES(CURRENT_USER())	AFTER	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c
 1
@@ -992,7 +998,9 @@ DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE t2;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 SHOW TABLES LIKE 't_';
 Tables_in_test (t_)
@@ -1083,7 +1091,12 @@ drop table t1;
 connection slave;
 connection master;
 include/rpl_reset.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection master;
 create table t1 ( f int ) engine = innodb;
 create table log ( r int ) engine = myisam;
@@ -1127,9 +1140,9 @@ before insert on t1
 for each row follows tr1 set NEW.b := (NEW.b+1)*3;
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr1	INSERT	t1	set NEW.b := (NEW.b+1)*2	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-tr2	INSERT	t1	set NEW.b := (NEW.b+1)*3	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-tr3	INSERT	t1	set NEW.b := (NEW.b+1)*4	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+tr1	INSERT	t1	set NEW.b := (NEW.b+1)*2	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+tr2	INSERT	t1	set NEW.b := (NEW.b+1)*3	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+tr3	INSERT	t1	set NEW.b := (NEW.b+1)*4	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 insert into t1 values (1,1);
 select * from t1;
 a	b
@@ -1137,9 +1150,9 @@ a	b
 connection slave;
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr1	INSERT	t1	set NEW.b := (NEW.b+1)*2	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-tr2	INSERT	t1	set NEW.b := (NEW.b+1)*3	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-tr3	INSERT	t1	set NEW.b := (NEW.b+1)*4	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+tr1	INSERT	t1	set NEW.b := (NEW.b+1)*2	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+tr2	INSERT	t1	set NEW.b := (NEW.b+1)*3	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+tr3	INSERT	t1	set NEW.b := (NEW.b+1)*4	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select * from t1;
 a	b
 1	64
@@ -1151,11 +1164,11 @@ CREATE OR REPLACE TRIGGER tr BEFORE DELETE ON t1 FOR EACH ROW PRECEDES non_exist
 ERROR HY000: Referenced trigger 'non_existing_trigger' for the given action time and event type does not exist
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr	INSERT	t1	SET @a=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+tr	INSERT	t1	SET @a=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection slave;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr	INSERT	t1	SET @a=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+tr	INSERT	t1	SET @a=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 drop table t1;
 include/rpl_end.inc

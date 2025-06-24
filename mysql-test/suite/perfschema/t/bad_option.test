@@ -6,6 +6,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/not_as_root.inc
 
 let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
 --error 0,1
@@ -31,7 +32,7 @@ let SEARCH_PATTERN= \[ERROR\].*unknown variable 'performance-schema-enabled=mayb
 # [ERROR] unknown variable 'performance-schema-max_=12'
 let SEARCH_PATTERN= \[ERROR\].*unknown variable 'performance-schema-max_=12';
 --source include/search_pattern_in_file.inc
---echo # Server start with ambigous startup option 'performance-schema-max_=12' : pass
+--echo # Server start with ambiguous startup option 'performance-schema-max_=12' : pass
 # The important points is here:
 # 1. There is no option 'performance-schema-max_' or 'performance-schema-max-' at all.
 # 2. But we have many options where the name starts exact with this pattern.

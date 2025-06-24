@@ -4,6 +4,7 @@
 
 # Table Country
 
+BEGIN;
 INSERT IGNORE INTO Country VALUES
 ('AFG','Afghanistan',652090.00,22720000,1),
 ('NLD','Netherlands',41526.00,15864000,5),
@@ -214,7 +215,7 @@ INSERT IGNORE INTO Country VALUES
 ('TCD','Chad',1284000.00,7651000,3337),
 ('CZE','Czech Republic',78866.00,10278100,3339),
 ('TUN','Tunisia',163610.00,9586000,3349),
-('TUR','Turkey',774815.00,66591000,3358),
+('TUR','Türkiye',774815.00,66591000,3358),
 ('TKM','Turkmenistan',488100.00,4459000,3419),
 ('TCA','Turks and Caicos Islands',430.00,17000,3423),
 ('TUV','Tuvalu',26.00,12000,3424),
@@ -5339,5 +5340,6 @@ INSERT INTO CountryLanguage VALUES
 ('CHN','Dong',0.2),
 ('RUS','Belorussian',0.3),
 ('USA','Portuguese',0.2);
+COMMIT;
 
 ANALYZE TABLE Country, City, CountryLanguage;

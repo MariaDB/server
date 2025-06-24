@@ -12,7 +12,7 @@ call mtr.add_suppression("Timeout waiting for reply of binlog");
 
 # The following tests prove
 # A.
-# no out-of-order gtid error is done to the stict gtid mode semisync
+# no out-of-order gtid error is done to the strict gtid mode semisync
 # slave receives the same server-id gtid event from the past (of its gtid
 # state). Such transaction is silently ignored similarly to
 # replicate_same_sever_id; and
@@ -55,7 +55,7 @@ INSERT INTO t1(a) VALUES (1);
 set @@global.gtid_strict_mode = true;
 set @@global.rpl_semi_sync_slave_enabled = 1;
 
-evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+evalp CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=SLAVE_POS;
 --source include/start_slave.inc
 --echo ... is done.
 

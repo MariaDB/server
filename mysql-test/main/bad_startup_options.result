@@ -1,2 +1,12 @@
 FOUND 1 /\[ERROR\] SSL error: Unable to get certificate/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Failed to set ciphers to use/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
+FOUND 1 /SSL passphrase error: failed to open file 'BadFile'/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
+FOUND 1 /\[Warning\] ssl passphrase file '.*' is not secure/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
+FOUND 1 /SSL passphrase error: environment variable 'BadEnv' not found/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
+FOUND 1 /SSL passphrase error: ssl-passphrase value must be prefixed with 'file:', 'env:', or 'pass:'/ in errorlog.err
+FOUND 1 /\[ERROR\] SSL error: Unable to get private key/ in errorlog.err
 # restart

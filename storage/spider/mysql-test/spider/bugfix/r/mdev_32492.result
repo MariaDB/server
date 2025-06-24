@@ -13,16 +13,20 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `c` int(11) NOT NULL,
   PRIMARY KEY (`c`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Warnings:
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost
 DROP TABLE t;
 CREATE TABLE t (c INT) ENGINE=Spider COMMENT='port "1 1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DELETE FROM t;
 ERROR HY000: Unable to connect to foreign data source: localhost
 drop table t;
 CREATE TABLE t1 (a INT,b VARCHAR(255),PRIMARY KEY(a)) ENGINE=Spider comment="srv 'srv', table 't1', read_only_mode '1'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc'),(4,'ddd');
 ERROR HY000: Table 'test.t1' is read only
 SHOW CREATE TABLE t1;
@@ -31,15 +35,20 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='srv ''srv'', table ''t1'', read_only_mode ''1'''
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='srv ''srv'', table ''t1'', read_only_mode ''1'''
 Warnings:
 Error	12719	An infinite loop is detected when opening table test.t1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT) ENGINE=Spider comment="port '123 456'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT IGNORE INTO t1 VALUES (42),(42);
 ERROR HY000: Unable to connect to foreign data source: localhost
 drop table t1;
 CREATE TABLE t1 (c INT, KEY(c)) ENGINE=Spider COMMENT='WRAPPER "mysql", SRV "srv",TABLE "t2", PK_NAME "f"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'pk_name' is deprecated and will be removed in a future release
 SET GLOBAL general_log=1;
 INSERT INTO t1 VALUES (1, "aaa"),(2, "bbb"),(3, "ccc"),(4, "ddd");
 ERROR 21S01: Column count doesn't match value count at row 1
@@ -48,11 +57,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
   KEY `c` (`c`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", SRV "srv",TABLE "t2", PK_NAME "f"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='WRAPPER "mysql", SRV "srv",TABLE "t2", PK_NAME "f"'
 Warnings:
 Error	12702	Remote table 'test.t2' is not found
 DROP TABLE t1;
 CREATE TABLE t1 (a INT) ENGINE=Spider comment='port "123 456"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t1;
 ERROR HY000: Unable to connect to foreign data source: localhost
 INSERT IGNORE INTO t1 VALUES (42),(42);

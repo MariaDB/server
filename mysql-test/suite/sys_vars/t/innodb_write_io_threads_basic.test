@@ -19,10 +19,20 @@ select * from information_schema.session_variables where variable_name='innodb_w
 --enable_warnings
 
 #
-# show that it's read-only
+# show that it's not read-only
 #
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
+--disable_cursor_protocol
+select @@innodb_write_io_threads into @n;
+--enable_cursor_protocol
+--disable_warnings
 set global innodb_write_io_threads=1;
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-set session innodb_write_io_threads=1;
+--enable_warnings
+select @@innodb_write_io_threads;
+--disable_warnings
+set global innodb_write_io_threads=64;
+--enable_warnings
+select @@innodb_write_io_threads;
+--disable_warnings
+set global innodb_write_io_threads=@n;
+--enable_warnings
 

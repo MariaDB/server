@@ -67,7 +67,6 @@ class PFS_opaque_container_page;
 */
 
 extern my_bool pfs_enabled;
-extern enum_timer_name *class_timers[];
 
 /** Key, naming a synch instrument (mutex, rwlock, cond). */
 typedef unsigned int PFS_sync_key;
@@ -158,8 +157,6 @@ struct PFS_instr_class
   char m_name[PFS_MAX_INFO_NAME_LENGTH];
   /** Length in bytes of @c m_name. */
   uint m_name_length;
-  /** Timer associated with this class. */
-  enum_timer_name *m_timer;
 
   bool is_singleton() const
   {
@@ -266,6 +263,46 @@ struct PFS_table_share_key
   char m_hash_key[PFS_TABLESHARE_HASHKEY_SIZE];
   /** Length in bytes of @c m_hash_key. */
   uint m_key_length;
+
+  size_t available_length() const
+  {
+    return sizeof(m_hash_key) - m_key_length;
+  }
+
+  char *end()
+  {
+    return m_hash_key + m_key_length;
+  }
+
+  void set(bool temporary,
+           const char *schema_name, size_t schema_name_length,
+           const char *table_name, size_t table_name_length);
+
+private:
+  // Append and 0-terminate a string with an optional lower-case conversion
+  void append_opt_casedn_z(CHARSET_INFO *cs,
+                           const char *str, size_t length,
+                           bool casedn)
+  {
+    DBUG_ASSERT(length <= sizeof(m_hash_key)); // Expect valid db/tbl names
+    size_t dst_length= available_length();
+    if (dst_length > 0)
+    {
+      dst_length--;
+      DBUG_ASSERT(dst_length >= length);
+      if (casedn)
+      {
+        m_key_length+= (uint) cs->casedn(str, length, end(), dst_length);
+      }
+      else
+      {
+        set_if_smaller(length, dst_length); // Safety for release builds
+        memcpy(end(), str, length);
+        m_key_length+= (uint) length;
+      }
+      m_hash_key[m_key_length++]= '\0';
+    }
+  }
 };
 
 /** Table index or 'key' */

@@ -6,7 +6,9 @@ SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1
 ####################################
 # QUERYING PS STATEMENT DIGEST
 ####################################
-SELECT event_name, digest, digest_text, sql_text FROM events_statements_history_long;
-event_name	digest	digest_text	sql_text
-statement/sql/select	3ff8cd05d2991a9ac9b182801987d61e	SELECT ? + ? + 	SELECT ...
-statement/sql/truncate	eddd22a5c210f96a5160acbb5d7563b3	TRUNCATE TABLE 	truncat...
+create table test.events_long select * from events_statements_history_long;
+SELECT event_name, test.check_digest(digest), digest_text, sql_text FROM test.events_long;
+event_name	test.check_digest(digest)	digest_text	sql_text
+statement/sql/select	1	SELECT ? + ? + 	SELECT ...
+statement/sql/truncate	1	TRUNCATE TABLE 	truncat...
+drop table test.events_long;

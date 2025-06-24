@@ -108,7 +108,7 @@ def	foo	t3	b	Column	`b` > 0
 def	foo	t3	b	Table	`b` > 10
 def	foo	t3	b1	Table	`b` < 123456789012345678901234567890123456789012345678901234567890123456789
 disconnect con1;
-CONNECT con2, localhost, boo2,, test;
+CONNECT con2, localhost, boo2,,"*NO-ONE*";
 SELECT * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 disconnect con2;
@@ -139,6 +139,7 @@ SELECT * FROM information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 def	db	t1	CONSTRAINT_1	Table	`b` > 0
 def	mysql	global_priv	Priv	Column	json_valid(`Priv`)
+def	mysql	servers	Options	Column	json_valid(`Options`)
 CONNECT con1,localhost, foo,, db;
 SELECT a FROM t1;
 a
@@ -169,9 +170,10 @@ t	CREATE TABLE `t` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`t0` > 0),
   CONSTRAINT `tc_1` CHECK (`t1` > 1),
   CONSTRAINT `t2` CHECK (`t2` > 1)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from information_schema.table_constraints where CONSTRAINT_TYPE='CHECK';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
+def	mysql	Options	mysql	servers	CHECK
 def	mysql	Priv	mysql	global_priv	CHECK
 def	test	CONSTRAINT_1	test	t	CHECK
 def	test	t1	test	t	CHECK
@@ -181,6 +183,7 @@ def	test	tc_1	test	t	CHECK
 select * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 def	mysql	global_priv	Priv	Column	json_valid(`Priv`)
+def	mysql	servers	Options	Column	json_valid(`Options`)
 def	test	t	CONSTRAINT_1	Table	`t0` > 0
 def	test	t	t1	Column	`t1` < 0
 def	test	t	t2	Column	`t2` < -1

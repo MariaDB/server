@@ -28,6 +28,8 @@ ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'C
 CREATE TABLE tbl_a (
 a INT
 ) ENGINE=Spider CHARSET utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM tbl_a;
 a
 ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16;
@@ -35,6 +37,8 @@ ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'C
 ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16le;
 ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'CHARSET utf16le'
 ALTER TABLE tbl_a CONVERT TO CHARACTER SET latin1;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 connection child2_1;

@@ -1,8 +1,6 @@
 --source include/have_sequence.inc
 --source include/not_embedded.inc
 --source include/have_innodb.inc
-# Testcase for MDEV-33306 takes ~6 minutes with valgrind:
---source include/not_valgrind.inc
 
 #
 # Show the costs for rowid filter
@@ -15,7 +13,7 @@ create table t1 (
   fl2 tinyint default 0,
   index idx1(nm, fl1),
   index idx2(fl2)
-) engine=myisam;
+) engine=myisam charset=latin1;
 
 create table name (
   pk int primary key auto_increment,
@@ -54,26 +52,10 @@ select json_detailed(json_extract(@trace, '$**.considered_access_paths'));
 --enable_ps_protocol
 
 drop table t1, name, flag2;
-
 select @@optimizer_adjust_secondary_key_costs;
 set @@optimizer_adjust_secondary_key_costs=7;
 select @@optimizer_adjust_secondary_key_costs;
 set @@optimizer_adjust_secondary_key_costs=default;
-
---echo #
---echo # MDEV-33306 Optimizer choosing incorrect index in 10.6, 10.5 but not in 10.4
---echo #
-
-create table t1 (a int primary key, b int, c int, d int, key(b),key(c)) engine=innodb;
-insert into t1 select seq, mod(seq,10), mod(seq,2), seq from seq_1_to_50000;
---replace_column 9 #
-explain select b, sum(d) from t1 where c=0 group by b;
-select b, sum(d) from t1 where c=0 group by b;
-set @@optimizer_adjust_secondary_key_costs="disable_forced_index_in_group_by";
---replace_column 9 #
-explain select b, sum(d) from t1 where c=0 group by b;
-select b, sum(d) from t1 where c=0 group by b;
-drop table t1;
 
 --echo #
 --echo # MDEV-34664: fix_innodb_cardinality

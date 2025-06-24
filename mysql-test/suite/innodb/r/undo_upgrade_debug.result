@@ -1,0 +1,43 @@
+#
+#  MDEV-19229 Allow innodb_undo_tablespaces to be changed
+#        after database creation
+#
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+set global innodb_fast_shutdown=0;
+# case 1: Abort after resetting TRX_SYS page rollback segments
+# restart: --innodb_undo_tablespaces=4 --debug_dbug=+d,after_rseg_reset_abort
+# restart: --innodb_undo_tablespaces=4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+# case 2: Abort after deleting the old undo tablespaces
+# restart: --innodb_undo_tablespaces=2 --debug_dbug=+d,after_deleting_old_undo_abort
+# restart: --innodb_undo_tablespaces=2
+# Should list 2 undo log tablespaces
+undo001
+undo002
+# case 3: Abort after successfully deleting the old undo tablespace
+# restart: --innodb_undo_tablespaces=3 --debug_dbug=+d,after_deleting_old_undo_success
+# restart: --innodb_undo_tablespaces=3
+# Should list 3 undo log tablespaces
+undo001
+undo002
+undo003
+# case 4: Abort after re-creating new undo tablespaces
+# restart: --innodb_undo_tablespaces=4 --debug_dbug=+d,after_reinit_undo_abort
+# restart: --innodb_undo_tablespaces=4
+# Should list 4 undo log tablespaces
+undo001
+undo002
+undo003
+undo004
+# case 5: Abort after re-creating new undo tablespaces successfully
+# restart: --innodb_undo_tablespaces=2 --debug_dbug=+d,after_reinit_undo_success
+# restart: --innodb_undo_tablespaces=2
+# Should list 2 undo log tablespaces
+undo001
+undo002

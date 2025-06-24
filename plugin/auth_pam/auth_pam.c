@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 
+#include <my_global.h>
 #include <config_auth_pam.h>
 #include <unistd.h>
 #include <string.h>
@@ -61,7 +62,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   PAM_DEBUG((stderr, "PAM: opening pipes.\n"));
   if (pipe(p_to_c) < 0 || pipe(c_to_p) < 0)
   {
-    my_printf_error(ENOEXEC, "pam: cannot create pipes (errno: %M)",
+    my_printf_error(ENOEXEC, "pam: cannot create pipes (errno: %iE)",
                     ME_ERROR_LOG_ONLY, errno);
     return CR_ERROR;
   }
@@ -93,7 +94,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   if (res)
   {
-    my_printf_error(ENOEXEC, "pam: cannot exec %s (errno: %M)",
+    my_printf_error(ENOEXEC, "pam: cannot exec %s (errno: %iE)",
                     ME_ERROR_LOG_ONLY, toolpath, errno);
     goto error_ret;
   }

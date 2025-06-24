@@ -225,8 +225,6 @@ mc_mb       - converts the given Unicode code into multi-byte sequence.
 
 Case and sort conversion
 ------------------------
-caseup_str  - converts the given 0-terminated string to uppercase
-casedn_str  - converts the given 0-terminated string to lowercase
 caseup      - converts the given string to lowercase using length
 casedn      - converts the given string to lowercase using length
 

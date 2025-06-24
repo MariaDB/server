@@ -154,7 +154,7 @@ typedef struct st_mi_create_info
   ulonglong auto_increment;
   ulonglong data_file_length;
   ulonglong key_file_length;
-  uint old_options;
+  uint old_options, rec_reflength;
   uint16 language;
   my_bool with_auto_increment;
 } MI_CREATE_INFO;
@@ -357,6 +357,7 @@ typedef struct st_mi_sort_param
   MEM_ROOT wordroot;
   uchar *record;
   MY_TMPDIR *tmpdir;
+  HA_CHECK *check_param;
 
   /*
     The next two are used to collect statistics, see update_key_parts for
@@ -435,6 +436,8 @@ int thr_write_keys(MI_SORT_PARAM *sort_param);
 int sort_write_record(MI_SORT_PARAM *sort_param);
 int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages, ulonglong);
 my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows);
+struct OPTIMIZER_COSTS;
+void myisam_update_optimizer_costs(struct OPTIMIZER_COSTS *costs);
 
 #ifdef	__cplusplus
 }

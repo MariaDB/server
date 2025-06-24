@@ -139,6 +139,7 @@ SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
 #
 
 --connection node_1
+SET innodb_snapshot_isolation=OFF;
 INSERT INTO t1 VALUES (30);
 INSERT INTO t1 VALUES (31);
 INSERT INTO t1 VALUES (32);

@@ -1,0 +1,53 @@
+{
+  "serialNumber": "urn:uuid:@UUID@",
+  "version": 1,
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "metadata": {
+   "lifecycles": [
+      {"phase": "build"}
+   ],
+   "component": {
+      "bom-ref": "@CPACK_PACKAGE_NAME@",
+      "type": "application",
+      "name": "@CPACK_PACKAGE_NAME@",
+      "version": "@CPACK_PACKAGE_VERSION@",
+      "supplier": {
+        "name": "@CPACK_PACKAGE_VENDOR@",
+        "url": [
+          "@CPACK_PACKAGE_URL@"
+        ]
+      },
+      "purl": "pkg:github/@GITHUB_REPO_USER@/@GITHUB_REPO_NAME@@@GIT_REV_SHORT@",
+      "cpe": "cpe:2.3:a:mariadb:mariadb:@CPACK_PACKAGE_VERSION@:*:*:*:*:*:*",
+      "licenses": [
+          {
+            "license": {
+              "id": "GPL-2.0"
+            }
+          }
+      ],
+      "copyright": "Copyright (C) @CURRENT_YEAR@ MariaDB plc, MariaDB Foundation and others"
+    },
+    "authors": [
+      {
+        "email": "info@mariadb.com",
+        "name": "MariaDB"
+      }
+    ],
+    "properties": [
+      {
+        "name": "package_name",
+        "value": "@CPACK_PACKAGE_FILE_NAME@"
+      }
+    ],
+    "timestamp": "@TIMESTAMP@"
+  },
+  "components": [
+   @sbom_components@
+  ],
+  "dependencies": [
+   @sbom_dependencies@
+  ]
+}

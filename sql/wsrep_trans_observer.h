@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifndef WSREP_TRANS_OBSERVER_H
 #define WSREP_TRANS_OBSERVER_H
@@ -165,7 +165,7 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
 /*
   Called after each row operation.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_row_internal(THD* thd)
 {
@@ -253,7 +253,7 @@ static inline bool wsrep_run_commit_hook(THD* thd, bool all)
 /*
   Called before the transaction is prepared.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_before_prepare(THD* thd, bool all)
 {
@@ -288,7 +288,7 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
 /*
   Called after the transaction has been prepared.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_prepare(THD* thd, bool all)
 {
@@ -307,7 +307,7 @@ static inline int wsrep_after_prepare(THD* thd, bool all)
   This function must be called from both client and
   applier contexts before commit.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_before_commit(THD* thd, bool all)
 {
@@ -315,12 +315,14 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   WSREP_DEBUG("wsrep_before_commit: %d, %lld",
               wsrep_is_real(thd, all),
               (long long)wsrep_thd_trx_seqno(thd));
+  THD_STAGE_INFO(thd, stage_waiting_certification);
   int ret= 0;
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+
   if ((ret= thd->wsrep_cs().before_commit()) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
-    if (!thd->variables.gtid_seq_no && 
+    if (!thd->variables.gtid_seq_no &&
         (thd->wsrep_trx().ws_meta().flags() & wsrep::provider::flag::commit))
     {
         uint64 seqno= 0;
@@ -367,7 +369,7 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   @param all 
   @param err Error buffer in case of applying error
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_ordered_commit(THD* thd, bool all)
 {
@@ -381,7 +383,7 @@ static inline int wsrep_ordered_commit(THD* thd, bool all)
 /*
   Called after the transaction has been committed.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_commit(THD* thd, bool all)
 {
@@ -407,7 +409,7 @@ static inline int wsrep_after_commit(THD* thd, bool all)
 /*
   Called before the transaction is rolled back.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_before_rollback(THD* thd, bool all)
 {
@@ -453,7 +455,7 @@ static inline int wsrep_before_rollback(THD* thd, bool all)
 /*
   Called after the transaction has been rolled back.
 
-  Return zero on succes, non-zero on failure.
+  Return zero on success, non-zero on failure.
  */
 static inline int wsrep_after_rollback(THD* thd, bool all)
 {

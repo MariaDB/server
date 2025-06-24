@@ -78,4 +78,3 @@ select variable_value < 1024*1024*1024 from information_schema.global_status whe
 --echo #
 --echo # End of 10.2 tests
 --echo #
-

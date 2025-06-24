@@ -2,7 +2,7 @@
 # MDEV-22761 KILL QUERY during rowid_filter, crashes
 #
 create table t2(a int);
-insert into t2 select * from seq_0_to_99;
+insert into t2 select seq from seq_1_to_100;
 CREATE TABLE t3 (
 key1 int ,
 key2 int,
@@ -10,16 +10,11 @@ filler varchar(255),
 KEY (key1),
 KEY (key2)
 );
+insert into t3 select seq,seq, 'filler-data-filler-data' from seq_1_to_2000;
 select engine from information_schema.tables
 where table_schema=database() and table_name='t3';
 engine
 MyISAM
-insert into t3
-select
-A.seq,
-B.seq,
-'filler-data-filler-data'
-from seq_0_to_99 A, seq_0_to_99 B;
 analyze table t2,t3;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -27,16 +22,16 @@ test.t2	analyze	status	OK
 test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 explain
-select * from t2, t3
+select straight_join * from t2, t3
 where 
-t3.key1=t2.a and t3.key2 in (2,3);
+t3.key1=t2.a and t3.key2 between 2 and 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	t3	ref|filter	key1,key2	key1|key2	5|5	test.t2.a	100 (2%)	Using where; Using rowid filter
+1	SIMPLE	t3	ref|filter	key1,key2	key1|key2	5|5	test.t2.a	1 (0%)	Using where; Using rowid filter
 set debug_sync='handler_rowid_filter_check SIGNAL at_rowid_filter_check WAIT_FOR go';
-select * from t2, t3
+select straight_join * from t2, t3
 where 
-t3.key1=t2.a and t3.key2 in (2,3);
+t3.key1=t2.a and t3.key2 between 2 and 10;
 connect  con1, localhost, root,,;
 set debug_sync='now WAIT_FOR at_rowid_filter_check';
 kill query $target_id;
@@ -52,9 +47,9 @@ set debug_sync='RESET';
 # Reusing table t2 and t3 from previous test
 set debug_sync='in_forced_range_optimize SIGNAL ready1 WAIT_FOR go1';
 explain
-select * from t2, t3
+select straight_join * from t2, t3
 where
-t3.key1=t2.a and t3.key2 in (2,3);
+t3.key1=t2.a and t3.key2 between 2 and 10;
 connect  con1, localhost, root,,;
 set debug_sync='now WAIT_FOR ready1';
 kill query $target_id;

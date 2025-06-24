@@ -132,6 +132,7 @@ show status like 'Handler_read%';
 --enable_cursor_protocol
 
 explain extended select * from v1 join v4 on f1=f2;
+--source include/explain-no-costs.inc
 explain format=json select * from v1 join v4 on f1=f2; 
 select * from v1 join v4 on f1=f2;
 
@@ -156,6 +157,7 @@ select * from (select * from
 --echo materialized derived in materialized derived
 explain extended  select * from (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
+--source include/explain-no-costs.inc
 explain format=json  select * from (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
 select * from (select * from 
@@ -167,6 +169,7 @@ explain extended  select * from
 join 
  (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) z
  on x.f1 = z.f1;
+--source include/explain-no-costs.inc
 explain format=json  select * from 
  (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) x
 join 
@@ -212,6 +215,7 @@ join
  (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) z
  on x.f1 = z.f1;
+--source include/explain-no-costs.inc
 explain format=json select * from 
  (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) x
@@ -236,6 +240,7 @@ select * from (select * from v4 group by 1) tt;
 --echo materialized view in merged derived
 explain extended 
 select * from ( select * from v1 where f1 < 7) tt;
+--source include/explain-no-costs.inc
 explain format=json 
 select * from ( select * from v1 where f1 < 7) tt;
 select * from ( select * from v1 where f1 < 7) tt;
@@ -252,6 +257,7 @@ select * from (select * from v7 group by 1) tt;
 
 --echo join of above two
 explain extended select * from v6 join v7 on f2=f1;
+--source include/explain-no-costs.inc
 explain format=json select * from v6 join v7 on f2=f1;
 select * from v6 join v7 on f2=f1;
 
@@ -399,13 +405,13 @@ DROP TABLE t1,t2,t3;
 --echo # LP bug #803410: materialized view/dt accessed by two-component key                       
 --echo #                 
 
-CREATE TABLE t1 (a varchar(1));
+CREATE TABLE t1 (a varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c');
 
-CREATE TABLE t2 (a varchar(1) , KEY (a)) ;
+CREATE TABLE t2 (a varchar(1) , KEY (a)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('c'), (NULL), ('r');
 
-CREATE TABLE t3 (a varchar(1), b varchar(1));
+CREATE TABLE t3 (a varchar(1), b varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES
   ('e', 'c'), ('c', 'c'), ('c', 'r'), ('g', 'a'), ('b', 'x'), ('b', 'y'),
   ('h', 'w'), ('d', 'z'), ('k', 'v'), ('j', 's'), ('m', 'p'), ('l', 'q');
@@ -465,18 +471,18 @@ DROP TABLE t1,t2,t3;
 --echo # LP bug #804515: materialized derived + ORDER BY                      
 --echo #                 
 
-CREATE TABLE t1 (f1 varchar(1), f2 varchar(1), KEY (f2));
+CREATE TABLE t1 (f1 varchar(1), f2 varchar(1), KEY (f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES
   ('r','x'), ('x','d'), ('x','r'), ('r','f'), ('x','x'); 
 
-CREATE TABLE t2 (f1 varchar(1), f2 varchar(1));
+CREATE TABLE t2 (f1 varchar(1), f2 varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('s','x');
 
-CREATE TABLE t3 (f1 varchar(1), f2 varchar(1), KEY (f2));
+CREATE TABLE t3 (f1 varchar(1), f2 varchar(1), KEY (f2)) CHARSET=latin1;
 INSERT INTO t3 VALUES
   (NULL,'x'), (NULL,'f'), ('t','p'), (NULL,'j'), ('g','c');
 
-CREATE TABLE t4 (f1 int, f2 varchar(1), KEY (f2,f1)) ;
+CREATE TABLE t4 (f1 int, f2 varchar(1), KEY (f2,f1)) CHARSET=latin1;
 INSERT INTO t4 VALUES (1,'x'), (5,'r');
 
 EXPLAIN
@@ -641,7 +647,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (a int) ;
 INSERT INTO t1 VALUES (0);
 
-CREATE TABLE t2 (a  varchar(32), b int, KEY (a)) ;
+CREATE TABLE t2 (a  varchar(32), b int, KEY (a)) CHARSET=latin1;
 INSERT INTO t2 VALUES
   ('j',28), ('c',29), ('i',26), ('c',29), ('k',27),
   ('j',28), ('c',29), ('i',25), ('d',26), ('k',27),
@@ -649,7 +655,7 @@ INSERT INTO t2 VALUES
   ('w',28), ('x',29), ('y',25), ('z',26), ('s',27);
 
 
-CREATE TABLE t3 (a varchar(32));
+CREATE TABLE t3 (a varchar(32)) CHARSET=latin1;
 INSERT INTO t3 VALUES ('j'), ('c');
 
 CREATE VIEW v1 AS SELECT DISTINCT t2.b FROM t1,t2,t3 WHERE t3.a = t2.a;
@@ -957,13 +963,13 @@ DROP TABLE t1,t2,t3;
 --echo # LP bug #874006: materialized view used in IN subquery
 --echo #
 
-CREATE TABLE t3 (a int NOT NULL, b varchar(1), c varchar(1));
+CREATE TABLE t3 (a int NOT NULL, b varchar(1), c varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (19,NULL,NULL), (20,'r','r');
 
-CREATE TABLE t1 (a int, b varchar(1) , c varchar(1));
+CREATE TABLE t1 (a int, b varchar(1) , c varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,NULL,NULL), (5,'r','r'), (7,'y','y');
 
-CREATE TABLE t2 (a int NOT NULL , b int, c varchar(1));
+CREATE TABLE t2 (a int NOT NULL , b int, c varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES (4,3,'r');
 
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
@@ -1043,10 +1049,10 @@ DROP TABLE t1,t2;
 --echo # LP bug #878199: join of two materialized views
 --echo #
 
-CREATE TABLE t1 (a int, b varchar(1)) ;
+CREATE TABLE t1 (a int, b varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (7,'c'), (3,'h'), (7,'c');
 
-CREATE TABLE t2 (b varchar(1)) ;
+CREATE TABLE t2 (b varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('p'), ('c'), ('j'), ('c'), ('p');
 
 CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a,b;
@@ -1067,19 +1073,19 @@ DROP TABLE t1,t2;
 --echo # Bug #743378: join over merged view employing BNL
 --echo #
 
-CREATE TABLE t1 ( d varchar(1) NOT NULL) ;
+CREATE TABLE t1 ( d varchar(1) NOT NULL) CHARSET=latin1;
 INSERT INTO t1 VALUES ('j'),('v'),('c');
 
-CREATE TABLE t2 (h time NOT NULL, d varchar(1) NOT NULL) ;
+CREATE TABLE t2 (h time NOT NULL, d varchar(1) NOT NULL) CHARSET=latin1;
 INSERT INTO t2 VALUES ('05:03:03','w'),('02:59:24','d'),('00:01:58','e');
 
 CREATE TABLE t3 (
   b int NOT NULL, e varchar(1) NOT NULL, d varchar(1) NOT NULL, KEY (e,b)
-);
+) CHARSET=latin1;
 INSERT INTO t3 VALUES (4,'x','x'),(9,'w','w'),(4,'d','d'),(8,'e','e');
 INSERT INTO t3 VALUES (14,'a','a'),(19,'b','b'),(14,'c','c'),(18,'d','d');
 
-CREATE TABLE t4 (i int NOT NULL, m varchar(1) NOT NULL) ;
+CREATE TABLE t4 (i int NOT NULL, m varchar(1) NOT NULL) CHARSET=latin1;
 INSERT INTO t4 VALUES (8,'m'),(9,'d'),(2,'s'),(4,'r'),(8,'m');
 
 CREATE TABLE t5 (
@@ -1435,6 +1441,8 @@ INSERT INTO t1 VALUES (1);
 CREATE TABLE t2 (a int, INDEX(a));
 INSERT INTO t2 VALUES (1), (2);
 
+INSERT INTO t1 SELECT a FROM (SELECT a FROM test.t1) AS s1 NATURAL JOIN
+t2 AS s2;
 INSERT INTO t1 SELECT a FROM (SELECT a FROM test.t1) AS s1 NATURAL JOIN
 t2 AS s2;
 SELECT * FROM t1;
@@ -1879,11 +1887,11 @@ create table t1 (
   mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   matintnum CHAR(6) NOT NULL,
   test MEDIUMINT UNSIGNED NULL
-);
+) CHARSET=latin1;
 create table t2 (
   mat_id MEDIUMINT UNSIGNED NOT NULL,
    pla_id MEDIUMINT UNSIGNED NOT NULL
-);
+) CHARSET=latin1;
 insert into t1 values
   (NULL, 'a', 1), (NULL, 'b', 2), (NULL, 'c', 3), (NULL, 'd', 4),
   (NULL, 'e', 5), (NULL, 'f', 6), (NULL, 'g', 7), (NULL, 'h', 8),
@@ -2891,10 +2899,8 @@ insert into t2 values (2), (4);
 
 create view v as select a from t2 order by a;
 
-set big_tables= 1;
+set statement tmp_memory_table_size=0 for
 select t1.id from v, t1 where rownum() = 1 group by t1.id;
-
-set big_tables=default;
 
 drop view v;
 drop table t1, t2;

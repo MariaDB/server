@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -336,17 +336,13 @@ page_create_zip(
 	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
 	temporary tables. */
 	ut_ad(max_trx_id == 0 || !index->table->is_temporary());
-	/* In secondary indexes and the change buffer, PAGE_MAX_TRX_ID
+	/* In secondary indexes, PAGE_MAX_TRX_ID
 	must be zero on non-leaf pages. max_trx_id can be 0 when the
-	index consists of an empty root (leaf) page. */
-	ut_ad(max_trx_id == 0
-	      || level == 0
-	      || !dict_index_is_sec_or_ibuf(index)
-	      || index->table->is_temporary());
-	/* In the clustered index, PAGE_ROOT_AUTOINC or
+	index consists of an empty root (leaf) page.
+
+	the clustered index, PAGE_ROOT_AUTOINC or
 	PAGE_MAX_TRX_ID must be 0 on other pages than the root. */
-	ut_ad(level == 0 || max_trx_id == 0
-	      || !dict_index_is_sec_or_ibuf(index)
+	ut_ad(max_trx_id == 0 || level == 0 || index->is_primary()
 	      || index->table->is_temporary());
 
 	buf_block_modify_clock_inc(block);
@@ -390,8 +386,7 @@ page_create_empty(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && !index->table->is_temporary()
+	if (!index->is_primary() && !index->table->is_temporary()
 	    && page_is_leaf(block->page.frame)) {
 		max_trx_id = page_get_max_trx_id(block->page.frame);
 		ut_ad(max_trx_id);
@@ -434,11 +429,6 @@ page_create_empty(
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
 
 @return error code */
 dberr_t
@@ -507,11 +497,6 @@ page_copy_rec_list_end_no_locks(
 Copies records from page to new_page, from a given record onward,
 including that record. Infimum and supremum records are not copied.
 The records are copied to the start of the record list on new_page.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_t::commit().
 
 @return pointer to the original successor of the infimum record on new_block
 @retval nullptr on ROW_FORMAT=COMPRESSED page overflow */
@@ -604,8 +589,7 @@ err_exit:
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && page_is_leaf(page)
+	if (!index->is_primary() && page_is_leaf(page)
 	    && !index->table->is_temporary()) {
 		ut_ad(!was_empty || page_dir_get_n_heap(new_page)
 		      == PAGE_HEAP_NO_USER_LOW
@@ -677,11 +661,6 @@ err_exit:
 Copies records from page to new_page, up to the given record,
 NOT including that record. Infimum and supremum records are not copied.
 The records are copied to the end of the record list on new_page.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
 
 @return pointer to the original predecessor of the supremum record on new_block
 @retval nullptr on ROW_FORMAT=COMPRESSED page overflow */
@@ -2054,7 +2033,7 @@ func_exit2:
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
 	if (!page_is_leaf(page) || page_is_empty(page)
-	    || !dict_index_is_sec_or_ibuf(index)
+	    || index->is_primary()
 	    || index->table->is_temporary()) {
 	} else if (trx_id_t sys_max_trx_id = trx_sys.get_max_trx_id()) {
 		trx_id_t	max_trx_id	= page_get_max_trx_id(page);
@@ -2226,7 +2205,7 @@ wrong_page_type:
 			int	ret = cmp_rec_rec(
 				rec, old_rec, offsets, old_offsets, index);
 
-			/* For spatial index, on nonleaf leavel, we
+			/* For spatial index, on nonleaf level, we
 			allow recs to be equal. */
 			if (ret <= 0 && !(ret == 0 && index->is_spatial()
 					  && !page_is_leaf(page))) {
@@ -2485,7 +2464,7 @@ page_find_rec_with_heap_no(
 @param[in]	page	index tree leaf page
 @return the last record, not delete-marked
 @retval infimum record if all records are delete-marked */
-const rec_t *page_find_rec_max_not_deleted(const page_t *page)
+const rec_t *page_find_rec_last_not_deleted(const page_t *page)
 {
   ut_ad(page_is_leaf(page));
 

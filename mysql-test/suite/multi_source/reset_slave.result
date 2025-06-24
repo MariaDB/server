@@ -1,7 +1,7 @@
 connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 change master 'master1' to 
 master_port=MYPORT_1, 
-master_host='127.0.0.1', 
+master_host='127.0.0.1', master_ssl_verify_server_cert=0,
 master_user='root';
 start slave 'master1';
 set default_master_connection = 'master1';
@@ -13,15 +13,15 @@ insert into t1 values (1),(2);
 connection slave;
 stop slave 'master1';
 show slave 'master1' status;
-Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups
-	127.0.0.1	root	MYPORT_1	60	master-bin.000001	<read_master_log_pos>	mysqld-relay-bin-master1.000002	<relay_log_pos>	master-bin.000001	No	No							0		0	<read_master_log_pos>	<relay_log_space>	None		0	No						NULL	No	0		0			1			No				optimistic	0	NULL		2	1	0
+Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Replicate_Rewrite_DB	Connects_Tried	Master_Retry_Count
+	127.0.0.1	root	MYPORT_1	60	master-bin.000001	<read_master_log_pos>	mysqld-relay-bin-master1.000002	<relay_log_pos>	master-bin.000001	No	No							0		0	<read_master_log_pos>	<relay_log_space>	None		0	Yes						NULL	No	0		0			1			Slave_Pos	0-1-3			optimistic	0	NULL		2	1	0		1	100000
 mysqld-relay-bin-master1.000001
 mysqld-relay-bin-master1.000002
 mysqld-relay-bin-master1.index
 reset slave 'master1';
 show slave 'master1' status;
-Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups
-	127.0.0.1	root	MYPORT_1	60		4		<relay_log_pos>		No	No							0		0	0	<relay_log_space>	None		0	No						NULL	No	0		0			1			No				optimistic	0	NULL		2	1	0
+Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Replicate_Rewrite_DB	Connects_Tried	Master_Retry_Count
+	127.0.0.1	root	MYPORT_1	60		4		<relay_log_pos>		No	No							0		0	0	<relay_log_space>	None		0	Yes						NULL	No	0		0			1			Slave_Pos				optimistic	0	NULL		2	1	0		0	100000
 reset slave 'master1' all;
 show slave 'master1' status;
 ERROR HY000: There is no master connection 'master1'

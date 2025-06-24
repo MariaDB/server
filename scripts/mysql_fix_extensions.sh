@@ -25,6 +25,8 @@
 # makes .frm lowercase and .MYI/MYD/ISM/ISD uppercase
 # useful when datafiles are copied from windows
 
+print STDERR "WARNING: This script is deprecated and will be removed in a future release\n\n";
+
 die "Usage: $0 datadir\n" unless -d $ARGV[0];
 
 for $a (<$ARGV[0]/*/*.*>) { $_=$a;

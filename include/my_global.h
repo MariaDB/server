@@ -29,6 +29,14 @@
 #pragma GCC poison __WIN__
 #endif
 
+#if defined(_MSC_VER) && !defined(__clang__)
+/*
+  Following functions have bugs, when used with UTF-8 active codepage.
+  #include <winservice.h> will use the non-buggy wrappers
+*/
+#pragma deprecated("CreateServiceA", "OpenServiceA", "ChangeServiceConfigA")
+#endif
+
 /*
   InnoDB depends on some MySQL internals which other plugins should not
   need.  This is because of InnoDB's foreign key support, "safe" binlog
@@ -481,7 +489,7 @@ typedef unsigned short ushort;
 #include <my_alloca.h>
 
 /*
-  Wen using the embedded library, users might run into link problems,
+  When using the embedded library, users might run into link problems,
   duplicate declaration of __cxa_pure_virtual, solved by declaring it a
   weak symbol.
 */
@@ -583,6 +591,9 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #else
 #define HAVE_SOCK_CLOEXEC
 #endif
+#ifndef O_TEXT
+#define O_TEXT 0
+#endif
 
 /* additional file share flags for win32 */
 #ifdef _WIN32
@@ -664,6 +675,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
   Io buffer size; Must be a power of 2 and a multiple of 512. May be
   smaller what the disk page size. This influences the speed of the
   isam btree library. eg to big to slow.
+  4096 is a common block size on SSDs.
 */
 #define IO_SIZE			4096U
 /*
@@ -672,7 +684,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
 */
 #define MALLOC_OVERHEAD (8+24)
 
-	/* get memory in huncs */
+	/* get memory in hunks */
 #define ONCE_ALLOC_INIT		(uint) 4096
 	/* Typical record cache */
 #define RECORD_CACHE_SIZE	(uint) (128*1024)
@@ -769,7 +781,7 @@ inline unsigned long long my_double2ulonglong(double d)
 #define INT_MAX64       0x7FFFFFFFFFFFFFFFLL
 #define INT_MIN32       (~0x7FFFFFFFL)
 #define INT_MAX32       0x7FFFFFFFL
-#define UINT_MAX32      0xFFFFFFFFL
+#define UINT_MAX32      0xFFFFFFFFUL
 #define INT_MIN24       (~0x007FFFFF)
 #define INT_MAX24       0x007FFFFF
 #define UINT_MAX24      0x00FFFFFF

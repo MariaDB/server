@@ -321,20 +321,20 @@ col1
 HANDLER t1_myisam CLOSE;
 BACKUP STAGE END;
 drop table t1_innodb,t1_myisam;
-# Show the fate and impact of some SET GLOBAL tx_read_only = 1/0
+# Show the fate and impact of some SET GLOBAL transaction_read_only = 1/0
 # sliding through the sequence.
 BACKUP STAGE START;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE FLUSH;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE BLOCK_DDL;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE BLOCK_COMMIT;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE END;
 # Show the fate and impact of some SET SESSION sql_log_bin = 0/1
 # sliding through the sequence.

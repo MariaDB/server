@@ -1,4 +1,5 @@
 set sql_mode="";
+call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 Run mysql_upgrade once
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
@@ -56,6 +57,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -151,8 +153,8 @@ Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again.
-You can use --force if you still want to run mysql_upgrade
+There is no need to run mariadb-upgrade again.
+You can use --force if you still want to run mariadb-upgrade
 Force should run it regardless of whether it has been run before
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
@@ -210,6 +212,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -362,6 +365,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -520,6 +524,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -678,6 +683,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -839,6 +845,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -982,7 +989,7 @@ OK
 # Bug#11827359 60223: MYSQL_UPGRADE PROBLEM WITH OPTION
 #                     SKIP-WRITE-BINLOG
 #
-# Droping the previously created mysql_upgrade_info file..
+# Droping the previously created mariadb_upgrade_info file..
 # Running mysql_upgrade with --skip-write-binlog..
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
@@ -1040,6 +1047,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1151,11 +1159,13 @@ connection default;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
 GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
 GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+change_user even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length,,;
 GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
 GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
 CREATE PROCEDURE test.pr() BEGIN END;
+change_user root,,;
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -1212,6 +1222,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1332,7 +1343,7 @@ length(table_name)
 drop table extralongname_extralongname_extralongname_extralongname_ext;
 # End of 10.0 tests
 set sql_mode=default;
-# Droping the previously created mysql_upgrade_info file..
+# Droping the previously created mariadb_upgrade_info file..
 create table test.t1(a int) engine=MyISAM;
 # Trying to enforce InnoDB for all tables
 SET GLOBAL enforce_storage_engine=InnoDB;
@@ -1392,6 +1403,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1494,7 +1506,7 @@ SHOW CREATE TABLE test.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE test.t1;
 SET GLOBAL enforce_storage_engine=NULL;
 # End of 10.1 tests
@@ -1614,6 +1626,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1794,6 +1807,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -1912,24 +1926,24 @@ FLUSH PRIVILEGES;
 # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
 #
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again.
+There is no need to run mariadb-upgrade again.
 Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again.
+There is no need to run mariadb-upgrade again.
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 #
 Looking for 'mariadb' as: mariadb
-Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be run!
+Empty or non existent ...mariadb_upgrade_info. Assuming mysql_upgrade has to be run!
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
 #
 Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
+There is no need to run mariadb-upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
 This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
-You can use --force if you still want to run mysql_upgrade
+There is no need to run mariadb-upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
+You can use --force if you still want to run mariadb-upgrade
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
 #
@@ -1961,169 +1975,7 @@ DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
-#
-# MDEV-16735 Upgrades only work if 'alter_algorithm' is 'DEFAULT'
-# or 'COPY'. Test that the session value 'DEFAULT' in mysql_upgrade
-# properly overrides the potentially incompatible global value.
-#
-SET GLOBAL alter_algorithm='INPLACE';
-SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
-Variable_name	Value
-alter_algorithm	INPLACE
-Phase 1/8: Checking and upgrading mysql database
-Processing databases
-mysql
-mysql.column_stats                                 OK
-mysql.columns_priv                                 OK
-mysql.db                                           OK
-mysql.event                                        OK
-mysql.func                                         OK
-mysql.global_priv                                  OK
-mysql.gtid_slave_pos                               OK
-mysql.help_category                                OK
-mysql.help_keyword                                 OK
-mysql.help_relation                                OK
-mysql.help_topic                                   OK
-mysql.index_stats                                  OK
-mysql.innodb_index_stats                           OK
-mysql.innodb_table_stats                           OK
-mysql.plugin                                       OK
-mysql.proc                                         OK
-mysql.procs_priv                                   OK
-mysql.proxies_priv                                 OK
-mysql.roles_mapping                                OK
-mysql.servers                                      OK
-mysql.table_stats                                  OK
-mysql.tables_priv                                  OK
-mysql.time_zone                                    OK
-mysql.time_zone_leap_second                        OK
-mysql.time_zone_name                               OK
-mysql.time_zone_transition                         OK
-mysql.time_zone_transition_type                    OK
-mysql.transaction_registry                         OK
-Phase 2/8: Installing used storage engines... Skipped
-Phase 3/8: Running 'mysql_fix_privilege_tables'
-Phase 4/8: Fixing views
-mysql.user                                         OK
-sys.host_summary                                   OK
-sys.host_summary_by_file_io                        OK
-sys.host_summary_by_file_io_type                   OK
-sys.host_summary_by_stages                         OK
-sys.host_summary_by_statement_latency              OK
-sys.host_summary_by_statement_type                 OK
-sys.innodb_buffer_stats_by_schema                  OK
-sys.innodb_buffer_stats_by_table                   OK
-sys.innodb_lock_waits                              OK
-sys.io_by_thread_by_latency                        OK
-sys.io_global_by_file_by_bytes                     OK
-sys.io_global_by_file_by_latency                   OK
-sys.io_global_by_wait_by_bytes                     OK
-sys.io_global_by_wait_by_latency                   OK
-sys.latest_file_io                                 OK
-sys.memory_by_host_by_current_bytes                OK
-sys.memory_by_thread_by_current_bytes              OK
-sys.memory_by_user_by_current_bytes                OK
-sys.memory_global_by_current_bytes                 OK
-sys.memory_global_total                            OK
-sys.metrics                                        OK
-sys.processlist                                    OK
-sys.ps_check_lost_instrumentation                  OK
-sys.schema_auto_increment_columns                  OK
-sys.schema_index_statistics                        OK
-sys.schema_object_overview                         OK
-sys.schema_redundant_indexes                       OK
-sys.schema_table_lock_waits                        OK
-sys.schema_table_statistics                        OK
-sys.schema_table_statistics_with_buffer            OK
-sys.schema_tables_with_full_table_scans            OK
-sys.schema_unused_indexes                          OK
-sys.session                                        OK
-sys.session_ssl_status                             OK
-sys.statement_analysis                             OK
-sys.statements_with_errors_or_warnings             OK
-sys.statements_with_full_table_scans               OK
-sys.statements_with_runtimes_in_95th_percentile    OK
-sys.statements_with_sorting                        OK
-sys.statements_with_temp_tables                    OK
-sys.user_summary                                   OK
-sys.user_summary_by_file_io                        OK
-sys.user_summary_by_file_io_type                   OK
-sys.user_summary_by_stages                         OK
-sys.user_summary_by_statement_latency              OK
-sys.user_summary_by_statement_type                 OK
-sys.version                                        OK
-sys.wait_classes_global_by_avg_latency             OK
-sys.wait_classes_global_by_latency                 OK
-sys.waits_by_host_by_latency                       OK
-sys.waits_by_user_by_latency                       OK
-sys.waits_global_by_latency                        OK
-sys.x$host_summary                                 OK
-sys.x$host_summary_by_file_io                      OK
-sys.x$host_summary_by_file_io_type                 OK
-sys.x$host_summary_by_stages                       OK
-sys.x$host_summary_by_statement_latency            OK
-sys.x$host_summary_by_statement_type               OK
-sys.x$innodb_buffer_stats_by_schema                OK
-sys.x$innodb_buffer_stats_by_table                 OK
-sys.x$innodb_lock_waits                            OK
-sys.x$io_by_thread_by_latency                      OK
-sys.x$io_global_by_file_by_bytes                   OK
-sys.x$io_global_by_file_by_latency                 OK
-sys.x$io_global_by_wait_by_bytes                   OK
-sys.x$io_global_by_wait_by_latency                 OK
-sys.x$latest_file_io                               OK
-sys.x$memory_by_host_by_current_bytes              OK
-sys.x$memory_by_thread_by_current_bytes            OK
-sys.x$memory_by_user_by_current_bytes              OK
-sys.x$memory_global_by_current_bytes               OK
-sys.x$memory_global_total                          OK
-sys.x$processlist                                  OK
-sys.x$ps_digest_95th_percentile_by_avg_us          OK
-sys.x$ps_digest_avg_latency_distribution           OK
-sys.x$ps_schema_table_statistics_io                OK
-sys.x$schema_flattened_keys                        OK
-sys.x$schema_index_statistics                      OK
-sys.x$schema_table_lock_waits                      OK
-sys.x$schema_table_statistics                      OK
-sys.x$schema_table_statistics_with_buffer          OK
-sys.x$schema_tables_with_full_table_scans          OK
-sys.x$session                                      OK
-sys.x$statement_analysis                           OK
-sys.x$statements_with_errors_or_warnings           OK
-sys.x$statements_with_full_table_scans             OK
-sys.x$statements_with_runtimes_in_95th_percentile  OK
-sys.x$statements_with_sorting                      OK
-sys.x$statements_with_temp_tables                  OK
-sys.x$user_summary                                 OK
-sys.x$user_summary_by_file_io                      OK
-sys.x$user_summary_by_file_io_type                 OK
-sys.x$user_summary_by_stages                       OK
-sys.x$user_summary_by_statement_latency            OK
-sys.x$user_summary_by_statement_type               OK
-sys.x$wait_classes_global_by_avg_latency           OK
-sys.x$wait_classes_global_by_latency               OK
-sys.x$waits_by_host_by_latency                     OK
-sys.x$waits_by_user_by_latency                     OK
-sys.x$waits_global_by_latency                      OK
-Phase 5/8: Fixing table and database names
-Phase 6/8: Checking and upgrading tables
-Processing databases
-information_schema
-mtr
-mtr.global_suppressions                            OK
-mtr.test_suppressions                              OK
-performance_schema
-sys
-sys.sys_config                                     OK
-test
-Phase 7/8: uninstalling plugins
-Phase 8/8: Running 'FLUSH PRIVILEGES'
-OK
-SET GLOBAL alter_algorithm=DEFAULT;
-SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
-Variable_name	Value
-alter_algorithm	DEFAULT
-End of 10.3 tests
+# End of 10.3 tests
 # switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
@@ -2246,6 +2098,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -2411,6 +2264,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -2574,3 +2428,29 @@ mysql.user has data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
+# End of 10.5 tests
+#
+# MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
+#
+alter table mysql.db drop column show_create_routine_priv;
+flush privileges;
+create user foo@bar;
+grant all privileges on mysql.* to foo@bar;
+show grants for foo@bar;
+Grants for foo@bar
+GRANT USAGE ON *.* TO `foo`@`bar`
+GRANT ALL PRIVILEGES ON `mysql`.* TO `foo`@`bar`
+flush privileges;
+show grants for foo@bar;
+Grants for foo@bar
+GRANT USAGE ON *.* TO `foo`@`bar`
+GRANT ALL PRIVILEGES ON `mysql`.* TO `foo`@`bar`
+select show_create_routine_priv from mysql.db where user='foo';
+show_create_routine_priv
+Y
+show grants for foo@bar;
+Grants for foo@bar
+GRANT USAGE ON *.* TO `foo`@`bar`
+GRANT ALL PRIVILEGES ON `mysql`.* TO `foo`@`bar`
+drop user foo@bar;
+# End of 11.3 tests

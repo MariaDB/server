@@ -11,6 +11,7 @@ BEGIN
 insert into t2 select * from t1; 
 return a+1;
 END|
+change_user foo,,;
 set optimizer_trace="enabled=on";
 select * from db1.t1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `db1`.`t1`
@@ -18,7 +19,9 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 grant select(a)  on db1.t1 to 'foo'@'%';
+change_user foo,,;
 set optimizer_trace="enabled=on";
 select * from db1.t1;
 a
@@ -32,10 +35,12 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 grant select  on db1.t1 to 'foo'@'%';
 grant select  on db1.t2 to 'foo'@'%';
+change_user foo,,;
 set optimizer_trace="enabled=on";
 #
 # SELECT privilege on the table db1.t1
@@ -65,6 +70,18 @@ select * from db1.t1	{
         "select_id": 1,
         "steps": [
           {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "table_scan": {
+                  "rows": 3,
+                  "read_cost": 0.010408815,
+                  "read_and_compare_cost": 0.010504815
+                }
+              }
+            ]
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -75,44 +92,50 @@ select * from db1.t1	{
             ]
           },
           {
-            "rows_estimation": [
-              {
-                "table": "t1",
-                "table_scan": {
-                  "rows": 3,
-                  "cost": 2.005126953
-                }
-              }
-            ]
-          },
-          {
             "considered_execution_plans": [
               {
-                "plan_prefix": [],
-                "table": "t1",
-                "best_access_path": {
-                  "considered_access_paths": [
-                    {
-                      "access_type": "scan",
-                      "resulting_rows": 3,
-                      "cost": 2.005126953,
-                      "chosen": true
+                "plan_prefix": "",
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t1",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 3,
+                          "rows_after_filter": 3,
+                          "rows_out": 3,
+                          "cost": 0.010504815,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 3,
+                        "rows_out": 3,
+                        "cost": 0.010504815,
+                        "uses_join_buffering": false
+                      }
                     }
-                  ],
-                  "chosen_access_method": {
-                    "type": "scan",
-                    "records": 3,
-                    "cost": 2.005126953,
-                    "uses_join_buffering": false
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "t1",
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.605126953
+                "cost_for_plan": 0.010504815
               }
             ]
           },
           {
-            "best_join_order": ["t1"]
+            "best_join_order": ["t1"],
+            "rows": 3,
+            "cost": 0.010504815
           },
           {
             "attaching_conditions_to_tables": {
@@ -120,27 +143,26 @@ select * from db1.t1	{
               "attached_conditions_summary": [
                 {
                   "table": "t1",
-                  "attached": null
+                  "attached_condition": null
                 }
               ]
             }
+          },
+          {
+            "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
 }	0	0
 set optimizer_trace="enabled=off";
+change_user root,,;
 grant select  on db1.v1 to 'foo'@'%';
 grant show view  on db1.v1 to 'foo'@'%';
 grant select  on db1.v1 to 'bar'@'%';
 grant show view  on db1.v1 to 'bar'@'%';
+change_user foo,,;
 select current_user();
 current_user()
 foo@%
@@ -176,7 +198,7 @@ select * from db1.v1	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select db1.t1.a AS a from v1"
+            "expanded_query": "/* select#1 */ select v1.a AS a from v1"
           }
         ]
       }
@@ -185,6 +207,18 @@ select * from db1.v1	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "table_scan": {
+                  "rows": 3,
+                  "read_cost": 0.010408815,
+                  "read_and_compare_cost": 0.010504815
+                }
+              }
+            ]
+          },
           {
             "table_dependencies": [
               {
@@ -196,44 +230,50 @@ select * from db1.v1	{
             ]
           },
           {
-            "rows_estimation": [
-              {
-                "table": "t1",
-                "table_scan": {
-                  "rows": 3,
-                  "cost": 2.005126953
-                }
-              }
-            ]
-          },
-          {
             "considered_execution_plans": [
               {
-                "plan_prefix": [],
-                "table": "t1",
-                "best_access_path": {
-                  "considered_access_paths": [
-                    {
-                      "access_type": "scan",
-                      "resulting_rows": 3,
-                      "cost": 2.005126953,
-                      "chosen": true
+                "plan_prefix": "",
+                "get_costs_for_tables": [
+                  {
+                    "best_access_path": {
+                      "table": "t1",
+                      "plan_details": {
+                        "record_count": 1
+                      },
+                      "considered_access_paths": [
+                        {
+                          "access_type": "scan",
+                          "rows": 3,
+                          "rows_after_filter": 3,
+                          "rows_out": 3,
+                          "cost": 0.010504815,
+                          "index_only": false,
+                          "chosen": true
+                        }
+                      ],
+                      "chosen_access_method": {
+                        "type": "scan",
+                        "rows_read": 3,
+                        "rows_out": 3,
+                        "cost": 0.010504815,
+                        "uses_join_buffering": false
+                      }
                     }
-                  ],
-                  "chosen_access_method": {
-                    "type": "scan",
-                    "records": 3,
-                    "cost": 2.005126953,
-                    "uses_join_buffering": false
                   }
-                },
+                ]
+              },
+              {
+                "plan_prefix": "",
+                "table": "t1",
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.605126953
+                "cost_for_plan": 0.010504815
               }
             ]
           },
           {
-            "best_join_order": ["t1"]
+            "best_join_order": ["t1"],
+            "rows": 3,
+            "cost": 0.010504815
           },
           {
             "attaching_conditions_to_tables": {
@@ -241,23 +281,21 @@ select * from db1.v1	{
               "attached_conditions_summary": [
                 {
                   "table": "t1",
-                  "attached": null
+                  "attached_condition": null
                 }
               ]
             }
+          },
+          {
+            "make_join_readinfo": []
           }
         ]
-      }
-    },
-    {
-      "join_execution": {
-        "select_id": 1,
-        "steps": []
       }
     }
   ]
 }	0	0
 set optimizer_trace="enabled=off";
+change_user bar,,;
 select current_user();
 current_user()
 bar@%
@@ -277,10 +315,12 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 grant execute on function db1.f1 to 'foo'@'%';
 grant execute on function db1.f1 to 'bar'@'%';
 grant select  on db1.t1 to 'bar'@'%';
 grant insert  on db1.t2 to 'foo'@'%';
+change_user foo,,;
 select current_user();
 current_user()
 foo@%
@@ -294,6 +334,7 @@ select INSUFFICIENT_PRIVILEGES from information_schema.OPTIMIZER_TRACE;
 INSUFFICIENT_PRIVILEGES
 0
 set optimizer_trace="enabled=off";
+change_user bar,,;
 select current_user();
 current_user()
 bar@%
@@ -312,10 +353,12 @@ select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 		0	1
 set optimizer_trace="enabled=off";
+change_user root,,;
 select current_user();
 current_user()
 root@localhost
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM foo;
+change_user root,,;
 drop user if exists foo;
 drop user if exists bar;
 drop table db1.t1, db1.t2;

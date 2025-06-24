@@ -175,17 +175,17 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CONCAT(uint8)` varchar(3) DEFAULT NULL,
-  `CONCAT(sint8)` varchar(4) DEFAULT NULL,
-  `CONCAT(uint16)` varchar(5) DEFAULT NULL,
-  `CONCAT(sint16)` varchar(6) DEFAULT NULL,
-  `CONCAT(uint24)` varchar(8) DEFAULT NULL,
-  `CONCAT(sint24)` varchar(8) DEFAULT NULL,
-  `CONCAT(uint32)` varchar(10) DEFAULT NULL,
-  `CONCAT(sint32)` varchar(11) DEFAULT NULL,
-  `CONCAT(uint64)` varchar(20) DEFAULT NULL,
-  `CONCAT(sint64)` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(uint8)` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint8)` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint16)` varchar(5) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint16)` varchar(6) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint24)` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint24)` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint32)` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint32)` varchar(11) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint64)` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint64)` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 CONCAT(COALESCE(uint8)),CONCAT(COALESCE(sint8)),
@@ -197,17 +197,17 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CONCAT(COALESCE(uint8))` varchar(3) DEFAULT NULL,
-  `CONCAT(COALESCE(sint8))` varchar(4) DEFAULT NULL,
-  `CONCAT(COALESCE(uint16))` varchar(5) DEFAULT NULL,
-  `CONCAT(COALESCE(sint16))` varchar(6) DEFAULT NULL,
-  `CONCAT(COALESCE(uint24))` varchar(8) DEFAULT NULL,
-  `CONCAT(COALESCE(sint24))` varchar(8) DEFAULT NULL,
-  `CONCAT(COALESCE(uint32))` varchar(10) DEFAULT NULL,
-  `CONCAT(COALESCE(sint32))` varchar(11) DEFAULT NULL,
-  `CONCAT(COALESCE(uint64))` varchar(20) DEFAULT NULL,
-  `CONCAT(COALESCE(sint64))` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(COALESCE(uint8))` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint8))` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint16))` varchar(5) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint16))` varchar(6) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint24))` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint24))` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint32))` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint32))` varchar(11) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint64))` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint64))` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE FUNCTION uint8() RETURNS TINYINT(2) UNSIGNED RETURN 1;
@@ -229,17 +229,17 @@ CONCAT(uint64()),CONCAT(sint64());
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CONCAT(uint8())` varchar(3) DEFAULT NULL,
-  `CONCAT(sint8())` varchar(4) DEFAULT NULL,
-  `CONCAT(uint16())` varchar(5) DEFAULT NULL,
-  `CONCAT(sint16())` varchar(6) DEFAULT NULL,
-  `CONCAT(uint24())` varchar(8) DEFAULT NULL,
-  `CONCAT(sint24())` varchar(8) DEFAULT NULL,
-  `CONCAT(uint32())` varchar(10) DEFAULT NULL,
-  `CONCAT(sint32())` varchar(11) DEFAULT NULL,
-  `CONCAT(uint64())` varchar(20) DEFAULT NULL,
-  `CONCAT(sint64())` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(uint8())` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint8())` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint16())` varchar(5) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint16())` varchar(6) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint24())` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint24())` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint32())` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint32())` varchar(11) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(uint64())` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(sint64())` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 CONCAT(COALESCE(uint8())),CONCAT(COALESCE(sint8())),
@@ -250,17 +250,17 @@ CONCAT(COALESCE(uint64())),CONCAT(COALESCE(sint64()));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CONCAT(COALESCE(uint8()))` varchar(3) DEFAULT NULL,
-  `CONCAT(COALESCE(sint8()))` varchar(4) DEFAULT NULL,
-  `CONCAT(COALESCE(uint16()))` varchar(5) DEFAULT NULL,
-  `CONCAT(COALESCE(sint16()))` varchar(6) DEFAULT NULL,
-  `CONCAT(COALESCE(uint24()))` varchar(8) DEFAULT NULL,
-  `CONCAT(COALESCE(sint24()))` varchar(8) DEFAULT NULL,
-  `CONCAT(COALESCE(uint32()))` varchar(10) DEFAULT NULL,
-  `CONCAT(COALESCE(sint32()))` varchar(11) DEFAULT NULL,
-  `CONCAT(COALESCE(uint64()))` varchar(20) DEFAULT NULL,
-  `CONCAT(COALESCE(sint64()))` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(COALESCE(uint8()))` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint8()))` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint16()))` varchar(5) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint16()))` varchar(6) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint24()))` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint24()))` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint32()))` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint32()))` varchar(11) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(uint64()))` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `CONCAT(COALESCE(sint64()))` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP FUNCTION uint8;
 DROP FUNCTION sint8;
@@ -607,7 +607,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` tinyint(4) DEFAULT NULL,
   `FLOOR(a)` tinyint(4) DEFAULT NULL,
   `CEILING(a)` tinyint(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-128
 ROUND(a)	-128
 ROUND(a,1)	-128
@@ -633,7 +633,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` smallint(6) DEFAULT NULL,
   `FLOOR(a)` smallint(6) DEFAULT NULL,
   `CEILING(a)` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-32768
 ROUND(a)	-32768
 ROUND(a,1)	-32768
@@ -659,7 +659,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` mediumint(9) DEFAULT NULL,
   `FLOOR(a)` mediumint(9) DEFAULT NULL,
   `CEILING(a)` mediumint(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-8388608
 ROUND(a)	-8388608
 ROUND(a,1)	-8388608
@@ -685,7 +685,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` int(11) DEFAULT NULL,
   `FLOOR(a)` int(11) DEFAULT NULL,
   `CEILING(a)` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-2147483648
 ROUND(a)	-2147483648
 ROUND(a,1)	-2147483648
@@ -711,7 +711,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(20) DEFAULT NULL,
   `FLOOR(a)` bigint(20) DEFAULT NULL,
   `CEILING(a)` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a)	-9223372036854775808
 ROUND(a,1)	-9223372036854775808
@@ -737,7 +737,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(20) DEFAULT NULL,
   `FLOOR(a)` bigint(20) DEFAULT NULL,
   `CEILING(a)` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a)	-9223372036854775808
 ROUND(a,1)	-9223372036854775808
@@ -763,7 +763,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(21) DEFAULT NULL,
   `FLOOR(a)` bigint(21) DEFAULT NULL,
   `CEILING(a)` bigint(21) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a)	-9223372036854775808
 ROUND(a,1)	-9223372036854775808
@@ -789,7 +789,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(22) DEFAULT NULL,
   `FLOOR(a)` bigint(22) DEFAULT NULL,
   `CEILING(a)` bigint(22) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a)	-9223372036854775808
 ROUND(a,1)	-9223372036854775808
@@ -815,7 +815,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(23) DEFAULT NULL,
   `FLOOR(a)` bigint(23) DEFAULT NULL,
   `CEILING(a)` bigint(23) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a)	-9223372036854775808
 ROUND(a,1)	-9223372036854775808
@@ -841,7 +841,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(30) DEFAULT NULL,
   `FLOOR(a)` bigint(30) DEFAULT NULL,
   `CEILING(a)` bigint(30) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a)	-9223372036854775808
 ROUND(a,1)	-9223372036854775808
@@ -867,7 +867,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` tinyint(3) unsigned DEFAULT NULL,
   `FLOOR(a)` tinyint(3) unsigned DEFAULT NULL,
   `CEILING(a)` tinyint(3) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -893,7 +893,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` smallint(5) unsigned DEFAULT NULL,
   `FLOOR(a)` smallint(5) unsigned DEFAULT NULL,
   `CEILING(a)` smallint(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -919,7 +919,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` mediumint(8) unsigned DEFAULT NULL,
   `FLOOR(a)` mediumint(8) unsigned DEFAULT NULL,
   `CEILING(a)` mediumint(8) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -945,7 +945,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` int(10) unsigned DEFAULT NULL,
   `FLOOR(a)` int(10) unsigned DEFAULT NULL,
   `CEILING(a)` int(10) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -971,7 +971,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(20) unsigned DEFAULT NULL,
   `FLOOR(a)` bigint(20) unsigned DEFAULT NULL,
   `CEILING(a)` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -997,7 +997,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(20) unsigned DEFAULT NULL,
   `FLOOR(a)` bigint(20) unsigned DEFAULT NULL,
   `CEILING(a)` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -1023,7 +1023,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(21) unsigned DEFAULT NULL,
   `FLOOR(a)` bigint(21) unsigned DEFAULT NULL,
   `CEILING(a)` bigint(21) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -1049,7 +1049,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(22) unsigned DEFAULT NULL,
   `FLOOR(a)` bigint(22) unsigned DEFAULT NULL,
   `CEILING(a)` bigint(22) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -1075,7 +1075,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(23) unsigned DEFAULT NULL,
   `FLOOR(a)` bigint(23) unsigned DEFAULT NULL,
   `CEILING(a)` bigint(23) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -1101,7 +1101,7 @@ Create Table	CREATE TABLE `t2` (
   `TRUNCATE(a,0)` bigint(30) unsigned DEFAULT NULL,
   `FLOOR(a)` bigint(30) unsigned DEFAULT NULL,
   `CEILING(a)` bigint(30) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a)	0
 ROUND(a,1)	0
@@ -1129,7 +1129,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `ROUND(18446744073709551615,-10)` decimal(21,0) unsigned NOT NULL,
   `ROUND(18446744073709551615,-11)` decimal(21,0) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 ROUND(18446744073709551615,-10)	ROUND(18446744073709551615,-11)
 18446744070000000000	18446744100000000000
@@ -1154,7 +1154,7 @@ Table	t1
 Create Table	CREATE TABLE `t1` (
   `c01` decimal(21,0) unsigned NOT NULL,
   `c19` decimal(21,0) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE PROCEDURE p1(t VARCHAR(64))
 BEGIN
@@ -1181,7 +1181,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` int(5) DEFAULT NULL,
   `ROUND(a,-20)` int(5) DEFAULT NULL,
   `ROUND(a,-30)` int(5) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-128
 ROUND(a,-1)	-130
 ROUND(a,-2)	-100
@@ -1204,7 +1204,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` int(7) DEFAULT NULL,
   `ROUND(a,-20)` int(7) DEFAULT NULL,
   `ROUND(a,-30)` int(7) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-32768
 ROUND(a,-1)	-32770
 ROUND(a,-2)	-32800
@@ -1227,7 +1227,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` bigint(10) DEFAULT NULL,
   `ROUND(a,-20)` bigint(10) DEFAULT NULL,
   `ROUND(a,-30)` bigint(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-8388608
 ROUND(a,-1)	-8388610
 ROUND(a,-2)	-8388600
@@ -1250,7 +1250,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` bigint(12) DEFAULT NULL,
   `ROUND(a,-20)` bigint(12) DEFAULT NULL,
   `ROUND(a,-30)` bigint(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-2147483648
 ROUND(a,-1)	-2147483650
 ROUND(a,-2)	-2147483600
@@ -1273,7 +1273,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(20,0) DEFAULT NULL,
   `ROUND(a,-20)` decimal(20,0) DEFAULT NULL,
   `ROUND(a,-30)` decimal(20,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a,-1)	-9223372036854775810
 ROUND(a,-2)	-9223372036854775800
@@ -1296,7 +1296,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(20,0) DEFAULT NULL,
   `ROUND(a,-20)` decimal(20,0) DEFAULT NULL,
   `ROUND(a,-30)` decimal(20,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a,-1)	-9223372036854775810
 ROUND(a,-2)	-9223372036854775800
@@ -1319,7 +1319,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(21,0) DEFAULT NULL,
   `ROUND(a,-20)` decimal(21,0) DEFAULT NULL,
   `ROUND(a,-30)` decimal(21,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a,-1)	-9223372036854775810
 ROUND(a,-2)	-9223372036854775800
@@ -1342,7 +1342,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(22,0) DEFAULT NULL,
   `ROUND(a,-20)` decimal(22,0) DEFAULT NULL,
   `ROUND(a,-30)` decimal(22,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a,-1)	-9223372036854775810
 ROUND(a,-2)	-9223372036854775800
@@ -1365,7 +1365,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(23,0) DEFAULT NULL,
   `ROUND(a,-20)` decimal(23,0) DEFAULT NULL,
   `ROUND(a,-30)` decimal(23,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a,-1)	-9223372036854775810
 ROUND(a,-2)	-9223372036854775800
@@ -1388,7 +1388,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(30,0) DEFAULT NULL,
   `ROUND(a,-20)` decimal(30,0) DEFAULT NULL,
   `ROUND(a,-30)` decimal(30,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9223372036854775808
 ROUND(a,-1)	-9223372036854775810
 ROUND(a,-2)	-9223372036854775800
@@ -1411,7 +1411,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` int(4) unsigned DEFAULT NULL,
   `ROUND(a,-20)` int(4) unsigned DEFAULT NULL,
   `ROUND(a,-30)` int(4) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1434,7 +1434,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` int(6) unsigned DEFAULT NULL,
   `ROUND(a,-20)` int(6) unsigned DEFAULT NULL,
   `ROUND(a,-30)` int(6) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1457,7 +1457,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` int(9) unsigned DEFAULT NULL,
   `ROUND(a,-20)` int(9) unsigned DEFAULT NULL,
   `ROUND(a,-30)` int(9) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1480,7 +1480,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` bigint(11) unsigned DEFAULT NULL,
   `ROUND(a,-20)` bigint(11) unsigned DEFAULT NULL,
   `ROUND(a,-30)` bigint(11) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1503,7 +1503,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(21,0) unsigned DEFAULT NULL,
   `ROUND(a,-20)` decimal(21,0) unsigned DEFAULT NULL,
   `ROUND(a,-30)` decimal(21,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1526,7 +1526,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(21,0) unsigned DEFAULT NULL,
   `ROUND(a,-20)` decimal(21,0) unsigned DEFAULT NULL,
   `ROUND(a,-30)` decimal(21,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1549,7 +1549,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(22,0) unsigned DEFAULT NULL,
   `ROUND(a,-20)` decimal(22,0) unsigned DEFAULT NULL,
   `ROUND(a,-30)` decimal(22,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1572,7 +1572,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(23,0) unsigned DEFAULT NULL,
   `ROUND(a,-20)` decimal(23,0) unsigned DEFAULT NULL,
   `ROUND(a,-30)` decimal(23,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1595,7 +1595,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(24,0) unsigned DEFAULT NULL,
   `ROUND(a,-20)` decimal(24,0) unsigned DEFAULT NULL,
   `ROUND(a,-30)` decimal(24,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1618,7 +1618,7 @@ Create Table	CREATE TABLE `t2` (
   `ROUND(a,-19)` decimal(31,0) unsigned DEFAULT NULL,
   `ROUND(a,-20)` decimal(31,0) unsigned DEFAULT NULL,
   `ROUND(a,-30)` decimal(31,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0
 ROUND(a,-1)	0
 ROUND(a,-2)	0
@@ -1657,7 +1657,7 @@ Create Table	CREATE TABLE `t1` (
   `c1` bigint(20) unsigned DEFAULT NULL,
   `c2` decimal(21,0) unsigned NOT NULL,
   `c3` decimal(21,0) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.4 tests
@@ -1959,7 +1959,7 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
@@ -2084,7 +2084,7 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col

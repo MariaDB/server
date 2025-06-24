@@ -7,7 +7,7 @@ set @@optimizer_switch = "materialization=on,in_to_exists=off,semijoin=off,subqu
 set @test_default_opt_switch = @@optimizer_switch;
 set @in_exists = "materialization=off,in_to_exists=on,semijoin=off,subquery_cache=off";
 -------------------------------------------------------------------------
-Schema requires partial matching, but data analysis discoveres there is
+Schema requires partial matching, but data analysis discovers there is
 no need. This is possible only if all outer columns are not NULL.
 -------------------------------------------------------------------------
 create table t1 (a1 char(8) not null, a2 char(8) not null);
@@ -29,7 +29,7 @@ a1	a2	in_res
 1 - 01	2 - 01	NULL
 drop table t1, t2;
 -------------------------------------------------------------------------
-NULLs in the outer columns, no NULLs in the suqbuery 
+NULLs in the outer columns, no NULLs in the subquery
 -------------------------------------------------------------------------
 create table t1 (a1 char(8), a2 char(8));
 create table t2 (b1 char(8) not null, b2 char(8) not null);
@@ -517,7 +517,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	35	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
-change the mathcing row to be the last one in the first bitmap word
+change the matching row to be the last one in the first bitmap word
 update t2 set b2 = 'zz' where b1 = 33;
 update t2 set b2 = NULL where b1 = 31;
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
@@ -760,20 +760,19 @@ drop table t1,t2;
 # LP BUG#601156
 #
 CREATE TABLE t1 (a1 int DEFAULT NULL, a2 int DEFAULT NULL);
-INSERT INTO t1 VALUES (NULL,2);
-INSERT INTO t1 VALUES (4,NULL);
+INSERT INTO t1 VALUES (NULL,2), (4,NULL),(100,100);
 CREATE TABLE t2 (b1 int DEFAULT NULL, b2 int DEFAULT NULL);
-INSERT INTO t2 VALUES (6,NULL);
-INSERT INTO t2 VALUES (NULL,0);
+INSERT INTO t2 VALUES (6,NULL), (NULL,0),(1000,1000);
+insert into t2 select seq,seq from seq_2000_to_2100;
 set @@optimizer_switch='materialization=on,semijoin=off,partial_match_rowid_merge=on,partial_match_table_scan=on';
 set @tmp_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 EXPLAIN EXTENDED
 SELECT * FROM (SELECT * FROM t1 WHERE a1 NOT IN (SELECT b2 FROM t2)) table1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	104	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `table1`.`a1` AS `a1`,`table1`.`a2` AS `a2` from (/* select#2 */ select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2` from `test`.`t1` where !(<in_optimizer>(`test`.`t1`.`a1`,`test`.`t1`.`a1` in ( <materialize> (/* select#3 */ select `test`.`t2`.`b2` from `test`.`t2` ), <primary_index_lookup>(`test`.`t1`.`a1` in <temporary table> on distinct_key where `test`.`t1`.`a1` = `<subquery3>`.`b2`))))) `table1`
 set optimizer_switch=@tmp_optimizer_switch;
@@ -782,12 +781,13 @@ DROP TABLE t1, t2;
 # LP BUG#613009 Crash in Ordered_key::get_field_idx
 #
 set @@optimizer_switch='materialization=on,semijoin=off,partial_match_rowid_merge=on,partial_match_table_scan=off';
-create table t1 (a1 char(3) DEFAULT NULL, a2 char(3) DEFAULT NULL);
-insert into t1 values (NULL, 'a21'), (NULL, 'a22');
+create table t1 (a1 char(4) DEFAULT NULL, a2 char(4) DEFAULT NULL);
+insert into t1 values (NULL, 'a21'), (NULL, 'a22'), ('xxx','xxx');
+insert into t1 select seq,seq from seq_2000_to_2100;
 explain select * from t1 where (a1, a2) not in (select a1, a2 from t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	104	Using where
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	104	
 select * from t1 where (a1, a2) not in (select a1, a2 from t1);
 a1	a2
 drop table t1;

@@ -61,7 +61,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `data` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET SQL_LOG_BIN=1;
 connection slave;
 call mtr.add_suppression("Slave SQL.*Could not execute .*te_rows event on table test.t.; Duplicate entry.* error.* 1062");
@@ -72,7 +72,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `data` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master;
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t1 VALUES(2, 1);
@@ -96,7 +96,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `data` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET SQL_LOG_BIN=1;
 connection slave;
 CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MyIsam;
@@ -106,7 +106,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `data` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Slave_skipped_errros = 4
 connection master;
 INSERT INTO t2 VALUES(1, 1);

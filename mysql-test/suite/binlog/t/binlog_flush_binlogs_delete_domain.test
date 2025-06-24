@@ -21,7 +21,6 @@ FLUSH BINARY LOGS DELETE_DOMAIN_ID = ();
 --echo but with a warning
 --let $binlog_pre_flush=query_get_value(SHOW MASTER STATUS, Position, 1)
 FLUSH BINARY LOGS DELETE_DOMAIN_ID = (99);
---let $binlog_start=$binlog_pre_flush
 --source include/show_binary_logs.inc
 
 # Log one event in a specified domain and try to delete the domain
@@ -62,6 +61,8 @@ FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
 # expected overrun of the static buffers of underlying dynamic arrays is doing.
 --let $domain_cnt=17
 --let $server_in_domain_cnt=3
+--let $err_domain_id=`SELECT FLOOR($domain_cnt/2)`
+--let $err_server_id=`SELECT FLOOR($server_in_domain_cnt/2)`
 --let $domain_list=
 --disable_query_log
 while ($domain_cnt)
@@ -86,7 +87,18 @@ while ($domain_cnt)
 --error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($domain_list)
 
-# Now satisfy the safety condtion to purge log files containing $domain list
+--echo MDEV-31140: Missing error from DELETE_DOMAIN_ID when gtid_binlog_state partially matches GTID_LIST.
+FLUSH BINARY LOGS;
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval PURGE BINARY LOGS TO '$purge_to_binlog'
+--source include/show_binary_logs.inc
+--eval SET @@SESSION.gtid_domain_id=$err_domain_id
+--eval SET @@SESSION.server_id=10*$err_domain_id + $err_server_id
+eval INSERT INTO t SELECT 1+MAX(a) FROM t;
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($domain_list)
+
+# Now satisfy the safety condition to purge log files containing $domain list
 FLUSH BINARY LOGS;
 --let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
 --eval PURGE BINARY LOGS TO '$purge_to_binlog'

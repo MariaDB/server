@@ -31,8 +31,8 @@
 #
 # Coding style directions for this perl script
 #
-#   - To make this Perl script easy to alter even for those that not
-#     code Perl that often, keeep the coding style as close as possible to
+#   - To make this Perl script easy to alter even for those that do not
+#     code Perl that often, keep the coding style as close as possible to
 #     the C/C++ MySQL coding standard.
 #
 #   - All lists of arguments to send to commands are Perl lists/arrays,
@@ -926,7 +926,7 @@ sub command_line_setup () {
   }
 
   # --------------------------------------------------------------------------
-  # ps protcol flag
+  # ps protocol flag
   # --------------------------------------------------------------------------
   if ( $opt_ps_protocol )
   {
@@ -1296,7 +1296,7 @@ sub collect_mysqld_features () {
   }
   rmtree($tmpdir) if (!$opt_tmpdir);
   mtr_error("Could not find version of MySQL") unless $mysql_version_id;
-  mtr_error("Could not find variabes list") unless $found_variable_list_start;
+  mtr_error("Could not find variables list") unless $found_variable_list_start;
 
 }
 
@@ -1497,7 +1497,7 @@ sub mysql_client_test_arguments()
   if ( $opt_debug )
   {
     mtr_add_arg($args,
-      "--debug=d:t:A,$path_vardir_trace/log/mysql_client_test.trace");
+      "--debug-dbug=d:t:A,$path_vardir_trace/log/mysql_client_test.trace");
   }
 
   if ( $glob_use_embedded_server )
@@ -1535,7 +1535,7 @@ sub mysql_upgrade_arguments()
   if ( $opt_debug )
   {
     mtr_add_arg($args,
-      "--debug=d:t:A,$path_vardir_trace/log/mysql_upgrade.trace");
+      "--debug-dbug=d:t:A,$path_vardir_trace/log/mysql_upgrade.trace");
   }
 
   return join(" ", $exe, @$args);
@@ -1571,8 +1571,8 @@ sub environment_setup () {
   }
 
   # --------------------------------------------------------------------------
-  # Valgrind need to be run with debug libraries otherwise it's almost
-  # impossible to add correct supressions, that means if "/usr/lib/debug"
+  # Valgrind needs to be run with debug libraries otherwise it's almost
+  # impossible to add correct suppressions, that means if "/usr/lib/debug"
   # is available, it should be added to
   # LD_LIBRARY_PATH
   #
@@ -1663,12 +1663,12 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlcheck .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlcheck.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlcheck.trace";
   }
   $ENV{'MYSQL_CHECK'}=              $cmdline_mysqlcheck;
 
   # ----------------------------------------------------
-  # Setup env to childs can execute myqldump
+  # Setup env to childs can execute mysqldump
   # ----------------------------------------------------
   my $cmdline_mysqldump= generate_cmdline_mysqldump($master->[0]);
   my $cmdline_mysqldumpslave= generate_cmdline_mysqldump($slave->[0]);
@@ -1676,9 +1676,9 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqldump .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqldump-master.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqldump-master.trace";
     $cmdline_mysqldumpslave .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqldump-slave.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqldump-slave.trace";
   }
   $ENV{'MYSQL_DUMP'}= $cmdline_mysqldump;
   $ENV{'MYSQL_DUMP_SLAVE'}= $cmdline_mysqldumpslave;
@@ -1698,7 +1698,7 @@ sub environment_setup () {
     if ( $opt_debug )
    {
       $cmdline_mysqlslap .=
-	" --debug=d:t:A,$path_vardir_trace/log/mysqlslap.trace";
+	" --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlslap.trace";
     }
     $ENV{'MYSQL_SLAP'}= $cmdline_mysqlslap;
   }
@@ -1715,7 +1715,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlimport .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlimport.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlimport.trace";
   }
   $ENV{'MYSQL_IMPORT'}= $cmdline_mysqlimport;
 
@@ -1732,7 +1732,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlshow .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlshow.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlshow.trace";
   }
   $ENV{'MYSQL_SHOW'}= $cmdline_mysqlshow;
 
@@ -1753,7 +1753,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlbinlog .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlbinlog.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlbinlog.trace";
   }
   $ENV{'MYSQL_BINLOG'}= $cmdline_mysqlbinlog;
 
@@ -2411,7 +2411,7 @@ sub mysql_install_db () {
     copy_install_db('master', $master->[1]->{'path_myddir'});
   }
 
-  # Install the number of slave databses needed
+  # Install the number of slave databases needed
   for (my $idx= 0; $idx < $max_slave_num; $idx++)
   {
     copy_install_db("slave".($idx+1), $slave->[$idx]->{'path_myddir'});
@@ -2460,7 +2460,7 @@ sub install_db ($$) {
 
   if ( $opt_debug )
   {
-    mtr_add_arg($args, "--debug=d:t:i:A,%s/log/bootstrap_%s.trace",
+    mtr_add_arg($args, "--debug-dbug=d:t:i:A,%s/log/bootstrap_%s.trace",
 		$path_vardir_trace, $type);
   }
 
@@ -3041,7 +3041,7 @@ sub mysqld_arguments ($$$$) {
     mtr_add_arg($args, "%s--log-bin-trust-function-creators", $prefix);
   }
 
-  mtr_add_arg($args, "%s--character-set-server=latin1", $prefix);
+  mtr_add_arg($args, "%s--character-set-server=utf8mb4", $prefix);
   mtr_add_arg($args, "%s--lc-messages-dir=%s", $prefix, $path_language);
   mtr_add_arg($args, "%s--tmpdir=$opt_tmpdir", $prefix);
 
@@ -3083,7 +3083,7 @@ sub mysqld_arguments ($$$$) {
 
   if (!$opt_extern and $mysql_version_id >= 50106 )
   {
-    # Turn on logging to bothe tables and file
+    # Turn on logging to both tables and file
     mtr_add_arg($args, "%s--log-output=table,file", $prefix);
   }
 
@@ -3186,7 +3186,7 @@ sub mysqld_arguments ($$$$) {
   {
     if ( $opt_debug )
     {
-      mtr_add_arg($args, "%s--debug=d:t:i:A,%s/log/%s%s.trace",
+      mtr_add_arg($args, "%s--debug-dbug=d:t:i:A,%s/log/%s%s.trace",
                   $prefix, $path_vardir_trace, $mysqld->{'type'}, $sidx);
     }
     else
@@ -3661,7 +3661,7 @@ sub run_testcase_start_servers($) {
 }
 
 #
-# Run include/check-testcase.test
+# Run include/check-testcase.inc
 # Before a testcase, run in record mode, save result file to var
 # After testcase, run and compare with the recorded file, they should be equal!
 #
@@ -3699,7 +3699,7 @@ sub run_check_testcase ($$) {
   }
 
   my $res = mtr_run_test($exe_mysqltest,$args,
-	        "include/check-testcase.test", "", "", "");
+	        "include/check-testcase.inc", "", "", "");
 
   if ( $res == 1  and $mode eq "after")
   {
@@ -3825,7 +3825,7 @@ sub run_mysqltest ($) {
 
   if ( $opt_debug )
   {
-    mtr_add_arg($args, "--debug=d:t:A,%s/log/mysqltest.trace",
+    mtr_add_arg($args, "--debug-dbug=d:t:A,%s/log/mysqltest.trace",
 		$path_vardir_trace);
   }
 

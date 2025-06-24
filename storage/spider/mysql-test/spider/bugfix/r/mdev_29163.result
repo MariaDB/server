@@ -11,8 +11,14 @@ CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (b INT);
 CREATE TABLE t3 (c INT, PRIMARY KEY(c));
 CREATE TABLE t1_spider (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't1'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2_spider (b INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't2'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3_spider (c INT, PRIMARY KEY(c)) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't3'";
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT t1_spider.* FROM t1_spider LEFT JOIN t2_spider LEFT JOIN t3_spider ON b = c ON a = b;
 a
 DROP TABLE t1_spider, t2_spider, t3_spider, t1, t2, t3;

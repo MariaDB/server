@@ -57,7 +57,7 @@ SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
 
 CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
-SET tx_read_only=1;
+SET transaction_read_only=1;
 BEGIN;
 INSERT INTO t2 VALUES(0);
 INSERT INTO t VALUES(0);
@@ -70,7 +70,7 @@ INSERT INTO t VALUES(0);
 
 --error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
 DROP TEMPORARY TABLE t,t2;
-SET tx_read_only=0;
+SET transaction_read_only=0;
 DROP TEMPORARY TABLE t,t2;
 
 --echo #
@@ -220,7 +220,9 @@ INSERT INTO t1 SELECT * FROM seq_1_to_4096;
 let $wait_condition= select n_rows > 100 from mysql.innodb_table_stats
 where table_name="t1";
 source include/wait_condition.inc;
-SELECT n_rows>=4096 FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+# At innodb_page_size=4k this will be only 4075, not 4096. Add some slack.
+# This is related to MDEV-24621 and possibly MDEV-26740.
+SELECT n_rows>=4000 FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
 DROP TABLE t1;
 
 
@@ -251,7 +253,7 @@ begin;
 --error ER_WRONG_VALUE_COUNT_ON_ROW
 INSERT INTO t VALUES (0,0);
 SAVEPOINT a;
---error ER_DUP_ENTRY
+--error ER_ERROR_DURING_COMMIT
 INSERT INTO t VALUES (0),(0);
 SAVEPOINT a;
 commit;
@@ -316,3 +318,336 @@ SELECT length(f1) FROM t1;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
+--echo #	in table corruption
+--echo #
+
+CREATE TABLE t (c1 INT KEY,c2 INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t VALUES (1,0),(2,0);
+CHECK TABLE t;
+COMMIT;
+DROP TABLE t;
+
+CREATE TABLE t (i INT UNIQUE)ENGINE=InnoDB;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t VALUES (0),(0);
+CHECK TABLE t;
+DROP TABLE t;
+
+CREATE TABLE t (c INT PRIMARY KEY,c2 CHAR(1) UNIQUE)ENGINE=InnoDB;
+BEGIN;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t VALUES(1, ''),(2, '');
+SELECT * FROM t;
+DELETE FROM t;
+COMMIT;
+DROP TABLE t;
+
+--echo #
+--echo #  MDEV-26956 LeakSanitizer/Valgrind errors in
+--echo #     trx_mod_table_time_t::start_bulk_insert
+--echo #	upon adding system versioning
+--echo #
+CREATE TABLE t1(id INT, s DATE, e DATE, PERIOD FOR p(s,e),
+		PRIMARY KEY(id, p WITHOUT OVERLAPS)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN row_start BIGINT UNSIGNED AS ROW START,
+	       ADD COLUMN row_end BIGINT UNSIGNED AS ROW END,
+	       ADD PERIOD FOR SYSTEM_TIME(row_start,row_end), WITH SYSTEM VERSIONING;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27316  Assertion `!(index)->is_spatial()' failed.
+--echo #
+CREATE TABLE t (c POINT NOT NULL, SPATIAL INDEX(c)) ENGINE=InnoDB;
+INSERT INTO t VALUES (POINT(1, 1));
+SELECT COUNT(*) FROM t WHERE MBRWithin(t.c, POINT(1,1));
+DROP TABLE t;
+
+--echo #
+--echo #  MDEV-27318	Assertion data_size < srv_sort_buf_size failed in row_merge_bulk_buf_add
+--echo #
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+SELECT length(f1) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27858  Assertion `page_dir_get_n_heap(new_page) == 2U' failed in PageBulk::init
+--echo #
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+LOCK TABLES t1 WRITE,t2 WRITE;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-28138  MariaDB Assertion Failed in mtr_buf_t::has_space
+--echo #
+CREATE TABLE t1(
+  f1 SERIAL,
+  f2 LINESTRING NOT NULL DEFAULT LineFromText('LINESTRING(1 1,2 2,3 3)'),
+SPATIAL INDEX(f2))ENGINE=InnoDB;
+--error ER_DUP_ENTRY
+INSERT INTO t1(f1) VALUES(0), (1), (2);
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-28237  Assertion `0' failed in row_upd_sec_index_entry on DELETE
+--echo #
+CREATE TABLE t1 (c0 YEAR UNIQUE) ENGINE=InnoDB;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(0),(0);
+DELETE FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-28037 Assertion `trx->bulk_insert' failed in innodb_prepare_commit_versioned
+--echo #
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW UPDATE t2 SET c=1;
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-28242  Assertion `!check_foreigns' failed in
+--echo #                trx_t::check_bulk_buffer
+--echo #
+CREATE TABLE t1 (c INT)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES(1), (1);
+SET SESSION foreign_key_checks=TRUE;
+SHOW CREATE TABLE t1;
+CREATE TABLE t2(d INT)ENGINE=InnoDB;
+DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-28400 Leak in trx_mod_time_t::start_bulk_insert
+--echo #
+
+SET SESSION foreign_key_checks=0;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2);
+ALTER TABLE t1 REBUILD PARTITION p0;
+# Cleanup
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-29570  InnoDB fails to clean bulk buffer when server
+--echo #			does rollback operation
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB
+		 PARTITION BY RANGE (pk) (
+			PARTITION pn VALUES LESS THAN (20));
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+INSERT INTO t1 VALUES (1),(21);
+# Cleanup
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-29761  Bulk insert fails to rollback
+--echo #	during insert..select
+--echo #
+CREATE TABLE t1 (f1 INT)ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT, UNIQUE INDEX(f1)) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES(1);
+BEGIN;
+INSERT t1 SELECT 1 FROM seq_1_to_2;
+COMMIT;
+SELECT * FROM t1;
+SELECT * FROM t2;
+CHECK TABLE t1;
+CHECK TABLE t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo #   MDEV-29801  Inconsistent ER_TOO_BIG_ROWSIZE during bulk
+--echo #			insert operation
+--echo #
+call mtr.add_suppression("InnoDB: Cannot add field `(c0[36]|c11)` in table");
+
+SET @format= @@innodb_default_row_format;
+CREATE TABLE t1 (pk int primary key, c01 text, c02 text, c03 text,
+                 c04 text, c05 text, c06 text, c07 text, c08 text,
+                 c09 text, c10 text, c11 text, c12 text) ENGINE=InnoDB;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= COMPACT;
+--replace_result 1982 8126 4030 8126
+ALTER TABLE t1 FORCE;
+let $page_size= `SELECT @@innodb_page_size`;
+let $error_code = 0;
+
+if ($page_size <= 16384) {
+ let $error_code = ER_TOO_BIG_ROWSIZE;
+}
+
+--error $error_code
+INSERT IGNORE INTO t1 VALUES
+(1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
+(2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));
+CHECK TABLE t1;
+DROP TABLE t1;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
+
+--echo #
+--echo #   MDEV-30321 blob data corrupted by row_merge_write_blob_to_tmp_file()
+--echo #
+
+CREATE TABLE t1 (
+  `id` int(11) NOT NULL,
+  `data` LONGBLOB NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES 
+  (1, REPEAT('X', @@innodb_sort_buffer_size)),
+  (2, REPEAT('X', @@innodb_sort_buffer_size));
+
+SELECT COUNT(*) AS nb_corrupted_rows FROM t1 WHERE data != REPEAT('X', @@innodb_sort_buffer_size);
+DROP TABLE t1;
+
+--echo # End of 10.7 tests
+
+--echo #
+--echo #  MDEV-30426  Assertion !rec_offs_nth_extern(offsets2, n)
+--echo #	during bulk insert
+--echo #
+CREATE TABLE t1(f1 TEXT NOT NULL, f2 TEXT NOT NULL,
+		f3 TEXT NOT NULL, f4 TEXT NOT NULL,
+		f5 TEXT NOT NULL, f6 TEXT NOT NULL,
+		PRIMARY KEY(f6(10)))ENGINE=InnoDB;
+BEGIN;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES
+        (repeat('a', 200), repeat('b', 200), repeat('c', 200),
+         repeat('d', 200), repeat('e', 200), repeat('f', 200)),
+        (repeat('b', 20000), repeat('c', 16000), repeat('d', 12000),
+         repeat('e', 12000), repeat('f', 12000), repeat('f', 12000));
+COMMIT;
+DROP TABLE t1;
+--echo # End of 10.8 tests
+
+--echo #
+--echo #  MDEV-31537 Bulk insert operation aborts the server
+--echo #		for redundant table
+--echo #
+CREATE TABLE t (a CHAR CHARACTER SET utf8) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT t SELECT left(seq,1) FROM seq_1_to_43691;
+DROP TABLE t;
+
+--echo #
+--echo #  MDEV-32453  Bulk insert fails to apply when trigger
+--echo #                  does insert operation
+--echo #
+CREATE TABLE t(c INT)ENGINE=InnoDB;
+CREATE TRIGGER t2_ai AFTER INSERT ON t FOR EACH ROW SET @a:=(SELECT * FROM t);
+BEGIN;
+--error ER_SUBQUERY_NO_1_ROW
+INSERT INTO t VALUES (1),(1);
+COMMIT;
+DROP TABLE t;
+
+--echo #
+--echo #  MDEV-33868 Assertion `trx->bulk_insert' failed in
+--echo #             innodb_prepare_commit_versioned
+--echo #
+CREATE TABLE t (id INT) ENGINE=InnoDB;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval select 1 into outfile "$MYSQLTEST_VARDIR/tmp/t.outfile";
+BEGIN;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.outfile' INTO TABLE t;
+COMMIT;
+DROP TABLE t;
+--remove_file $MYSQLTEST_VARDIR/tmp/t.outfile
+
+--echo #
+--echo #  MDEV-33934 Assertion `!check_foreigns' failed in
+--echo #    trx_t::bulk_insert_apply_for_table(dict_table_t*)
+--echo #
+CREATE TABLE t1(f1 INT,f2 INT,KEY(f1))engine=innodb;
+BEGIN;
+INSERT INTO t1 VALUES();
+SET STATEMENT FOREIGN_KEY_CHECKS=1 FOR SELECT * FROM t1;
+COMMIT;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-33970  Assertion `!m.first->second.is_bulk_insert()'
+--echo #         failed in trx_undo_report_row_operation()
+--echo #
+CREATE TABLE t1(c1 INT,c2 CHAR) ENGINE=INNODB PARTITION BY KEY(c1) PARTITIONS 2;
+begin;
+INSERT INTO t1 VALUES(2,0);
+DELETE FROM t1;
+commit;
+DROP TABLE t1;
+
+
+if ($page_size >= 16384) {
+--echo #
+--echo #  MDEV-35475 Assertion `!rec_offs_nth_extern(offsets1, n)'
+--echo #               failed in cmp_rec_rec_simple_field
+--echo #
+CREATE TABLE t1(a BLOB, b VARCHAR(2048), PRIMARY KEY (b)) ENGINE=InnoDB
+CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+INSERT INTO t1 VALUES (REPEAT('x',4805),'a'), (REPEAT('x',16111),'b'),
+                      (REPEAT('x',65535),'c'), (REPEAT('x',11312),'d'),
+                      (REPEAT('x',35177),'e'), (REPEAT('x',65535),'f'),
+                      (REPEAT('x',1988),'g'), (NULL,REPEAT('x',2048)),
+                      (REPEAT('x',2503),'h'), (REPEAT('x',33152),'i'),
+		      (REPEAT('x',65535),'j'), (REPEAT('x',1988),'k'),
+		      (REPEAT('x',65535),'l'), (REPEAT('x',65535),'m'),
+		      (REPEAT('x',65535),'n'), (REPEAT('x',65535),'o'),
+		      (REPEAT('x',1988),'p'), (REPEAT('x',2503),'q'),
+		      (REPEAT('x',65535),'r'), (REPEAT('x',65535),'s'),
+		      (REPEAT('x',65535),'t'), (REPEAT('x',3169),'u'),
+		      (REPEAT('x',7071),'v'), (REPEAT('x',16111),'w'),
+		      (REPEAT('x',2325),'x'), (REPEAT('x',33152),'y'),
+		      (REPEAT('x',65535),'z'), (REPEAT('x',65535),'aa'),
+		      (REPEAT('x',16111),'bb'), (REPEAT('x',4805),'cc'),
+		      (REPEAT('x',65535),'dd');
+DROP TABLE t1;
+}
+
+--echo #
+--echo #  Assertion `page_dir_get_n_heap(new_page) == 2U' failed
+--echo #                  in dberr_t PageBulk::init()
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB PARTITION BY RANGE (f1) (PARTITION p0 VALUES LESS THAN (100));
+
+SET @old_bulk_op=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations');
+
+BEGIN;
+INSERT INTO t1 SELECT seq FROM seq_1_to_1;
+COMMIT;
+
+SELECT variable_value-@old_bulk_op bulk_operations
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_bulk_operations';
+DROP TABLE t1;
+
+call mtr.add_suppression("Found 1 prepared XA transactions");
+--echo #
+--echo #  MDEV-36771 Assertion `bulk_insert == TRX_NO_BULK' failed
+--echo #           in trx_t::assert_freed from innodb_shutdown
+--echo #
+CREATE TABLE t1(f1 INT)ENGINE=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES(1);
+XA END 'a';
+XA PREPARE 'a';
+--source include/restart_mysqld.inc
+XA COMMIT 'a';
+SELECT * FROM t1;
+DROP TABLE t1;
+--echo # End of 10.11 tests

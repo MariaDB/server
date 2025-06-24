@@ -228,6 +228,11 @@ get_thread_noop(void NNN)
   return NULL;
 }
 
+static const char* get_thread_class_name_noop(void)
+{
+  return NULL;
+}
+
 static void set_thread_user_noop(const char *user NNN, int user_len NNN)
 {
   return;
@@ -456,7 +461,7 @@ static void end_file_open_wait_and_bind_to_descriptor_noop
 }
 
 static void end_temp_file_open_wait_and_bind_to_descriptor_noop
-  (PSI_file_locker *locker NNN, File file NNN, const char *filaneme NNN)
+  (PSI_file_locker *locker NNN, File file NNN, const char *filename NNN)
 {
   return;
 }
@@ -938,6 +943,7 @@ static PSI PSI_noop=
   set_thread_THD_noop,
   set_thread_os_id_noop,
   get_thread_noop,
+  get_thread_class_name_noop,
   set_thread_user_noop,
   set_thread_user_host_noop,
   set_thread_db_noop,

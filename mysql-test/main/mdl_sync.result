@@ -44,7 +44,7 @@ connection default;
 set debug_sync= 'RESET';
 create table t1 (c1 int);
 # 
-# A) First let us check compatibility rules between differend kinds of
+# A) First let us check compatibility rules between different kinds of
 #    type-of-operation aware metadata locks.
 #    Of course, these rules are already covered by the tests scattered
 #    across the test suite. But it still makes sense to have one place
@@ -954,7 +954,7 @@ insert into t1 values (1);
 connection default;
 # Add pending SNW lock.
 # Sending:
-alter table t1 add primary key (c1);;
+alter table t1 add primary key (c1), lock=shared;;
 # 
 connection mdl_con1;
 # Check that ALTER TABLE is waiting with pending SNW lock.
@@ -1964,7 +1964,7 @@ create table t1 (i int);
 # Ensure that ALTER waits once it has acquired SNW lock.
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL parked1 WAIT_FOR go1';
 # Sending:
-alter table t1 add column j int;
+alter table t1 add column j int, lock=shared;
 #
 connection deadlock_con1;
 # Wait till ALTER acquires SNW lock and stops.
@@ -1981,7 +1981,7 @@ connection deadlock_con2;
 set debug_sync='now WAIT_FOR parked2';
 # Resume ALTER execution. Eventually it will release its
 # metadata lock and INSERT's request for SW lock will be
-# satisified.
+# satisfied.
 set debug_sync='now SIGNAL go1';
 #
 connection default;
@@ -2330,7 +2330,7 @@ c1	c2	c3
 #
 connection con46273;
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL alter_table_locked WAIT_FOR alter_go';
-alter table t1 add column e int, rename to t2;;
+alter table t1 add column e int, rename to t2, lock=shared;;
 #
 connection default;
 set debug_sync='now WAIT_FOR alter_table_locked';
@@ -2431,9 +2431,6 @@ create table t1 (a int) engine=myisam;
 create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
-connect  con1, localhost, root;
-start transaction with consistent snapshot;
-connection default;
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 update t1,t2 set t1.a=2,t2.a=3;
 connection con2;
@@ -2456,6 +2453,7 @@ SET DEBUG_SYNC= 'now SIGNAL grlwait';
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 FLUSH TABLES WITH READ LOCK;
+InnoDB		0 transactions not purged
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_FTWRL2	Backup lock		
@@ -2465,12 +2463,11 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
-disconnect con1;
 #
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 #           failed in open_ltable()
 #
-# Supress warnings written to the log file
+# Suppress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
 connect  con1,localhost,root;
 connect  con2,localhost,root;
@@ -2591,7 +2588,7 @@ connection default;
 # table lock and get blocked on sync point.
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL parked WAIT_FOR go';
 # Sending:
-alter table t1 add column j int;
+alter table t1 add column j int, lock=shared;
 connection con1;
 # Wait until ALTER TABLE gets blocked on a sync point.
 set debug_sync= 'now WAIT_FOR parked';
@@ -2684,11 +2681,11 @@ connection default;
 SET DEBUG_SYNC= "now WAIT_FOR waiting";
 SHOW FULL COLUMNS FROM t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-a	char(255)	latin1_swedish_ci	YES		NULL		#	
+a	char(255)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 SET DEBUG_SYNC= "now SIGNAL completed";
 connection con1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-a	char(255)	latin1_swedish_ci	YES		NULL		#	
+a	char(255)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 connection default;
 DROP TABLE t1;
 disconnect con1;

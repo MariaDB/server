@@ -47,18 +47,25 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "range",
-      "possible_keys": ["kp1"],
-      "key": "kp1",
-      "key_length": "5",
-      "used_key_parts": ["kp1"],
-      "rows": 1000,
-      "filtered": 100,
-      "index_condition": "t3.kp1 between 2 and 4 and t3.kp1 MOD 3 = 0",
-      "attached_condition": "t3.kp2 like '%foo%'"
-    }
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "range",
+          "possible_keys": ["kp1"],
+          "key": "kp1",
+          "key_length": "5",
+          "used_key_parts": ["kp1"],
+          "loops": 1,
+          "rows": 1000,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "index_condition": "t3.kp1 between 2 and 4 and t3.kp1 MOD 3 = 0",
+          "attached_condition": "t3.kp2 like '%foo%'"
+        }
+      }
+    ]
   }
 }
 # Check that we handle the case where out-of-range is encountered sooner
@@ -80,7 +87,7 @@ pk	kp1	kp2	col1
 explain 
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
 pk	kp1	kp2	col1
 10	10	10	10
@@ -91,7 +98,7 @@ pk	kp1	kp2	col1
 explain 
 select * from t2 where kp1 >990 and mod(kp2,2)=0 order by kp1 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
 select * from t2 where kp1 >990 and mod(kp2,2)=0 order by kp1 desc;
 pk	kp1	kp2	col1
 998	998	998	998
@@ -101,7 +108,7 @@ pk	kp1	kp2	col1
 explain 
 select * from t2 where kp1< 3 and kp2+1>50000 order by kp1 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
 select * from t2 where kp1< 3 and kp2+1>50000 order by kp1 desc;
 pk	kp1	kp2	col1
 drop table t0,t1,t2,t3;

@@ -1,0 +1,9 @@
+#
+# MDEV-27408 DESC index on a Mroonga table causes wrong order of result set
+#
+create table t1 (a int, key(a desc));
+ERROR HY000: DESC indexes are not supported
+show warnings;
+Level	Code	Message
+Error	1005	DESC indexes are not supported
+Warning	1030	Got error 1005 "Unknown error 1005" from storage engine Mroonga

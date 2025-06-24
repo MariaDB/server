@@ -1,0 +1,139 @@
+#
+# MDEV-21921 Make transaction_isolation and transaction_read_only into
+# system variables
+#
+SET @saved_global_isolation= @@global.transaction_isolation;
+SET @saved_global_read_only= @@global.transaction_read_only;
+# Case 1: Check the influence of --transaction_* on
+# @@session.transaction_* and @@global.transaction_*,
+# @@session.tx_*, @@global.tx_*.
+SELECT @@session.transaction_isolation, @@global.transaction_isolation,
+@@session.tx_isolation, @@global.tx_isolation;
+@@session.transaction_isolation	@@global.transaction_isolation	@@session.tx_isolation	@@global.tx_isolation
+SERIALIZABLE	SERIALIZABLE	SERIALIZABLE	SERIALIZABLE
+SHOW GLOBAL VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	SERIALIZABLE
+tx_isolation	SERIALIZABLE
+SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	SERIALIZABLE
+tx_isolation	SERIALIZABLE
+SELECT @@session.transaction_read_only, @@global.transaction_read_only,
+@@session.tx_read_only, @@global.tx_read_only;
+@@session.transaction_read_only	@@global.transaction_read_only	@@session.tx_read_only	@@global.tx_read_only
+1	1	1	1
+SHOW GLOBAL VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	ON
+tx_read_only	ON
+SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	ON
+tx_read_only	ON
+# Case 2: Check that the change to tx_* is reflected to transaction_*.
+SET tx_isolation= 'REPEATABLE-READ';
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SET @@global.tx_isolation= 'SERIALIZABLE';
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SELECT @@session.tx_isolation, @@global.tx_isolation,
+@@session.transaction_isolation, @@global.transaction_isolation;
+@@session.tx_isolation	@@global.tx_isolation	@@session.transaction_isolation	@@global.transaction_isolation
+REPEATABLE-READ	SERIALIZABLE	REPEATABLE-READ	SERIALIZABLE
+SHOW GLOBAL VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	SERIALIZABLE
+tx_isolation	SERIALIZABLE
+SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	REPEATABLE-READ
+tx_isolation	REPEATABLE-READ
+SET STATEMENT tx_isolation= 'SERIALIZABLE' FOR SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	SERIALIZABLE
+tx_isolation	SERIALIZABLE
+Warnings:
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+Warning	1287	'@@tx_isolation' is deprecated and will be removed in a future release. Please use '@@transaction_isolation' instead
+SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	REPEATABLE-READ
+tx_isolation	REPEATABLE-READ
+SET tx_read_only= OFF;
+Warnings:
+Warning	1287	'@@tx_read_only' is deprecated and will be removed in a future release. Please use '@@transaction_read_only' instead
+SET @@global.tx_read_only= ON;
+Warnings:
+Warning	1287	'@@tx_read_only' is deprecated and will be removed in a future release. Please use '@@transaction_read_only' instead
+SELECT @@session.tx_read_only, @@global.tx_read_only,
+@@session.transaction_read_only, @@global.transaction_read_only;
+@@session.tx_read_only	@@global.tx_read_only	@@session.transaction_read_only	@@global.transaction_read_only
+0	1	0	1
+SHOW GLOBAL VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	ON
+tx_read_only	ON
+SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	OFF
+tx_read_only	OFF
+SET STATEMENT tx_read_only= ON FOR SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	ON
+tx_read_only	ON
+Warnings:
+Warning	1287	'@@tx_read_only' is deprecated and will be removed in a future release. Please use '@@transaction_read_only' instead
+Warning	1287	'@@tx_read_only' is deprecated and will be removed in a future release. Please use '@@transaction_read_only' instead
+SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	OFF
+tx_read_only	OFF
+# Case 3: Check that the change to transaction_* is reflected to tx_*.
+SET transaction_isolation= 'SERIALIZABLE';
+SET @@global.transaction_isolation= 'REPEATABLE-READ';
+SELECT @@session.tx_isolation, @@global.tx_isolation,
+@@session.transaction_isolation, @@global.transaction_isolation;
+@@session.tx_isolation	@@global.tx_isolation	@@session.transaction_isolation	@@global.transaction_isolation
+SERIALIZABLE	REPEATABLE-READ	SERIALIZABLE	REPEATABLE-READ
+SHOW GLOBAL VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	REPEATABLE-READ
+tx_isolation	REPEATABLE-READ
+SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	SERIALIZABLE
+tx_isolation	SERIALIZABLE
+SET STATEMENT transaction_isolation= 'REPEATABLE-READ' FOR SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	REPEATABLE-READ
+tx_isolation	REPEATABLE-READ
+SHOW SESSION VARIABLES LIKE '%_isolation';
+Variable_name	Value
+transaction_isolation	SERIALIZABLE
+tx_isolation	SERIALIZABLE
+SET transaction_read_only= ON;
+SET @@global.transaction_read_only= OFF;
+SELECT @@session.tx_read_only, @@global.tx_read_only,
+@@session.transaction_read_only, @@global.transaction_read_only;
+@@session.tx_read_only	@@global.tx_read_only	@@session.transaction_read_only	@@global.transaction_read_only
+1	0	1	0
+SHOW GLOBAL VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	OFF
+tx_read_only	OFF
+SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	ON
+tx_read_only	ON
+SET STATEMENT transaction_read_only= OFF FOR SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	OFF
+tx_read_only	OFF
+SHOW SESSION VARIABLES LIKE '%_read_only';
+Variable_name	Value
+transaction_read_only	ON
+tx_read_only	ON
+SET @@global.transaction_isolation= @saved_global_isolation;
+SET @@global.transaction_read_only= @saved_global_read_only;

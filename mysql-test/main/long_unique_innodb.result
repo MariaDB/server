@@ -2,6 +2,9 @@ create table t1(a blob unique) engine= InnoDB;
 insert into t1 values('RUC');
 insert into t1 values ('RUC');
 ERROR 23000: Duplicate entry 'RUC' for key 'a'
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	1	NULL	NULL	YES	HASH			NO
 drop table t1;
 create table t1 (a blob unique , c int unique) engine=innodb;
 show create table t1;
@@ -11,7 +14,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
   UNIQUE KEY `c` (`c`),
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #test for concurrent insert of long unique in innodb
 create table t1(a blob unique) engine= InnoDB;
@@ -20,7 +23,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
   UNIQUE KEY `a` (`a`) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connect  'con1', localhost, root,,;
 connect  'con2', localhost, root,,;
 connection con1;

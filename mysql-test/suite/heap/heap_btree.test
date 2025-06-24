@@ -48,6 +48,8 @@ select * from t1 where a in (869751,736494,226312,802616);
 explain select * from t1 where a in (869751,736494,226312,802616);
 alter table t1 engine=myisam;
 explain select * from t1 where a in (869751,736494,226312,802616);
+insert into t1 values (1),(2),(3),(4),(5),(6);
+explain select * from t1 where a in (869751,736494,226312,802616);
 drop table t1;
 
 create table t1 (x int not null, y int not null, key x  using BTREE (x,y), unique y  using BTREE (y))

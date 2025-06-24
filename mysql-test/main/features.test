@@ -11,7 +11,7 @@ set sql_mode="";
 
 --disable_ps2_protocol
 
-flush status;
+flush global status;
 
 show status like "feature%";
 
@@ -150,3 +150,19 @@ create table t1(id1 int);
 insert into t1 values (1),(2) returning *;
 drop table t1;
 show status like "feature_insert_returning";
+
+--echo #
+--echo # Feature into outfile/variables
+--echo #
+create table t1(id1 int);
+insert into t1 values (1),(2);
+select * into outfile '../../tmp/features_outfile.1' from t1;
+select * from t1 into outfile '../../tmp/features_outfile.2';
+select id1 INTO @x from t1 where id1=1;
+select * from t1 where id1=1 into @y;
+select * from t1 where id1=@x;
+select @x=@y;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/features_outfile.1
+--remove_file $MYSQLTEST_VARDIR/tmp/features_outfile.2
+show status like "feature_into_%";

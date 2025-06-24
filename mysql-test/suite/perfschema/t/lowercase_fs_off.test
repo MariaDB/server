@@ -1,0 +1,30 @@
+#
+# Specific tests for case sensitive file systems
+# i.e. lower_case_filesystem=OFF
+#
+--source include/have_case_sensitive_file_system.inc
+--source include/have_perfschema.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-33020 The database part is not case sensitive in SP names in PERFORMANCE_SCHEMA
+--echo #
+
+# the m33020_ prefix was added to the database names
+# to temporarily address MDEV-34817
+
+CREATE OR REPLACE DATABASE m33020_DB1;
+CREATE OR REPLACE DATABASE m33020_db1;
+CREATE PROCEDURE m33020_DB1.sp() SELECT 'This is m33020_DB1.sp';
+CREATE PROCEDURE m33020_db1.sp() SELECT 'This is m33020_db1.sp';
+CALL m33020_DB1.sp();
+# This is needed to reset the SP cache (a MDEV-33019 workaround)
+CREATE PROCEDURE m33020_DB1.sp2() SELECT 'This is m33020_DB1.sp2';
+CALL m33020_db1.sp();
+
+SELECT object_type, object_schema, object_name, count_star, count_statements, sum_rows_sent
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type='procedure' AND LOWER(object_schema)='m33020_db1';
+
+DROP DATABASE m33020_db1;
+DROP DATABASE m33020_DB1;

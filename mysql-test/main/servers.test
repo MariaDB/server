@@ -42,11 +42,57 @@ drop table mysql.servers;
 rename table mysql.servers_save to mysql.servers;
 drop server s1;
 
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET '/tmp/1234567890_1234567890_1234567890_1234567890_1234567890_1234567890.sock');
+SELECT Socket FROM mysql.servers where Server_name = 's1';
+DROP SERVER s1;
+
 --echo #
---echo # MDEV-35641 foreign server "disappears" after ALTERing the servers system table to use innodb and FLUSH PRIVILEGES
+--echo # MDEV-34716 - Arbitrary OPTIONS for CREATE SERVER
+--echo # MDEV-15696 - SHOW CREATE SERVER
 --echo #
+
+create server srv foreign data wrapper mysql options
+(host "localhost", port 12345, wait_what "it's all good");
+show create server srv;
+
+create or replace server srv foreign data wrapper Foo options
+(host "somewhere.else", port 54321, wait_what "it's all good", foo 'bar');
+show create server srv;
+
+alter server srv options (socket "sock", port 123, foo "", bar ')"{');
+show create server srv;
+
+alter server srv options (socket "sock", port 123, bar "quux");
+show create server srv;
+
+create or replace server srv foreign data wrapper foo options
+(host "localhost", port "12345");
+
+--error ER_PARSE_ERROR
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "bar321");
+
+--error ER_PARSE_ERROR
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "123bar");
+
+create or replace server srv foreign data wrapper mysql options
+(host "localhost", port "0");
+
+--error ER_FOREIGN_SERVER_DOESNT_EXIST
+show create server nonexist;
+
+drop server srv;
+
+--echo #
+--echo # MDEV-35557 SIGSEGV in get_server_from_table_to_cache | servers_load, UBSAN null pointer passed as argument 1, which is declared to never be null
+--echo #
+
 --source include/have_innodb.inc
+
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (HOST '127.0.0.1');
-ALTER TABLE mysql.servers ENGINE=innodb;
+ALTER TABLE mysql.servers ENGINE=InnoDB;
+FLUSH PRIVILEGES;
+ALTER TABLE mysql.servers ENGINE=Aria;
 FLUSH PRIVILEGES;
 drop server s1;

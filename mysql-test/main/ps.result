@@ -1,4 +1,5 @@
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2,t3,t4;
 drop database if exists mysqltest1;
 drop database if exists client_test_db;
@@ -244,8 +245,6 @@ prepare stmt1 from "insert into t1 select i from t1";
 execute stmt1;
 execute stmt1;
 prepare stmt1 from "select * from t1 into outfile '<MYSQLTEST_VARDIR>/tmp/f1.txt'";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt1;
 deallocate prepare stmt1;
 drop table t1;
@@ -698,21 +697,21 @@ set @@time_zone:='Japan';
 execute stmt;
 @@time_zone
 Japan
-prepare stmt from "select @@tx_isolation";
+prepare stmt from "select @@transaction_isolation";
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
 set transaction isolation level read committed;
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
 set transaction isolation level serializable;
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
-set @@tx_isolation=default;
+set @@transaction_isolation=default;
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
 deallocate prepare stmt;
 prepare stmt from "create temporary table t1 (letter enum('','a','b','c')
@@ -1109,12 +1108,12 @@ show create table mysqltest.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table mysqltest.t1;
 drop table mysqltest.t2;
 alter database mysqltest character set latin1;
@@ -2147,11 +2146,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2161,11 +2157,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2175,11 +2168,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2189,11 +2179,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 create function func_1() returns int begin flush tables; return 1; end|
@@ -2208,11 +2195,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 prepare abc from "flush tables";
 execute abc;
@@ -2223,11 +2207,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2237,11 +2218,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2251,11 +2229,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 deallocate prepare abc;
@@ -2973,7 +2948,7 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
   KEY `c` (`c`(10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -2981,7 +2956,7 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
   KEY `c` (`c`(10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -4599,21 +4574,21 @@ EXECUTE stmt USING CURRENT_TIMESTAMP;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime NOT NULL
+  `c1` timestamp NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(3) NOT NULL
+  `c1` timestamp(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(6) NOT NULL
+  `c1` timestamp(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME;
@@ -5177,19 +5152,19 @@ CHARSET(CONCAT(?,_latin1'a'))
 latin1
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5;
 COERCIBILITY(?)
-5
+7
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5.5;
 COERCIBILITY(?)
-5
+7
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5.5e0;
 COERCIBILITY(?)
-5
+7
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING TIME'10:20:30';
 COERCIBILITY(?)
-5
+7
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING TIMESTAMP'2001-01-01 10:20:30';
 COERCIBILITY(?)
-5
+7
 #
 # MDEV-14435 Different UNSIGNED flag of out user variable for YEAR parameter for direct vs prepared CALL
 #
@@ -5248,13 +5223,13 @@ DECLARE a DATETIME;
 CALL p1(a);
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 PREPARE stmt FROM 'CALL p1(?)';
@@ -5262,7 +5237,7 @@ EXECUTE stmt  USING a;
 DEALLOCATE PREPARE stmt;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
@@ -5274,7 +5249,7 @@ CREATE TABLE t1 AS SELECT @a AS c1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `c1` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -5561,15 +5536,13 @@ CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
 CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
 EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
 PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
 DEALLOCATE PREPARE stmt;
@@ -5995,3 +5968,25 @@ DROP VIEW t1;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-25008 Delete query gets stuck on mariadb , same query works on MySQL 8.0.21
+#
+create table t1 (a int, b int, primary key (a), key (b));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+CREATE TABLE t2 ( id INT(10) );
+insert into t2 values (1),(2);
+set @@optimizer_switch="index_merge=off";
+set sql_safe_updates=1;
+set @var1=1;
+set @var2=2;
+prepare stmt from 'update t1 set b=(SELECT 1 FROM t2 WHERE id = t1.a) where 1=? or b=2';
+execute stmt using @var1;
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
+execute stmt using @var2;
+delete from t1 where a=1 or b=2;
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
+drop table t1, t2;
+#
+# End of 11.7 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

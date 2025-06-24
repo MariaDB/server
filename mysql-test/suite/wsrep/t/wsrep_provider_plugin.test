@@ -1,0 +1,41 @@
+#
+# Verify that system variables can be modified via wsrep_provider
+# plugin and wsrep_provider/wsrep_provider_options cannot be modified.
+#
+
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+
+--let $galera_version=26.4.14
+source include/check_galera_version.inc;
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+SET GLOBAL wsrep_provider_repl_max_ws_size=1;
+SHOW VARIABLES LIKE 'wsrep_provider_repl_max_ws_size';
+
+--error ER_UNKNOWN_ERROR
+INSERT INTO t1 VALUES (1);
+
+SET GLOBAL wsrep_provider_repl_max_ws_size=DEFAULT;
+SHOW VARIABLES LIKE 'wsrep_provider_repl_max_ws_size';
+
+INSERT INTO t1 VALUES (1);
+
+# Variable should be read only, must not take effect
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL wsrep_provider_options='repl.max_ws_size=1';
+INSERT INTO t1 VALUES (2);
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL wsrep_provider='none';
+
+DROP TABLE t1;
+
+CALL mtr.add_suppression("transaction size limit");
+CALL mtr.add_suppression("rbr write fail");
+
+#
+# MDEV-30120 :Update the wsrep_provider_options read_only value in the system_variables table.
+#
+SELECT VARIABLE_NAME,READ_ONLY FROM information_schema.system_variables where VARIABLE_NAME like '%wsrep_provider_options%';

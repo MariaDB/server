@@ -25,7 +25,7 @@ connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connection default;
 
-flush status;
+flush global status;
 
 show status like 'Table_lock%';
 select * from information_schema.session_status where variable_name like 'Table_lock%';
@@ -96,7 +96,7 @@ insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 select * from t1 where a=6;
 show status like 'last_query_cost';
-# Ensure value dosn't change by second status call
+# Ensure value doesn't change by second status call
 show status like 'last_query_cost';
 select 1;
 show status like 'last_query_cost';
@@ -121,7 +121,7 @@ drop table t1;
 let $disconnect_timeout = 10;
 
 # Wait for any previous disconnects to finish.
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_query_log
 --disable_result_log
 eval SET @wait_left = $disconnect_timeout;
@@ -131,7 +131,7 @@ let $wait_more = `SELECT @max_used_connections != 1 && @wait_left > 0`;
 while ($wait_more)
 {
   sleep 1;
-  FLUSH STATUS;
+  FLUSH GLOBAL STATUS;
   SET @wait_left = @wait_left - 1;
   let $max_used_connections = `SHOW STATUS LIKE 'max_used_connections'`;
   eval SET @max_used_connections = SUBSTRING('$max_used_connections', 21)+0;
@@ -160,7 +160,7 @@ SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_us
 
 # Check that after flush max_used_connections equals to current number
 # of connections.  First wait for previous disconnect to finish.
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --disable_query_log
 --disable_result_log
 eval SET @wait_left = $disconnect_timeout;
@@ -170,7 +170,7 @@ let $wait_more = `SELECT @max_used_connections != 2 && @wait_left > 0`;
 while ($wait_more)
 {
   sleep 1;
-  FLUSH STATUS;
+  FLUSH GLOBAL STATUS;
   SET @wait_left = @wait_left - 1;
   let $max_used_connections = `SHOW STATUS LIKE 'max_used_connections'`;
   eval SET @max_used_connections = SUBSTRING('$max_used_connections', 21)+0;
@@ -244,9 +244,9 @@ let $rnd_next = `show global status like 'handler_read_rnd_next'`;
 let $tmp_table = `show global status like 'Created_tmp_tables'`;
 show status like 'com_show_status';
 show status like 'hand%write%';
-show status like '%tmp%';
+show status like '%\_tmp%';
 show status like 'hand%write%';
-show status like '%tmp%';
+show status like '%\_tmp%';
 show status like 'com_show_status';
 let $rnd_next2 = `show global status like 'handler_read_rnd_next'`;
 let $tmp_table2 = `show global status like 'Created_tmp_tables'`;
@@ -367,7 +367,7 @@ select b, count(*) from t1 group by b;
 select g, count(*) from t1 group by g;
 show status like 'Row%';
 show status like 'Handler%';
-show status like '%tmp%';
+show status like '%_tmp%';
 drop table t1;
 
 #
@@ -442,3 +442,94 @@ SET GLOBAL log_output = @old_log_output;
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
 
+--echo #
+--echo # MDEV-30543 New status variable: Max_used_connections_time
+--echo #
+
+FLUSH GLOBAL STATUS;
+
+connect (con1,localhost,root,,);
+--sleep 1
+connect (con2,localhost,root,,);
+--sleep 1
+let $time_1=`SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections_time'`;
+--sleep 1
+connection con1;
+disconnect con2;
+--sleep 1
+let $time_2=`SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections_time'`;
+--replace_regex /[0-9]*-[0-9]*-[0-9]* [0-9]*:[0-9]*:[0-9]*/DTVALUE/
+eval SELECT '$time_1' = '$time_2' AS expect_1;
+--sleep 1
+connect (con3,localhost,root,,);
+--sleep 1
+connect (con4,localhost,root,,);
+--sleep 1
+let $time_3=`SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections_time'`;
+--replace_regex /[0-9]*-[0-9]*-[0-9]* [0-9]*:[0-9]*:[0-9]*/DTVALUE/
+eval SELECT '$time_1' < '$time_3' as expect_1;
+
+disconnect con4;
+disconnect con3;
+disconnect con1;
+connection default;
+
+--echo # Test Uptime_since_flush_status
+--echo # All results below should be 1
+
+flush global status;
+flush session status;
+
+let $local_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'Uptime_since_flush_status'`;
+let $global_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME LIKE 'Uptime_since_flush_status'`;
+
+--sleep 1
+
+--evalp select $global_flush_status >= $local_flush_status as "1"
+flush session status;
+
+let $new_local_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'Uptime_since_flush_status'`;
+let $new_global_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME LIKE 'Uptime_since_flush_status'`;
+
+--evalp select $new_global_flush_status >= $global_flush_status as "1"
+--evalp select $new_local_flush_status < $new_global_flush_status as "1"
+
+--sleep 1
+flush global status;
+
+let $local_flush_status=$new_local_flush_status;
+let $new_global_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME LIKE 'Uptime_since_flush_status'`;
+let $new_local_flush_status= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'Uptime_since_flush_status'`;
+
+--evalp select $new_local_flush_status  >= $local_flush_status as "1"
+--evalp select $new_global_flush_status < $new_local_flush_status as "1"
+
+#
+# Test OLD_FLUSH_STATUS
+#
+
+create or replace table t1 (a int, key(a)) engine=MyISAM;
+insert into t1 values (1),(2);
+
+--connect con1,localhost,root
+set old_mode=OLD_FLUSH_STATUS;
+
+insert into t1 values (3),(4);
+drop table t1;
+
+select t1.variable_name, t1.variable_value as global_value, t2.variable_value as session_value
+from information_schema.global_status t1 join information_schema.session_status t2
+ on t1.variable_name = t2.variable_name
+where t1.variable_name in ('Key_writes','Com_insert');
+
+flush status;
+
+select t1.variable_name, t1.variable_value as global_value, t2.variable_value as session_value
+from information_schema.global_status t1 join information_schema.session_status t2
+ on t1.variable_name = t2.variable_name
+where t1.variable_name in ('Key_writes','Com_insert');
+
+disconnect con1;
+connection default;
+
+--echo # end of 11.5 tests

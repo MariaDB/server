@@ -5,14 +5,14 @@ CREATE TABLE dir1 (
   fname VARCHAR(256) NOT NULL,
   ftype CHAR(4) NOT NULL,
   size DOUBLE(12,0) NOT NULL flag=5
-) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*vec*';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DIR FILE_NAME='*vec*';
 
 
 CREATE TABLE t1
 (
   a INT NOT NULL,
   b CHAR(10) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=VEC FILE_NAME='t1vec';
 SHOW CREATE TABLE t1;
 # Testing SELECT on empty file
 --replace_regex /Open.rb. error 2 on .*\/test\/t1vec/Open(rb) error 2 on DATADIR\/test\/t1vec/
@@ -32,7 +32,7 @@ CREATE TABLE t1
 (
   a INT NOT NULL,
   b CHAR(10) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec' MAX_ROWS=10;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=VEC FILE_NAME='t1vec' MAX_ROWS=10;
 SHOW CREATE TABLE t1;
 # Testing SELECTs on empty file
 --replace_regex /Open.rb. error 2 on .*\/test\/t1vec/Open(rb) error 2 on DATADIR\/test\/t1vec/

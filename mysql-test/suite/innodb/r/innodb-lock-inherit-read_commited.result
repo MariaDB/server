@@ -12,8 +12,8 @@ SET GLOBAL innodb_stats_auto_recalc = OFF;
 connect  purge_control,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
-SET @old_tx_isolation = @@tx_isolation;
-SET GLOBAL tx_isolation = 'READ-COMMITTED';
+SET @old_tx_isolation = @@transaction_isolation;
+SET GLOBAL transaction_isolation = 'READ-COMMITTED';
 SET @old_innodb_lock_wait_timeout = @@innodb_lock_wait_timeout;
 SET GLOBAL innodb_lock_wait_timeout = 1;
 connect con1,localhost,root,,;
@@ -58,7 +58,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_stats_auto_recalc = @old_innodb_stats_auto_recalc;
-SET GLOBAL tx_isolation = @old_tx_isolation;
+SET GLOBAL transaction_isolation = @old_tx_isolation;
 SET GLOBAL innodb_lock_wait_timeout = @old_innodb_lock_wait_timeout;
 CREATE TABLE t1 (
 a INT NOT NULL,
@@ -71,8 +71,8 @@ SET GLOBAL innodb_stats_auto_recalc = OFF;
 connect  purge_control,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
-SET @old_tx_isolation = @@tx_isolation;
-SET GLOBAL tx_isolation = 'READ-COMMITTED';
+SET @old_tx_isolation = @@transaction_isolation;
+SET GLOBAL transaction_isolation = 'READ-COMMITTED';
 SET @old_innodb_lock_wait_timeout = @@innodb_lock_wait_timeout;
 SET GLOBAL innodb_lock_wait_timeout = 1;
 connect con1,localhost,root,,;
@@ -117,5 +117,5 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_stats_auto_recalc = @old_innodb_stats_auto_recalc;
-SET GLOBAL tx_isolation = @old_tx_isolation;
+SET GLOBAL transaction_isolation = @old_tx_isolation;
 SET GLOBAL innodb_lock_wait_timeout = @old_innodb_lock_wait_timeout;

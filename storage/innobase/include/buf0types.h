@@ -90,9 +90,9 @@ class page_id_t
 {
 public:
   /** Constructor from (space, page_no).
-  @param[in]	space	tablespace id
-  @param[in]	page_no	page number */
-  constexpr page_id_t(ulint space, uint32_t page_no) :
+  @param space	 tablespace id
+  @param page_no page number */
+  constexpr page_id_t(uint32_t space, uint32_t page_no) :
     m_id(uint64_t{space} << 32 | page_no) {}
 
   constexpr page_id_t(uint64_t id) : m_id(id) {}

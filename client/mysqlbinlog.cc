@@ -29,6 +29,7 @@
    Format_desc_of_slave, Rotate_of_master, Format_desc_of_master.
 */
 
+#define VER "3.5"
 #define MYSQL_CLIENT
 #undef MYSQL_SERVER
 #define TABLE TABLE_CLIENT
@@ -47,9 +48,11 @@
 #include "sql_common.h"
 #include "my_dir.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
+#include "rpl_gtid.h"
 #include "sql_string.h"   // needed for Rpl_filter
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
+#include "charset_collations.h"
 
 #include "mysqld.h"
 
@@ -79,10 +82,10 @@ DYNAMIC_ARRAY events_in_stmt; // Storing the events that in one statement
 String stop_event_string; // Storing the STOP_EVENT output string
 
 extern "C" {
-char server_version[SERVER_VERSION_LENGTH];
+char server_version[SERVER_VERSION_LENGTH]="5.0.0";
 }
 
-ulong server_id = 0;
+static char *server_id_str;
 
 // needed by net_serv.c
 ulong bytes_sent = 0L, bytes_received = 0L;
@@ -113,9 +116,7 @@ static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin=
 static bool opt_hexdump= 0, opt_version= 0;
 const char *base64_output_mode_names[]=
 {"NEVER", "AUTO", "UNSPEC", "DECODE-ROWS", NullS};
-TYPELIB base64_output_mode_typelib=
-  { array_elements(base64_output_mode_names) - 1, "",
-    base64_output_mode_names, NULL };
+TYPELIB base64_output_mode_typelib=CREATE_TYPELIB_FOR(base64_output_mode_names);
 static enum_base64_output_mode opt_base64_output_mode= BASE64_OUTPUT_UNSPEC;
 static char *opt_base64_output_mode_str= NullS;
 static char* database= 0;
@@ -126,29 +127,47 @@ static my_bool print_row_count_used= 0, print_row_event_positions_used= 0;
 static my_bool debug_info_flag, debug_check_flag;
 static my_bool force_if_open_opt= 1;
 static my_bool opt_raw_mode= 0, opt_stop_never= 0;
+my_bool opt_gtid_strict_mode= true;
 static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
 static char* host = 0;
-static int port= 0;
+static int opt_mysql_port= 0;
 static uint my_end_arg;
 static const char* sock= 0;
 static char *opt_plugindir= 0, *opt_default_auth= 0;
 
 static char* user = 0;
-static char* pass = 0;
+static char* opt_password = 0;
 static char *charset= 0;
 
 static uint verbose= 0;
 
-static ulonglong start_position, stop_position;
+static char *ignore_domain_ids_str, *do_domain_ids_str;
+static char *ignore_server_ids_str, *do_server_ids_str;
+static char *start_pos_str, *stop_pos_str;
+static ulonglong start_position= BIN_LOG_HEADER_SIZE,
+                 stop_position= (longlong)(~(my_off_t)0) ;
 static const longlong stop_position_default= (longlong)(~(my_off_t)0);
 #define start_position_mot ((my_off_t)start_position)
 #define stop_position_mot  ((my_off_t)stop_position)
 
+static Binlog_gtid_state_validator *gtid_state_validator= NULL;
+static Gtid_event_filter *gtid_event_filter= NULL;
+static Domain_gtid_event_filter *position_gtid_filter= NULL;
+static Domain_gtid_event_filter *domain_id_gtid_filter= NULL;
+static Server_gtid_event_filter *server_id_gtid_filter= NULL;
+
 static char *start_datetime_str, *stop_datetime_str;
-static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
-static my_time_t last_processed_datetime= MY_TIME_T_MAX;
+static my_time_t start_datetime= 0, stop_datetime= 0;
+static bool stop_datetime_given= false;
+
+typedef struct _last_processed_ev_t
+{
+  ulonglong position;
+  my_time_t datetime;
+} last_processed_ev_t;
+static last_processed_ev_t last_processed_ev= {0, MY_TIME_T_MAX};
 
 static ulonglong rec_count= 0;
 static MYSQL* mysql = NULL;
@@ -265,16 +284,10 @@ class Load_log_processor
     When we see first event corresponding to some LOAD DATA statement in
     binlog, we create temporary file to store data to be loaded.
     We add name of this file to file_names array using its file_id as index.
-    If we have Create_file event (i.e. we have binary log in pre-5.0.3
-    format) we also store save event object to be able which is needed to
-    emit LOAD DATA statement when we will meet Exec_load_data event.
-    If we have Begin_load_query event we simply store 0 in
-    File_name_record::event field.
   */
   struct File_name_record
   {
     char *fname;
-    Create_file_log_event *event;
   };
   /*
     @todo Should be a map (e.g., a hash map), not an array.  With the
@@ -344,41 +357,12 @@ public:
       if (ptr->fname)
       {
         my_free(ptr->fname);
-        delete ptr->event;
         bzero((char *)ptr, sizeof(File_name_record));
       }
     }
 
     delete_dynamic(&file_names);
   }
-
-  /**
-    Obtain Create_file event for LOAD DATA statement by its file_id
-    and remove it from this Load_log_processor's list of events.
-
-    Checks whether we have already seen a Create_file_log_event with
-    the given file_id.  If yes, returns a pointer to the event and
-    removes the event from array describing active temporary files.
-    From this moment, the caller is responsible for freeing the memory
-    occupied by the event.
-
-    @param[in] file_id File id identifying LOAD DATA statement.
-
-    @return Pointer to Create_file_log_event, or NULL if we have not
-    seen any Create_file_log_event with this file_id.
-  */
-  Create_file_log_event *grab_event(uint file_id)
-    {
-      File_name_record *ptr;
-      Create_file_log_event *res;
-
-      if (file_id >= file_names.elements)
-        return 0;
-      ptr= dynamic_element(&file_names, file_id, File_name_record*);
-      if ((res= ptr->event))
-        bzero((char *)ptr, sizeof(File_name_record));
-      return res;
-    }
 
   /**
     Obtain file name of temporary file for LOAD DATA statement by its
@@ -403,122 +387,16 @@ public:
       if (file_id >= file_names.elements)
         return 0;
       ptr= dynamic_element(&file_names, file_id, File_name_record*);
-      if (!ptr->event)
-      {
-        res= ptr->fname;
-        bzero((char *)ptr, sizeof(File_name_record));
-      }
+      res= ptr->fname;
+      bzero((char *)ptr, sizeof(File_name_record));
       return res;
     }
-  Exit_status process(Create_file_log_event *ce);
-  Exit_status process(Begin_load_query_log_event *ce);
+  Exit_status process(Begin_load_query_log_event *blqe);
   Exit_status process(Append_block_log_event *ae);
-  File prepare_new_file_for_old_format(Load_log_event *le, char *filename);
-  Exit_status load_old_format_file(NET* net, const char *server_fname,
-                                   uint server_fname_len, File file);
   Exit_status process_first_event(const char *bname, size_t blen,
                                   const uchar *block,
-                                  size_t block_len, uint file_id,
-                                  Create_file_log_event *ce);
+                                  size_t block_len, uint file_id);
 };
-
-
-/**
-  Creates and opens a new temporary file in the directory specified by previous call to init_by_dir_name() or init_by_cur_dir().
-
-  @param[in] le The basename of the created file will start with the
-  basename of the file pointed to by this Load_log_event.
-
-  @param[out] filename Buffer to save the filename in.
-
-  @return File handle >= 0 on success, -1 on error.
-*/
-File Load_log_processor::prepare_new_file_for_old_format(Load_log_event *le,
-							 char *filename)
-{
-  size_t len;
-  char *tail;
-  File file;
-  
-  fn_format(filename, le->fname, target_dir_name, "", MY_REPLACE_DIR);
-  len= strlen(filename);
-  tail= filename + len;
-  
-  if ((file= create_unique_file(filename,tail)) < 0)
-  {
-    error("Could not construct local filename %s.",filename);
-    return -1;
-  }
-  
-  le->set_fname_outside_temp_buf(filename,len+strlen(tail));
-  
-  return file;
-}
-
-
-/**
-  Reads a file from a server and saves it locally.
-
-  @param[in,out] net The server to read from.
-
-  @param[in] server_fname The name of the file that the server should
-  read.
-
-  @param[in] server_fname_len The length of server_fname.
-
-  @param[in,out] file The file to write to.
-
-  @retval ERROR_STOP An error occurred - the program should terminate.
-  @retval OK_CONTINUE No error, the program should continue.
-*/
-Exit_status Load_log_processor::load_old_format_file(NET* net,
-                                                     const char*server_fname,
-                                                     uint server_fname_len,
-                                                     File file)
-{
-  uchar buf[FN_REFLEN+1];
-  buf[0] = 0;
-  memcpy(buf + 1, server_fname, server_fname_len + 1);
-  if (my_net_write(net, buf, server_fname_len +2) || net_flush(net))
-  {
-    error("Failed requesting the remote dump of %s.", server_fname);
-    return ERROR_STOP;
-  }
-  
-  for (;;)
-  {
-    ulong packet_len = my_net_read(net);
-    if (packet_len == 0)
-    {
-      if (my_net_write(net, (uchar*) "", 0) || net_flush(net))
-      {
-        error("Failed sending the ack packet.");
-        return ERROR_STOP;
-      }
-      /*
-	we just need to send something, as the server will read but
-	not examine the packet - this is because mysql_load() sends 
-	an OK when it is done
-      */
-      break;
-    }
-    else if (packet_len == packet_error)
-    {
-      error("Failed reading a packet during the dump of %s.", server_fname);
-      return ERROR_STOP;
-    }
-    
-    if (packet_len > UINT_MAX)
-    {
-      error("Illegal length of packet read from net.");
-      return ERROR_STOP;
-    }
-    if (my_write(file, net->read_pos, (uint) packet_len, MYF(MY_WME|MY_NABP)))
-      return ERROR_STOP;
-  }
-  
-  return OK_CONTINUE;
-}
 
 
 /**
@@ -544,8 +422,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
                                                     size_t blen,
                                                     const uchar *block,
                                                     size_t block_len,
-                                                    uint file_id,
-                                                    Create_file_log_event *ce)
+                                                    uint file_id)
 {
   size_t full_len= target_dir_name_len + blen + 9 + 9 + 1;
   Exit_status retval= OK_CONTINUE;
@@ -557,7 +434,6 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   if (!(fname= (char*) my_malloc(PSI_NOT_INSTRUMENTED, full_len,MYF(MY_WME))))
   {
     error("Out of memory.");
-    delete ce;
     DBUG_RETURN(ERROR_STOP);
   }
 
@@ -572,12 +448,10 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
     error("Could not construct local filename %s%s.",
           target_dir_name,bname);
     my_free(fname);
-    delete ce;
     DBUG_RETURN(ERROR_STOP);
   }
 
   rec.fname= fname;
-  rec.event= ce;
 
   /*
      fname is freed in process_event()
@@ -588,12 +462,8 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   {
     error("Out of memory.");
     my_free(fname);
-    delete ce;
     DBUG_RETURN(ERROR_STOP);
   }
-
-  if (ce)
-    ce->set_fname_outside_temp_buf(fname, strlen(fname));
 
   if (my_write(file, (uchar*)block, block_len, MYF(MY_WME|MY_NABP)))
   {
@@ -610,31 +480,11 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
 
 
 /**
-  Process the given Create_file_log_event.
-
-  @see Load_log_processor::process_first_event(const char*,uint,const char*,uint,uint,Create_file_log_event*)
-
-  @param ce Create_file_log_event to process.
-
-  @retval ERROR_STOP An error occurred - the program should terminate.
-  @retval OK_CONTINUE No error, the program should continue.
-*/
-Exit_status  Load_log_processor::process(Create_file_log_event *ce)
-{
-  const char *bname= ce->fname + dirname_length(ce->fname);
-  size_t blen= ce->fname_len - (bname-ce->fname);
-
-  return process_first_event(bname, blen, ce->block, ce->block_len,
-                             ce->file_id, ce);
-}
-
-
-/**
   Process the given Begin_load_query_log_event.
 
   @see Load_log_processor::process_first_event(const char*,uint,const char*,uint,uint,Create_file_log_event*)
 
-  @param ce Begin_load_query_log_event to process.
+  @param blqe Begin_load_query_log_event to process.
 
   @retval ERROR_STOP An error occurred - the program should terminate.
   @retval OK_CONTINUE No error, the program should continue.
@@ -642,7 +492,7 @@ Exit_status  Load_log_processor::process(Create_file_log_event *ce)
 Exit_status Load_log_processor::process(Begin_load_query_log_event *blqe)
 {
   return process_first_event("SQL_LOAD_MB", 11, blqe->block, blqe->block_len,
-                             blqe->file_id, 0);
+                             blqe->file_id);
 }
 
 
@@ -787,7 +637,7 @@ print_use_stmt(PRINT_EVENT_INFO* pinfo, const Query_log_event *ev)
     return;
 
   // In case of rewrite rule print USE statement for db_to
-  my_fprintf(result_file, "use %`s%s\n", db_to, pinfo->delimiter);
+  my_fprintf(result_file, "use %sQ%s\n", db_to, pinfo->delimiter);
 
   // Copy the *original* db to pinfo to suppress emitting
   // of USE stmts by log_event print-functions.
@@ -955,7 +805,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       Log_event *e= NULL;
 
       // Print the row_event from the last one to the first one
-      for (uint i= events_in_stmt.elements; i > 0; --i)
+      for (size_t i= events_in_stmt.elements; i > 0; --i)
       {
         e= *(dynamic_element(&events_in_stmt, i - 1, Log_event**));
         result= result || print_base64(print_event_info, e);
@@ -963,7 +813,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       // Copy all output into the Log_event
       ev->output_buf.copy(e->output_buf);
       // Delete Log_event
-      for (uint i= 0; i < events_in_stmt.elements-1; ++i)
+      for (size_t i= 0; i < events_in_stmt.elements-1; ++i)
       {
         e= *(dynamic_element(&events_in_stmt, i, Log_event**));
         delete e;
@@ -982,6 +832,17 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   return result;
 }
 
+/*
+  Check if the server id should be excluded from the output.
+*/
+static inline my_bool is_server_id_excluded(uint32 server_id)
+{
+  static rpl_gtid server_tester_gtid;
+  server_tester_gtid.server_id= server_id;
+  return server_id_gtid_filter == NULL
+             ? FALSE // No server id filter exists
+             : server_id_gtid_filter->exclude(&server_tester_gtid);
+}
 
 /**
   Print the given event, and either delete it or delegate the deletion
@@ -1009,16 +870,144 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   char ll_buff[21];
   Log_event_type ev_type= ev->get_type_code();
   my_bool destroy_evt= TRUE;
+  my_bool gtid_err= FALSE;
   DBUG_ENTER("process_event");
   Exit_status retval= OK_CONTINUE;
   IO_CACHE *const head= &print_event_info->head_cache;
   my_time_t ev_when= ev->when;
+
+  /*
+    We use Gtid_list_log_event information to determine if there is missing
+    data between where a user expects events to start/stop (i.e. the GTIDs
+    provided by --start-position and --stop-position), and the true start of
+    the specified binary logs. The first GLLE provides the initial state of the
+    binary logs.
+
+    If --start-position is provided as a file offset, we want to skip initial
+    GTID state verification
+  */
+  static my_bool was_first_glle_processed= start_position > BIN_LOG_HEADER_SIZE;
 
   /* Bypass flashback settings to event */
   ev->is_flashback= opt_flashback;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   ev->need_flashback_review= opt_flashback_review;
 #endif
+
+  /*
+    Run time estimation of the output window configuration.
+
+    Do not validate GLLE information is start position is provided as a file
+    offset.
+  */
+  if (ev_type == GTID_LIST_EVENT && ev->when)
+  {
+    Gtid_list_log_event *glev= (Gtid_list_log_event *)ev;
+
+    /*
+      If this is the first Gtid_list_log_event, initialize the state of the
+      GTID stream auditor to be consistent with the binary logs provided
+    */
+    if (gtid_state_validator && !was_first_glle_processed && glev->count)
+    {
+      if (gtid_state_validator->initialize_gtid_state(stderr, glev->list,
+                                                     glev->count))
+        goto err;
+
+      if (position_gtid_filter &&
+          !position_gtid_filter->get_num_start_gtids())
+      {
+        /*
+          We need to validate the GTID list from --stop-position because we
+          couldn't prove it intrinsically (i.e. using stop > start)
+        */
+        rpl_gtid *stop_gtids= position_gtid_filter->get_stop_gtids();
+        size_t n_stop_gtids= position_gtid_filter->get_num_stop_gtids();
+        if (gtid_state_validator->verify_stop_state(stderr, stop_gtids,
+                                                    n_stop_gtids))
+        {
+          my_free(stop_gtids);
+          goto err;
+        }
+        my_free(stop_gtids);
+      }
+    }
+
+    /*
+      Verify that we are able to process events from this binlog. For example,
+      if our current GTID state is behind the state of the GLLE in the new log,
+      a user may have accidentally left out a log file to process.
+    */
+    if (gtid_state_validator && verbose >= 3)
+      for (size_t k= 0; k < glev->count; k++)
+        gtid_state_validator->verify_gtid_state(stderr, &(glev->list[k]));
+
+    was_first_glle_processed= TRUE;
+  }
+
+  if (ev_type == GTID_EVENT)
+  {
+    rpl_gtid ev_gtid;
+    Gtid_log_event *gle= (Gtid_log_event*) ev;
+    ev_gtid= {gle->domain_id, gle->server_id, gle->seq_no};
+
+    /*
+      If the binlog output should be filtered using GTIDs, test the new event
+      group to see if its events should be ignored.
+    */
+    if (gtid_event_filter)
+    {
+      if (gtid_event_filter->has_finished())
+      {
+        retval= OK_STOP;
+        goto end;
+      }
+
+      if (!gtid_event_filter->exclude(&ev_gtid))
+        print_event_info->activate_current_event_group();
+      else
+        print_event_info->deactivate_current_event_group();
+    }
+
+    /*
+      Where we always ensure the initial binlog state is valid, we only
+      continually monitor the GTID stream for validity if we are in GTID
+      strict mode (for errors) or if three levels of verbosity is provided
+      (for warnings).
+
+      If we don't care about ensuring GTID validity, just delete the auditor
+      object to disable it for future checks.
+    */
+    if (gtid_state_validator && print_event_info->is_event_group_active())
+    {
+      if (!(opt_gtid_strict_mode || verbose >= 3))
+      {
+        delete gtid_state_validator;
+
+        /*
+          Explicitly reset to NULL to simplify checks on if auditing is enabled
+          i.e. if it is defined, assume we want to use it
+        */
+        gtid_state_validator= NULL;
+      }
+      else
+      {
+        gtid_err= gtid_state_validator->record(&ev_gtid);
+        if (gtid_err && opt_gtid_strict_mode)
+        {
+          gtid_state_validator->report(stderr, opt_gtid_strict_mode);
+          goto err;
+        }
+      }
+    }
+  }
+
+  /*
+    If the GTID is ignored, it shouldn't count towards offset (rec_count should
+    not be incremented)
+  */
+  if (!print_event_info->is_event_group_active())
+    goto end_skip_count;
 
   /*
     Format events are not concerned by --offset and such, we always need to
@@ -1045,11 +1034,10 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         the format_description event so that we can parse subsequent
         events.
       */
-      if (ev_type != ROTATE_EVENT &&
-          server_id && (server_id != ev->server_id))
+      if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
         goto end;
     }
-    if ((ev->when >= stop_datetime)
+    if ((stop_datetime_given && ev->when >= stop_datetime)
         || (pos >= stop_position_mot))
     {
       /* end the program */
@@ -1096,41 +1084,6 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       break;
     }
 
-    case CREATE_FILE_EVENT:
-    {
-      Create_file_log_event* ce= (Create_file_log_event*)ev;
-      /*
-        We test if this event has to be ignored. If yes, we don't save
-        this event; this will have the good side-effect of ignoring all
-        related Append_block and Exec_load.
-        Note that Load event from 3.23 is not tested.
-      */
-      if (shall_skip_database(ce->db))
-        goto end;                // Next event
-      /*
-	We print the event, but with a leading '#': this is just to inform 
-	the user of the original command; the command we want to execute 
-	will be a derivation of this original command (we will change the 
-	filename and use LOCAL), prepared in the 'case EXEC_LOAD_EVENT' 
-	below.
-      */
-      print_skip_replication_statement(print_event_info, ev);
-      if (ce->print(result_file, print_event_info, TRUE))
-        goto err;
-      // If this binlog is not 3.23 ; why this test??
-      if (glob_description_event->binlog_version >= 3)
-      {
-        /*
-          transfer the responsibility for destroying the event to
-          load_processor
-        */
-        ev= NULL;
-        if ((retval= load_processor.process(ce)) != OK_CONTINUE)
-          goto end;
-      }
-      break;
-    }
-
     case APPEND_BLOCK_EVENT:
       /*
         Append_block_log_events can safely print themselves even if
@@ -1144,36 +1097,6 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         goto end;
       break;
 
-    case EXEC_LOAD_EVENT:
-    {
-      if (ev->print(result_file, print_event_info))
-        goto err;
-      Execute_load_log_event *exv= (Execute_load_log_event*)ev;
-      Create_file_log_event *ce= load_processor.grab_event(exv->file_id);
-      /*
-	if ce is 0, it probably means that we have not seen the Create_file
-	event (a bad binlog, or most probably --start-position is after the
-	Create_file event). Print a warning comment.
-      */
-      if (ce)
-      {
-        bool error;
-        /*
-          We must not convert earlier, since the file is used by
-          my_open() in Load_log_processor::append().
-        */
-        convert_path_to_forward_slashes((char*) ce->fname);
-	error= ce->print(result_file, print_event_info, TRUE);
-	my_free((void*)ce->fname);
-	delete ce;
-        if (error)
-          goto err;
-      }
-      else
-        warning("Ignoring Execute_load_log_event as there is no "
-                "Create_file event for file_id: %u", exv->file_id);
-      break;
-    }
     case FORMAT_DESCRIPTION_EVENT:
       delete glob_description_event;
       glob_description_event= (Format_description_log_event*) ev;
@@ -1282,8 +1205,8 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           int  tmp_sql_offset;
 
           conn = mysql_init(NULL);
-          if (!mysql_real_connect(conn, host, user, pass,
-                map->get_db_name(), port, sock, 0))
+          if (!mysql_real_connect(conn, host, user, opt_password,
+                map->get_db_name(), opt_mysql_port, sock, 0))
           {
             fprintf(stderr, "%s\n", mysql_error(conn));
             exit(1);
@@ -1430,23 +1353,14 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         destroy_evt= FALSE;
       break;
     }
-    case PRE_GA_WRITE_ROWS_EVENT:
-    case PRE_GA_DELETE_ROWS_EVENT:
-    case PRE_GA_UPDATE_ROWS_EVENT:
-    {
-      Old_rows_log_event *e= (Old_rows_log_event*) ev;
-      bool is_stmt_end= e->get_flags(Rows_log_event::STMT_END_F);
-      if (print_row_event(print_event_info, ev, e->get_table_id(),
-                          e->get_flags(Old_rows_log_event::STMT_END_F)))
-        goto err;
-      DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
-      if (!is_stmt_end && opt_flashback)
-        destroy_evt= FALSE;
-      break;
-    }
     case START_ENCRYPTION_EVENT:
       glob_description_event->start_decryption((Start_encryption_log_event*)ev);
       /* fall through */
+    case PRE_GA_WRITE_ROWS_EVENT:
+    case PRE_GA_DELETE_ROWS_EVENT:
+    case PRE_GA_UPDATE_ROWS_EVENT:
+    case CREATE_FILE_EVENT:
+    case EXEC_LOAD_EVENT:
     default:
       print_skip_replication_statement(print_event_info, ev);
       if (ev->print(result_file, print_event_info))
@@ -1460,7 +1374,20 @@ err:
   retval= ERROR_STOP;
 end:
   rec_count++;
-  last_processed_datetime= ev_when;
+end_skip_count:
+  /*
+    Update the last_processed_ev, unless the event is a fake event (i.e. format
+    description (ev pointer is reset to 0) or rotate event (ev->when is 0)), or
+    the event is encrypted (i.e. type is Unknown).
+  */
+  if (ev &&
+      !(ev_type == UNKNOWN_EVENT &&
+        ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED) &&
+      !(ev_type == ROTATE_EVENT && !ev->when))
+  {
+    last_processed_ev.position= pos + ev->data_written;
+    last_processed_ev.datetime= ev_when;
+  }
 
   DBUG_PRINT("info", ("end event processing"));
   /*
@@ -1579,8 +1506,9 @@ static struct my_option my_options[] =
   {"hexdump", 'H', "Augment output with hexadecimal and ASCII event dump.",
    &opt_hexdump, &opt_hexdump, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Get the binlog from server.", &host, &host,
-   0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Get the binlog from server. Defaults in the following order: "
+  "$MARIADB_HOST, and then localhost",
+   &host, &host, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"local-load", 'l', "Prepare local temporary files for LOAD DATA INFILE in the specified directory.",
    &dirname_for_local_load, &dirname_for_local_load, 0,
    GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1597,7 +1525,7 @@ static struct my_option my_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &port, &port, 0, GET_INT, REQUIRED_ARG,
+   &opt_mysql_port, &opt_mysql_port, 0, GET_INT, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
@@ -1634,9 +1562,42 @@ static struct my_option my_options[] =
    "Print row event positions",
    &print_row_event_positions, &print_row_event_positions, 0, GET_BOOL,
    NO_ARG, 1, 0, 0, 0, 0, 0},
-  {"server-id", 0,
-   "Extract only binlog entries created by the server having the given id.",
-   &server_id, &server_id, 0, GET_ULONG,
+  {"ignore-domain-ids", OPT_IGNORE_DOMAIN_IDS,
+   "A list of positive integers, separated by commas, that form a blacklist "
+   "of domain ids. Any log event with a GTID that originates from a domain id "
+   "specified in this list is hidden. Cannot be used with "
+   "--do-domain-ids. When used with --(ignore|do)-server-ids, the result is the "
+   "intersection between the two datasets.",
+   &ignore_domain_ids_str, &ignore_domain_ids_str, 0, GET_STR_ALLOC,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"do-domain-ids", OPT_DO_DOMAIN_IDS,
+   "A list of positive integers, separated by commas, that form a whitelist "
+   "of domain ids. Any log event with a GTID that originates from a domain id "
+   "specified in this list is displayed. Cannot be used with "
+   "--ignore-domain-ids. When used with --(ignore|do)-server-ids, the result "
+   "is the intersection between the two datasets.",
+   &do_domain_ids_str, &do_domain_ids_str, 0, GET_STR_ALLOC, REQUIRED_ARG, 0,
+   0, 0, 0, 0, 0},
+  {"ignore-server-ids", OPT_IGNORE_SERVER_IDS,
+   "A list of positive integers, separated by commas, that form a blacklist "
+   "of server ids. Any log event originating from a server id "
+   "specified in this list is hidden. Cannot be used with "
+   "--do-server-ids. When used with --(ignore|do)-domain-ids, the result is "
+   "the intersection between the two datasets.",
+   &ignore_server_ids_str, &ignore_server_ids_str, 0, GET_STR_ALLOC,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"do-server-ids", OPT_DO_SERVER_IDS,
+   "A list of positive integers, separated by commas, that form a whitelist "
+   "of server ids. Any log event originating from a server id "
+   "specified in this list is displayed. Cannot be used with "
+   "--ignore-server-ids. When used with --(ignore|do)-domain-ids, the result "
+   "is the intersection between the two datasets. Alias for --server-id.",
+   &do_server_ids_str, &do_server_ids_str, 0, GET_STR_ALLOC,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"server-id", OPT_SERVER_ID,
+   "Extract only binlog entries created by the server having the given id. "
+   "Alias for --do-server-ids.",
+   &server_id_str, &server_id_str, 0, GET_STR_ALLOC,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"set-charset", 0,
    "Add 'SET NAMES character_set' to the output.", &charset,
@@ -1661,15 +1622,22 @@ static struct my_option my_options[] =
    &start_datetime_str, &start_datetime_str,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"start-position", 'j',
-   "Start reading the binlog at position N. Applies to the first binlog "
-   "passed on the command line.",
-   &start_position, &start_position, 0, GET_ULL,
-   REQUIRED_ARG, BIN_LOG_HEADER_SIZE, BIN_LOG_HEADER_SIZE,
-   /*
-     COM_BINLOG_DUMP accepts only 4 bytes for the position
-     so remote log reading has lower limit.
-   */
-   (ulonglong)(0xffffffffffffffffULL), 0, 0, 0},
+   "Start reading the binlog at this position. Type can either be a positive "
+   "integer or a GTID list. When using a positive integer, the value only "
+   "applies to the first binlog passed on the command line. In GTID mode, "
+   "multiple GTIDs can be passed as a comma separated list, where each must "
+   "have a unique domain id. The list represents the gtid binlog state that "
+   "the client (another \"replica\" server) is aware of. Therefore, each GTID "
+   "is exclusive; only events after a given sequence number will be printed to "
+   "allow users to receive events after their current state.",
+   &start_pos_str, &start_pos_str, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0,
+   0, 0, 0},
+  {"gtid-strict-mode", 0, "Process binlog according to gtid-strict-mode "
+   "specification. The start, stop positions are verified to satisfy  "
+   "start < stop comparison condition. Sequence numbers of any gtid domain "
+   "must comprise monotically growing sequence",
+   &opt_gtid_strict_mode, &opt_gtid_strict_mode, 0,
+   GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"stop-datetime", OPT_STOP_DATETIME,
    "Stop reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
@@ -1686,12 +1654,15 @@ static struct my_option my_options[] =
    "The slave server_id used for --read-from-remote-server --stop-never.",
    &opt_stop_never_slave_server_id, &opt_stop_never_slave_server_id, 0,
    GET_ULONG, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"stop-position", 0,
-   "Stop reading the binlog at position N. Applies to the last binlog "
-   "passed on the command line.",
-   &stop_position, &stop_position, 0, GET_ULL,
-   REQUIRED_ARG, stop_position_default, BIN_LOG_HEADER_SIZE,
-   (ulonglong)stop_position_default, 0, 0, 0},
+  {"stop-position", OPT_STOP_POSITION,
+   "Stop reading the binlog at this position. Type can either be a positive "
+   "integer or a GTID list. When using a positive integer, the value only "
+   "applies to the last binlog passed on the command line. In GTID mode, "
+   "multiple GTIDs can be passed as a comma separated list, where each must "
+   "have a unique domain id. Each GTID is inclusive; only events up to the "
+   "given sequence numbers are printed.",
+   &stop_pos_str, &stop_pos_str, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0,
+   0, 0},
   {"table", 'T', "List entries for just this table (affects only row events).",
    &table, &table, 0, GET_STR_ALLOC, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
@@ -1705,7 +1676,9 @@ that may lead to an endless loop.",
    &user, &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0,
    0, 0},
   {"verbose", 'v', "Reconstruct SQL statements out of row events. "
-                   "-v -v adds comments on column data types.",
+                   "-v -v adds comments on column data types. "
+                   "-v -v -v adds diagnostic warnings about event "
+                   "integrity before program exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Print version and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0,
    0, 0, 0, 0, 0},
@@ -1819,7 +1792,7 @@ static void warning(const char *format,...)
 static void cleanup()
 {
   DBUG_ENTER("cleanup");
-  my_free(pass);
+  my_free(opt_password);
   my_free(database);
   my_free(table);
   my_free(host);
@@ -1827,7 +1800,35 @@ static void cleanup()
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
+  my_free(start_pos_str);
+  my_free(stop_pos_str);
+  my_free(ignore_domain_ids_str);
+  my_free(do_domain_ids_str);
+  my_free(ignore_server_ids_str);
+  my_free(do_server_ids_str);
+  my_free(server_id_str);
   free_root(&glob_root, MYF(0));
+
+  if (gtid_event_filter)
+  {
+    delete gtid_event_filter;
+  }
+  else
+  {
+    /*
+      If there was an error during input parsing, gtid_event_filter will not
+      be set, so we need to ensure the comprising filters are cleaned up
+      properly.
+    */
+    if (domain_id_gtid_filter)
+      delete domain_id_gtid_filter;
+    if (position_gtid_filter)
+      delete position_gtid_filter;
+    if (server_id_gtid_filter)
+      delete server_id_gtid_filter;
+  }
+  if (gtid_state_validator)
+    delete gtid_state_validator;
 
   delete binlog_filter;
   delete glob_description_event;
@@ -1846,18 +1847,95 @@ static void cleanup()
   DBUG_VOID_RETURN;
 }
 
+/*
+  Parse a list of positive numbers separated by commas.
+  Returns a list of numbers on success, NULL on parsing/resource error
+*/
+static uint32 *parse_u32_list(const char *str, size_t str_len, uint32 *n_vals)
+{
+  const char *str_begin= const_cast<char *>(str);
+  const char *str_end= str_begin + str_len;
+  const char *p = str_begin;
+  uint32 len= 0, alloc_len= (uint32) ceil(str_len/2.0);
+  uint32 *list= NULL;
+  int err;
+
+  for (;;)
+  {
+    uint32 val;
+
+    /*
+      Set it to the end of the string overall, but when parsing, it will be
+      moved to the end of the element
+    */
+    char *el_end= (char*) str_begin + str_len;
+
+    if (len >= (((uint32)1 << 28)-1))
+    {
+      my_free(list);
+      list= NULL;
+      goto end;
+    }
+
+    val= (uint32)my_strtoll10(p, &el_end, &err);
+    if (err)
+    {
+      my_free(list);
+      list= NULL;
+      goto end;
+    }
+    p = el_end;
+
+    if ((!list || len >= alloc_len) &&
+        !(list=
+          (uint32 *)my_realloc(PSI_INSTRUMENT_ME, list,
+                                 (alloc_len= alloc_len*2) * sizeof(uint32),
+                                 MYF(MY_FREE_ON_ERROR|MY_ALLOW_ZERO_PTR))))
+      return NULL;
+    list[len++]= val;
+
+    if (el_end == str_end)
+      break;
+    if (*p != ',')
+    {
+      my_free(list);
+      return NULL;
+    }
+    ++p;
+  }
+  *n_vals= len;
+
+end:
+  return list;
+}
+
+/*
+  If multiple different types of Gtid_event_filters are used, the result
+  should be the intersection between the filter types.
+*/
+static void extend_main_gtid_event_filter(Gtid_event_filter *new_filter)
+{
+  if (gtid_event_filter == NULL)
+  {
+    gtid_event_filter= new_filter;
+  }
+  else
+  {
+    if (gtid_event_filter->get_filter_type() !=
+        Gtid_event_filter::INTERSECTING_GTID_FILTER_TYPE)
+      gtid_event_filter=
+          new Intersecting_gtid_event_filter(gtid_event_filter, new_filter);
+    else
+      ((Intersecting_gtid_event_filter *) gtid_event_filter)
+          ->add_filter(new_filter);
+  }
+}
 
 static void die(int err)
 {
   cleanup();
   my_end(MY_DONT_FREE_DBUG);
   exit(err);
-}
-
-
-static void print_version()
-{
-  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
@@ -1899,6 +1977,110 @@ static my_time_t convert_str_to_timestamp(const char* str)
     my_system_gmt_sec(&l_time, &dummy_my_timezone, &dummy_in_dst_time_gap);
 }
 
+/**
+  Parses a start or stop position argument and populates either
+  start_position/stop_position (if a log offset) or position_gtid_filter
+  (if a gtid position)
+
+  @param[in] option_name : Name of the command line option provided (used for
+    error message)
+  @param[in] option_val : The user-provided value of the option_name
+  @param[out] fallback : Pointer to a global variable to set if using log
+    offsets
+  @param[in] add_gtid : Function pointer to a class method to add a GTID to a
+    Gtid_event_filter
+  @param[in] add_zero_seqno : If using GTID positions, this boolean specifies
+    if GTIDs with a sequence number of 0 should be added to the filter
+*/
+int parse_position_argument(
+    const char *option_name, char *option_val, ulonglong *fallback,
+    int (Domain_gtid_event_filter::*add_gtid)(rpl_gtid *),
+    my_bool add_zero_seqno)
+{
+  uint32 n_gtids= 0;
+  rpl_gtid *gtid_list=
+      gtid_parse_string_to_list(option_val, strlen(option_val), &n_gtids);
+
+  if (gtid_list == NULL)
+  {
+    int err= 0;
+    char *end_ptr= NULL;
+    /*
+      No GTIDs specified in position specification. Treat the value
+      as a singular index.
+    */
+    *fallback= my_strtoll10(option_val, &end_ptr, &err);
+
+    if (err || *end_ptr)
+    {
+      // Can't parse the position from the user
+      sql_print_error("%s argument value is invalid. Should be either a "
+                      "positive integer or GTID.",
+                      option_name);
+      return 1;
+    }
+  }
+  else if (n_gtids > 0)
+  {
+    uint32 gtid_idx;
+
+    if (position_gtid_filter == NULL)
+      position_gtid_filter= new Domain_gtid_event_filter();
+
+    for (gtid_idx = 0; gtid_idx < n_gtids; gtid_idx++)
+    {
+      rpl_gtid *gtid= &gtid_list[gtid_idx];
+      if ((gtid->seq_no || add_zero_seqno) &&
+          (position_gtid_filter->*add_gtid)(gtid))
+      {
+        my_free(gtid_list);
+        return 1;
+      }
+    }
+    my_free(gtid_list);
+  }
+  else
+  {
+    DBUG_ASSERT(0);
+  }
+  return 0;
+}
+
+/**
+  Parses a do/ignore domain/server ids option and populates the corresponding
+  gtid filter
+
+  @param[in] option_name : Name of the command line option provided (used for
+    error message)
+  @param[in] option_value : The user-provided list of domain or server ids
+  @param[in] filter : The filter to update with the provided domain/server id
+  @param[in] mode : Specifies whether the list should be a blacklist or
+    whitelist
+*/
+template <typename T>
+int parse_gtid_filter_option(
+    const char *option_name, char *option_val, T **filter,
+    Gtid_event_filter::id_restriction_mode mode)
+{
+  uint32 n_ids= 0;
+  uint32 *id_list= parse_u32_list(option_val, strlen(option_val), &n_ids);
+
+  if (id_list == NULL)
+  {
+    DBUG_ASSERT(n_ids == 0);
+    sql_print_error(
+        "Input for %s is invalid. Should be a list of positive integers",
+        option_name);
+    return 1;
+  }
+
+  if (!(*filter))
+    (*filter)= new T();
+
+  int err= (*filter)->set_id_restrictions(id_list, n_ids, mode);
+  my_free(id_list);
+  return err;
+}
 
 extern "C" my_bool
 get_one_option(const struct my_option *opt, const char *argument,
@@ -1931,9 +2113,9 @@ get_one_option(const struct my_option *opt, const char *argument,
         One should not really change the argument, but we make an
         exception for passwords
       */
-      my_free(pass);
+      my_free(opt_password);
       char *start= (char*) argument;
-      pass= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
       while (*argument)
         *(char*)argument++= 'x';		/* Destroy argument */
       if (*start)
@@ -1961,6 +2143,7 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
   case OPT_STOP_DATETIME:
     stop_datetime= convert_str_to_timestamp(stop_datetime_str);
+    stop_datetime_given= true;
     break;
   case OPT_BASE64_OUTPUT_MODE:
     int val;
@@ -1976,48 +2159,11 @@ get_one_option(const struct my_option *opt, const char *argument,
   case OPT_REWRITE_DB:    // db_from->db_to
   {
     /* See also handling of OPT_REPLICATE_REWRITE_DB in sql/mysqld.cc */
-    const char* ptr;
-    const char* key= argument;  // db-from
-    const char* val;            // db-to
-
-    // Skipp pre-space in key
-    while (*key && my_isspace(&my_charset_latin1, *key))
-      key++;
-
-    // Where val begins
-    if (!(ptr= strstr(key, "->")))
+    if (binlog_filter->add_rewrite_db(argument))
     {
-      sql_print_error("Bad syntax in rewrite-db: missing '->'\n");
+      sql_print_error("Bad syntax in rewrite-db. Expected syntax is FROM->TO.");
       return 1;
     }
-    val= ptr + 2;
-
-    // Skip blanks at the end of key
-    while (ptr > key && my_isspace(&my_charset_latin1, ptr[-1]))
-      ptr--;
-
-    if (ptr == key)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty FROM db\n");
-      return 1;
-    }
-    key= strmake_root(&glob_root, key, (size_t) (ptr-key));
-
-    /* Skipp pre space in value */
-    while (*val && my_isspace(&my_charset_latin1, *val))
-      val++;
-
-    // Value ends with \0 or space
-    for (ptr= val; *ptr && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
-    {}
-    if (ptr == val)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty TO db\n");
-      return 1;
-    }
-    val= strmake_root(&glob_root, val, (size_t) (ptr-val));
-
-    binlog_filter->add_db_rewrite(key, val);
     break;
   }
   case OPT_PRINT_ROW_COUNT:
@@ -2057,21 +2203,96 @@ get_one_option(const struct my_option *opt, const char *argument,
     print_version();
     opt_version= 1;
     break;
+  case OPT_STOP_POSITION:
+  {
+    /* Stop position was already specified, so reset it and use the new list */
+    if (position_gtid_filter &&
+        position_gtid_filter->get_num_stop_gtids() > 0)
+      position_gtid_filter->clear_stop_gtids();
+
+    if (parse_position_argument(
+            "--stop-position", stop_pos_str, &stop_position,
+            &Domain_gtid_event_filter::add_stop_gtid, TRUE))
+      return 1;
+    break;
+  }
+  case 'j':
+  {
+    /* Start position was already specified, so reset it and use the new list */
+    if (position_gtid_filter &&
+        position_gtid_filter->get_num_start_gtids() > 0)
+      position_gtid_filter->clear_start_gtids();
+
+    if (parse_position_argument(
+            "--start-position", start_pos_str, &start_position,
+            &Domain_gtid_event_filter::add_start_gtid, FALSE))
+      return 1;
+    break;
+  }
+  case OPT_IGNORE_DOMAIN_IDS:
+  {
+    if (parse_gtid_filter_option<Domain_gtid_event_filter>(
+            "--ignore-domain-ids", ignore_domain_ids_str,
+            &domain_id_gtid_filter,
+            Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE))
+      return 1;
+    break;
+  }
+  case OPT_DO_DOMAIN_IDS:
+  {
+    if (parse_gtid_filter_option<Domain_gtid_event_filter>(
+            "--do-domain-ids", do_domain_ids_str,
+            &domain_id_gtid_filter,
+            Gtid_event_filter::id_restriction_mode::WHITELIST_MODE))
+      return 1;
+    break;
+  }
+  case OPT_IGNORE_SERVER_IDS:
+  {
+    if (parse_gtid_filter_option<Server_gtid_event_filter>(
+            "--ignore-server-ids", ignore_server_ids_str,
+            &server_id_gtid_filter,
+            Gtid_event_filter::id_restriction_mode::BLACKLIST_MODE))
+      return 1;
+    break;
+  }
+  case OPT_DO_SERVER_IDS:
+  {
+    if (parse_gtid_filter_option<Server_gtid_event_filter>(
+            "--do-server-ids", do_server_ids_str,
+            &server_id_gtid_filter,
+            Gtid_event_filter::id_restriction_mode::WHITELIST_MODE))
+      return 1;
+    break;
+  }
+  case OPT_SERVER_ID:
+  {
+    if (parse_gtid_filter_option<Server_gtid_event_filter>(
+            "--server-id", server_id_str,
+            &server_id_gtid_filter,
+            Gtid_event_filter::id_restriction_mode::WHITELIST_MODE))
+      return 1;
+    break;
+  }
   case '?':
     usage();
     opt_version= 1;
     break;
   }
   if (tty_password)
-    pass= my_get_tty_password(NullS);
+    opt_password= my_get_tty_password(NullS);
 
   return 0;
 }
 
-
 static int parse_args(int *argc, char*** argv)
 {
   int ho_error;
+  char *tmp;
+
+  tmp= getenv("MARIADB_HOST");
+  if (tmp && host == NULL)
+    host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
   {
@@ -2089,6 +2310,45 @@ static int parse_args(int *argc, char*** argv)
             start_position);
     start_position= UINT_MAX32;
   }
+
+  /*
+    Always initialize the stream auditor initially because it is used to check
+    the initial state of the binary log is correct. If we don't want it later
+    (i.e. --skip-gtid-strict-mode or -vvv is not given), it is deleted when we
+    are certain the initial gtid state is set.
+  */
+  gtid_state_validator= new Binlog_gtid_state_validator();
+
+  if (position_gtid_filter)
+  {
+    if (opt_gtid_strict_mode &&
+        position_gtid_filter->validate_window_filters())
+    {
+      /*
+        In strict mode, if any --start/stop-position GTID ranges are invalid,
+        quit in error. Note that any specific error messages will have
+        already been written.
+      */
+      die(1);
+    }
+    extend_main_gtid_event_filter(position_gtid_filter);
+
+    /*
+      GTIDs before a start position shouldn't be validated, so we initialize
+      the stream auditor to only monitor GTIDs after these positions.
+    */
+    size_t n_start_gtids= position_gtid_filter->get_num_start_gtids();
+    rpl_gtid *start_gtids= position_gtid_filter->get_start_gtids();
+    gtid_state_validator->initialize_start_gtids(start_gtids, n_start_gtids);
+    my_free(start_gtids);
+  }
+
+  if(domain_id_gtid_filter)
+    extend_main_gtid_event_filter(domain_id_gtid_filter);
+
+  if(server_id_gtid_filter)
+    extend_main_gtid_event_filter(server_id_gtid_filter);
+
   return 0;
 }
 
@@ -2115,18 +2375,7 @@ static Exit_status safe_connect()
     return ERROR_STOP;
   }
 
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-                  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif /*HAVE_OPENSSL*/
+  SET_SSL_OPTS_WITH_CHECK(mysql);
 
   if (opt_plugindir && *opt_plugindir)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugindir);
@@ -2139,7 +2388,7 @@ static Exit_status safe_connect()
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlbinlog");
-  if (!mysql_real_connect(mysql, host, user, pass, 0, port, sock, 0))
+  if (!mysql_real_connect(mysql, host, user, opt_password, 0, opt_mysql_port, sock, 0))
   {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;
@@ -2169,6 +2418,10 @@ static Exit_status dump_log_entries(const char* logname)
 
   if (!print_event_info.init_ok())
     return ERROR_STOP;
+
+  if (position_gtid_filter || domain_id_gtid_filter)
+    print_event_info.enable_event_group_filtering();
+
   /*
      Set safe delimiter, to dump things
      like CREATE PROCEDURE safely
@@ -2270,25 +2523,50 @@ static Exit_status check_master_version()
     goto err;
   }
 
+  if (position_gtid_filter &&
+      position_gtid_filter->get_num_start_gtids() > 0)
+  {
+    char str_buf[256];
+    String query_str(str_buf, sizeof(str_buf), system_charset_info);
+    query_str.length(0);
+    query_str.append(STRING_WITH_LEN("SET @slave_connect_state='"),
+                     system_charset_info);
+
+    size_t n_start_gtids= position_gtid_filter->get_num_start_gtids();
+    rpl_gtid *start_gtids= position_gtid_filter->get_start_gtids();
+
+    for (size_t gtid_idx = 0; gtid_idx < n_start_gtids; gtid_idx++)
+    {
+      char buf[256];
+      rpl_gtid *start_gtid= &start_gtids[gtid_idx];
+
+      sprintf(buf, "%u-%u-%llu",
+              start_gtid->domain_id, start_gtid->server_id,
+              start_gtid->seq_no);
+      query_str.append(buf, strlen(buf));
+      if (gtid_idx < n_start_gtids - 1)
+        query_str.append(',');
+    }
+    my_free(start_gtids);
+
+    query_str.append(STRING_WITH_LEN("'"), system_charset_info);
+    if (unlikely(mysql_real_query(mysql, query_str.ptr(), query_str.length())))
+    {
+      error("Setting @slave_connect_state failed with error: %s",
+            mysql_error(mysql));
+      goto err;
+    }
+  }
+
   delete glob_description_event;
   glob_description_event= NULL;
 
   switch (version) {
-  case 3:
-    glob_description_event= new Format_description_log_event(1);
-    break;
-  case 4:
-    glob_description_event= new Format_description_log_event(3);
-    break;
   case 5:
   case 10:
-    /*
-      The server is soon going to send us its Format_description log
-      event, unless it is a 5.0 server with 3.23 or 4.0 binlogs.
-      So we first assume that this is 4.0 (which is enough to read the
-      Format_desc event if one comes).
-    */
-    glob_description_event= new Format_description_log_event(3);
+  case 11:
+  case 12:
+    glob_description_event= new Format_description_log_event(4);
     break;
   default:
     error("Could not find server version: "
@@ -2347,8 +2625,6 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   }
 
   Log_event_type type= ev->get_type_code();
-  if (glob_description_event->binlog_version >= 3 ||
-      (type != LOAD_EVENT && type != CREATE_FILE_EVENT))
   {
     /*
       If this is a Rotate event, maybe it's the end of the requested binlog;
@@ -2403,32 +2679,10 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       if (old_off != BIN_LOG_HEADER_SIZE)
         *len= 1;         // fake event, don't increment old_off
     }
+    DBUG_ASSERT(old_off + ev->data_written == old_off + (*len - 1) ||
+                (*len == 1 &&
+                 (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)));
     Exit_status retval= process_event(print_event_info, ev, old_off, logname);
-    if (retval != OK_CONTINUE)
-      DBUG_RETURN(retval);
-  }
-  else
-  {
-    Load_log_event *le= (Load_log_event*)ev;
-    const char *old_fname= le->fname;
-    uint old_len= le->fname_len;
-    File file;
-    Exit_status retval;
-    char fname[FN_REFLEN+1];
-
-    if ((file= load_processor.prepare_new_file_for_old_format(le,fname)) < 0)
-    {
-      DBUG_RETURN(ERROR_STOP);
-    }
-
-    retval= process_event(print_event_info, ev, old_off, logname);
-    if (retval != OK_CONTINUE)
-    {
-      my_close(file,MYF(MY_WME));
-      DBUG_RETURN(retval);
-    }
-    retval= load_processor.load_old_format_file(net,old_fname,old_len,file);
-    my_close(file,MYF(MY_WME));
     if (retval != OK_CONTINUE)
       DBUG_RETURN(retval);
   }
@@ -2705,7 +2959,7 @@ static Exit_status check_header(IO_CACHE* file,
   int read_error;
 
   delete glob_description_event;
-  if (!(glob_description_event= new Format_description_log_event(3)))
+  if (!(glob_description_event= new Format_description_log_event(4)))
   {
     error("Failed creating Format_description_log_event; out of memory?");
     return ERROR_STOP;
@@ -2777,25 +3031,7 @@ static Exit_status check_header(IO_CACHE* file,
     {
       DBUG_PRINT("info",("buf[EVENT_TYPE_OFFSET=%d]=%d",
                          EVENT_TYPE_OFFSET, buf[EVENT_TYPE_OFFSET]));
-      /* always test for a Start_v3, even if no --start-position */
-      if (buf[EVENT_TYPE_OFFSET] == START_EVENT_V3)
-      {
-        /* This is 3.23 or 4.x */
-        if (uint4korr(buf + EVENT_LEN_OFFSET) < 
-            (LOG_EVENT_MINIMAL_HEADER_LEN + START_V3_HEADER_LEN))
-        {
-          /* This is 3.23 (format 1) */
-          delete glob_description_event;
-          if (!(glob_description_event= new Format_description_log_event(1)))
-          {
-            error("Failed creating Format_description_log_event; "
-                  "out of memory?");
-            return ERROR_STOP;
-          }
-        }
-        break;
-      }
-      else if (tmp_pos >= start_position)
+      if (tmp_pos >= start_position)
         break;
       else if (buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT)
       {
@@ -2820,6 +3056,8 @@ static Exit_status check_header(IO_CACHE* file,
             the new one, so we should not do it ourselves in this
             case.
           */
+          DBUG_ASSERT(tmp_pos + new_description_event->data_written ==
+                      my_b_tell(file));
           Exit_status retval= process_event(print_event_info,
                                             new_description_event, tmp_pos,
                                             logname);
@@ -2973,20 +3211,17 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       }
       // else read_error == 0 means EOF, that's OK, we break in this case
 
-      /*
-        Emit a warning in the event that we finished processing input
-        before reaching the boundary indicated by --stop-position.
-      */
-      if (((longlong)stop_position != stop_position_default) &&
-          stop_position > my_b_tell(file))
-      {
-          retval = OK_STOP;
-          warning("Did not reach stop position %llu before "
-                  "end of input", stop_position);
-      }
-
       goto end;
     }
+
+    /*
+      The real location that we have read up to in the file should align with
+      the size of the event, unless the event is encrypted.
+    */
+    DBUG_ASSERT(
+        ((ev->get_type_code() == UNKNOWN_EVENT &&
+          ((Unknown_log_event *) ev)->what == Unknown_log_event::ENCRYPTED)) ||
+        old_off + ev->data_written == my_b_tell(file));
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
@@ -3083,7 +3318,7 @@ int main(int argc, char** argv)
     if (stop_position != (ulonglong)(~(my_off_t)0))
       warning("The --stop-position option is ignored in raw mode");
 
-    if (stop_datetime != MY_TIME_T_MAX)
+    if (stop_datetime_given)
       warning("The --stop-datetime option is ignored in raw mode");
     result_file= 0;
     if (result_file_name)
@@ -3131,7 +3366,7 @@ int main(int argc, char** argv)
     fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
 
     fprintf(result_file,
-	    "/*!40019 SET @@session.max_insert_delayed_threads=0*/;\n");
+	    "/*!40019 SET @@session.max_delayed_threads=0*/;\n");
 
     if (disable_log_bin)
       fprintf(result_file,
@@ -3165,10 +3400,17 @@ int main(int argc, char** argv)
     start_position= BIN_LOG_HEADER_SIZE;
   }
 
-  if (stop_datetime != MY_TIME_T_MAX &&
-      stop_datetime > last_processed_datetime)
+  /*
+    Emit a warning if we finished processing input before reaching the stop
+    boundaries indicated by --stop-datetime or --stop-position.
+  */
+  if (stop_datetime_given && stop_datetime > last_processed_ev.datetime)
     warning("Did not reach stop datetime '%s' before end of input",
             stop_datetime_str);
+  if ((static_cast<longlong>(stop_position) != stop_position_default) &&
+      stop_position > last_processed_ev.position)
+    warning("Did not reach stop position %llu before end of input",
+            stop_position);
 
   /*
     If enable flashback, need to print the events from the end to the
@@ -3176,7 +3418,7 @@ int main(int argc, char** argv)
   */
   if (opt_flashback && retval != ERROR_STOP)
   {
-    for (uint i= binlog_events.elements; i > 0; --i)
+    for (size_t i= binlog_events.elements; i > 0; --i)
     {
       LEX_STRING *event_str= dynamic_element(&binlog_events, i - 1,
                                              LEX_STRING*);
@@ -3214,8 +3456,15 @@ int main(int argc, char** argv)
               "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
               "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
               "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
-
     fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
+
+    if (gtid_event_filter)
+    {
+      fprintf(result_file,
+              "/*!100001 SET @@SESSION.SERVER_ID=@@GLOBAL.SERVER_ID */;\n"
+              "/*!100001 SET @@SESSION.GTID_DOMAIN_ID=@@GLOBAL.GTID_DOMAIN_ID "
+              "*/;\n");
+    }
   }
 
   if (tmpdir.list)
@@ -3227,6 +3476,18 @@ int main(int argc, char** argv)
     else
       fflush(result_file);
   }
+
+  /*
+    Ensure the GTID state is correct. If not, end in error.
+
+    Note that in gtid strict mode, we will not report here if any invalid GTIDs
+    are processed because it immediately errors (i.e. retval will be
+    ERROR_STOP)
+  */
+  if (retval != ERROR_STOP && gtid_state_validator &&
+      gtid_state_validator->report(stderr, opt_gtid_strict_mode))
+    retval= ERROR_STOP;
+
   cleanup();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);
@@ -3276,9 +3537,9 @@ struct encryption_service_st encryption_handler=
 #include "password.c"
 #include "log_event.cc"
 #include "log_event_client.cc"
-#include "log_event_old.cc"
 #include "rpl_utility.cc"
 #include "sql_string.cc"
 #include "sql_list.cc"
 #include "rpl_filter.cc"
 #include "compat56.cc"
+#include "rpl_gtid.cc"

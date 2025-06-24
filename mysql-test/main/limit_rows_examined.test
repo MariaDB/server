@@ -7,14 +7,14 @@ call mtr.add_suppression("Sort aborted.*");
 
 set @save_join_cache_level = @@join_cache_level;
 
-create table t1 (c1 char(2));
-create table t2 (c2 char(2));
+create table t1 (c1 char(2)) charset=latin1;
+create table t2 (c2 char(2)) charset=latin1;
 
 insert into t1 values ('bb'), ('cc'), ('aa'), ('dd');
 insert into t2 values ('bb'), ('cc'), ('dd'), ('ff');
 
-create table t1i (c1 char(2) key);
-create table t2i (c2 char(2) key);
+create table t1i (c1 char(2) key) charset=latin1;
+create table t2i (c2 char(2) key) charset=latin1;
 
 insert into t1i values ('bb'), ('cc'), ('aa'), ('dd');
 insert into t2i values ('bb'), ('cc'), ('dd'), ('ff');
@@ -73,7 +73,7 @@ select * from t0 LIMIT ROWS EXAMINED 1;
 select * from t0 LIMIT ROWS EXAMINED 1;
 drop table t0;
 
-create table t0 (c0 char(2) primary key);
+create table t0 (c0 char(2) primary key) charset=latin1;
 insert into t0 values  ('bb'), ('cc'), ('aa');
 
 explain
@@ -279,9 +279,9 @@ create view v1 as
 select * from t1 where c1 IN (select * from t2 where c2 > ' ');
 
 select * from v1;
-select * from v1 LIMIT ROWS EXAMINED 17;
-select * from v1 LIMIT ROWS EXAMINED 16;
-select * from v1 LIMIT ROWS EXAMINED 11;
+select * from v1 LIMIT ROWS EXAMINED 10;
+select * from v1 LIMIT ROWS EXAMINED 8;
+select * from v1 LIMIT ROWS EXAMINED 3;
 
 drop view v1;
 
@@ -298,7 +298,7 @@ LIMIT ROWS EXAMINED 11;
 --echo =========================================================================
 --echo Aggregation
 --echo =========================================================================
-create table t3 (c1 char(2), c2 int);
+create table t3 (c1 char(2), c2 int) charset=latin1;
 
 insert into t3 values
 ('aa', 1), ('aa', 2),
@@ -315,7 +315,7 @@ select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 1;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 20;
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 21;
 
-create table t3i (c1 char(2), c2 int);
+create table t3i (c1 char(2), c2 int) charset=latin1;
 create index it3i on t3i(c1);
 create index it3j on t3i(c2,c1);
 

@@ -1,4 +1,6 @@
-drop table if exists t1, t2;
+#
+# Testing of NULL in a lot of different places
+#
 select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
 NULL	NULL	isnull(null)	isnull(1/0)	isnull(1/0 = null)	ifnull(null,1)	ifnull(null,"TRUE")	ifnull("TRUE","ERROR")	1/0 is null	1 is not null
 NULL	NULL	1	1	1	1	TRUE	TRUE	1	1
@@ -62,6 +64,9 @@ insert into t1 values (null);
 select * from t1 where x != 0;
 x
 drop table t1;
+#
+# Test problem med index on NULL columns and testing with =NULL;
+#
 CREATE TABLE t1 (
 indexed_field int default NULL,
 KEY indexed_field (indexed_field)
@@ -78,6 +83,9 @@ indexed_field
 NULL
 NULL
 DROP TABLE t1;
+#
+# Testing of IFNULL
+#
 create table t1 (a int, b int) engine=myisam;
 insert into t1 values(20,null);
 select t2.b, ifnull(t2.b,"this is null") from t1 as t2 left join t1 as t3 on
@@ -95,6 +103,9 @@ b	ifnull(t2.b,"this is null")
 NULL	this is null
 NULL	this is null
 drop table t1;
+#
+# Test inserting and updating with NULL
+#
 CREATE TABLE t1 (a varchar(16) NOT NULL default '', b smallint(6) NOT NULL default 0, c datetime NOT NULL default '0000-00-00 00:00:00', d smallint(6) NOT NULL default 0);
 INSERT IGNORE INTO t1 SET a = "", d= "2003-01-14 03:54:55";
 Warnings:
@@ -149,6 +160,10 @@ a	b	c	d
 	0	0000-00-00 00:00:00	0
 	0	0000-00-00 00:00:00	0
 drop table t1;
+#
+# Test to check elimination of IS NULL predicate for a non-nullable attribute
+# (bug #1990)  
+#
 create table t1 (a int not null, b int not null, index idx(a));
 insert into t1 values
 (1,1), (2,2), (3,3), (4,4), (5,5), (6,6),
@@ -163,6 +178,10 @@ drop table t1;
 select cast(NULL as signed);
 cast(NULL as signed)
 NULL
+#
+# IS NULL is unable to use index in range if column is declared not null
+# (Bug #4256)
+#
 create table t1(i int, key(i));
 insert into t1 values(1);
 insert into t1 select i*2 from t1;
@@ -192,6 +211,11 @@ select count(*) from t1 where i=2 or i is null;
 count(*)
 9
 drop table t1;
+#
+# NULL has its own type BINARY(0) by default.
+# But NULL should be weaker than a constant
+# when mixing charsets/collations
+#
 set names latin2;
 create table t1 select
 null as c00,
@@ -273,8 +297,13 @@ t1	CREATE TABLE `t1` (
   `c36` varchar(3) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c37` varchar(10) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c38` varchar(10) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+#
+# Check that comparison is done according to
+# non-null string collation, i.e. case insensitively,
+# rather than according to NULL's collation, i.e. case sensitively
+#
 select 
 case 'str' when 'STR' then 'str' when null then 'null' end as c01,
 case 'str' when null then 'null' when 'STR' then 'str' end as c02,
@@ -286,10 +315,13 @@ field('str1', null, 'STR1') as c05,
 c01	c02	c03	c04	c05	c08	c09
 str	str	0	1	2	1	1
 set names latin1;
-create table bug19145a (e enum('a','b','c')          default 'b' , s set('x', 'y', 'z')          default 'y' ) engine=MyISAM;
-create table bug19145b (e enum('a','b','c')          default null, s set('x', 'y', 'z')          default null) engine=MyISAM;
+#
+# Bug#19145: mysqld crashes if you set the default value of an enum field to NULL
+#
+create table bug19145a (e enum('a','b','c') default 'b' , s set('x', 'y', 'z') default 'y' ) engine=MyISAM;
+create table bug19145b (e enum('a','b','c') default null, s set('x', 'y', 'z') default null) engine=MyISAM;
 create table bug19145c (e enum('a','b','c') not null default 'b' , s set('x', 'y', 'z') not null default 'y' ) engine=MyISAM;
-create table bug19145setnotnulldefaultnull (e enum('a','b','c')          default null, s set('x', 'y', 'z') not null default null) engine=MyISAM;
+create table bug19145setnotnulldefaultnull (e enum('a','b','c') default null, s set('x', 'y', 'z') not null default null) engine=MyISAM;
 ERROR 42000: Invalid default value for 's'
 create table bug19145enumnotnulldefaultnull (e enum('a','b','c') not null default null, s set('x', 'y', 'z')          default null) engine=MyISAM;
 ERROR 42000: Invalid default value for 'e'
@@ -310,25 +342,27 @@ bug19145a	CREATE TABLE `bug19145a` (
   `e` enum('a','b','c') DEFAULT NULL,
   `s` set('x','y','z') DEFAULT NULL,
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table bug19145b;
 Table	Create Table
 bug19145b	CREATE TABLE `bug19145b` (
   `e` enum('a','b','c') DEFAULT NULL,
   `s` set('x','y','z') DEFAULT NULL,
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table bug19145c;
 Table	Create Table
 bug19145c	CREATE TABLE `bug19145c` (
   `e` enum('a','b','c') NOT NULL DEFAULT 'b',
   `s` set('x','y','z') NOT NULL DEFAULT 'y',
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table bug19145a;
 drop table bug19145b;
 drop table bug19145c;
+#
 # End of 4.1 tests
+#
 #
 # Bug #31471: decimal_bin_size: Assertion `scale >= 0 &&
 #             precision > 0 && scale <= precision'
@@ -350,7 +384,9 @@ DESCRIBE t2;
 Field	Type	Null	Key	Default	Extra
 IFNULL(NULL, b)	decimal(1,0)	YES		NULL	
 DROP TABLE t1, t2;
+#
 # End of 5.0 tests
+#
 #
 # MDEV-4895 Valgrind warnings (Conditional jump or move depends on uninitialised value) in Field_datetime::get_date on GREATEST(..) IS NULL
 #
@@ -382,17 +418,13 @@ SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 dt
 DROP TABLE t1;
 #
-# Bug mdev-5132: crash when exeicuting a join query
-#                with IS NULL and IS NOT NULL in where
+# MDEV-5132 crash when exeicuting a join query with IS NULL and IS NOT NULL in where
 #
 CREATE TABLE t1 (a DATE, b INT, c INT, KEY(a), KEY(b), KEY(c)) ENGINE=MyISAM;
 CREATE TABLE t2 (d DATE) ENGINE=MyISAM;
 SELECT  * FROM t1,t2 WHERE  1 IS NOT NULL AND t1.b IS NULL;
 a	b	c	d
 DROP TABLE t1,t2;
-#
-# Start of 10.0 tests
-#
 #
 # MDEV-7001 Bad result for NOT NOT STRCMP('a','b') and NOT NOT NULLIF(2,3) 
 #
@@ -410,7 +442,7 @@ NOT NOT NULLIF(2,3)
 #
 CREATE TABLE t1 (a YEAR(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 INSERT INTO t1 VALUES (0);
 SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
 a	NULLIF(a,2000)	NULLIF(2000,a)
@@ -430,7 +462,7 @@ t2	CREATE TABLE `t2` (
   `a` time DEFAULT NULL,
   `NULLIF(a,a)` time DEFAULT NULL,
   `CASE WHEN a=a THEN NULL ELSE a END` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 SELECT NULLIF(_latin1'a' COLLATE latin1_general_ci, _latin1'a' COLLATE latin1_bin);
 ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT) and (latin1_bin,EXPLICIT) for operation 'nullif'
@@ -451,7 +483,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(1,1e0)` int(1) DEFAULT NULL,
   `NULLIF(1,'2001-01-01')` int(1) DEFAULT NULL,
   `NULLIF(1,TIME'00:00:00')` int(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
@@ -470,7 +502,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(1.0,1e0)` decimal(2,1) DEFAULT NULL,
   `NULLIF(1.0,'2001-01-01')` decimal(2,1) DEFAULT NULL,
   `NULLIF(1.0,TIME'00:00:00')` decimal(2,1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
@@ -489,7 +521,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(1e0,1e0)` double DEFAULT NULL,
   `NULLIF(1e0,'2001-01-01')` double DEFAULT NULL,
   `NULLIF(1e0,TIME'00:00:00')` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 NULLIF('1',1),
@@ -500,12 +532,12 @@ NULLIF('1',TIME'00:00:00');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `NULLIF('1',1)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',1.0)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',1e0)` varchar(1) DEFAULT NULL,
-  `NULLIF('1','2001-01-01')` varchar(1) DEFAULT NULL,
-  `NULLIF('1',TIME'00:00:00')` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `NULLIF('1',1)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',1.0)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',1e0)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1','2001-01-01')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',TIME'00:00:00')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
@@ -526,7 +558,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(TIMESTAMP'2001-01-01 00:00:00',1e0)` datetime DEFAULT NULL,
   `NULLIF(TIMESTAMP'2001-01-01 00:00:00','2001-01-01')` datetime DEFAULT NULL,
   `NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00')` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
@@ -547,7 +579,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(DATE'2001-01-01',1e0)` date DEFAULT NULL,
   `NULLIF(DATE'2001-01-01','2001-01-01')` date DEFAULT NULL,
   `NULLIF(DATE'2001-01-01',TIME'00:00:00')` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 NULLIF(TIME'00:00:01',1),
@@ -563,7 +595,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(TIME'00:00:01',1e0)` time DEFAULT NULL,
   `NULLIF(TIME'00:00:01','00:00:00')` time DEFAULT NULL,
   `NULLIF(TIME'00:00:01',DATE'2001-01-01')` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1
 (
@@ -629,7 +661,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_tinyint,  c_timestamp3)` tinyint(4) DEFAULT NULL,
   `NULLIF(c_tinyint,  c_date)` tinyint(4) DEFAULT NULL,
   `NULLIF(c_tinyint,  c_time)` tinyint(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_smallint,  1),
@@ -668,7 +700,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_smallint,  c_timestamp3)` smallint(6) DEFAULT NULL,
   `NULLIF(c_smallint,  c_date)` smallint(6) DEFAULT NULL,
   `NULLIF(c_smallint,  c_time)` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_int,  1),
@@ -707,7 +739,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_int,  c_timestamp3)` int(11) DEFAULT NULL,
   `NULLIF(c_int,  c_date)` int(11) DEFAULT NULL,
   `NULLIF(c_int,  c_time)` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_bigint,  1),
@@ -746,7 +778,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_bigint,  c_timestamp3)` bigint(20) DEFAULT NULL,
   `NULLIF(c_bigint,  c_date)` bigint(20) DEFAULT NULL,
   `NULLIF(c_bigint,  c_time)` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_float,  1),
@@ -785,7 +817,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_float,  c_timestamp3)` float DEFAULT NULL,
   `NULLIF(c_float,  c_date)` float DEFAULT NULL,
   `NULLIF(c_float,  c_time)` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_double,  1),
@@ -824,7 +856,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_double,  c_timestamp3)` double DEFAULT NULL,
   `NULLIF(c_double,  c_date)` double DEFAULT NULL,
   `NULLIF(c_double,  c_time)` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_decimal103,  1),
@@ -863,7 +895,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_decimal103,  c_timestamp3)` decimal(10,3) DEFAULT NULL,
   `NULLIF(c_decimal103,  c_date)` decimal(10,3) DEFAULT NULL,
   `NULLIF(c_decimal103,  c_time)` decimal(10,3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_varchar10,  1),
@@ -902,7 +934,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_varchar10,  c_timestamp3)` varchar(10) DEFAULT NULL,
   `NULLIF(c_varchar10,  c_date)` varchar(10) DEFAULT NULL,
   `NULLIF(c_varchar10,  c_time)` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_tinytext,  1),
@@ -925,23 +957,23 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_tinytext,  1)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_smallint)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_tinyint)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_int)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_bigint)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_float)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_double)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_decimal103)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_varchar10)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_text)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_blob)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_enum)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_datetime3)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_timestamp3)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_date)` tinytext DEFAULT NULL,
-  `NULLIF(c_tinytext,  c_time)` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `NULLIF(c_tinytext,  1)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_smallint)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_tinyint)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_int)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_bigint)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_float)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_double)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_decimal103)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_varchar10)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_text)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_blob)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_enum)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_datetime3)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_timestamp3)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_date)` text DEFAULT NULL,
+  `NULLIF(c_tinytext,  c_time)` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_text,  1),
@@ -964,23 +996,23 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_text,  1)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_smallint)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_tinyint)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_int)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_bigint)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_float)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_double)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_decimal103)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_varchar10)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_text)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_blob)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_enum)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_datetime3)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_timestamp3)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_date)` text DEFAULT NULL,
-  `NULLIF(c_text,  c_time)` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `NULLIF(c_text,  1)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_smallint)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_tinyint)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_int)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_bigint)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_float)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_double)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_decimal103)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_varchar10)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_text)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_blob)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_enum)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_datetime3)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_timestamp3)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_date)` mediumtext DEFAULT NULL,
+  `NULLIF(c_text,  c_time)` mediumtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_mediumtext,  1),
@@ -1003,23 +1035,23 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_mediumtext,  1)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_smallint)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_tinyint)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_int)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_bigint)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_float)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_double)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_decimal103)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_varchar10)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_text)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_blob)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_enum)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_datetime3)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_timestamp3)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_date)` mediumtext DEFAULT NULL,
-  `NULLIF(c_mediumtext,  c_time)` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `NULLIF(c_mediumtext,  1)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_smallint)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_tinyint)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_int)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_bigint)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_float)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_double)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_decimal103)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_varchar10)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_text)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_blob)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_enum)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_datetime3)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_timestamp3)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_date)` longtext DEFAULT NULL,
+  `NULLIF(c_mediumtext,  c_time)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_longtext,  1),
@@ -1058,7 +1090,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_longtext,  c_timestamp3)` longtext DEFAULT NULL,
   `NULLIF(c_longtext,  c_date)` longtext DEFAULT NULL,
   `NULLIF(c_longtext,  c_time)` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_tinyblob,  1),
@@ -1097,7 +1129,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_tinyblob,  c_timestamp3)` tinyblob DEFAULT NULL,
   `NULLIF(c_tinyblob,  c_date)` tinyblob DEFAULT NULL,
   `NULLIF(c_tinyblob,  c_time)` tinyblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_blob,  1),
@@ -1136,7 +1168,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_blob,  c_timestamp3)` blob DEFAULT NULL,
   `NULLIF(c_blob,  c_date)` blob DEFAULT NULL,
   `NULLIF(c_blob,  c_time)` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_mediumblob,  1),
@@ -1175,7 +1207,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_mediumblob,  c_timestamp3)` mediumblob DEFAULT NULL,
   `NULLIF(c_mediumblob,  c_date)` mediumblob DEFAULT NULL,
   `NULLIF(c_mediumblob,  c_time)` mediumblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_longblob,  1),
@@ -1214,7 +1246,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_longblob,  c_timestamp3)` longblob DEFAULT NULL,
   `NULLIF(c_longblob,  c_date)` longblob DEFAULT NULL,
   `NULLIF(c_longblob,  c_time)` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_enum,  1),
@@ -1253,7 +1285,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_enum,  c_timestamp3)` varchar(4) DEFAULT NULL,
   `NULLIF(c_enum,  c_date)` varchar(4) DEFAULT NULL,
   `NULLIF(c_enum,  c_time)` varchar(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_datetime3,  1),
@@ -1292,7 +1324,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_datetime3,  c_timestamp3)` datetime(3) DEFAULT NULL,
   `NULLIF(c_datetime3,  c_date)` datetime(3) DEFAULT NULL,
   `NULLIF(c_datetime3,  c_time)` datetime(3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_timestamp3,  1),
@@ -1331,7 +1363,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_timestamp3,  c_timestamp3)` timestamp(3) NULL DEFAULT NULL,
   `NULLIF(c_timestamp3,  c_date)` timestamp(3) NULL DEFAULT NULL,
   `NULLIF(c_timestamp3,  c_time)` timestamp(3) NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_date,  1),
@@ -1370,7 +1402,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_date,  c_timestamp3)` date DEFAULT NULL,
   `NULLIF(c_date,  c_date)` date DEFAULT NULL,
   `NULLIF(c_date,  c_time)` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(c_time,  1),
@@ -1409,7 +1441,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(c_time,  c_timestamp3)` time DEFAULT NULL,
   `NULLIF(c_time,  c_date)` time DEFAULT NULL,
   `NULLIF(c_time,  c_time)` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 #
 # Checking that the return type depends only on args[0], even if compared to a field
@@ -1451,7 +1483,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(1,  c_timestamp3)` int(1) DEFAULT NULL,
   `NULLIF(1,  c_date)` int(1) DEFAULT NULL,
   `NULLIF(1,  c_time)` int(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(1.0,  1),
@@ -1490,7 +1522,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(1.0,  c_timestamp3)` decimal(2,1) DEFAULT NULL,
   `NULLIF(1.0,  c_date)` decimal(2,1) DEFAULT NULL,
   `NULLIF(1.0,  c_time)` decimal(2,1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(1e0,  1),
@@ -1529,7 +1561,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(1e0,  c_timestamp3)` double DEFAULT NULL,
   `NULLIF(1e0,  c_date)` double DEFAULT NULL,
   `NULLIF(1e0,  c_time)` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF('1',  1),
@@ -1552,23 +1584,23 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF('1',  1)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_smallint)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_tinyint)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_int)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_bigint)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_float)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_double)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_decimal103)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_varchar10)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_text)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_blob)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_enum)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_datetime3)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_timestamp3)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_date)` varchar(1) DEFAULT NULL,
-  `NULLIF('1',  c_time)` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `NULLIF('1',  1)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_smallint)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_tinyint)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_int)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_bigint)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_float)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_double)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_decimal103)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_varchar10)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_text)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_blob)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_enum)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_datetime3)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_timestamp3)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_date)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `NULLIF('1',  c_time)` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
 NULLIF(TIME'10:10:10',  1),
@@ -1607,7 +1639,7 @@ t2	CREATE TABLE `t2` (
   `NULLIF(TIME'10:10:10',  c_timestamp3)` time DEFAULT NULL,
   `NULLIF(TIME'10:10:10',  c_date)` time DEFAULT NULL,
   `NULLIF(TIME'10:10:10',  c_time)` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #

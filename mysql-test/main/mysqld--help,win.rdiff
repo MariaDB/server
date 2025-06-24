@@ -1,65 +1,65 @@
 --- a/mysql-test/main/mysqld--help.result
 +++ b/mysql-test/main/mysqld--help.result
-@@ -180,6 +180,7 @@ The following specify which files/extra groups are read (specified before remain
+@@ -223,6 +223,7 @@
   --console           Write error output on screen; don't remove the console
-  window on windows.
+  window on Windows
   --core-file         Write core on crashes
 + (Defaults to on; use --skip-core-file to disable.)
-  -h, --datadir=name  Path to the database root directory
-  --date-format=name  The DATE format (ignored)
-  --datetime-format=name 
-@@ -649,6 +650,7 @@ The following specify which files/extra groups are read (specified before remain
+  --create-tmp-table-binlog-formats=name 
+  The binary logging formats under which the master will
+  log CREATE TEMPORARY statments to the binary log. If
+@@ -766,6 +767,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
-  DATETIME, TIMESTAMP columns.
+  DATETIME, TIMESTAMP columns
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
 + --named-pipe        Enable the named pipe (NT)
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -1280,6 +1282,10 @@ The following specify which files/extra groups are read (specified before remain
-  Log slow queries to given log file. Defaults logging to
-  'hostname'-slow.log. Must be enabled to activate other
-  slow log options
+@@ -1479,6 +1481,10 @@
+  Alias for log_slow_query_file. Log slow queries to given
+  log file. Defaults logging to 'hostname'-slow.log. Must
+  be enabled to activate other slow log options
 + --slow-start-timeout=# 
 + Maximum number of milliseconds that the service control
 + manager should wait before trying to kill the windows
-+ service during startup(Default: 15000).
++ service during startup
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1304,6 +1310,7 @@ The following specify which files/extra groups are read (specified before remain
-  deleting or updating every row in a table.
+@@ -1503,6 +1509,7 @@
+  deleting or updating every row in a table
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
-+ --standalone        Dummy option to start as a standalone program (NT).
++ --standalone        Dummy option to start as a standalone program (NT)
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1379,6 +1386,12 @@ The following specify which files/extra groups are read (specified before remain
+@@ -1582,6 +1589,12 @@
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
 + --thread-pool-min-threads=# 
-+ Minimum number of threads in the thread pool.
++ Minimum number of threads in the thread pool
 + --thread-pool-mode=name 
 + Chose implementation of the threadpool. Use 'windows'
 + unless you have a workload with a lot of concurrent
 + connections and minimal contention
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
-  allowed.
-@@ -1417,8 +1430,8 @@ The following specify which files/extra groups are read (specified before remain
-  automatically convert it to an on-disk MyISAM or Aria
-  table.
-  -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
-- separated by a colon (:), in this case they are used in a
-- round-robin fashion
-+ separated by a semicolon (;), in this case they are used
-+ in a round-robin fashion
+  allowed
+@@ -1623,8 +1636,8 @@
+  background for binlogging by user threads are placed in a
+  separate location (see `binlog_large_commit_threshold`
+  option). Several paths may be specified, separated by a
+- colon (:), in this case they are used in a round-robin
+- fashion
++ semicolon (;), in this case they are used in a
++ round-robin fashion
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1633,6 +1646,7 @@ myisam-sort-buffer-size 134216704
+@@ -1861,6 +1874,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -67,7 +67,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1787,6 +1801,7 @@ slave-transaction-retry-interval 0
+@@ -2037,6 +2051,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -75,7 +75,7 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  sql-safe-updates FALSE
-@@ -1813,6 +1828,8 @@ thread-pool-dedicated-listener FALSE
+@@ -2064,6 +2079,8 @@
  thread-pool-exact-stats FALSE
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536

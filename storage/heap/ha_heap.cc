@@ -15,10 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include "heapdef.h"
 #include "sql_priv.h"
@@ -42,6 +38,28 @@ static int heap_drop_table(handlerton *hton, const char *path)
   return error == ENOENT ? -1 : error;
 }
 
+/* See optimizer_costs.txt for how the following values where calculated */
+#define HEAP_ROW_NEXT_FIND_COST  8.0166e-06           // For table scan
+#define BTREE_KEY_NEXT_FIND_COST 0.00007739           // For binary tree scan
+#define HEAP_LOOKUP_COST         0.00016097           // Heap lookup cost
+
+static void heap_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    A lot of values are 0 as heap supports all needed xxx_time() functions
+  */
+  costs->disk_read_cost=0;          // All data in memory
+  costs->disk_read_ratio= 0.0;      // All data in memory
+  costs->key_next_find_cost= 0;
+  costs->key_copy_cost= 0;          // Set in keyread_time()
+  costs->row_copy_cost= 2.334e-06;  // This is small as its just a memcpy
+  costs->row_lookup_cost= 0;        // Direct pointer
+  costs->row_next_find_cost= HEAP_ROW_NEXT_FIND_COST;
+  costs->key_lookup_cost= 0;
+  costs->key_next_find_cost= 0;
+  costs->index_block_copy_cost= 0;
+}
+
 int heap_init(void *p)
 {
   handlerton *heap_hton;
@@ -53,6 +71,7 @@ int heap_init(void *p)
   heap_hton->create=     heap_create_handler;
   heap_hton->panic=      heap_panic;
   heap_hton->drop_table= heap_drop_table;
+  heap_hton->update_optimizer_costs= heap_update_optimizer_costs;
   heap_hton->flags=      HTON_CAN_RECREATE;
 
   return 0;
@@ -73,7 +92,8 @@ static handler *heap_create_handler(handlerton *hton,
 ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0), records_changed(0), key_stat_version(0), 
   internal_table(0)
-{}
+{
+}
 
 /*
   Hash index statistics is updated (copied from HP_KEYDEF::hash_buckets to 
@@ -120,8 +140,6 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
   }
 
   ref_length= sizeof(HEAP_PTR);
-  /* Initialize variables for the opened table */
-  set_keys_for_scanning();
   /*
     We cannot run update_key_stats() here because we do not have a
     lock on the table. The 'records' count might just be changed
@@ -162,22 +180,24 @@ handler *ha_heap::clone(const char *name, MEM_ROOT *mem_root)
 
 
 /*
-  Compute which keys to use for scanning
+  Return set of keys usable for scanning
 
   SYNOPSIS
-    set_keys_for_scanning()
-    no parameter
+    keys_to_use_for_scanning()
+    (no parameters)
 
   DESCRIPTION
-    Set the bitmap btree_keys, which is used when the upper layers ask
-    which keys to use for scanning. For each btree index the
-    corresponding bit is set.
+    This function populates the bitmap `btree_keys`, where each bit represents
+    a key that can be used for scanning the table. The bitmap is dynamically
+    updated on every call, ensuring it reflects the current state of the
+    table's keys. Caching is avoided because the set of usable keys for
+    MEMORY tables may change during optimization or execution.
 
   RETURN
-    void
+    Pointer to the updated bitmap of keys (`btree_keys`)
 */
 
-void ha_heap::set_keys_for_scanning(void)
+const key_map *ha_heap::keys_to_use_for_scanning()
 {
   btree_keys.clear_all();
   for (uint i= 0 ; i < table->s->keys ; i++)
@@ -185,8 +205,8 @@ void ha_heap::set_keys_for_scanning(void)
     if (table->key_info[i].algorithm == HA_KEY_ALG_BTREE)
       btree_keys.set_bit(i);
   }
+  return &btree_keys;
 }
-
 
 int ha_heap::can_continue_handler_scan()
 {
@@ -225,6 +245,43 @@ void ha_heap::update_key_stats()
   records_changed= 0;
   /* At the end of update_key_stats() we can proudly claim they are OK. */
   key_stat_version= file->s->key_stat_version;
+}
+
+
+IO_AND_CPU_COST ha_heap::keyread_time(uint index, ulong ranges, ha_rows rows,
+                                      ulonglong blocks)
+{
+  KEY *key=table->key_info+index;
+  if (key->algorithm == HA_KEY_ALG_BTREE)
+  {
+    double lookup_cost;
+    lookup_cost= ranges * costs->key_cmp_cost * log2(stats.records+1);
+    return {0, ranges * lookup_cost + (rows-ranges) * BTREE_KEY_NEXT_FIND_COST };
+  }
+  else
+  {
+    return {0, (ranges * HEAP_LOOKUP_COST +
+                (rows-ranges) * BTREE_KEY_NEXT_FIND_COST) };
+  }
+}
+
+
+IO_AND_CPU_COST ha_heap::scan_time()
+{
+  /* The caller ha_scan_time() handles stats.records */
+
+  return {0, (double) stats.deleted * HEAP_ROW_NEXT_FIND_COST };
+}
+
+
+IO_AND_CPU_COST ha_heap::rnd_pos_time(ha_rows rows)
+{
+  /*
+    The row pointer is a direct pointer to the block. Thus almost instant
+    in practice.
+    Note that ha_rnd_pos_time() will add ROW_COPY_COST to this result
+  */
+  return { 0, 0 };
 }
 
 
@@ -456,8 +513,7 @@ int ha_heap::disable_indexes(key_map map, bool persist)
   if (!persist)
   {
     DBUG_ASSERT(map.is_clear_all());
-    if (!(error= heap_disable_indexes(file)))
-      set_keys_for_scanning();
+    error= heap_disable_indexes(file);
   }
   else
   {
@@ -475,8 +531,7 @@ int ha_heap::disable_indexes(key_map map, bool persist)
     enable_indexes()
 
   DESCRIPTION
-    Enable indexes and set keys to use for scanning.
-    The indexes might have been disabled by disable_index() before.
+    Enable indexes taht might have been disabled by disable_index() before.
     The function works only if both data and indexes are empty,
     since the heap storage engine cannot repair the indexes.
     To be sure, call handler::delete_all_rows() before.
@@ -496,8 +551,7 @@ int ha_heap::enable_indexes(key_map map, bool persist)
   if (!persist)
   {
     DBUG_ASSERT(map.is_prefix(table->s->keys));
-    if (!(error= heap_enable_indexes(file)))
-      set_keys_for_scanning();
+    error= heap_enable_indexes(file);
   }
   else
   {
@@ -595,6 +649,12 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   bool found_real_auto_increment= 0;
 
   bzero(hp_create_info, sizeof(*hp_create_info));
+
+  if (share->total_keys > keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MEMORY", "VECTOR");
+    return HA_ERR_UNSUPPORTED;
+  }
 
   for (key= parts= 0; key < keys; key++)
     parts+= table_arg->key_info[key].user_defined_key_parts;

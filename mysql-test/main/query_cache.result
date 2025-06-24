@@ -12,11 +12,7 @@ SET LOCAL query_cache_type= ON;
 flush query cache;
 flush query cache;
 reset query cache;
-flush status;
-drop table if exists t1,t2,t3,t4,t11,t21,t1_1,t1_2,t9,t9_1,t9_2;
-drop database if exists mysqltest;
-drop table if exists ```a`;
-drop view if exists v1;
+flush global status;
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
 select * from t1;
@@ -646,13 +642,9 @@ show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
 select * from t1 into outfile "query_cache.out.file";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from t1 into outfile "query_cache.out.file";
 ERROR HY000: File 'query_cache.out.file' already exists
 select * from t1 limit 1 into dumpfile "query_cache.dump.file";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -677,7 +669,7 @@ SET SQL_SELECT_LIMIT=DEFAULT;
 drop table t1;
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 set GLOBAL query_cache_size=1048576;
 create table t1 (a int not null);
 insert into t1 values (1),(2),(3);
@@ -838,6 +830,8 @@ xxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxw
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxy
+Warnings:
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 64 bytes
 set max_sort_length=200;
 select c from t1 order by c, id;
 c
@@ -868,7 +862,7 @@ select group_concat(a) FROM t1 group by b;
 group_concat(a)
 1234567890
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 set group_concat_max_len=1024;
 select group_concat(a) FROM t1 group by b;
 group_concat(a)
@@ -881,7 +875,7 @@ Variable_name	Value
 Qcache_queries_in_cache	0
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	19
+Qcache_inserts	18
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	6
@@ -894,7 +888,7 @@ Variable_name	Value
 Qcache_queries_in_cache	1
 show status like "Qcache_inserts";
 Variable_name	Value
-Qcache_inserts	20
+Qcache_inserts	19
 show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	7
@@ -959,7 +953,7 @@ zyxwvutsrqponmlkjihgfedcbazyxwvutsrqponmlkjihgfedcbazyxwvutsrqponmlkjihgfedcbazy
 flush query cache;
 drop table t1, t2;
 set GLOBAL query_cache_size=1355776;
-flush status;
+flush global status;
 CREATE TABLE t1 (
 `date` datetime NOT NULL default '0000-00-00 00:00:00',
 KEY `date` (`date`)
@@ -994,7 +988,7 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1);
 reset query cache;
-flush status;
+flush global status;
 select * from (select * from t1) a;
 a
 1
@@ -1044,7 +1038,7 @@ Variable_name	Value
 Qcache_hits	1
 drop table t1;
 create table t1 (a int);
-flush status;
+flush global status;
 (select a from t1) union (select a from t1);
 a
 show status like "Qcache_queries_in_cache";
@@ -1087,7 +1081,6 @@ Qcache_hits	4
 drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
-drop procedure if exists p1;
 CREATE PROCEDURE `p1`()
 begin
 Declare c1 cursor for select a from t1;
@@ -1105,8 +1098,6 @@ Declare var1 int;
 select max(a) from t1 into var1;
 return var1;
 end//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create procedure `p1`()
 begin
 select a, f1() from t1;
@@ -1123,7 +1114,7 @@ drop function f1//
 drop table t1//
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 create table t1 (s1 int)//
 create procedure f1 () begin
 select sql_cache * from t1;
@@ -1182,7 +1173,7 @@ s1
 1
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 select sql_cache * from t1;
 s1
 1
@@ -1315,7 +1306,7 @@ Last_query_cost	0.000000
 drop table t1;
 SET GLOBAL query_cache_size=0;
 set global query_cache_size=1024*1024;
-flush status;
+flush global status;
 create table t1 (a int);
 insert into t1 (a) values (1), (2), (3);
 select * from t1;
@@ -1621,8 +1612,6 @@ Qcache_free_blocks	1
 set global query_cache_type=on;
 set session query_cache_type=on;
 Restore default values.
-drop database if exists db1;
-drop database if exists db2;
 set GLOBAL query_cache_size=15*1024*1024;
 create database db1;
 use db1;
@@ -1642,8 +1631,6 @@ Variable_name	Value
 Qcache_queries_in_cache	0
 drop database db2;
 set global query_cache_size=@save_query_cache_size;
-drop database if exists db1;
-drop database if exists db3;
 set GLOBAL query_cache_size=15*1024*1024;
 create database db1;
 create database db3;
@@ -1680,7 +1667,7 @@ set GLOBAL query_cache_size=@save_query_cache_size;
 set local query_cache_type=default;
 set GLOBAL query_cache_type=on;
 set local query_cache_type=on;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SET GLOBAL query_cache_size=10*1024*1024;
 SET @save_concurrent_insert= @@concurrent_insert;
 SET GLOBAL concurrent_insert= 0;
@@ -1706,8 +1693,7 @@ Qcache_hits	1
 DROP TABLE t1;
 SET GLOBAL concurrent_insert= @save_concurrent_insert;
 SET GLOBAL query_cache_size= default;
-DROP TABLE IF EXISTS t1;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SET GLOBAL query_cache_size=1048576;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
@@ -1763,8 +1749,6 @@ SET @row_count = 4;
 SET @sleep_time_per_result_row = 1;
 SET @max_acceptable_delay = 2;
 SET @@global.query_cache_size = 1024 * 64;
-DROP TEMPORARY TABLE IF EXISTS t_history;
-DROP TABLE IF EXISTS t1;
 CREATE TEMPORARY TABLE t_history (attempt SMALLINT,
 start_ts DATETIME, end_ts DATETIME,
 start_cached INTEGER, end_cached INTEGER);
@@ -1918,7 +1902,6 @@ End of 5.1 tests
 #
 # Bug#51336 Assert in reload_acl_and_cache during RESET QUERY CACHE
 #
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(id INT);
 START TRANSACTION;
 SELECT * FROM t1;
@@ -1962,7 +1945,7 @@ set GLOBAL query_cache_size=1355776;
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
 reset query cache;
-flush status;
+flush global status;
 create table t1 (a int);
 insert into t1 values (1);
 select * from t1;
@@ -1999,7 +1982,7 @@ Qcache_hits	2
 drop table t1;
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
-flush status;
+flush global status;
 create table t1 (a int);
 select * from t1;
 a
@@ -2031,7 +2014,7 @@ Variable_name	Value
 Qcache_hits	2
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
-flush status;
+flush global status;
 create procedure p1()
 select * from t1;
 call p1;
@@ -2064,7 +2047,7 @@ Variable_name	Value
 Qcache_hits	2
 FLUSH USER_STATISTICS;
 FLUSH CLIENT_STATISTICS;
-flush status;
+flush global status;
 SET GLOBAL query_cache_size= 0;
 call p1;
 a
@@ -2128,7 +2111,7 @@ SET GLOBAL query_cache_size= @qc;
 #
 CREATE DATABASE `foo.bar`;
 use `foo.bar`;
-flush status;
+flush global status;
 CREATE TABLE moocow (a int);
 INSERT INTO moocow VALUES (1), (2), (3);
 SHOW STATUS LIKE 'Qcache_inserts';
@@ -2160,7 +2143,7 @@ End of 10.0 tests
 # MDEV-10766 Queries which start with WITH clause do not get
 # inserted into query cache
 #
-flush status;
+flush global status;
 show status like "Qcache_inserts";
 Variable_name	Value
 Qcache_inserts	0
@@ -2271,7 +2254,7 @@ drop table t1;
 #
 create table t1 (a text);
 insert into t1 values ('{"a":"foo"}');
-flush status;
+flush global status;
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
 Qcache_inserts	0
@@ -2293,3 +2276,26 @@ restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
 # End of 10.6 tests
+#
+# MDEV-29028: Queries using RANDOM_BYTES get stored in query cache
+#
+set @qcache= @@global.query_cache_type;
+set global query_cache_type= 1;
+set query_cache_type= 1;
+create table t1 (a int);
+insert into t1 values (1000);
+flush global status;
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	0
+QCACHE_INSERTS	0
+select * from information_schema.global_status where variable_name in ('Qcache_inserts','Qcache_hits') order by variable_name;
+VARIABLE_NAME	VARIABLE_VALUE
+QCACHE_HITS	0
+QCACHE_INSERTS	0
+select random_bytes(1024) = random_bytes(1024) as improbable;
+improbable
+0
+drop table t1;
+set global query_cache_type= @qcache;
+# End of 10.10 tests

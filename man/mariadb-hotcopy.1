@@ -1,0 +1,534 @@
+'\" t
+.\"
+.TH "\fBMARIADB-HOTCOPY\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-hotcopy
+.\" dumping: databases and tables
+.\" backups: databases and tables
+.\" databases: dumping
+.\" tables: dumping
+.SH "NAME"
+mariadb-hotcopy \- a database backup program (mariadb-hotcopy is now a symlink to mariadb-hotcopy)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-hotcopy\ \fR\fB\fIarguments\fR\fR\ 'u
+\fBmariadb-hotcopy \fR\fB\fIarguments\fR\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb-hotcopy\fR
+is a Perl script that was originally written and contributed by Tim Bunce\&. It uses
+FLUSH TABLES,
+LOCK TABLES, and
+cp
+or
+scp
+to make a database backup\&. It is a fast way to make a backup of the database or single tables, but it can be run only on the same machine where the database directories are located\&.
+\fBmariadb-hotcopy\fR
+works only for backing up
+MyISAM
+and
+ARCHIVE
+tables\&. It runs on Unix and NetWare\&.
+.PP
+To use
+\fBmariadb-hotcopy\fR, you must have read access to the files for the tables that you are backing up, the
+SELECT
+privilege for those tables, the
+RELOAD
+privilege (to be able to execute
+FLUSH TABLES), and the
+LOCK TABLES
+privilege (to be able to lock the tables)\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-hotcopy \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fI/path/to/new_directory\fR\fR\fB]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-hotcopy \fR\fB\fIdb_name_1\fR\fR\fB \&.\&.\&. \fR\fB\fIdb_name_n\fR\fR\fB \fR\fB\fI/path/to/new_directory\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Back up tables in the given database that match a regular expression:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-hotcopy \fR\fB\fIdb_name\fR\fR\fB\&./\fR\fB\fIregex\fR\fR\fB/\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The regular expression for the table name can be negated by prefixing it with a tilde (\(lq~\(rq):
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-hotcopy \fR\fB\fIdb_name\fR\fR\fB\&./~\fR\fB\fIregex\fR\fR\fB/\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBmariadb-hotcopy\fR
+supports the following options, which can be specified on the command line or in the
+[mariadb-hotcopy]
+and
+[client]
+option file groups\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: help option
+.\" help option: mariadb-hotcopy
+\fB\-\-help\fR,
+\fB\-?\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: addtodest option
+.\" addtodest option: mariadb-hotcopy
+\fB\-\-addtodest\fR
+.sp
+Do not rename target directory (if it exists); merely add files to it\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: allowold option
+.\" allowold option: mariadb-hotcopy
+\fB\-\-allowold\fR
+.sp
+Do not abort if a target exists; rename it by adding an
+_old
+suffix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: checkpoint option
+.\" checkpoint option: mariadb-hotcopy
+\fB\-\-checkpoint=\fR\fB\fIdb_name\fR\fR\fB\&.\fR\fB\fItbl_name\fR\fR
+.sp
+Insert checkpoint entries into the specified database
+\fIdb_name\fR
+and table
+\fItbl_name\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: chroot option
+.\" chroot option: mariadb-hotcopy
+\fB\-\-chroot=\fR\fB\fIpath\fR\fR
+.sp
+Base directory of the
+\fBchroot\fR
+jail in which
+\fBmariadbd\fR
+operates\&. The
+\fIpath\fR
+value should match that of the
+\fB\-\-chroot\fR
+option given to
+\fBmariadbd\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: debug option
+.\" debug option: mariadb-hotcopy
+\fB\-\-debug\fR
+.sp
+Enable debug output\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: dryrun option
+.\" dryrun option: mariadb-hotcopy
+\fB\-\-dryrun\fR,
+\fB\-n\fR
+.sp
+Report actions without performing them\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: flushlog option
+.\" flushlog option: mariadb-hotcopy
+\fB\-\-flushlog\fR
+.sp
+Flush logs after all tables are locked\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: host option
+.\" host option: mariadb-hotcopy
+\fB\-\-host=\fR\fB\fIhost_name\fR\fR,
+\fB\-h \fR\fB\fIhost_name\fR\fR
+.sp
+The host name of the local host to use for making a TCP/IP connection to the local server\&. By default, the connection is made to
+localhost
+using a Unix socket file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: keepold option
+.\" keepold option: mariadb-hotcopy
+\fB\-\-keepold\fR
+.sp
+Do not delete previous (renamed) target when done\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: method option
+.\" method option: mariadb-hotcopy
+\fB\-\-method=\fR\fB\fIcommand\fR\fR
+.sp
+The method for copying files (cp
+or
+scp)\&. The default is
+cp\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: noindices option
+.\" noindices option: mariadb-hotcopy
+\fB\-\-noindices\fR
+.sp
+Do not include full index files for
+MyISAM
+tables in the backup\&. This makes the backup smaller and faster\&. The indexes for reloaded tables can be reconstructed later with
+\fBmyisamchk \-rq\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: old-server option
+.\" old-server option: mariadb-hotcopy
+\fB\-\-old\-server\fR
+.sp
+Connect to old MySQL-server (before v5.5) which doesn't have FLUSH TABLES WITH READ LOCK fully implemented.\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: password option
+.\" password option: mariadb-hotcopy
+\fB\-\-password=\fR\fB\fIpassword\fR\fR,
+\fB\-p\fR\fB\fIpassword\fR\fR
+.sp
+The password to use when connecting to the server\&. The password value is not optional for this option, unlike for other MariaDB programs\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: port option
+.\" port option: mariadb-hotcopy
+\fB\-\-port=\fR\fB\fIport_num\fR\fR,
+\fB\-P \fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use when connecting to the local server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: quiet option
+.\" quiet option: mariadb-hotcopy
+\fB\-\-quiet\fR,
+\fB\-q\fR
+.sp
+Be silent except for errors\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: record_log_pos option
+.\" record_log_pos option: mariadb-hotcopy
+\fB\-\-record_log_pos=\fR\fB\fIdb_name\fR\fR\fB\&.\fR\fB\fItbl_name\fR\fR
+.sp
+Record master and slave status in the specified database
+\fIdb_name\fR
+and table
+\fItbl_name\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: regexp option
+.\" regexp option: mariadb-hotcopy
+\fB\-\-regexp=\fR\fB\fIexpr\fR\fR
+.sp
+Copy all databases with names that match the given regular expression\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: resetmaster option
+.\" resetmaster option: mariadb-hotcopy
+\fB\-\-resetmaster\fR
+.sp
+Reset the binary log after locking all the tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: resetslave option
+.\" resetslave option: mariadb-hotcopy
+\fB\-\-resetslave\fR
+.sp
+Reset the
+master\&.info
+file after locking all the tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: socket option
+.\" socket option: mariadb-hotcopy
+\fB\-\-socket=\fR\fB\fIpath\fR\fR,
+\fB\-S \fR\fB\fIpath\fR\fR
+.sp
+The Unix socket file to use for connections to
+localhost\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: suffix option
+.\" suffix option: mariadb-hotcopy
+\fB\-\-suffix=\fR\fB\fIstr\fR\fR
+.sp
+The suffix to use for names of copied databases\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: tmpdir option
+.\" tmpdir option: mariadb-hotcopy
+\fB\-\-tmpdir=\fR\fB\fIpath\fR\fR
+.sp
+The temporary directory\&. The default is
+/tmp\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-hotcopy: user option
+.\" user option: mariadb-hotcopy
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR,
+\fB\-u \fR\fB\fIuser_name\fR\fR
+.sp
+The MariaDB user name to use when connecting to the server\&.
+.RE
+.PP
+Use
+perldoc
+for additional
+\fBmariadb-hotcopy\fR
+documentation, including information about the structure of the tables needed for the
+\fB\-\-checkpoint\fR
+and
+\fB\-\-record_log_pos\fR
+options:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBperldoc mariadb-hotcopy\fR
+.fi
+.if n \{\
+.RE
+.\}
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

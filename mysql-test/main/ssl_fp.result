@@ -1,0 +1,12 @@
+create function have_ssl() returns char(3)
+return (select if(variable_value > '','yes','no') as 'have_ssl'
+  from information_schema.session_status
+where variable_name='ssl_cipher');
+# mysql --protocol tcp -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+# mysql --protocol tcp -uroot --ssl-fp=F1:D0:08:AF:A1:D2:F4:15:79:B4:39:06:41:F4:20:96:F1:90:A9:65 --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+# mysql --protocol tcp -uroot --ssl-fp=00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33 --disable-ssl-verify-server-cert -e "select test.have_ssl()"
+ERROR 2026 (HY000): TLS/SSL error: Fingerprint validation of peer certificate failed
+drop function have_ssl;

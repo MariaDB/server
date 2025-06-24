@@ -1183,14 +1183,14 @@ set @my_innodb_autoextend_increment=@@global.innodb_autoextend_increment;
 set global innodb_autoextend_increment=8;
 set global innodb_autoextend_increment=@my_innodb_autoextend_increment;
 
-#
-# Bug #37830: ORDER BY ASC/DESC - no difference
-#
+--echo #
+--echo # Bug #37830: ORDER BY ASC/DESC - no difference
+--echo #
 
 CREATE TABLE t1 (a int, b int, c int, PRIMARY KEY (a), KEY t1_b (b))
  ENGINE=InnoDB;
 
-INSERT INTO t1 (a,b,c) VALUES (1,1,1), (2,1,1), (3,1,1), (4,1,1);
+INSERT INTO t1 (a,b,c) VALUES (1,1,1), (2,1,1), (3,1,1), (4,1,1), (100,2,2);
 INSERT INTO t1 (a,b,c) SELECT a+4,b,c FROM t1;
 
 -- disable_query_log

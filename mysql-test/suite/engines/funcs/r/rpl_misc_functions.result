@@ -42,8 +42,6 @@ INSERT INTO t1 (col_a) VALUES (test_replication_sf());
 INSERT INTO t1 (col_a) VALUES (test_replication_sf());
 connection slave;
 select * from t1 into outfile "../../tmp/t1_slave.txt";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection master;
 create temporary table t1_slave select * from t1 where 1=0;
 load data infile '../../tmp/t1_slave.txt' into table t1_slave;

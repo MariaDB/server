@@ -1,3 +1,5 @@
+--source include/test_db_charset_latin1.inc
+
 SET sql_mode=ORACLE;
 
 --echo #
@@ -361,3 +363,209 @@ CALL p2(65535);
 CALL p2(65536);
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
+
+--source include/test_db_charset_restore.inc
+
+--echo # 
+--echo # MDEV-34316 sql_mode=ORACLE: Ignore the NOCOPY keyword in stored routine parameters
+--echo # 
+
+SET sql_mode=ORACLE;
+
+--echo # 
+--echo # sql_mode=ORACLE. Test with function
+--echo # 
+
+DELIMITER /;
+
+CREATE OR REPLACE FUNCTION example_func(
+  p_in1 IN VARCHAR(255),
+  p_in2 IN NOCOPY VARCHAR(255),
+  p_out1 OUT INT,
+  p_out2 OUT NOCOPY INT,
+  p_in_out1 IN OUT VARCHAR(255),
+  p_in_out2 IN OUT NOCOPY VARCHAR(255),
+  p_in_out3 INOUT NUMBER,
+  p_in_out4 INOUT NOCOPY NUMBER) RETURN NUMBER AS
+BEGIN
+  RETURN 0;
+END;
+/
+
+DELIMITER ;/
+
+DROP FUNCTION example_func;
+
+--echo # 
+--echo # sql_mode=ORACLE. Test with procedure
+--echo # 
+
+DELIMITER /;
+
+CREATE OR REPLACE PROCEDURE example_proc(
+  p_in1 IN VARCHAR(255),
+  p_in2 IN NOCOPY VARCHAR(255),
+  p_out1 OUT INT,
+  p_out2 OUT NOCOPY INT,
+  p_in_out1 IN OUT VARCHAR(255),
+  p_in_out2 IN OUT NOCOPY VARCHAR(255),
+  p_in_out3 INOUT NUMBER,
+  p_in_out4 INOUT NOCOPY NUMBER) AS
+BEGIN
+END;
+/
+
+DELIMITER ;/
+
+DROP PROCEDURE example_proc;
+
+SET sql_mode=DEFAULT;
+DELIMITER $$;
+
+--echo # 
+--echo # sql_mode=DEFAULT to perform the negative test case. Test with function, IN NOCOPY
+--echo # 
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE FUNCTION example_func(IN NOCOPY p_in INT) RETURNS INT
+BEGIN
+  RETURN 0;
+END;
+$$
+
+--echo # 
+--echo # sql_mode=DEFAULT to perform the negative test case. Test with function, OUT NOCOPY
+--echo # 
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE FUNCTION example_func(OUT NOCOPY p_out INT) RETURNS INT
+BEGIN
+  RETURN 0;
+END;
+$$
+
+--echo # 
+--echo # sql_mode=DEFAULT to perform the negative test case. Test with function, INOUT NOCOPY
+--echo # 
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE FUNCTION example_func(INOUT NOCOPY p_inout INT) RETURNS INT
+BEGIN
+  RETURN 0;
+END;
+$$
+
+--echo # 
+--echo # sql_mode=DEFAULT to perform the negative test case. Test with procedure, IN NOCOPY
+--echo # 
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE PROCEDURE example_proc(IN NOCOPY p_in INT)
+BEGIN
+END;
+$$
+
+--echo # 
+--echo # sql_mode=DEFAULT to perform the negative test case. Test with procedure, OUT NOCOPY
+--echo # 
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE PROCEDURE example_proc(OUT NOCOPY p_out INT)
+BEGIN
+END;
+$$
+
+--echo # 
+--echo # sql_mode=DEFAULT to perform the negative test case. Test with procedure, INOUT NOCOPY
+--echo # 
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE PROCEDURE example_proc(INOUT NOCOPY p_inout INT)
+BEGIN
+END;
+$$
+
+DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+--echo #
+
+SET sql_mode=ORACLE;
+--let keyword=nocopy
+--source include/keyword_non_reserved.inc
+
+# Statements like "CREATE FUNCTION nocopy" and "SELECT nocopy()" below
+# erroneously print a warning:
+#   This function 'nocopy' has the same name as a native function
+# Though it's not really a function, it's just a keyword.
+# The warning is not printed with ps protocol. Let's disable ps protocol.
+
+--disable_ps_protocol
+
+# nocopy is a parameter name
+DELIMITER $$;
+CREATE FUNCTION nocopy (nocopy INT) RETURN INT AS
+BEGIN
+  RETURN nocopy;
+END;
+$$
+DELIMITER ;$$
+SELECT nocopy(1);
+DROP FUNCTION nocopy;
+
+# The first nocopy is a parameter name, the second nocopy - is the mode
+DELIMITER $$;
+CREATE FUNCTION nocopy (nocopy nocopy INT) RETURN INT AS
+BEGIN
+  RETURN nocopy;
+END;
+$$
+DELIMITER ;$$
+SELECT nocopy(1);
+DROP FUNCTION nocopy;
+
+--enable_ps_protocol
+
+
+# nocopy is a parameter name
+DELIMITER $$;
+CREATE PROCEDURE nocopy (nocopy INT) AS
+BEGIN
+  SELECT nocopy;
+END;
+$$
+DELIMITER ;$$
+CALL nocopy(1);
+DROP PROCEDURE nocopy;
+
+# The first nocopy is a parameter name, the second nocopy - is the mode
+DELIMITER $$;
+CREATE PROCEDURE nocopy (nocopy nocopy INT) AS
+BEGIN
+  SELECT nocopy;
+END;
+$$
+DELIMITER ;$$
+CALL nocopy(1);
+DROP PROCEDURE nocopy;
+
+DELIMITER $$;
+DECLARE
+  nocopy INT := 1;
+BEGIN
+<<nocopy>>
+  WHILE 1
+  LOOP
+    SELECT nocopy;
+    LEAVE nocopy;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

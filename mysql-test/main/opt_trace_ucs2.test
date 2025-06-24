@@ -5,6 +5,7 @@ create or replace table t1 (col1 char(10) character set ucs2, filler char(100), 
 insert into t1 values ('a', 'a');
 insert into t1 values ('a', 'a');
 set optimizer_trace=1;
+--source include/explain-no-costs.inc
 explain format=json select * from t1 force index(col1) where col1 >='a';
 # Enable after fix MDEV-31408
 --disable_view_protocol

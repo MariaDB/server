@@ -146,7 +146,7 @@ drop view v1,v2;
 drop table t1,t2;
 
 
-create table  folks(id int, name char(32), dob date, father int, mother int);
+create table  folks(id int, name char(32), dob date, father int, mother int) charset=latin1;
 
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -1111,6 +1111,7 @@ as
 )
 select ancestors.name, ancestors.dob from ancestors;
 
+--source include/explain-no-costs.inc
 explain FORMAT=JSON
 with recursive 
 prev_gen
@@ -1140,6 +1141,7 @@ as
 select ancestors.name, ancestors.dob from ancestors;
 
 --echo #
+--source include/explain-no-costs.inc
 explain format=json
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
@@ -1344,6 +1346,7 @@ drop table folks;
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
  
+--source include/explain-no-costs.inc
 explain format=json 
 with recursive t as (select a from t1 union select a+10 from t where a < 1000) 
 select  * from t;
@@ -2086,7 +2089,7 @@ create table flights
 (departure varchar(32),
  arrival varchar(32),
  carrier varchar(20),
- flight_number char(7));
+ flight_number char(7)) charset=latin1;
 
 insert into flights values
 ('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
@@ -2609,12 +2612,12 @@ drop table t1,t2;
 --echo # MDEV-22042: ANALYZE of query using stored function and recursive CTE
 --echo #
 
-create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam charset=latin1;
 insert into t1 values (1,1),(2,2),(3,3);
 
 create table t2 (
 a2 varchar(20) primary key, b1 varchar(20), key (b1)
-) engine=myisam;
+) engine=myisam charset=latin1;
 insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
 insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
 
@@ -2774,8 +2777,7 @@ use test;
 --echo # MDEV-23406: query with mutually recursive CTEs when big_tables=1
 --echo #
 
-set @save_big_tables=@@big_tables;
-set big_tables=1;
+set tmp_memory_table_size=0; # force on-disk tmp table
 
 create table  folks(id int, name char(32), dob date, father int, mother int);
 
@@ -2862,7 +2864,7 @@ deallocate prepare stmt;
 
 drop table folks;
 
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 
 --echo #
 --echo # MDEV-26135: execution of PS for query with hanging recursive CTE
@@ -3182,7 +3184,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   id INT, mid INT, name TEXT
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
 
 let $query=
@@ -3642,7 +3644,7 @@ select * from cte;
 # one non-recursive CTEs with name x uses table t1, the second CTE x is
 # recursive and is in the scope of the first one, but does not use it;
 # CTE cte uses only the second CTE with name x;
-# the query has two refeences to cte_e
+# the query has two references to cte_e
 # before fix of this bug: infinite sequence of recursive calls
 
 with
@@ -3675,7 +3677,7 @@ cte_e as
 select s1.*, s2.*  from cte_e as s1, cte_e as s2;
 
 
-# check : with base table x all queries abobe that returned error
+# check : with base table x all queries above that returned error
 # message ER_NO_SUCH_TABLE now return proper result sets
 
 with

@@ -3053,7 +3053,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_unicode_ci DEFAULT NULL,
   `b` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
 SELECT * FROM t1 ORDER BY a, b;
 a	b
@@ -3108,6 +3108,9 @@ COUNT(*)	c1
 1	a
 DROP TABLE IF EXISTS t1;
 set collation_connection=utf16_unicode_ci;
+#
+# Bug#31081 server crash in regexp function
+#
 drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
@@ -3118,7 +3121,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `s1` varchar(64) CHARACTER SET utf16 COLLATE utf16_unicode_ci DEFAULT NULL,
   `s2` varchar(64) CHARACTER SET utf16 COLLATE utf16_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 delete from t1;
 insert into t1 values('aaa','aaa');
 insert into t1 values('aaa|qqq','qqq');
@@ -3215,13 +3218,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_unicode_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(16) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 0E33
@@ -3235,13 +3238,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET utf16 COLLATE utf16_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(80) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 0E330E330E330E330E33
@@ -3254,7 +3257,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(48) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 0E330E330E33
@@ -3267,7 +3270,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(160) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 0E330E330E330E330E3302090209020902090209
@@ -3703,7 +3706,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf16 COLLATE utf16_german2_ci DEFAULT NULL,
   `b` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
 SELECT * FROM t1 ORDER BY a, b;
 a	b
@@ -3733,7 +3736,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` varchar(10) CHARACTER SET utf16 COLLATE utf16_unicode_520_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_utf32 0x0180),(_utf32 0x023A);
 INSERT INTO t1 VALUES (_utf32 0x023B),(_utf32 0x023C);
 INSERT INTO t1 VALUES (_utf32 0x023D),(_utf32 0x023E);
@@ -4050,7 +4053,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `s1` varchar(64) CHARACTER SET utf16 COLLATE utf16_myanmar_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (s1) VALUES
 (_ucs2 0x108C),
 (_ucs2 0x1037),
@@ -6635,7 +6638,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(3) CHARACTER SET utf16 COLLATE utf16_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (SPACE(0)),(SPACE(1)),(SPACE(2));
 SELECT HEX(a), HEX(WEIGHT_STRING(a AS CHAR(8))) FROM t1;
 HEX(a)	HEX(WEIGHT_STRING(a AS CHAR(8)))
@@ -6668,7 +6671,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf16 COLLATE utf16_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_ucs2 0x3400);
 INSERT INTO t1 VALUES (_ucs2 0xF001);
 SELECT HEX(CONVERT(a USING ucs2)) AS ucs2, HEX(a), HEX(WEIGHT_STRING(a)) FROM t1;
@@ -6681,7 +6684,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf16 COLLATE utf16_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('A'),('À'),('Á'),('Â'),('Ã'),('Ä'),('Å');
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 a	HEX(WEIGHT_STRING(a LEVEL 2))
@@ -6715,7 +6718,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf16 COLLATE utf16_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 a	HEX(WEIGHT_STRING(a LEVEL 2))
 A	0020
@@ -6740,7 +6743,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf16 COLLATE utf16_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('cota'),('cote'),('cotz');
 INSERT INTO t1 VALUES ('coté'),('côte'),('côté'),('cotë'),('côtë');
 SELECT * FROM t1 ORDER BY a;
@@ -6887,7 +6890,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
   KEY `a_id` (`a`,`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=97 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=97 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 #
 # Ascending sort, using filesort
 #
@@ -7885,7 +7888,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET utf16 COLLATE utf16_unicode_520_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');
@@ -7909,7 +7912,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (c) VALUES (1);
 SELECT HEX(c) FROM t1;
 HEX(c)
@@ -7921,7 +7924,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (c) VALUES (1);
 SELECT HEX(c) FROM t1;
 HEX(c)
@@ -7933,12 +7936,591 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
   `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (c) VALUES (1);
 SELECT HEX(c) FROM t1;
 HEX(c)
 0061006100610061006100610061006100610061
 DROP TABLE t1;
+SET NAMES utf8;
 #
 # End of 10.2 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# Collation IDs in the protocol
+#
+SET @charset='utf16';
+FOR rec IN (SELECT COLLATION_NAME
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE CHARACTER_SET_NAME=@charset
+AND COLLATION_NAME RLIKE 'uca1400'
+            ORDER BY ID)
+DO
+SET NAMES utf8mb4;
+SET character_set_results=NULL;
+EXECUTE IMMEDIATE CONCAT('SELECT CONVERT('''' USING ',@charset,')',
+' COLLATE ', rec.COLLATION_NAME,
+' AS ', rec.COLLATION_NAME,
+' LIMIT 0');
+END FOR;
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_ai_ci	253	0	0	Y	0	39	101
+uca1400_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_ai_cs	253	0	0	Y	0	39	101
+uca1400_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_as_ci	253	0	0	Y	0	39	101
+uca1400_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_as_cs	253	0	0	Y	0	39	101
+uca1400_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_nopad_ai_ci	253	0	0	Y	0	39	101
+uca1400_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_nopad_ai_cs	253	0	0	Y	0	39	101
+uca1400_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_nopad_as_ci	253	0	0	Y	0	39	101
+uca1400_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_nopad_as_cs	253	0	0	Y	0	39	101
+uca1400_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_ai_ci	253	0	0	Y	0	39	102
+uca1400_icelandic_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_ai_cs	253	0	0	Y	0	39	102
+uca1400_icelandic_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_as_ci	253	0	0	Y	0	39	102
+uca1400_icelandic_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_as_cs	253	0	0	Y	0	39	102
+uca1400_icelandic_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_nopad_ai_ci	253	0	0	Y	0	39	102
+uca1400_icelandic_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_nopad_ai_cs	253	0	0	Y	0	39	102
+uca1400_icelandic_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_nopad_as_ci	253	0	0	Y	0	39	102
+uca1400_icelandic_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_icelandic_nopad_as_cs	253	0	0	Y	0	39	102
+uca1400_icelandic_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_ai_ci	253	0	0	Y	0	39	103
+uca1400_latvian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_ai_cs	253	0	0	Y	0	39	103
+uca1400_latvian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_as_ci	253	0	0	Y	0	39	103
+uca1400_latvian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_as_cs	253	0	0	Y	0	39	103
+uca1400_latvian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_nopad_ai_ci	253	0	0	Y	0	39	103
+uca1400_latvian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_nopad_ai_cs	253	0	0	Y	0	39	103
+uca1400_latvian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_nopad_as_ci	253	0	0	Y	0	39	103
+uca1400_latvian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_latvian_nopad_as_cs	253	0	0	Y	0	39	103
+uca1400_latvian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_ai_ci	253	0	0	Y	0	39	104
+uca1400_romanian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_ai_cs	253	0	0	Y	0	39	104
+uca1400_romanian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_as_ci	253	0	0	Y	0	39	104
+uca1400_romanian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_as_cs	253	0	0	Y	0	39	104
+uca1400_romanian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_nopad_ai_ci	253	0	0	Y	0	39	104
+uca1400_romanian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_nopad_ai_cs	253	0	0	Y	0	39	104
+uca1400_romanian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_nopad_as_ci	253	0	0	Y	0	39	104
+uca1400_romanian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_romanian_nopad_as_cs	253	0	0	Y	0	39	104
+uca1400_romanian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_ai_ci	253	0	0	Y	0	39	105
+uca1400_slovenian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_ai_cs	253	0	0	Y	0	39	105
+uca1400_slovenian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_as_ci	253	0	0	Y	0	39	105
+uca1400_slovenian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_as_cs	253	0	0	Y	0	39	105
+uca1400_slovenian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_nopad_ai_ci	253	0	0	Y	0	39	105
+uca1400_slovenian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_nopad_ai_cs	253	0	0	Y	0	39	105
+uca1400_slovenian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_nopad_as_ci	253	0	0	Y	0	39	105
+uca1400_slovenian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovenian_nopad_as_cs	253	0	0	Y	0	39	105
+uca1400_slovenian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_ai_ci	253	0	0	Y	0	39	106
+uca1400_polish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_ai_cs	253	0	0	Y	0	39	106
+uca1400_polish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_as_ci	253	0	0	Y	0	39	106
+uca1400_polish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_as_cs	253	0	0	Y	0	39	106
+uca1400_polish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_nopad_ai_ci	253	0	0	Y	0	39	106
+uca1400_polish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_nopad_ai_cs	253	0	0	Y	0	39	106
+uca1400_polish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_nopad_as_ci	253	0	0	Y	0	39	106
+uca1400_polish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_polish_nopad_as_cs	253	0	0	Y	0	39	106
+uca1400_polish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_ai_ci	253	0	0	Y	0	39	107
+uca1400_estonian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_ai_cs	253	0	0	Y	0	39	107
+uca1400_estonian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_as_ci	253	0	0	Y	0	39	107
+uca1400_estonian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_as_cs	253	0	0	Y	0	39	107
+uca1400_estonian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_nopad_ai_ci	253	0	0	Y	0	39	107
+uca1400_estonian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_nopad_ai_cs	253	0	0	Y	0	39	107
+uca1400_estonian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_nopad_as_ci	253	0	0	Y	0	39	107
+uca1400_estonian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_estonian_nopad_as_cs	253	0	0	Y	0	39	107
+uca1400_estonian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_ai_ci	253	0	0	Y	0	39	108
+uca1400_spanish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_ai_cs	253	0	0	Y	0	39	108
+uca1400_spanish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_as_ci	253	0	0	Y	0	39	108
+uca1400_spanish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_as_cs	253	0	0	Y	0	39	108
+uca1400_spanish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_nopad_ai_ci	253	0	0	Y	0	39	108
+uca1400_spanish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_nopad_ai_cs	253	0	0	Y	0	39	108
+uca1400_spanish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_nopad_as_ci	253	0	0	Y	0	39	108
+uca1400_spanish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish_nopad_as_cs	253	0	0	Y	0	39	108
+uca1400_spanish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_ai_ci	253	0	0	Y	0	39	109
+uca1400_swedish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_ai_cs	253	0	0	Y	0	39	109
+uca1400_swedish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_as_ci	253	0	0	Y	0	39	109
+uca1400_swedish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_as_cs	253	0	0	Y	0	39	109
+uca1400_swedish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_nopad_ai_ci	253	0	0	Y	0	39	109
+uca1400_swedish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_nopad_ai_cs	253	0	0	Y	0	39	109
+uca1400_swedish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_nopad_as_ci	253	0	0	Y	0	39	109
+uca1400_swedish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_swedish_nopad_as_cs	253	0	0	Y	0	39	109
+uca1400_swedish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_ai_ci	253	0	0	Y	0	39	110
+uca1400_turkish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_ai_cs	253	0	0	Y	0	39	110
+uca1400_turkish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_as_ci	253	0	0	Y	0	39	110
+uca1400_turkish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_as_cs	253	0	0	Y	0	39	110
+uca1400_turkish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_nopad_ai_ci	253	0	0	Y	0	39	110
+uca1400_turkish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_nopad_ai_cs	253	0	0	Y	0	39	110
+uca1400_turkish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_nopad_as_ci	253	0	0	Y	0	39	110
+uca1400_turkish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_turkish_nopad_as_cs	253	0	0	Y	0	39	110
+uca1400_turkish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_ai_ci	253	0	0	Y	0	39	111
+uca1400_czech_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_ai_cs	253	0	0	Y	0	39	111
+uca1400_czech_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_as_ci	253	0	0	Y	0	39	111
+uca1400_czech_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_as_cs	253	0	0	Y	0	39	111
+uca1400_czech_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_nopad_ai_ci	253	0	0	Y	0	39	111
+uca1400_czech_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_nopad_ai_cs	253	0	0	Y	0	39	111
+uca1400_czech_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_nopad_as_ci	253	0	0	Y	0	39	111
+uca1400_czech_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_czech_nopad_as_cs	253	0	0	Y	0	39	111
+uca1400_czech_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_ai_ci	253	0	0	Y	0	39	112
+uca1400_danish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_ai_cs	253	0	0	Y	0	39	112
+uca1400_danish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_as_ci	253	0	0	Y	0	39	112
+uca1400_danish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_as_cs	253	0	0	Y	0	39	112
+uca1400_danish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_nopad_ai_ci	253	0	0	Y	0	39	112
+uca1400_danish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_nopad_ai_cs	253	0	0	Y	0	39	112
+uca1400_danish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_nopad_as_ci	253	0	0	Y	0	39	112
+uca1400_danish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_danish_nopad_as_cs	253	0	0	Y	0	39	112
+uca1400_danish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_ai_ci	253	0	0	Y	0	39	113
+uca1400_lithuanian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_ai_cs	253	0	0	Y	0	39	113
+uca1400_lithuanian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_as_ci	253	0	0	Y	0	39	113
+uca1400_lithuanian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_as_cs	253	0	0	Y	0	39	113
+uca1400_lithuanian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_nopad_ai_ci	253	0	0	Y	0	39	113
+uca1400_lithuanian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_nopad_ai_cs	253	0	0	Y	0	39	113
+uca1400_lithuanian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_nopad_as_ci	253	0	0	Y	0	39	113
+uca1400_lithuanian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_lithuanian_nopad_as_cs	253	0	0	Y	0	39	113
+uca1400_lithuanian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_ai_ci	253	0	0	Y	0	39	114
+uca1400_slovak_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_ai_cs	253	0	0	Y	0	39	114
+uca1400_slovak_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_as_ci	253	0	0	Y	0	39	114
+uca1400_slovak_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_as_cs	253	0	0	Y	0	39	114
+uca1400_slovak_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_nopad_ai_ci	253	0	0	Y	0	39	114
+uca1400_slovak_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_nopad_ai_cs	253	0	0	Y	0	39	114
+uca1400_slovak_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_nopad_as_ci	253	0	0	Y	0	39	114
+uca1400_slovak_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_slovak_nopad_as_cs	253	0	0	Y	0	39	114
+uca1400_slovak_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_ai_ci	253	0	0	Y	0	39	115
+uca1400_spanish2_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_ai_cs	253	0	0	Y	0	39	115
+uca1400_spanish2_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_as_ci	253	0	0	Y	0	39	115
+uca1400_spanish2_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_as_cs	253	0	0	Y	0	39	115
+uca1400_spanish2_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_nopad_ai_ci	253	0	0	Y	0	39	115
+uca1400_spanish2_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_nopad_ai_cs	253	0	0	Y	0	39	115
+uca1400_spanish2_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_nopad_as_ci	253	0	0	Y	0	39	115
+uca1400_spanish2_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_spanish2_nopad_as_cs	253	0	0	Y	0	39	115
+uca1400_spanish2_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_ai_ci	253	0	0	Y	0	39	116
+uca1400_roman_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_ai_cs	253	0	0	Y	0	39	116
+uca1400_roman_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_as_ci	253	0	0	Y	0	39	116
+uca1400_roman_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_as_cs	253	0	0	Y	0	39	116
+uca1400_roman_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_nopad_ai_ci	253	0	0	Y	0	39	116
+uca1400_roman_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_nopad_ai_cs	253	0	0	Y	0	39	116
+uca1400_roman_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_nopad_as_ci	253	0	0	Y	0	39	116
+uca1400_roman_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_roman_nopad_as_cs	253	0	0	Y	0	39	116
+uca1400_roman_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_ai_ci	253	0	0	Y	0	39	117
+uca1400_persian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_ai_cs	253	0	0	Y	0	39	117
+uca1400_persian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_as_ci	253	0	0	Y	0	39	117
+uca1400_persian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_as_cs	253	0	0	Y	0	39	117
+uca1400_persian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_nopad_ai_ci	253	0	0	Y	0	39	117
+uca1400_persian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_nopad_ai_cs	253	0	0	Y	0	39	117
+uca1400_persian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_nopad_as_ci	253	0	0	Y	0	39	117
+uca1400_persian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_persian_nopad_as_cs	253	0	0	Y	0	39	117
+uca1400_persian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_ai_ci	253	0	0	Y	0	39	118
+uca1400_esperanto_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_ai_cs	253	0	0	Y	0	39	118
+uca1400_esperanto_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_as_ci	253	0	0	Y	0	39	118
+uca1400_esperanto_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_as_cs	253	0	0	Y	0	39	118
+uca1400_esperanto_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_nopad_ai_ci	253	0	0	Y	0	39	118
+uca1400_esperanto_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_nopad_ai_cs	253	0	0	Y	0	39	118
+uca1400_esperanto_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_nopad_as_ci	253	0	0	Y	0	39	118
+uca1400_esperanto_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_esperanto_nopad_as_cs	253	0	0	Y	0	39	118
+uca1400_esperanto_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_ai_ci	253	0	0	Y	0	39	119
+uca1400_hungarian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_ai_cs	253	0	0	Y	0	39	119
+uca1400_hungarian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_as_ci	253	0	0	Y	0	39	119
+uca1400_hungarian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_as_cs	253	0	0	Y	0	39	119
+uca1400_hungarian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_nopad_ai_ci	253	0	0	Y	0	39	119
+uca1400_hungarian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_nopad_ai_cs	253	0	0	Y	0	39	119
+uca1400_hungarian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_nopad_as_ci	253	0	0	Y	0	39	119
+uca1400_hungarian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_hungarian_nopad_as_cs	253	0	0	Y	0	39	119
+uca1400_hungarian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_ai_ci	253	0	0	Y	0	39	120
+uca1400_sinhala_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_ai_cs	253	0	0	Y	0	39	120
+uca1400_sinhala_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_as_ci	253	0	0	Y	0	39	120
+uca1400_sinhala_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_as_cs	253	0	0	Y	0	39	120
+uca1400_sinhala_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_nopad_ai_ci	253	0	0	Y	0	39	120
+uca1400_sinhala_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_nopad_ai_cs	253	0	0	Y	0	39	120
+uca1400_sinhala_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_nopad_as_ci	253	0	0	Y	0	39	120
+uca1400_sinhala_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_sinhala_nopad_as_cs	253	0	0	Y	0	39	120
+uca1400_sinhala_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_ai_ci	253	0	0	Y	0	39	121
+uca1400_german2_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_ai_cs	253	0	0	Y	0	39	121
+uca1400_german2_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_as_ci	253	0	0	Y	0	39	121
+uca1400_german2_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_as_cs	253	0	0	Y	0	39	121
+uca1400_german2_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_nopad_ai_ci	253	0	0	Y	0	39	121
+uca1400_german2_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_nopad_ai_cs	253	0	0	Y	0	39	121
+uca1400_german2_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_nopad_as_ci	253	0	0	Y	0	39	121
+uca1400_german2_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_german2_nopad_as_cs	253	0	0	Y	0	39	121
+uca1400_german2_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_ai_ci	253	0	0	Y	0	39	124
+uca1400_vietnamese_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_ai_cs	253	0	0	Y	0	39	124
+uca1400_vietnamese_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_as_ci	253	0	0	Y	0	39	124
+uca1400_vietnamese_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_as_cs	253	0	0	Y	0	39	124
+uca1400_vietnamese_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_nopad_ai_ci	253	0	0	Y	0	39	124
+uca1400_vietnamese_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_nopad_ai_cs	253	0	0	Y	0	39	124
+uca1400_vietnamese_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_nopad_as_ci	253	0	0	Y	0	39	124
+uca1400_vietnamese_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_vietnamese_nopad_as_cs	253	0	0	Y	0	39	124
+uca1400_vietnamese_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_ai_ci	253	0	0	Y	0	39	672
+uca1400_croatian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_ai_cs	253	0	0	Y	0	39	672
+uca1400_croatian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_as_ci	253	0	0	Y	0	39	672
+uca1400_croatian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_as_cs	253	0	0	Y	0	39	672
+uca1400_croatian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_nopad_ai_ci	253	0	0	Y	0	39	672
+uca1400_croatian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_nopad_ai_cs	253	0	0	Y	0	39	672
+uca1400_croatian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_nopad_as_ci	253	0	0	Y	0	39	672
+uca1400_croatian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					uca1400_croatian_nopad_as_cs	253	0	0	Y	0	39	672
+uca1400_croatian_nopad_as_cs
+SET NAMES utf8;
+#
+# End of 10.9 tests
 #

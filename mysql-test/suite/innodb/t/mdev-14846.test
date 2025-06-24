@@ -45,7 +45,9 @@ SET DEBUG_SYNC='now SIGNAL con2_dml';
 
 --connection default
 SET DEBUG_SYNC='now WAIT_FOR default_dml';
---send UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h'
+--replace_column 9 #
+explain UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 IGNORE INDEX (f1) WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h';
+--send UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 IGNORE INDEX (f1) WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h'
 # It holds the lock of all record in t3 and tries to acquire record lock for the table  t1.
 
 --connect (con2,localhost,root,,test)
@@ -59,6 +61,8 @@ disconnect con2;
 # Cleanup
 --connection con1
 SET DEBUG_SYNC='now WAIT_FOR con1_dml2';
+--replace_column 9 #
+explain UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
 UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
 # It holds the record lock on table t1 and tries to acquire record lock on t3.
 # leads to deadlock (con1 trx is waiting for default trx and vice versa)

@@ -120,7 +120,7 @@ eval $my_select;
 eval $my_show;
 
 --replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
-connect (testuser3, localhost, testuser3, , test);
+connect (testuser3, localhost, testuser3, ,"*NO-ONE*");
 # Shows neither db_datadict_1 nor db_datadict_2
 eval $my_select;
 --sorted_result

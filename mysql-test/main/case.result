@@ -109,17 +109,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(1) CHARACTER SET latin1 COLLATE latin1_danish_ci DEFAULT NULL,
   `c2` varchar(1) CHARACTER SET latin1 COLLATE latin1_danish_ci DEFAULT NULL,
-  `c3` varchar(1) NOT NULL,
-  `c4` varchar(1) NOT NULL,
-  `c5` varchar(4) NOT NULL,
-  `c6` varchar(4) NOT NULL,
+  `c3` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `c4` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `c5` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `c6` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `c7` decimal(2,1) NOT NULL,
   `c8` decimal(2,1) NOT NULL,
   `c9` decimal(2,1) DEFAULT NULL,
   `c10` double NOT NULL,
   `c11` double NOT NULL,
-  `c12` varchar(5) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c12` varchar(5) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SELECT CASE 
 WHEN 1 
@@ -161,12 +161,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `COALESCE(1)` int(1) NOT NULL,
   `COALESCE(1.0)` decimal(2,1) NOT NULL,
-  `COALESCE('a')` varchar(1) NOT NULL,
+  `COALESCE('a')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `COALESCE(1,1.0)` decimal(2,1) NOT NULL,
-  `COALESCE(1,'1')` varchar(1) NOT NULL,
-  `COALESCE(1.1,'1')` varchar(4) NOT NULL,
+  `COALESCE(1,'1')` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `COALESCE(1.1,'1')` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `COALESCE('a' COLLATE latin1_bin,'b')` varchar(1) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 SELECT IFNULL('a' COLLATE latin1_swedish_ci, 'b' COLLATE latin1_bin);
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,EXPLICIT) and (latin1_bin,EXPLICIT) for operation 'ifnull'
@@ -296,7 +296,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '5' and case `test`.`t1`.`a` when 1 then 1 else 0 end
 DROP TABLE t1;
-CREATE TABLE t1 (a ENUM('a','b','100'));
+CREATE TABLE t1 (a ENUM('a','b','100')) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('b'),('100');
 SELECT * FROM t1 WHERE a='a';
 a
@@ -575,3 +575,90 @@ DROP TABLE t1;
 #
 # End of 10.3 test
 #
+# Start of 12.0 tests
+#
+# MDEV-36716 A case expression with ROW arguments in THEN crashes
+#
+SELECT CASE WHEN TRUE THEN ROW(1,2) ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types row and row for operation 'case'
+SELECT CASE WHEN TRUE THEN ROW(1,2) ELSE NULL END;
+ERROR HY000: Illegal parameter data types row and null for operation 'case'
+SELECT CASE WHEN TRUE THEN NULL ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types null and row for operation 'case'
+SELECT CASE WHEN TRUE THEN ROW(2,1) END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN ROW(1,2) THEN 0 WHEN ROW(2,1) THEN 1 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN ROW(1,2) THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN NULL THEN 0 WHEN ROW(1,2) THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE WHEN ROW(1,2) THEN 0 WHEN NULL THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN ROW(1,2) ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types row and row for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN ROW(1,2) ELSE NULL END;
+ERROR HY000: Illegal parameter data types row and null for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN NULL ELSE ROW(2,1) END;
+ERROR HY000: Illegal parameter data types null and row for operation 'case'
+SELECT CASE TRUE WHEN TRUE THEN ROW(2,1) END;
+ERROR HY000: Illegal parameter data type row for operation 'case'
+SELECT CASE ROW(1,2) WHEN ROW(1,2) THEN 0 END;
+ERROR HY000: Illegal parameter data type row for operation 'CASE WHEN'
+SELECT CASE NULL WHEN ROW(1,2) THEN 0 END;
+ERROR 21000: Operand should contain 1 column(s)
+SELECT CASE ROW(1,2) WHEN NULL THEN 0 END;
+ERROR 21000: Operand should contain 2 column(s)
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/ROW(1,2), /*else*/ROW(2,1));
+ERROR HY000: Illegal parameter data types row and row for operation 'decode'
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/ROW(1,2), /*else*/NULL);
+ERROR HY000: Illegal parameter data types row and null for operation 'decode'
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/NULL, /*else*/ROW(2,1));
+ERROR HY000: Illegal parameter data types null and row for operation 'decode'
+SELECT oracle_schema.DECODE(TRUE, TRUE, /*then1*/ROW(2,1));
+ERROR HY000: Illegal parameter data type row for operation 'decode'
+SELECT oracle_schema.DECODE(/*predicant*/ROW(1,2), /*when1*/ROW(1,2), /*then1*/0);
+ERROR HY000: Illegal parameter data type row for operation 'CASE WHEN'
+SELECT oracle_schema.DECODE(/*predicant*/NULL,     /*when1*/ROW(1,2), /*then1*/0);
+ERROR 21000: Operand should contain 1 column(s)
+SELECT oracle_schema.DECODE(/*predicant*/ROW(1,2), /*when1*/NULL,     /*then1*/0);
+ERROR 21000: Operand should contain 2 column(s)
+SELECT IF(0, ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'if'
+SELECT IF(0, NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'if'
+SELECT IF(0, ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'if'
+SELECT NVL2('0', ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'nvl2'
+SELECT NVL2('0', NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT NVL2('0', ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT NVL2(NULL, ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'nvl2'
+SELECT NVL2(NULL, NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT NVL2(NULL, ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'nvl2'
+SELECT COALESCE(ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'coalesce'
+SELECT COALESCE(ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
+SELECT COALESCE(ROW(1,2),NULL);
+ERROR HY000: Illegal parameter data types row and null for operation 'coalesce'
+SELECT COALESCE(NULL,ROW(1,2));
+ERROR HY000: Illegal parameter data types null and row for operation 'coalesce'
+SELECT IFNULL(ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data types row and row for operation 'ifnull'
+SELECT IFNULL(NULL, ROW(1,2));
+ERROR HY000: Illegal parameter data types null and row for operation 'ifnull'
+SELECT IFNULL(ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data types row and null for operation 'ifnull'
+SELECT NULLIF(ROW(1,2), ROW(1,2));
+ERROR HY000: Illegal parameter data type row for operation 'nullif'
+SELECT NULLIF(NULL, ROW(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT NULLIF(ROW(1,2), NULL);
+ERROR HY000: Illegal parameter data type row for operation 'nullif'
+# End of 12.0 tests

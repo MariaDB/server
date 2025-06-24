@@ -62,7 +62,7 @@ insert into t1 values (1);
 flush logs;
 insert into t1 values (2);
 
-# Note: the master positon saved by this will also be used by the
+# Note: the master position saved by this will also be used by the
 # 'sync_with_master' below.
 sync_slave_with_master;
 
@@ -107,5 +107,6 @@ drop table t1;
 CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
   MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
 CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
+
 
 --source include/rpl_end.inc

@@ -252,7 +252,7 @@ t2	CREATE TABLE `t2` (
   `inhalt` text DEFAULT NULL,
   KEY `tig` (`ticket`),
   FULLTEXT KEY `tix` (`inhalt`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2 where MATCH inhalt AGAINST (NULL);
 ticket	inhalt
 select * from t2 where  MATCH inhalt AGAINST ('foobar');
@@ -362,10 +362,10 @@ INSERT t1 VALUES ("Это мы - опилки"),("Отлезь, гнида!"),
 ("Не влезай, убьет!"),("и будет прав!");
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ОПИЛКИ');
 t	collation(t)
-Это мы - опилки	utf8mb3_general_ci
+Это мы - опилки	utf8mb3_uca1400_ai_ci
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ПрА*' IN BOOLEAN MODE);
 t	collation(t)
-и будет прав!	utf8mb3_general_ci
+и будет прав!	utf8mb3_uca1400_ai_ci
 SELECT * FROM t1 WHERE MATCH t AGAINST ('это' IN BOOLEAN MODE);
 t
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('OsnabrЭck');
@@ -373,12 +373,12 @@ t	collation(t)
 SET NAMES latin1;
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('OsnabrЭck');
 t	collation(t)
-aus OsnabrЭck	utf8mb3_general_ci
+aus OsnabrЭck	utf8mb3_uca1400_ai_ci
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('Osnabrueck');
 t	collation(t)
 SELECT t, collation(t),FORMAT(MATCH t AGAINST ('Osnabruck'),6) FROM t1 WHERE MATCH t AGAINST ('Osnabruck');
 t	collation(t)	FORMAT(MATCH t AGAINST ('Osnabruck'),6)
-aus OsnabrЭck	utf8mb3_general_ci	1.591140
+aus OsnabrЭck	utf8mb3_uca1400_ai_ci	1.591140
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify t varchar(200) collate latin1_german2_ci not null;
 Warnings:
@@ -457,7 +457,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10000) DEFAULT NULL,
   FULLTEXT KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT, FULLTEXT KEY(a));
 INSERT INTO t1 VALUES('test'),('test1'),('test');
@@ -594,6 +594,9 @@ CREATE TABLE t2 (a int, b2 char(10), FULLTEXT KEY b2 (b2));
 INSERT INTO t2 VALUES (1,'Scargill');
 CREATE TABLE t3 (a int, b int);
 INSERT INTO t3 VALUES (1,1), (2,1);
+SELECT * FROM t2 where MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE);
+a	b2
+1	Scargill
 # t2 should use full text index
 EXPLAIN
 SELECT count(*) FROM t1 WHERE 
@@ -603,8 +606,8 @@ WHERE t3.a=t1.a AND MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE)
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	fulltext	b2	b2	0		1	Using where
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	fulltext	b2	b2	0		1	Using where
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
 # should return 0
 SELECT count(*) FROM t1 WHERE 
 not exists(
@@ -761,7 +764,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select <expr_cache><'foo'>(<in_optimizer>('foo',<exists>(/* select#2 */ select `test`.`t1`.`f` from `test`.`t1` where <cache>(convert('foo' using latin1)) = `test`.`t1`.`f` or `test`.`t1`.`f` is null having `test`.`t1`.`f` is null))) AS `f1`,(match `test`.`t1`.`f` against ('qux' in boolean mode)) AS `f2` from `test`.`t1`
+Note	1003	/* select#1 */ select <expr_cache><'foo'>(<in_optimizer>('foo',<exists>(/* select#2 */ select `test`.`t1`.`f` from `test`.`t1` where <cache>(convert('foo' using utf8mb4)) = `test`.`t1`.`f` or `test`.`t1`.`f` is null having `test`.`t1`.`f` is null))) AS `f1`,(match `test`.`t1`.`f` against ('qux' in boolean mode)) AS `f2` from `test`.`t1`
 drop table t1;
 #
 # End of 5.5 tests

@@ -116,7 +116,7 @@ test_path_parsing()
   json_path_t p;
   if (json_path_setup(&p, ci, s_e(p0)))
     return;
-  ok(p.last_step - p.steps == 4 && 
+  ok(p.last_step - p.steps == 4 &&
      p.steps[0].type == JSON_PATH_ARRAY_WILD &&
      p.steps[1].type == JSON_PATH_KEY &&
      p.steps[2].type == JSON_PATH_ARRAY && p.steps[2].n_item == 12 &&
@@ -140,7 +140,7 @@ test_search()
   json_path_t p;
   json_path_step_t *cur_step;
   int n_matches, scal_values;
-  uint array_counters[JSON_DEPTH_LIMIT];
+  int array_counters[JSON_DEPTH_LIMIT];
 
   if (json_scan_start(&je, ci, s_e(fj0)) ||
       json_path_setup(&p, ci, s_e(fp0)))

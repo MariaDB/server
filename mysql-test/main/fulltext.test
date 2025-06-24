@@ -547,6 +547,8 @@ INSERT INTO t2 VALUES (1,'Scargill');
 CREATE TABLE t3 (a int, b int);
 INSERT INTO t3 VALUES (1,1), (2,1);
 
+SELECT * FROM t2 where MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE);
+
 --echo # t2 should use full text index
 EXPLAIN
 SELECT count(*) FROM t1 WHERE 

@@ -18,14 +18,14 @@ set global div_precision_increment=5;
 # or different recompilation. Remove variables that are depending on
 # configuration options
 
---replace_regex /^\/\S+/PATH/
+--replace_regex /^\/\S+/PATH/ /102400/10485760/
 select VARIABLE_NAME,VARIABLE_SCOPE,VARIABLE_TYPE,VARIABLE_COMMENT,NUMERIC_MIN_VALUE,NUMERIC_MAX_VALUE,NUMERIC_BLOCK_SIZE,ENUM_VALUE_LIST,READ_ONLY,COMMAND_LINE_ARGUMENT
   from information_schema.system_variables
   where variable_name not like 'debug%' and
           variable_name not like 'wsrep%' and
           variable_name not like 's3%' and
           variable_name not in (
-          'log_tc_size','have_sanitizer'
+          'log_tc_size','have_sanitizer','timestamp'
         )
   order by variable_name;
 

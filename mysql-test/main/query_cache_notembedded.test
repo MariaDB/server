@@ -119,7 +119,7 @@ disconnect root2;
 --disable_cursor_protocol
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 delimiter //;
 create table t1 (s1 int)//
 create procedure f1 () begin
@@ -170,7 +170,7 @@ show status like "Qcache_inserts";
 show status like "Qcache_hits";
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 select sql_cache * from t1;
 select sql_cache * from t1 where s1=1;
 call f1();
@@ -256,7 +256,7 @@ SET @@global.log_bin_trust_function_creators = @old_log_bin_trust_function_creat
 --disable_warnings
 DROP DATABASE IF EXISTS bug30269;
 --enable_warnings
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 CREATE DATABASE bug30269;
 USE bug30269;
 CREATE TABLE test1 (id int, name varchar(23));
@@ -316,7 +316,7 @@ insert into t1 values ("x", 3), ("y", 5)|
 set @x = @@query_cache_size|
 set global query_cache_size = 10*1024*1024|
 
-flush status|
+flush global status|
 flush query cache|
 show status like 'Qcache_hits'|
 call bug3583()|
@@ -326,7 +326,7 @@ call bug3583()|
 show status like 'Qcache_hits'|
 
 set global query_cache_size = @x|
-flush status|
+flush global status|
 flush query cache|
 delete from t1|
 drop procedure bug3583|

@@ -64,7 +64,7 @@ connection master;
 create sequence s2;
 alter table s2 add id int;
 ERROR HY000: Sequence 's_db.s2' table structure is invalid (Wrong number of columns)
-alter table s2 add index ind_x(start);
+alter table s2 add index ind_x(start_value);
 ERROR HY000: Sequence 's_db.s2' table structure is invalid (Sequence tables cannot have any keys)
 drop sequence s2;
 ###########################################
@@ -263,7 +263,7 @@ drop sequence s_db.s1;
 query cache test
 ###########################################
 connection master;
-flush status;
+flush global status;
 show global variables like 'query_cache_type';
 Variable_name	Value
 query_cache_type	ON
@@ -347,7 +347,7 @@ show global variables like 'read_only';
 Variable_name	Value
 read_only	ON
 select next value for s_db.s1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 connection m_normal_1;
 drop sequence s_db.s1;
 ###########################################

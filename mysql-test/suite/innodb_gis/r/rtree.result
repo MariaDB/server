@@ -11,11 +11,11 @@ test.t1	analyze	status	OK
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 explain select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	g	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	g	g	34	NULL	5	Using where
 select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 ST_astext(t1.g)
-POINT(1 1)
 POINT(1.5 1.5)
+POINT(1 1)
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 delete from t1 where MBRWithin(t1.g, @g1);
 check table t1;
@@ -141,7 +141,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`i`),
   SPATIAL KEY `idx` (`g`),
   SPATIAL KEY `idx2` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop index idx on t1;
 drop table t1;
 create table t1 (i int, i2 char(10), g geometry not null, primary key (i, i2), spatial index (g))engine=innodb;
@@ -157,11 +157,11 @@ test.t1	analyze	status	OK
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 explain select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	g	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	g	g	34	NULL	5	Using where
 select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 ST_astext(t1.g)
-POINT(1 1)
 POINT(1.5 1.5)
+POINT(1 1)
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 delete from t1 where MBRWithin(t1.g, @g1);
 check table t1;

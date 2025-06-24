@@ -63,7 +63,115 @@ CREATE TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
 CREATE TEMPORARY TABLE `ab``c` (t1_id int PRIMARY KEY, t1_val varchar(10));
 CALL sys.table_exists('test', 'ab`c', @tbl_type);
 SELECT @tbl_type;
---echo # We cannot send quoted identifer to the procedure, no table will be found
+--echo # We cannot send quoted identifier to the procedure, no table will be found
 CALL sys.table_exists('test', '`ab``c`', @tbl_type);
 SELECT @tbl_type;
+--echo # Remove temporary table
 DROP TABLE `ab``c`;
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+--echo # Remove base table
+DROP TABLE `ab``c`;
+--echo # MDEV-12459: The information_schema tables for getting temporary tables
+--echo #             info is missing, at least for innodb, there is no
+--echo #             INNODB_TEMP_TABLE_INFO
+--echo #
+
+# Temporary table will shadow the base table without warning
+CREATE TABLE t1 (id INT PRIMARY KEY);
+# Verify the base table and view is supported
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+
+DROP TEMPORARY TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28335: TABLE_TYPE for temporary sequences
+--echo #             is the same as for permanent ones
+--echo #
+
+CREATE TEMPORARY SEQUENCE s1;
+CALL sys.table_exists('test', 's1', @exists);
+# If there is no shadowing with temporary table, result is table type
+SELECT @exists;
+DROP SEQUENCE s1;
+CREATE SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists); SELECT @exists;
+# Creating temporary sequence over sequence results in `temporary`
+CREATE TEMPORARY SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists); SELECT @exists;
+# First drop temporary sequence
+DROP SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists); SELECT @exists;
+DROP SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists); SELECT @exists;
+
+CREATE TEMPORARY SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+CREATE TABLE t1 (id INT PRIMARY KEY);
+CALL sys.table_exists('test', 't1', @exists);
+# Before was a `temporary sequence`, now should be `temporary`
+SELECT @exists;
+# It is not possible to create temporary table over temporary sequence with the same name
+--error ER_TABLE_EXISTS_ERROR
+CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+# It is not possible to create sequence over temporary sequence with the same name
+--error ER_TABLE_EXISTS_ERROR
+CREATE SEQUENCE t1;
+# This will drop temporary sequence
+DROP SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+# This will lead to `base table`
+SELECT @exists;
+# It is not possible to create a sequence over the base table
+--error ER_TABLE_EXISTS_ERROR
+CREATE SEQUENCE t1;
+# Let's test with temporary sequence instead
+CREATE TEMPORARY SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+# Will return temporary as expected
+SELECT @exists;
+# Again droping the temporary sequence
+DROP SEQUENCE t1;
+# Will lead to the base table
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+# This will return `temporary`
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+# We cannot create temporary sequence over temporary table
+--error ER_TABLE_EXISTS_ERROR
+CREATE TEMPORARY SEQUENCE t1;
+--error ER_TABLE_EXISTS_ERROR
+CREATE SEQUENCE t1;
+DROP TEMPORARY TABLE t1;
+# Drop base table
+DROP TABLE t1;
+CREATE SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+# Should be a sequence
+SELECT @exists;
+# Create an temporary table
+CREATE TEMPORARY TABLE t1(t int);
+CALL sys.table_exists('test', 't1', @exists);
+# Should shadow an sequence with temporary
+SELECT @exists;
+# Drop temporary table
+DROP TABLE t1;
+CALL sys.table_exists('test', 't1', @exists);
+# Should again show the sequence
+SELECT @exists;
+CREATE TEMPORARY SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+# Should shadow an sequence with temporary
+SELECT @exists;
+# Drop temporary sequence
+DROP TABLE t1;
+# Drop an sequence
+DROP TABLE t1;

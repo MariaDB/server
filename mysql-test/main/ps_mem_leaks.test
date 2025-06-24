@@ -146,7 +146,9 @@ DROP PROCEDURE p1;
 --echo #
 --echo # MDEV-34757: assertion of (mem_root->flags & 4) == 0 fails in 2nd ps execution with partition pruning
 --echo #
-# same as the first MDEV-34444 testcase but with explain
+# same as the first MDEV-34447 testcase but with explain; calling
+# select_lex->optimize_unflattened_subqueries(false) under the
+# emit_explain_and_leave label
 CREATE TABLE t1 (id INT, value INT);
 CREATE TABLE t2 (id INT);
 
@@ -165,7 +167,9 @@ SELECT * FROM t1;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
 
-# 2nd ps mem leak; partition pruning
+# 2nd ps mem leak; partition pruning; calls
+# select_lex->optimize_unflattened_subqueries(false) under if
+# (prune_partitions())...
 set @var1=5;
 set @var2=4;
 create table t1 (a int) partition by list(a) (
@@ -201,7 +205,9 @@ select * from t1;
 deallocate prepare stmt;
 drop table t1, t2;
 
-# top level impossible where
+# top level impossible where; calling
+# select_lex->optimize_unflattened_subqueries(false) in if (... ||
+# (select && select->check_quick(...)))
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -215,7 +221,9 @@ execute stmt using @var1, @var1;
 deallocate prepare stmt;
 DROP TABLE t1,t2;
 
-# top level impossible where, with explain
+# top level impossible where, with explain; also calling
+# select_lex->optimize_unflattened_subqueries(false) under the
+# emit_explain_and_leave label
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -246,7 +254,9 @@ CALL p1(2);
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
-# partition pruning
+# partition pruning; calling
+# select_lex->optimize_unflattened_subqueries(false) under if
+# (prune_partitions())...
 set @var1=5;
 set @var2=4;
 create table t1 (a int) partition by list(a) (
@@ -282,7 +292,15 @@ select * from t1;
 deallocate prepare stmt;
 drop table t1, t2;
 
-# top level impossible where
+# top level impossible where;
+
+# execute stmt using @var1, @var2; calling
+# select_lex->optimize_unflattened_subqueries(false) under if (...
+# (select && select->check_quick(...)) ...)
+#
+# execute stmt using @var1, @var1; calling
+# select_lex->optimize_unflattened_subqueries(false)) after jumping to
+# the cleanup label
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -296,7 +314,9 @@ execute stmt using @var1, @var1;
 deallocate prepare stmt;
 DROP TABLE t1,t2;
 
-# top level impossible where, with explain
+# top level impossible where, with explain; calling
+# select_lex->optimize_unflattened_subqueries(false) under the
+# send_nothing_and_leave label
 set @var1=1;
 set @var2=2;
 CREATE TABLE t1 ( id INT(10), value INT(10) );
@@ -320,7 +340,7 @@ PREPARE stmt FROM "UPDATE t SET a = 0 LIMIT ?";
 EXECUTE stmt USING 0;
 EXECUTE stmt USING 1;
 
-# CLeanup
+# Cleanup
 DROP TABLE t;
 
 --echo #
@@ -365,3 +385,119 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-34447: Memory leakage is detected on running the test main.ps against the server 11.1
+--echo #
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+
+PREPARE stmt FROM 'UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+EXECUTE stmt;
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # Memory leak also could take place on running the DELETE statement
+--echo # with the LIMIT clause. Check it.
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+
+CREATE PROCEDURE p1(p1 INT)
+  DELETE FROM t1 LIMIT p1;
+
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+
+--echo # Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-34649: Memory leaks on running DELETE statement in PS mode with positional parameters
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(30)) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES (1, 'one'), (0, NULL), (3, 'three'), (4, 'four');
+PREPARE stmt FROM 'DELETE FROM t1 WHERE b=?' ;
+SET @arg00=NULL;
+EXECUTE stmt USING @arg00;
+SET @arg00='one';
+# Without the patch, attempt to run the same prepared statement the second time
+# would result in memory leaks
+EXECUTE stmt USING @arg00;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 11.1
+
+--echo #
+--echo # MDEV-34517: Memory leak on re-compilation of a failing statement inside a stored routine
+--echo #
+CREATE TABLE t1 (a INT);
+
+CREATE PROCEDURE p1()
+  SELECT * FROM t1;
+
+SET @save_dbug = @@debug_dbug;
+
+CALL p1();
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
+--echo # Recompilation of the statement 'SELECT * FORM t1' on
+--echo # the second run of the procedure p1 shouldn't result in memory leaks
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_1st_time';
+
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+--echo # Recompilation is requested the second time
+SET @@debug_dbug='+d,sp_instr_reparsing_2nd_time';
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_2nd_time';
+
+--echo # Clean up
+SET @@debug_dbug=@save_dbug;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 11.2 tests
+
+--echo # MDEV-36079: Stored routine with a cursor crashes on
+--echo # the second execution if a DDL statement happened
+CREATE OR REPLACE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--delimiter $
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va INT DEFAULT 0;
+  DECLARE cur CURSOR FOR SELECT a FROM t1;
+
+  OPEN cur;
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$
+
+--delimiter ;
+
+CALL p1;
+
+ALTER TABLE t1 MODIFY a INT UNSIGNED;
+
+CALL p1;
+
+--echo # Clean up
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 11.8 tests

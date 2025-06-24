@@ -27,7 +27,6 @@ Created Apr 25, 2012 Vasil Dimov
 #include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
-#include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "fil0fil.h"
@@ -79,7 +78,6 @@ static void dict_stats_recalc_pool_deinit()
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool.clear();
-	defrag_pool.clear();
         /*
           recalc_pool may still have its buffer allocated. It will free it when
           its destructor is called.
@@ -89,9 +87,7 @@ static void dict_stats_recalc_pool_deinit()
           to empty_pool object, which will free it when leaving this function:
         */
 	recalc_pool_t recalc_empty_pool;
-	defrag_pool_t defrag_empty_pool;
 	recalc_pool.swap(recalc_empty_pool);
-	defrag_pool.swap(defrag_empty_pool);
 
 	if (dict_stats_thd)
 		destroy_background_thd(dict_stats_thd);
@@ -135,7 +131,9 @@ schedule new estimates for table and index statistics to be calculated.
 void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
-	if (UNIV_UNLIKELY(!table->stat_initialized)) {
+        uint32_t stat{table->stat};
+
+	if (UNIV_UNLIKELY(!table->stat_initialized(stat))) {
 		/* The table may have been evicted from dict_sys
 		and reloaded internally by InnoDB for FOREIGN KEY
 		processing, but not reloaded by the SQL layer.
@@ -154,13 +152,9 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
 
-	if (dict_stats_is_persistent_enabled(table)) {
-		if (table->name.is_temporary()) {
-			return;
-		}
-		if (counter > n_rows / 10 /* 10% */
-		    && dict_stats_auto_recalc_is_enabled(table)) {
-
+	if (table->stats_is_persistent(stat)) {
+		if (table->stats_is_auto_recalc(stat)
+		    && counter > n_rows / 10 && !table->name.is_temporary()) {
 #ifdef WITH_WSREP
 			/* Do not add table to background
 			statistic calculation if this thread is not a
@@ -203,7 +197,7 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 
 	if (counter > threshold) {
 		/* this will reset table->stat_modified_counter to 0 */
-		dict_stats_update(table, DICT_STATS_RECALC_TRANSIENT);
+		dict_stats_update_transient(table);
 	}
 }
 
@@ -260,7 +254,6 @@ void dict_stats_init()
   ut_ad(!srv_read_only_mode);
   mysql_mutex_init(recalc_pool_mutex_key, &recalc_pool_mutex, nullptr);
   pthread_cond_init(&recalc_pool_cond, nullptr);
-  dict_defrag_pool_init();
   stats_initialised= true;
 }
 
@@ -277,7 +270,6 @@ void dict_stats_deinit()
 	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
-	dict_defrag_pool_deinit();
 
 	mysql_mutex_destroy(&recalc_pool_mutex);
 	pthread_cond_destroy(&recalc_pool_cond);
@@ -331,7 +323,7 @@ invalid_table_id:
 
   if (!mdl || !table->is_accessible())
   {
-    dict_table_close(table, false, thd, mdl);
+    dict_table_close(table, thd, mdl);
     goto invalid_table_id;
   }
 
@@ -345,10 +337,10 @@ invalid_table_id:
     difftime(time(nullptr), table->stats_last_recalc) >= MIN_RECALC_INTERVAL;
 
   const dberr_t err= update_now
-    ? dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT)
+    ? dict_stats_update_persistent_try(table)
     : DB_SUCCESS_LOCKED_REC;
 
-  dict_table_close(table, false, thd, mdl);
+  dict_table_close(table, thd, mdl);
 
   mysql_mutex_lock(&recalc_pool_mutex);
   auto i= std::find_if(recalc_pool.begin(), recalc_pool.end(),
@@ -391,7 +383,6 @@ static void dict_stats_func(void*)
   set_current_thd(dict_stats_thd);
 
   while (dict_stats_process_entry_from_recalc_pool(dict_stats_thd)) {}
-  dict_defrag_process_entries_from_defrag_pool(dict_stats_thd);
 
   innobase_reset_background_thd(dict_stats_thd);
   set_current_thd(nullptr);

@@ -364,6 +364,7 @@ SELECT t0.a,t0.b,t1.a,t1.b,t2.a,t2.b,t3.a,t3.b,t4.a,t4.b,
 SELECT t9.a,t9.b
   FROM t9;
 
+--sorted_result
 SELECT t0.a,t0.b,t1.a,t1.b,t2.a,t2.b,t3.a,t3.b,t4.a,t4.b,
        t5.a,t5.b,t6.a,t6.b,t7.a,t7.b,t8.a,t8.b,t9.a,t9.b
   FROM t0,t1
@@ -637,6 +638,7 @@ SELECT t0.a,t0.b,t1.a,t1.b,t2.a,t2.b,t3.a,t3.b,t4.a,t4.b,
            (t8.b=t9.b OR t8.c IS NULL) AND
            (t9.a=1); 
 
+--sorted_result
 SELECT t0.a,t0.b,t1.a,t1.b,t2.a,t2.b,t3.a,t3.b,t4.a,t4.b,
        t5.a,t5.b,t6.a,t6.b,t7.a,t7.b,t8.a,t8.b,t9.a,t9.b
   FROM t0,t1
@@ -1457,3 +1459,16 @@ DROP TABLE t1, t2, t3;
 set join_cache_level= @save_join_cache_level;
 
 --echo # end of 10.3 tests
+
+--echo #
+--echo # MDEV-32084: Assertion in best_extension_by_limited_search(), or crash elsewhere in release
+--echo #
+CREATE TABLE t1 (i int);
+INSERT INTO t1 values (1),(2);
+
+SELECT 1 FROM  t1 WHERE i IN
+  (SELECT 1 FROM t1 c
+    LEFT JOIN  (t1 a LEFT JOIN t1 b ON t1.i = b.i)  ON c.i = t1.i);
+
+DROP TABLE t1;
+--echo # end of 10.11 tests

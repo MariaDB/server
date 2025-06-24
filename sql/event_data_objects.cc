@@ -519,7 +519,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
   else
     expression= 0;
   /*
-    If neigher STARTS and ENDS is set, then both fields are empty.
+    If neither STARTS and ENDS is set, then both fields are empty.
     Hence, if ET_FIELD_EXECUTE_AT is empty there is an error.
   */
   execute_at_null= table->field[ET_FIELD_EXECUTE_AT]->is_null();
@@ -1283,7 +1283,7 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
     root to avoid multiple [re]allocations on system heap
   */
   buffer.length= STATIC_SQL_LENGTH + name.length + body.length;
-  if (! (buffer.str= (char*) thd->alloc(buffer.length)))
+  if (! (buffer.str= thd->alloc(buffer.length)))
     DBUG_RETURN(TRUE);
 
   sp_sql->set(buffer.str, buffer.length, system_charset_info);
@@ -1332,7 +1332,7 @@ Event_job_data::construct_drop_event_sql(THD *thd, String *sp_sql)
   DBUG_ENTER("Event_job_data::construct_drop_event_sql");
 
   buffer.length= STATIC_SQL_LENGTH + name.length*2 + dbname.length*2;
-  if (! (buffer.str= (char*) thd->alloc(buffer.length)))
+  if (! (buffer.str= thd->alloc(buffer.length)))
     DBUG_RETURN(TRUE);
 
   sp_sql->set(buffer.str, buffer.length, system_charset_info);

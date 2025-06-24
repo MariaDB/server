@@ -30,7 +30,7 @@ b int,
 b_value char(10),
 key(b)
 );
-insert into t11 select seq, seq from seq_1_to_100;
+insert into t11 select seq, seq from seq_1_to_150;
 set @tmp_os=@@optimizer_trace;
 set optimizer_trace=1;
 #
@@ -79,10 +79,12 @@ JS
                 "reconsidering_access_paths_for_index_ordering": 
                 {
                     "clause": "ORDER BY",
-                    "fanout": 1,
-                    "read_time": 53.27053125,
                     "table": "t1",
                     "rows_estimation": 10000,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
+                    "filesort_type": "priority_queue with row lookup",
+                    "fanout": 1,
                     "possible_keys": 
                     [
                         {
@@ -98,9 +100,10 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
-                            "updated_limit": 10,
-                            "index_scan_time": 10,
-                            "records": 10000,
+                            "direction": 1,
+                            "rows_to_examine": 10,
+                            "range_scan": false,
+                            "scan_cost": "REPLACED",
                             "chosen": true
                         }
                     ]
@@ -111,7 +114,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 972.8224714,
+        "shortcut_cost_with_risk": 0.495218616,
         "use_shortcut_cost": true
     }
 ]
@@ -163,7 +166,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 20972.81247,
+        "shortcut_cost_with_risk": 16.2273863,
         "use_shortcut_cost": true
     }
 ]
@@ -215,10 +218,12 @@ JS
                 "reconsidering_access_paths_for_index_ordering": 
                 {
                     "clause": "ORDER BY",
-                    "fanout": 1,
-                    "read_time": 53.27053125,
                     "table": "t1",
                     "rows_estimation": 10000,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
+                    "filesort_type": "merge_sort with addon fields",
+                    "fanout": 1,
                     "possible_keys": 
                     [
                         {
@@ -234,8 +239,10 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
-                            "updated_limit": 5000,
-                            "index_scan_time": 5000,
+                            "direction": 1,
+                            "rows_to_examine": 5000,
+                            "range_scan": false,
+                            "scan_cost": "REPLACED",
                             "usable": false,
                             "cause": "cost"
                         }
@@ -247,7 +254,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 240591.2748,
+        "shortcut_cost_with_risk": 197.826608,
         "use_shortcut_cost": false
     }
 ]
@@ -293,12 +300,11 @@ order by
 t1.col1
 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t10	ALL	a	NULL	NULL	NULL	100	Using where; Using temporary; Using filesort
-1	PRIMARY	t10	ref	a	a	5	test.t10.a	1	Using index; LooseScan
+1	PRIMARY	t10	index	a	a	5	NULL	100	Using where; Using index; LooseScan; Using temporary; Using filesort
+1	PRIMARY	t10	ref	a	a	5	test.t10.a	1	
 1	PRIMARY	t1	ref	a,b	a	5	test.t10.a	100	Using where
 1	PRIMARY	t11	ref	b	b	5	test.t1.b	1	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t11	index	b	b	5	NULL	100	Using index
+1	PRIMARY	t11	ref	b	b	5	test.t1.b	1	Using index; FirstMatch(t11)
 set optimizer_join_limit_pref_ratio=10;
 # t1 is first, key=col1 produces ordering, no filesort or temporary:
 explain
@@ -315,13 +321,13 @@ order by
 t1.col1
 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	a,b	col1	5	NULL	1	Using where
+1	PRIMARY	t1	index	a,b	col1	5	NULL	10	Using where
 1	PRIMARY	t10	ref	a	a	5	test.t1.a	1	
 1	PRIMARY	t11	ref	b	b	5	test.t1.b	1	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t11	index	b	b	5	NULL	100	Using index
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	t10	index	a	a	5	NULL	100	Using index
+3	MATERIALIZED	t11	index	b	b	5	NULL	150	Using index
 set @trace=(select trace from information_schema.optimizer_trace);
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 JS
@@ -334,10 +340,12 @@ JS
                 "reconsidering_access_paths_for_index_ordering": 
                 {
                     "clause": "ORDER BY",
-                    "fanout": 1,
-                    "read_time": 53.27053125,
                     "table": "t1",
                     "rows_estimation": 10000,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
+                    "filesort_type": "priority_queue with row lookup",
+                    "fanout": 1,
                     "possible_keys": 
                     [
                         {
@@ -353,9 +361,10 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
-                            "updated_limit": 10,
-                            "index_scan_time": 10,
-                            "records": 10000,
+                            "direction": 1,
+                            "rows_to_examine": 10,
+                            "range_scan": false,
+                            "scan_cost": "REPLACED",
                             "chosen": true
                         }
                     ]
@@ -366,7 +375,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 982.9697956,
+        "shortcut_cost_with_risk": 0.535649162,
         "use_shortcut_cost": true
     }
 ]
@@ -389,7 +398,7 @@ t1.col1
 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t10	ALL	a	NULL	NULL	NULL	100	Using where; Using temporary; Using filesort
-1	SIMPLE	t11	ALL	b	NULL	NULL	NULL	100	Using join buffer (flat, BNL join)
+1	SIMPLE	t11	ALL	b	NULL	NULL	NULL	150	Using join buffer (flat, BNL join)
 1	SIMPLE	t1	ref	a,b	a	5	test.t10.a	100	Using where
 set optimizer_join_limit_pref_ratio=10;
 # t1 is first, key=col1 produces ordering, no filesort or temporary:
@@ -419,10 +428,12 @@ JS
                 "reconsidering_access_paths_for_index_ordering": 
                 {
                     "clause": "ORDER BY",
-                    "fanout": 1,
-                    "read_time": 53.27053125,
                     "table": "t1",
                     "rows_estimation": 10000,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
+                    "filesort_type": "priority_queue with row lookup",
+                    "fanout": 1,
                     "possible_keys": 
                     [
                         {
@@ -438,9 +449,10 @@ JS
                         {
                             "index": "col1",
                             "can_resolve_order": true,
-                            "updated_limit": 10,
-                            "index_scan_time": 10,
-                            "records": 10000,
+                            "direction": 1,
+                            "rows_to_examine": 10,
+                            "range_scan": false,
+                            "scan_cost": "REPLACED",
                             "chosen": true
                         }
                     ]
@@ -451,7 +463,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 972.8224714,
+        "shortcut_cost_with_risk": 0.495218616,
         "use_shortcut_cost": true
     }
 ]
@@ -484,6 +496,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t11	ref	b	b	5	const	1	
 1	SIMPLE	t10	ref	a	a	5	const	2	
 drop table t1, t10, t11;
+set optimizer_join_limit_pref_ratio=default;
 #
 # MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
 #
@@ -504,5 +517,16 @@ INSERT INTO t1 VALUES (2,NULL);
 INSERT INTO t1 VALUES (5,NULL);
 SELECT * FROM t1 NATURAL JOIN t1 AS t2 WHERE t1.b=NULL ORDER BY t1.a LIMIT 1;
 a	b
+DROP TABLE t1;
+set optimizer_join_limit_pref_ratio=default;
+#
+# MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
+#
+SET optimizer_join_limit_pref_ratio=1;
+CREATE TABLE t1 (c1 INT, INDEX(c1));
+INSERT INTO t1  VALUES (1),(2);
+SELECT * FROM t1  ORDER BY c1 LIMIT 1;
+c1
+1
 DROP TABLE t1;
 set optimizer_join_limit_pref_ratio=default;

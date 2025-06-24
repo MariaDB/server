@@ -50,6 +50,10 @@ PRIMARY KEY (id)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_1
 MASTER_1_AUTO_INCREMENT_INCREMENT2
 MASTER_1_AUTO_INCREMENT_OFFSET2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
 'srv "s_2_1"')
 1

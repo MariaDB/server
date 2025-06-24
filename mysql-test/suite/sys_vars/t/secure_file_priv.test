@@ -6,7 +6,7 @@ INSERT INTO t1 VALUES ("one"),("two"),("three"),("four"),("five");
 SHOW VARIABLES LIKE 'secure_file_priv';
 --disable_query_log
 
-# Atempt to create a file where we normally aren't allowed to create one.
+# Attempt to create a file where we normally aren't allowed to create one.
 #
 # Doing this in a portable manner is difficult but we should be able to
 # count on the directory hierarchy used. A step up from MYSQLTEST_VARDIR
@@ -26,9 +26,7 @@ my $protected_file= dirname($ENV{MYSQLTEST_VARDIR}).'/bug50373.txt';
 # test runs).
 unlink $protected_file;
 open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/bug50373.inc") or die;
-print FILE "--disable_ps2_protocol\n";
 print FILE "SELECT * FROM t1 INTO OUTFILE '".$protected_file."';\n";
-print FILE "--enable_ps2_protocol\n";
 print FILE "DELETE FROM t1;\n";
 print FILE "LOAD DATA INFILE '".$protected_file."' INTO TABLE t1;\n";
 print FILE "SELECT * FROM t1;\n";

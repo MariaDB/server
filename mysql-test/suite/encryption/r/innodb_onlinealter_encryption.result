@@ -41,7 +41,6 @@ NOT FOUND /mangled/ in t6.ibd
 # t7 ... on expecting NOT FOUND
 NOT FOUND /mysql/ in t7.ibd
 # restart
-SET GLOBAL innodb_file_per_table = ON;
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;
 ALTER TABLE t7 ADD COLUMN b int default 2;
@@ -63,7 +62,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `encrypted`=yes
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -73,7 +72,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -82,7 +81,7 @@ t3	CREATE TABLE `t3` (
   `c` int(11) DEFAULT 5,
   KEY `a` (`a`),
   KEY `c` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `encrypted`=yes
 SHOW CREATE TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
@@ -91,7 +90,7 @@ t4	CREATE TABLE `t4` (
   `c` int(11) DEFAULT 5,
   KEY `a` (`a`),
   KEY `c` (`c`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t5;
 Table	Create Table
 t5	CREATE TABLE `t5` (
@@ -101,7 +100,7 @@ t5	CREATE TABLE `t5` (
   PRIMARY KEY (`id`),
   FULLTEXT KEY `b` (`b`),
   FULLTEXT KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `encrypted`=yes
 SHOW CREATE TABLE t6;
 Table	Create Table
 t6	CREATE TABLE `t6` (
@@ -110,7 +109,7 @@ t6	CREATE TABLE `t6` (
   `b` varchar(255) DEFAULT NULL,
   FULLTEXT KEY `b` (`b`),
   FULLTEXT KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t7;
 Table	Create Table
 t7	CREATE TABLE `t7` (
@@ -120,7 +119,7 @@ t7	CREATE TABLE `t7` (
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED `encrypted`=yes
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND

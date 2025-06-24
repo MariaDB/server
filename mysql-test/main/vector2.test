@@ -1,0 +1,334 @@
+#
+# tests that don't need to be run on many engines
+#
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-33410 VECTOR data type
+--echo #
+--error ER_PARSE_ERROR
+create table t1 (a int, b vector);
+--error ER_WRONG_FIELD_SPEC
+create table t1 (a int, b vector(0));
+--error ER_WRONG_FIELD_SPEC
+create table t1 (a int, b vector(10) collate utf8mb3_general_ci);
+create table t1 (a int, b vector(10));
+show create table t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, 1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, 1.1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, 1e1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, now());
+--error ER_TRUNCATED_WRONG_VALUE
+insert t1 values (1, repeat(x'56', 10));
+--error ER_TRUNCATED_WRONG_VALUE
+insert t1 values (1, repeat(x'66', 40));
+insert t1 values (1, repeat(x'56', 40));
+select * from t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select cast(b as char) from t1;
+create table t2 as select b, cast(b as binary) from t1;
+show create table t2;
+drop table t1, t2;
+
+create table t1 (a int, b vector(1) not null);
+insert into t1 values (1,x'00000000');
+alter table t1 modify b vector(2) not null;
+insert into t1 values (1,x'0000000000000000');
+select a, vec_totext(b) from t1;
+drop table t1;
+
+--error ER_WRONG_ARGUMENTS
+create table t1(v blob not null, vector index(v));
+--error ER_WRONG_ARGUMENTS
+create table t1(v varbinary(100) not null, vector index(v));
+--error ER_WRONG_ARGUMENTS
+create table t1(v binary not null, vector index(v));
+
+create table t1 (a int, b vector(1536) not null, vector index(b));
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
+--echo #
+create table t (a int, v vector(10) not null, vector index (v));
+analyze table t persistent for columns() indexes (v);
+drop table t;
+
+--echo #
+--echo # MDEV-35029 ASAN errors in Lex_ident<Compare_ident_ci>::is_valid_ident upon DDL on table with vector index
+--echo #
+create table t (a int, v vector(10) not null, vector key (v) distance=euclidean);
+show create table t;
+set session mhnsw_default_m = @@mhnsw_default_m + 1;
+create table t2 like t;
+alter table t force;
+drop table t, t2;
+
+--echo #
+--echo # MDEV-35043 Unsuitable error upon an attempt to create MEMORY table with vector key
+--echo #
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t (v vector(31) not null, vector index(v)) engine=memory;
+
+--echo #
+--echo # MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
+--echo #
+create table t (a int, v vector(10) not null, vector index(v)) engine=myisam;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table tm (a int, v vector(10) not null, vector index(v)) engine=merge union=(t);
+drop table t;
+
+--echo #
+--echo # MDEV-35078 Server crash or ASAN errors in mhnsw_insert
+--echo #
+set session mhnsw_default_m = 4;
+create table t (a int, v vector(1) not null);
+insert into t select seq, x'00000000' from seq_1_to_10;
+alter table t add vector(v);
+show create table t;
+create table x like t;
+show create table x;
+insert into t values (11,x'00000000');
+drop table t, x;
+set session mhnsw_default_m = default;
+
+--echo #
+--echo # MDEV-35092 Server crash, hang or ASAN errors in mysql_create_frm_image upon using non-default table options and system variables
+--echo #
+set mhnsw_default_distance= cosine;
+create table t (a int, v vector(10) not null);
+prepare stmt from 'alter table t drop index if exists v, add vector (v) m=10';
+execute stmt;
+execute stmt;
+prepare stmt from 'alter table t drop index if exists v, add vector (v)';
+execute stmt;
+execute stmt;
+show create table t;
+drop table t;
+set mhnsw_default_distance= default;
+
+--echo #
+--echo # MDEV-35105 Assertion `tab->join->order' fails upon vector search with DISTINCT
+--echo #
+create table t (a int, v vector(1) not null, vector(v));
+insert into t values(1,x'00000000'),(2,x'00000000');
+--replace_column 1 #
+select distinct a from t order by vec_distance_euclidean(v,vec_fromtext('[1]')) limit 1;
+drop table t;
+
+--echo #
+--echo # MDEV-35141 Server crashes in Field_vector::report_wrong_value upon statistic collection
+--echo #
+create table t1 (v vector(64) not null);
+insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+analyze table t1 persistent for all;
+drop table t1;
+
+--echo #
+--echo # MDEV-35177 Unexpected ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, diagnostics area assertion failures upon EITS collection with vector type
+--echo #
+create table t (pk int primary key, v vector(1) not null);
+insert into t values (1,vec_fromtext('[-0.196]')),(2,vec_fromtext('[0.709]'));
+analyze table t persistent for all;
+drop table t;
+
+--echo #
+--echo # MDEV-35147 Inconsistent NULL handling in vector type
+--echo #
+create table t1 (a vector(1));
+show create table t1;
+insert into t1 values ();
+insert into t1 values (default);
+insert into t1 values (default(a));
+select * from t1;
+insert into t1 values (null);
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-35150 Column containing non-vector tables can be modified to VECTOR type without warnings
+--echo #
+create table t1 (a blob);
+insert t1 values (1);
+--error ER_TRUNCATED_WRONG_VALUE
+alter table t1 modify a vector(2);
+update t1 set a=x'5555555555555555';
+alter table t1 modify a vector(2);
+select hex(a) from t1;
+select vec_totext(a) from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-35158 Assertion `res->length() > 0 && res->length() % 4 == 0' fails upon increasing length of vector column
+--echo #
+create table t1 (a int, v vector(1) not null, vector(v));
+insert t1 values (1, 0x00000000);
+alter table t1 modify v vector(64) not null;
+drop table t1;
+
+--echo #
+--echo # MDEV-35178 Assertion failure in Field_vector::store upon INSERT IGNORE with a wrong data
+--echo #
+create table t (v vector(2) not null);
+insert ignore into t values (1);
+select hex(v) from t;
+drop table t;
+
+--echo #
+--echo # MDEV-35176 ASAN errors in Field_vector::store with optimizer_trace enabled
+--echo #
+--error ER_WRONG_SUB_KEY
+create table t (pk int primary key, v vector(2) not null, key(v(6)));
+
+--echo #
+--echo # MDEV-35191 Assertion failure in Create_tmp_table::finalize upon DISTINCT with vector type
+--echo #
+create table t (v vector(1));
+insert into t values (0x55555555),(0x56565656);
+select distinct v from t;
+drop table t;
+
+--echo #
+--echo # MDEV-35194 non-BNL join fails on assertion
+--echo #
+create table t1 (pk int primary key, a vector(2) not null, vector(a));
+insert into t1 select seq, vec_fromtext(json_array(seq, -seq)) from seq_1_to_1000;
+create table t2 (f int);
+insert into t2 select seq from seq_1_to_1000;
+set join_cache_level= 0;
+select t2.f from t1 left join t2 on (t1.pk=t2.f) order by vec_distance_euclidean(t1.a,0x00000040) limit 5;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-35195 Assertion `tab->join->order' fails upon vector search with DISTINCT #2
+--echo #
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x00000000),(0x00000040);
+select distinct vec_distance_euclidean(v,0x00000000) d from t order by d limit 1;
+drop table t;
+
+--echo #
+--echo # MDEV-35337 Server crash or assertion failure in join_read_first upon using vector distance in group by
+--echo #
+create table t (a int, v vector(1) not null, primary key (a), vector(v));
+insert into t values (1,vec_fromtext('[-1]')),(2,vec_fromtext('[1]')),(3,vec_fromtext('[2]'));
+select vec_distance_euclidean(v,vec_fromtext('[0]')) d, count(*) from t group by d order by d limit 2;
+drop table t;
+
+--echo #
+--echo # MDEV-35219 Unexpected ER_DUP_KEY after OPTIMIZE on MyISAM table with vector key
+--echo #
+create table t (v vector(1) not null default 0x30303030, vector(v)) engine=myisam;
+insert into t () values (),(),(),();
+delete from t limit 1;
+optimize table t;
+insert into t select * from t;
+drop table t;
+
+--echo #
+--echo # MDEV-35230 ASAN errors upon reading from joined temptable views with vector type
+--echo #
+create table t (f vector(1));
+insert into t values (0x30303030),(0x31313131);
+create algorithm=temptable view v as select * from t;
+select v1.f from v v1 natural join v v2;
+drop view v;
+drop table t;
+
+--echo #
+--echo # MDEV-35245 SHOW CREATE TABLE produces unusable statement for vector fields with constant default value
+--echo #
+create table t1 (f vector(1) default 0x30313233, v vector(2) default x'4041424344454647');
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-35246 Vector search skips a row in the table
+--echo #
+set rand_seed1=1, rand_seed2=2;
+create or replace table t1 (a int, v vector(1) not null, vector(v) m=6);
+insert into t1 select seq, vec_fromtext(concat('[',seq,']')) from seq_1_to_200;
+update t1 set v = vec_fromtext(concat('[33]')) where a <= 15;
+--sorted_result
+select a, vec_totext(v) from t1 order by vec_distance_euclidean(v,vec_fromtext('[33]')) limit 25;
+drop table t1;
+
+--echo #
+--echo # MDEV-35296 DESC does not work in ORDER BY with vector key
+--echo #
+create table t (v vector(1) not null, vector(v));
+insert into t select vec_fromtext(concat('[',seq,']')) FROM seq_1_to_10;
+select vec_totext(v) from t order by vec_distance_euclidean(v,vec_fromtext('[0]')) desc limit 5;
+drop table t;
+
+--echo #
+--echo # MDEV-35768 Vector key is not used upon selecting from views / subqueries
+--echo #
+
+create table t (b vector(1) not null, vector(b));
+insert into t values (0x31313131),(0x32323232);
+create view v as select * from t;
+explain select * from t order by vec_distance_euclidean(b,0x30303030) limit 1;
+explain select * from v order by vec_distance_euclidean(b,0x30303030) limit 1;
+explain select * from (select * from t) sq order by vec_distance_euclidean(b,0x30303030) limit 1;
+drop view v;
+drop table t;
+
+--echo #
+--echo # MDEV-35769 ER_SQL_DISCOVER_ERROR upon updating vector key column using incorrect value
+--echo #
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x31313131);
+flush tables;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+update t set v = 1;
+drop table t;
+
+--echo #
+--echo # MDEV-35792 Adding a regular index on a vector column leads to invalid table structure
+--echo #
+--error ER_TOO_LONG_KEY
+create table t (v vector(800), key(v));
+create table t (v vector(8), key(v));
+show create table t;
+drop table t;
+
+
+--echo #
+--echo # MDEV-35146 Vector-related error messages worth improving when possible
+--echo #
+--error ER_INVALID_DEFAULT
+create table t (a vector(64) not null default '');
+show warnings;
+--error ER_INVALID_DEFAULT
+create table t (a inet6 not null default '');
+show warnings;
+
+--echo #
+--echo # MDEV-35186 IGNORED attribute has no effect on vector keys
+--echo #
+create table t (a vector(1) not null, vector(a) ignored);
+show index in t;
+insert into t values (0x00000000),(0x00000000);
+explain select vec_totext(a) from t order by vec_distance_euclidean(a,0x00000000) limit 1;
+drop table t;
+--echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-35309 - ALTER performs vector truncation without WARN_DATA_TRUNCATED or similar warnings/errors
+--echo #
+create table t (v vector(2));
+insert into t values (0x3131313132323232);
+select * from t;
+--error WARN_DATA_TRUNCATED
+alter table t modify v vector(1);
+set statement sql_mode='' for alter table t modify v vector(1);
+select * from t;
+drop table t;
+
+--echo # End of 11.8 tests

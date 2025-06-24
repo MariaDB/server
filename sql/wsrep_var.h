@@ -38,16 +38,15 @@ class THD;
 int wsrep_init_vars();
 void wsrep_set_wsrep_on(THD *thd);
 void wsrep_free_status_vars();
+bool wsrep_refresh_provider_options();
 
 #define CHECK_ARGS   (sys_var *self, THD* thd, set_var *var)
 #define UPDATE_ARGS  (sys_var *self, THD* thd, enum_var_type type)
 #define DEFAULT_ARGS (THD* thd, enum_var_type var_type)
 #define INIT_ARGS    (const char* opt)
 
-extern bool wsrep_causal_reads_update        UPDATE_ARGS;
 extern bool wsrep_on_check                   CHECK_ARGS;
 extern bool wsrep_on_update                  UPDATE_ARGS;
-extern bool wsrep_sync_wait_update           UPDATE_ARGS;
 extern bool wsrep_start_position_check       CHECK_ARGS;
 extern bool wsrep_start_position_update      UPDATE_ARGS;
 extern bool wsrep_start_position_init        INIT_ARGS;
@@ -110,9 +109,6 @@ extern bool wsrep_gtid_seq_no_check          CHECK_ARGS;
 extern bool wsrep_gtid_domain_id_update      UPDATE_ARGS;
 
 extern bool wsrep_mode_check                 CHECK_ARGS;
-extern bool wsrep_strict_ddl_update          UPDATE_ARGS;
-extern bool wsrep_replicate_myisam_update    UPDATE_ARGS;
-extern bool wsrep_replicate_myisam_check     CHECK_ARGS;
 extern bool wsrep_forced_binlog_format_check CHECK_ARGS;
 #else  /* WITH_WSREP */
 

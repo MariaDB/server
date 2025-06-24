@@ -1,5 +1,3 @@
-DROP TABLE IF EXISTS t1;
-Start of 5.4 tests
 #
 # WL#4642 Greek locale for DAYNAME, MONTHNAME, DATE_FORMAT
 #
@@ -50,11 +48,7 @@ DROP TABLE t1;
 # Bug#46633 Obsolete Serbian locale name
 #
 SET lc_messages=sr_YU;
-Warnings:
-Warning	1287	'sr_YU' ist veraltet. Bitte benutzen Sie 'sr_RS'
-SHOW VARIABLES LIKE 'lc_messages';
-Variable_name	Value
-lc_messages	sr_RS
+ERROR HY000: Unbekannte Locale: 'sr_YU'
 SET lc_messages=sr_RS;
 SHOW VARIABLES LIKE 'lc_messages';
 Variable_name	Value
@@ -111,9 +105,9 @@ Warnings:
 Note	1265	Data truncated for column 'd' at row 1
 SET lc_time_names=ru_RU;
 SELECT c FROM t1 WHERE DAYNAME(d)<>c;
-ERROR HY000: Illegal mix of collations (utf8mb3_general_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
+ERROR HY000: Illegal mix of collations (utf8mb3_uca1400_ai_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
 SELECT c FROM t1 WHERE MONTHNAME(d)<>c;
-ERROR HY000: Illegal mix of collations (utf8mb3_general_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
+ERROR HY000: Illegal mix of collations (utf8mb3_uca1400_ai_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
 SET lc_time_names=en_US;
 SELECT c FROM t1 WHERE DAYNAME(d)<>c;
 c
@@ -238,7 +232,7 @@ a	a1	b	b1
 10 Oct October	10 Окт Октября	123,456,789.00	123'456'789,00
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select date_format('2001-10-02','%c %b %M') AS `a`,date_format('2001-10-02','%c %b %M','ru_RU') AS `a1`,format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8mb3	utf8mb3_general_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select date_format('2001-10-02','%c %b %M') AS `a`,date_format('2001-10-02','%c %b %M','ru_RU') AS `a1`,format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8mb3	utf8mb3_uca1400_ai_ci
 drop view v1;
 #
 # End of 10.2 tests
@@ -315,4 +309,63 @@ ERROR 42S22: 未知列'x'在'SELECT'
 SET lc_messages=DEFAULT;
 #
 # End of 10.4 tests
+#
+#
+# MDEV-30789 Add Georgian error messages and locale
+#
+SET lc_messages=ka_GE;
+SELECT x;
+ERROR 42S22: უცნობი სვეტი 'x' 'SELECT'-ში
+SET lc_messages=DEFAULT;
+#
+# Add Swahili error messages and locale
+#
+SET lc_messages=sw_KE;
+SELECT x;
+ERROR 42S22: Safu wima isiyojulikana 'x' katika 'SELECT'
+SET lc_messages=DEFAULT;
+#
+# MDEV-30997 SIGSEGV in __strlen_avx2 | make_date_time | Item_func_date_format::val_str
+#
+SET lc_messages=en_US;
+SET lc_time_names=111;
+SELECT DATE_FORMAT('1-12-01','%c %b %M');
+DATE_FORMAT('1-12-01','%c %b %M')
+12 დეკ დეკემბერი
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12);
+SELECT d, DATE_FORMAT(d, '%b') AS MONTH_ABBR, MONTHNAME(d) FROM
+(
+SELECT CAST(CONCAT('2001-', i, '-01') AS DATE) AS d FROM t1
+) d1 ORDER BY d;
+d	MONTH_ABBR	MONTHNAME(d)
+2001-01-01	იან	იანვარი
+2001-02-01	თებ	თებერვალი
+2001-03-01	მარ	მარტი
+2001-04-01	აპრ	აპრილი
+2001-05-01	მაი	მაისი
+2001-06-01	ივნ	ივნისი
+2001-07-01	ივლ	ივლისი
+2001-08-01	აგვ	აგვისტო
+2001-09-01	სექტ	სექტემბერი
+2001-10-01	ოქტ	ოქტომბერი
+2001-11-01	ნოე	ნოემბერი
+2001-12-01	დეკ	დეკემბერი
+SELECT d, WEEKDAY(d), DATE_FORMAT(d, '%a') AS DAY_ABBR, DAYNAME(d) FROM
+(
+SELECT CAST(CONCAT('2001-01-', i) AS DATE) AS d FROM t1 WHERE i BETWEEN 1 AND 7
+) d1 ORDER BY d;
+d	WEEKDAY(d)	DAY_ABBR	DAYNAME(d)
+2001-01-01	0	ორშ	ორშაბათი
+2001-01-02	1	სამშ	სამშაბათი
+2001-01-03	2	ოთხშ	ოთხშაბათი
+2001-01-04	3	ხუთშ	ხუთშაბათი
+2001-01-05	4	პარ	პარასკევი
+2001-01-06	5	შაბ	შაბათი
+2001-01-07	6	კვ	კვირა
+DROP TABLE t1;
+SET lc_time_names=DEFAULT;
+SET lc_messages=DEFAULT;
+#
+# End of 10.11 tests
 #

@@ -9,7 +9,7 @@ Table	Create Table
 simple_table	CREATE TABLE `simple_table` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='ENGINE "InnoDB"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci COMMENT='ENGINE "InnoDB"'
 INSERT INTO simple_table (id) VALUES (1),(2);
 USE test;
 START TRANSACTION;

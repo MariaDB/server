@@ -3,7 +3,7 @@ include/master-slave.inc
 connect  slave2,127.0.0.1,root,,test,$SLAVE_MYPORT2,;
 connection slave2;
 RESET SLAVE;
-CHANGE MASTER TO master_host='127.0.0.1',master_port=MASTER_PORT,master_user='root';
+CHANGE MASTER TO master_host='127.0.0.1',master_port=MASTER_PORT,master_user='root', master_ssl_verify_server_cert=0;
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection master;

@@ -1,3 +1,0 @@
-# According to /usr/share/menu/ policy 1.4, not /usr/share/doc/debian-policy/
-?package(mariadb-client-10.6):needs="text" section="Applications/Data Management"\
-  title="Innotop" command="/usr/bin/innotop"

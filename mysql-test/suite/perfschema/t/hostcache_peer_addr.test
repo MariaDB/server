@@ -45,6 +45,6 @@ show global status like "connection_errors_%";
 
 SET @@GLOBAL.debug_dbug = @saved_dbug;
 
-flush status;
+flush global status;
 show global status like "connection_errors_%";
 

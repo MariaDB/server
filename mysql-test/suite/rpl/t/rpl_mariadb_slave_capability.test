@@ -12,6 +12,23 @@ set @old_master_binlog_checksum= @@global.binlog_checksum;
 #
 # Test this by binlog rotation before we log any GTIDs.
 sync_slave_with_master;
+
+# Need to stop/start the master without GTID before setting debug_dbug
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
+--connection master
+--echo # Ensure only the new binlog dump thread is alive (wait for the old one
+--echo # to complete its kill)
+--let $wait_condition= select count(*)=1 from information_schema.processlist where command='Binlog Dump'
+--source include/wait_condition.inc
+
+--echo # And that it has already sent its fake rotate
+--let $wait_condition= select count(*)=1 from information_schema.processlist where state LIKE '%Master has sent all binlog to slave%' and command='Binlog Dump'
+--source include/wait_condition.inc
+
+--connection slave
 --source include/stop_slave.inc
 --echo # Test slave with no capability gets dummy event, which is ignored.
 set @old_dbug= @@global.debug_dbug;

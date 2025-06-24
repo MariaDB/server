@@ -56,7 +56,7 @@ where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-# rename fields returned by the specication when defining t
+# rename fields returned by the specification when defining t
 with t(f1,f2) as (select * from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.f1;
 c	f1	f2
@@ -85,16 +85,16 @@ with t as (select a, count(*) from t1 where b >= 'c' group by a)
 select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
 where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
-# specivication of t contains having
+# specification of t contains having
 with t as (select a, count(*) from t1 where b >= 'c'
              group by a having count(*)=1 ) 
 select * from t2,t where t2.c=t.a;
@@ -150,16 +150,14 @@ explain
 with t as (select a from t1 where a<5)
 select * from t2 where c in (select a from t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 explain
 select * from t2 
 where c in (select a from (select a from t1 where a<5) as t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 # materialized t is used in a subquery
 with t as (select count(*) as c from t1 where b >= 'c' group by a)
 select * from t2 where c in (select c from t);
@@ -175,7 +173,7 @@ with t as (select count(*) as c from t1 where b >= 'c' group by a)
 select * from t2 where c in (select c from t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t2.c	1	Using where; FirstMatch(t2)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2
@@ -183,7 +181,7 @@ where c in (select c from (select count(*) as c from t1
 where b >= 'c' group by a) as t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	8	test.t2.c	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # two references to t specified by a query
 # selecting a field:  both in main query
@@ -369,7 +367,7 @@ select c as a from t2 where c < 4)
 select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -381,7 +379,7 @@ select c as a from t2 where c < 4) as t
 where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -507,7 +505,7 @@ select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	35	func	1	
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	131	func	1	
 4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
@@ -523,7 +521,7 @@ where t1.a=t.a  group by t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	35	func	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	131	func	1	
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # with clause in the specification of a derived table
@@ -597,7 +595,7 @@ explain
 select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # with clause in the specification of a view that whose definition
 # table alias for a with table
@@ -1678,6 +1676,7 @@ use test;
 # THD::create_tmp_table_def_key
 #
 connect con1,localhost,root,,;
+change_user root,,;
 CREATE TEMPORARY TABLE test.t (a INT);
 WITH cte AS (SELECT 1) SELECT * FROM cte;
 1
@@ -2300,14 +2299,14 @@ WHERE col1 IN ( SELECT col FROM t );
 SELECT * FROM tt;
 col2
 2018-10-01
-2018-10-01
 2017-10-01
+2018-10-01
 SELECT t4.col1
 FROM tt, t4
 WHERE t4.col2 = tt.col2 AND t4.col1 IN ( SELECT col FROM t );
 col1
-8
 4
+8
 DROP TABLE t,tt;
 CALL SP1();
 col1
@@ -2485,31 +2484,45 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "cte.c1 < 4 and cte.c2 > 1",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "having_condition": "sum(t1.b) < 5 and c2 > 1",
-          "filesort": {
-            "sort_key": "t1.a",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 10,
-                "filtered": 100,
-                "attached_condition": "t1.b > 1 and t1.a < 4"
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "cte.c1 < 4 and cte.c2 > 1",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "REPLACED",
+              "having_condition": "sum(t1.b) < 5 and c2 > 1",
+              "filesort": {
+                "sort_key": "t1.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 10,
+                        "cost": "REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.b > 1 and t1.a < 4"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 alter table t1 add column c int;

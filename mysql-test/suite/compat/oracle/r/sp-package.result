@@ -273,23 +273,20 @@ UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 # sp-cache-invalidate
 SELECT test2.f1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: FUNCTION test2.f1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	FUNCTION test2.f1 does not exist
 SELECT test2.f1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: FUNCTION test2.f1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	FUNCTION test2.f1 does not exist
 SELECT test2.f1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: FUNCTION test2.f1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	FUNCTION test2.f1 does not exist
 DROP PACKAGE test2;
 #
 # Broken CREATE PACKAGE at a package procedure call time
@@ -311,23 +308,20 @@ UPDATE mysql.proc SET `body`='garbage'
   WHERE db='test' AND name='test2' AND type='PACKAGE';
 # sp-cache-invalidate
 CALL test2.p1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: PROCEDURE test2.p1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE test2.p1 does not exist
 CALL test2.p1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: PROCEDURE test2.p1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE test2.p1 does not exist
 CALL test2.p1();
-ERROR HY000: Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+ERROR 42000: PROCEDURE test2.p1 does not exist
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
-Error	1457	Failed to load routine test.test2 (internal code -6). For more details, run SHOW WARNINGS
+Error	1305	PROCEDURE test2.p1 does not exist
 DROP PACKAGE test2;
 #
 # Bad routine names
@@ -444,7 +438,7 @@ CREATE PACKAGE BODY test2 AS
 PROCEDURE p2 AS BEGIN NULL; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p1' is declared in the package specification but is not defined in the package body
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 CREATE PACKAGE test2 AS
 FUNCTION f1 RETURN INT;
@@ -454,7 +448,7 @@ CREATE PACKAGE BODY test2 AS
 FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.f1' is declared in the package specification but is not defined in the package body
+ERROR HY000: FUNCTION `test.test2.f1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 CREATE PACKAGE test2 AS
 PROCEDURE p1;
@@ -464,7 +458,7 @@ CREATE PACKAGE BODY test2 AS
 FUNCTION p1 RETURN INT AS BEGIN RETURN 10; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p1' is declared in the package specification but is not defined in the package body
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 CREATE PACKAGE test2 AS
 PROCEDURE p1;
@@ -474,7 +468,7 @@ CREATE PACKAGE BODY test2 AS
 PROCEDURE p1(a INT) AS BEGIN NULL; END; -- Notice different prototype
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p1' is declared in the package specification but is not defined in the package body
+ERROR HY000: PROCEDURE `test.test2.p1` is declared in the package specification but is not defined in the package body
 DROP PACKAGE test2;
 #
 # Forward declarations in CREATE PACKAGE BODY with missing implementations
@@ -488,13 +482,13 @@ PROCEDURE p1 AS BEGIN NULL; END;
 PROCEDURE p2;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.p2' has a forward declaration but is not defined
+ERROR HY000: PROCEDURE `test.test2.p2` has a forward declaration but is not defined
 CREATE PACKAGE BODY test2 AS
 FUNCTION f1 RETURN INT;
 PROCEDURE p1 AS BEGIN NULL; END;
 END;
 $$
-ERROR HY000: Subroutine 'test.test2.f1' has a forward declaration but is not defined
+ERROR HY000: FUNCTION `test.test2.f1` has a forward declaration but is not defined
 DROP PACKAGE test2;
 #
 # Creating a new package
@@ -534,7 +528,7 @@ sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE
 comment	package-test2-comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-db_collation	latin1_swedish_ci
+db_collation	utf8mb4_uca1400_ai_ci
 body_utf8	AS
 FUNCTION f1 RETURN INT DETERMINISTIC;
 FUNCTION f2(a INT) RETURN INT;
@@ -580,7 +574,7 @@ ROUTINE_COMMENT	package-test2-comment
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 CREATE PACKAGE IF NOT EXISTS test2 AS
 FUNCTION f1 RETURN INT;
 END test2
@@ -672,7 +666,7 @@ ROUTINE_COMMENT	package-test2-comment
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SPECIFIC_NAME	test2
 ROUTINE_CATALOG	def
 ROUTINE_SCHEMA	test
@@ -715,7 +709,7 @@ ROUTINE_COMMENT	package-body-test2-comment
 DEFINER	root@localhost
 CHARACTER_SET_CLIENT	latin1
 COLLATION_CONNECTION	latin1_swedish_ci
-DATABASE_COLLATION	latin1_swedish_ci
+DATABASE_COLLATION	utf8mb4_uca1400_ai_ci
 SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME LIKE 'test2.%';
 SHOW PACKAGE STATUS;
 Db	test
@@ -728,7 +722,7 @@ Security_type	DEFINER
 Comment	package-test2-comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PACKAGE BODY STATUS;
 Db	test
 Name	test2
@@ -740,7 +734,7 @@ Security_type	DEFINER
 Comment	package-body-test2-comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE test2;
 Package	test2
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
@@ -754,7 +748,7 @@ PROCEDURE p2(a INT);
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Warnings:
 Level	Note
 Code	1585
@@ -778,7 +772,7 @@ END;
 END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Warnings:
 Level	Note
 Code	1585
@@ -821,7 +815,7 @@ Security_type	DEFINER
 Comment	package-test2-comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PACKAGE BODY STATUS;
 Db	test2
 Name	test2
@@ -833,7 +827,7 @@ Security_type	DEFINER
 Comment	package-body-test2-comment
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 USE test2;
 SELECT test2.f1();
 test2.f1()
@@ -2092,8 +2086,6 @@ $$
 CALL p1.p1();
 @a
 11
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1();
 @a
 12
@@ -2125,8 +2117,6 @@ BEGIN
 SELECT MAX(a) FROM t1 INTO @a;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1();
 @a
 11
@@ -2160,8 +2150,6 @@ BEGIN
 SELECT 1 FROM t1 INTO @a;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1();
 ERROR 42S02: Table 'test.t1' doesn't exist
 SELECT p1.f1();
@@ -2720,9 +2708,6 @@ SELECT * FROM t1 INTO b;
 SELECT b.a, b.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1;
 b.a	b.b
 10	b
@@ -3157,7 +3142,24 @@ collation_connection	latin1_swedish_ci
 DROP VIEW v_test;
 SET sql_mode=DEFAULT;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test1.f_test();
-ERROR 42000: FUNCTION test1.f_test does not exist
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_test` AS select 1 AS `c1` from DUAL  where 1 = `test`.`test1`.`f_test`()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+SET sql_mode=ORACLE;
+SELECT * FROM v_test;
+c1
+1
+SHOW CREATE VIEW v_test;
+View	v_test
+Create View	CREATE VIEW "v_test" AS select 1 AS "c1" from DUAL  where 1 = "test"."test1"."f_test"()
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+DROP VIEW v_test;
 SET sql_mode=ORACLE;
 CREATE VIEW v_test AS SELECT 1 AS c1 FROM DUAL WHERE 1=test.test1.f_test();
 SELECT * FROM v_test;
@@ -3373,3 +3375,83 @@ DROP TABLE t1;
 DROP FUNCTION f1_deterministic;
 DROP FUNCTION f2_not_deterministic;
 DROP PACKAGE pkg1;
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+#
+# Testing fixed ROW type with package routines
+#
+CREATE PACKAGE pkg
+AS
+FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32));
+PROCEDURE p1(r ROW(a INT, b VARCHAR(32)));
+PROCEDURE p2();
+END;
+$$
+CREATE PACKAGE BODY pkg
+AS
+FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32)) AS
+BEGIN
+RETURN ROW(1,'b1');
+END;
+PROCEDURE p1(r ROW(a INT, b VARCHAR(32))) AS
+BEGIN
+SELECT r.a, r.b;
+END;
+PROCEDURE p2() AS
+BEGIN
+CALL p1(f1());
+END; 
+END;
+$$
+CALL pkg.p1(pkg.f1());
+r.a	r.b
+1	b1
+CALL pkg.p2;
+r.a	r.b
+1	b1
+DROP PACKAGE pkg;
+#
+# Testing table%ROWTYPE with package routines
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1,'b1');
+CREATE PACKAGE pkg
+AS
+FUNCTION f1 RETURN t1%ROWTYPE;
+PROCEDURE p1(r t1%ROWTYPE);
+PROCEDURE p2;
+END;
+/
+CREATE PACKAGE BODY pkg
+AS
+FUNCTION f1 RETURN t1%ROWTYPE AS
+r t1%ROWTYPE;
+BEGIN
+SELECT * INTO r FROM t1;
+RETURN r;
+END;
+PROCEDURE p1(r t1%ROWTYPE) AS
+BEGIN
+SELECT r.a || ' ' || r.b;
+END;
+PROCEDURE p2 AS
+BEGIN
+p1(f1());
+END; 
+END;
+/
+CALL pkg.p1(pkg.f1());
+r.a || ' ' || r.b
+1 b1
+CALL pkg.p2;
+r.a || ' ' || r.b
+1 b1
+DROP PACKAGE pkg;
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

@@ -52,7 +52,7 @@ test_like_range_for_charset(CHARSET_INFO *cs, const char *src, size_t src_len)
   char min_str[32], max_str[32];
   size_t min_len, max_len, min_well_formed_len, max_well_formed_len;
   int error= 0;
-  
+
   my_ci_like_range(cs, src, src_len, '\\', '_', '%',
                    sizeof(min_str),  min_str, max_str, &min_len, &max_len);
   diag("min_len=%d\tmax_len=%d\t%s", (int) min_len, (int) max_len,
@@ -144,7 +144,7 @@ typedef struct
                but not followed by a valid T2 byte.
 
   Charset H2               T2                      8BIT
-  ------- ---------------- ---------------         -------- 
+  ------- ---------------- ---------------         --------
   big5    [A1..F9]         [40..7E,A1..FE]
   euckr   [81..FE]         [41..5A,61..7A,81..FE]
   gb2312  [A1..F7]         [A1..FE]
@@ -1379,7 +1379,7 @@ strnncollsp_char_one(CHARSET_INFO *cs, const STRNNCOLLSP_CHAR_PARAM *p)
   str2hex(ahex, sizeof(ahex), p->a.str, p->a.length);
   str2hex(bhex, sizeof(bhex), p->b.str, p->b.length);
   diag("%-25s %-12s %-12s %3d %7d %7d%s",
-       cs->cs_name.str, ahex, bhex, (int) p->nchars, p->res, res,
+       cs->coll_name.str, ahex, bhex, (int) p->nchars, p->res, res,
        eqres(res, p->res) ? "" : " FAILED");
   if (!eqres(res, p->res))
   {
@@ -1554,7 +1554,7 @@ int main(int ac, char **av)
 
   plan(4);
   diag("Testing my_like_range_xxx() functions");
-  
+
   for (i= 0; i < array_elements(charset_list); i++)
   {
     CHARSET_INFO *cs= charset_list[i];

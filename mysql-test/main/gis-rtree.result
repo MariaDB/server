@@ -1,3 +1,29 @@
+create table t1 (g geometry not null, spatial key(g(10)));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(10)))' at line 1
+create table t1 (g geometry not null, spatial key(g asc));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'asc))' at line 1
+create table t1 (g geometry not null, spatial key(g desc));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'desc))' at line 1
+create table t1 (g geometry not null, f geometry not null, spatial key(g,f));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'f))' at line 1
+create table t1 (g geometry not null, f geometry not null);
+create spatial index bad on t1 (g(10));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(10))' at line 1
+create spatial index bad on t1 (g asc);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'asc)' at line 1
+create spatial index bad on t1 (g desc);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'desc)' at line 1
+create spatial index bad on t1 (f,g);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'g)' at line 1
+alter table t1 add spatial index bad (g(10));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(10))' at line 1
+alter table t1 add spatial index bad (g asc);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'asc)' at line 1
+alter table t1 add spatial index bad (g desc);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'desc)' at line 1
+alter table t1 add spatial index bad (f,g);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'g)' at line 1
+drop table t1;
 CREATE TABLE t1 (
 fid INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 g GEOMETRY NOT NULL,
@@ -10,7 +36,7 @@ t1	CREATE TABLE `t1` (
   `g` geometry NOT NULL,
   PRIMARY KEY (`fid`),
   SPATIAL KEY `g` (`g`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (g) VALUES (GeomFromText('LineString(150 150, 150 150)'));
 INSERT INTO t1 (g) VALUES (GeomFromText('LineString(149 149, 151 151)'));
 INSERT INTO t1 (g) VALUES (GeomFromText('LineString(148 148, 152 152)'));
@@ -293,7 +319,7 @@ t2	CREATE TABLE `t2` (
   `g` geometry NOT NULL,
   PRIMARY KEY (`fid`),
   SPATIAL KEY `g` (`g`)
-) ENGINE=MyISAM AUTO_INCREMENT=101 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT count(*) FROM t2;
 count(*)
 100

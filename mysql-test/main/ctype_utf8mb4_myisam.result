@@ -75,20 +75,20 @@ exp
 select CONVERT(_koi8r'����' USING utf8mb4) LIKE CONVERT(_koi8r'����' USING utf8mb4) as exp;
 exp
 1
-SELECT 'a' = 'a ';
-'a' = 'a '
+SELECT 'a' = 'a ' collate utf8mb4_general_ci;
+'a' = 'a ' collate utf8mb4_general_ci
 1
-SELECT 'a\0' < 'a';
-'a\0' < 'a'
+SELECT 'a\0' < 'a' collate utf8mb4_general_ci;
+'a\0' < 'a' collate utf8mb4_general_ci
 1
-SELECT 'a\0' < 'a ';
-'a\0' < 'a '
+SELECT 'a\0' < 'a ' collate utf8mb4_general_ci;
+'a\0' < 'a ' collate utf8mb4_general_ci
 1
-SELECT 'a\t' < 'a';
-'a\t' < 'a'
+SELECT 'a\t' < 'a' collate utf8mb4_general_ci;
+'a\t' < 'a' collate utf8mb4_general_ci
 1
-SELECT 'a\t' < 'a ';
-'a\t' < 'a '
+SELECT 'a\t' < 'a ' collate utf8mb4_general_ci;
+'a\t' < 'a ' collate utf8mb4_general_ci
 1
 SELECT 'a' = 'a ' collate utf8mb4_bin;
 'a' = 'a ' collate utf8mb4_bin
@@ -105,7 +105,7 @@ SELECT 'a\t' < 'a' collate utf8mb4_bin;
 SELECT 'a\t' < 'a ' collate utf8mb4_bin;
 'a\t' < 'a ' collate utf8mb4_bin
 1
-CREATE TABLE t1 (a char(10) character set utf8mb4 not null) ENGINE MyISAM;
+CREATE TABLE t1 (a char(10) character set utf8mb4 collate utf8mb4_general_ci not null) ENGINE MyISAM;
 INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
 SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
 hex(a)	STRCMP(a,'a')	STRCMP(a,'a ')
@@ -127,8 +127,8 @@ create table t1 ENGINE MyISAM select date_format("2004-01-19 10:10:10", "%Y-%m-%
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `date_format("2004-01-19 10:10:10", "%Y-%m-%d")` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `date_format("2004-01-19 10:10:10", "%Y-%m-%d")` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1;
 date_format("2004-01-19 10:10:10", "%Y-%m-%d")
 2004-01-19
@@ -276,6 +276,9 @@ select * from t1 where a = 'b' and a != 'b';
 a
 drop table t1;
 set names utf8mb4;
+#
+# Bug#31081 server crash in regexp function
+#
 drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
@@ -284,9 +287,9 @@ select null, null;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `s1` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `s2` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `s1` varchar(64) DEFAULT NULL,
+  `s2` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 delete from t1;
 insert into t1 values('aaa','aaa');
 insert into t1 values('aaa|qqq','qqq');
@@ -319,9 +322,13 @@ NULL
 NULL
 NULL
 drop table t1;
+#
+# Bug #3928 regexp [[:>:]] and UTF-8
+#
 SELECT @@character_set_client, @@collation_connection;
 @@character_set_client	@@collation_connection
-utf8mb4	utf8mb4_general_ci
+utf8mb4	utf8mb4_uca1400_ai_ci
+# This should return TRUE
 select  'вася'  rlike '\\bвася\\b';
 'вася'  rlike '\\bвася\\b'
 1
@@ -346,6 +353,7 @@ select ' вася'  rlike '[[:<:]]вася[[:>:]]';
 select ' вася ' rlike '[[:<:]]вася[[:>:]]';
 ' вася ' rlike '[[:<:]]вася[[:>:]]'
 1
+# This should return FALSE
 select  'васяz' rlike '\\bвася\\b';
 'васяz' rlike '\\bвася\\b'
 0
@@ -372,8 +380,8 @@ create table t1 (a enum('aaaa','проба') character set utf8mb4) engine MyISA
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('aaaa','проба') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` enum('aaaa','проба') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('проба');
 select * from t1;
 a
@@ -382,8 +390,8 @@ create table t2 engine MyISAM select ifnull(a,a) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `ifnull(a,a)` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `ifnull(a,a)` varchar(5) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2;
 ifnull(a,a)
 проба
@@ -508,9 +516,9 @@ unique key a using hash (c(1))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `c` char(10) DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -544,9 +552,9 @@ unique key a using btree (c(1))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `c` char(10) DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING BTREE
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -668,7 +676,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -704,7 +712,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING BTREE
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('b'),('c'),('d'),('e'),('f');
 insert into t1 values ('aa');
 ERROR 23000: Duplicate entry 'a' for key 'a'
@@ -906,9 +914,9 @@ create table t2 engine MyISAM select concat(a,_utf8mb4'') as a, concat(b,_utf8mb
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `b` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` varchar(5) DEFAULT NULL,
+  `b` varchar(15) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 drop table t1;
 select 'c' like '\_' as want0;
@@ -1139,7 +1147,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `b` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
 SELECT * FROM t1 ORDER BY a, b;
 a	b
@@ -1473,7 +1481,7 @@ LENGTH(bug)
 100
 DROP TABLE t2;
 DROP TABLE t1;
-CREATE TABLE t1 (item varchar(255)) default character set utf8mb4 ENGINE MyISAM;
+CREATE TABLE t1 (item varchar(255)) default character set utf8mb4 collate utf8mb4_general_ci ENGINE MyISAM;
 INSERT INTO t1 VALUES (N'\\');
 INSERT INTO t1 VALUES (_utf8mb4'\\');
 INSERT INTO t1 VALUES (N'Cote d\'Ivoire');
@@ -1809,27 +1817,28 @@ SET CHARACTER SET utf8mb4;
 SHOW VARIABLES LIKE 'character\_set\_%';
 Variable_name	Value
 character_set_client	utf8mb4
-character_set_connection	latin1
-character_set_database	latin1
+character_set_collations	utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci
+character_set_connection	utf8mb4
+character_set_database	utf8mb4
 character_set_filesystem	binary
 character_set_results	utf8mb4
-character_set_server	latin1
+character_set_server	utf8mb4
 character_set_system	utf8mb3
 SET @@character_set_server=@save_character_set_server;
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 USE crashtest;
-CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb4 ENGINE MyISAM;
+CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_general_ci ENGINE MyISAM;
 INSERT INTO crashtest VALUES ('35'), ('36'), ('37');
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4) COLLATE utf8mb4_general_ci;
 crash
 35
 36
 37
 INSERT INTO crashtest VALUES ('-1000');
-EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4);
+EXPLAIN SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4) COLLATE utf8mb4_general_ci;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	crashtest	ALL	NULL	NULL	NULL	NULL	4	Using filesort
-SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4);
+SELECT * FROM crashtest ORDER BY CHAR(crash USING utf8mb4) COLLATE utf8mb4_general_ci;
 crash
 -1000
 35
@@ -2006,7 +2015,7 @@ insert into t1 values('t1_val');
 create view v1 as select 'v1_val' as col1;
 select coercibility(col1), collation(col1) from v1;
 coercibility(col1)	collation(col1)
-4	utf8mb4_general_ci
+6	utf8mb4_uca1400_ai_ci
 create view v2 as select col1 from v1 union select col1 from t1;
 select coercibility(col1), collation(col1)from v2;
 coercibility(col1)	collation(col1)
@@ -2040,7 +2049,7 @@ select concat(a, if(b>10, _utf8mb4'x', _utf8mb4'y')) from t1;
 concat(a, if(b>10, _utf8mb4'x', _utf8mb4'y'))
 ay
 select concat(a, if(b>10, _utf8mb4'æ', _utf8mb4'ß')) from t1;
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 drop table t1;
 set names utf8mb4;
 create table t1 (a varchar(10) character set latin1, b int) engine MyISAM;
@@ -2049,7 +2058,7 @@ select concat(a, if(b>10, _utf8mb4 0x78, _utf8mb4 0x79)) from t1;
 concat(a, if(b>10, _utf8mb4 0x78, _utf8mb4 0x79))
 ay
 select concat(a, if(b>10, _utf8mb4 0xC3A6, _utf8mb4 0xC3AF)) from t1;
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 drop table t1;
 set names utf8mb4;
 create table t1 (a varchar(10) character set latin1, b int) engine MyISAM;
@@ -2058,7 +2067,7 @@ select concat(a, if(b>10, 'x' 'x', 'y' 'y')) from t1;
 concat(a, if(b>10, 'x' 'x', 'y' 'y'))
 ayy
 select concat(a, if(b>10, 'x' 'æ', 'y' 'ß')) from t1;
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 drop table t1;
 CREATE TABLE t1 (
 colA int(11) NOT NULL,
@@ -2191,7 +2200,7 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 predicted_order int NOT NULL,
 utf8mb4_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb4 ENGINE MyISAM;
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE MyISAM;
 INSERT INTO t1 VALUES (19, x'E0B696'), (30, x'E0B69AE0B798'), (61, x'E0B6AF'), (93, x'E0B799'), (52, x'E0B6A6'), (73, x'E0B6BBE0B78AE2808D'), (3, x'E0B686'), (56, x'E0B6AA'), (55, x'E0B6A9'), (70, x'E0B6B9'), (94, x'E0B79A'), (80, x'E0B785'), (25, x'E0B69AE0B791'), (48, x'E0B6A2'), (13, x'E0B690'), (86, x'E0B793'), (91, x'E0B79F'), (81, x'E0B786'), (79, x'E0B784'), (14, x'E0B691'), (99, x'E0B78A'), (8, x'E0B68B'), (68, x'E0B6B7'), (22, x'E0B69A'), (16, x'E0B693'), (33, x'E0B69AE0B7B3'), (38, x'E0B69AE0B79D'), (21, x'E0B683'), (11, x'E0B68E'), (77, x'E0B782'), (40, x'E0B69AE0B78A'), (101, x'E0B78AE2808DE0B6BB'), (35, x'E0B69AE0B79A'), (1, x'E0B7B4'), (9, x'E0B68C'), (96, x'E0B79C'), (6, x'E0B689'), (95, x'E0B79B'), (88, x'E0B796'), (64, x'E0B6B3'), (26, x'E0B69AE0B792'), (82, x'E0B78F'), (28, x'E0B69AE0B794'), (39, x'E0B69AE0B79E'), (97, x'E0B79D'), (2, x'E0B685'), (75, x'E0B780'), (34, x'E0B69AE0B799'), (69, x'E0B6B8'), (83, x'E0B790'), (18, x'E0B695'), (90, x'E0B7B2'), (17, x'E0B694'), (72, x'E0B6BB'), (66, x'E0B6B5'), (59, x'E0B6AD'), (44, x'E0B69E'), (15, x'E0B692'), (23, x'E0B69AE0B78F'), (65, x'E0B6B4'), (42, x'E0B69C'), (63, x'E0B6B1'), (85, x'E0B792'), (47, x'E0B6A1'), (49, x'E0B6A3'), (92, x'E0B7B3'), (78, x'E0B783'), (36, x'E0B69AE0B79B'), (4, x'E0B687'), (24, x'E0B69AE0B790'), (87, x'E0B794'), (37, x'E0B69AE0B79C'), (32, x'E0B69AE0B79F'), (29, x'E0B69AE0B796'), (43, x'E0B69D'), (62, x'E0B6B0'), (100, x'E0B78AE2808DE0B6BA'), (60, x'E0B6AE'), (45, x'E0B69F'), (12, x'E0B68F'), (46, x'E0B6A0'), (50, x'E0B6A5'), (51, x'E0B6A4'), (5, x'E0B688'), (76, x'E0B781'), (89, x'E0B798'), (74, x'E0B6BD'), (10, x'E0B68D'), (57, x'E0B6AB'), (71, x'E0B6BA'), (58, x'E0B6AC'), (27, x'E0B69AE0B793'), (54, x'E0B6A8'), (84, x'E0B791'), (31, x'E0B69AE0B7B2'), (98, x'E0B79E'), (53, x'E0B6A7'), (41, x'E0B69B'), (67, x'E0B6B6'), (7, x'E0B68A'), (20, x'E0B682');
 SELECT predicted_order, hex(utf8mb4_encoding) FROM t1 ORDER BY utf8mb4_encoding COLLATE utf8mb4_sinhala_ci;
 predicted_order	hex(utf8mb4_encoding)
@@ -2375,7 +2384,7 @@ t1	CREATE TABLE `t1` (
   `Tape` tinytext DEFAULT NULL,
   PRIMARY KEY (`clipid`),
   KEY `tape` (`Tape`(250))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Testing 4-byte values.
@@ -2384,7 +2393,7 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 u_decimal int NOT NULL,
 utf8mb4_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb4 ENGINE MyISAM;
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE MyISAM;
 INSERT INTO t1 VALUES (119040, x'f09d8480'),
 # G CLEF
 (119070, x'f09d849e'),
@@ -2429,7 +2438,7 @@ DROP TABLE IF EXISTS t2;
 CREATE TABLE t2 (
 u_decimal int NOT NULL,
 utf8mb3_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb3 ENGINE MyISAM;
+) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci ENGINE MyISAM;
 INSERT INTO t2 VALUES (42856, x'ea9da8');
 INSERT INTO t2 VALUES (65131, x'efb9ab');
 INSERT IGNORE INTO t2 VALUES (1114111, x'f48fbfbf');
@@ -2500,7 +2509,7 @@ WHERE t1.utf8mb4_encoding > t2.utf8mb3_encoding;
 count(*)
 33
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2521,7 +2530,7 @@ u_decimal	hex(utf8mb4_encoding)	utf8mb4_encoding
 120735	3F	?
 65131	EFB9AB3F3F3F3F3FEFB9ABEFB9AB3FEFB9AB	﹫?????﹫﹫?﹫
 917999	3F	?
-ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb4;
+ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -2533,7 +2542,7 @@ u_decimal	hex(utf8mb3_encoding)
 1114111	3F3F3F3F
 42856	EA9DA8
 65131	EFB9AB
-ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb3;
+ALTER TABLE t2 CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -2545,7 +2554,7 @@ u_decimal	hex(utf8mb3_encoding)
 1114111	3F3F3F3F
 42856	EA9DA8
 65131	EFB9AB
-ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb3;
+ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2566,7 +2575,7 @@ u_decimal	hex(utf8mb4_encoding)
 120735	3F
 65131	EFB9AB3F3F3F3F3FEFB9ABEFB9AB3FEFB9AB
 917999	3F
-ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb4;
+ALTER TABLE t1 MODIFY utf8mb4_encoding VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2587,7 +2596,7 @@ u_decimal	hex(utf8mb4_encoding)
 120735	3F
 65131	EFB9AB3F3F3F3F3FEFB9ABEFB9AB3FEFB9AB
 917999	3F
-ALTER TABLE t2 MODIFY utf8mb3_encoding VARCHAR(10) CHARACTER SET utf8mb4;
+ALTER TABLE t2 MODIFY utf8mb3_encoding VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -2603,13 +2612,13 @@ DROP TABLE IF EXISTS t3;
 CREATE TABLE t3 (
 u_decimal int NOT NULL,
 utf8mb3_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8 ENGINE MyISAM;
+) CHARACTER SET utf8 COLLATE utf8_general_ci ENGINE MyISAM;
 INSERT INTO t3 SELECT * FROM t1;
 DROP TABLE IF EXISTS t4;
 CREATE TABLE t4 (
 u_decimal int NOT NULL,
 utf8mb4_encoding VARCHAR(10) NOT NULL
-) CHARACTER SET utf8mb4 ENGINE MyISAM;
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci ENGINE MyISAM;
 INSERT INTO t3 SELECT * FROM t2;
 DROP TABLE t1;
 DROP TABLE t2;
@@ -2621,11 +2630,11 @@ DROP TABLE t4;
 SELECT CHARSET(CONCAT(_utf8mb4'a',_utf8'b'));
 CHARSET(CONCAT(_utf8mb4'a',_utf8'b'))
 utf8mb4
-CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 NOT NULL) ENGINE MyISAM;
+CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL) ENGINE MyISAM;
 INSERT INTO t1 VALUES (x'ea9da8'),(x'f48fbfbf');
 SELECT CONCAT(utf8mb4, _utf8 x'ea9da8') FROM t1 LIMIT 0;
 CONCAT(utf8mb4, _utf8 x'ea9da8')
-CREATE TABLE t2 (utf8mb3 VARCHAR(10) CHARACTER SET utf8mb3 NOT NULL) ENGINE MyISAM;
+CREATE TABLE t2 (utf8mb3 VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL) ENGINE MyISAM;
 INSERT INTO t2 VALUES (x'ea9da8');
 SELECT HEX(CONCAT(utf8mb4, utf8mb3)) FROM t1,t2 ORDER BY 1;
 HEX(CONCAT(utf8mb4, utf8mb3))
@@ -2641,7 +2650,7 @@ t3	CREATE TEMPORARY TABLE `t3` (
   `utf8mb4` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `utf8mb3` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TEMPORARY TABLE t3;
 SELECT * FROM t1, t2 WHERE t1.utf8mb4 > t2.utf8mb3;
 utf8mb4	utf8mb3
@@ -2656,12 +2665,12 @@ DROP TABLE t2;
 #
 # Check that mixing utf8mb4 with an invalid utf8 constant returns error
 #
-CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4) ENGINE MyISAM;
+CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci) ENGINE MyISAM;
 INSERT INTO t1 VALUES (x'f48fbfbf');
 SELECT CONCAT(utf8mb4, _utf8 '�') FROM t1;
-ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,IMPLICIT) and (utf8mb3_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,IMPLICIT) and (utf8mb3_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 SELECT CONCAT('a', _utf8 '�') FROM t1;
-ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,COERCIBLE) and (utf8mb3_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (utf8mb4_uca1400_ai_ci,COERCIBLE) and (utf8mb3_uca1400_ai_ci,COERCIBLE) for operation 'concat'
 DROP TABLE t1;
 #
 # End of 5.5 tests
@@ -2674,7 +2683,8 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (
 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-a VARCHAR(10) CHARACTER SET utf8mb4, KEY(a,id)
+a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+KEY(a,id)
 );
 INSERT INTO t1 (a) VALUES (0x61);
 INSERT INTO t1 (a) VALUES (0xC280),(0xDFBF);

@@ -37,7 +37,7 @@
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 #include "sql_parse.h"
-//#include "rpl_msr.h"             /* Multisource replciation */
+//#include "rpl_msr.h"             /* Multisource replication */
 
 #ifdef HAVE_REPLICATION
 THR_LOCK table_replication_connection_configuration::m_table_lock;
@@ -68,7 +68,7 @@ table_replication_connection_configuration::m_share=
   "SSL_CA_FILE VARCHAR(512) not null comment 'Path to the file that contains one or more certificates for trusted Certificate Authorities (CA) to use for TLS.',"
   "SSL_CA_PATH VARCHAR(512) not null comment 'Path to a directory that contains one or more PEM files that contain X509 certificates for a trusted Certificate Authority (CA) to use for TLS.',"
   "SSL_CERTIFICATE VARCHAR(512) not null comment 'Path to the certificate used to authenticate the master.',"
-  "SSL_CIPHER VARCHAR(512) not null comment 'Which cipher is used for encription.',"
+  "SSL_CIPHER VARCHAR(512) not null comment 'Which cipher is used for encryption.',"
   "SSL_KEY VARCHAR(512) not null comment 'Path to the private key used for TLS.',"
   "SSL_VERIFY_SERVER_CERTIFICATE ENUM('YES','NO') not null comment 'Whether the server certificate is verified as part of the SSL connection',"
   "SSL_CRL_FILE VARCHAR(255) not null comment 'Path to the PEM file containing one or more revoked X.509 certificates.',"
@@ -255,7 +255,7 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
 
   m_row.connection_retry_interval= (unsigned int) mi->connect_retry;
 
-  m_row.connection_retry_count= master_retry_count; //(ulong) mi->retry_count;
+  m_row.connection_retry_count= mi->retry_count;
 
   m_row.heartbeat_interval= (double)mi->heartbeat_period;
 

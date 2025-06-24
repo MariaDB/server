@@ -7,7 +7,7 @@
 --source include/default_optimizer_switch.inc
 --source include/have_sequence.inc
 --source include/have_innodb.inc
---source include/have_sequence.inc
+
 #
 # TODO:
 # Add queries with:
@@ -21,7 +21,7 @@ drop table if exists t1;
 
 create table t1 (
   a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(248) default ' '
-);
+) charset=latin1;
 
 insert into t1 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
@@ -73,7 +73,7 @@ drop table if exists t2;
 
 create table t2 (
   a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(248) default ' '
-);
+) charset=latin1;
 insert into t2 select * from t1;
 # add few rows with NULL's in the MIN/MAX column
 insert into t2 (a1, a2, b, c, d) values
@@ -110,7 +110,7 @@ drop table if exists t3;
 
 create table t3 (
   a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
-);
+) charset=latin1;
 
 insert into t3 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
@@ -711,7 +711,7 @@ explain extended select sum(ord(a1)) from t1 where (a1 > 'a') group by a1,a2,b;
 create table t4 as select distinct a1, a2, b, c from t1;
 alter table t4 add unique index idxt4 (a1, a2, b, c);
 
---echo # This is "superceded" by MDEV-7118, and Loose Index Scan is again an option:
+--echo # This is "superseded" by MDEV-7118, and Loose Index Scan is again an option:
 explain
 select a1, a2, b, min(c) from t4 group by a1, a2, b;
 select a1, a2, b, min(c) from t4 group by a1, a2, b;
@@ -778,7 +778,7 @@ drop table t1;
 #             returns impossible range
 #
 
-CREATE TABLE t1 (a varchar(5), b int(11), PRIMARY KEY (a,b));
+CREATE TABLE t1 (a varchar(5), b int(11), PRIMARY KEY (a,b)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('AA',1), ('AA',2), ('AA',3), ('BB',1), ('AA',4);
 OPTIMIZE TABLE t1;
 
@@ -836,7 +836,7 @@ DROP PROCEDURE a;
 # Bug #18068: SELECT DISTINCT
 #
 
-CREATE TABLE t1 (a varchar(64) NOT NULL default '', KEY(a));
+CREATE TABLE t1 (a varchar(64) NOT NULL default '', KEY(a)) CHARSET=latin1;
 
 INSERT INTO t1 (a) VALUES 
   (''), ('CENTRAL'), ('EASTERN'), ('GREATER LONDON'),
@@ -900,23 +900,27 @@ t1;
 
 DROP TABLE t1,t2,t3,t4,t5,t6;
 
-#
-# Bug#22342: No results returned for query using max and group by
-#
+--echo #
+--echo # Bug#22342: No results returned for query using max and group by
+--echo #
 CREATE TABLE t1 (a int, b int, KEY (a,b), KEY b (b));
 INSERT INTO t1 VALUES
   (1,1),(1,2),(1,0),(1,3),
   (1,-1),(1,-2),(1,-3),(1,-4);
 ANALYZE TABLE t1;
-
-explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
-SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
-SELECT MIN(b), a FROM t1 WHERE b > 1 AND a = 1 GROUP BY a;
 CREATE TABLE t2 (a int, b int, c int, PRIMARY KEY (a,b,c));
 INSERT INTO t2 SELECT a,b,b FROM t1;
+
+explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+insert into t1 select 1,seq from seq_1_to_100;
+explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+analyze table t1;
+explain SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+
+SELECT MAX(b), a FROM t1 WHERE b < 2 AND a = 1 GROUP BY a;
+SELECT MIN(b), a FROM t1 WHERE b > 1 AND a = 1 GROUP BY a;
 explain SELECT MIN(c) FROM t2 WHERE b = 2 and a = 1 and c > 1 GROUP BY a;
 SELECT MIN(c) FROM t2 WHERE b = 2 and a = 1 and c > 1 GROUP BY a;
-
 DROP TABLE t1,t2;
 
 #
@@ -1242,7 +1246,7 @@ drop table t1;
 --echo # MDEV-765 lp:825075 - Wrong result with GROUP BY + multipart key + MIN/MAX loose scan
 --echo #
 
-CREATE TABLE t1 (a varchar(1), b varchar(1), KEY (b,a));
+CREATE TABLE t1 (a varchar(1), b varchar(1), KEY (b,a)) CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('0',NULL),('9',NULL),('8','c'),('4','d'),('7','d'),(NULL,'f'),
 ('7','f'),('8','g'),(NULL,'j');
@@ -1390,6 +1394,7 @@ SELECT a, c, COUNT(DISTINCT c, a, b) FROM t2 GROUP BY a, b, c;
 
 EXPLAIN SELECT COUNT(DISTINCT c, a, b) FROM t2
   WHERE a > 5 AND b BETWEEN 10 AND 20 GROUP BY a, b, c;
+
 SELECT COUNT(DISTINCT c, a, b) FROM t2
   WHERE a > 5 AND b BETWEEN 10 AND 20 GROUP BY a, b, c;
 
@@ -1438,13 +1443,15 @@ CREATE TABLE t1 (
   f1 int(11) NOT NULL DEFAULT '0',
   f2 char(1) NOT NULL DEFAULT '',
   KEY (f1,f2)
-) ;
+) CHARSET=latin1;
 insert into t1 values(1,'A'),(1 , 'B'), (1, 'C'), (2, 'A'), 
 (3, 'A'), (3, 'B'), (3, 'C'), (3, 'D');
-
+explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
+SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
+insert into t1 select seq/10,char(64+mod(seq,4)) from seq_1_to_100;
+explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
 explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
- 
 drop table t1;
 --echo # End of test#50539.
 
@@ -1613,7 +1620,7 @@ DROP TABLE t1;
 --echo # MDEV-8229 GROUP_MIN_MAX is erroneously applied for BETWEEN in some cases
 --echo #
 SET NAMES latin1;
-CREATE TABLE t1 (id INT NOT NULL, a VARCHAR(20)) ENGINE=MyISAM;
+CREATE TABLE t1 (id INT NOT NULL, a VARCHAR(20)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'2001-01-01');
 INSERT INTO t1 VALUES (1,'2001-01-02');
 INSERT INTO t1 VALUES (1,'2001-01-03');
@@ -1656,7 +1663,7 @@ DROP TABLE t1;
 --echo # long strings.
 --echo #
 
-create table t1 (a varchar(10), key (a)) engine=myisam;
+create table t1 (a varchar(10), key (a)) engine=myisam charset=latin1;
 insert into t1 values("bar"),("Cafe");
 explain select min(a) from t1 where a between "a" and "Cafe2";
 explain select min(a) from t1 where a between "a" and "Cafeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -2006,4 +2013,40 @@ drop table t1;
 
 --echo #
 --echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-36118 Wrong result in loose index scan
+--echo #
+
+CREATE TABLE t1 (a int, b int, KEY (a, b));
+insert into t1 values (1, 3), (1, 1);
+--source include/maybe_debug.inc
+if ($have_debug) {
+  --disable_query_log
+  set @old_debug=@@debug;
+  set debug="+d,force_group_by";
+  --enable_query_log
+}
+SELECT MAX(b) FROM t1 WHERE (b > 2 AND b < 4) OR (b = 5) GROUP BY a;
+if ($have_debug) {
+  --disable_query_log
+  set debug=@old_debug;
+  --enable_query_log
+}
+
+drop table t1;
+
+--echo #
+--echo # MDEV-36220 ASAN unknown-crash in loose index scan of MIN with IS NULL
+--echo #
+
+CREATE TABLE t1 (a int, b int, KEY (a, b));
+insert into t1 values (4, NULL), (1, 14), (4, 3);
+SELECT MIN(b) FROM t1 WHERE b = 3 OR b IS NULL GROUP BY a;
+SELECT MIN(b) FROM t1 WHERE b IS NULL GROUP BY a;
+drop table t1;
+
+--echo #
+--echo # End of 10.11 tests
 --echo #

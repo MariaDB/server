@@ -167,7 +167,7 @@ deinit_event_thread(THD *thd)
       thd  The THD of the thread. Has to be allocated by the caller.
 
   NOTES
-    1. The host of the thead is my_localhost
+    1. The host of the thread is my_localhost
     2. thd->net is initted with NULL - no communication.
 */
 
@@ -225,6 +225,7 @@ event_scheduler_thread(void *arg)
   thd->reset_stack();
 
   mysql_thread_set_psi_id(thd->thread_id);
+  my_thread_set_name("event_scheduler");
 
   res= post_init_event_thread(thd);
 
@@ -261,6 +262,7 @@ event_worker_thread(void *arg)
   thd= event->thd;
 
   mysql_thread_set_psi_id(thd->thread_id);
+  my_thread_set_name("event_worker");
 
   Event_worker_thread worker_thread;
   worker_thread.run(thd, event);

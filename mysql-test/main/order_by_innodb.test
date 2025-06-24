@@ -66,13 +66,17 @@ KEY a_c (a,c),
 KEY a_b (a,b)
 ) ENGINE=InnoDB;
 insert into t1 select A.a , B.a, C.a from t0 A, t0 B, t0 C;
+select count(*) from t1;
+select count(*) from t1 where a=1;
+select count(*) from t1 where a=1 and c=2;
 
 --echo # should use ref access
 explain select a,b,c from t1 where a=1 and c=2 order by b;
 
---echo # both should use range access
+--echo # all should use range access
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 10;
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 300;
 explain select a,b,c from t1 where a=1 and c=2 order by b limit 1000;
-explain select a,b,c from t1 where a=1 and c=2 order by b limit 2000;
 drop table t1,t0;
 
 --echo # Start of 10.2 tests
@@ -163,7 +167,7 @@ from
                    dd.d1 desc, dd.d2 desc, dd.id desc limit 1
                 );
 
-create index for_latest_sort on t2 (d1 desc, d2 desc, id desc);
+create index for_latest_sort on t2 (d1, d2, id);
 analyze table t2 persistent for all;
 
 select
@@ -179,6 +183,38 @@ from
                  order by
                    dd.d1 desc, dd.d2 desc, dd.id desc limit 1
                 );
+
+--echo # Now, same as above but use a DESC index
+
+CREATE TABLE t3 (
+  id int NOT NULL PRIMARY KEY,
+  id2 int NOT NULL,
+  d1 datetime,
+  d2 timestamp NOT NULL,
+  KEY id2 (id2)
+) engine=innodb;
+
+insert into t3 values
+  (1,2,'2019-03-05 00:00:00','2019-03-06 00:00:00'),
+  (2,3,'2019-03-05 00:00:00','2019-03-06 00:00:00'),
+  (3,3,'2019-03-06 00:00:00','2019-03-05 00:00:00');
+create index for_latest_sort on t3 (d1 desc, d2 desc, id desc);
+
+
+select
+  t1.id,t3.id
+from
+  t1 left join
+  t3 on t3.id2 = t1.id and
+        t3.id = (select dd.id
+                 from t3 dd
+                 where
+                    dd.id2 = t1.id and
+                    d1 > '2019-02-06 00:00:00'
+                 order by
+                   dd.d1 desc, dd.d2 desc, dd.id desc limit 1
+                );
+
 
 --echo #
 --echo # MDEV-27270: Wrong query plan with Range Checked for Each Record and ORDER BY ... LIMIT
@@ -201,6 +237,27 @@ from
                  order by
                    dd.d1, dd.d2, dd.id limit 1
                 );
-drop table t1,t2;
+
+drop table t1,t2,t3;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-26938 Support descending indexes internally in InnoDB
+--echo #
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+explain select * from t1 force index(r) order by a desc,b limit 20;
+        select * from t1 force index(r) order by a desc,b limit 20;
+drop table t1;
+
+--echo #
+--echo #  MDEV-31116: SIGSEGV in test_if_skip_sort_order|JOIN::optimize_stage2
+--echo #
+CREATE TABLE t1 (a BINARY (2),b BINARY (1),KEY(a)) ENGINE=innodb;
+INSERT INTO t1 select 'ab', NULL from seq_1_to_14;
+SELECT * FROM t1 WHERE a IN (SELECT a FROM t1 WHERE a >'') ORDER BY a LIMIT 1;
+DROP TABLE t1;
+--echo # End of 11.0 tests

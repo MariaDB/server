@@ -1,0 +1,9 @@
+# Disable test for embedded as 'online' is ignored
+--source include/not_embedded.inc
+
+--echo # MDEV-31777 ER_GET_ERRNO upon online alter with concurrent DML on
+--echo # CONNECT table
+CREATE TABLE t (a INT) ENGINE=CONNECT TABLE_TYPE=DOS;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t FORCE, ALGORITHM=COPY, LOCK=NONE;
+DROP TABLE t;

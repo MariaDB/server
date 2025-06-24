@@ -130,6 +130,8 @@ our $path_language;
 our $path_current_testlog;
 our $path_testlog;
 
+our $opt_open_files_limit;
+
 our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
@@ -186,6 +188,7 @@ my @DEFAULT_SUITES= qw(
     compat/mssql-
     compat/maxdb-
     encryption-
+    events-
     federated-
     funcs_1-
     funcs_2-
@@ -200,6 +203,7 @@ my @DEFAULT_SUITES= qw(
     json-
     maria-
     mariabackup-
+    merge-
     multi_source-
     optimizer_unfixed_bugs-
     parts-
@@ -268,6 +272,9 @@ our $opt_force= 0;
 our $opt_skip_not_found= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
+our $opt_catalogs= 0;
+our $opt_catalog_name="";
+our $catalog_name="def";
 
 our $opt_gcov;
 our $opt_gprof;
@@ -1274,6 +1281,7 @@ sub command_line_setup {
 	     'list-options'             => \$opt_list_options,
              'skip-test-list=s'         => \@opt_skip_test_list,
              'xml-report=s'             => \$opt_xml_report,
+             'open-files-limit=i',      => \$opt_open_files_limit,
 
              My::Debugger::options(),
              My::CoreDump::options(),
@@ -1327,14 +1335,14 @@ sub command_line_setup {
 
   # In the RPM case, binaries and libraries are installed in the
   # default system locations, instead of having our own private base
-  # directory. And we install "/usr/share/mysql-test". Moving up one
-  # more directory relative to "mysql-test" gives us a usable base
+  # directory. And we install "/usr/share/mariadb-test". Moving up one
+  # more directory relative to "mariadb-test" gives us a usable base
   # directory for RPM installs.
   if ( ! $source_dist and ! -d "$basedir/bin" )
   {
     $basedir= dirname($basedir);
   }
-  # For .deb, it's like RPM, but installed in /usr/share/mysql/mysql-test.
+  # For .deb, it's like RPM, but installed in /usr/share/mariadb/mariadb-test.
   # So move up one more directory level yet.
   if ( ! $source_dist and ! -d "$basedir/bin" )
   {
@@ -1843,7 +1851,8 @@ sub collect_mysqld_features {
            and $1 ne "innodb-buffer-page"
            and $1 ne "innodb-lock-waits"
            and $1 ne "innodb-locks"
-           and $1 ne "innodb-trx";
+           and $1 ne "innodb-trx"
+           and $1 ne "gssapi";
       next;
     }
 
@@ -1853,7 +1862,7 @@ sub collect_mysqld_features {
     /^([\S]+)[ \t]+(.*?)\r?$/ or die "Could not parse mysqld --help: $_\n";
     $mysqld_variables{$1}= $2;
   }
-  mtr_error("Could not find variabes list") unless %mysqld_variables;
+  mtr_error("Could not find variables list") unless %mysqld_variables;
 }
 
 
@@ -1933,14 +1942,15 @@ sub executable_setup () {
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mariadb-plugin");
   $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
-  $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mysql_embedded");
+  $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mariadb-embedded",
+                                            "$bindir/libmysqld/examples/mysql_embedded");
 
   # Look for mysqltest executable
   if ( $opt_embedded_server )
   {
     $exe_mysqltest=
-      mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mysqltest_embedded",
-                     "$path_client_bindir/mysqltest_embedded");
+      mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mariadb-test-embedded",
+                     "$path_client_bindir/mariadb-test-embedded");
   }
   else
   {
@@ -1968,7 +1978,7 @@ sub client_debug_arg($$) {
 
   if ( $opt_debug ) {
     mtr_add_arg($args,
-		"--loose-debug=d,info,warning,warnings:t:A,%s/log/%s.trace",
+		"--loose-debug-dbug=d,info,warning,warnings:t:A,%s/log/%s.trace",
 		$path_vardir_trace, $client_name)
   }
 }
@@ -2043,11 +2053,15 @@ sub mysql_client_test_arguments(){
   # mysql_client_test executable may _not_ exist
   if ( $opt_embedded_server ) {
     $exe= mtr_exe_maybe_exists(
+            "$bindir/libmysqld/examples$multiconfig/mariadb-client-test-embedded",
+            "$bindir/bin/mariadb-client-test-embedded",
             "$bindir/libmysqld/examples$multiconfig/mysql_client_test_embedded",
-		"$bindir/bin/mysql_client_test_embedded");
+            "$bindir/bin/mysql_client_test_embedded");
   } else {
-    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mysql_client_test",
-			       "$bindir/bin/mysql_client_test");
+    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mariadb-client-test",
+                               "$bindir/bin/mariadb-client-test",
+                               "$bindir/tests$multiconfig/mysql_client_test",
+                               "$bindir/bin/mysql_client_test");
   }
 
   my $args;
@@ -2222,6 +2236,9 @@ sub environment_setup {
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
        "$bindir/bin/mariadb-install-db");
+     $ENV{'MARIADB_UPGRADE_SERVICE_EXE'}= mtr_exe_exists("$bindir/sql$multiconfig/mariadb-upgrade-service",
+      "$bindir/bin/mariadb-upgrade-service");
+     $ENV{'MARIADB_UPGRADE_EXE'}= mtr_exe_exists("$path_client_bindir/mariadb-upgrade");
   }
 
   my $client_config_exe=
@@ -2252,10 +2269,10 @@ sub environment_setup {
   # mysql_fix_privilege_tables.sql
   # ----------------------------------------------------
   my $file_mysql_fix_privilege_tables=
-    mtr_file_exists("$bindir/scripts/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mariadb/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mysql/mysql_fix_privilege_tables.sql");
+    mtr_file_exists("$bindir/scripts/mariadb_fix_privilege_tables.sql",
+		    "$bindir/share/mariadb_fix_privilege_tables.sql",
+		    "$bindir/share/mariadb/mariadb_fix_privilege_tables.sql",
+		    "$bindir/share/mysql/mariadb_fix_privilege_tables.sql");
   $ENV{'MYSQL_FIX_PRIVILEGE_TABLES'}=  $file_mysql_fix_privilege_tables;
 
   # ----------------------------------------------------
@@ -2330,6 +2347,8 @@ sub environment_setup {
   # mariabackup
   # ----------------------------------------------------
   my $exe_mariabackup= mtr_exe_maybe_exists(
+      "$bindir/extra/mariabackup$multiconfig/mariadb-backup",
+      "$path_client_bindir/mariadb-backup",
       "$bindir/extra/mariabackup$multiconfig/mariabackup",
       "$path_client_bindir/mariabackup");
 
@@ -2786,6 +2805,7 @@ sub mysql_server_start($) {
         # Copy datadir from installed system db
         my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
         my $install_db= "$path/install.db";
+        mtr_verbose("copying $install_db to $datadir");
         copytree($install_db, $datadir) if -d $install_db;
         mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
       }
@@ -2837,7 +2857,7 @@ sub mysql_server_start($) {
 
   # If wsrep is on, we need to wait until the first
   # server starts and bootstraps the cluster before
-  # starting other servers. The bootsrap server in the
+  # starting other servers. The bootstrap server in the
   # configuration should always be the first which has
   # wsrep_on=ON
   if (wsrep_on($mysqld) && wsrep_is_bootstrap_server($mysqld))
@@ -3103,11 +3123,12 @@ sub mysql_install_db {
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
   mtr_add_arg($args, "--loose-innodb-log-file-size=10M");
+  mtr_add_arg($args, "--loose-innodb-fast-shutdown=0");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
-  mtr_add_arg($args, "--character-set-server=latin1");
+  mtr_add_arg($args, "--character-set-server=utf8mb4");
   mtr_add_arg($args, "--loose-disable-performance-schema");
 
   if ( $opt_debug )
@@ -3164,7 +3185,7 @@ sub mysql_install_db {
     my $path_sql= my_find_file($install_basedir,
              ["mysql", "sql/share", "share/mariadb",
               "share/mysql", "share", "scripts"],
-             "mysql_system_tables.sql",
+             "mariadb_system_tables.sql",
              NOT_REQUIRED);
 
     if (-f $path_sql )
@@ -3175,7 +3196,7 @@ sub mysql_install_db {
 
       # Add the offical mysql system tables
       # for a production system
-      mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_system_tables.sql",
            $bootstrap_sql_file);
 
       my $gis_sp_path = $source_dist ? "$bindir/scripts" : $sql_dir;
@@ -3184,18 +3205,18 @@ sub mysql_install_db {
 
       # Add the performance tables
       # for a production system
-      mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_performance_tables.sql",
                             $bootstrap_sql_file);
 
       # Add the mysql system tables initial data
       # for a production system
-      mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_system_tables_data.sql",
            $bootstrap_sql_file);
 
       # Add test data for timezone - this is just a subset, on a real
       # system these tables will be populated either by mysql_tzinfo_to_sql
       # or by downloading the timezone table package from our website
-      mtr_appendfile_to_file("$sql_dir/mysql_test_data_timezone.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_test_data_timezone.sql",
            $bootstrap_sql_file);
 
       # Fill help tables, just an empty file when running from bk repo
@@ -3205,11 +3226,10 @@ sub mysql_install_db {
            $bootstrap_sql_file);
 
       # Append sys schema
-      mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
+      mtr_appendfile_to_file("$gis_sp_path/mariadb_sys_schema.sql",
            $bootstrap_sql_file);
-      # Create test database
-      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
-                            $bootstrap_sql_file);
+
+      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;\n");
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to Aria now
@@ -3234,9 +3254,9 @@ sub mysql_install_db {
 
     # Create mtr database
     mtr_tofile($bootstrap_sql_file,
-         "CREATE DATABASE mtr CHARSET=latin1;\n");
+         "CREATE DATABASE mtr CHARSET=utf8mb4;\n");
 
-    # Add help tables and data for warning detection and supression
+    # Add help tables and data for warning detection and suppression
     mtr_tofile($bootstrap_sql_file,
                sql_to_bootstrap(mtr_grab_file("include/mtr_warnings.sql")));
 
@@ -3403,12 +3423,12 @@ sub do_before_run_mysqltest($)
 
 
 #
-# Check all server for sideffects
+# Check all server for side effects
 #
 # RETURN VALUE
 #  0 ok
 #  1 Check failed
-#  >1 Fatal errro
+#  >1 Fatal error
 
 sub check_testcase($$)
 {
@@ -3945,6 +3965,23 @@ sub run_testcase ($$) {
       }
     }
 
+    # Set up things for catalogs
+    # The values of MARIADB_TOPDIR and MARIADB_DATADIR should
+    # be taken from the values used by the default (first)
+    # connection that is used by mariadb-test.
+    my ($mysqld, @servers);
+    @servers= all_servers();
+    $mysqld= $servers[0];
+    $ENV{'MARIADB_TOPDIR'}= $mysqld->value('datadir');
+    if (!$opt_catalogs)
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir');
+    }
+    else
+    {
+      $ENV{'MARIADB_DATADIR'}= $mysqld->value('datadir') . "/" . $catalog_name;
+    }
+
     # Write start of testcase to log
     mark_log($path_current_testlog, $tinfo);
 
@@ -4390,7 +4427,7 @@ sub extract_warning_lines ($$) {
   my ($error_log, $append) = @_;
 
   # Open the servers .err log file and read all lines
-  # belonging to current tets into @lines
+  # belonging to current test into @lines
   my $Ferr = IO::File->new($error_log)
     or return [];
   my $last_pos= $last_warning_position->{$error_log}{seek_pos};
@@ -4562,9 +4599,6 @@ sub extract_warning_lines ($$) {
      qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
 
-  push @antipatterns, qr/though there are still open handles to table/
-    if $mysql_version_id < 100600;
-
   my $matched_lines= [];
   LINE: foreach my $line ( @lines )
   {
@@ -4593,7 +4627,7 @@ sub extract_warning_lines ($$) {
 }
 
 
-# Run include/check-warnings.test
+# Run include/check-warnings.inc
 #
 # RETURN VALUE
 #  0 OK
@@ -4615,7 +4649,7 @@ sub start_check_warnings ($$) {
 
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
-  mtr_add_arg($args, "--test-file=%s", "include/check-warnings.test");
+  mtr_add_arg($args, "--test-file=%s", "include/check-warnings.inc");
 
   if ( $opt_embedded_server )
   {
@@ -5031,6 +5065,7 @@ sub mysqld_stop {
   mtr_add_arg($args, "--host=%s", $mysqld->value('#host'));
   mtr_add_arg($args, "--connect_timeout=20");
   mtr_add_arg($args, "--protocol=tcp");
+  mtr_add_arg($args, "--disable-ssl-verify-server-cert");
 
   mtr_add_arg($args, "shutdown");
 
@@ -5550,7 +5585,7 @@ sub start_servers($) {
 
 
 #
-# Run include/check-testcase.test
+# Run include/check-testcase.inc
 # Before a testcase, run in record mode and save result file to var/tmp
 # After testcase, run and compare with the recorded file, they should be equal!
 #
@@ -5573,7 +5608,7 @@ sub start_check_testcase ($$$) {
   mtr_add_arg($args, "--defaults-file=%s", $path_config_file);
   mtr_add_arg($args, "--defaults-group-suffix=%s", $mysqld->after('mysqld'));
   mtr_add_arg($args, "--result-file=%s", "$opt_vardir/tmp/$name.result");
-  mtr_add_arg($args, "--test-file=%s", "include/check-testcase.test");
+  mtr_add_arg($args, "--test-file=%s", "include/check-testcase.inc");
   mtr_add_arg($args, "--verbose");
 
   if ( $mode eq "before" )
@@ -5747,6 +5782,7 @@ sub start_mysqltest ($) {
      append        => 1,
      error         => $path_current_testlog,
      verbose       => $opt_verbose,
+     open_files_limit => $opt_open_files_limit,
     );
   mtr_verbose("Started $proc");
   return $proc;
@@ -5936,7 +5972,7 @@ Options that specify ports
                         set and is not "auto", it overrides build-thread.
   mtr-build-thread=#    Specify unique number to calculate port number(s) from.
   build-thread=#        Can be set in environment variable MTR_BUILD_THREAD.
-                        Set  MTR_BUILD_THREAD="auto" to automatically aquire
+                        Set  MTR_BUILD_THREAD="auto" to automatically acquire
                         a build thread id that is unique to current host
   port-group-size=N     Reserve groups of TCP ports of size N for each MTR thread
 
@@ -6045,11 +6081,13 @@ Misc options
   timediff              With --timestamp, also print time passed since
                         *previous* test started
   max-connections=N     Max number of open connection to server in mysqltest
+  open-files-limit=N    Max number of open files allowed for any of the children
+                        of my_safe_process. Default is 1024.
   report-times          Report how much time has been spent on different
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
-  xml-report=<file>     Output jUnit xml file of the results.
+  xml-report=<file>     Output xml file of the results.
   tail-lines=N          Number of lines of the result to include in a failure
                         report.
 

@@ -60,7 +60,7 @@ select * from vt1;
 --echo # VIEW with parameters [tempesta-tech/mariadb#151]
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
---replace_result 18446744073709551615 MAX_RESULT "TIMESTAMP'2038-01-19 03:14:07.999999'" MAX_RESULT
+--replace_result 18446744073709551615 MAX_RESULT $sys_time_max_replace MAX_RESULT
 show create view vt1;
 
 --echo # VIEW over JOIN of versioned tables [tempesta-tech/mariadb#153]

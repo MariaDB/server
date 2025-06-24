@@ -21,6 +21,7 @@ CREATE TABLE t(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t VALUES (1,1),(2,2);
 BEGIN; SELECT * FROM t LOCK IN SHARE MODE;
 --connect con_weird,localhost,root
+SET innodb_snapshot_isolation=OFF;
 BEGIN;
 SELECT * FROM t;
 --connect consistent,localhost,root

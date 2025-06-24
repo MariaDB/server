@@ -1,0 +1,119 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+#
+SET default_storage_engine=InnoDB;
+#
+# Range optimizer
+#
+CREATE TABLE t1 (a INET4, INDEX(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` inet4 DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+FOR i IN 0..255
+DO
+INSERT INTO t1 VALUES (CONCAT('0.0.0.', i));
+END FOR
+$$
+SELECT * FROM t1 WHERE a='0.0.0.255';
+a
+0.0.0.255
+EXPLAIN SELECT * FROM t1 WHERE a='0.0.0.255';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	Using where; Using index
+SELECT * FROM t1 WHERE a='garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a='garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a>='0.0.0.254';
+a
+0.0.0.254
+0.0.0.255
+EXPLAIN SELECT * FROM t1 WHERE a>='0.0.0.254';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+SELECT * FROM t1 WHERE a>='garbage';
+a
+EXPLAIN SELECT * FROM t1 WHERE a>='garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT * FROM t1 WHERE a IN ('0.0.0.128','0.0.0.160','0.0.0.240');
+a
+0.0.0.128
+0.0.0.160
+0.0.0.240
+EXPLAIN SELECT * FROM t1 WHERE a IN ('0.0.0.128','0.0.0.160','0.0.0.240');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index
+SELECT * FROM t1 WHERE a IN ('0.0.0.128','0.0.0.160','garbage');
+a
+0.0.0.128
+0.0.0.160
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a IN ('0.0.0.128','0.0.0.160','garbage');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+Warnings:
+Warning	1292	Incorrect inet4 value: 'garbage'
+SELECT * FROM t1 WHERE a BETWEEN '0.0.0.128' AND '0.0.0.129';
+a
+0.0.0.128
+0.0.0.129
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '0.0.0.128' AND '0.0.0.129';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+SELECT * FROM t1 WHERE a BETWEEN '0.0.0.128' AND 'garbage';
+a
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '0.0.0.128' AND 'garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT * FROM t1 WHERE a=CAST('0.0.0.255' AS INET4);
+a
+0.0.0.255
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('0.0.0.255' AS INET4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = inet4'0.0.0.255'
+DROP TABLE t1;
+#
+# MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item
+#
+CREATE TABLE t1 (pk inet4, c text) engine=myisam;
+INSERT INTO t1 VALUES ('0.0.0.0',1);
+CREATE TABLE t2 (d text, KEY (d)) engine=innodb ;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t2 JOIN t1 ON ( t1.pk > t2.d);
+d	pk	c
+Warnings:
+Warning	1292	Incorrect inet4 value: '2'
+UPDATE t2 JOIN t1 ON ( t1.pk > t2.d) SET t1.c = 1;
+ERROR 22007: Incorrect inet4 value: '2'
+SET sql_mode='';
+UPDATE t2 JOIN t1 ON ( t1.pk > t2.d) SET t1.c = 1;
+Warnings:
+Warning	1292	Incorrect inet4 value: '2'
+SET sql_mode=DEFAULT;
+SELECT * FROM t1;
+pk	c
+0.0.0.0	1
+SELECT * FROM t2;
+d
+2
+DROP TABLE t1, t2;
+#
+# End of 10.10 tests
+#

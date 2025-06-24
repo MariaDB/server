@@ -119,7 +119,7 @@ public:
              bool if_exists);
 
   static void
-  drop_schema_events(THD *thd, const char *db);
+  drop_schema_events(THD *thd, const LEX_CSTRING &db);
 
   static bool
   show_create_event(THD *thd, const LEX_CSTRING *dbname,

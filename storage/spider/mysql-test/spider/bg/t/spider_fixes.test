@@ -128,7 +128,9 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
 
 --echo
 --echo 2.13
@@ -309,7 +311,9 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY (a, b, c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT5_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -668,8 +672,10 @@ if ($HAVE_TRIGGER)
     }
   }
   --connection master_1
+  --disable_ps_protocol
   INSERT INTO ta_l_auto_inc (a, b, c) VALUES
   (NULL, 's', '2008-12-31 20:59:59');
+  --enable_ps_protocol
   if ($USE_CHILD_GROUP2)
   {
     if (!$OUTPUT_CHILD_GROUP2)
@@ -780,7 +786,9 @@ eval CREATE TABLE ta_l_int (
   KEY idx2(c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
+--enable_ps_protocol
 INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
@@ -870,7 +878,9 @@ if (!$MASTER_1_NEEDPK)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
 }
 --enable_query_log
+--disable_ps_protocol
 SELECT a, b, c FROM ta_l_int ORDER BY a;
+--enable_ps_protocol
 INSERT INTO ta_l_int (a, b, c) VALUES (0, 2, 3);
 INSERT INTO ta_l_int (a, b, c) VALUES (18, 2, 3);
 if ($USE_CHILD_GROUP2)
@@ -1101,7 +1111,9 @@ if ($USE_REPLICATION)
   --connection master_1
 }
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO t1 () VALUES ();
+--enable_ps_protocol
 SELECT LAST_INSERT_ID();
 SELECT MAX(id) FROM t1;
 INSERT INTO t1 () VALUES ();
@@ -1115,7 +1127,9 @@ SELECT LAST_INSERT_ID();
 SELECT MAX(id) FROM t1;
 INSERT INTO t1 () VALUES (),(),(),();
 SELECT LAST_INSERT_ID();
+--disable_ps_protocol
 SELECT id FROM t1 ORDER BY id;
+--enable_ps_protocol
 SET INSERT_ID=5000;
 INSERT INTO t1 () VALUES ();
 SELECT LAST_INSERT_ID();
@@ -1192,7 +1206,9 @@ if ($MASTER_1_ENGINE_IS_SPIDER)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_READONLY1_1;
   --let $MIN_VAL= `SELECT MIN(id) FROM t1`
   --enable_query_log
+  --disable_ps_protocol
   SELECT id FROM t1 ORDER BY id;
+  --enable_ps_protocol
   --error 12518
   INSERT INTO t1 (id) VALUES (1);
   --error 12518
@@ -1229,7 +1245,9 @@ if ($MASTER_1_ENGINE_IS_SPIDER)
     PRIMARY KEY (id)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_ERROR_MODE1_1;
   --enable_query_log
+  --disable_ps_protocol
   SELECT id FROM t1 ORDER BY id;
+  --enable_ps_protocol
   INSERT INTO t1 (id) VALUES (1);
   DELETE FROM t1;
   TRUNCATE t1;
@@ -1288,7 +1306,9 @@ eval CREATE TABLE t1 (
   PRIMARY KEY(c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_TEXT_KEY1_1;
 --enable_query_log
+--disable_ps_protocol
 insert into t1 values (null, null, '2048');
+--enable_ps_protocol
 insert into t1 values ('1', '1', '1');
 insert into t1 select a + 1,   b + 1,   c + 1   from t1;
 insert into t1 select a + 2,   b + 2,   c + 2   from t1;
@@ -1320,7 +1340,9 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps_protocol
 select a from t1 where a is null order by a limit 30;
+--enable_ps_protocol
 select b from t1 where b is null order by b limit 30;
 if ($USE_CHILD_GROUP2)
 {
@@ -1376,7 +1398,9 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps_protocol
 select a, b, c from t1 where a = '10' and b <> '100' order by c desc limit 5;
+--enable_ps_protocol
 select a, c from t1 where a = '10' order by b desc limit 5;
 if ($USE_CHILD_GROUP2)
 {

@@ -19,6 +19,12 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
 
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+--connection master
+
 connection slave;
 # Test that SUPER is required to change @@replicate_events_marked_for_skip.
 CREATE USER 'nonsuperuser'@'127.0.0.1';

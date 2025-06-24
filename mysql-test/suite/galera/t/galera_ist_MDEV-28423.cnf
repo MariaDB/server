@@ -3,7 +3,6 @@
 [mysqld.1]
 # server-id=101
 #wsrep-debug=1
-innodb_file_per_table
 innodb_autoinc_lock_mode=2
 #wsrep_sst_method=rsync
 wsrep_sst_method=mariabackup
@@ -20,7 +19,6 @@ log_bin=binlog
 [mysqld.2]
 # server-id=102
 #wsrep-debug=1
-innodb_file_per_table
 innodb_autoinc_lock_mode=2
 #wsrep_sst_method=rsync
 wsrep_sst_method=mariabackup

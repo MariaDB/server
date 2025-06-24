@@ -146,7 +146,7 @@ Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 drop view v1,v2;
 drop table t1,t2;
-create table  folks(id int, name char(32), dob date, father int, mother int);
+create table  folks(id int, name char(32), dob date, father int, mother int) charset=latin1;
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
 (20, 'Dad', '1970-02-02', 10, 9),
@@ -689,17 +689,17 @@ from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
 where c.h_id = h.id and c.w_id= w.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	c.h_id	2	100.00	
-1	PRIMARY	<derived3>	ref	key0	key0	5	c.w_id	2	100.00	
+1	PRIMARY	<derived3>	ref	key0	key0	5	c.h_id	1	100.00	
+1	PRIMARY	<derived3>	ref	key0	key0	5	c.w_id	1	100.00	
 3	DERIVED	folks	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
-4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
-5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-5	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
+4	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	1	100.00	
+5	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+5	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	1	100.00	
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
-Note	1003	with recursive ancestor_couple_ids(`h_id`,`w_id`) as (/* select#2 */ select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors(`id`,`name`,`dob`,`father`,`mother`) as (/* select#3 */ select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all /* select#4 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all /* select#5 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)/* select#1 */ select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
+Note	1003	with recursive ancestor_couple_ids(`h_id`,`w_id`) as (/* select#2 */ select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors(`id`,`name`,`dob`,`father`,`mother`) as (/* select#3 */ select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all /* select#4 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `fa`.`h_id` = `test`.`p`.`id` union all /* select#5 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `ma`.`w_id` = `test`.`p`.`id`)/* select#1 */ select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
 # simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
@@ -1240,9 +1240,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	
 2	DERIVED	folks	ALL	NULL	NULL	NULL	NULL	12	Using where
 3	RECURSIVE UNION	p	ALL	PRIMARY	NULL	NULL	NULL	12	
-3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	2	
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	1	
 4	RECURSIVE UNION	p	ALL	PRIMARY	NULL	NULL	NULL	12	
-4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	2	
+4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.p.id	1	
 NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 with recursive
 ancestors
@@ -1341,107 +1341,153 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived4>",
-      "access_type": "ALL",
-      "rows": 24,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "recursive_union": {
-            "table_name": "<union4,6,5>",
-            "access_type": "ALL",
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 4,
-                  "table": {
-                    "table_name": "folks",
-                    "access_type": "ALL",
-                    "rows": 12,
-                    "filtered": 100,
-                    "attached_condition": "folks.`name` = 'Me2'"
-                  }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 6,
-                  "operation": "UNION",
-                  "table": {
-                    "table_name": "<derived3>",
-                    "access_type": "ALL",
-                    "rows": 12,
-                    "filtered": 100,
-                    "attached_condition": "prev_gen.`id` < 345",
-                    "materialized": {
-                      "query_block": {
-                        "recursive_union": {
-                          "table_name": "<union3,2>",
-                          "access_type": "ALL",
-                          "query_specifications": [
-                            {
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 24,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "recursive_union": {
+                "table_name": "<union4,6,5>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "folks",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 12,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "folks.`name` = 'Me2'"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 6,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived3>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 12,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "prev_gen.`id` < 345",
+                            "materialized": {
                               "query_block": {
-                                "select_id": 3,
-                                "table": {
-                                  "table_name": "folks",
+                                "recursive_union": {
+                                  "table_name": "<union3,2>",
                                   "access_type": "ALL",
-                                  "rows": 12,
-                                  "filtered": 100,
-                                  "attached_condition": "folks.`name` = 'Me'"
-                                }
-                              }
-                            },
-                            {
-                              "query_block": {
-                                "select_id": 2,
-                                "operation": "UNION",
-                                "table": {
-                                  "table_name": "folks",
-                                  "access_type": "ALL",
-                                  "possible_keys": ["PRIMARY"],
-                                  "rows": 12,
-                                  "filtered": 100
-                                },
-                                "block-nl-join": {
-                                  "table": {
-                                    "table_name": "<derived3>",
-                                    "access_type": "ALL",
-                                    "rows": 12,
-                                    "filtered": 100
-                                  },
-                                  "buffer_type": "flat",
-                                  "buffer_size": "686",
-                                  "join_type": "BNL",
-                                  "attached_condition": "prev_gen.father = folks.`id` or prev_gen.mother = folks.`id`"
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "cost": "COST_REPLACED",
+                                        "nested_loop": [
+                                          {
+                                            "table": {
+                                              "table_name": "folks",
+                                              "access_type": "ALL",
+                                              "loops": 1,
+                                              "rows": 12,
+                                              "cost": "COST_REPLACED",
+                                              "filtered": 100,
+                                              "attached_condition": "folks.`name` = 'Me'"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "query_block": {
+                                        "select_id": 2,
+                                        "operation": "UNION",
+                                        "cost": "COST_REPLACED",
+                                        "nested_loop": [
+                                          {
+                                            "table": {
+                                              "table_name": "folks",
+                                              "access_type": "ALL",
+                                              "possible_keys": ["PRIMARY"],
+                                              "loops": 1,
+                                              "rows": 12,
+                                              "cost": "COST_REPLACED",
+                                              "filtered": 100
+                                            }
+                                          },
+                                          {
+                                            "block-nl-join": {
+                                              "table": {
+                                                "table_name": "<derived3>",
+                                                "access_type": "ALL",
+                                                "loops": 12,
+                                                "rows": 12,
+                                                "cost": "COST_REPLACED",
+                                                "filtered": 100
+                                              },
+                                              "buffer_type": "flat",
+                                              "buffer_size": "686",
+                                              "join_type": "BNL",
+                                              "attached_condition": "prev_gen.father = folks.`id` or prev_gen.mother = folks.`id`"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
                                 }
                               }
                             }
-                          ]
+                          }
                         }
-                      }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived4>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 24,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "ancestors.`id` < 234"
+                          }
+                        }
+                      ]
                     }
                   }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 5,
-                  "operation": "UNION",
-                  "table": {
-                    "table_name": "<derived4>",
-                    "access_type": "ALL",
-                    "rows": 24,
-                    "filtered": 100,
-                    "attached_condition": "ancestors.`id` < 234"
-                  }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 #
@@ -1475,91 +1521,128 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 12,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "recursive_union": {
-            "table_name": "<union3,2>",
-            "access_type": "ALL",
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "table": {
-                    "table_name": "v",
-                    "access_type": "ALL",
-                    "rows": 12,
-                    "filtered": 100,
-                    "attached_condition": "v.`name` = 'Me' and v.father is not null and v.mother is not null"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 12,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "recursive_union": {
+                "table_name": "<union3,2>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "v",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 12,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "v.`name` = 'Me' and v.father is not null and v.mother is not null"
+                          }
+                        },
+                        {
+                          "table": {
+                            "table_name": "h",
+                            "access_type": "eq_ref",
+                            "possible_keys": ["PRIMARY"],
+                            "key": "PRIMARY",
+                            "key_length": "4",
+                            "used_key_parts": ["id"],
+                            "ref": ["test.v.father"],
+                            "loops": 12,
+                            "rows": 1,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        },
+                        {
+                          "table": {
+                            "table_name": "w",
+                            "access_type": "eq_ref",
+                            "possible_keys": ["PRIMARY"],
+                            "key": "PRIMARY",
+                            "key_length": "4",
+                            "used_key_parts": ["id"],
+                            "ref": ["test.v.mother"],
+                            "loops": 12,
+                            "rows": 1,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   },
-                  "table": {
-                    "table_name": "h",
-                    "access_type": "eq_ref",
-                    "possible_keys": ["PRIMARY"],
-                    "key": "PRIMARY",
-                    "key_length": "4",
-                    "used_key_parts": ["id"],
-                    "ref": ["test.v.father"],
-                    "rows": 1,
-                    "filtered": 100
-                  },
-                  "table": {
-                    "table_name": "w",
-                    "access_type": "eq_ref",
-                    "possible_keys": ["PRIMARY"],
-                    "key": "PRIMARY",
-                    "key_length": "4",
-                    "used_key_parts": ["id"],
-                    "ref": ["test.v.mother"],
-                    "rows": 1,
-                    "filtered": 100
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived4>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "a.father is not null and a.mother is not null"
+                          }
+                        },
+                        {
+                          "table": {
+                            "table_name": "h",
+                            "access_type": "eq_ref",
+                            "possible_keys": ["PRIMARY"],
+                            "key": "PRIMARY",
+                            "key_length": "4",
+                            "used_key_parts": ["id"],
+                            "ref": ["a.father"],
+                            "loops": 2,
+                            "rows": 1,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        },
+                        {
+                          "table": {
+                            "table_name": "w",
+                            "access_type": "eq_ref",
+                            "possible_keys": ["PRIMARY"],
+                            "key": "PRIMARY",
+                            "key_length": "4",
+                            "used_key_parts": ["id"],
+                            "ref": ["a.mother"],
+                            "loops": 2,
+                            "rows": 1,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 2,
-                  "operation": "UNION",
-                  "table": {
-                    "table_name": "<derived4>",
-                    "access_type": "ALL",
-                    "rows": 2,
-                    "filtered": 100,
-                    "attached_condition": "a.father is not null and a.mother is not null"
-                  },
-                  "table": {
-                    "table_name": "h",
-                    "access_type": "eq_ref",
-                    "possible_keys": ["PRIMARY"],
-                    "key": "PRIMARY",
-                    "key_length": "4",
-                    "used_key_parts": ["id"],
-                    "ref": ["a.father"],
-                    "rows": 1,
-                    "filtered": 100
-                  },
-                  "table": {
-                    "table_name": "w",
-                    "access_type": "eq_ref",
-                    "possible_keys": ["PRIMARY"],
-                    "key": "PRIMARY",
-                    "key_length": "4",
-                    "used_key_parts": ["id"],
-                    "ref": ["a.mother"],
-                    "rows": 1,
-                    "filtered": 100
-                  }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 create table my_ancestors
@@ -1780,46 +1863,67 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 10,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "recursive_union": {
-            "table_name": "<union2,3>",
-            "access_type": "ALL",
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 2,
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "rows": 10,
-                    "filtered": 100
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "recursive_union": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 10,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 10,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t.a < 1000"
+                          }
+                        }
+                      ]
+                    }
                   }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "operation": "UNION",
-                  "table": {
-                    "table_name": "<derived2>",
-                    "access_type": "ALL",
-                    "rows": 10,
-                    "filtered": 100,
-                    "attached_condition": "t.a < 1000"
-                  }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 drop table t1;
@@ -2402,61 +2506,80 @@ select counter+1 from src where counter<10
 ) select * from src;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "materialized": {
-        "query_block": {
-          "recursive_union": {
-            "table_name": "<union2,3>",
-            "access_type": "ALL",
-            "r_loops": 0,
-            "r_rows": null,
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 2,
-                  "table": {
-                    "message": "No tables used"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "recursive_union": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "r_loops": 0,
+                "r_rows": null,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "r_loops": 10,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "r_loops": 10,
+                            "rows": 2,
+                            "r_rows": 1,
+                            "cost": "REPLACED",
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_total_filtered": 90,
+                            "attached_condition": "src.counter < 10",
+                            "r_filtered": 90
+                          }
+                        }
+                      ]
+                    }
                   }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "operation": "UNION",
-                  "r_loops": 10,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "<derived2>",
-                    "access_type": "ALL",
-                    "r_loops": 10,
-                    "rows": 2,
-                    "r_rows": 1,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 90,
-                    "attached_condition": "src.counter < 10"
-                  }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 #
@@ -3032,7 +3155,7 @@ create table flights
 (departure varchar(32),
 arrival varchar(32),
 carrier varchar(20),
-flight_number char(7));
+flight_number char(7)) charset=latin1;
 insert into flights values
 ('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
 ('Seattle', 'Chicago', 'American', 'AA 2573'),
@@ -3096,7 +3219,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	
 2	DERIVED	a	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
 3	RECURSIVE UNION	b	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
-3	RECURSIVE UNION	<derived2>	ref	key0	key0	35	test.b.departure	2	100.00	
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	35	test.b.departure	1	100.00	
 4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
@@ -3199,9 +3322,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	15	Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
 3	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
-3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	1	
 4	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
-4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
+4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	1	
 NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
 set tmp_memory_table_size=default;
@@ -3763,11 +3886,11 @@ drop table t1,t2;
 #
 # MDEV-22042: ANALYZE of query using stored function and recursive CTE
 #
-create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam charset=latin1;
 insert into t1 values (1,1),(2,2),(3,3);
 create table t2 (
 a2 varchar(20) primary key, b1 varchar(20), key (b1)
-) engine=myisam;
+) engine=myisam charset=latin1;
 insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
 insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
 create  function f1(id varchar(20)) returns varchar(50)
@@ -3793,7 +3916,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ref	key0	key0	23	test.t1.a1	1	FirstMatch(t1)
 3	DERIVED	t2	const	PRIMARY	PRIMARY	22	const	1	Using index
 4	RECURSIVE UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
-4	RECURSIVE UNION	tt2	ref	b1	b1	23	cte.a2	2	
+4	RECURSIVE UNION	tt2	ref	b1	b1	23	cte.a2	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 analyze format=json select fv
 from (select t1.a1, f1(t1.a2) fv from t1) dt
@@ -3802,112 +3925,146 @@ where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
 select a2 from cte);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 3,
-      "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t1.a1 is not null"
-    },
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "23",
-      "used_key_parts": ["a2"],
-      "ref": ["test.t1.a1"],
-      "r_loops": 3,
-      "rows": 1,
-      "r_rows": 0.333333333,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "first_match": "t1",
-      "materialized": {
-        "query_block": {
-          "recursive_union": {
-            "table_name": "<union3,4>",
-            "access_type": "ALL",
-            "r_loops": 0,
-            "r_rows": null,
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "const",
-                    "possible_keys": ["PRIMARY"],
-                    "key": "PRIMARY",
-                    "key_length": "22",
-                    "used_key_parts": ["a2"],
-                    "ref": ["const"],
-                    "r_loops": 0,
-                    "rows": 1,
-                    "r_rows": null,
-                    "r_engine_stats": REPLACED,
-                    "filtered": 100,
-                    "r_filtered": null,
-                    "using_index": true
-                  }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 4,
-                  "operation": "UNION",
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "<derived3>",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 1,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100,
-                    "attached_condition": "cte.a2 is not null"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t1.a1 is not null",
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "23",
+          "used_key_parts": ["a2"],
+          "ref": ["test.t1.a1"],
+          "loops": 3,
+          "r_loops": 3,
+          "rows": 1,
+          "r_rows": 0.333333333,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100,
+          "first_match": "t1",
+          "materialized": {
+            "query_block": {
+              "recursive_union": {
+                "table_name": "<union3,4>",
+                "access_type": "ALL",
+                "r_loops": 0,
+                "r_rows": null,
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "const",
+                            "possible_keys": ["PRIMARY"],
+                            "key": "PRIMARY",
+                            "key_length": "22",
+                            "used_key_parts": ["a2"],
+                            "ref": ["const"],
+                            "r_loops": 0,
+                            "rows": 1,
+                            "r_rows": null,
+                            "r_engine_stats": REPLACED,
+                            "filtered": 100,
+                            "r_total_filtered": null,
+                            "r_filtered": null,
+                            "using_index": true
+                          }
+                        }
+                      ]
+                    }
                   },
-                  "table": {
-                    "table_name": "tt2",
-                    "access_type": "ref",
-                    "possible_keys": ["b1"],
-                    "key": "b1",
-                    "key_length": "23",
-                    "used_key_parts": ["b1"],
-                    "ref": ["cte.a2"],
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 1,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "r_engine_stats": REPLACED,
-                    "filtered": 100,
-                    "r_filtered": 100
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "REPLACED",
+                      "r_loops": 1,
+                      "r_total_time_ms": "REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived3>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 1,
+                            "cost": "REPLACED",
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "filtered": 100,
+                            "r_total_filtered": 100,
+                            "attached_condition": "cte.a2 is not null",
+                            "r_filtered": 100
+                          }
+                        },
+                        {
+                          "table": {
+                            "table_name": "tt2",
+                            "access_type": "ref",
+                            "possible_keys": ["b1"],
+                            "key": "b1",
+                            "key_length": "23",
+                            "used_key_parts": ["b1"],
+                            "ref": ["cte.a2"],
+                            "loops": 2,
+                            "r_loops": 1,
+                            "rows": 1,
+                            "r_rows": 1,
+                            "cost": "REPLACED",
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
+                            "filtered": 100,
+                            "r_total_filtered": 100,
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
+                    }
                   }
-                }
+                ]
               }
-            ]
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 drop function f1;
@@ -3954,8 +4111,8 @@ FROM cte JOIN t3 ON t3.tm BETWEEN cte.st AND cte.fn)
 SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	<derived5>	ref	key0	key0	5	const	0	0.00	
-1	PRIMARY	<derived4>	ref	key0	key0	5	const	0	0.00	
+1	PRIMARY	<derived5>	ref	key0	key0	5	const	0	100.00	
+1	PRIMARY	<derived4>	ref	key0	key0	5	const	0	100.00	
 2	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 3	RECURSIVE UNION	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
@@ -4027,7 +4184,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 2	DERIVED	s	ALL	NULL	NULL	NULL	NULL	4	
 3	RECURSIVE UNION	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	RECURSIVE UNION	<derived2>	ref	key0	key0	9	test.t1.c	2	
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	9	test.t1.c	1	
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 4	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
 with recursive r_cte as
@@ -4048,6 +4205,9 @@ select t1.* from t1, r_cte as r where t1.c = r.a )
 select 0 as b FROM dual union all select b FROM r_cte as t;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "query_specifications": [
@@ -4063,87 +4223,116 @@ ANALYZE
           "query_block": {
             "select_id": 4,
             "operation": "UNION",
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "<derived2>",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 4,
-              "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 100,
-              "materialized": {
-                "query_block": {
-                  "recursive_union": {
-                    "table_name": "<union2,3>",
-                    "access_type": "ALL",
-                    "r_loops": 0,
-                    "r_rows": null,
-                    "query_specifications": [
-                      {
-                        "query_block": {
-                          "select_id": 2,
-                          "r_loops": 1,
-                          "r_total_time_ms": "REPLACED",
-                          "table": {
-                            "table_name": "s",
-                            "access_type": "ALL",
-                            "r_loops": 1,
-                            "rows": 4,
-                            "r_rows": 4,
-                            "r_table_time_ms": "REPLACED",
-                            "r_other_time_ms": "REPLACED",
-                            "r_engine_stats": REPLACED,
-                            "filtered": 100,
-                            "r_filtered": 100
-                          }
-                        }
-                      },
-                      {
-                        "query_block": {
-                          "select_id": 3,
-                          "operation": "UNION",
-                          "r_loops": 1,
-                          "r_total_time_ms": "REPLACED",
-                          "table": {
-                            "table_name": "t1",
-                            "access_type": "ALL",
-                            "r_loops": 1,
-                            "rows": 4,
-                            "r_rows": 4,
-                            "r_table_time_ms": "REPLACED",
-                            "r_other_time_ms": "REPLACED",
-                            "r_engine_stats": REPLACED,
-                            "filtered": 100,
-                            "r_filtered": 100,
-                            "attached_condition": "t1.c is not null"
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "<derived2>",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 4,
+                  "r_rows": 4,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100,
+                  "materialized": {
+                    "query_block": {
+                      "recursive_union": {
+                        "table_name": "<union2,3>",
+                        "access_type": "ALL",
+                        "r_loops": 0,
+                        "r_rows": null,
+                        "query_specifications": [
+                          {
+                            "query_block": {
+                              "select_id": 2,
+                              "cost": "REPLACED",
+                              "r_loops": 1,
+                              "r_total_time_ms": "REPLACED",
+                              "nested_loop": [
+                                {
+                                  "table": {
+                                    "table_name": "s",
+                                    "access_type": "ALL",
+                                    "loops": 1,
+                                    "r_loops": 1,
+                                    "rows": 4,
+                                    "r_rows": 4,
+                                    "cost": "REPLACED",
+                                    "r_table_time_ms": "REPLACED",
+                                    "r_other_time_ms": "REPLACED",
+                                    "r_engine_stats": REPLACED,
+                                    "filtered": 100,
+                                    "r_total_filtered": 100,
+                                    "r_filtered": 100
+                                  }
+                                }
+                              ]
+                            }
                           },
-                          "table": {
-                            "table_name": "<derived2>",
-                            "access_type": "ref",
-                            "possible_keys": ["key0"],
-                            "key": "key0",
-                            "key_length": "9",
-                            "used_key_parts": ["a"],
-                            "ref": ["test.t1.c"],
-                            "r_loops": 4,
-                            "rows": 2,
-                            "r_rows": 0.5,
-                            "r_table_time_ms": "REPLACED",
-                            "r_other_time_ms": "REPLACED",
-                            "filtered": 100,
-                            "r_filtered": 100
+                          {
+                            "query_block": {
+                              "select_id": 3,
+                              "operation": "UNION",
+                              "cost": "REPLACED",
+                              "r_loops": 1,
+                              "r_total_time_ms": "REPLACED",
+                              "nested_loop": [
+                                {
+                                  "table": {
+                                    "table_name": "t1",
+                                    "access_type": "ALL",
+                                    "loops": 1,
+                                    "r_loops": 1,
+                                    "rows": 4,
+                                    "r_rows": 4,
+                                    "cost": "REPLACED",
+                                    "r_table_time_ms": "REPLACED",
+                                    "r_other_time_ms": "REPLACED",
+                                    "r_engine_stats": REPLACED,
+                                    "filtered": 100,
+                                    "r_total_filtered": 100,
+                                    "attached_condition": "t1.c is not null",
+                                    "r_filtered": 100
+                                  }
+                                },
+                                {
+                                  "table": {
+                                    "table_name": "<derived2>",
+                                    "access_type": "ref",
+                                    "possible_keys": ["key0"],
+                                    "key": "key0",
+                                    "key_length": "9",
+                                    "used_key_parts": ["a"],
+                                    "ref": ["test.t1.c"],
+                                    "loops": 4,
+                                    "r_loops": 4,
+                                    "rows": 1,
+                                    "r_rows": 0.5,
+                                    "cost": "REPLACED",
+                                    "r_table_time_ms": "REPLACED",
+                                    "r_other_time_ms": "REPLACED",
+                                    "filtered": 100,
+                                    "r_total_filtered": 100,
+                                    "r_filtered": 100
+                                  }
+                                }
+                              ]
+                            }
                           }
-                        }
+                        ]
                       }
-                    ]
+                    }
                   }
                 }
               }
-            }
+            ]
           }
         }
       ]
@@ -4201,22 +4390,33 @@ select 0 as b FROM dual union all select b FROM r_cte as t)
 select * from t1 as tt;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "tt",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 4,
-      "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ]
   }
 }
 prepare stmt from "with h_cte as
@@ -4288,10 +4488,7 @@ use test;
 #
 # MDEV-23406: query with mutually recursive CTEs when big_tables=1
 #
-set @save_big_tables=@@big_tables;
-set big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set tmp_memory_table_size=0;
 create table  folks(id int, name char(32), dob date, father int, mother int);
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -4368,9 +4565,9 @@ NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL
 3	DERIVED	v	ALL	NULL	NULL	NULL	NULL	12	Using where
 3	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
-2	RECURSIVE UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
-2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-2	RECURSIVE UNION	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	Using where
+2	RECURSIVE UNION	<derived4>	ref	key0	key0	5	test.h.id	1	
+2	RECURSIVE UNION	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 NULL	UNION RESULT	<union3,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
@@ -4466,9 +4663,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using join buffer (flat, BNL join)
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where
+2	DERIVED	<derived3>	ref	key0	key0	5	test.h.id	1	
+2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
@@ -4505,9 +4702,7 @@ Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
 deallocate prepare stmt;
 drop table folks;
-set big_tables=@save_big_tables;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set tmp_memory_table_size=default;
 #
 # MDEV-26135: execution of PS for query with hanging recursive CTE
 #
@@ -4892,7 +5087,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
 id INT, mid INT, name TEXT
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
 WITH RECURSIVE
 cteReports (level, id, mid, name) AS
@@ -4943,9 +5138,9 @@ t2	CREATE TABLE `t2` (
   `level` int(1) DEFAULT NULL,
   `id` int(11) DEFAULT NULL,
   `mid` int(11) DEFAULT NULL,
-  `name` text DEFAULT NULL,
-  `mname` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `name` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `mname` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t2 WITH RECURSIVE
 cteReports (level, id, mid, name) AS
 (
@@ -5024,9 +5219,9 @@ t2	CREATE TABLE `t2` (
   `level` int(1) DEFAULT NULL,
   `id` int(11) DEFAULT NULL,
   `mid` int(11) DEFAULT NULL,
-  `name` text DEFAULT NULL,
-  `mname` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `name` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `mname` text CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set @@sql_mode=default;
 drop table t1,t2;
 #

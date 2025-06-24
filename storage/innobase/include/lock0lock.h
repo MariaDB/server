@@ -52,6 +52,20 @@ namespace Deadlock
   enum report { REPORT_OFF, REPORT_BASIC, REPORT_FULL };
 }
 
+/** Conflicting lock info */
+struct conflicting_lock_info {
+  /** Conflicting lock */
+  const lock_t *conflicting;
+  /** If some lock was bypassed, points to the lock after which bypassing
+  lock must be inserted into linked list of locks for the certain cell of
+  record locks hash table. */
+  lock_t *insert_after;
+  /** First bypassed lock */
+  ut_d(const lock_t *bypassed;)
+};
+
+extern const conflicting_lock_info null_c_lock_info;
+
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
 @return heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
@@ -185,13 +199,6 @@ lock_update_split_left(
 void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
                             const page_id_t right);
 
-/** Update the locks when a page is split and merged to two pages,
-in defragmentation. */
-void lock_update_split_and_merge(
-	const buf_block_t* left_block,	/*!< in: left page to which merged */
-	const rec_t* orig_pred,		/*!< in: original predecessor of
-					supremum on the left page before merge*/
-	const buf_block_t* right_block);/*!< in: right page from which merged */
 /*************************************************************//**
 Resets the original locks on heir and replaces them with gap type locks
 inherited from rec. */
@@ -727,7 +734,7 @@ public:
 private:
   bool m_initialised;
 
-  /** mutex proteting the locks */
+  /** mutex protecting the locks */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE)
   IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
 #ifdef SUX_LOCK_GENERIC
@@ -1151,25 +1158,6 @@ struct TMTrxGuard
 #endif
 };
 
-/*********************************************************************//**
-Creates a new record lock and inserts it to the lock queue. Does NOT check
-for deadlocks or lock compatibility!
-@return created lock */
-UNIV_INLINE
-lock_t*
-lock_rec_create(
-/*============*/
-	lock_t*			c_lock,	/*!< conflicting lock */
-	unsigned		type_mode,/*!< in: lock mode and wait flag */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	trx_t*			trx,	/*!< in,out: transaction */
-	bool			caller_owns_trx_mutex);
-					/*!< in: true if caller owns
-					trx mutex */
-
 /** Remove a record lock request, waiting or granted, on a discarded page
 @param in_lock  lock object
 @param cell     hash table cell containing in_lock */
@@ -1177,7 +1165,7 @@ void lock_rec_discard(lock_t *in_lock, hash_cell_t &cell) noexcept;
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
-@param[in]	c_lock		conflicting lock, or NULL
+@param		c_lock_info	conflicting lock info
 @param[in]	type_mode	lock mode and wait flag
 @param[in]	page_id		index page number
 @param[in]	page		R-tree index page, or NULL
@@ -1187,8 +1175,8 @@ without checking for deadlocks or conflicts.
 @param[in]	holds_trx_mutex	whether the caller holds trx->mutex
 @return created lock */
 lock_t*
-lock_rec_create_low(
-	lock_t*		c_lock,
+lock_rec_create(
+	const conflicting_lock_info   &c_lock_info,
 	unsigned	type_mode,
 	const page_id_t	page_id,
 	const page_t*	page,
@@ -1199,7 +1187,7 @@ lock_rec_create_low(
 
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.
-@param[in]	c_lock		conflicting lock
+@param		c_lock_info	conflicting lock info
 @param[in]	type_mode	the requested lock mode (LOCK_S or LOCK_X)
 				possibly ORed with LOCK_GAP or
 				LOCK_REC_NOT_GAP, ORed with
@@ -1217,7 +1205,7 @@ Check for deadlocks.
 @retval	DB_DEADLOCK		if this transaction was chosen as the victim */
 dberr_t
 lock_rec_enqueue_waiting(
-	lock_t*			c_lock,
+	const conflicting_lock_info &c_lock_info,
 	unsigned		type_mode,
 	const page_id_t		id,
 	const page_t*		page,

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,7 +56,7 @@ public:
 		m_size(),
 		m_order(),
 		m_type(SRV_NOT_RAW),
-		m_space_id(ULINT_UNDEFINED),
+		m_space_id(UINT32_MAX),
 		m_flags(),
 		m_exists(),
 		m_is_valid(),
@@ -67,7 +67,7 @@ public:
 		/* No op */
 	}
 
-	Datafile(ulint flags, uint32_t size, ulint order)
+	Datafile(uint32_t flags, uint32_t size, ulint order)
 		:
 		m_filepath(),
 		m_filename(),
@@ -76,7 +76,7 @@ public:
 		m_size(size),
 		m_order(order),
 		m_type(SRV_NOT_RAW),
-		m_space_id(ULINT_UNDEFINED),
+		m_space_id(UINT32_MAX),
 		m_flags(flags),
 		m_exists(),
 		m_is_valid(),
@@ -154,7 +154,7 @@ public:
 	}
 
 	/** Initialize the tablespace flags */
-	void init(ulint flags) { m_flags= flags; }
+	void init(uint32_t flags) { m_flags= flags; }
 
 	/** Release the resources. */
 	virtual void shutdown();
@@ -198,7 +198,7 @@ public:
 	@param[in]	flags		The expected tablespace flags.
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
-	dberr_t validate_to_dd(ulint space_id, ulint flags)
+	dberr_t validate_to_dd(uint32_t space_id, uint32_t flags)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Validates this datafile for the purpose of recovery.
@@ -216,11 +216,11 @@ public:
 	tablespace is opened.  This occurs before the fil_space_t is created
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
-	@param[in]	first_page	the contents of the first page
+	@param first_page   the contents of the first page
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page(const byte *first_page)
+	dberr_t validate_first_page(const byte *first_page) noexcept
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_filepath.
@@ -254,24 +254,15 @@ public:
 
 	/** Get Datafile::m_space_id.
 	@return m_space_id */
-	ulint	space_id()	const
-	{
-		return(m_space_id);
-	}
+	uint32_t space_id() const { return m_space_id; }
 
 	/** Get Datafile::m_flags.
 	@return m_flags */
-	ulint	flags()	const
-	{
-		return(m_flags);
-	}
+	uint32_t flags() const { return m_flags; }
 
 	/**
 	@return true if m_handle is open, false if not */
-	bool	is_open()	const
-	{
-		return(m_handle != OS_FILE_CLOSED);
-	}
+	bool is_open() const { return m_handle != OS_FILE_CLOSED; }
 
 	/** Get Datafile::m_is_valid.
 	@return m_is_valid */
@@ -324,9 +315,11 @@ public:
 	@return the first data page */
 	const byte* get_first_page() const { return(m_first_page); }
 
-	void set_space_id(ulint space_id) { m_space_id= space_id; }
+	void set_space_id(uint32_t space_id) { m_space_id= space_id; }
 
-	void set_flags(ulint flags) { m_flags = flags; }
+	void set_flags(uint32_t flags) { m_flags = flags; }
+
+	uint32_t param_size() const { return m_user_param_size; }
 private:
 	/** Free the filepath buffer. */
 	void free_filepath();
@@ -418,6 +411,9 @@ private:
 	pages in SysTablespace::normalize_size() */
 	uint32_t		m_size;
 
+	/** Size in pages; Initial parameter size */
+	uint32_t		m_user_param_size;
+
 	/** ordinal position of this datafile in the tablespace */
 	ulint			m_order;
 
@@ -427,12 +423,12 @@ private:
 	/** Tablespace ID. Contained in the datafile header.
 	If this is a system tablespace, FSP_SPACE_ID is only valid
 	in the first datafile. */
-	ulint			m_space_id;
+	uint32_t		m_space_id;
 
 	/** Tablespace flags. Contained in the datafile header.
 	If this is a system tablespace, FSP_SPACE_FLAGS are only valid
 	in the first datafile. */
-	ulint			m_flags;
+	uint32_t		m_flags;
 
 	/** true if file already existed on startup */
 	bool			m_exists;

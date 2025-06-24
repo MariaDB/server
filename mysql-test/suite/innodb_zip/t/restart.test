@@ -6,6 +6,7 @@
 --source include/not_embedded.inc
 --source include/innodb_checksum_algorithm.inc
 --source include/have_symlink.inc
+--source include/test_db_charset_latin1.inc
 
 SET default_storage_engine=InnoDB;
 LET $MYSQLD_DATADIR = `select @@datadir`;
@@ -34,11 +35,7 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot 
 --disable_query_log
 let $MYSQL_DATA_DIR= `select @@datadir`;
 let $data_directory = DATA DIRECTORY='$MYSQL_TMP_DIR/alt_dir';
-
-let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
 --enable_query_log
-
-set global innodb_file_per_table=on;
 
 --echo #
 --echo # Create and insert records into a REDUNDANT row formatted table.
@@ -181,7 +178,6 @@ SELECT count(*) FROM t7_restart;
 --echo #
 --source include/start_mysqld.inc
 
-SHOW VARIABLES LIKE 'innodb_file_per_table';
 SHOW CREATE TABLE t1_restart;
 SHOW CREATE TABLE t2_restart;
 SHOW CREATE TABLE t3_restart;
@@ -274,8 +270,6 @@ SHOW CREATE TABLE t7_restart;
 --echo #
 --source include/start_mysqld.inc
 
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-
 --source suite/innodb/include/show_i_s_tablespaces.inc
 
 SELECT count(*) FROM t5_restart;
@@ -364,7 +358,6 @@ SHOW CREATE TABLE t77_restart;
 --echo # Restart the server
 --echo #
 --source include/restart_mysqld.inc
-SHOW VARIABLES LIKE 'innodb_file_per_table';
 
 --source suite/innodb/include/show_i_s_tablespaces.inc
 
@@ -599,8 +592,4 @@ DROP TABLE t77_restart;
 --rmdir $MYSQL_TMP_DIR/alt_dir
 --rmdir $MYSQL_TMP_DIR/new_dir/test
 --rmdir $MYSQL_TMP_DIR/new_dir
-
--- disable_query_log
-eval set global innodb_file_per_table=$innodb_file_per_table_orig;
--- enable_query_log
-
+--source include/test_db_charset_restore.inc

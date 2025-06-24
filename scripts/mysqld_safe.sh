@@ -40,6 +40,12 @@ syslog_tag_mysqld_safe=mysqld_safe
 
 trap '' 1 2 3 15			# we shouldn't let anyone kill us
 
+case "$0" in
+  *mysqld_safe)
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadbd-safe' instead" 1>&2
+    ;;
+esac
+
 # MySQL-specific environment variable. First off, it's not really a umask,
 # it's the desired mode. Second, it follows umask(2), not umask(3) in that
 # octal needs to be explicit. Our shell might be a proper sh without printf,
@@ -589,7 +595,7 @@ fi
 # If arguments come from [mysqld_safe] section of my.cnf
 # we complain about unrecognized options
 unrecognized_handling=complain
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd-safe`
+parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd_safe mariadbd-safe`
 
 # We only need to pass arguments through to the server if we don't
 # handle them here.  So, we collect unrecognized options (passed on

@@ -68,7 +68,7 @@ include/sync_with_master_gtid.inc
 include/stop_slave.inc
 connection server_2;
 include/stop_slave.inc
-CHANGE MASTER 'm2' to master_port=MYPORT_3 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'm2' to master_port=MYPORT_3 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos, master_ssl_verify_server_cert=0;
 connection server_1;
 SET SESSION gtid_domain_id= 1;
 BEGIN;

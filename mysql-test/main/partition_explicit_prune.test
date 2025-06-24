@@ -107,7 +107,7 @@ CREATE TABLE t1
  b varchar (64),
  INDEX (b,a),
  PRIMARY KEY (a))
-ENGINE = InnoDB
+ENGINE = InnoDB CHARSET=latin1
 PARTITION BY RANGE (a)
 SUBPARTITION BY HASH (a) SUBPARTITIONS 2
 (PARTITION pNeg VALUES LESS THAN (0)
@@ -134,7 +134,7 @@ INSERT INTO t1 PARTITION () VALUES (1, "error");
 INSERT INTO t1 PARTITION (pNonExisting) VALUES (1, "error");
 --error ER_UNKNOWN_PARTITION
 INSERT INTO t1 PARTITION (pNeg, pNonExisting) VALUES (1, "error");
---echo # Duplicate partitions and overlapping partitions and subpartitios is OK
+--echo # Duplicate partitions and overlapping partitions and subpartitions is OK
 FLUSH STATUS;
 INSERT INTO t1 PARTITION (pNeg, pNeg) VALUES (-1, "pNeg(-subp1)");
 eval $get_handler_status_counts;
@@ -627,7 +627,7 @@ DROP TABLE t1, t2, t3;
 --enable_ps2_protocol
 --enable_view_protocol
 --enable_cursor_protocol
---echo # Test from superseeded WL# 2682
+--echo # Test from superseded WL# 2682
 # Partition select tests.
 #
 --disable_warnings
@@ -942,3 +942,28 @@ drop table t1;
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # MDEV-33988 DELETE (single table) to support table aliases
+--echo #
+
+CREATE TABLE `t1` (
+`id` int(11) default NULL
+)
+PARTITION BY RANGE (id) (
+PARTITION p0 VALUES LESS THAN (6),
+PARTITION p1 VALUES LESS THAN (11),
+PARTITION p2 VALUES LESS THAN (16),
+PARTITION p3 VALUES LESS THAN (21));
+
+INSERT INTO `t1` VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+(11), (12), (13), (14), (15), (16), (17), (18), (19), (20);
+
+DELETE FROM t1 AS a PARTITION(p0) WHERE a.id % 2 = 0;
+
+SELECT * FROM t1 ORDER BY id;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.6 tests
+--echo #

@@ -270,7 +270,7 @@ connection server_2;
 include/stop_slave.inc
 SET @old_format= @@GLOBAL.binlog_format;
 SET GLOBAL binlog_format= MIXED;
-SET @old_isolation= @@GLOBAL.tx_isolation;
+SET @old_isolation= @@GLOBAL.transaction_isolation;
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -346,7 +346,7 @@ a	b
 10	10
 include/stop_slave.inc
 SET GLOBAL binlog_format= @old_format;
-SET GLOBAL tx_isolation= @old_isolation;
+SET GLOBAL transaction_isolation= @old_isolation;
 include/start_slave.inc
 *** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
 connection server_1;

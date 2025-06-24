@@ -390,13 +390,13 @@ ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column
 select cast(1 as decimal(5,6));
 ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 select cast(1 as double(66,6));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+ERROR 42000: Too big precision specified for '1'. Maximum is 65
 select cast(1 as decimal(66,6));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+ERROR 42000: Too big precision specified for '1'. Maximum is 65
 select cast(1 as decimal(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 select cast(1 as double(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 set names binary;
 select cast(_latin1'test' as char character set latin2);
 cast(_latin1'test' as char character set latin2)
@@ -409,7 +409,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` varchar(4) CHARACTER SET cp1251 COLLATE cp1251_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select
 cast(_latin1'ab'  AS char)    as c1,
@@ -448,7 +448,7 @@ t1	CREATE TABLE `t1` (
   `c3` varbinary(2) NOT NULL,
   `c4` varbinary(2) NOT NULL,
   `c5` varbinary(2) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select
 cast(_koi8r'фг'  AS nchar)    as c1,
@@ -482,7 +482,7 @@ t1	CREATE TABLE `t1` (
   `c3` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `c4` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `c5` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a binary(4), b char(4) character set koi8r);
 insert into t1 values (_binary'тест',_binary'тест');
@@ -599,7 +599,7 @@ t1	CREATE TABLE `t1` (
   `cast("2001-1-1" as DATE)` date DEFAULT NULL,
   `cast("2001-1-1" as DATETIME)` datetime DEFAULT NULL,
   `cast("1:2:3" as TIME)` time DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1 (f1 double);
 INSERT INTO t1 SET f1 = -1.0e+30 ;
@@ -764,9 +764,9 @@ Warning	1292	Truncated incorrect INTEGER value: '9999999999999999999999999999999
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CONCAT(CAST(REPEAT('9', 1000) AS SIGNED))` varchar(21) NOT NULL,
-  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(20) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(CAST(REPEAT('9', 1000) AS SIGNED))` varchar(21) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(20) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 # End of test for Bug#13581962, Bug#14096619
 End of 5.1 tests
@@ -815,7 +815,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(5) GENERATED ALWAYS AS (cast('a' as char(10) charset latin1 binary) + `a`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select collation(cast("a" as char(10) binary));
 collation(cast("a" as char(10) binary))
@@ -843,28 +843,28 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `IFNULL(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT COALESCE(CONVERT(NULL, UNSIGNED), NULL);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `COALESCE(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL,SIGNED),CONVERT(NULL,UNSIGNED)) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 -1,
@@ -878,11 +878,11 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `-1` int(2) NOT NULL,
   `CONVERT(NULL,SIGNED)` int(2) DEFAULT NULL,
-  `CONCAT(CONVERT(NULL,SIGNED))` varchar(2) DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,SIGNED))` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
   `1` int(1) NOT NULL,
   `CONVERT(NULL,UNSIGNED)` int(1) unsigned DEFAULT NULL,
-  `CONCAT(CONVERT(NULL,UNSIGNED))` varchar(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(CONVERT(NULL,UNSIGNED))` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 CONVERT('',SIGNED),
@@ -898,10 +898,10 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CONVERT('',SIGNED)` int(2) NOT NULL,
-  `CONCAT(CONVERT('',SIGNED))` varchar(2) NOT NULL,
+  `CONCAT(CONVERT('',SIGNED))` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
   `CONVERT('',UNSIGNED)` int(1) unsigned NOT NULL,
-  `CONCAT(CONVERT('',UNSIGNED))` varchar(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `CONCAT(CONVERT('',UNSIGNED))` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-12849 Out-of-range errors when casting hex-hybrid to SIGNED and UNSIGNED
@@ -1148,7 +1148,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST(-1 AS UNSIGNED)` bigint(20) unsigned NOT NULL,
   `CAST(1-2 AS UNSIGNED)` bigint(20) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 CAST(-1 AS UNSIGNED)	CAST(1-2 AS UNSIGNED)
 18446744073709551615	18446744073709551615
@@ -1165,7 +1165,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CAST('-1' AS UNSIGNED)` bigint(20) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 CAST('-1' AS UNSIGNED)
 18446744073709551615

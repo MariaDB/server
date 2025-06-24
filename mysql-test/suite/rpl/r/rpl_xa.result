@@ -29,6 +29,8 @@ xa start 's';
 insert into t2 values (0);
 xa end 's';
 xa prepare 's';
+Warnings:
+Warning	4205	Pseudo thread id should not be modified by the client as it will be overwritten
 include/save_master_gtid.inc
 connection slave;
 include/sync_with_master_gtid.inc
@@ -225,7 +227,7 @@ drop table t1, t2, t3, tm;
 create table t1 (a int primary key, b int unique) engine=innodb;
 insert t1 values (1,1),(3,3),(5,5);
 connection slave;
-set session tx_isolation='repeatable-read';
+set session transaction_isolation='repeatable-read';
 start transaction;
 select * from t1;
 a	b

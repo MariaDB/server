@@ -103,7 +103,7 @@ Schema::find_native_function_builder(THD *thd, const LEX_CSTRING &name) const
 
 
 Item *Schema::make_item_func_call_native(THD *thd,
-                                         const Lex_ident_sys &name,
+                                         const Lex_ident_routine &name,
                                          List<Item> *args) const
 {
   Create_func *builder= find_native_function_builder(thd, name);

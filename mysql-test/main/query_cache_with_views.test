@@ -15,7 +15,7 @@ set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
 
 --disable_ps2_protocol
-flush status;
+flush global status;
 create table t1 (a int, b int);
 
 --disable_cursor_protocol
@@ -42,8 +42,8 @@ drop view v1,v2;
 # SQL_CACHE option
 set query_cache_type=demand;
 --disable_ps2_protocol
-flush status;
-# query with view will be cached, but direct acess to table will not
+flush global status;
+# query with view will be cached, but direct access to table will not
 create view v1 (c,d) as select sql_cache a,b from t1;
 show status like "Qcache_queries_in_cache";
 show status like "Qcache_inserts";
@@ -114,7 +114,7 @@ drop table t1;
 #
 --disable_cursor_protocol
 --disable_ps2_protocol
-flush status;
+flush global status;
 create table t1 (a int, b int);
 create algorithm=temptable view v1 as select * from t1;
 select * from v1;

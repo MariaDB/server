@@ -1,0 +1,30 @@
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-32637 Implement native UUID7 function
+--echo #
+
+--vertical_results
+SELECT
+  '----' AS `----`,
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_TYPE='FUNCTION'
+  AND PLUGIN_NAME IN
+    ('uuid_v7')
+ORDER BY PLUGIN_NAME;
+--horizontal_results
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

@@ -18,10 +18,6 @@
   Implementation for the thread scheduler
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma implementation
-#endif
-
 #include "mariadb.h"
 #include "mysqld.h"
 #include "scheduler.h"

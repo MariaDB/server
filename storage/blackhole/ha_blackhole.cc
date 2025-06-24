@@ -13,11 +13,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "sql_priv.h"
@@ -106,17 +101,6 @@ int ha_blackhole::truncate()
   DBUG_RETURN(0);
 }
 
-const char *ha_blackhole::index_type(uint key_number)
-{
-  DBUG_ENTER("ha_blackhole::index_type");
-  DBUG_RETURN((table_share->key_info[key_number].flags & HA_FULLTEXT) ? 
-              "FULLTEXT" :
-              (table_share->key_info[key_number].flags & HA_SPATIAL) ?
-              "SPATIAL" :
-              (table_share->key_info[key_number].algorithm ==
-               HA_KEY_ALG_RTREE) ? "RTREE" : "BTREE");
-}
-
 int ha_blackhole::write_row(const uchar * buf)
 {
   DBUG_ENTER("ha_blackhole::write_row");
@@ -164,15 +148,14 @@ int ha_blackhole::rnd_next(uchar *buf)
 int ha_blackhole::rnd_pos(uchar * buf, uchar *pos)
 {
   DBUG_ENTER("ha_blackhole::rnd_pos");
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
+  DBUG_RETURN(HA_ERR_END_OF_FILE);
 }
 
 
 void ha_blackhole::position(const uchar *record)
 {
   DBUG_ENTER("ha_blackhole::position");
-  DBUG_ASSERT(0);
+  bzero(ref, ref_length);
   DBUG_VOID_RETURN;
 }
 
@@ -182,6 +165,17 @@ int ha_blackhole::info(uint flag)
   DBUG_ENTER("ha_blackhole::info");
 
   bzero((char*) &stats, sizeof(stats));
+  /*
+    The following is required to get replication to work as otherwise
+    test_quick_select() will think the table is empty and thus any
+    update/delete will not have any rows to update.
+  */
+  stats.records= 2;
+  /*
+    Block size should not be 0 as this will cause division by zero
+    in scan_time()
+  */
+  stats.block_size= 8192;
   if (flag & HA_STATUS_AUTO)
     stats.auto_increment_value= 1;
   DBUG_RETURN(0);
@@ -406,8 +400,8 @@ static int blackhole_init(void *p)
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(PSI_INSTRUMENT_ME, &blackhole_open_tables,
-                      system_charset_info, 32, 0, 0, blackhole_get_key,
-                      blackhole_free_key, 0);
+                      Lex_ident_table::charset_info(),
+                      32, 0, 0, blackhole_get_key, blackhole_free_key, 0);
 
   return 0;
 }

@@ -3,9 +3,15 @@ Tests: smoke
 # for its existence (see the list in debian/control), install it if available
 # and check in the test if it's functional when it should be.
 # The plugin package also already depends on the other one.
-Depends: mariadb-plugin-rocksdb | mariadb-server-10.6
+Depends: mariadb-plugin-provider-bzip2,
+         mariadb-plugin-provider-lz4,
+         mariadb-plugin-provider-lzma,
+         mariadb-plugin-provider-lzo,
+         mariadb-plugin-provider-snappy,
+         mariadb-plugin-rocksdb | mariadb-server
 Restrictions: allow-stderr needs-root isolation-container
 
 Tests: upstream
-Depends: mariadb-test, eatmydata
+Depends: eatmydata,
+         mariadb-test
 Restrictions: allow-stderr breaks-testbed

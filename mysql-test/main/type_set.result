@@ -4,14 +4,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` set('','a','b') NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a set (' ','a','b ') not null default 'b ');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` set('','a','b') NOT NULL DEFAULT 'b'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1 (   user varchar(64) NOT NULL default '',   path varchar(255) NOT NULL default '',   privilege   set('select','RESERVED30','RESERVED29','RESERVED28','RESERVED27','RESERVED26',   'RESERVED25','RESERVED24','data.delete','RESERVED22','RESERVED21',   'RESERVED20','data.insert.none','data.insert.approve',   'data.insert.delete','data.insert.move','data.insert.propose',   'data.insert.reject','RESERVED13','RESERVED12','RESERVED11','RESERVED10',   'RESERVED09','data.update','RESERVED07','RESERVED06','RESERVED05',   'RESERVED04','metadata.delete','metadata.put','RESERVED01','RESERVED00')   NOT NULL default '',   KEY user (user)   ) ENGINE=MyISAM CHARSET=utf8;
 DROP TABLE t1;
@@ -21,7 +21,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `s` set('a','A') CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a'),('a,A'),('A,a'),('A');
 select s from t1 order by s;
 s
@@ -84,7 +84,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` set('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50','51','52','53','54','55','56','57','58','59','60','61','62','63','64','1') DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1(c set('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50','51','52','53','54','55','56','57','58','59','60','61','62','63','64'));
 INSERT INTO t1 VALUES(7);
@@ -135,7 +135,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `set` = "`t1`.`c1`" of type `date`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `set` = "'2001-01-01'" of type `date`
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
 c1
 2001-01-01
@@ -147,7 +146,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `set` = "`t1`.`c1`" of type `date`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of type `set` = "'2001-01-01'" of type `date`
 DROP TABLE t1, t2;
 #
 # MDEV-6978 Bad results with join comparing case insensitive VARCHAR/ENUM/SET expression to a _bin ENUM column
@@ -180,7 +178,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "<cache>('a' collate latin1_swedish_ci)" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -210,7 +207,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "<cache>('a' collate latin1_swedish_ci)" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
 INSERT INTO t1 VALUES ('a');
@@ -240,7 +236,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	1	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "`t1`.`c1` collate latin1_swedish_ci" of collation `latin1_swedish_ci`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`c1` of collation `latin1_bin` = "<cache>('a' collate latin1_swedish_ci)" of collation `latin1_swedish_ci`
 DROP TABLE IF EXISTS t1,t2;
 #
 # MDEV-6993 Bad results with join comparing DECIMAL and ENUM/SET columns
@@ -388,7 +383,7 @@ t2	CREATE TABLE `t2` (
   `CEILING(a)` int(5) unsigned DEFAULT NULL,
   `TRUNCATE(a,0)` int(5) unsigned DEFAULT NULL,
   `ROUND(a)` int(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 a	FLOOR(a)	CEILING(a)	TRUNCATE(a,0)	ROUND(a)
 999999999999999999999999999999999999999999999999999999999999	1	1	1	1
@@ -465,7 +460,7 @@ SET note_verbosity=unusable_keys;
 CREATE TABLE t1 (
 indexed_col SET('2001','2002','2003','2004','2005','2006','2007','2008','2009','2010'),
 KEY(indexed_col)
-);
+) CHARACTER SET latin1;
 FOR i IN 1..10
 DO
 INSERT INTO t1 VALUES (CONCAT(2000+i));
@@ -646,7 +641,7 @@ indexed_col	not_indexed_col
 Warnings:
 Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of collation `latin1_swedish_ci` = "`t2`.`not_indexed_col`" of collation `binary`
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
@@ -672,3 +667,36 @@ INSERT INTO t VALUES ('',CURRENT_TIME,'');
 UPDATE t SET c2=c2+5 WHERE c BETWEEN '' AND '';
 DROP TABLE t;
 SET sql_mode=DEFAULT;
+# End of 10.6 tests
+#
+# MDEV-29062 Wrong result set metadata for a mix of INT+ENUM
+#
+CREATE TABLE t1
+(
+c_int INT,
+c_set SET('1')
+);
+CREATE TABLE t2 AS SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c_int` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE OR REPLACE TABLE t2 AS SELECT COALESCE(c_int, c_set)  FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c_int, c_set)` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c_int	c_int	253	33	0	Y	16384	0	192
+c_int
+SELECT COALESCE(c_int, c_set)  FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(c_int, c_set)	253	33	0	Y	0	39	192
+COALESCE(c_int, c_set)
+DROP TABLE t1;
+# End of 10.11 tests

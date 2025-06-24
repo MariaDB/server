@@ -30,6 +30,11 @@ connection slave;
 set debug_sync= "now WAIT_FOR at_sql_delay";
 # Validating SBM is updated on event arrival..
 # ..done
+# MDEV-33856: New definition for Seconds_Behind_Master
+# Validating Master_last_event_time is updated on event arrival..
+# ..done
+# Validating Slave_last_event_time is still from the last transaction..
+# ..done
 # MDEV-32265. At time of STOP SLAVE, if the SQL Thread is currently
 # delaying a transaction; then when the reciprocal START SLAVE occurs,
 # if the event is still to be delayed, SBM should resume accordingly
@@ -62,6 +67,10 @@ set debug_sync= "now SIGNAL continue_sql_thread";
 connection server_2;
 UNLOCK TABLES;
 include/sync_with_master_gtid.inc
+# MDEV-33856: New definition for Seconds_Behind_Master
+# Waiting for slave timing statistics to update ..
+# Ensuring Slave_last_event_time is now up-to-date once event is executed
+# ..done
 #
 # Pt 2) If the worker threads have not entered an idle state, ensure
 # following events do not update SBM

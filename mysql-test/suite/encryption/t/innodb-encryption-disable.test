@@ -7,13 +7,12 @@
 # MDEV-9559: Server without encryption configs crashes if selecting from an implicitly encrypted table
 #
 
-call mtr.add_suppression("InnoDB: Table `test`\\.`t[15]` (has an unreadable root page|is corrupted)");
+call mtr.add_suppression("Table `test`\\.`t[15]` (has an unreadable root page|is corrupted)");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[15]\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("InnoDB: Recovery failed to read page");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[15].ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t[15]\\.ibd'");
 call mtr.add_suppression("InnoDB: File '.*test/t[15]\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t[15]` is corrupted");
 
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
@@ -45,9 +44,9 @@ alter table t1 encrypted='yes' `encryption_key_id`=1;
 --let $restart_parameters=--innodb-encrypt-tables=OFF
 --source include/restart_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 select * from t1;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 select * from t5;
 
 --let $restart_parameters=--innodb-encrypt-tables=ON --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt

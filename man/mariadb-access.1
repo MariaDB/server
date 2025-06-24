@@ -1,0 +1,429 @@
+'\" t
+.\"
+.TH "\fBMARIADB-ACCESS\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-access
+.SH "NAME"
+mariadb-access \- client for checking access privileges (mariadb-access is now a symlink to mariadb-access)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-access\ [\fR\fB\fIhost_name\fR\fR\fB\ [\fR\fB\fIuser_name\fR\fR\fB\ [\fR\fB\fIdb_name\fR\fR\fB]]]\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-access [\fR\fB\fIhost_name\fR\fR\fB [\fR\fB\fIuser_name\fR\fR\fB [\fR\fB\fIdb_name\fR\fR\fB]]] [\fR\fB\fIoptions\fR\fR\fB]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb-access\fR
+is a diagnostic tool written by Yves Carlier\&. It checks the access privileges for a host name, user name, and database combination\&. Note that
+\fBmariadb-access\fR
+checks access using only the
+user,
+db, and
+host
+tables\&. It does not check table, column, or routine privileges specified in the
+tables_priv,
+columns_priv, or
+procs_priv
+tables\&.
+.PP
+Invoke
+\fBmariadb-access\fR
+like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-access [\fR\fB\fIhost_name\fR\fR\fB [\fR\fB\fIuser_name\fR\fR\fB [\fR\fB\fIdb_name\fR\fR\fB]]] [\fR\fB\fIoptions\fR\fR\fB]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBmariadb-access\fR
+supports the following options\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: help option
+.\" help option: mariadb-access
+\fB\-\-help\fR,
+\fB\-?\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: brief option
+.\" brief option: mariadb-access
+\fB\-\-brief\fR,
+\fB\-b\fR
+.sp
+Generate reports in single\-line tabular format\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: commit option
+.\" commit option: mariadb-access
+\fB\-\-commit\fR
+.sp
+Copy the new access privileges from the temporary tables to the original grant tables\&. The grant tables must be flushed for the new privileges to take effect\&. (For example, execute a
+\fBmariadb-admin reload\fR
+command\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: copy option
+.\" copy option: mariadb-access
+\fB\-\-copy\fR
+.sp
+Reload the temporary grant tables from original ones\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: db option
+.\" db option: mariadb-access
+\fB\-\-db=\fR\fB\fIdb_name\fR\fR,
+\fB\-d \fR\fB\fIdb_name\fR\fR
+.sp
+Specify the database name\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: debug option
+.\" debug option: mariadb-access
+\fB\-\-debug=\fR\fB\fIN\fR\fR
+.sp
+Specify the debug level\&.
+\fIN\fR
+can be an integer from 0 to 3\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: host option
+.\" host option: mariadb-access
+\fB\-\-host=\fR\fB\fIhost_name\fR\fR,
+\fB\-h \fR\fB\fIhost_name\fR\fR
+.sp
+The host name to use in the access privileges\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: howto option
+.\" howto option: mariadb-access
+\fB\-\-howto\fR
+.sp
+Display some examples that show how to use
+\fBmariadb-access\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: old_server option
+.\" old_server option: mariadb-access
+\fB\-\-old_server\fR
+.sp
+Connect to a very old MySQL server (before MySQL 3\&.21) that does not know how to handle full
+WHERE clauses\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: password option
+.\" password option: mariadb-access
+\fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
+\fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
+.sp
+The password to use when connecting to the server\&. If you omit the
+\fIpassword\fR
+value following the
+\fB\-\-password\fR
+or
+\fB\-p\fR
+option on the command line,
+\fBmariadb-access\fR
+prompts for one\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. See
+Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: plan option
+.\" plan option: mariadb-access
+\fB\-\-plan\fR
+.sp
+Display suggestions and ideas for future releases\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: preview option
+.\" preview option: mariadb-access
+\fB\-\-preview\fR
+.sp
+Show the privilege differences after making changes to the temporary grant tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: relnotes option
+.\" relnotes option: mariadb-access
+\fB\-\-relnotes\fR
+.sp
+Display the release notes\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: rhost option
+.\" rhost option: mariadb-access
+\fB\-\-rhost=\fR\fB\fIhost_name\fR\fR,
+\fB\-H \fR\fB\fIhost_name\fR\fR
+.sp
+Connect to the MariaDB server on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: rollback option
+.\" rollback option: mariadb-access
+\fB\-\-rollback\fR
+.sp
+Undo the most recent changes to the temporary grant tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: spassword option
+.\" spassword option: mariadb-access
+\fB\-\-spassword[=\fR\fB\fIpassword\fR\fR\fB]\fR,
+\fB\-P[\fR\fB\fIpassword\fR\fR\fB]\fR
+.sp
+The password to use when connecting to the server as the superuser\&. If you omit the
+\fIpassword\fR
+value following the
+\fB\-\-spassword\fR
+or
+\fB\-p\fR
+option on the command line,
+\fBmariadb-access\fR
+prompts for one\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. See
+Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: superuser option
+.\" superuser option: mariadb-access
+\fB\-\-superuser=\fR\fB\fIuser_name\fR\fR,
+\fB\-U \fR\fB\fIuser_name\fR\fR
+.sp
+Specify the user name for connecting as the superuser\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: table option
+.\" table option: mariadb-access
+\fB\-\-table\fR,
+\fB\-t\fR
+.sp
+Generate reports in table format\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: user option
+.\" user option: mariadb-access
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR,
+\fB\-u \fR\fB\fIuser_name\fR\fR
+.sp
+The user name to use in the access privileges\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-access: version option
+.\" version option: mariadb-access
+\fB\-\-version\fR,
+\fB\-v\fR
+.sp
+Display version information and exit\&.
+.RE
+.PP
+If your MariaDB distribution is installed in some non\-standard location, you must change the location where
+\fBmariadb-access\fR
+expects to find the
+\fBmariadb\fR
+client\&. Edit the
+mariadb-access
+script at approximately line 18\&. Search for a line that looks like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+$MYSQL     = '/usr/local/bin/mariadb';    # path to mariadb executable
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Change the path to reflect the location where
+\fBmariadb\fR
+actually is stored on your system\&. If you do not do this, a
+Broken pipe
+error will occur when you run
+\fBmariadb-access\fR\&.
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

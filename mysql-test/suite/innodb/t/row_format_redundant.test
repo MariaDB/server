@@ -16,24 +16,24 @@ let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/row_format_redundant;
 --mkdir $bugdir
+let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
+--mkdir $undodir
+
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
---let $d=$d --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
+--let $d=$d --innodb_undo_directory=$undodir --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
 --let $restart_parameters= $d
 # Ensure that any DDL records from previous tests have been purged.
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
-
-SET GLOBAL innodb_file_per_table=1;
 
 --echo #
 --echo # Bug#21644827 - FTS, ASSERT !SRV_READ_ONLY_MODE || M_IMPL.M_LOG_MODE ==
 --echo #                MTR_LOG_NO_REDO
 --echo #
 
-SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
@@ -61,9 +61,6 @@ row_format=redundant;
 insert into t3 values(444, 'dddd', 'bbbbb', 'aaaaa');
 insert into t3 values(555, 'eeee', 'ccccc', 'aaaaa');
 
-# read-only restart requires the change buffer to be empty; therefore we
-# do a slow shutdown.
-SET GLOBAL innodb_fast_shutdown=0;
 --let $restart_parameters= $d --innodb-read-only
 --source include/restart_mysqld.inc
 
@@ -150,7 +147,7 @@ RENAME TABLE t1 TO tee_one;
 DROP TABLE t1;
 DROP TABLE t2,t3;
 
---let SEARCH_PATTERN= \[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b.*
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters=
@@ -159,6 +156,7 @@ DROP TABLE t2,t3;
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir
+--rmdir $undodir
 
 # Remove the data file, because DROP TABLE skipped it for the "corrupted" table
 --let MYSQLD_DATADIR=`select @@datadir`

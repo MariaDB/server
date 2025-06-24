@@ -10,7 +10,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (abs(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1, default);
 select * from t1;
 a	b
@@ -25,7 +25,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(acos(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1, default);
 insert ignore into t1 values (1.0001,default);
 insert into t1 values (0,default);
@@ -44,7 +44,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(asin(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0.2, default);
 insert ignore into t1 values (1.0001,default);
 select * from t1;
@@ -62,7 +62,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(atan(`a`,`b`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-2,2,default);
 insert ignore into t1 values (format(PI(),6),0,default);
 select * from t1;
@@ -78,7 +78,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(atan(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-2,default);
 insert ignore into t1 values (format(PI(),6),default);
 select * from t1;
@@ -96,7 +96,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(atan(`a`,`b`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-2,2,default);
 insert ignore into t1 values (format(PI(),6),0,default);
 select * from t1;
@@ -113,7 +113,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (ceiling(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.23,default);
 insert ignore into t1 values (-1.23,default);
 select * from t1;
@@ -132,7 +132,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` varchar(10) GENERATED ALWAYS AS (conv(`a`,`b`,`c`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a',16,2,default);
 insert ignore into t1 values ('6e',18,8,default);
 insert into t1 values (-17,10,-18,default);
@@ -153,7 +153,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(cos(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI(),6),default);
 select * from t1;
 a	b
@@ -168,7 +168,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(cot(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 insert ignore into t1 values (1,default);
 select * from t1;
@@ -185,7 +185,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (crc32(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 insert ignore into t1 values ('mysql',default);
 select * from t1;
@@ -202,7 +202,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(degrees(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI(),6),default);
 insert ignore into t1 values (format(PI()/2,6),default);
 select * from t1;
@@ -219,7 +219,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (`a` / 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 select * from t1;
 a	b
@@ -234,7 +234,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(exp(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert ignore into t1 values (-2,default);
 insert into t1 values (0,default);
@@ -253,7 +253,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (floor(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.23,default);
 insert ignore into t1 values (-1.23,default);
 select * from t1;
@@ -270,7 +270,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(ln(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert ignore into t1 values (-2,default);
 Warnings:
@@ -292,7 +292,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` double GENERATED ALWAYS AS (format(log(`a`,`b`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,65536,default);
 insert ignore into t1 values (10,100,default);
 insert into t1 values (1,100,default);
@@ -314,7 +314,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(log(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert ignore into t1 values (-2,default);
 Warnings:
@@ -335,7 +335,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(log2(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (65536,default);
 insert ignore into t1 values (-100,default);
 Warnings:
@@ -356,7 +356,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(log10(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 insert ignore into t1 values (100,default);
 insert into t1 values (-100,default);
@@ -379,7 +379,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (`a` - 1) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2,default);
 select * from t1;
 a	b
@@ -394,7 +394,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` MOD 10) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (11,default);
 select * from t1;
@@ -411,7 +411,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` MOD 10) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (11,default);
 select * from t1;
@@ -428,7 +428,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (conv(`a`,10,8)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 select * from t1;
 a	b
@@ -443,7 +443,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(pi() * `a` * `a`,6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 select * from t1;
 a	b
@@ -458,7 +458,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 select * from t1;
 a	b
@@ -474,7 +474,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (pow(`a`,2)) VIRTUAL,
   `c` int(11) GENERATED ALWAYS AS (pow(`a`,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default,default);
 insert ignore into t1 values (2,default,default);
 select * from t1;
@@ -491,7 +491,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(radians(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (90,default);
 select * from t1;
 a	b
@@ -506,7 +506,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (round(`a`,0)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1.23,default);
 insert ignore into t1 values (-1.58,default);
 insert into t1 values (1.58,default);
@@ -525,7 +525,7 @@ t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (round(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.298,1,default);
 insert ignore into t1 values (1.298,0,default);
 insert into t1 values (23.298,-1,default);
@@ -544,7 +544,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (sign(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-32,default);
 insert ignore into t1 values (0,default);
 insert into t1 values (234,default);
@@ -563,7 +563,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(sin(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI()/2,6),default);
 select * from t1;
 a	b
@@ -578,7 +578,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(sqrt(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (4,default);
 insert ignore into t1 values (20,default);
 insert into t1 values (-16,default);
@@ -597,7 +597,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (format(tan(`a`),6)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (format(PI(),6),default);
 insert ignore into t1 values (format(PI()+1,6),default);
 select * from t1;
@@ -614,7 +614,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (`a` * 3) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0,default);
 insert ignore into t1 values (1,default);
 insert into t1 values (2,default);
@@ -633,7 +633,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (truncate(`a`,4)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1.223,default);
 insert ignore into t1 values (1.999,default);
 insert into t1 values (1.999,default);
@@ -654,7 +654,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` double GENERATED ALWAYS AS (-`a`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (-1,default);
 select * from t1;
@@ -674,7 +674,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(2) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (ascii(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2',default);
 insert ignore into t1 values (2,default);
 insert into t1 values ('dx',default);
@@ -693,7 +693,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (conv(`a`,10,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 select * from t1;
 a	b
@@ -708,7 +708,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (bit_length(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -723,7 +723,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (char_length(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -739,7 +739,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` varbinary(10) GENERATED ALWAYS AS (char(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (77,121,default);
 select * from t1;
 a	b	c
@@ -754,7 +754,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (char_length(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -770,7 +770,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(20) GENERATED ALWAYS AS (concat_ws(',',`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('value1','value2',default);
 select * from t1;
 a	b	c
@@ -786,7 +786,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(20) GENERATED ALWAYS AS (concat(`a`,',',`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('value1','value2',default);
 select * from t1;
 a	b	c
@@ -803,7 +803,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` varchar(10) GENERATED ALWAYS AS (elt(`c`,`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('value1','value2',1,default);
 insert ignore into t1 values ('value1','value2',2,default);
 select * from t1;
@@ -820,7 +820,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (export_set(`a`,'1','0','',10)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (6,default);
 select * from t1;
 a	b
@@ -836,7 +836,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (field('aa',`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('aa','bb',default);
 insert ignore into t1 values ('bb','aa',default);
 select * from t1;
@@ -854,7 +854,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (find_in_set(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('aa','aa,bb,cc',default);
 insert ignore into t1 values ('aa','bb,aa,cc',default);
 select * from t1;
@@ -871,7 +871,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
   `b` varchar(20) GENERATED ALWAYS AS (format(`a`,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12332.123456,default);
 select * from t1;
 a	b
@@ -886,7 +886,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (hex(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (17,default);
 select * from t1;
 a	b
@@ -900,7 +900,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (hex(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -916,7 +916,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(20) GENERATED ALWAYS AS (insert(`a`,octet_length(`a`),octet_length(`b`),`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('start,','end',default);
 select * from t1;
 a	b	c
@@ -932,7 +932,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (locate(`b`,`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar,','bar',default);
 insert ignore into t1 values ('xbar,','foobar',default);
 select * from t1;
@@ -949,7 +949,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (lcase(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -964,7 +964,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(5) GENERATED ALWAYS AS (left(`a`,5)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -979,7 +979,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (octet_length(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -994,7 +994,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` like 'H%!o' escape '!') VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert ignore into t1 values ('MySQL',default);
 select * from t1;
@@ -1011,7 +1011,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (locate('bar',`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1026,7 +1026,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (lcase(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1041,7 +1041,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (lpad(`a`,4,' ')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 insert ignore into t1 values ('M',default);
 select * from t1;
@@ -1058,7 +1058,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (ltrim(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('  MySQL',default);
 insert ignore into t1 values ('MySQL',default);
 select * from t1;
@@ -1077,7 +1077,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   `d` varchar(30) GENERATED ALWAYS AS (make_set(`c`,`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',1,default);
 insert ignore into t1 values ('a','b',3,default);
 select * from t1;
@@ -1094,7 +1094,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substr(`a`,1,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1109,7 +1109,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a`  not like 'H%o') VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert ignore into t1 values ('MySQL',default);
 select * from t1;
@@ -1126,7 +1126,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (!(`a` regexp 'H.+o')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert ignore into t1 values ('hello',default);
 select * from t1;
@@ -1143,7 +1143,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (octet_length(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('text',default);
 select * from t1;
 a	b
@@ -1158,7 +1158,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (ord(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2',default);
 select * from t1;
 a	b
@@ -1173,7 +1173,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (locate('bar',`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1188,7 +1188,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (quote(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Don\'t',default);
 select * from t1;
 a	b
@@ -1203,7 +1203,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` regexp 'H.+o') VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert ignore into t1 values ('hello',default);
 select * from t1;
@@ -1220,7 +1220,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) GENERATED ALWAYS AS (repeat(`a`,3)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1235,7 +1235,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) GENERATED ALWAYS AS (replace(`a`,'aa','bb')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('maa',default);
 select * from t1;
 a	b
@@ -1250,7 +1250,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(30) GENERATED ALWAYS AS (reverse(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('maa',default);
 select * from t1;
 a	b
@@ -1265,7 +1265,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (right(`a`,4)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('foobarbar',default);
 select * from t1;
 a	b
@@ -1280,7 +1280,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` regexp 'H.+o') VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 insert ignore into t1 values ('MySQL',default);
 select * from t1;
@@ -1297,7 +1297,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (rpad(`a`,4,'??')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('He',default);
 select * from t1;
 a	b
@@ -1312,7 +1312,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello  ',default);
 select * from t1;
 a	b
@@ -1327,7 +1327,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(20) GENERATED ALWAYS AS (soundex(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 select * from t1;
 a	b
@@ -1343,7 +1343,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (soundex(`a`) = soundex(`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello','Hello',default);
 insert ignore into t1 values ('Hello','MySQL',default);
 insert into t1 values ('Hello','hello',default);
@@ -1362,7 +1362,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (concat(`a`,space(5))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello', default);
 select * from t1;
 a	b
@@ -1378,7 +1378,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(9) DEFAULT NULL,
   `b` varchar(9) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (strcmp(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello','Hello', default);
 insert ignore into t1 values ('Hello','Hello1', default);
 select * from t1;
@@ -1395,7 +1395,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substr(`a`,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 select * from t1;
 a	b
@@ -1410,7 +1410,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substring_index(`a`,'.',2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('www.mysql.com',default);
 select * from t1;
 a	b
@@ -1425,7 +1425,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (substr(`a`,2,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('Hello',default);
 select * from t1;
 a	b
@@ -1440,7 +1440,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (trim(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (' aa ',default);
 select * from t1;
 a	b
@@ -1455,7 +1455,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (ucase(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1470,7 +1470,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(15) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (unhex(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('4D7953514C',default);
 select * from t1;
 a	b
@@ -1485,7 +1485,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (ucase(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -1503,7 +1503,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(16) GENERATED ALWAYS AS (case `a` when NULL then 'asd' when 'b' then 'B' else `a` end) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL,default);
 insert ignore into t1 values ('b',default);
 insert into t1 values ('c',default);
@@ -1523,7 +1523,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (if(`a` = 1,`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,2,default);
 insert ignore into t1 values (3,4,default);
 select * from t1;
@@ -1541,7 +1541,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` varchar(10) GENERATED ALWAYS AS (ifnull(`a`,'DEFAULT')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (NULL,'adf',default);
 insert ignore into t1 values ('a','adf',default);
 select * from t1;
@@ -1558,7 +1558,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (nullif(`a`,'DEFAULT')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('DEFAULT',default);
 insert ignore into t1 values ('a',default);
 select * from t1;
@@ -1578,7 +1578,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` > 0 and `a` < 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1,default);
 insert ignore into t1 values (1,default);
 select * from t1;
@@ -1595,7 +1595,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` between 0 and 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1,default);
 insert ignore into t1 values (1,default);
 select * from t1;
@@ -1612,7 +1612,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varbinary(10) GENERATED ALWAYS AS (cast(`a` as char charset binary)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('11',default);
 insert ignore into t1 values (1,default);
 select * from t1;
@@ -1629,7 +1629,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` & 5) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (0,default);
 select * from t1;
@@ -1646,7 +1646,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (~`a`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 Warnings:
 Warning	1264	Out of range value for column 'b' at row 1
@@ -1663,7 +1663,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` | 5) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (0,default);
 insert into t1 values (2,default);
@@ -1682,7 +1682,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` ^ 5) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (0,default);
 insert into t1 values (2,default);
@@ -1701,7 +1701,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` DIV 5) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (7,default);
 select * from t1;
@@ -1719,7 +1719,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <=> `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,1,default);
 insert ignore into t1 values (NULL,NULL,default);
 insert into t1 values (1,NULL,default);
@@ -1739,7 +1739,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` = `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',default);
 insert ignore into t1 values ('a','a',default);
 select * from t1;
@@ -1757,7 +1757,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` >= `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',default);
 insert ignore into t1 values ('a','a',default);
 select * from t1;
@@ -1775,7 +1775,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` > `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a','b',default);
 insert ignore into t1 values ('a','a',default);
 select * from t1;
@@ -1792,7 +1792,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` is not null) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (NULL,default);
 select * from t1;
@@ -1809,7 +1809,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` is null) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (NULL,default);
 select * from t1;
@@ -1826,7 +1826,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` << 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (3,default);
 select * from t1;
@@ -1844,7 +1844,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <= `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert ignore into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1864,7 +1864,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` < `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert ignore into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1883,7 +1883,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` tinyint(1) GENERATED ALWAYS AS (`a` not between 0 and 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (-1,default);
 insert ignore into t1 values (1,default);
 select * from t1;
@@ -1901,7 +1901,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <> `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert ignore into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1921,7 +1921,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
   `c` tinyint(1) GENERATED ALWAYS AS (`a` <> `b`) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('b','a',default);
 insert ignore into t1 values ('b','b',default);
 insert into t1 values ('b','c',default);
@@ -1940,7 +1940,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` > 5 or `a` < 3) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (4,default);
 select * from t1;
@@ -1957,7 +1957,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` >> 2) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (8,default);
 insert ignore into t1 values (3,default);
 select * from t1;
@@ -1974,7 +1974,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` xor 5) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0,default);
 insert ignore into t1 values (1,default);
 insert into t1 values (2,default);
@@ -1996,7 +1996,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` + interval 1 month) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2011,7 +2011,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (addtime(`a`,'02:00:00')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2026,7 +2026,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (convert_tz(`a`,'MET','UTC')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2041,7 +2041,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` + interval 1 month) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2056,7 +2056,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` - interval 1 month) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2071,7 +2071,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (cast(`a` as date)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31 02:00:00',default);
 select * from t1;
 a	b
@@ -2086,7 +2086,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (to_days(`a`) - to_days('2000-01-01')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2101,7 +2101,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofmonth(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2116,7 +2116,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofmonth(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2131,7 +2131,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofweek(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2146,7 +2146,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (dayofyear(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2161,7 +2161,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (extract(year from `a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2176,7 +2176,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (from_days(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (730669,default);
 select * from t1;
 a	b
@@ -2192,7 +2192,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (from_unixtime(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1196440219,default);
 select * from t1;
 a	b
@@ -2207,7 +2207,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (hour(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('10:05:03',default);
 select * from t1;
 a	b
@@ -2222,7 +2222,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (last_day(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2003-02-05',default);
 insert ignore into t1 values ('2003-02-32',default);
 Warnings:
@@ -2241,7 +2241,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (makedate(`a`,1)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2001,default);
 select * from t1;
 a	b
@@ -2256,7 +2256,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` time GENERATED ALWAYS AS (maketime(`a`,1,3)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (12,default);
 select * from t1;
 a	b
@@ -2271,7 +2271,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (microsecond(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 12:00:00.123456',default);
 insert ignore into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
@@ -2288,7 +2288,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (minute(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
 a	b
@@ -2303,7 +2303,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (month(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2009-12-31 23:59:59.000010',default);
 select * from t1;
 a	b
@@ -2318,7 +2318,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (period_add(`a`,2)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (200801,default);
 select * from t1;
 a	b
@@ -2334,7 +2334,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) GENERATED ALWAYS AS (period_diff(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (200802,200703,default);
 select * from t1;
 a	b	c
@@ -2349,7 +2349,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (quarter(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2364,7 +2364,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext DEFAULT NULL,
   `b` time GENERATED ALWAYS AS (sec_to_time(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (2378,default);
 select * from t1;
 a	b
@@ -2379,7 +2379,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (second(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('10:05:03',default);
 select * from t1;
 a	b
@@ -2394,7 +2394,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(64) DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (str_to_date(`a`,'%m/%d/%Y')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('04/30/2004',default);
 select * from t1;
 a	b
@@ -2409,7 +2409,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (`a` - interval 1 month) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2424,7 +2424,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime GENERATED ALWAYS AS (subtime(`a`,'02:00:00')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31',default);
 select * from t1;
 a	b
@@ -2439,7 +2439,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (time_to_sec(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('22:23:00',default);
 select * from t1;
 a	b
@@ -2454,7 +2454,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` time GENERATED ALWAYS AS (cast(`a` as time)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-08-31 02:03:04',default);
 select * from t1;
 a	b
@@ -2470,7 +2470,7 @@ t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` datetime DEFAULT NULL,
   `c` mediumtext GENERATED ALWAYS AS (timediff(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-12-31 23:59:59.000001','2008-12-30 01:01:01.000002',default);
 select * from t1;
 a	b	c
@@ -2485,7 +2485,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` timestamp GENERATED ALWAYS AS (cast(`a` as datetime)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-12-31',default);
 select * from t1;
 a	b
@@ -2500,7 +2500,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` timestamp GENERATED ALWAYS AS (`a` + interval 1 minute) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2003-01-02',default);
 select * from t1;
 a	b
@@ -2513,10 +2513,10 @@ create table t1 (a timestamp, b timestamp, c long as (timestampdiff(MONTH, a,b))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `b` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `a` timestamp NULL DEFAULT NULL,
+  `b` timestamp NULL DEFAULT NULL,
   `c` mediumtext GENERATED ALWAYS AS (timestampdiff(MONTH,`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2003-02-01','2003-05-01',default);
 select * from t1;
 a	b	c
@@ -2531,7 +2531,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (to_days(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2007-10-07',default);
 select * from t1;
 a	b
@@ -2546,7 +2546,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (week(`a`,0)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2561,7 +2561,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (weekday(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2576,7 +2576,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (week(`a`,3)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2591,7 +2591,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (year(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2606,7 +2606,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (yearweek(`a`,0)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2008-09-01',default);
 select * from t1;
 a	b
@@ -2628,7 +2628,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (cast(`a` as unsigned)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (-1,default);
 Warnings:
@@ -2649,7 +2649,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` mediumtext GENERATED ALWAYS AS (cast(`a` as unsigned)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,default);
 insert ignore into t1 values (-1,default);
 Warnings:
@@ -2677,7 +2677,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (aes_encrypt(aes_decrypt(`a`,'adf'),'adf')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -2692,7 +2692,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (bit_count(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (5,default);
 select * from t1;
 a	b
@@ -2707,7 +2707,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (uncompress(compress(`a`))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -2722,7 +2722,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (decode(encode(`a`,'abc'),'abc')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('MySQL',default);
 select * from t1;
 a	b
@@ -2737,7 +2737,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT 'aaa',
   `b` varchar(1024) GENERATED ALWAYS AS (ifnull(`a`,default(`a`))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('any value',default);
 select * from t1;
 a	b
@@ -2752,7 +2752,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (inet_ntoa(inet_aton(`a`))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('127.0.0.1',default);
 select * from t1;
 a	b
@@ -2767,7 +2767,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varbinary(32) GENERATED ALWAYS AS (md5(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('testing',default);
 select * from t1;
 a	b
@@ -2782,7 +2782,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (old_password(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('badpwd',default);
 select * from t1;
 a	b
@@ -2797,7 +2797,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (password(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('badpwd',default);
 select * from t1;
 a	b
@@ -2812,7 +2812,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (sha(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -2827,7 +2827,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1024) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (sha(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('abc',default);
 select * from t1;
 a	b
@@ -2842,7 +2842,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` varchar(1024) GENERATED ALWAYS AS (uncompressed_length(compress(repeat(`a`,30)))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a',default);
 select * from t1;
 a	b
@@ -2857,7 +2857,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` varchar(100) GENERATED ALWAYS AS (monthname(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2010-10-10',default);
 select * from t1;
 a	b
@@ -2872,7 +2872,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` varchar(100) GENERATED ALWAYS AS (dayname(`a`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2011-11-11',default);
 select * from t1;
 a	b
@@ -2887,7 +2887,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` varchar(100) GENERATED ALWAYS AS (date_format(`a`,'%W %a %M %b')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2012-12-12',default);
 select * from t1;
 a	b
@@ -2902,7 +2902,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` varchar(100) GENERATED ALWAYS AS (date_format(`a`,'%W %a %M %b','de_DE')) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2012-12-12',default);
 select * from t1;
 a	b
@@ -2917,7 +2917,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` varchar(32) GENERATED ALWAYS AS (current_user()) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('a', default);
 select * from t1;
 a	b
@@ -2932,7 +2932,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (time_format(`a`,'%H.%i.%S')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2001-01-01 02:03:04',default);
 select * from t1;
 a	b
@@ -2947,7 +2947,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
   `b` varchar(10) GENERATED ALWAYS AS (time_format(`a`,'%H.%i.%S')) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('2001-01-01 02:03:04',default);
 select * from t1;
 a	b

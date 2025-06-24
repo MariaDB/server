@@ -32,6 +32,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #else
 #include "buf0flu.h"
 #include "buf0dblwr.h"
+#include "btr0sea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "mtr0mtr.h"
@@ -445,11 +446,11 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 	uint		srclen = size - unencrypted_bytes;
 	const byte*	src = src_frame + header_len;
 	byte*		dst = dst_frame + header_len;
-	uint32		dstlen = 0;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
 	}
+	uint dstlen = srclen;
 
 	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -516,7 +517,7 @@ static byte* fil_encrypt_buf_for_full_crc32(
 			      + FIL_PAGE_FCRC32_CHECKSUM);
 	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 	byte* dst = dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-	uint dstlen = 0;
+	uint dstlen = srclen;
 
 	ut_a(key_version != ENCRYPTION_KEY_VERSION_INVALID);
 
@@ -533,7 +534,7 @@ static byte* fil_encrypt_buf_for_full_crc32(
 	ut_a(dstlen == srclen);
 
 	const ulint payload = size - FIL_PAGE_FCRC32_CHECKSUM;
-	mach_write_to_4(dst_frame + payload, ut_crc32(dst_frame, payload));
+	mach_write_to_4(dst_frame + payload, my_crc32c(0, dst_frame, payload));
 	/* Clean the rest of the buffer. FIXME: Punch holes when writing! */
 	memset(dst_frame + (payload + 4), 0, srv_page_size - (payload + 4));
 
@@ -647,7 +648,6 @@ static dberr_t fil_space_decrypt_full_crc32(
 	/* Calculate the offset where decryption starts */
 	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 	byte* dst = tmp_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-	uint dstlen = 0;
 	bool corrupted = false;
 	uint size = buf_page_full_crc32_size(src_frame, NULL, &corrupted);
 	if (UNIV_UNLIKELY(corrupted)) {
@@ -656,6 +656,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 
 	uint srclen = size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 			      + FIL_PAGE_FCRC32_CHECKSUM);
+	uint dstlen = srclen;
 
 	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -711,8 +712,8 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 	/* Calculate the offset where decryption starts */
 	const byte* src = src_frame + header_len;
 	byte* dst = tmp_frame + header_len;
-	uint32 dstlen = 0;
 	uint srclen = uint(physical_size) - header_len - FIL_PAGE_DATA_END;
+	uint dstlen = srclen;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
@@ -744,20 +745,20 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 
 /** Decrypt a page.
 @param[in]	space_id		tablespace id
+@param[in]	fsp_flags		Tablespace flags
 @param[in]	crypt_data		crypt_data
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	physical_size		page size
-@param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
 @retval DB_SUCCESS on success
 @retval DB_DECRYPTION_FAILED on error */
 dberr_t
 fil_space_decrypt(
-	ulint			space_id,
+	uint32_t		space_id,
+	uint32_t		fsp_flags,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
-	ulint			fsp_flags,
 	byte*			src_frame)
 {
 	if (!crypt_data || !crypt_data->is_encrypted()) {
@@ -792,9 +793,10 @@ fil_space_decrypt(
 
 	ut_ad(space->referenced());
 
-	if (DB_SUCCESS != fil_space_decrypt(space->id, space->crypt_data,
+	if (DB_SUCCESS != fil_space_decrypt(space->id, space->flags,
+					    space->crypt_data,
 					    tmp_frame, physical_size,
-					    space->flags, src_frame)) {
+					    src_frame)) {
 		return nullptr;
 	}
 
@@ -1369,7 +1371,7 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
   mysql_mutex_assert_owner(&mutex);
 
   auto it= space && space->is_in_default_encrypt
-    ? sized_ilist<fil_space_t, rotation_list_tag_t>::iterator(space)
+    ? sized_ilist<fil_space_t, default_encrypt_tag_t>::iterator(space)
     : default_encrypt_tables.begin();
   const auto end= default_encrypt_tables.end();
 
@@ -1673,6 +1675,8 @@ fil_crypt_get_page_throttle(
 					      BUF_PEEK_IF_IN_POOL, mtr);
 	if (block != NULL) {
 		/* page was in buffer pool */
+		btr_search_drop_page_hash_index(
+			block, reinterpret_cast<dict_index_t*>(-1));
 		state->crypt_stat.pages_read_from_cache++;
 		return block;
 	}
@@ -1756,6 +1760,8 @@ fil_crypt_rotate_page(
 	if (buf_block_t* block = fil_crypt_get_page_throttle(state,
 							     offset, &mtr,
 							     &sleeptime_ms)) {
+		btr_search_drop_page_hash_index(
+			block, reinterpret_cast<dict_index_t*>(-1));
 		bool modified = false;
 		byte* frame = buf_block_get_frame(block);
 		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
@@ -1859,7 +1865,7 @@ fil_crypt_rotate_pages(
 	const key_state_t*	key_state,
 	rotate_thread_t*	state)
 {
-	ulint space_id = state->space->id;
+	const uint32_t space_id = state->space->id;
 	uint32_t end = std::min(state->offset + uint32_t(state->batch),
 				state->space->free_limit);
 

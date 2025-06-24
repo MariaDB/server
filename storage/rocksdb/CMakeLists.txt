@@ -17,6 +17,7 @@ STRING(REGEX REPLACE "-Wframe-larger-than=[0-9]*" ""
        CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wframe-larger-than=32768)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-invalid-offsetof)
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-effc++ DEBUG RELWITHDEBINFO)
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
@@ -159,8 +160,12 @@ else()
   SET(ATOMIC_EXTRA_LIBS)
 endif()
 
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
+
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
-                 MODULE_OUTPUT_NAME ha_rocksdb
                  LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
@@ -169,7 +174,7 @@ IF(NOT TARGET rocksdb)
   RETURN()
 ENDIF()
 
-
+INSTALL_MANPAGES(rocksdb-engine mariadb-ldb.1 myrocks_hotbackup.1)
 
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)

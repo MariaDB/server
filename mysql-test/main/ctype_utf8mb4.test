@@ -10,6 +10,16 @@
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 
+#
+# Remove the 'utf8mb3=xxx' and 'utf8mb4=xxx' substrings
+# from @@character_set_collations to change the default
+# utf8mb3 and utf8mb4 collations to the hard-coded defaults
+# utf8mb3_general_ci and utf8mb4_general_ci
+#
+SET character_set_collations= REGEXP_REPLACE(@@character_set_collations, '(utf8mb[34]=[a-z0-9_]*)', '');
+SELECT @@character_set_collations;
+
+
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -53,32 +63,6 @@ select _utf8mb4 0xD0B0D0B1D0B2 like concat(_utf8mb4'%',_utf8mb4 0xD0B1,_utf8mb4 
 select convert(_latin1'Günter André' using utf8mb4) like CONVERT(_latin1'GÜNTER%' USING utf8mb4);
 select CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4) LIKE CONVERT(_koi8r'÷áóñ' USING utf8mb4);
 select CONVERT(_koi8r'÷áóñ' USING utf8mb4) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8mb4);
-
-#
-# Check the following:
-# "a"  == "a "
-# "a\0" < "a"
-# "a\0" < "a "
-
-SELECT 'a' = 'a ';
-SELECT 'a\0' < 'a';
-SELECT 'a\0' < 'a ';
-SELECT 'a\t' < 'a';
-SELECT 'a\t' < 'a ';
-
-#
-# The same for binary collation
-#
-SELECT 'a' = 'a ' collate utf8mb4_bin;
-SELECT 'a\0' < 'a' collate utf8mb4_bin;
-SELECT 'a\0' < 'a ' collate utf8mb4_bin;
-SELECT 'a\t' < 'a' collate utf8mb4_bin;
-SELECT 'a\t' < 'a ' collate utf8mb4_bin;
-
-CREATE TABLE t1 (a char(10) character set utf8mb4 not null);
-INSERT INTO t1 VALUES ('a'),('a\0'),('a\t'),('a ');
-SELECT hex(a),STRCMP(a,'a'), STRCMP(a,'a ') FROM t1;
-DROP TABLE t1;
 
 #
 # Fix this, it should return 1:
@@ -197,13 +181,6 @@ select * from t1 where a = 'b';
 select * from t1 where a = 'b' and a = 'b';
 select * from t1 where a = 'b' and a != 'b';
 drop table t1;
-
-#
-# Testing regexp
-#
-set names utf8mb4;
---source include/ctype_regex.inc
---source include/ctype_regex_utf8.inc
 
 #
 # Bug #4555
@@ -1884,24 +1861,6 @@ DROP TABLE t1;
 
 
 --echo #
---echo # WL#3664 WEIGHT_STRING
---echo #
-
-set names utf8mb4;
---source include/weight_string.inc
---source include/weight_string_euro.inc
---source include/weight_string_l1.inc
-
-set @@collation_connection=utf8mb4_bin;
---source include/weight_string.inc
---source include/weight_string_euro.inc
---source include/weight_string_l1.inc
-
---echo #
---echo # End of 5.6 tests
---echo #
-
---echo #
 --echo # Start of 10.0 tests
 --echo #
 
@@ -2049,12 +2008,59 @@ EXECUTE stmt;
 EXECUTE IMMEDIATE 'SELECT ''ðŸ˜Ž'' AS c';
 
 --echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT);
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET utf8mb4 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
+--echo #
+--echo # Start of 10.6 tests
+--echo #
 
 --echo #
---echo # Start of 10.5 tests
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET utf8mb4 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.11 tests
 --echo #
 
 --echo #
@@ -2067,7 +2073,6 @@ SELECT 1 COLLATE utf8mb4_bin;
 --error ER_COLLATION_CHARSET_MISMATCH
 SELECT 1 COLLATE latin1_swedish_ci;
 
---echo #
 --echo # MDEV-34376 Wrong data types when mixing an utf8 *TEXT column and a short binary
 --echo #
 
@@ -2162,4 +2167,41 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-10865 COLLATE keyword doesn't work in PREPARE query
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (
+   c1 varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL
+) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('jj');
+SELECT * FROM t1 WHERE c1 LIKE 'jj' COLLATE utf8mb4_unicode_ci;
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1 LIKE ? COLLATE utf8mb4_unicode_ci';
+EXECUTE stmt USING 'jj';
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT CONCAT(?) COLLATE utf8mb4_unicode_ci AS c1';
+EXECUTE stmt USING 'test';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT NULL COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT CONCAT(NULL) COLLATE utf8mb4_unicode_ci AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.11 tests
 --echo #

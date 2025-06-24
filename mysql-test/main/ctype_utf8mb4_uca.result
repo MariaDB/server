@@ -2754,7 +2754,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `s1` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_myanmar_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (s1) VALUES
 (_ucs2 0x108C),
 (_ucs2 0x1037),
@@ -5339,7 +5339,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (SPACE(0)),(SPACE(1)),(SPACE(2));
 SELECT HEX(a), HEX(WEIGHT_STRING(a AS CHAR(8))) FROM t1;
 HEX(a)	HEX(WEIGHT_STRING(a AS CHAR(8)))
@@ -5372,7 +5372,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_ucs2 0x3400);
 INSERT INTO t1 VALUES (_ucs2 0xF001);
 SELECT HEX(CONVERT(a USING ucs2)) AS ucs2, HEX(a), HEX(WEIGHT_STRING(a)) FROM t1;
@@ -5385,7 +5385,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('A'),('À'),('Á'),('Â'),('Ã'),('Ä'),('Å');
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 a	HEX(WEIGHT_STRING(a LEVEL 2))
@@ -5419,7 +5419,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 a	HEX(WEIGHT_STRING(a LEVEL 2))
 A	0020
@@ -5444,7 +5444,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('cota'),('cote'),('cotz');
 INSERT INTO t1 VALUES ('coté'),('côte'),('côté'),('cotë'),('côtë');
 SELECT * FROM t1 ORDER BY a;
@@ -5591,7 +5591,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
   KEY `a_id` (`a`,`id`)
-) ENGINE=MyISAM AUTO_INCREMENT=97 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM AUTO_INCREMENT=97 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 #
 # Ascending sort, using filesort
 #
@@ -6589,7 +6589,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('111', '111');
 INSERT INTO t1 VALUES ('222', '222');
 INSERT INTO t1 VALUES ('333', '333');
@@ -6618,7 +6618,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -6630,6 +6630,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -6643,6 +6654,66 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	C9AB	ɫ
 271	C9B1	C9B1	ɱ
 27D	C9BD	C9BD	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
+DROP TABLE case_folding;
+SET NAMES utf8mb4 COLLATE utf8mb4_turkish_ci /*Unicode-4.0 folding with Turkish mapping for I */;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_turkish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code) VALUES
+(0x23A),
+(0x23E),
+(0x23F),
+(0x240),
+(0x250),
+(0x251),
+(0x252),
+(0x26B),
+(0x271),
+(0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+UPDATE case_folding SET c=CHAR(code USING ucs2);
+SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
+HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
+23A	C8BA	C8BA	Ⱥ
+23E	C8BE	C8BE	Ⱦ
+23F	C8BF	C8BF	ȿ
+240	C980	C980	ɀ
+250	C990	C990	ɐ
+251	C991	C991	ɑ
+252	C992	C992	ɒ
+26B	C9AB	C9AB	ɫ
+271	C9B1	C9B1	ɱ
+27D	C9BD	C9BD	ɽ
+49	C4B1	49	I
+69	69	C4B0	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -6651,7 +6722,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -6663,6 +6734,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -6676,6 +6758,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_nopad_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -6684,7 +6774,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -6696,6 +6786,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -6709,6 +6810,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb4 COLLATE utf8mb4_myanmar_ci;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -6717,7 +6826,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_myanmar_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -6729,6 +6838,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -6742,6 +6862,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 SET NAMES utf8mb4 COLLATE utf8mb4_thai_520_w2;
 CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
@@ -6750,7 +6878,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -6762,6 +6890,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -6775,7 +6914,4776 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 #
 # End of 10.3 tests
+#
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# Collation IDs in the protocol
+#
+SET NAMES utf8mb4;
+SET @charset=(SELECT @@character_set_client);
+FOR rec IN (SELECT COLLATION_NAME
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE CHARACTER_SET_NAME=@charset
+AND COLLATION_NAME RLIKE 'uca1400'
+            ORDER BY ID)
+DO
+EXECUTE IMMEDIATE CONCAT('SET NAMES ',@charset,' COLLATE ', rec.COLLATION_NAME);
+SELECT rec.COLLATION_NAME;
+END FOR;
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	13	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	13	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	13	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	13	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	224
+rec.COLLATION_NAME
+uca1400_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	225
+rec.COLLATION_NAME
+uca1400_icelandic_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	226
+rec.COLLATION_NAME
+uca1400_latvian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	227
+rec.COLLATION_NAME
+uca1400_romanian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	228
+rec.COLLATION_NAME
+uca1400_slovenian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	229
+rec.COLLATION_NAME
+uca1400_polish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	230
+rec.COLLATION_NAME
+uca1400_estonian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	231
+rec.COLLATION_NAME
+uca1400_spanish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	232
+rec.COLLATION_NAME
+uca1400_swedish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	233
+rec.COLLATION_NAME
+uca1400_turkish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	234
+rec.COLLATION_NAME
+uca1400_czech_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	235
+rec.COLLATION_NAME
+uca1400_danish_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	236
+rec.COLLATION_NAME
+uca1400_lithuanian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	20	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	26	Y	0	0	237
+rec.COLLATION_NAME
+uca1400_slovak_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	238
+rec.COLLATION_NAME
+uca1400_spanish2_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	19	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	25	Y	0	0	239
+rec.COLLATION_NAME
+uca1400_roman_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	240
+rec.COLLATION_NAME
+uca1400_persian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	241
+rec.COLLATION_NAME
+uca1400_esperanto_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	23	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	29	Y	0	0	242
+rec.COLLATION_NAME
+uca1400_hungarian_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	243
+rec.COLLATION_NAME
+uca1400_sinhala_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	21	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	27	Y	0	0	244
+rec.COLLATION_NAME
+uca1400_german2_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	24	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	30	Y	0	0	247
+rec.COLLATION_NAME
+uca1400_vietnamese_nopad_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	22	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_as_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_nopad_ai_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_nopad_ai_cs
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_nopad_as_ci
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				COLLATION_NAME	rec.COLLATION_NAME	253	256	28	Y	0	0	608
+rec.COLLATION_NAME
+uca1400_croatian_nopad_as_cs
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# SET NAMES CHARACTER SET cs [COLLATE cl]
+#
+SET GLOBAL character_set_client=latin1;
+CREATE VIEW vars AS
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE variable_name IN
+('character_set_client','character_set_connection','character_set_results',
+'collation_connection') ORDER BY variable_name;
+---
+SET NAMES DEFAULT COLLATE DEFAULT;
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	latin1
+CHARACTER_SET_CONNECTION	latin1
+CHARACTER_SET_RESULTS	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+---
+SET NAMES DEFAULT COLLATE `binary`;
+ERROR 42000: COLLATION 'binary' is not valid for CHARACTER SET 'latin1'
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	latin1
+CHARACTER_SET_CONNECTION	latin1
+CHARACTER_SET_RESULTS	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+---
+SET NAMES DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+ERROR 42000: COLLATION 'utf8mb4_uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	latin1
+CHARACTER_SET_CONNECTION	latin1
+CHARACTER_SET_RESULTS	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+---
+SET NAMES DEFAULT COLLATE uca1400_ai_ci;
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	latin1
+CHARACTER_SET_CONNECTION	latin1
+CHARACTER_SET_RESULTS	latin1
+COLLATION_CONNECTION	latin1_swedish_ci
+---
+SET NAMES utf8mb4;
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	utf8mb4
+CHARACTER_SET_CONNECTION	utf8mb4
+CHARACTER_SET_RESULTS	utf8mb4
+COLLATION_CONNECTION	utf8mb4_uca1400_ai_ci
+---
+SET NAMES utf8mb4 COLLATE `binary`;
+ERROR 42000: COLLATION 'binary' is not valid for CHARACTER SET 'utf8mb4'
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	utf8mb4
+CHARACTER_SET_CONNECTION	utf8mb4
+CHARACTER_SET_RESULTS	utf8mb4
+COLLATION_CONNECTION	utf8mb4_uca1400_ai_ci
+---
+SET NAMES utf8mb4 COLLATE DEFAULT;
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	utf8mb4
+CHARACTER_SET_CONNECTION	utf8mb4
+CHARACTER_SET_RESULTS	utf8mb4
+COLLATION_CONNECTION	utf8mb4_uca1400_ai_ci
+---
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	utf8mb4
+CHARACTER_SET_CONNECTION	utf8mb4
+CHARACTER_SET_RESULTS	utf8mb4
+COLLATION_CONNECTION	utf8mb4_uca1400_ai_ci
+---
+SET NAMES utf8mb4 COLLATE uca1400_ai_ci;
+SELECT * FROM vars;
+VARIABLE_NAME	VARIABLE_VALUE
+CHARACTER_SET_CLIENT	utf8mb4
+CHARACTER_SET_CONNECTION	utf8mb4
+CHARACTER_SET_RESULTS	utf8mb4
+COLLATION_CONNECTION	utf8mb4_uca1400_ai_ci
+DROP VIEW vars;
+SET GLOBAL character_set_client=DEFAULT;
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# ALTER TABLE t1 CONVERT TO CHARACTER SET cs [COLLATE cl]
+#
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+USE db1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE latin1_bin;
+ERROR 42000: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE latin1_bin;
+ERROR 42000: COLLATION 'latin1_bin' is not valid for CHARACTER SET 'utf8mb4'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+DROP DATABASE db1;
+USE test;
+#
+# MDEV-27743 Remove Lex::charset
+# MDEV-27009 Add UCA-14.0.0 collations
+#
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES ('A'),('a'),('Á'),('á');
+SELECT * FROM t1 ORDER BY c1 COLLATE DEFAULT;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DEFAULT' at line 1
+SELECT * FROM t1 ORDER BY c1 COLLATE `binary`;
+ERROR 42000: COLLATION 'binary' is not valid for CHARACTER SET 'utf8mb4'
+SELECT * FROM t1 ORDER BY c1 COLLATE utf8mb4_uca1400_as_cs;
+c1
+a
+A
+á
+Á
+EXPLAIN EXTENDED SELECT * FROM t1 ORDER BY c1 COLLATE utf8mb4_uca1400_as_cs;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` order by `test`.`t1`.`c1` collate utf8mb4_uca1400_as_cs
+SELECT * FROM t1 ORDER BY c1 COLLATE uca1400_as_cs;
+c1
+a
+A
+á
+Á
+EXPLAIN EXTENDED SELECT * FROM t1 ORDER BY c1 COLLATE uca1400_as_cs;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` order by `test`.`t1`.`c1` collate uca1400_as_cs
+DROP TABLE t1;
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# CREATE DATABASE
+#
+SET @@collation_server=utf8mb4_bin;
+CREATE DATABASE db1;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin */
+DROP DATABASE db1;
+CREATE DATABASE db1 COLLATE DEFAULT;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+CREATE DATABASE db1 COLLATE uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+CREATE DATABASE db1 COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+CREATE DATABASE db1 CHARACTER SET DEFAULT;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */
+DROP DATABASE db1;
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE DEFAULT;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+SET @@collation_server=DEFAULT;
+SET @@collation_server=latin1_bin;
+CREATE DATABASE db1 COLLATE uca1400_ai_ci;
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+ERROR 42000: COLLATION 'uca1400_ai_ci' is not valid for CHARACTER SET 'latin1'
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+DROP DATABASE db1;
+SET @@collation_server=DEFAULT;
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+# CREATE TABLE - table level character set and collation
+#
+SELECT @@collation_database;
+@@collation_database
+utf8mb4_uca1400_ai_ci
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE TABLE db1.t1 (a CHAR(1));
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE DEFAULT;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE DEFAULT;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE db1.t1;
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE db1.t1;
+DROP DATABASE db1;
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+#
+SET NAMES utf8mb4;
+CREATE PROCEDURE exec_verbose(query TEXT CHARACTER SET utf8mb4)
+BEGIN
+SELECT query AS ``;
+EXECUTE IMMEDIATE query;
+END;
+$$
+CREATE PROCEDURE test_styles(clname VARCHAR(64) CHARACTER SET utf8mb4,
+where_clause TEXT CHARACTER SET utf8mb4)
+BEGIN
+DECLARE query TEXT CHARACTER SET utf8mb4 DEFAULT
+'SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),'','') '
+   'FROM t1 <WHERE> GROUP BY a COLLATE <CL>';
+SET query=REPLACE(query, '<WHERE>', where_clause);
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_as_cs')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_as_cs')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_as_ci')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_as_ci')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_ai_cs')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_ai_cs')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_ai_ci')));
+CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_ai_ci')));
+END;
+$$
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4);
+insert into t1 values ('A'),('a');
+insert into t1 values ('B'),('b');
+insert into t1 values ('C'),('c');
+insert into t1 values ('D'),('d');
+insert into t1 values ('E'),('e');
+insert into t1 values ('F'),('f');
+insert into t1 values ('G'),('g');
+insert into t1 values ('H'),('h');
+insert into t1 values ('I'),('i');
+insert into t1 values ('J'),('j');
+insert into t1 values ('K'),('k');
+insert into t1 values ('L'),('l');
+insert into t1 values ('M'),('m');
+insert into t1 values ('N'),('n');
+insert into t1 values ('O'),('o');
+insert into t1 values ('P'),('p');
+insert into t1 values ('Q'),('q');
+insert into t1 values ('R'),('r');
+insert into t1 values ('S'),('s');
+insert into t1 values ('T'),('t');
+insert into t1 values ('U'),('u');
+insert into t1 values ('V'),('v');
+insert into t1 values ('W'),('w');
+insert into t1 values ('X'),('x');
+insert into t1 values ('Y'),('y');
+insert into t1 values ('Z'),('z');
+insert into t1 values (_ucs2 0x00e0),(_ucs2 0x00c0);
+insert into t1 values (_ucs2 0x00e1),(_ucs2 0x00c1);
+insert into t1 values (_ucs2 0x00e2),(_ucs2 0x00c2);
+insert into t1 values (_ucs2 0x00e3),(_ucs2 0x00c3);
+insert into t1 values (_ucs2 0x00e4),(_ucs2 0x00c4);
+insert into t1 values (_ucs2 0x00e5),(_ucs2 0x00c5);
+insert into t1 values (_ucs2 0x00e6),(_ucs2 0x00c6);
+insert into t1 values (_ucs2 0x00e7),(_ucs2 0x00c7);
+insert into t1 values (_ucs2 0x00e8),(_ucs2 0x00c8);
+insert into t1 values (_ucs2 0x00e9),(_ucs2 0x00c9);
+insert into t1 values (_ucs2 0x00ea),(_ucs2 0x00ca);
+insert into t1 values (_ucs2 0x00eb),(_ucs2 0x00cb);
+insert into t1 values (_ucs2 0x00ec),(_ucs2 0x00cc);
+insert into t1 values (_ucs2 0x00ed),(_ucs2 0x00cd);
+insert into t1 values (_ucs2 0x00ee),(_ucs2 0x00ce);
+insert into t1 values (_ucs2 0x00ef),(_ucs2 0x00cf);
+insert into t1 values (_ucs2 0x00f0),(_ucs2 0x00d0);
+insert into t1 values (_ucs2 0x00f1),(_ucs2 0x00d1);
+insert into t1 values (_ucs2 0x00f2),(_ucs2 0x00d2);
+insert into t1 values (_ucs2 0x00f3),(_ucs2 0x00d3);
+insert into t1 values (_ucs2 0x00f4),(_ucs2 0x00d4);
+insert into t1 values (_ucs2 0x00f5),(_ucs2 0x00d5);
+insert into t1 values (_ucs2 0x00f6),(_ucs2 0x00d6);
+insert into t1 values (_ucs2 0x00f7),(_ucs2 0x00d7);
+insert into t1 values (_ucs2 0x00f8),(_ucs2 0x00d8);
+insert into t1 values (_ucs2 0x00f9),(_ucs2 0x00d9);
+insert into t1 values (_ucs2 0x00fa),(_ucs2 0x00da);
+insert into t1 values (_ucs2 0x00fb),(_ucs2 0x00db);
+insert into t1 values (_ucs2 0x00fc),(_ucs2 0x00dc);
+insert into t1 values (_ucs2 0x00fd),(_ucs2 0x00dd);
+insert into t1 values (_ucs2 0x00fe),(_ucs2 0x00de);
+insert into t1 values (_ucs2 0x00ff),(_ucs2 0x00df);
+insert into t1 values (_ucs2 0x0100),(_ucs2 0x0101),(_ucs2 0x0102),(_ucs2 0x0103);
+insert into t1 values (_ucs2 0x0104),(_ucs2 0x0105),(_ucs2 0x0106),(_ucs2 0x0107);
+insert into t1 values (_ucs2 0x0108),(_ucs2 0x0109),(_ucs2 0x010a),(_ucs2 0x010b);
+insert into t1 values (_ucs2 0x010c),(_ucs2 0x010d),(_ucs2 0x010e),(_ucs2 0x010f);
+insert into t1 values (_ucs2 0x0110),(_ucs2 0x0111),(_ucs2 0x0112),(_ucs2 0x0113);
+insert into t1 values (_ucs2 0x0114),(_ucs2 0x0115),(_ucs2 0x0116),(_ucs2 0x0117);
+insert into t1 values (_ucs2 0x0118),(_ucs2 0x0119),(_ucs2 0x011a),(_ucs2 0x011b);
+insert into t1 values (_ucs2 0x011c),(_ucs2 0x011d),(_ucs2 0x011e),(_ucs2 0x011f);
+insert into t1 values (_ucs2 0x0120),(_ucs2 0x0121),(_ucs2 0x0122),(_ucs2 0x0123);
+insert into t1 values (_ucs2 0x0124),(_ucs2 0x0125),(_ucs2 0x0126),(_ucs2 0x0127);
+insert into t1 values (_ucs2 0x0128),(_ucs2 0x0129),(_ucs2 0x012a),(_ucs2 0x012b);
+insert into t1 values (_ucs2 0x012c),(_ucs2 0x012d),(_ucs2 0x012e),(_ucs2 0x012f);
+insert into t1 values (_ucs2 0x0130),(_ucs2 0x0131),(_ucs2 0x0132),(_ucs2 0x0133);
+insert into t1 values (_ucs2 0x0134),(_ucs2 0x0135),(_ucs2 0x0136),(_ucs2 0x0137);
+insert into t1 values (_ucs2 0x0138),(_ucs2 0x0139),(_ucs2 0x013a),(_ucs2 0x013b);
+insert into t1 values (_ucs2 0x013c),(_ucs2 0x013d),(_ucs2 0x013e),(_ucs2 0x013f);
+insert into t1 values (_ucs2 0x0140),(_ucs2 0x0141),(_ucs2 0x0142),(_ucs2 0x0143);
+insert into t1 values (_ucs2 0x0144),(_ucs2 0x0145),(_ucs2 0x0146),(_ucs2 0x0147);
+insert into t1 values (_ucs2 0x0148),(_ucs2 0x0149),(_ucs2 0x014a),(_ucs2 0x014b);
+insert into t1 values (_ucs2 0x014c),(_ucs2 0x014d),(_ucs2 0x014e),(_ucs2 0x014f);
+insert into t1 values (_ucs2 0x0150),(_ucs2 0x0151),(_ucs2 0x0152),(_ucs2 0x0153);
+insert into t1 values (_ucs2 0x0154),(_ucs2 0x0155),(_ucs2 0x0156),(_ucs2 0x0157);
+insert into t1 values (_ucs2 0x0158),(_ucs2 0x0159),(_ucs2 0x015a),(_ucs2 0x015b);
+insert into t1 values (_ucs2 0x015c),(_ucs2 0x015d),(_ucs2 0x015e),(_ucs2 0x015f);
+insert into t1 values (_ucs2 0x0160),(_ucs2 0x0161),(_ucs2 0x0162),(_ucs2 0x0163);
+insert into t1 values (_ucs2 0x0164),(_ucs2 0x0165),(_ucs2 0x0166),(_ucs2 0x0167);
+insert into t1 values (_ucs2 0x0168),(_ucs2 0x0169),(_ucs2 0x016a),(_ucs2 0x016b);
+insert into t1 values (_ucs2 0x016c),(_ucs2 0x016d),(_ucs2 0x016e),(_ucs2 0x016f);
+insert into t1 values (_ucs2 0x0170),(_ucs2 0x0171),(_ucs2 0x0172),(_ucs2 0x0173);
+insert into t1 values (_ucs2 0x0174),(_ucs2 0x0175),(_ucs2 0x0176),(_ucs2 0x0177);
+insert into t1 values (_ucs2 0x0178),(_ucs2 0x0179),(_ucs2 0x017a),(_ucs2 0x017b);
+insert into t1 values (_ucs2 0x017c),(_ucs2 0x017d),(_ucs2 0x017e),(_ucs2 0x017f);
+insert into t1 values (_ucs2 0x0180),(_ucs2 0x0181),(_ucs2 0x0182),(_ucs2 0x0183);
+insert into t1 values (_ucs2 0x0184),(_ucs2 0x0185),(_ucs2 0x0186),(_ucs2 0x0187);
+insert into t1 values (_ucs2 0x0188),(_ucs2 0x0189),(_ucs2 0x018a),(_ucs2 0x018b);
+insert into t1 values (_ucs2 0x018c),(_ucs2 0x018d),(_ucs2 0x018e),(_ucs2 0x018f);
+insert into t1 values (_ucs2 0x0190),(_ucs2 0x0191),(_ucs2 0x0192),(_ucs2 0x0193);
+insert into t1 values (_ucs2 0x0194),(_ucs2 0x0195),(_ucs2 0x0196),(_ucs2 0x0197);
+insert into t1 values (_ucs2 0x0198),(_ucs2 0x0199),(_ucs2 0x019a),(_ucs2 0x019b);
+insert into t1 values (_ucs2 0x019c),(_ucs2 0x019d),(_ucs2 0x019e),(_ucs2 0x019f);
+insert into t1 values (_ucs2 0x01a0),(_ucs2 0x01a1),(_ucs2 0x01a2),(_ucs2 0x01a3);
+insert into t1 values (_ucs2 0x01a4),(_ucs2 0x01a5),(_ucs2 0x01a6),(_ucs2 0x01a7);
+insert into t1 values (_ucs2 0x01a8),(_ucs2 0x01a9),(_ucs2 0x01aa),(_ucs2 0x01ab);
+insert into t1 values (_ucs2 0x01ac),(_ucs2 0x01ad),(_ucs2 0x01ae),(_ucs2 0x01af);
+insert into t1 values (_ucs2 0x01b0),(_ucs2 0x01b1),(_ucs2 0x01b2),(_ucs2 0x01b3);
+insert into t1 values (_ucs2 0x01b4),(_ucs2 0x01b5),(_ucs2 0x01b6),(_ucs2 0x01b7);
+insert into t1 values (_ucs2 0x01b8),(_ucs2 0x01b9),(_ucs2 0x01ba),(_ucs2 0x01bb);
+insert into t1 values (_ucs2 0x01bc),(_ucs2 0x01bd),(_ucs2 0x01be),(_ucs2 0x01bf);
+insert into t1 values (_ucs2 0x01c0),(_ucs2 0x01c1),(_ucs2 0x01c2),(_ucs2 0x01c3);
+insert into t1 values (_ucs2 0x01c4),(_ucs2 0x01c5),(_ucs2 0x01c6),(_ucs2 0x01c7);
+insert into t1 values (_ucs2 0x01c8),(_ucs2 0x01c9),(_ucs2 0x01ca),(_ucs2 0x01cb);
+insert into t1 values (_ucs2 0x01cc),(_ucs2 0x01cd),(_ucs2 0x01ce),(_ucs2 0x01cf);
+insert into t1 values (_ucs2 0x01d0),(_ucs2 0x01d1),(_ucs2 0x01d2),(_ucs2 0x01d3);
+insert into t1 values (_ucs2 0x01d4),(_ucs2 0x01d5),(_ucs2 0x01d6),(_ucs2 0x01d7);
+insert into t1 values (_ucs2 0x01d8),(_ucs2 0x01d9),(_ucs2 0x01da),(_ucs2 0x01db);
+insert into t1 values (_ucs2 0x01dc),(_ucs2 0x01dd),(_ucs2 0x01de),(_ucs2 0x01df);
+insert into t1 values (_ucs2 0x01e0),(_ucs2 0x01e1),(_ucs2 0x01e2),(_ucs2 0x01e3);
+insert into t1 values (_ucs2 0x01e4),(_ucs2 0x01e5),(_ucs2 0x01e6),(_ucs2 0x01e7);
+insert into t1 values (_ucs2 0x01e8),(_ucs2 0x01e9),(_ucs2 0x01ea),(_ucs2 0x01eb);
+insert into t1 values (_ucs2 0x01ec),(_ucs2 0x01ed),(_ucs2 0x01ee),(_ucs2 0x01ef);
+insert into t1 values (_ucs2 0x01f0),(_ucs2 0x01f1),(_ucs2 0x01f2),(_ucs2 0x01f3);
+insert into t1 values (_ucs2 0x01f4),(_ucs2 0x01f5),(_ucs2 0x01f6),(_ucs2 0x01f7);
+insert into t1 values (_ucs2 0x01f8),(_ucs2 0x01f9),(_ucs2 0x01fa),(_ucs2 0x01fb);
+insert into t1 values (_ucs2 0x01fc),(_ucs2 0x01fd),(_ucs2 0x01fe),(_ucs2 0x01ff);
+INSERT INTO t1 VALUES (_ucs2 0x1EA0),(_ucs2 0x1EA1),(_ucs2 0x1EA2),(_ucs2 0x1EA3);
+INSERT INTO t1 VALUES (_ucs2 0x1EA4),(_ucs2 0x1EA5),(_ucs2 0x1EA6),(_ucs2 0x1EA7);
+INSERT INTO t1 VALUES (_ucs2 0x1EA8),(_ucs2 0x1EA9),(_ucs2 0x1EAA),(_ucs2 0x1EAB);
+INSERT INTO t1 VALUES (_ucs2 0x1EAC),(_ucs2 0x1EAD),(_ucs2 0x1EAE),(_ucs2 0x1EAF);
+INSERT INTO t1 VALUES (_ucs2 0x1EB0),(_ucs2 0x1EB1),(_ucs2 0x1EB2),(_ucs2 0x1EB3);
+INSERT INTO t1 VALUES (_ucs2 0x1EB4),(_ucs2 0x1EB5),(_ucs2 0x1EB6),(_ucs2 0x1EB7);
+INSERT INTO t1 VALUES (_ucs2 0x1EB8),(_ucs2 0x1EB9),(_ucs2 0x1EBA),(_ucs2 0x1EBB);
+INSERT INTO t1 VALUES (_ucs2 0x1EBC),(_ucs2 0x1EBD),(_ucs2 0x1EBE),(_ucs2 0x1EBF);
+INSERT INTO t1 VALUES (_ucs2 0x1EC0),(_ucs2 0x1EC1),(_ucs2 0x1EC2),(_ucs2 0x1EC3);
+INSERT INTO t1 VALUES (_ucs2 0x1EC4),(_ucs2 0x1EC5),(_ucs2 0x1EC6),(_ucs2 0x1EC7);
+INSERT INTO t1 VALUES (_ucs2 0x1EC8),(_ucs2 0x1EC9),(_ucs2 0x1ECA),(_ucs2 0x1ECB);
+INSERT INTO t1 VALUES (_ucs2 0x1ECC),(_ucs2 0x1ECD),(_ucs2 0x1ECE),(_ucs2 0x1ECF);
+INSERT INTO t1 VALUES (_ucs2 0x1ED0),(_ucs2 0x1ED1),(_ucs2 0x1ED2),(_ucs2 0x1ED3);
+INSERT INTO t1 VALUES (_ucs2 0x1ED4),(_ucs2 0x1ED5),(_ucs2 0x1ED6),(_ucs2 0x1ED7);
+INSERT INTO t1 VALUES (_ucs2 0x1ED8),(_ucs2 0x1ED9),(_ucs2 0x1EDA),(_ucs2 0x1EDB);
+INSERT INTO t1 VALUES (_ucs2 0x1EDC),(_ucs2 0x1EDD),(_ucs2 0x1EDE),(_ucs2 0x1EDF);
+INSERT INTO t1 VALUES (_ucs2 0x1EE0),(_ucs2 0x1EE1),(_ucs2 0x1EE2),(_ucs2 0x1EE3);
+INSERT INTO t1 VALUES (_ucs2 0x1EE4),(_ucs2 0x1EE5),(_ucs2 0x1EE6),(_ucs2 0x1EE7);
+INSERT INTO t1 VALUES (_ucs2 0x1EE8),(_ucs2 0x1EE9),(_ucs2 0x1EEA),(_ucs2 0x1EEB);
+INSERT INTO t1 VALUES (_ucs2 0x1EEC),(_ucs2 0x1EED),(_ucs2 0x1EEE),(_ucs2 0x1EEF);
+INSERT INTO t1 VALUES (_ucs2 0x1EF0),(_ucs2 0x1EF1);
+insert into t1 values ('AA'),('Aa'),('aa'),('aA');
+insert into t1 values ('AE'),('Ae'),('ae'),('aE');
+insert into t1 values ('CH'),('Ch'),('ch'),('cH');
+insert into t1 values ('DZ'),('Dz'),('dz'),('dZ');
+insert into t1 values ('DŽ'),('Dž'),('dž'),('dŽ');
+insert into t1 values ('IJ'),('Ij'),('ij'),('iJ');
+insert into t1 values ('LJ'),('Lj'),('lj'),('lJ');
+insert into t1 values ('LL'),('Ll'),('ll'),('lL');
+insert into t1 values ('NJ'),('Nj'),('nj'),('nJ');
+insert into t1 values ('OE'),('Oe'),('oe'),('oE');
+insert into t1 values ('SS'),('Ss'),('ss'),('sS');
+insert into t1 values ('RR'),('Rr'),('rr'),('rR');
+INSERT INTO t1 VALUES('ẞ');
+INSERT INTO t1 SELECT CONCAT(a,' ') FROM t1;
+CALL test_styles('uca1400', '');
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_nopad_as_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,
+÷ ,
+×,
+× ,
+a,
+A,
+á,
+Á,
+à,
+À,
+ă,
+Ă,
+ắ,
+Ắ,
+ằ,
+Ằ,
+ẵ,
+Ẵ,
+ẳ,
+Ẳ,
+â,
+Â,
+ấ,
+Ấ,
+ầ,
+Ầ,
+ẫ,
+Ẫ,
+ẩ,
+Ẩ,
+ǎ,
+Ǎ,
+å,
+Å,
+ǻ,
+Ǻ,
+ä,
+Ä,
+ǟ,
+Ǟ,
+ã,
+Ã,
+ǡ,
+Ǡ,
+ą,
+Ą,
+ā,
+Ā,
+ả,
+Ả,
+ạ,
+Ạ,
+ặ,
+Ặ,
+ậ,
+Ậ,
+a ,
+A ,
+á ,
+Á ,
+à ,
+À ,
+ă ,
+Ă ,
+ắ ,
+Ắ ,
+ằ ,
+Ằ ,
+ẵ ,
+Ẵ ,
+ẳ ,
+Ẳ ,
+â ,
+Â ,
+ấ ,
+Ấ ,
+ầ ,
+Ầ ,
+ẫ ,
+Ẫ ,
+ẩ ,
+Ẩ ,
+ǎ ,
+Ǎ ,
+å ,
+Å ,
+ǻ ,
+Ǻ ,
+ä ,
+Ä ,
+ǟ ,
+Ǟ ,
+ã ,
+Ã ,
+ǡ ,
+Ǡ ,
+ą ,
+Ą ,
+ā ,
+Ā ,
+ả ,
+Ả ,
+ạ ,
+Ạ ,
+ặ ,
+Ặ ,
+ậ ,
+Ậ ,
+aa,
+aA,
+Aa,
+AA,
+aa ,
+aA ,
+Aa ,
+AA ,
+ae,
+aE,
+Ae,
+AE,
+æ,
+Æ,
+ǽ,
+Ǽ,
+ǣ,
+Ǣ,
+ae ,
+aE ,
+Ae ,
+AE ,
+æ ,
+Æ ,
+ǽ ,
+Ǽ ,
+ǣ ,
+Ǣ ,
+b,
+B,
+b ,
+B ,
+ƀ,
+ƀ ,
+Ɓ,
+Ɓ ,
+ƃ,
+Ƃ,
+ƃ ,
+Ƃ ,
+c,
+C,
+ć,
+Ć,
+ĉ,
+Ĉ,
+č,
+Č,
+ċ,
+Ċ,
+ç,
+Ç,
+c ,
+C ,
+ć ,
+Ć ,
+ĉ ,
+Ĉ ,
+č ,
+Č ,
+ċ ,
+Ċ ,
+ç ,
+Ç ,
+ch,
+cH,
+Ch,
+CH,
+ch ,
+cH ,
+Ch ,
+CH ,
+ƈ,
+Ƈ,
+ƈ ,
+Ƈ ,
+d,
+D,
+ď,
+Ď,
+đ,
+Đ,
+ð,
+Ð,
+d ,
+D ,
+ď ,
+Ď ,
+đ ,
+Đ ,
+ð ,
+Ð ,
+dz,
+dZ,
+ǳ,
+Dz,
+DZ,
+ǲ,
+Ǳ,
+dž,
+dŽ,
+ǆ,
+Dž,
+DŽ,
+ǅ,
+Ǆ,
+dz ,
+dZ ,
+ǳ ,
+Dz ,
+DZ ,
+ǲ ,
+Ǳ ,
+dž ,
+dŽ ,
+ǆ ,
+Dž ,
+DŽ ,
+ǅ ,
+Ǆ ,
+Ɖ,
+Ɖ ,
+Ɗ,
+Ɗ ,
+ƌ,
+Ƌ,
+ƌ ,
+Ƌ ,
+e,
+E,
+é,
+É,
+è,
+È,
+ĕ,
+Ĕ,
+ê,
+Ê,
+ế,
+Ế,
+ề,
+Ề,
+ễ,
+Ễ,
+ể,
+Ể,
+ě,
+Ě,
+ë,
+Ë,
+ẽ,
+Ẽ,
+ė,
+Ė,
+ę,
+Ę,
+ē,
+Ē,
+ẻ,
+Ẻ,
+ẹ,
+Ẹ,
+ệ,
+Ệ,
+e ,
+E ,
+é ,
+É ,
+è ,
+È ,
+ĕ ,
+Ĕ ,
+ê ,
+Ê ,
+ế ,
+Ế ,
+ề ,
+Ề ,
+ễ ,
+Ễ ,
+ể ,
+Ể ,
+ě ,
+Ě ,
+ë ,
+Ë ,
+ẽ ,
+Ẽ ,
+ė ,
+Ė ,
+ę ,
+Ę ,
+ē ,
+Ē ,
+ẻ ,
+Ẻ ,
+ẹ ,
+Ẹ ,
+ệ ,
+Ệ ,
+ǝ,
+Ǝ,
+ǝ ,
+Ǝ ,
+Ə,
+Ə ,
+Ɛ,
+Ɛ ,
+f,
+F,
+f ,
+F ,
+ƒ,
+Ƒ,
+ƒ ,
+Ƒ ,
+g,
+G,
+ǵ,
+Ǵ,
+ğ,
+Ğ,
+ĝ,
+Ĝ,
+ǧ,
+Ǧ,
+ġ,
+Ġ,
+ģ,
+Ģ,
+g ,
+G ,
+ǵ ,
+Ǵ ,
+ğ ,
+Ğ ,
+ĝ ,
+Ĝ ,
+ǧ ,
+Ǧ ,
+ġ ,
+Ġ ,
+ģ ,
+Ģ ,
+ǥ,
+Ǥ,
+ǥ ,
+Ǥ ,
+Ɠ,
+Ɠ ,
+Ɣ,
+Ɣ ,
+ƣ,
+Ƣ,
+ƣ ,
+Ƣ ,
+h,
+H,
+ĥ,
+Ĥ,
+ħ,
+Ħ,
+h ,
+H ,
+ĥ ,
+Ĥ ,
+ħ ,
+Ħ ,
+ƕ,
+Ƕ,
+ƕ ,
+Ƕ ,
+i,
+I,
+í,
+Í,
+ì,
+Ì,
+ĭ,
+Ĭ,
+î,
+Î,
+ǐ,
+Ǐ,
+ï,
+Ï,
+ĩ,
+Ĩ,
+İ,
+į,
+Į,
+ī,
+Ī,
+ỉ,
+Ỉ,
+ị,
+Ị,
+i ,
+I ,
+í ,
+Í ,
+ì ,
+Ì ,
+ĭ ,
+Ĭ ,
+î ,
+Î ,
+ǐ ,
+Ǐ ,
+ï ,
+Ï ,
+ĩ ,
+Ĩ ,
+İ ,
+į ,
+Į ,
+ī ,
+Ī ,
+ỉ ,
+Ỉ ,
+ị ,
+Ị ,
+ij,
+iJ,
+ĳ,
+Ij,
+IJ,
+Ĳ,
+ij ,
+iJ ,
+ĳ ,
+Ij ,
+IJ ,
+Ĳ ,
+ı,
+ı ,
+Ɨ,
+Ɨ ,
+Ɩ,
+Ɩ ,
+j,
+J,
+ĵ,
+Ĵ,
+ǰ,
+j ,
+J ,
+ĵ ,
+Ĵ ,
+ǰ ,
+k,
+K,
+ǩ,
+Ǩ,
+ķ,
+Ķ,
+k ,
+K ,
+ǩ ,
+Ǩ ,
+ķ ,
+Ķ ,
+ƙ,
+Ƙ,
+ƙ ,
+Ƙ ,
+l,
+L,
+ĺ,
+Ĺ,
+ľ,
+Ľ,
+ļ,
+Ļ,
+ł,
+Ł,
+ŀ,
+Ŀ,
+l ,
+L ,
+ĺ ,
+Ĺ ,
+ľ ,
+Ľ ,
+ļ ,
+Ļ ,
+ł ,
+Ł ,
+ŀ ,
+Ŀ ,
+lj,
+lJ,
+ǉ,
+Lj,
+LJ,
+ǈ,
+Ǉ,
+lj ,
+lJ ,
+ǉ ,
+Lj ,
+LJ ,
+ǈ ,
+Ǉ ,
+ll,
+lL,
+Ll,
+LL,
+ll ,
+lL ,
+Ll ,
+LL ,
+ƚ,
+ƚ ,
+ƛ,
+ƛ ,
+m,
+M,
+m ,
+M ,
+n,
+N,
+ń,
+Ń,
+ǹ,
+Ǹ,
+ň,
+Ň,
+ñ,
+Ñ,
+ņ,
+Ņ,
+n ,
+N ,
+ń ,
+Ń ,
+ǹ ,
+Ǹ ,
+ň ,
+Ň ,
+ñ ,
+Ñ ,
+ņ ,
+Ņ ,
+nj,
+nJ,
+ǌ,
+Nj,
+NJ,
+ǋ,
+Ǌ,
+nj ,
+nJ ,
+ǌ ,
+Nj ,
+NJ ,
+ǋ ,
+Ǌ ,
+Ɲ,
+Ɲ ,
+ƞ,
+ƞ ,
+ŋ,
+Ŋ,
+ŋ ,
+Ŋ ,
+o,
+O,
+ó,
+Ó,
+ò,
+Ò,
+ŏ,
+Ŏ,
+ô,
+Ô,
+ố,
+Ố,
+ồ,
+Ồ,
+ỗ,
+Ỗ,
+ổ,
+Ổ,
+ǒ,
+Ǒ,
+ö,
+Ö,
+ő,
+Ő,
+õ,
+Õ,
+ø,
+Ø,
+ǿ,
+Ǿ,
+ǫ,
+Ǫ,
+ǭ,
+Ǭ,
+ō,
+Ō,
+ỏ,
+Ỏ,
+ơ,
+Ơ,
+ớ,
+Ớ,
+ờ,
+Ờ,
+ỡ,
+Ỡ,
+ở,
+Ở,
+ợ,
+Ợ,
+ọ,
+Ọ,
+ộ,
+Ộ,
+o ,
+O ,
+ó ,
+Ó ,
+ò ,
+Ò ,
+ŏ ,
+Ŏ ,
+ô ,
+Ô ,
+ố ,
+Ố ,
+ồ ,
+Ồ ,
+ỗ ,
+Ỗ ,
+ổ ,
+Ổ ,
+ǒ ,
+Ǒ ,
+ö ,
+Ö ,
+ő ,
+Ő ,
+õ ,
+Õ ,
+ø ,
+Ø ,
+ǿ ,
+Ǿ ,
+ǫ ,
+Ǫ ,
+ǭ ,
+Ǭ ,
+ō ,
+Ō ,
+ỏ ,
+Ỏ ,
+ơ ,
+Ơ ,
+ớ ,
+Ớ ,
+ờ ,
+Ờ ,
+ỡ ,
+Ỡ ,
+ở ,
+Ở ,
+ợ ,
+Ợ ,
+ọ ,
+Ọ ,
+ộ ,
+Ộ ,
+oe,
+oE,
+Oe,
+OE,
+œ,
+Œ,
+oe ,
+oE ,
+Oe ,
+OE ,
+œ ,
+Œ ,
+Ɔ,
+Ɔ ,
+Ɵ,
+Ɵ ,
+p,
+P,
+p ,
+P ,
+ƥ,
+Ƥ,
+ƥ ,
+Ƥ ,
+q,
+Q,
+q ,
+Q ,
+ĸ,
+ĸ ,
+r,
+R,
+ŕ,
+Ŕ,
+ř,
+Ř,
+ŗ,
+Ŗ,
+r ,
+R ,
+ŕ ,
+Ŕ ,
+ř ,
+Ř ,
+ŗ ,
+Ŗ ,
+rr,
+rR,
+Rr,
+RR,
+rr ,
+rR ,
+Rr ,
+RR ,
+Ʀ,
+Ʀ ,
+s,
+S,
+ś,
+Ś,
+ŝ,
+Ŝ,
+š,
+Š,
+ş,
+Ş,
+ſ,
+s ,
+S ,
+ś ,
+Ś ,
+ŝ ,
+Ŝ ,
+š ,
+Š ,
+ş ,
+Ş ,
+ſ ,
+ss,
+sS,
+Ss,
+SS,
+ß,
+ẞ,
+ss ,
+sS ,
+Ss ,
+SS ,
+ß ,
+ẞ ,
+Ʃ,
+Ʃ ,
+ƪ,
+ƪ ,
+t,
+T,
+ť,
+Ť,
+ţ,
+Ţ,
+t ,
+T ,
+ť ,
+Ť ,
+ţ ,
+Ţ ,
+ƾ,
+ƾ ,
+ŧ,
+Ŧ,
+ŧ ,
+Ŧ ,
+ƫ,
+ƫ ,
+ƭ,
+Ƭ,
+ƭ ,
+Ƭ ,
+Ʈ,
+Ʈ ,
+u,
+U,
+ú,
+Ú,
+ù,
+Ù,
+ŭ,
+Ŭ,
+û,
+Û,
+ǔ,
+Ǔ,
+ů,
+Ů,
+ü,
+Ü,
+ǘ,
+Ǘ,
+ǜ,
+Ǜ,
+ǚ,
+Ǚ,
+ǖ,
+Ǖ,
+ű,
+Ű,
+ũ,
+Ũ,
+ų,
+Ų,
+ū,
+Ū,
+ủ,
+Ủ,
+ư,
+Ư,
+ứ,
+Ứ,
+ừ,
+Ừ,
+ữ,
+Ữ,
+ử,
+Ử,
+ự,
+Ự,
+ụ,
+Ụ,
+u ,
+U ,
+ú ,
+Ú ,
+ù ,
+Ù ,
+ŭ ,
+Ŭ ,
+û ,
+Û ,
+ǔ ,
+Ǔ ,
+ů ,
+Ů ,
+ü ,
+Ü ,
+ǘ ,
+Ǘ ,
+ǜ ,
+Ǜ ,
+ǚ ,
+Ǚ ,
+ǖ ,
+Ǖ ,
+ű ,
+Ű ,
+ũ ,
+Ũ ,
+ų ,
+Ų ,
+ū ,
+Ū ,
+ủ ,
+Ủ ,
+ư ,
+Ư ,
+ứ ,
+Ứ ,
+ừ ,
+Ừ ,
+ữ ,
+Ữ ,
+ử ,
+Ử ,
+ự ,
+Ự ,
+ụ ,
+Ụ ,
+Ɯ,
+Ɯ ,
+Ʊ,
+Ʊ ,
+v,
+V,
+v ,
+V ,
+Ʋ,
+Ʋ ,
+w,
+W,
+ŵ,
+Ŵ,
+w ,
+W ,
+ŵ ,
+Ŵ ,
+x,
+X,
+x ,
+X ,
+y,
+Y,
+ý,
+Ý,
+ŷ,
+Ŷ,
+ÿ,
+Ÿ,
+y ,
+Y ,
+ý ,
+Ý ,
+ŷ ,
+Ŷ ,
+ÿ ,
+Ÿ ,
+ƴ,
+Ƴ,
+ƴ ,
+Ƴ ,
+z,
+Z,
+ź,
+Ź,
+ž,
+Ž,
+ż,
+Ż,
+z ,
+Z ,
+ź ,
+Ź ,
+ž ,
+Ž ,
+ż ,
+Ż ,
+ƍ,
+ƍ ,
+ƶ,
+Ƶ,
+ƶ ,
+Ƶ ,
+Ʒ,
+ǯ,
+Ǯ,
+Ʒ ,
+ǯ ,
+Ǯ ,
+ƹ,
+Ƹ,
+ƹ ,
+Ƹ ,
+ƺ,
+ƺ ,
+þ,
+Þ,
+þ ,
+Þ ,
+ƿ,
+Ƿ,
+ƿ ,
+Ƿ ,
+ƻ,
+ƻ ,
+ƨ,
+Ƨ,
+ƨ ,
+Ƨ ,
+ƽ,
+Ƽ,
+ƽ ,
+Ƽ ,
+ƅ,
+Ƅ,
+ƅ ,
+Ƅ ,
+ŉ,
+ŉ ,
+ǀ,
+ǀ ,
+ǁ,
+ǁ ,
+ǂ,
+ǂ ,
+ǃ,
+ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_as_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,÷ ,
+×,× ,
+a,a ,
+A,A ,
+á,á ,
+Á,Á ,
+à,à ,
+À,À ,
+ă,ă ,
+Ă,Ă ,
+ắ,ắ ,
+Ắ,Ắ ,
+ằ,ằ ,
+Ằ,Ằ ,
+ẵ,ẵ ,
+Ẵ,Ẵ ,
+ẳ,ẳ ,
+Ẳ,Ẳ ,
+â,â ,
+Â,Â ,
+ấ,ấ ,
+Ấ,Ấ ,
+ầ,ầ ,
+Ầ,Ầ ,
+ẫ,ẫ ,
+Ẫ,Ẫ ,
+ẩ,ẩ ,
+Ẩ,Ẩ ,
+ǎ,ǎ ,
+Ǎ,Ǎ ,
+å,å ,
+Å,Å ,
+ǻ,ǻ ,
+Ǻ,Ǻ ,
+ä,ä ,
+Ä,Ä ,
+ǟ,ǟ ,
+Ǟ,Ǟ ,
+ã,ã ,
+Ã,Ã ,
+ǡ,ǡ ,
+Ǡ,Ǡ ,
+ą,ą ,
+Ą,Ą ,
+ā,ā ,
+Ā,Ā ,
+ả,ả ,
+Ả,Ả ,
+ạ,ạ ,
+Ạ,Ạ ,
+ặ,ặ ,
+Ặ,Ặ ,
+ậ,ậ ,
+Ậ,Ậ ,
+aa,aa ,
+aA,aA ,
+Aa,Aa ,
+AA,AA ,
+ae,ae ,
+aE,aE ,
+Ae,Ae ,
+AE,AE ,
+æ,æ ,
+Æ,Æ ,
+ǽ,ǽ ,
+Ǽ,Ǽ ,
+ǣ,ǣ ,
+Ǣ,Ǣ ,
+b,b ,
+B,B ,
+ƀ,ƀ ,
+Ɓ,Ɓ ,
+ƃ,ƃ ,
+Ƃ,Ƃ ,
+c,c ,
+C,C ,
+ć,ć ,
+Ć,Ć ,
+ĉ,ĉ ,
+Ĉ,Ĉ ,
+č,č ,
+Č,Č ,
+ċ,ċ ,
+Ċ,Ċ ,
+ç,ç ,
+Ç,Ç ,
+ch,ch ,
+cH,cH ,
+Ch,Ch ,
+CH,CH ,
+ƈ,ƈ ,
+Ƈ,Ƈ ,
+d,d ,
+D,D ,
+ď,ď ,
+Ď,Ď ,
+đ,đ ,
+Đ,Đ ,
+ð,ð ,
+Ð,Ð ,
+dz,dz ,
+dZ,dZ ,
+ǳ,ǳ ,
+Dz,Dz ,
+DZ,DZ ,
+ǲ,ǲ ,
+Ǳ,Ǳ ,
+dž,dž ,
+dŽ,dŽ ,
+ǆ,ǆ ,
+Dž,Dž ,
+DŽ,DŽ ,
+ǅ,ǅ ,
+Ǆ,Ǆ ,
+Ɖ,Ɖ ,
+Ɗ,Ɗ ,
+ƌ,ƌ ,
+Ƌ,Ƌ ,
+e,e ,
+E,E ,
+é,é ,
+É,É ,
+è,è ,
+È,È ,
+ĕ,ĕ ,
+Ĕ,Ĕ ,
+ê,ê ,
+Ê,Ê ,
+ế,ế ,
+Ế,Ế ,
+ề,ề ,
+Ề,Ề ,
+ễ,ễ ,
+Ễ,Ễ ,
+ể,ể ,
+Ể,Ể ,
+ě,ě ,
+Ě,Ě ,
+ë,ë ,
+Ë,Ë ,
+ẽ,ẽ ,
+Ẽ,Ẽ ,
+ė,ė ,
+Ė,Ė ,
+ę,ę ,
+Ę,Ę ,
+ē,ē ,
+Ē,Ē ,
+ẻ,ẻ ,
+Ẻ,Ẻ ,
+ẹ,ẹ ,
+Ẹ,Ẹ ,
+ệ,ệ ,
+Ệ,Ệ ,
+ǝ,ǝ ,
+Ǝ,Ǝ ,
+Ə,Ə ,
+Ɛ,Ɛ ,
+f,f ,
+F,F ,
+ƒ,ƒ ,
+Ƒ,Ƒ ,
+g,g ,
+G,G ,
+ǵ,ǵ ,
+Ǵ,Ǵ ,
+ğ,ğ ,
+Ğ,Ğ ,
+ĝ,ĝ ,
+Ĝ,Ĝ ,
+ǧ,ǧ ,
+Ǧ,Ǧ ,
+ġ,ġ ,
+Ġ,Ġ ,
+ģ,ģ ,
+Ģ,Ģ ,
+ǥ,ǥ ,
+Ǥ,Ǥ ,
+Ɠ,Ɠ ,
+Ɣ,Ɣ ,
+ƣ,ƣ ,
+Ƣ,Ƣ ,
+h,h ,
+H,H ,
+ĥ,ĥ ,
+Ĥ,Ĥ ,
+ħ,ħ ,
+Ħ,Ħ ,
+ƕ,ƕ ,
+Ƕ,Ƕ ,
+i,i ,
+I,I ,
+í,í ,
+Í,Í ,
+ì,ì ,
+Ì,Ì ,
+ĭ,ĭ ,
+Ĭ,Ĭ ,
+î,î ,
+Î,Î ,
+ǐ,ǐ ,
+Ǐ,Ǐ ,
+ï,ï ,
+Ï,Ï ,
+ĩ,ĩ ,
+Ĩ,Ĩ ,
+İ,İ ,
+į,į ,
+Į,Į ,
+ī,ī ,
+Ī,Ī ,
+ỉ,ỉ ,
+Ỉ,Ỉ ,
+ị,ị ,
+Ị,Ị ,
+ij,ij ,
+iJ,iJ ,
+ĳ,ĳ ,
+Ij,Ij ,
+IJ,IJ ,
+Ĳ,Ĳ ,
+ı,ı ,
+Ɨ,Ɨ ,
+Ɩ,Ɩ ,
+j,j ,
+J,J ,
+ĵ,ĵ ,
+Ĵ,Ĵ ,
+ǰ,ǰ ,
+k,k ,
+K,K ,
+ǩ,ǩ ,
+Ǩ,Ǩ ,
+ķ,ķ ,
+Ķ,Ķ ,
+ƙ,ƙ ,
+Ƙ,Ƙ ,
+l,l ,
+L,L ,
+ĺ,ĺ ,
+Ĺ,Ĺ ,
+ľ,ľ ,
+Ľ,Ľ ,
+ļ,ļ ,
+Ļ,Ļ ,
+ł,ł ,
+Ł,Ł ,
+ŀ,ŀ ,
+Ŀ,Ŀ ,
+lj,lj ,
+lJ,lJ ,
+ǉ,ǉ ,
+Lj,Lj ,
+LJ,LJ ,
+ǈ,ǈ ,
+Ǉ,Ǉ ,
+ll,ll ,
+lL,lL ,
+Ll,Ll ,
+LL,LL ,
+ƚ,ƚ ,
+ƛ,ƛ ,
+m,m ,
+M,M ,
+n,n ,
+N,N ,
+ń,ń ,
+Ń,Ń ,
+ǹ,ǹ ,
+Ǹ,Ǹ ,
+ň,ň ,
+Ň,Ň ,
+ñ,ñ ,
+Ñ,Ñ ,
+ņ,ņ ,
+Ņ,Ņ ,
+nj,nj ,
+nJ,nJ ,
+ǌ,ǌ ,
+Nj,Nj ,
+NJ,NJ ,
+ǋ,ǋ ,
+Ǌ,Ǌ ,
+Ɲ,Ɲ ,
+ƞ,ƞ ,
+ŋ,ŋ ,
+Ŋ,Ŋ ,
+o,o ,
+O,O ,
+ó,ó ,
+Ó,Ó ,
+ò,ò ,
+Ò,Ò ,
+ŏ,ŏ ,
+Ŏ,Ŏ ,
+ô,ô ,
+Ô,Ô ,
+ố,ố ,
+Ố,Ố ,
+ồ,ồ ,
+Ồ,Ồ ,
+ỗ,ỗ ,
+Ỗ,Ỗ ,
+ổ,ổ ,
+Ổ,Ổ ,
+ǒ,ǒ ,
+Ǒ,Ǒ ,
+ö,ö ,
+Ö,Ö ,
+ő,ő ,
+Ő,Ő ,
+õ,õ ,
+Õ,Õ ,
+ø,ø ,
+Ø,Ø ,
+ǿ,ǿ ,
+Ǿ,Ǿ ,
+ǫ,ǫ ,
+Ǫ,Ǫ ,
+ǭ,ǭ ,
+Ǭ,Ǭ ,
+ō,ō ,
+Ō,Ō ,
+ỏ,ỏ ,
+Ỏ,Ỏ ,
+ơ,ơ ,
+Ơ,Ơ ,
+ớ,ớ ,
+Ớ,Ớ ,
+ờ,ờ ,
+Ờ,Ờ ,
+ỡ,ỡ ,
+Ỡ,Ỡ ,
+ở,ở ,
+Ở,Ở ,
+ợ,ợ ,
+Ợ,Ợ ,
+ọ,ọ ,
+Ọ,Ọ ,
+ộ,ộ ,
+Ộ,Ộ ,
+oe,oe ,
+oE,oE ,
+Oe,Oe ,
+OE,OE ,
+œ,œ ,
+Œ,Œ ,
+Ɔ,Ɔ ,
+Ɵ,Ɵ ,
+p,p ,
+P,P ,
+ƥ,ƥ ,
+Ƥ,Ƥ ,
+q,q ,
+Q,Q ,
+ĸ,ĸ ,
+r,r ,
+R,R ,
+ŕ,ŕ ,
+Ŕ,Ŕ ,
+ř,ř ,
+Ř,Ř ,
+ŗ,ŗ ,
+Ŗ,Ŗ ,
+rr,rr ,
+rR,rR ,
+Rr,Rr ,
+RR,RR ,
+Ʀ,Ʀ ,
+s,s ,
+S,S ,
+ś,ś ,
+Ś,Ś ,
+ŝ,ŝ ,
+Ŝ,Ŝ ,
+š,š ,
+Š,Š ,
+ş,ş ,
+Ş,Ş ,
+ſ,ſ ,
+ss,ss ,
+sS,sS ,
+Ss,Ss ,
+SS,SS ,
+ß,ß ,
+ẞ,ẞ ,
+Ʃ,Ʃ ,
+ƪ,ƪ ,
+t,t ,
+T,T ,
+ť,ť ,
+Ť,Ť ,
+ţ,ţ ,
+Ţ,Ţ ,
+ƾ,ƾ ,
+ŧ,ŧ ,
+Ŧ,Ŧ ,
+ƫ,ƫ ,
+ƭ,ƭ ,
+Ƭ,Ƭ ,
+Ʈ,Ʈ ,
+u,u ,
+U,U ,
+ú,ú ,
+Ú,Ú ,
+ù,ù ,
+Ù,Ù ,
+ŭ,ŭ ,
+Ŭ,Ŭ ,
+û,û ,
+Û,Û ,
+ǔ,ǔ ,
+Ǔ,Ǔ ,
+ů,ů ,
+Ů,Ů ,
+ü,ü ,
+Ü,Ü ,
+ǘ,ǘ ,
+Ǘ,Ǘ ,
+ǜ,ǜ ,
+Ǜ,Ǜ ,
+ǚ,ǚ ,
+Ǚ,Ǚ ,
+ǖ,ǖ ,
+Ǖ,Ǖ ,
+ű,ű ,
+Ű,Ű ,
+ũ,ũ ,
+Ũ,Ũ ,
+ų,ų ,
+Ų,Ų ,
+ū,ū ,
+Ū,Ū ,
+ủ,ủ ,
+Ủ,Ủ ,
+ư,ư ,
+Ư,Ư ,
+ứ,ứ ,
+Ứ,Ứ ,
+ừ,ừ ,
+Ừ,Ừ ,
+ữ,ữ ,
+Ữ,Ữ ,
+ử,ử ,
+Ử,Ử ,
+ự,ự ,
+Ự,Ự ,
+ụ,ụ ,
+Ụ,Ụ ,
+Ɯ,Ɯ ,
+Ʊ,Ʊ ,
+v,v ,
+V,V ,
+Ʋ,Ʋ ,
+w,w ,
+W,W ,
+ŵ,ŵ ,
+Ŵ,Ŵ ,
+x,x ,
+X,X ,
+y,y ,
+Y,Y ,
+ý,ý ,
+Ý,Ý ,
+ŷ,ŷ ,
+Ŷ,Ŷ ,
+ÿ,ÿ ,
+Ÿ,Ÿ ,
+ƴ,ƴ ,
+Ƴ,Ƴ ,
+z,z ,
+Z,Z ,
+ź,ź ,
+Ź,Ź ,
+ž,ž ,
+Ž,Ž ,
+ż,ż ,
+Ż,Ż ,
+ƍ,ƍ ,
+ƶ,ƶ ,
+Ƶ,Ƶ ,
+Ʒ,Ʒ ,
+ǯ,ǯ ,
+Ǯ,Ǯ ,
+ƹ,ƹ ,
+Ƹ,Ƹ ,
+ƺ,ƺ ,
+þ,þ ,
+Þ,Þ ,
+ƿ,ƿ ,
+Ƿ,Ƿ ,
+ƻ,ƻ ,
+ƨ,ƨ ,
+Ƨ,Ƨ ,
+ƽ,ƽ ,
+Ƽ,Ƽ ,
+ƅ,ƅ ,
+Ƅ,Ƅ ,
+ŉ,ŉ ,
+ǀ,ǀ ,
+ǁ,ǁ ,
+ǂ,ǂ ,
+ǃ,ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_nopad_as_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,
+÷ ,
+×,
+× ,
+A,a,
+Á,á,
+À,à,
+Ă,ă,
+Ắ,ắ,
+Ằ,ằ,
+Ẵ,ẵ,
+Ẳ,ẳ,
+Â,â,
+Ấ,ấ,
+Ầ,ầ,
+Ẫ,ẫ,
+Ẩ,ẩ,
+Ǎ,ǎ,
+Å,å,
+Ǻ,ǻ,
+Ä,ä,
+Ǟ,ǟ,
+Ã,ã,
+Ǡ,ǡ,
+Ą,ą,
+Ā,ā,
+Ả,ả,
+Ạ,ạ,
+Ặ,ặ,
+Ậ,ậ,
+A ,a ,
+Á ,á ,
+À ,à ,
+Ă ,ă ,
+Ắ ,ắ ,
+Ằ ,ằ ,
+Ẵ ,ẵ ,
+Ẳ ,ẳ ,
+Â ,â ,
+Ấ ,ấ ,
+Ầ ,ầ ,
+Ẫ ,ẫ ,
+Ẩ ,ẩ ,
+Ǎ ,ǎ ,
+Å ,å ,
+Ǻ ,ǻ ,
+Ä ,ä ,
+Ǟ ,ǟ ,
+Ã ,ã ,
+Ǡ ,ǡ ,
+Ą ,ą ,
+Ā ,ā ,
+Ả ,ả ,
+Ạ ,ạ ,
+Ặ ,ặ ,
+Ậ ,ậ ,
+AA,Aa,aA,aa,
+AA ,Aa ,aA ,aa ,
+AE,Ae,aE,ae,
+Æ,æ,
+Ǽ,ǽ,
+Ǣ,ǣ,
+AE ,Ae ,aE ,ae ,
+Æ ,æ ,
+Ǽ ,ǽ ,
+Ǣ ,ǣ ,
+B,b,
+B ,b ,
+ƀ,
+ƀ ,
+Ɓ,
+Ɓ ,
+Ƃ,ƃ,
+Ƃ ,ƃ ,
+C,c,
+Ć,ć,
+Ĉ,ĉ,
+Č,č,
+Ċ,ċ,
+Ç,ç,
+C ,c ,
+Ć ,ć ,
+Ĉ ,ĉ ,
+Č ,č ,
+Ċ ,ċ ,
+Ç ,ç ,
+CH,Ch,cH,ch,
+CH ,Ch ,cH ,ch ,
+Ƈ,ƈ,
+Ƈ ,ƈ ,
+D,d,
+Ď,ď,
+Đ,đ,
+Ð,ð,
+D ,d ,
+Ď ,ď ,
+Đ ,đ ,
+Ð ,ð ,
+DZ,Dz,dZ,dz,Ǳ,ǲ,ǳ,
+DŽ,Dž,dŽ,dž,Ǆ,ǅ,ǆ,
+DZ ,Dz ,dZ ,dz ,Ǳ ,ǲ ,ǳ ,
+DŽ ,Dž ,dŽ ,dž ,Ǆ ,ǅ ,ǆ ,
+Ɖ,
+Ɖ ,
+Ɗ,
+Ɗ ,
+Ƌ,ƌ,
+Ƌ ,ƌ ,
+E,e,
+É,é,
+È,è,
+Ĕ,ĕ,
+Ê,ê,
+Ế,ế,
+Ề,ề,
+Ễ,ễ,
+Ể,ể,
+Ě,ě,
+Ë,ë,
+Ẽ,ẽ,
+Ė,ė,
+Ę,ę,
+Ē,ē,
+Ẻ,ẻ,
+Ẹ,ẹ,
+Ệ,ệ,
+E ,e ,
+É ,é ,
+È ,è ,
+Ĕ ,ĕ ,
+Ê ,ê ,
+Ế ,ế ,
+Ề ,ề ,
+Ễ ,ễ ,
+Ể ,ể ,
+Ě ,ě ,
+Ë ,ë ,
+Ẽ ,ẽ ,
+Ė ,ė ,
+Ę ,ę ,
+Ē ,ē ,
+Ẻ ,ẻ ,
+Ẹ ,ẹ ,
+Ệ ,ệ ,
+Ǝ,ǝ,
+Ǝ ,ǝ ,
+Ə,
+Ə ,
+Ɛ,
+Ɛ ,
+F,f,
+F ,f ,
+Ƒ,ƒ,
+Ƒ ,ƒ ,
+G,g,
+Ǵ,ǵ,
+Ğ,ğ,
+Ĝ,ĝ,
+Ǧ,ǧ,
+Ġ,ġ,
+Ģ,ģ,
+G ,g ,
+Ǵ ,ǵ ,
+Ğ ,ğ ,
+Ĝ ,ĝ ,
+Ǧ ,ǧ ,
+Ġ ,ġ ,
+Ģ ,ģ ,
+Ǥ,ǥ,
+Ǥ ,ǥ ,
+Ɠ,
+Ɠ ,
+Ɣ,
+Ɣ ,
+Ƣ,ƣ,
+Ƣ ,ƣ ,
+H,h,
+Ĥ,ĥ,
+Ħ,ħ,
+H ,h ,
+Ĥ ,ĥ ,
+Ħ ,ħ ,
+ƕ,Ƕ,
+ƕ ,Ƕ ,
+I,i,
+Í,í,
+Ì,ì,
+Ĭ,ĭ,
+Î,î,
+Ǐ,ǐ,
+Ï,ï,
+Ĩ,ĩ,
+İ,
+Į,į,
+Ī,ī,
+Ỉ,ỉ,
+Ị,ị,
+I ,i ,
+Í ,í ,
+Ì ,ì ,
+Ĭ ,ĭ ,
+Î ,î ,
+Ǐ ,ǐ ,
+Ï ,ï ,
+Ĩ ,ĩ ,
+İ ,
+Į ,į ,
+Ī ,ī ,
+Ỉ ,ỉ ,
+Ị ,ị ,
+IJ,Ij,iJ,ij,Ĳ,ĳ,
+IJ ,Ij ,iJ ,ij ,Ĳ ,ĳ ,
+ı,
+ı ,
+Ɨ,
+Ɨ ,
+Ɩ,
+Ɩ ,
+J,j,
+Ĵ,ĵ,
+ǰ,
+J ,j ,
+Ĵ ,ĵ ,
+ǰ ,
+K,k,
+Ǩ,ǩ,
+Ķ,ķ,
+K ,k ,
+Ǩ ,ǩ ,
+Ķ ,ķ ,
+Ƙ,ƙ,
+Ƙ ,ƙ ,
+L,l,
+Ĺ,ĺ,
+Ľ,ľ,
+Ļ,ļ,
+Ł,ł,
+Ŀ,ŀ,
+L ,l ,
+Ĺ ,ĺ ,
+Ľ ,ľ ,
+Ļ ,ļ ,
+Ł ,ł ,
+Ŀ ,ŀ ,
+LJ,Lj,lJ,lj,Ǉ,ǈ,ǉ,
+LJ ,Lj ,lJ ,lj ,Ǉ ,ǈ ,ǉ ,
+LL,Ll,lL,ll,
+LL ,Ll ,lL ,ll ,
+ƚ,
+ƚ ,
+ƛ,
+ƛ ,
+M,m,
+M ,m ,
+N,n,
+Ń,ń,
+Ǹ,ǹ,
+Ň,ň,
+Ñ,ñ,
+Ņ,ņ,
+N ,n ,
+Ń ,ń ,
+Ǹ ,ǹ ,
+Ň ,ň ,
+Ñ ,ñ ,
+Ņ ,ņ ,
+NJ,Nj,nJ,nj,Ǌ,ǋ,ǌ,
+NJ ,Nj ,nJ ,nj ,Ǌ ,ǋ ,ǌ ,
+Ɲ,
+Ɲ ,
+ƞ,
+ƞ ,
+Ŋ,ŋ,
+Ŋ ,ŋ ,
+O,o,
+Ó,ó,
+Ò,ò,
+Ŏ,ŏ,
+Ô,ô,
+Ố,ố,
+Ồ,ồ,
+Ỗ,ỗ,
+Ổ,ổ,
+Ǒ,ǒ,
+Ö,ö,
+Ő,ő,
+Õ,õ,
+Ø,ø,
+Ǿ,ǿ,
+Ǫ,ǫ,
+Ǭ,ǭ,
+Ō,ō,
+Ỏ,ỏ,
+Ơ,ơ,
+Ớ,ớ,
+Ờ,ờ,
+Ỡ,ỡ,
+Ở,ở,
+Ợ,ợ,
+Ọ,ọ,
+Ộ,ộ,
+O ,o ,
+Ó ,ó ,
+Ò ,ò ,
+Ŏ ,ŏ ,
+Ô ,ô ,
+Ố ,ố ,
+Ồ ,ồ ,
+Ỗ ,ỗ ,
+Ổ ,ổ ,
+Ǒ ,ǒ ,
+Ö ,ö ,
+Ő ,ő ,
+Õ ,õ ,
+Ø ,ø ,
+Ǿ ,ǿ ,
+Ǫ ,ǫ ,
+Ǭ ,ǭ ,
+Ō ,ō ,
+Ỏ ,ỏ ,
+Ơ ,ơ ,
+Ớ ,ớ ,
+Ờ ,ờ ,
+Ỡ ,ỡ ,
+Ở ,ở ,
+Ợ ,ợ ,
+Ọ ,ọ ,
+Ộ ,ộ ,
+OE,Oe,oE,oe,
+Œ,œ,
+OE ,Oe ,oE ,oe ,
+Œ ,œ ,
+Ɔ,
+Ɔ ,
+Ɵ,
+Ɵ ,
+P,p,
+P ,p ,
+Ƥ,ƥ,
+Ƥ ,ƥ ,
+Q,q,
+Q ,q ,
+ĸ,
+ĸ ,
+R,r,
+Ŕ,ŕ,
+Ř,ř,
+Ŗ,ŗ,
+R ,r ,
+Ŕ ,ŕ ,
+Ř ,ř ,
+Ŗ ,ŗ ,
+RR,Rr,rR,rr,
+RR ,Rr ,rR ,rr ,
+Ʀ,
+Ʀ ,
+S,s,
+Ś,ś,
+Ŝ,ŝ,
+Š,š,
+Ş,ş,
+ſ,
+S ,s ,
+Ś ,ś ,
+Ŝ ,ŝ ,
+Š ,š ,
+Ş ,ş ,
+ſ ,
+SS,Ss,sS,ss,
+ß,ẞ,
+SS ,Ss ,sS ,ss ,
+ß ,ẞ ,
+Ʃ,
+Ʃ ,
+ƪ,
+ƪ ,
+T,t,
+Ť,ť,
+Ţ,ţ,
+T ,t ,
+Ť ,ť ,
+Ţ ,ţ ,
+ƾ,
+ƾ ,
+Ŧ,ŧ,
+Ŧ ,ŧ ,
+ƫ,
+ƫ ,
+Ƭ,ƭ,
+Ƭ ,ƭ ,
+Ʈ,
+Ʈ ,
+U,u,
+Ú,ú,
+Ù,ù,
+Ŭ,ŭ,
+Û,û,
+Ǔ,ǔ,
+Ů,ů,
+Ü,ü,
+Ǘ,ǘ,
+Ǜ,ǜ,
+Ǚ,ǚ,
+Ǖ,ǖ,
+Ű,ű,
+Ũ,ũ,
+Ų,ų,
+Ū,ū,
+Ủ,ủ,
+Ư,ư,
+Ứ,ứ,
+Ừ,ừ,
+Ữ,ữ,
+Ử,ử,
+Ự,ự,
+Ụ,ụ,
+U ,u ,
+Ú ,ú ,
+Ù ,ù ,
+Ŭ ,ŭ ,
+Û ,û ,
+Ǔ ,ǔ ,
+Ů ,ů ,
+Ü ,ü ,
+Ǘ ,ǘ ,
+Ǜ ,ǜ ,
+Ǚ ,ǚ ,
+Ǖ ,ǖ ,
+Ű ,ű ,
+Ũ ,ũ ,
+Ų ,ų ,
+Ū ,ū ,
+Ủ ,ủ ,
+Ư ,ư ,
+Ứ ,ứ ,
+Ừ ,ừ ,
+Ữ ,ữ ,
+Ử ,ử ,
+Ự ,ự ,
+Ụ ,ụ ,
+Ɯ,
+Ɯ ,
+Ʊ,
+Ʊ ,
+V,v,
+V ,v ,
+Ʋ,
+Ʋ ,
+W,w,
+Ŵ,ŵ,
+W ,w ,
+Ŵ ,ŵ ,
+X,x,
+X ,x ,
+Y,y,
+Ý,ý,
+Ŷ,ŷ,
+ÿ,Ÿ,
+Y ,y ,
+Ý ,ý ,
+Ŷ ,ŷ ,
+ÿ ,Ÿ ,
+Ƴ,ƴ,
+Ƴ ,ƴ ,
+Z,z,
+Ź,ź,
+Ž,ž,
+Ż,ż,
+Z ,z ,
+Ź ,ź ,
+Ž ,ž ,
+Ż ,ż ,
+ƍ,
+ƍ ,
+Ƶ,ƶ,
+Ƶ ,ƶ ,
+Ʒ,
+Ǯ,ǯ,
+Ʒ ,
+Ǯ ,ǯ ,
+Ƹ,ƹ,
+Ƹ ,ƹ ,
+ƺ,
+ƺ ,
+Þ,þ,
+Þ ,þ ,
+ƿ,Ƿ,
+ƿ ,Ƿ ,
+ƻ,
+ƻ ,
+Ƨ,ƨ,
+Ƨ ,ƨ ,
+Ƽ,ƽ,
+Ƽ ,ƽ ,
+Ƅ,ƅ,
+Ƅ ,ƅ ,
+ŉ,
+ŉ ,
+ǀ,
+ǀ ,
+ǁ,
+ǁ ,
+ǂ,
+ǂ ,
+ǃ,
+ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_as_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,÷ ,
+×,× ,
+A,A ,a,a ,
+Á,Á ,á,á ,
+À,À ,à,à ,
+Ă,Ă ,ă,ă ,
+Ắ,Ắ ,ắ,ắ ,
+Ằ,Ằ ,ằ,ằ ,
+Ẵ,Ẵ ,ẵ,ẵ ,
+Ẳ,Ẳ ,ẳ,ẳ ,
+Â,Â ,â,â ,
+Ấ,Ấ ,ấ,ấ ,
+Ầ,Ầ ,ầ,ầ ,
+Ẫ,Ẫ ,ẫ,ẫ ,
+Ẩ,Ẩ ,ẩ,ẩ ,
+Ǎ,Ǎ ,ǎ,ǎ ,
+Å,Å ,å,å ,
+Ǻ,Ǻ ,ǻ,ǻ ,
+Ä,Ä ,ä,ä ,
+Ǟ,Ǟ ,ǟ,ǟ ,
+Ã,Ã ,ã,ã ,
+Ǡ,Ǡ ,ǡ,ǡ ,
+Ą,Ą ,ą,ą ,
+Ā,Ā ,ā,ā ,
+Ả,Ả ,ả,ả ,
+Ạ,Ạ ,ạ,ạ ,
+Ặ,Ặ ,ặ,ặ ,
+Ậ,Ậ ,ậ,ậ ,
+AA,AA ,Aa,Aa ,aA,aA ,aa,aa ,
+AE,AE ,Ae,Ae ,aE,aE ,ae,ae ,
+Æ,Æ ,æ,æ ,
+Ǽ,Ǽ ,ǽ,ǽ ,
+Ǣ,Ǣ ,ǣ,ǣ ,
+B,B ,b,b ,
+ƀ,ƀ ,
+Ɓ,Ɓ ,
+Ƃ,Ƃ ,ƃ,ƃ ,
+C,C ,c,c ,
+Ć,Ć ,ć,ć ,
+Ĉ,Ĉ ,ĉ,ĉ ,
+Č,Č ,č,č ,
+Ċ,Ċ ,ċ,ċ ,
+Ç,Ç ,ç,ç ,
+CH,CH ,Ch,Ch ,cH,cH ,ch,ch ,
+Ƈ,Ƈ ,ƈ,ƈ ,
+D,D ,d,d ,
+Ď,Ď ,ď,ď ,
+Đ,Đ ,đ,đ ,
+Ð,Ð ,ð,ð ,
+DZ,DZ ,Dz,Dz ,dZ,dZ ,dz,dz ,Ǳ,Ǳ ,ǲ,ǲ ,ǳ,ǳ ,
+DŽ,DŽ ,Dž,Dž ,dŽ,dŽ ,dž,dž ,Ǆ,Ǆ ,ǅ,ǅ ,ǆ,ǆ ,
+Ɖ,Ɖ ,
+Ɗ,Ɗ ,
+Ƌ,Ƌ ,ƌ,ƌ ,
+E,E ,e,e ,
+É,É ,é,é ,
+È,È ,è,è ,
+Ĕ,Ĕ ,ĕ,ĕ ,
+Ê,Ê ,ê,ê ,
+Ế,Ế ,ế,ế ,
+Ề,Ề ,ề,ề ,
+Ễ,Ễ ,ễ,ễ ,
+Ể,Ể ,ể,ể ,
+Ě,Ě ,ě,ě ,
+Ë,Ë ,ë,ë ,
+Ẽ,Ẽ ,ẽ,ẽ ,
+Ė,Ė ,ė,ė ,
+Ę,Ę ,ę,ę ,
+Ē,Ē ,ē,ē ,
+Ẻ,Ẻ ,ẻ,ẻ ,
+Ẹ,Ẹ ,ẹ,ẹ ,
+Ệ,Ệ ,ệ,ệ ,
+Ǝ,Ǝ ,ǝ,ǝ ,
+Ə,Ə ,
+Ɛ,Ɛ ,
+F,F ,f,f ,
+Ƒ,Ƒ ,ƒ,ƒ ,
+G,G ,g,g ,
+Ǵ,Ǵ ,ǵ,ǵ ,
+Ğ,Ğ ,ğ,ğ ,
+Ĝ,Ĝ ,ĝ,ĝ ,
+Ǧ,Ǧ ,ǧ,ǧ ,
+Ġ,Ġ ,ġ,ġ ,
+Ģ,Ģ ,ģ,ģ ,
+Ǥ,Ǥ ,ǥ,ǥ ,
+Ɠ,Ɠ ,
+Ɣ,Ɣ ,
+Ƣ,Ƣ ,ƣ,ƣ ,
+H,H ,h,h ,
+Ĥ,Ĥ ,ĥ,ĥ ,
+Ħ,Ħ ,ħ,ħ ,
+ƕ,ƕ ,Ƕ,Ƕ ,
+I,I ,i,i ,
+Í,Í ,í,í ,
+Ì,Ì ,ì,ì ,
+Ĭ,Ĭ ,ĭ,ĭ ,
+Î,Î ,î,î ,
+Ǐ,Ǐ ,ǐ,ǐ ,
+Ï,Ï ,ï,ï ,
+Ĩ,Ĩ ,ĩ,ĩ ,
+İ,İ ,
+Į,Į ,į,į ,
+Ī,Ī ,ī,ī ,
+Ỉ,Ỉ ,ỉ,ỉ ,
+Ị,Ị ,ị,ị ,
+IJ,IJ ,Ij,Ij ,iJ,iJ ,ij,ij ,Ĳ,Ĳ ,ĳ,ĳ ,
+ı,ı ,
+Ɨ,Ɨ ,
+Ɩ,Ɩ ,
+J,J ,j,j ,
+Ĵ,Ĵ ,ĵ,ĵ ,
+ǰ,ǰ ,
+K,K ,k,k ,
+Ǩ,Ǩ ,ǩ,ǩ ,
+Ķ,Ķ ,ķ,ķ ,
+Ƙ,Ƙ ,ƙ,ƙ ,
+L,L ,l,l ,
+Ĺ,Ĺ ,ĺ,ĺ ,
+Ľ,Ľ ,ľ,ľ ,
+Ļ,Ļ ,ļ,ļ ,
+Ł,Ł ,ł,ł ,
+Ŀ,Ŀ ,ŀ,ŀ ,
+LJ,LJ ,Lj,Lj ,lJ,lJ ,lj,lj ,Ǉ,Ǉ ,ǈ,ǈ ,ǉ,ǉ ,
+LL,LL ,Ll,Ll ,lL,lL ,ll,ll ,
+ƚ,ƚ ,
+ƛ,ƛ ,
+M,M ,m,m ,
+N,N ,n,n ,
+Ń,Ń ,ń,ń ,
+Ǹ,Ǹ ,ǹ,ǹ ,
+Ň,Ň ,ň,ň ,
+Ñ,Ñ ,ñ,ñ ,
+Ņ,Ņ ,ņ,ņ ,
+NJ,NJ ,Nj,Nj ,nJ,nJ ,nj,nj ,Ǌ,Ǌ ,ǋ,ǋ ,ǌ,ǌ ,
+Ɲ,Ɲ ,
+ƞ,ƞ ,
+Ŋ,Ŋ ,ŋ,ŋ ,
+O,O ,o,o ,
+Ó,Ó ,ó,ó ,
+Ò,Ò ,ò,ò ,
+Ŏ,Ŏ ,ŏ,ŏ ,
+Ô,Ô ,ô,ô ,
+Ố,Ố ,ố,ố ,
+Ồ,Ồ ,ồ,ồ ,
+Ỗ,Ỗ ,ỗ,ỗ ,
+Ổ,Ổ ,ổ,ổ ,
+Ǒ,Ǒ ,ǒ,ǒ ,
+Ö,Ö ,ö,ö ,
+Ő,Ő ,ő,ő ,
+Õ,Õ ,õ,õ ,
+Ø,Ø ,ø,ø ,
+Ǿ,Ǿ ,ǿ,ǿ ,
+Ǫ,Ǫ ,ǫ,ǫ ,
+Ǭ,Ǭ ,ǭ,ǭ ,
+Ō,Ō ,ō,ō ,
+Ỏ,Ỏ ,ỏ,ỏ ,
+Ơ,Ơ ,ơ,ơ ,
+Ớ,Ớ ,ớ,ớ ,
+Ờ,Ờ ,ờ,ờ ,
+Ỡ,Ỡ ,ỡ,ỡ ,
+Ở,Ở ,ở,ở ,
+Ợ,Ợ ,ợ,ợ ,
+Ọ,Ọ ,ọ,ọ ,
+Ộ,Ộ ,ộ,ộ ,
+OE,OE ,Oe,Oe ,oE,oE ,oe,oe ,
+Œ,Œ ,œ,œ ,
+Ɔ,Ɔ ,
+Ɵ,Ɵ ,
+P,P ,p,p ,
+Ƥ,Ƥ ,ƥ,ƥ ,
+Q,Q ,q,q ,
+ĸ,ĸ ,
+R,R ,r,r ,
+Ŕ,Ŕ ,ŕ,ŕ ,
+Ř,Ř ,ř,ř ,
+Ŗ,Ŗ ,ŗ,ŗ ,
+RR,RR ,Rr,Rr ,rR,rR ,rr,rr ,
+Ʀ,Ʀ ,
+S,S ,s,s ,
+Ś,Ś ,ś,ś ,
+Ŝ,Ŝ ,ŝ,ŝ ,
+Š,Š ,š,š ,
+Ş,Ş ,ş,ş ,
+ſ,ſ ,
+SS,SS ,Ss,Ss ,sS,sS ,ss,ss ,
+ß,ß ,ẞ,ẞ ,
+Ʃ,Ʃ ,
+ƪ,ƪ ,
+T,T ,t,t ,
+Ť,Ť ,ť,ť ,
+Ţ,Ţ ,ţ,ţ ,
+ƾ,ƾ ,
+Ŧ,Ŧ ,ŧ,ŧ ,
+ƫ,ƫ ,
+Ƭ,Ƭ ,ƭ,ƭ ,
+Ʈ,Ʈ ,
+U,U ,u,u ,
+Ú,Ú ,ú,ú ,
+Ù,Ù ,ù,ù ,
+Ŭ,Ŭ ,ŭ,ŭ ,
+Û,Û ,û,û ,
+Ǔ,Ǔ ,ǔ,ǔ ,
+Ů,Ů ,ů,ů ,
+Ü,Ü ,ü,ü ,
+Ǘ,Ǘ ,ǘ,ǘ ,
+Ǜ,Ǜ ,ǜ,ǜ ,
+Ǚ,Ǚ ,ǚ,ǚ ,
+Ǖ,Ǖ ,ǖ,ǖ ,
+Ű,Ű ,ű,ű ,
+Ũ,Ũ ,ũ,ũ ,
+Ų,Ų ,ų,ų ,
+Ū,Ū ,ū,ū ,
+Ủ,Ủ ,ủ,ủ ,
+Ư,Ư ,ư,ư ,
+Ứ,Ứ ,ứ,ứ ,
+Ừ,Ừ ,ừ,ừ ,
+Ữ,Ữ ,ữ,ữ ,
+Ử,Ử ,ử,ử ,
+Ự,Ự ,ự,ự ,
+Ụ,Ụ ,ụ,ụ ,
+Ɯ,Ɯ ,
+Ʊ,Ʊ ,
+V,V ,v,v ,
+Ʋ,Ʋ ,
+W,W ,w,w ,
+Ŵ,Ŵ ,ŵ,ŵ ,
+X,X ,x,x ,
+Y,Y ,y,y ,
+Ý,Ý ,ý,ý ,
+Ŷ,Ŷ ,ŷ,ŷ ,
+ÿ,ÿ ,Ÿ,Ÿ ,
+Ƴ,Ƴ ,ƴ,ƴ ,
+Z,Z ,z,z ,
+Ź,Ź ,ź,ź ,
+Ž,Ž ,ž,ž ,
+Ż,Ż ,ż,ż ,
+ƍ,ƍ ,
+Ƶ,Ƶ ,ƶ,ƶ ,
+Ʒ,Ʒ ,
+Ǯ,Ǯ ,ǯ,ǯ ,
+Ƹ,Ƹ ,ƹ,ƹ ,
+ƺ,ƺ ,
+Þ,Þ ,þ,þ ,
+ƿ,ƿ ,Ƿ,Ƿ ,
+ƻ,ƻ ,
+Ƨ,Ƨ ,ƨ,ƨ ,
+Ƽ,Ƽ ,ƽ,ƽ ,
+Ƅ,Ƅ ,ƅ,ƅ ,
+ŉ,ŉ ,
+ǀ,ǀ ,
+ǁ,ǁ ,
+ǂ,ǂ ,
+ǃ,ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_nopad_ai_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,
+÷ ,
+×,
+× ,
+a,à,á,â,ã,ä,å,ā,ă,ą,ǎ,ǟ,ǡ,ǻ,ạ,ả,ấ,ầ,ẩ,ẫ,ậ,ắ,ằ,ẳ,ẵ,ặ,
+A,À,Á,Â,Ã,Ä,Å,Ā,Ă,Ą,Ǎ,Ǟ,Ǡ,Ǻ,Ạ,Ả,Ấ,Ầ,Ẩ,Ẫ,Ậ,Ắ,Ằ,Ẳ,Ẵ,Ặ,
+a ,à ,á ,â ,ã ,ä ,å ,ā ,ă ,ą ,ǎ ,ǟ ,ǡ ,ǻ ,ạ ,ả ,ấ ,ầ ,ẩ ,ẫ ,ậ ,ắ ,ằ ,ẳ ,ẵ ,ặ ,
+A ,À ,Á ,Â ,Ã ,Ä ,Å ,Ā ,Ă ,Ą ,Ǎ ,Ǟ ,Ǡ ,Ǻ ,Ạ ,Ả ,Ấ ,Ầ ,Ẩ ,Ẫ ,Ậ ,Ắ ,Ằ ,Ẳ ,Ẵ ,Ặ ,
+aa,
+aA,
+Aa,
+AA,
+aa ,
+aA ,
+Aa ,
+AA ,
+ae,
+aE,
+æ,ǣ,ǽ,
+Ae,
+AE,
+Æ,Ǣ,Ǽ,
+ae ,
+aE ,
+æ ,ǣ ,ǽ ,
+Ae ,
+AE ,
+Æ ,Ǣ ,Ǽ ,
+b,
+B,
+b ,
+B ,
+ƀ,
+ƀ ,
+Ɓ,
+Ɓ ,
+ƃ,
+Ƃ,
+ƃ ,
+Ƃ ,
+c,ç,ć,ĉ,ċ,č,
+C,Ç,Ć,Ĉ,Ċ,Č,
+c ,ç ,ć ,ĉ ,ċ ,č ,
+C ,Ç ,Ć ,Ĉ ,Ċ ,Č ,
+ch,
+cH,
+Ch,
+CH,
+ch ,
+cH ,
+Ch ,
+CH ,
+ƈ,
+Ƈ,
+ƈ ,
+Ƈ ,
+d,ď,đ,
+ð,
+D,Ď,Đ,
+Ð,
+d ,ď ,đ ,
+ð ,
+D ,Ď ,Đ ,
+Ð ,
+dz,dž,
+dZ,dŽ,
+ǳ,
+ǆ,
+Dz,Dž,
+DZ,DŽ,
+ǲ,
+ǅ,
+Ǳ,
+Ǆ,
+dz ,dž ,
+dZ ,dŽ ,
+ǳ ,
+ǆ ,
+Dz ,Dž ,
+DZ ,DŽ ,
+ǲ ,
+ǅ ,
+Ǳ ,
+Ǆ ,
+Ɖ,
+Ɖ ,
+Ɗ,
+Ɗ ,
+ƌ,
+Ƌ,
+ƌ ,
+Ƌ ,
+e,è,é,ê,ë,ē,ĕ,ė,ę,ě,ẹ,ẻ,ẽ,ế,ề,ể,ễ,ệ,
+E,È,É,Ê,Ë,Ē,Ĕ,Ė,Ę,Ě,Ẹ,Ẻ,Ẽ,Ế,Ề,Ể,Ễ,Ệ,
+e ,è ,é ,ê ,ë ,ē ,ĕ ,ė ,ę ,ě ,ẹ ,ẻ ,ẽ ,ế ,ề ,ể ,ễ ,ệ ,
+E ,È ,É ,Ê ,Ë ,Ē ,Ĕ ,Ė ,Ę ,Ě ,Ẹ ,Ẻ ,Ẽ ,Ế ,Ề ,Ể ,Ễ ,Ệ ,
+ǝ,
+Ǝ,
+ǝ ,
+Ǝ ,
+Ə,
+Ə ,
+Ɛ,
+Ɛ ,
+f,
+F,
+f ,
+F ,
+ƒ,
+Ƒ,
+ƒ ,
+Ƒ ,
+g,ĝ,ğ,ġ,ģ,ǧ,ǵ,
+G,Ĝ,Ğ,Ġ,Ģ,Ǧ,Ǵ,
+g ,ĝ ,ğ ,ġ ,ģ ,ǧ ,ǵ ,
+G ,Ĝ ,Ğ ,Ġ ,Ģ ,Ǧ ,Ǵ ,
+ǥ,
+Ǥ,
+ǥ ,
+Ǥ ,
+Ɠ,
+Ɠ ,
+Ɣ,
+Ɣ ,
+ƣ,
+Ƣ,
+ƣ ,
+Ƣ ,
+h,ĥ,ħ,
+H,Ĥ,Ħ,
+h ,ĥ ,ħ ,
+H ,Ĥ ,Ħ ,
+ƕ,
+Ƕ,
+ƕ ,
+Ƕ ,
+i,ì,í,î,ï,ĩ,ī,ĭ,į,ǐ,ỉ,ị,
+I,Ì,Í,Î,Ï,Ĩ,Ī,Ĭ,Į,İ,Ǐ,Ỉ,Ị,
+i ,ì ,í ,î ,ï ,ĩ ,ī ,ĭ ,į ,ǐ ,ỉ ,ị ,
+I ,Ì ,Í ,Î ,Ï ,Ĩ ,Ī ,Ĭ ,Į ,İ ,Ǐ ,Ỉ ,Ị ,
+ij,
+iJ,
+ĳ,
+Ij,
+IJ,
+Ĳ,
+ij ,
+iJ ,
+ĳ ,
+Ij ,
+IJ ,
+Ĳ ,
+ı,
+ı ,
+Ɨ,
+Ɨ ,
+Ɩ,
+Ɩ ,
+j,ĵ,ǰ,
+J,Ĵ,
+j ,ĵ ,ǰ ,
+J ,Ĵ ,
+k,ķ,ǩ,
+K,Ķ,Ǩ,
+k ,ķ ,ǩ ,
+K ,Ķ ,Ǩ ,
+ƙ,
+Ƙ,
+ƙ ,
+Ƙ ,
+l,ĺ,ļ,ľ,ŀ,ł,
+L,Ĺ,Ļ,Ľ,Ŀ,Ł,
+l ,ĺ ,ļ ,ľ ,ŀ ,ł ,
+L ,Ĺ ,Ļ ,Ľ ,Ŀ ,Ł ,
+lj,
+lJ,
+ǉ,
+Lj,
+LJ,
+ǈ,
+Ǉ,
+lj ,
+lJ ,
+ǉ ,
+Lj ,
+LJ ,
+ǈ ,
+Ǉ ,
+ll,
+lL,
+Ll,
+LL,
+ll ,
+lL ,
+Ll ,
+LL ,
+ƚ,
+ƚ ,
+ƛ,
+ƛ ,
+m,
+M,
+m ,
+M ,
+n,ñ,ń,ņ,ň,ǹ,
+N,Ñ,Ń,Ņ,Ň,Ǹ,
+n ,ñ ,ń ,ņ ,ň ,ǹ ,
+N ,Ñ ,Ń ,Ņ ,Ň ,Ǹ ,
+nj,
+nJ,
+ǌ,
+Nj,
+NJ,
+ǋ,
+Ǌ,
+nj ,
+nJ ,
+ǌ ,
+Nj ,
+NJ ,
+ǋ ,
+Ǌ ,
+Ɲ,
+Ɲ ,
+ƞ,
+ƞ ,
+ŋ,
+Ŋ,
+ŋ ,
+Ŋ ,
+o,ò,ó,ô,õ,ö,ø,ō,ŏ,ő,ơ,ǒ,ǫ,ǭ,ǿ,ọ,ỏ,ố,ồ,ổ,ỗ,ộ,ớ,ờ,ở,ỡ,ợ,
+O,Ò,Ó,Ô,Õ,Ö,Ø,Ō,Ŏ,Ő,Ơ,Ǒ,Ǫ,Ǭ,Ǿ,Ọ,Ỏ,Ố,Ồ,Ổ,Ỗ,Ộ,Ớ,Ờ,Ở,Ỡ,Ợ,
+o ,ò ,ó ,ô ,õ ,ö ,ø ,ō ,ŏ ,ő ,ơ ,ǒ ,ǫ ,ǭ ,ǿ ,ọ ,ỏ ,ố ,ồ ,ổ ,ỗ ,ộ ,ớ ,ờ ,ở ,ỡ ,ợ ,
+O ,Ò ,Ó ,Ô ,Õ ,Ö ,Ø ,Ō ,Ŏ ,Ő ,Ơ ,Ǒ ,Ǫ ,Ǭ ,Ǿ ,Ọ ,Ỏ ,Ố ,Ồ ,Ổ ,Ỗ ,Ộ ,Ớ ,Ờ ,Ở ,Ỡ ,Ợ ,
+oe,
+oE,
+œ,
+Oe,
+OE,
+Œ,
+oe ,
+oE ,
+œ ,
+Oe ,
+OE ,
+Œ ,
+Ɔ,
+Ɔ ,
+Ɵ,
+Ɵ ,
+p,
+P,
+p ,
+P ,
+ƥ,
+Ƥ,
+ƥ ,
+Ƥ ,
+q,
+Q,
+q ,
+Q ,
+ĸ,
+ĸ ,
+r,ŕ,ŗ,ř,
+R,Ŕ,Ŗ,Ř,
+r ,ŕ ,ŗ ,ř ,
+R ,Ŕ ,Ŗ ,Ř ,
+rr,
+rR,
+Rr,
+RR,
+rr ,
+rR ,
+Rr ,
+RR ,
+Ʀ,
+Ʀ ,
+s,ś,ŝ,ş,š,
+ſ,
+S,Ś,Ŝ,Ş,Š,
+s ,ś ,ŝ ,ş ,š ,
+ſ ,
+S ,Ś ,Ŝ ,Ş ,Š ,
+ss,
+sS,
+ß,
+Ss,
+SS,
+ẞ,
+ss ,
+sS ,
+ß ,
+Ss ,
+SS ,
+ẞ ,
+Ʃ,
+Ʃ ,
+ƪ,
+ƪ ,
+t,ţ,ť,
+T,Ţ,Ť,
+t ,ţ ,ť ,
+T ,Ţ ,Ť ,
+ƾ,
+ƾ ,
+ŧ,
+Ŧ,
+ŧ ,
+Ŧ ,
+ƫ,
+ƫ ,
+ƭ,
+Ƭ,
+ƭ ,
+Ƭ ,
+Ʈ,
+Ʈ ,
+u,ù,ú,û,ü,ũ,ū,ŭ,ů,ű,ų,ư,ǔ,ǖ,ǘ,ǚ,ǜ,ụ,ủ,ứ,ừ,ử,ữ,ự,
+U,Ù,Ú,Û,Ü,Ũ,Ū,Ŭ,Ů,Ű,Ų,Ư,Ǔ,Ǖ,Ǘ,Ǚ,Ǜ,Ụ,Ủ,Ứ,Ừ,Ử,Ữ,Ự,
+u ,ù ,ú ,û ,ü ,ũ ,ū ,ŭ ,ů ,ű ,ų ,ư ,ǔ ,ǖ ,ǘ ,ǚ ,ǜ ,ụ ,ủ ,ứ ,ừ ,ử ,ữ ,ự ,
+U ,Ù ,Ú ,Û ,Ü ,Ũ ,Ū ,Ŭ ,Ů ,Ű ,Ų ,Ư ,Ǔ ,Ǖ ,Ǘ ,Ǚ ,Ǜ ,Ụ ,Ủ ,Ứ ,Ừ ,Ử ,Ữ ,Ự ,
+Ɯ,
+Ɯ ,
+Ʊ,
+Ʊ ,
+v,
+V,
+v ,
+V ,
+Ʋ,
+Ʋ ,
+w,ŵ,
+W,Ŵ,
+w ,ŵ ,
+W ,Ŵ ,
+x,
+X,
+x ,
+X ,
+y,ý,ÿ,ŷ,
+Y,Ý,Ŷ,Ÿ,
+y ,ý ,ÿ ,ŷ ,
+Y ,Ý ,Ŷ ,Ÿ ,
+ƴ,
+Ƴ,
+ƴ ,
+Ƴ ,
+z,ź,ż,ž,
+Z,Ź,Ż,Ž,
+z ,ź ,ż ,ž ,
+Z ,Ź ,Ż ,Ž ,
+ƍ,
+ƍ ,
+ƶ,
+Ƶ,
+ƶ ,
+Ƶ ,
+ǯ,
+Ʒ,Ǯ,
+ǯ ,
+Ʒ ,Ǯ ,
+ƹ,
+Ƹ,
+ƹ ,
+Ƹ ,
+ƺ,
+ƺ ,
+þ,
+Þ,
+þ ,
+Þ ,
+ƿ,
+Ƿ,
+ƿ ,
+Ƿ ,
+ƻ,
+ƻ ,
+ƨ,
+Ƨ,
+ƨ ,
+Ƨ ,
+ƽ,
+Ƽ,
+ƽ ,
+Ƽ ,
+ƅ,
+Ƅ,
+ƅ ,
+Ƅ ,
+ŉ,
+ŉ ,
+ǀ,
+ǀ ,
+ǁ,
+ǁ ,
+ǂ,
+ǂ ,
+ǃ,
+ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_ai_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,÷ ,
+×,× ,
+a,a ,à,à ,á,á ,â,â ,ã,ã ,ä,ä ,å,å ,ā,ā ,ă,ă ,ą,ą ,ǎ,ǎ ,ǟ,ǟ ,ǡ,ǡ ,ǻ,ǻ ,ạ,ạ ,ả,ả ,ấ,ấ ,ầ,ầ ,ẩ,ẩ ,ẫ,ẫ ,ậ,ậ ,ắ,ắ ,ằ,ằ ,ẳ,ẳ ,ẵ,ẵ ,ặ,ặ ,
+A,A ,À,À ,Á,Á ,Â,Â ,Ã,Ã ,Ä,Ä ,Å,Å ,Ā,Ā ,Ă,Ă ,Ą,Ą ,Ǎ,Ǎ ,Ǟ,Ǟ ,Ǡ,Ǡ ,Ǻ,Ǻ ,Ạ,Ạ ,Ả,Ả ,Ấ,Ấ ,Ầ,Ầ ,Ẩ,Ẩ ,Ẫ,Ẫ ,Ậ,Ậ ,Ắ,Ắ ,Ằ,Ằ ,Ẳ,Ẳ ,Ẵ,Ẵ ,Ặ,Ặ ,
+aa,aa ,
+aA,aA ,
+Aa,Aa ,
+AA,AA ,
+ae,ae ,
+aE,aE ,
+æ,æ ,ǣ,ǣ ,ǽ,ǽ ,
+Ae,Ae ,
+AE,AE ,
+Æ,Æ ,Ǣ,Ǣ ,Ǽ,Ǽ ,
+b,b ,
+B,B ,
+ƀ,ƀ ,
+Ɓ,Ɓ ,
+ƃ,ƃ ,
+Ƃ,Ƃ ,
+c,c ,ç,ç ,ć,ć ,ĉ,ĉ ,ċ,ċ ,č,č ,
+C,C ,Ç,Ç ,Ć,Ć ,Ĉ,Ĉ ,Ċ,Ċ ,Č,Č ,
+ch,ch ,
+cH,cH ,
+Ch,Ch ,
+CH,CH ,
+ƈ,ƈ ,
+Ƈ,Ƈ ,
+d,d ,ď,ď ,đ,đ ,
+ð,ð ,
+D,D ,Ď,Ď ,Đ,Đ ,
+Ð,Ð ,
+dz,dz ,dž,dž ,
+dZ,dZ ,dŽ,dŽ ,
+ǳ,ǳ ,
+ǆ,ǆ ,
+Dz,Dz ,Dž,Dž ,
+DZ,DZ ,DŽ,DŽ ,
+ǲ,ǲ ,
+ǅ,ǅ ,
+Ǳ,Ǳ ,
+Ǆ,Ǆ ,
+Ɖ,Ɖ ,
+Ɗ,Ɗ ,
+ƌ,ƌ ,
+Ƌ,Ƌ ,
+e,e ,è,è ,é,é ,ê,ê ,ë,ë ,ē,ē ,ĕ,ĕ ,ė,ė ,ę,ę ,ě,ě ,ẹ,ẹ ,ẻ,ẻ ,ẽ,ẽ ,ế,ế ,ề,ề ,ể,ể ,ễ,ễ ,ệ,ệ ,
+E,E ,È,È ,É,É ,Ê,Ê ,Ë,Ë ,Ē,Ē ,Ĕ,Ĕ ,Ė,Ė ,Ę,Ę ,Ě,Ě ,Ẹ,Ẹ ,Ẻ,Ẻ ,Ẽ,Ẽ ,Ế,Ế ,Ề,Ề ,Ể,Ể ,Ễ,Ễ ,Ệ,Ệ ,
+ǝ,ǝ ,
+Ǝ,Ǝ ,
+Ə,Ə ,
+Ɛ,Ɛ ,
+f,f ,
+F,F ,
+ƒ,ƒ ,
+Ƒ,Ƒ ,
+g,g ,ĝ,ĝ ,ğ,ğ ,ġ,ġ ,ģ,ģ ,ǧ,ǧ ,ǵ,ǵ ,
+G,G ,Ĝ,Ĝ ,Ğ,Ğ ,Ġ,Ġ ,Ģ,Ģ ,Ǧ,Ǧ ,Ǵ,Ǵ ,
+ǥ,ǥ ,
+Ǥ,Ǥ ,
+Ɠ,Ɠ ,
+Ɣ,Ɣ ,
+ƣ,ƣ ,
+Ƣ,Ƣ ,
+h,h ,ĥ,ĥ ,ħ,ħ ,
+H,H ,Ĥ,Ĥ ,Ħ,Ħ ,
+ƕ,ƕ ,
+Ƕ,Ƕ ,
+i,i ,ì,ì ,í,í ,î,î ,ï,ï ,ĩ,ĩ ,ī,ī ,ĭ,ĭ ,į,į ,ǐ,ǐ ,ỉ,ỉ ,ị,ị ,
+I,I ,Ì,Ì ,Í,Í ,Î,Î ,Ï,Ï ,Ĩ,Ĩ ,Ī,Ī ,Ĭ,Ĭ ,Į,Į ,İ,İ ,Ǐ,Ǐ ,Ỉ,Ỉ ,Ị,Ị ,
+ij,ij ,
+iJ,iJ ,
+ĳ,ĳ ,
+Ij,Ij ,
+IJ,IJ ,
+Ĳ,Ĳ ,
+ı,ı ,
+Ɨ,Ɨ ,
+Ɩ,Ɩ ,
+j,j ,ĵ,ĵ ,ǰ,ǰ ,
+J,J ,Ĵ,Ĵ ,
+k,k ,ķ,ķ ,ǩ,ǩ ,
+K,K ,Ķ,Ķ ,Ǩ,Ǩ ,
+ƙ,ƙ ,
+Ƙ,Ƙ ,
+l,l ,ĺ,ĺ ,ļ,ļ ,ľ,ľ ,ŀ,ŀ ,ł,ł ,
+L,L ,Ĺ,Ĺ ,Ļ,Ļ ,Ľ,Ľ ,Ŀ,Ŀ ,Ł,Ł ,
+lj,lj ,
+lJ,lJ ,
+ǉ,ǉ ,
+Lj,Lj ,
+LJ,LJ ,
+ǈ,ǈ ,
+Ǉ,Ǉ ,
+ll,ll ,
+lL,lL ,
+Ll,Ll ,
+LL,LL ,
+ƚ,ƚ ,
+ƛ,ƛ ,
+m,m ,
+M,M ,
+n,n ,ñ,ñ ,ń,ń ,ņ,ņ ,ň,ň ,ǹ,ǹ ,
+N,N ,Ñ,Ñ ,Ń,Ń ,Ņ,Ņ ,Ň,Ň ,Ǹ,Ǹ ,
+nj,nj ,
+nJ,nJ ,
+ǌ,ǌ ,
+Nj,Nj ,
+NJ,NJ ,
+ǋ,ǋ ,
+Ǌ,Ǌ ,
+Ɲ,Ɲ ,
+ƞ,ƞ ,
+ŋ,ŋ ,
+Ŋ,Ŋ ,
+o,o ,ò,ò ,ó,ó ,ô,ô ,õ,õ ,ö,ö ,ø,ø ,ō,ō ,ŏ,ŏ ,ő,ő ,ơ,ơ ,ǒ,ǒ ,ǫ,ǫ ,ǭ,ǭ ,ǿ,ǿ ,ọ,ọ ,ỏ,ỏ ,ố,ố ,ồ,ồ ,ổ,ổ ,ỗ,ỗ ,ộ,ộ ,ớ,ớ ,ờ,ờ ,ở,ở ,ỡ,ỡ ,ợ,ợ ,
+O,O ,Ò,Ò ,Ó,Ó ,Ô,Ô ,Õ,Õ ,Ö,Ö ,Ø,Ø ,Ō,Ō ,Ŏ,Ŏ ,Ő,Ő ,Ơ,Ơ ,Ǒ,Ǒ ,Ǫ,Ǫ ,Ǭ,Ǭ ,Ǿ,Ǿ ,Ọ,Ọ ,Ỏ,Ỏ ,Ố,Ố ,Ồ,Ồ ,Ổ,Ổ ,Ỗ,Ỗ ,Ộ,Ộ ,Ớ,Ớ ,Ờ,Ờ ,Ở,Ở ,Ỡ,Ỡ ,Ợ,Ợ ,
+oe,oe ,
+oE,oE ,
+œ,œ ,
+Oe,Oe ,
+OE,OE ,
+Œ,Œ ,
+Ɔ,Ɔ ,
+Ɵ,Ɵ ,
+p,p ,
+P,P ,
+ƥ,ƥ ,
+Ƥ,Ƥ ,
+q,q ,
+Q,Q ,
+ĸ,ĸ ,
+r,r ,ŕ,ŕ ,ŗ,ŗ ,ř,ř ,
+R,R ,Ŕ,Ŕ ,Ŗ,Ŗ ,Ř,Ř ,
+rr,rr ,
+rR,rR ,
+Rr,Rr ,
+RR,RR ,
+Ʀ,Ʀ ,
+s,s ,ś,ś ,ŝ,ŝ ,ş,ş ,š,š ,
+ſ,ſ ,
+S,S ,Ś,Ś ,Ŝ,Ŝ ,Ş,Ş ,Š,Š ,
+ss,ss ,
+sS,sS ,
+ß,ß ,
+Ss,Ss ,
+SS,SS ,
+ẞ,ẞ ,
+Ʃ,Ʃ ,
+ƪ,ƪ ,
+t,t ,ţ,ţ ,ť,ť ,
+T,T ,Ţ,Ţ ,Ť,Ť ,
+ƾ,ƾ ,
+ŧ,ŧ ,
+Ŧ,Ŧ ,
+ƫ,ƫ ,
+ƭ,ƭ ,
+Ƭ,Ƭ ,
+Ʈ,Ʈ ,
+u,u ,ù,ù ,ú,ú ,û,û ,ü,ü ,ũ,ũ ,ū,ū ,ŭ,ŭ ,ů,ů ,ű,ű ,ų,ų ,ư,ư ,ǔ,ǔ ,ǖ,ǖ ,ǘ,ǘ ,ǚ,ǚ ,ǜ,ǜ ,ụ,ụ ,ủ,ủ ,ứ,ứ ,ừ,ừ ,ử,ử ,ữ,ữ ,ự,ự ,
+U,U ,Ù,Ù ,Ú,Ú ,Û,Û ,Ü,Ü ,Ũ,Ũ ,Ū,Ū ,Ŭ,Ŭ ,Ů,Ů ,Ű,Ű ,Ų,Ų ,Ư,Ư ,Ǔ,Ǔ ,Ǖ,Ǖ ,Ǘ,Ǘ ,Ǚ,Ǚ ,Ǜ,Ǜ ,Ụ,Ụ ,Ủ,Ủ ,Ứ,Ứ ,Ừ,Ừ ,Ử,Ử ,Ữ,Ữ ,Ự,Ự ,
+Ɯ,Ɯ ,
+Ʊ,Ʊ ,
+v,v ,
+V,V ,
+Ʋ,Ʋ ,
+w,w ,ŵ,ŵ ,
+W,W ,Ŵ,Ŵ ,
+x,x ,
+X,X ,
+y,y ,ý,ý ,ÿ,ÿ ,ŷ,ŷ ,
+Y,Y ,Ý,Ý ,Ŷ,Ŷ ,Ÿ,Ÿ ,
+ƴ,ƴ ,
+Ƴ,Ƴ ,
+z,z ,ź,ź ,ż,ż ,ž,ž ,
+Z,Z ,Ź,Ź ,Ż,Ż ,Ž,Ž ,
+ƍ,ƍ ,
+ƶ,ƶ ,
+Ƶ,Ƶ ,
+ǯ,ǯ ,
+Ʒ,Ʒ ,Ǯ,Ǯ ,
+ƹ,ƹ ,
+Ƹ,Ƹ ,
+ƺ,ƺ ,
+þ,þ ,
+Þ,Þ ,
+ƿ,ƿ ,
+Ƿ,Ƿ ,
+ƻ,ƻ ,
+ƨ,ƨ ,
+Ƨ,Ƨ ,
+ƽ,ƽ ,
+Ƽ,Ƽ ,
+ƅ,ƅ ,
+Ƅ,Ƅ ,
+ŉ,ŉ ,
+ǀ,ǀ ,
+ǁ,ǁ ,
+ǂ,ǂ ,
+ǃ,ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_nopad_ai_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,
+÷ ,
+×,
+× ,
+A,a,À,Á,Â,Ã,Ä,Å,à,á,â,ã,ä,å,Ā,ā,Ă,ă,Ą,ą,Ǎ,ǎ,Ǟ,ǟ,Ǡ,ǡ,Ǻ,ǻ,Ạ,ạ,Ả,ả,Ấ,ấ,Ầ,ầ,Ẩ,ẩ,Ẫ,ẫ,Ậ,ậ,Ắ,ắ,Ằ,ằ,Ẳ,ẳ,Ẵ,ẵ,Ặ,ặ,
+A ,a ,À ,Á ,Â ,Ã ,Ä ,Å ,à ,á ,â ,ã ,ä ,å ,Ā ,ā ,Ă ,ă ,Ą ,ą ,Ǎ ,ǎ ,Ǟ ,ǟ ,Ǡ ,ǡ ,Ǻ ,ǻ ,Ạ ,ạ ,Ả ,ả ,Ấ ,ấ ,Ầ ,ầ ,Ẩ ,ẩ ,Ẫ ,ẫ ,Ậ ,ậ ,Ắ ,ắ ,Ằ ,ằ ,Ẳ ,ẳ ,Ẵ ,ẵ ,Ặ ,ặ ,
+AA,Aa,aA,aa,
+AA ,Aa ,aA ,aa ,
+AE,Ae,aE,ae,Æ,æ,Ǣ,ǣ,Ǽ,ǽ,
+AE ,Ae ,aE ,ae ,Æ ,æ ,Ǣ ,ǣ ,Ǽ ,ǽ ,
+B,b,
+B ,b ,
+ƀ,
+ƀ ,
+Ɓ,
+Ɓ ,
+Ƃ,ƃ,
+Ƃ ,ƃ ,
+C,c,Ç,ç,Ć,ć,Ĉ,ĉ,Ċ,ċ,Č,č,
+C ,c ,Ç ,ç ,Ć ,ć ,Ĉ ,ĉ ,Ċ ,ċ ,Č ,č ,
+CH,Ch,cH,ch,
+CH ,Ch ,cH ,ch ,
+Ƈ,ƈ,
+Ƈ ,ƈ ,
+D,d,Ð,ð,Ď,ď,Đ,đ,
+D ,d ,Ð ,ð ,Ď ,ď ,Đ ,đ ,
+DZ,Dz,DŽ,Dž,dZ,dz,dŽ,dž,Ǆ,ǅ,ǆ,Ǳ,ǲ,ǳ,
+DZ ,Dz ,DŽ ,Dž ,dZ ,dz ,dŽ ,dž ,Ǆ ,ǅ ,ǆ ,Ǳ ,ǲ ,ǳ ,
+Ɖ,
+Ɖ ,
+Ɗ,
+Ɗ ,
+Ƌ,ƌ,
+Ƌ ,ƌ ,
+E,e,È,É,Ê,Ë,è,é,ê,ë,Ē,ē,Ĕ,ĕ,Ė,ė,Ę,ę,Ě,ě,Ẹ,ẹ,Ẻ,ẻ,Ẽ,ẽ,Ế,ế,Ề,ề,Ể,ể,Ễ,ễ,Ệ,ệ,
+E ,e ,È ,É ,Ê ,Ë ,è ,é ,ê ,ë ,Ē ,ē ,Ĕ ,ĕ ,Ė ,ė ,Ę ,ę ,Ě ,ě ,Ẹ ,ẹ ,Ẻ ,ẻ ,Ẽ ,ẽ ,Ế ,ế ,Ề ,ề ,Ể ,ể ,Ễ ,ễ ,Ệ ,ệ ,
+Ǝ,ǝ,
+Ǝ ,ǝ ,
+Ə,
+Ə ,
+Ɛ,
+Ɛ ,
+F,f,
+F ,f ,
+Ƒ,ƒ,
+Ƒ ,ƒ ,
+G,g,Ĝ,ĝ,Ğ,ğ,Ġ,ġ,Ģ,ģ,Ǧ,ǧ,Ǵ,ǵ,
+G ,g ,Ĝ ,ĝ ,Ğ ,ğ ,Ġ ,ġ ,Ģ ,ģ ,Ǧ ,ǧ ,Ǵ ,ǵ ,
+Ǥ,ǥ,
+Ǥ ,ǥ ,
+Ɠ,
+Ɠ ,
+Ɣ,
+Ɣ ,
+Ƣ,ƣ,
+Ƣ ,ƣ ,
+H,h,Ĥ,ĥ,Ħ,ħ,
+H ,h ,Ĥ ,ĥ ,Ħ ,ħ ,
+ƕ,Ƕ,
+ƕ ,Ƕ ,
+I,i,Ì,Í,Î,Ï,ì,í,î,ï,Ĩ,ĩ,Ī,ī,Ĭ,ĭ,Į,į,İ,Ǐ,ǐ,Ỉ,ỉ,Ị,ị,
+I ,i ,Ì ,Í ,Î ,Ï ,ì ,í ,î ,ï ,Ĩ ,ĩ ,Ī ,ī ,Ĭ ,ĭ ,Į ,į ,İ ,Ǐ ,ǐ ,Ỉ ,ỉ ,Ị ,ị ,
+IJ,Ij,iJ,ij,Ĳ,ĳ,
+IJ ,Ij ,iJ ,ij ,Ĳ ,ĳ ,
+ı,
+ı ,
+Ɨ,
+Ɨ ,
+Ɩ,
+Ɩ ,
+J,j,Ĵ,ĵ,ǰ,
+J ,j ,Ĵ ,ĵ ,ǰ ,
+K,k,Ķ,ķ,Ǩ,ǩ,
+K ,k ,Ķ ,ķ ,Ǩ ,ǩ ,
+Ƙ,ƙ,
+Ƙ ,ƙ ,
+L,l,Ĺ,ĺ,Ļ,ļ,Ľ,ľ,Ŀ,ŀ,Ł,ł,
+L ,l ,Ĺ ,ĺ ,Ļ ,ļ ,Ľ ,ľ ,Ŀ ,ŀ ,Ł ,ł ,
+LJ,Lj,lJ,lj,Ǉ,ǈ,ǉ,
+LJ ,Lj ,lJ ,lj ,Ǉ ,ǈ ,ǉ ,
+LL,Ll,lL,ll,
+LL ,Ll ,lL ,ll ,
+ƚ,
+ƚ ,
+ƛ,
+ƛ ,
+M,m,
+M ,m ,
+N,n,Ñ,ñ,Ń,ń,Ņ,ņ,Ň,ň,Ǹ,ǹ,
+N ,n ,Ñ ,ñ ,Ń ,ń ,Ņ ,ņ ,Ň ,ň ,Ǹ ,ǹ ,
+NJ,Nj,nJ,nj,Ǌ,ǋ,ǌ,
+NJ ,Nj ,nJ ,nj ,Ǌ ,ǋ ,ǌ ,
+Ɲ,
+Ɲ ,
+ƞ,
+ƞ ,
+Ŋ,ŋ,
+Ŋ ,ŋ ,
+O,o,Ò,Ó,Ô,Õ,Ö,Ø,ò,ó,ô,õ,ö,ø,Ō,ō,Ŏ,ŏ,Ő,ő,Ơ,ơ,Ǒ,ǒ,Ǫ,ǫ,Ǭ,ǭ,Ǿ,ǿ,Ọ,ọ,Ỏ,ỏ,Ố,ố,Ồ,ồ,Ổ,ổ,Ỗ,ỗ,Ộ,ộ,Ớ,ớ,Ờ,ờ,Ở,ở,Ỡ,ỡ,Ợ,ợ,
+O ,o ,Ò ,Ó ,Ô ,Õ ,Ö ,Ø ,ò ,ó ,ô ,õ ,ö ,ø ,Ō ,ō ,Ŏ ,ŏ ,Ő ,ő ,Ơ ,ơ ,Ǒ ,ǒ ,Ǫ ,ǫ ,Ǭ ,ǭ ,Ǿ ,ǿ ,Ọ ,ọ ,Ỏ ,ỏ ,Ố ,ố ,Ồ ,ồ ,Ổ ,ổ ,Ỗ ,ỗ ,Ộ ,ộ ,Ớ ,ớ ,Ờ ,ờ ,Ở ,ở ,Ỡ ,ỡ ,Ợ ,ợ ,
+OE,Oe,oE,oe,Œ,œ,
+OE ,Oe ,oE ,oe ,Œ ,œ ,
+Ɔ,
+Ɔ ,
+Ɵ,
+Ɵ ,
+P,p,
+P ,p ,
+Ƥ,ƥ,
+Ƥ ,ƥ ,
+Q,q,
+Q ,q ,
+ĸ,
+ĸ ,
+R,r,Ŕ,ŕ,Ŗ,ŗ,Ř,ř,
+R ,r ,Ŕ ,ŕ ,Ŗ ,ŗ ,Ř ,ř ,
+RR,Rr,rR,rr,
+RR ,Rr ,rR ,rr ,
+Ʀ,
+Ʀ ,
+S,s,Ś,ś,Ŝ,ŝ,Ş,ş,Š,š,ſ,
+S ,s ,Ś ,ś ,Ŝ ,ŝ ,Ş ,ş ,Š ,š ,ſ ,
+SS,Ss,sS,ss,ß,ẞ,
+SS ,Ss ,sS ,ss ,ß ,ẞ ,
+Ʃ,
+Ʃ ,
+ƪ,
+ƪ ,
+T,t,Ţ,ţ,Ť,ť,
+T ,t ,Ţ ,ţ ,Ť ,ť ,
+ƾ,
+ƾ ,
+Ŧ,ŧ,
+Ŧ ,ŧ ,
+ƫ,
+ƫ ,
+Ƭ,ƭ,
+Ƭ ,ƭ ,
+Ʈ,
+Ʈ ,
+U,u,Ù,Ú,Û,Ü,ù,ú,û,ü,Ũ,ũ,Ū,ū,Ŭ,ŭ,Ů,ů,Ű,ű,Ų,ų,Ư,ư,Ǔ,ǔ,Ǖ,ǖ,Ǘ,ǘ,Ǚ,ǚ,Ǜ,ǜ,Ụ,ụ,Ủ,ủ,Ứ,ứ,Ừ,ừ,Ử,ử,Ữ,ữ,Ự,ự,
+U ,u ,Ù ,Ú ,Û ,Ü ,ù ,ú ,û ,ü ,Ũ ,ũ ,Ū ,ū ,Ŭ ,ŭ ,Ů ,ů ,Ű ,ű ,Ų ,ų ,Ư ,ư ,Ǔ ,ǔ ,Ǖ ,ǖ ,Ǘ ,ǘ ,Ǚ ,ǚ ,Ǜ ,ǜ ,Ụ ,ụ ,Ủ ,ủ ,Ứ ,ứ ,Ừ ,ừ ,Ử ,ử ,Ữ ,ữ ,Ự ,ự ,
+Ɯ,
+Ɯ ,
+Ʊ,
+Ʊ ,
+V,v,
+V ,v ,
+Ʋ,
+Ʋ ,
+W,w,Ŵ,ŵ,
+W ,w ,Ŵ ,ŵ ,
+X,x,
+X ,x ,
+Y,y,Ý,ý,ÿ,Ŷ,ŷ,Ÿ,
+Y ,y ,Ý ,ý ,ÿ ,Ŷ ,ŷ ,Ÿ ,
+Ƴ,ƴ,
+Ƴ ,ƴ ,
+Z,z,Ź,ź,Ż,ż,Ž,ž,
+Z ,z ,Ź ,ź ,Ż ,ż ,Ž ,ž ,
+ƍ,
+ƍ ,
+Ƶ,ƶ,
+Ƶ ,ƶ ,
+Ʒ,Ǯ,ǯ,
+Ʒ ,Ǯ ,ǯ ,
+Ƹ,ƹ,
+Ƹ ,ƹ ,
+ƺ,
+ƺ ,
+Þ,þ,
+Þ ,þ ,
+ƿ,Ƿ,
+ƿ ,Ƿ ,
+ƻ,
+ƻ ,
+Ƨ,ƨ,
+Ƨ ,ƨ ,
+Ƽ,ƽ,
+Ƽ ,ƽ ,
+Ƅ,ƅ,
+Ƅ ,ƅ ,
+ŉ,
+ŉ ,
+ǀ,
+ǀ ,
+ǁ,
+ǁ ,
+ǂ,
+ǂ ,
+ǃ,
+ǃ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1  GROUP BY a COLLATE uca1400_ai_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+÷,÷ ,
+×,× ,
+A,A ,a,a ,À,À ,Á,Á ,Â,Â ,Ã,Ã ,Ä,Ä ,Å,Å ,à,à ,á,á ,â,â ,ã,ã ,ä,ä ,å,å ,Ā,Ā ,ā,ā ,Ă,Ă ,ă,ă ,Ą,Ą ,ą,ą ,Ǎ,Ǎ ,ǎ,ǎ ,Ǟ,Ǟ ,ǟ,ǟ ,Ǡ,Ǡ ,ǡ,ǡ ,Ǻ,Ǻ ,ǻ,ǻ ,Ạ,Ạ ,ạ,ạ ,Ả,Ả ,ả,ả ,Ấ,Ấ ,ấ,ấ ,Ầ,Ầ ,ầ,ầ ,Ẩ,Ẩ ,ẩ,ẩ ,Ẫ,Ẫ ,ẫ,ẫ ,Ậ,Ậ ,ậ,ậ ,Ắ,Ắ ,ắ,ắ ,Ằ,Ằ ,ằ,ằ ,Ẳ,Ẳ ,ẳ,ẳ ,Ẵ,Ẵ ,ẵ,ẵ ,Ặ,Ặ ,ặ,ặ ,
+AA,AA ,Aa,Aa ,aA,aA ,aa,aa ,
+AE,AE ,Ae,Ae ,aE,aE ,ae,ae ,Æ,Æ ,æ,æ ,Ǣ,Ǣ ,ǣ,ǣ ,Ǽ,Ǽ ,ǽ,ǽ ,
+B,B ,b,b ,
+ƀ,ƀ ,
+Ɓ,Ɓ ,
+Ƃ,Ƃ ,ƃ,ƃ ,
+C,C ,c,c ,Ç,Ç ,ç,ç ,Ć,Ć ,ć,ć ,Ĉ,Ĉ ,ĉ,ĉ ,Ċ,Ċ ,ċ,ċ ,Č,Č ,č,č ,
+CH,CH ,Ch,Ch ,cH,cH ,ch,ch ,
+Ƈ,Ƈ ,ƈ,ƈ ,
+D,D ,d,d ,Ð,Ð ,ð,ð ,Ď,Ď ,ď,ď ,Đ,Đ ,đ,đ ,
+DZ,DZ ,Dz,Dz ,DŽ,DŽ ,Dž,Dž ,dZ,dZ ,dz,dz ,dŽ,dŽ ,dž,dž ,Ǆ,Ǆ ,ǅ,ǅ ,ǆ,ǆ ,Ǳ,Ǳ ,ǲ,ǲ ,ǳ,ǳ ,
+Ɖ,Ɖ ,
+Ɗ,Ɗ ,
+Ƌ,Ƌ ,ƌ,ƌ ,
+E,E ,e,e ,È,È ,É,É ,Ê,Ê ,Ë,Ë ,è,è ,é,é ,ê,ê ,ë,ë ,Ē,Ē ,ē,ē ,Ĕ,Ĕ ,ĕ,ĕ ,Ė,Ė ,ė,ė ,Ę,Ę ,ę,ę ,Ě,Ě ,ě,ě ,Ẹ,Ẹ ,ẹ,ẹ ,Ẻ,Ẻ ,ẻ,ẻ ,Ẽ,Ẽ ,ẽ,ẽ ,Ế,Ế ,ế,ế ,Ề,Ề ,ề,ề ,Ể,Ể ,ể,ể ,Ễ,Ễ ,ễ,ễ ,Ệ,Ệ ,ệ,ệ ,
+Ǝ,Ǝ ,ǝ,ǝ ,
+Ə,Ə ,
+Ɛ,Ɛ ,
+F,F ,f,f ,
+Ƒ,Ƒ ,ƒ,ƒ ,
+G,G ,g,g ,Ĝ,Ĝ ,ĝ,ĝ ,Ğ,Ğ ,ğ,ğ ,Ġ,Ġ ,ġ,ġ ,Ģ,Ģ ,ģ,ģ ,Ǧ,Ǧ ,ǧ,ǧ ,Ǵ,Ǵ ,ǵ,ǵ ,
+Ǥ,Ǥ ,ǥ,ǥ ,
+Ɠ,Ɠ ,
+Ɣ,Ɣ ,
+Ƣ,Ƣ ,ƣ,ƣ ,
+H,H ,h,h ,Ĥ,Ĥ ,ĥ,ĥ ,Ħ,Ħ ,ħ,ħ ,
+ƕ,ƕ ,Ƕ,Ƕ ,
+I,I ,i,i ,Ì,Ì ,Í,Í ,Î,Î ,Ï,Ï ,ì,ì ,í,í ,î,î ,ï,ï ,Ĩ,Ĩ ,ĩ,ĩ ,Ī,Ī ,ī,ī ,Ĭ,Ĭ ,ĭ,ĭ ,Į,Į ,į,į ,İ,İ ,Ǐ,Ǐ ,ǐ,ǐ ,Ỉ,Ỉ ,ỉ,ỉ ,Ị,Ị ,ị,ị ,
+IJ,IJ ,Ij,Ij ,iJ,iJ ,ij,ij ,Ĳ,Ĳ ,ĳ,ĳ ,
+ı,ı ,
+Ɨ,Ɨ ,
+Ɩ,Ɩ ,
+J,J ,j,j ,Ĵ,Ĵ ,ĵ,ĵ ,ǰ,ǰ ,
+K,K ,k,k ,Ķ,Ķ ,ķ,ķ ,Ǩ,Ǩ ,ǩ,ǩ ,
+Ƙ,Ƙ ,ƙ,ƙ ,
+L,L ,l,l ,Ĺ,Ĺ ,ĺ,ĺ ,Ļ,Ļ ,ļ,ļ ,Ľ,Ľ ,ľ,ľ ,Ŀ,Ŀ ,ŀ,ŀ ,Ł,Ł ,ł,ł ,
+LJ,LJ ,Lj,Lj ,lJ,lJ ,lj,lj ,Ǉ,Ǉ ,ǈ,ǈ ,ǉ,ǉ ,
+LL,LL ,Ll,Ll ,lL,lL ,ll,ll ,
+ƚ,ƚ ,
+ƛ,ƛ ,
+M,M ,m,m ,
+N,N ,n,n ,Ñ,Ñ ,ñ,ñ ,Ń,Ń ,ń,ń ,Ņ,Ņ ,ņ,ņ ,Ň,Ň ,ň,ň ,Ǹ,Ǹ ,ǹ,ǹ ,
+NJ,NJ ,Nj,Nj ,nJ,nJ ,nj,nj ,Ǌ,Ǌ ,ǋ,ǋ ,ǌ,ǌ ,
+Ɲ,Ɲ ,
+ƞ,ƞ ,
+Ŋ,Ŋ ,ŋ,ŋ ,
+O,O ,o,o ,Ò,Ò ,Ó,Ó ,Ô,Ô ,Õ,Õ ,Ö,Ö ,Ø,Ø ,ò,ò ,ó,ó ,ô,ô ,õ,õ ,ö,ö ,ø,ø ,Ō,Ō ,ō,ō ,Ŏ,Ŏ ,ŏ,ŏ ,Ő,Ő ,ő,ő ,Ơ,Ơ ,ơ,ơ ,Ǒ,Ǒ ,ǒ,ǒ ,Ǫ,Ǫ ,ǫ,ǫ ,Ǭ,Ǭ ,ǭ,ǭ ,Ǿ,Ǿ ,ǿ,ǿ ,Ọ,Ọ ,ọ,ọ ,Ỏ,Ỏ ,ỏ,ỏ ,Ố,Ố ,ố,ố ,Ồ,Ồ ,ồ,ồ ,Ổ,Ổ ,ổ,ổ ,Ỗ,Ỗ ,ỗ,ỗ ,Ộ,Ộ ,ộ,ộ ,Ớ,Ớ ,ớ,ớ ,Ờ,Ờ ,ờ,ờ ,Ở,Ở ,ở,ở ,Ỡ,Ỡ ,ỡ,ỡ ,Ợ,Ợ ,ợ,ợ ,
+OE,OE ,Oe,Oe ,oE,oE ,oe,oe ,Œ,Œ ,œ,œ ,
+Ɔ,Ɔ ,
+Ɵ,Ɵ ,
+P,P ,p,p ,
+Ƥ,Ƥ ,ƥ,ƥ ,
+Q,Q ,q,q ,
+ĸ,ĸ ,
+R,R ,r,r ,Ŕ,Ŕ ,ŕ,ŕ ,Ŗ,Ŗ ,ŗ,ŗ ,Ř,Ř ,ř,ř ,
+RR,RR ,Rr,Rr ,rR,rR ,rr,rr ,
+Ʀ,Ʀ ,
+S,S ,s,s ,Ś,Ś ,ś,ś ,Ŝ,Ŝ ,ŝ,ŝ ,Ş,Ş ,ş,ş ,Š,Š ,š,š ,ſ,ſ ,
+SS,SS ,Ss,Ss ,sS,sS ,ss,ss ,ß,ß ,ẞ,ẞ ,
+Ʃ,Ʃ ,
+ƪ,ƪ ,
+T,T ,t,t ,Ţ,Ţ ,ţ,ţ ,Ť,Ť ,ť,ť ,
+ƾ,ƾ ,
+Ŧ,Ŧ ,ŧ,ŧ ,
+ƫ,ƫ ,
+Ƭ,Ƭ ,ƭ,ƭ ,
+Ʈ,Ʈ ,
+U,U ,u,u ,Ù,Ù ,Ú,Ú ,Û,Û ,Ü,Ü ,ù,ù ,ú,ú ,û,û ,ü,ü ,Ũ,Ũ ,ũ,ũ ,Ū,Ū ,ū,ū ,Ŭ,Ŭ ,ŭ,ŭ ,Ů,Ů ,ů,ů ,Ű,Ű ,ű,ű ,Ų,Ų ,ų,ų ,Ư,Ư ,ư,ư ,Ǔ,Ǔ ,ǔ,ǔ ,Ǖ,Ǖ ,ǖ,ǖ ,Ǘ,Ǘ ,ǘ,ǘ ,Ǚ,Ǚ ,ǚ,ǚ ,Ǜ,Ǜ ,ǜ,ǜ ,Ụ,Ụ ,ụ,ụ ,Ủ,Ủ ,ủ,ủ ,Ứ,Ứ ,ứ,ứ ,Ừ,Ừ ,ừ,ừ ,Ử,Ử ,ử,ử ,Ữ,Ữ ,ữ,ữ ,Ự,Ự ,ự,ự ,
+Ɯ,Ɯ ,
+Ʊ,Ʊ ,
+V,V ,v,v ,
+Ʋ,Ʋ ,
+W,W ,w,w ,Ŵ,Ŵ ,ŵ,ŵ ,
+X,X ,x,x ,
+Y,Y ,y,y ,Ý,Ý ,ý,ý ,ÿ,ÿ ,Ŷ,Ŷ ,ŷ,ŷ ,Ÿ,Ÿ ,
+Ƴ,Ƴ ,ƴ,ƴ ,
+Z,Z ,z,z ,Ź,Ź ,ź,ź ,Ż,Ż ,ż,ż ,Ž,Ž ,ž,ž ,
+ƍ,ƍ ,
+Ƶ,Ƶ ,ƶ,ƶ ,
+Ʒ,Ʒ ,Ǯ,Ǯ ,ǯ,ǯ ,
+Ƹ,Ƹ ,ƹ,ƹ ,
+ƺ,ƺ ,
+Þ,Þ ,þ,þ ,
+ƿ,ƿ ,Ƿ,Ƿ ,
+ƻ,ƻ ,
+Ƨ,Ƨ ,ƨ,ƨ ,
+Ƽ,Ƽ ,ƽ,ƽ ,
+Ƅ,Ƅ ,ƅ,ƅ ,
+ŉ,ŉ ,
+ǀ,ǀ ,
+ǁ,ǁ ,
+ǂ,ǂ ,
+ǃ,ǃ ,
+CALL test_styles('uca1400', _utf8mb4"WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ')");
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_nopad_as_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+s,
+S,
+s ,
+S ,
+ss,
+sS,
+Ss,
+SS,
+ß,
+ẞ,
+ss ,
+sS ,
+Ss ,
+SS ,
+ß ,
+ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_as_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+s,s ,
+S,S ,
+ss,ss ,
+sS,sS ,
+Ss,Ss ,
+SS,SS ,
+ß,ß ,
+ẞ,ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_nopad_as_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+S,s,
+S ,s ,
+SS,Ss,sS,ss,
+ß,ẞ,
+SS ,Ss ,sS ,ss ,
+ß ,ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_as_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+S,S ,s,s ,
+SS,SS ,Ss,Ss ,sS,sS ,ss,ss ,
+ß,ß ,ẞ,ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_nopad_ai_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+s,
+S,
+s ,
+S ,
+ss,
+sS,
+ß,
+Ss,
+SS,
+ẞ,
+ss ,
+sS ,
+ß ,
+Ss ,
+SS ,
+ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_ai_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+s,s ,
+S,S ,
+ss,ss ,
+sS,sS ,
+ß,ß ,
+Ss,Ss ,
+SS,SS ,
+ẞ,ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_nopad_ai_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+S,s,
+S ,s ,
+SS,Ss,sS,ss,ß,ẞ,
+SS ,Ss ,sS ,ss ,ß ,ẞ ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ') GROUP BY a COLLATE uca1400_ai_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+S,S ,s,s ,
+SS,SS ,Ss,Ss ,sS,sS ,ss,ss ,ß,ß ,ẞ,ẞ ,
+CALL test_styles('uca1400_danish', _utf8mb4"WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å')");
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_nopad_as_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,
+aA ,
+å,
+Å,
+aa,
+Aa,
+AA,
+å ,
+Å ,
+aa ,
+Aa ,
+AA ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_as_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,aA ,
+å,å ,
+Å,Å ,
+aa,aa ,
+Aa,Aa ,
+AA,AA ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_nopad_as_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,
+aA ,
+Å,å,
+AA,Aa,aa,
+Å ,å ,
+AA ,Aa ,aa ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_as_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,aA ,
+Å,Å ,å,å ,
+AA,AA ,Aa,Aa ,aa,aa ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_nopad_ai_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,
+aA ,
+aa,å,
+Aa,Å,
+AA,
+aa ,å ,
+Aa ,Å ,
+AA ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_ai_cs
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,aA ,
+aa,aa ,å,å ,
+Aa,Aa ,Å,Å ,
+AA,AA ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_nopad_ai_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,
+aA ,
+AA,Aa,aa,Å,å,
+AA ,Aa ,aa ,Å ,å ,
+
+SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',') FROM t1 WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å') GROUP BY a COLLATE uca1400_danish_ai_ci
+CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),',')
+aA,aA ,
+AA,AA ,Aa,Aa ,aa,aa ,Å,Å ,å,å ,
+DROP TABLE t1;
+DROP PROCEDURE exec_verbose;
+DROP PROCEDURE test_styles;
+#
+# MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code) VALUES
+(0x23A),
+(0x23E),
+(0x23F),
+(0x240),
+(0x250),
+(0x251),
+(0x252),
+(0x26B),
+(0x271),
+(0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+UPDATE case_folding SET c=CHAR(code USING ucs2);
+SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
+HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
+23A	E2B1A5	C8BA	Ⱥ
+23E	E2B1A6	C8BE	Ⱦ
+23F	C8BF	E2B1BE	ȿ
+240	C980	E2B1BF	ɀ
+250	C990	E2B1AF	ɐ
+251	C991	E2B1AD	ɑ
+252	C992	E2B1B0	ɒ
+26B	C9AB	E2B1A2	ɫ
+271	C9B1	E2B1AE	ɱ
+27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B19F	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B0AF	ⱟ
+A7C0	EA9F81	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F80	ꟁ
+DROP TABLE case_folding;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c, SPACE(64) AS comment LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) DEFAULT NULL,
+  `comment` varchar(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code, comment) VALUES (0x10595, 'VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x105BC, 'VITHKUQI SMALL LETTER ZE (Unicode-14.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x1E921, 'ADLAM CAPITAL LETTER SHA (Unicode-9.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x1E943, 'ADLAM SMALL LETTER SHA (Unicode-9.0)');
+UPDATE case_folding SET c=CHAR(code USING utf32);
+SELECT
+HEX(CONVERT(c USING utf32)) AS ch,
+HEX(CONVERT(LOWER(c) USING utf32)) AS cl,
+HEX(CONVERT(UPPER(c) USING utf32)) AS cu,
+comment
+FROM case_folding ORDER BY BINARY(c);
+ch	cl	cu	comment
+00010595	000105BC	00010595	VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)
+000105BC	000105BC	00010595	VITHKUQI SMALL LETTER ZE (Unicode-14.0)
+0001E921	0001E943	0001E921	ADLAM CAPITAL LETTER SHA (Unicode-9.0)
+0001E943	0001E943	0001E921	ADLAM SMALL LETTER SHA (Unicode-9.0)
+DROP TABLE case_folding;
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code) VALUES
+(0x23A),
+(0x23E),
+(0x23F),
+(0x240),
+(0x250),
+(0x251),
+(0x252),
+(0x26B),
+(0x271),
+(0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+UPDATE case_folding SET c=CHAR(code USING ucs2);
+SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
+HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
+23A	E2B1A5	C8BA	Ⱥ
+23E	E2B1A6	C8BE	Ⱦ
+23F	C8BF	E2B1BE	ȿ
+240	C980	E2B1BF	ɀ
+250	C990	E2B1AF	ɐ
+251	C991	E2B1AD	ɑ
+252	C992	E2B1B0	ɒ
+26B	C9AB	E2B1A2	ɫ
+271	C9B1	E2B1AE	ɱ
+27D	C9BD	E2B1A4	ɽ
+49	C4B1	49	I
+69	69	C4B0	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B19F	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B0AF	ⱟ
+A7C0	EA9F81	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F80	ꟁ
+DROP TABLE case_folding;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c, SPACE(64) AS comment LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci DEFAULT NULL,
+  `comment` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code, comment) VALUES (0x10595, 'VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x105BC, 'VITHKUQI SMALL LETTER ZE (Unicode-14.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x1E921, 'ADLAM CAPITAL LETTER SHA (Unicode-9.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x1E943, 'ADLAM SMALL LETTER SHA (Unicode-9.0)');
+UPDATE case_folding SET c=CHAR(code USING utf32);
+SELECT
+HEX(CONVERT(c USING utf32)) AS ch,
+HEX(CONVERT(LOWER(c) USING utf32)) AS cl,
+HEX(CONVERT(UPPER(c) USING utf32)) AS cu,
+comment
+FROM case_folding ORDER BY BINARY(c);
+ch	cl	cu	comment
+00010595	000105BC	00010595	VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)
+000105BC	000105BC	00010595	VITHKUQI SMALL LETTER ZE (Unicode-14.0)
+0001E921	0001E943	0001E921	ADLAM CAPITAL LETTER SHA (Unicode-9.0)
+0001E943	0001E943	0001E921	ADLAM SMALL LETTER SHA (Unicode-9.0)
+DROP TABLE case_folding;
+#
+# End of 10.10 tests
 #

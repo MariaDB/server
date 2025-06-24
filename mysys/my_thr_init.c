@@ -15,7 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
-  Functions to handle initializating and allocationg of all mysys & debug
+  Functions to handle initializating and allocating of all mysys & debug
   thread variables.
 */
 
@@ -23,7 +23,6 @@
 #include <m_string.h>
 #include <signal.h>
 
-pthread_key(struct st_my_thread_var*, THR_KEY_mysys=-1);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
               THR_LOCK_lock, THR_LOCK_myisam, THR_LOCK_heap,
               THR_LOCK_net, THR_LOCK_charset, THR_LOCK_threads,
@@ -41,8 +40,6 @@ static void install_sigabrt_handler();
 
 /** True if @c my_thread_global_init() has been called. */
 static my_bool my_thread_global_init_done= 0;
-/* True if THR_KEY_mysys is created */
-my_bool my_thr_key_mysys_exists= 0;
 
 
 /*
@@ -152,33 +149,16 @@ void my_thread_global_reinit(void)
 
   RETURN
     0  ok
-    1  error (Couldn't create THR_KEY_mysys)
 */
 
 my_bool my_thread_global_init(void)
 {
-  int pth_ret;
 
   /* Normally this should never be called twice */
   DBUG_ASSERT(my_thread_global_init_done == 0);
   if (my_thread_global_init_done)
     return 0;
   my_thread_global_init_done= 1;
-
-  /*
-    THR_KEY_mysys is deleted in my_end() as DBUG libraries are using it even
-    after my_thread_global_end() is called.
-    my_thr_key_mysys_exist is used to protect against application like QT
-    that calls my_thread_global_init() + my_thread_global_end() multiple times
-    without calling my_init() + my_end().
-  */
-  if (!my_thr_key_mysys_exists &&
-      (pth_ret= pthread_key_create(&THR_KEY_mysys, NULL)) != 0)
-  {
-    fprintf(stderr, "Can't initialize threads: error %d\n", pth_ret);
-    return 1;
-  }
-  my_thr_key_mysys_exists= 1;
 
   /* Mutex used by my_thread_init() and after my_thread_destroy_mutex() */
   my_thread_init_internal_mutex();
@@ -222,7 +202,7 @@ void my_thread_global_end(void)
                 THR_thread_count);
 #endif /* HAVE_PTHREAD_KILL */
 #ifdef SAFEMALLOC
-      /* We know we will have memoryleaks, suppress the leak report */
+      /* We know we will have memory leaks, suppress the leak report */
       sf_leaking_memory= 1;
 #endif /* SAFEMALLOC */
       all_threads_killed= 0;
@@ -384,15 +364,17 @@ void my_thread_end(void)
   }
 }
 
+static MY_THREAD_LOCAL struct st_my_thread_var *my_thread_var_;
 struct st_my_thread_var *_my_thread_var(void)
 {
-  return  my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
+  return my_thread_var_;
 }
 
-int set_mysys_var(struct st_my_thread_var *mysys_var)
+void set_mysys_var(struct st_my_thread_var *mysys_var)
 {
-  return my_pthread_setspecific_ptr(THR_KEY_mysys, mysys_var);
+  my_thread_var_= mysys_var;
 }
+
 
 /****************************************************************************
   Get name of current thread.

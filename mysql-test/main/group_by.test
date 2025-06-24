@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 # Initialise
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -724,7 +726,8 @@ drop table t1, t2;
 CREATE TABLE t1 (a tinyint(3), b varchar(255), PRIMARY KEY  (a));
 
 INSERT INTO t1 VALUES (1,'-----'), (6,'Allemagne'), (17,'Autriche'), 
-    (25,'Belgique'), (54,'Danemark'), (62,'Espagne'), (68,'France');
+    (25,'Belgique'), (54,'Danemark'), (62,'Espagne'), (68,'France'),
+    (100,"No land"), (101,"No land");
 
 CREATE TABLE t2 (a tinyint(3), b tinyint(3), PRIMARY KEY  (a), KEY b (b));
 
@@ -1173,6 +1176,13 @@ SELECT a from t2 GROUP BY a;
 EXPLAIN SELECT b from t2 GROUP BY b;
 SELECT b from t2 GROUP BY b;
 
+# Show that we are using 'range' when there is more NULL rows in the table
+insert into t2 SELECT NULL, NULL from seq_1_to_10;
+EXPLAIN SELECT b from t2 GROUP BY a;
+--echo # Expect: Using index for group-by
+analyze table t2;
+EXPLAIN SELECT b from t2 GROUP BY a;
+
 DROP TABLE t1;
 DROP TABLE t2;
 
@@ -1601,7 +1611,7 @@ CREATE TABLE t1 (
   a int,
   b varchar(1),
   KEY (b,a)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES
   (1,NULL),(0,'a'),(1,NULL),(0,'a'), (1,'a'),(0,'a'),(2,'a'),(1,'a');
 ANALYZE TABLE t1;
@@ -2146,9 +2156,9 @@ drop table t20, t21, t22;
 --echo #
 
 CREATE TABLE t1 (a INT);
---error ER_ILLEGAL_REFERENCE
+--error ER_BAD_FIELD_ERROR
 UPDATE t1 SET c=1 ORDER BY (SELECT c);
---error ER_ILLEGAL_REFERENCE
+--error ER_BAD_FIELD_ERROR
 UPDATE t1 SET c=1 ORDER BY (SELECT c);
 DROP TABLE t1;
 
@@ -2177,3 +2187,22 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Test new group_min_max optimization
+--echo #
+
+create table t1 (a int, b int, c int, key(a,b,c));
+insert into t1 select mod(seq,23),mod(seq,13), mod(seq,5) from seq_1_to_10000;
+
+explain select a from t1 where a in (1,2,3) group by a;
+explain select a from t1 where a in (1,2,3) or a = 22 group by a;
+explain select a from t1 where a in (1,2,3) and a < 3 group by a;
+explain select a,b from t1 where (a) in (1,2,3) and b in (5,6,7) group by a,b;
+explain select a,b from t1 where (a,b) in ((1,1),(2,2),(3,3)) group by a,b;
+explain select a,b,c from t1 where (a,b) in ((1,1),(2,2),(3,3)) and c=3 group by a,b,c;
+
+--echo # Will not use index for group-by
+explain select a from t1 where a in (1,2,3) and b>1 group by a;
+explain select a from t1 where a in (1,2,3) and c=1 group by a;
+drop table t1;

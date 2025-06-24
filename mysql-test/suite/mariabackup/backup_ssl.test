@@ -3,7 +3,7 @@ FLUSH PRIVILEGES;
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=backup_user --password=x --ssl --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=backup_user --password=x --ssl --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
 
 echo # xtrabackup prepare;
@@ -14,3 +14,18 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 DROP USER backup_user;
 rmdir $targetdir;
 
+echo #;
+echo # MDEV-31855 validate ssl certificates using client password in the internal client;
+echo #;
+# fails to connect, passwordless root
+echo # tcp ssl ssl-verify-server-cert;
+error 1;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=root --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+
+--echo #
+--echo # MDEV-32473 --disable-ssl doesn't disable it
+--echo #
+# connects fine
+echo # tcp skip-ssl;
+exec $XTRABACKUP --no-defaults --protocol=tcp --user=root --skip-ssl --port=$MASTER_MYPORT --backup --target-dir=$targetdir;
+rmdir $targetdir;

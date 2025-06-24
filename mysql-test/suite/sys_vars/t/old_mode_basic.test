@@ -172,7 +172,7 @@ SET @@global.old_mode = 4;
 SELECT @@global.old_mode;
 
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@global.old_mode = 16;
+SET @@global.old_mode = 6536;
 SELECT @@global.old_mode;
 
 # use of decimal values
@@ -314,6 +314,39 @@ SET @@collation_database = @save_collation_database;
 --echo # End of 10.6 test
 --echo #
 
+--echo #
+--echo # Beginning of 10.9 test
+--echo #
+--echo #
+--echo # MDEV-24920: Merge "old" SQL variable to "old_mode" sql variable
+--echo #
+
+--echo # Checking that setting old will also set old_mode
+SELECT @@OLD_MODE;
+
+SET old= 1;
+SELECT @@OLD_MODE;
+
+SET old= DEFAULT;
+SELECT @@OLD_MODE;
+
+--echo # Checking that old_mode can be set independently as well
+
+SELECT @@OLD_MODE;
+
+SET @save_old_mode = @@OLD_MODE;
+
+SET @@OLD_MODE= IGNORE_INDEX_ONLY_FOR_JOIN;
+SELECT @@OLD_MODE;
+
+SET @@OLD_MODE=  COMPAT_5_1_CHECKSUM;
+SELECT @@OLD_MODE;
+
+SET @@OLD_MODE= @save_old_mode;
+
+--echo #
+--echo # End of 10.9 test
+--echo #
 ################################################################
 #                    END OF old_mode TESTS                     #
 ################################################################

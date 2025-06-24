@@ -7,6 +7,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 (c1 TIME) ENGINE=Spider PARTITION BY HASH(EXTRACT(HOUR_SECOND FROM c1));
 CREATE TABLE t2 (c1 INT) ENGINE=MyISAM;
 CREATE TABLE t3 (c1 INT,c2 INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t2 SELECT * FROM t3;
 ERROR 21S01: Column count doesn't match value count at row 1
 SELECT * FROM t3;

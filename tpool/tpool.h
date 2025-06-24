@@ -59,6 +59,18 @@ typedef void (*callback_func)(void *);
 typedef void (*callback_func_np)(void);
 class task;
 
+struct group_stats
+{
+  /** Current number of running tasks*/
+  size_t tasks_running;
+  /** Current number of tasks in the queue*/
+  size_t queue_size;
+  /** Total number of tasks executed */
+  unsigned long long total_tasks_executed;
+  /** Total number of tasks enqueued */
+  unsigned long long total_tasks_enqueued;
+};
+
 /** A class that can be used e.g. for
 restricting concurrency for specific class of tasks. */
 
@@ -68,13 +80,18 @@ private:
   circular_queue<task*> m_queue;
   std::mutex m_mtx;
   std::condition_variable m_cv;
+  unsigned long long m_total_tasks;
+  unsigned long long m_total_enqueues;
   unsigned int m_tasks_running;
   unsigned int m_max_concurrent_tasks;
+  const bool m_enable_task_release;
+
 public:
-  task_group(unsigned int max_concurrency= 100000);
+  task_group(unsigned int max_concurrency= 100000, bool m_enable_task_release= true);
   void set_max_tasks(unsigned int max_concurrent_tasks);
   void execute(task* t);
   void cancel_pending(task *t);
+  void get_stats(group_stats *stats);
   ~task_group();
 };
 
@@ -236,6 +253,20 @@ public:
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
   }
+
+  int reconfigure_aio(bool use_native_aio, int max_io)
+  {
+    assert(m_aio);
+    if (use_native_aio)
+    {
+      auto new_aio = create_native_aio(max_io);
+      if (!new_aio)
+        return -1;
+      m_aio.reset(new_aio);
+    }
+    return 0;
+  }
+
   void disable_aio()
   {
     m_aio.reset();
@@ -282,10 +313,10 @@ create_thread_pool_win(int min_threads= DEFAULT_MIN_POOL_THREADS,
   opened with FILE_FLAG_OVERLAPPED, and bound to completion
   port.
 */
-SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
-           unsigned long long offset);
+SSIZE_T pwrite(const native_file_handle &h, const void *buf, size_t count,
+               unsigned long long offset);
 SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
-          unsigned long long offset);
+              unsigned long long offset);
 HANDLE win_get_syncio_event();
 #endif
 } // namespace tpool

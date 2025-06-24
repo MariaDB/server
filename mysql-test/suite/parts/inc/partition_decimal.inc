@@ -6,9 +6,11 @@ partition pa3 max_rows=30 min_rows=4,
 partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 insert into t1 values (999999.9999), (-999999.9999), (123456.7899), (-123456.7899), (-1.5), (1), (0), (-1), (1.5), (1234.567), (-1234.567);
+--sorted_result
 select * from t1;
 select * from t1 where a=1234.567;
 delete from t1 where a=1234.567;
+--sorted_result
 select * from t1;
 drop table t1;
 
@@ -16,9 +18,11 @@ eval create table t2 (a decimal(18,9) not null, primary key(a)) engine=$engine
 partition by key (a) partitions 10;
 show create table t2;
 insert into t2 values (999999999.999999999), (-999999999.999999999), (-1.5), (-1), (0), (1.5), (1234.567), (-1234.567);
+--sorted_result
 select * from t2;
 select * from t2 where a=1234.567;
 delete from t2 where a=1234.567;
+--sorted_result
 select * from t2;
 delete from t2;
 let $count=$maxrows;

@@ -1,12 +1,12 @@
 # ******************************************************************
-# Test Alter table add spatial idex asc/desc comments
+# Test Alter table add spatial index comments
 # Test error Alter table modify column with No not null option
 # Test error Alter table modify column with null option
 # Test table column having both indexes spatial and Btree
 # Test error Alter table spatial index using hash/Btree
 # Test modify column from point to multipoint,line to multiline
-# Test modify column from mutipoint to point,multiline to line
-# Test discard & import tablepsace
+# Test modify column from multipoint to point,multiline to line
+# Test discard & import tablespace
 # spatial index on temp tables
 # Unique constraint on spatial index column Geometry
 # Unique constraint on spatial index column POINT
@@ -87,13 +87,13 @@ ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010
 
 
 --enable_info
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
 
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
 
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
 
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
 --disable_info
@@ -134,31 +134,31 @@ SELECT c1,ST_AsText(c2),ST_AsText(c4) FROM tab WHERE MBRWithin(tab.c4, @g1);
 
 DELETE FROM tab WHERE MBRWithin(tab.c4, @g1);
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c2 MULTIPOINT;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c3 MULTILINESTRING;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c4 MULTIPOLYGON;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c3 MULTILINESTRING NULL;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c4 MULTIPOLYGON NULL;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab MODIFY COLUMN c4 Geometry NULL;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab CHANGE COLUMN c2 c22 POINT;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab CHANGE COLUMN c3 c33 LINESTRING;
 
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 ALTER TABLE tab CHANGE COLUMN c4 c44 POLYGON;
 
 # --error ER_SPATIAL_MUST_HAVE_GEOM_COL
@@ -166,10 +166,10 @@ ALTER TABLE tab CHANGE COLUMN c4 c44 POLYGON;
 ALTER TABLE tab add SPATIAL INDEX idx1(c1);
 
 --error ER_PARSE_ERROR
-ALTER TABLE tab ADD SPATIAL INDEX idx6(c2 ASC) USING BTREE;
+ALTER TABLE tab ADD SPATIAL INDEX idx6(c2) USING BTREE;
 
 --error ER_PARSE_ERROR
-ALTER TABLE tab ADD SPATIAL INDEX idx6(c2 ASC) USING HASH;
+ALTER TABLE tab ADD SPATIAL INDEX idx6(c2) USING HASH;
 
 # --error ER_INVALID_USE_OF_NULL
 # ALTER TABLE tab CHANGE c2 c2 MULTIPOINT NOT NULL FIRST, ALGORITHM=COPY;
@@ -366,7 +366,7 @@ DELETE FROM tab;
 --enable_info
 ALTER TABLE tab ADD PRIMARY KEY(c2);
 
-CREATE SPATIAL INDEX idx2 ON tab(c2 ASC);
+CREATE SPATIAL INDEX idx2 ON tab(c2);
 
 ALTER TABLE tab ADD CONSTRAINT const_1 UNIQUE(c2);
 --disable_info
@@ -471,13 +471,13 @@ ST_GeomFromText('POLYGON((5010 5010,5020 5020,5030 5030,5040 5030,5020 5010,5010
 ANALYZE TABLE tab;
 
 --enable_info
-ALTER TABLE tab ADD SPATIAL INDEX idx2(c2 ASC);
+ALTER TABLE tab ADD SPATIAL INDEX idx2(c2);
 
-ALTER TABLE tab ADD SPATIAL KEY idx3(c3 DESC);
+ALTER TABLE tab ADD SPATIAL KEY idx3(c3);
 
-ALTER TABLE tab ADD SPATIAL INDEX idx4(c4 ASC) COMMENT 'testing spatial index on Polygon';
+ALTER TABLE tab ADD SPATIAL INDEX idx4(c4) COMMENT 'testing spatial index on Polygon';
 
-ALTER TABLE tab ADD SPATIAL KEY idx5(c5 ASC) COMMENT 'testing spatial index on Geometry';
+ALTER TABLE tab ADD SPATIAL KEY idx5(c5) COMMENT 'testing spatial index on Geometry';
 
 ALTER TABLE tab ADD INDEX idx6(c4(10)) USING BTREE;
 
@@ -656,9 +656,9 @@ CREATE TABLE parent (id POINT, PRIMARY KEY(id)) ENGINE=InnoDB;
 CREATE TABLE child (id GEOMETRY NOT NULL, parent_id POINT NOT NULL) ENGINE=InnoDB;
 
 --enable_info
-ALTER TABLE parent ADD SPATIAL INDEX idx1(id ASC);
+ALTER TABLE parent ADD SPATIAL INDEX idx1(id);
 
-ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id ASC);
+ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id);
 --disable_info
 
 SHOW CREATE TABLE parent;
@@ -689,9 +689,9 @@ CREATE TABLE parent (id GEOMETRY, PRIMARY KEY(id(10))) ENGINE=InnoDB;
 CREATE TABLE child (id GEOMETRY NOT NULL, parent_id GEOMETRY NOT NULL) ENGINE=InnoDB;
 
 --enable_info
-ALTER TABLE parent ADD SPATIAL INDEX idx1(id ASC) ;
+ALTER TABLE parent ADD SPATIAL INDEX idx1(id) ;
 
-ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id ASC);
+ALTER TABLE child ADD SPATIAL INDEX idx2(parent_id);
 --disable_info
 
 SHOW CREATE TABLE parent;
@@ -716,7 +716,7 @@ create table t1 (c1 int) engine=innodb;
 insert into t1 values(NULL);
 
 # Add spatial index fail, since geometry column can't be null.
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 alter table t1 add b geometry, add spatial index(b), algorithm=inplace;
 
 # Add spatial index fail, since there's invalid geo data.
@@ -736,7 +736,7 @@ create table t1 (c1 int) engine=innodb;
 insert into t1 values(NULL);
 
 # Add spatial index fail, since geometry column can't be null.
---error ER_SPATIAL_CANT_HAVE_NULL
+--error ER_INDEX_CANNOT_HAVE_NULL
 alter table t1 add b geometry, add spatial index(b), algorithm=copy;
 
 # Add spatial index fail, since there's a NULL or invalid geo data.
@@ -746,18 +746,6 @@ alter table t1 add b geometry not null, add spatial index(b), algorithm=copy;
 alter table t1 add b geometry not null default st_geomfromtext('POINT(0 0)'),
 add spatial index(b), algorithm=copy;
 DROP table t1;
-
---echo #
---echo # BUG#20111575 ALTER TABLE...ADD SPATIAL INDEX...LOCK NONE IS REFUSED
---echo # WITHOUT STATING A REASON
---echo #
-CREATE TABLE t1(p point NOT NULL) ENGINE=innodb;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t1 ADD SPATIAL INDEX(p), LOCK=NONE;
-ALTER TABLE t1 ADD SPATIAL INDEX(p);
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t1 FORCE, LOCK=NONE;
-DROP TABLE t1;
 
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;

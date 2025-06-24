@@ -44,7 +44,6 @@ int mi_rnext_same(MI_INFO *info, uchar *buf)
 
   switch (keyinfo->key_alg)
   {
-#ifdef HAVE_RTREE_KEYS
     case HA_KEY_ALG_RTREE:
       if ((error=rtree_find_next(info,inx,
 				 myisam_read_vec[info->last_key_func])))
@@ -55,7 +54,6 @@ int mi_rnext_same(MI_INFO *info, uchar *buf)
 	break;
       }
       break;
-#endif
     case HA_KEY_ALG_BTREE:
     default:
       if (!(info->update & HA_STATE_RNEXT_SAME))

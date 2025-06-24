@@ -1,11 +1,13 @@
 --source include/no_valgrind_without_big.inc
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
 DROP DATABASE IF EXISTS world;
 --enable_warnings
+--source include/have_innodb.inc
 
 set @org_optimizer_switch=@@optimizer_switch;
 set @save_join_cache_level=@@join_cache_level;
@@ -29,7 +31,7 @@ set global innodb_stats_persistent_sample_pages=100;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -53,16 +55,19 @@ set join_cache_level=1;
 
 show variables like 'join_cache_level';
 
+--echo # Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -72,6 +77,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -84,16 +90,19 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=2;
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 2, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 2, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 2, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -103,6 +112,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # join_cache_level 2, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -115,16 +125,19 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=3;
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 3, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 3, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 3, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -134,7 +147,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
-
+--echo # join_cache_level 3, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -148,16 +161,19 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=4;
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 4, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 4, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 4, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -167,6 +183,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # join_cache_level 4, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -177,11 +194,13 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
 
+--echo # join_cache_level 4, Query 5
 SELECT Country.Name, Country.Population, City.Name, City.Population 
   FROM Country LEFT JOIN City
        ON City.Country=Country.Code AND City.Population > 5000000
    WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 
+--echo # join_cache_level 4, Query 6
 SELECT Country.Name, Country.Population, City.Name, City.Population
   FROM Country LEFT JOIN City 
        ON City.Country=Country.Code AND
@@ -195,17 +214,20 @@ CREATE INDEX City_Name ON City(Name);
 ANALYZE TABLE City;
 --enable_result_log
 
+--echo # After Analyze, Query 1
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population 
   FROM Country LEFT JOIN City
        ON City.Country=Country.Code AND City.Population > 5000000
    WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 
+--echo # After Analyze, Query 2
 SELECT Country.Name, Country.Population, City.Name, City.Population 
   FROM Country LEFT JOIN City
        ON City.Country=Country.Code AND City.Population > 5000000
    WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 
+--echo # After Analyze, Query 3
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population
   FROM Country LEFT JOIN City 
@@ -213,6 +235,7 @@ SELECT Country.Name, Country.Population, City.Name, City.Population
           (City.Population > 5000000 OR City.Name LIKE 'Za%')
   WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 
+--echo # After Analyze, Query 4
 SELECT Country.Name, Country.Population, City.Name, City.Population
   FROM Country LEFT JOIN City 
        ON City.Country=Country.Code AND
@@ -229,16 +252,19 @@ show variables like 'join_buffer_size';
 
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 1, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 1, Join_buffer_size, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 1, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -248,6 +274,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # join_cache_level 1, Join_buffer_size, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -260,16 +287,19 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=2;
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 2, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 2, Join_buffer_size, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 2, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -279,6 +309,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # join_cache_level 2, Join_buffer_size, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -291,16 +322,19 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=3;
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 3, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 3, Join_buffer_size, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 3, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -310,6 +344,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # join_cache_level 3, Join_buffer_size, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -322,16 +357,19 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
 set join_cache_level=4;
 show variables like 'join_cache_level';
 
+--echo # join_cache_level 4, Join_buffer_size, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 4, Join_buffer_size, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # join_cache_level 4, Join_buffer_size, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -341,6 +379,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # join_cache_level 4, Join_buffer_size, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -356,7 +395,7 @@ set join_buffer_size=@save_join_buffer_size;
 DROP DATABASE world; 
 
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -374,16 +413,19 @@ show variables like 'join_buffer_size';
 set join_cache_level=3;
 show variables like 'join_cache_level';
 
+--echo # Part 2, join_cache_level=3, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # Part 2, join_cache_level=3, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # Part 2, join_cache_level=3, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -393,6 +435,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # Part 2, join_cache_level=3, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -402,15 +445,18 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # Part 2, join_cache_level=3, Query 5
 EXPLAIN
 SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+--echo # Part 2, join_cache_level=3, Query 6
 SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+--echo # Part 2, join_cache_level=3, Query 7
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
@@ -418,6 +464,7 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
   WHERE 
        Country.Population > 10000000;
 
+--echo # Part 2, join_cache_level=3, Query 8
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
@@ -428,16 +475,19 @@ show variables like 'join_buffer_size';
 set join_cache_level=4;
 show variables like 'join_cache_level';
 
+--echo # Part 2, join_cache_level=4, Query 1
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # Part 2, join_cache_level=4, Query 2
 --sorted_result
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND 
         Country.Name LIKE 'L%' AND City.Population > 100000;
 
+--echo # Part 2, join_cache_level=4, Query 3
 EXPLAIN
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -447,6 +497,7 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # Part 2, join_cache_level=4, Query 4
 --sorted_result
 SELECT City.Name, Country.Name, CountryLanguage.Language
   FROM City,Country,CountryLanguage
@@ -456,15 +507,18 @@ SELECT City.Name, Country.Name, CountryLanguage.Language
         CountryLanguage.Percentage > 50 AND
         LENGTH(Language) < LENGTH(City.Name) - 2;
 
+--echo # Part 2, join_cache_level=4, Query 5
 EXPLAIN
 SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+--echo # Part 2, join_cache_level=4, Query 6
 SELECT Name FROM City
   WHERE City.Country IN (SELECT Code FROM Country WHERE Country.Name LIKE 'L%') AND
         City.Population > 100000;
 
+--echo # Part 2, join_cache_level=4, Query 7
 EXPLAIN
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
@@ -472,12 +526,14 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
   WHERE 
        Country.Population > 10000000;
 
+--echo # Part 2, join_cache_level=4, Query 8
 SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.Percentage) as epx
   FROM Country LEFT JOIN CountryLanguage ON
        (CountryLanguage.Country=Country.Code AND Language='English')
   WHERE 
        Country.Population > 10000000;
 
+--echo # Part 2, join_cache_level=4, Query 9
 --replace_column 9 #
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population 
@@ -485,6 +541,7 @@ SELECT Country.Name, Country.Population, City.Name, City.Population
        ON City.Country=Country.Code AND City.Population > 5000000
    WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 
+--echo # Part 2, join_cache_level=4, Query 10
 SELECT Country.Name, Country.Population, City.Name, City.Population 
   FROM Country LEFT JOIN City
        ON City.Country=Country.Code AND City.Population > 5000000
@@ -492,6 +549,7 @@ SELECT Country.Name, Country.Population, City.Name, City.Population
 
 CREATE INDEX City_Name ON City(Name);
 
+--echo # Part 2, join_cache_level=4, City_Name, Query 1
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population
   FROM Country LEFT JOIN City 
@@ -499,6 +557,7 @@ SELECT Country.Name, Country.Population, City.Name, City.Population
           (City.Population > 5000000 OR City.Name LIKE 'Za%')
   WHERE Country.Name LIKE 'C%' AND Country.Population > 10000000;
 
+--echo # Part 2, join_cache_level=4, City_Name, Query 2
 SELECT Country.Name, Country.Population, City.Name, City.Population
   FROM Country LEFT JOIN City 
        ON City.Country=Country.Code AND
@@ -1103,7 +1162,7 @@ CREATE TABLE t3(
   formatid int  NOT NULL default '0',
   status int default NULL,
   path varchar(100) NOT NULL default '',
-  datemodified timestamp NOT NULL ,
+  datemodified timestamp NOT NULL default now(),
   resourcetype int  NOT NULL default '1',
   parameters text,
   signature int  default NULL,
@@ -3180,6 +3239,8 @@ CREATE TABLE t2 (
  f3 int(11), f2 varchar(1024), f4 varchar(10), PRIMARY KEY (f3)
 );
 INSERT INTO t2 VALUES (6,'RPOYT','y'),(10,'JINQE','m');
+INSERT INTO t2 VALUES (100,'Q','q'),(101,'Q','q'),(102,'Q','q'),(103,'Q','q');
+INSERT INTO t2 VALUES (104,'Q','q'),(105,'Q','q'),(106,'Q','q'),(107,'Q','q');
 
 SET SESSION join_cache_level = 1;
 
@@ -3601,7 +3662,7 @@ drop table t1,t2,t3,t4;
 
 --echo #
 --echo # Bug#50358 - semijoin execution of subquery with outerjoin
---echo #             emplying join buffer
+--echo #             implying join buffer
 --echo #
 
 CREATE TABLE t1 (i int);
@@ -3755,7 +3816,7 @@ DROP table t1,t2,t3;
 set join_buffer_size=@save_join_buffer_size;
 
 #
-# --echo switch to use orginal test suite optimizer switch
+# --echo switch to use original test suite optimizer switch
 #
 
 set @@optimizer_switch=@org_optimizer_switch,@local_optimizer_switch= @org_optimizer_switch;
@@ -3781,8 +3842,6 @@ drop table t0,t1,t2;
 --echo # MDEV-6292: huge performance degradation for a sequence
 --echo #            of LEFT JOIN operations when using join buffer
 --echo #
-
---source include/have_innodb.inc
 
 CREATE TABLE t1 (
   id int(11) NOT NULL AUTO_INCREMENT,
@@ -4165,6 +4224,7 @@ analyze table t3;
 
 --echo # The following must have "B.col1 + 1 < 33333" attached to table B
 --echo # and not to the block-nl-join node:
+--source include/explain-no-costs.inc
 explain format=json
 select *
 from t1 a, t3 b
@@ -4300,6 +4360,7 @@ DROP TABLE t1,t2,t3;
 --echo # End of 10.4 tests
 --echo #
 
+
 --echo #
 --echo # MDEV-34580: Assertion `(key_part->key_part_flag & 4) == 0' failed key_hashnr
 --echo #
@@ -4321,3 +4382,32 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-36165: BKA join cache buffer is employed despite join_cache_level=3 (flat BNLH)
+--echo #
+--source include/have_sequence.inc
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT a, a from t1;
+CREATE TABLE t3(a INT, b INT, c INT, key (a,b));
+INSERT INTO t3 select a, a, a FROM t1;
+
+SET optimizer_switch = 'join_cache_hashed=off,join_cache_bka=on,mrr=on';
+
+SET join_cache_level = 3;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+
+SET join_cache_level = 4;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+
+SET join_cache_level = default;
+SET optimizer_switch = default;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

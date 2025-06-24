@@ -3,7 +3,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json character set utf8);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'character set utf8)' at line 1
 create or replace table t1(a json default '{a:1}');
@@ -11,13 +11,13 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '{a:1}' CHECK (json_valid(`a`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`a`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
 ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
@@ -26,7 +26,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`a`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
 ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
@@ -36,7 +36,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',current_timestamp()) CHECK (json_valid(`a`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ();
 select * from t1;
 a
@@ -52,25 +52,25 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`t`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`)),
   `t` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`t`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2,t3;
 create table t1 (t json check (length(t) > 0));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (octet_length(`t`) > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
@@ -92,7 +92,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',1) CHECK (json_valid(`a`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select cast('{a:1}' as text);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'text)' at line 1
@@ -113,16 +113,16 @@ js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
 ) CHARACTER SET utf8;
 SELECT * FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	33
-def	test	t1	t1	js1	js1	252 (format=json)	196605	0	Y	16	0	33
-def	test	t1	t1	js2	js2	252 (format=json)	196605	0	Y	16	0	33
-def	test	t1	t1	js3	js3	252	196605	0	Y	16	0	33
+def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	192
+def	test	t1	t1	js1	js1	252 (format=json)	196605	0	Y	16	0	192
+def	test	t1	t1	js2	js2	252 (format=json)	196605	0	Y	16	0	192
+def	test	t1	t1	js3	js3	252	196605	0	Y	16	0	192
 js0	js1	js2	js3
 SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	33
-def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	33
-def					JSON_COMPACT('{}')	253 (format=json)	6	0	Y	0	0	33
+def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	192
+def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	192
+def					JSON_COMPACT('{}')	253 (format=json)	6	0	Y	0	0	192
 js0	JSON_COMPACT(js0)	JSON_COMPACT('{}')
 DROP TABLE t1;
 #
@@ -132,21 +132,21 @@ CREATE TABLE t1 (a JSON);
 INSERT INTO t1 VALUES ('{"a":"b"}');
 SELECT a, JSON_COMPACT(a), COALESCE(a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	a	a	252 (format=json)	4294967295	9	Y	144	0	33
-def					JSON_COMPACT(a)	251 (format=json)	4294967295	9	Y	128	0	33
-def					COALESCE(a)	251 (format=json)	4294967295	9	Y	128	39	33
+def	test	t1	t1	a	a	252 (format=json)	4294967295	9	Y	144	0	192
+def					JSON_COMPACT(a)	251 (format=json)	4294967295	9	Y	128	0	192
+def					COALESCE(a)	251 (format=json)	4294967295	9	Y	128	39	192
 a	JSON_COMPACT(a)	COALESCE(a)
 {"a":"b"}	{"a":"b"}	{"a":"b"}
 SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					JSON_ARRAYAGG(1)	252 (format=json)	9437184	3	Y	0	0	33
-def					JSON_ARRAYAGG(a)	252 (format=json)	12582912	11	Y	128	0	33
+def					JSON_ARRAYAGG(1)	252 (format=json)	9437184	3	Y	0	0	192
+def					JSON_ARRAYAGG(a)	252 (format=json)	12582912	11	Y	128	0	192
 JSON_ARRAYAGG(1)	JSON_ARRAYAGG(a)
 [1]	[{"a":"b"}]
 SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437184	9	Y	0	0	33
-def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582912	15	Y	128	0	33
+def					JSON_OBJECTAGG('a','b')	252 (format=json)	9437184	9	Y	0	0	192
+def					JSON_OBJECTAGG('a',a)	252 (format=json)	12582912	15	Y	128	0	192
 JSON_OBJECTAGG('a','b')	JSON_OBJECTAGG('a',a)
 {"a":"b"}	{"a":{"a":"b"}}
 DROP TABLE t1;
@@ -155,7 +155,7 @@ DROP TABLE t1;
 #
 SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					j	250 (format=json)	9437310	16	Y	0	39	33
+def					j	250 (format=json)	9437310	16	Y	0	39	192
 j
 {"a": {"b":"c"}}
 #

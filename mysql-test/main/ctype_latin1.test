@@ -97,7 +97,7 @@ SET collation_connection='latin1_bin';
 # Bug#8041
 # An unknown character (e.g. 0x84) should result in ERROR,
 # It was treated like a space character earlier.
-# Howerver, it should still work fine as a string part.
+# However, it should still work fine as a string part.
 --error 1064
 CREATE TABLE „a (a int);
 SELECT '„a' as str;
@@ -276,7 +276,7 @@ SET NAMES latin1;
 --echo #
 
 SET NAMES latin1;
-CREATE TABLE t1 (a CHAR);
+CREATE TABLE t1 (a CHAR) CHARSET=latin1;
 CREATE TABLE t2 (b ENUM('foo','bar'));
 INSERT INTO t1 VALUES ('1');
 INSERT INTO t2 SELECT * FROM t1;
@@ -295,7 +295,7 @@ DROP TABLE t1, t2;
 --echo # MDEV-8661 Wrong result for SELECT..WHERE a='a' AND a='a' COLLATE latin1_bin
 --echo #
 SET NAMES latin1;
-CREATE TABLE t1 (a CHAR(10));
+CREATE TABLE t1 (a CHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('A');
 SELECT * FROM t1 WHERE a='a' AND a='a' COLLATE latin1_bin;
 DROP TABLE t1;
@@ -308,7 +308,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-8679 Equal field propagation is not used for VARCHAR when it safely could
 --echo #
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('10'),('11'),('12');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND IF(a='10',1,0)=1;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='10' AND CASE WHEN a='10' THEN 1 ELSE 0 END;
@@ -318,7 +318,7 @@ DROP TABLE t1;
 --echo # MDEV-8680 Wrong result for SELECT..WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a'
 --echo #
 SET NAMES latin1;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('A');
 SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b');
 SELECT * FROM t1 WHERE a IN ('a' COLLATE latin1_bin,'b') AND a='a';
@@ -329,7 +329,7 @@ DROP TABLE t1;
 --echo # MDEV-8698 Wrong result for SELECT..WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin;
 --echo #
 SET NAMES latin1;
-CREATE TABLE t1 (a VARCHAR(10));
+CREATE TABLE t1 (a VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('a'),('A'),('b'),('B'),('c'),('C');
 SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin;
 SELECT * FROM t1 WHERE a BETWEEN 'a' AND 'c' COLLATE latin1_bin AND a='a';
@@ -340,7 +340,7 @@ DROP TABLE t1;
 --echo # MDEV-8707 Wrong result for SELECT..WHERE varchar_column=DATE'2001-01-01' AND varchar_column='2001-01-01'
 --echo #
 SET NAMES latin1;
-CREATE TABLE t1 (a VARCHAR(40));
+CREATE TABLE t1 (a VARCHAR(40)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
 SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
 SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
@@ -349,7 +349,7 @@ SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
 SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
 SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
 DROP TABLE t1;
-CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'));
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x')) CHARSET=latin1;
 INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01x');
 SELECT * FROM t1 WHERE a=DATE'2001-01-01' AND a='2001-01-01';
 SELECT * FROM t1 WHERE a='2001-01-01' AND a=DATE'2001-01-01';
@@ -358,11 +358,11 @@ SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01x');
 SELECT * FROM t1 WHERE (a,a)=('2001-01-01',DATE'2001-01-01');
 SELECT * FROM t1 WHERE (a,a)=(DATE'2001-01-01','2001-01-01');
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(40),b VARCHAR(40));
+CREATE TABLE t1 (a VARCHAR(40),b VARCHAR(40)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
 SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
 DROP TABLE t1;
-CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'),b ENUM('2001-01-01','2001-01-01x'));
+CREATE TABLE t1 (a ENUM('2001-01-01','2001-01-01x'),b ENUM('2001-01-01','2001-01-01x')) CHARSET=latin1;
 INSERT INTO t1 VALUES ('2001-01-01','2001-01-01x');
 SELECT * FROM t1 WHERE a=b AND a=DATE'2001-01-01';
 DROP TABLE t1;
@@ -405,7 +405,7 @@ DROP TABLE t1;
 --echo # MDEV-8253 EXPLAIN SELECT prints unexpected characters
 --echo #
 SET NAMES latin1;
-CREATE TABLE t1 (a DECIMAL(10,1),b DECIMAL(10,1),c VARCHAR(10),d VARCHAR(10));
+CREATE TABLE t1 (a DECIMAL(10,1),b DECIMAL(10,1),c VARCHAR(10),d VARCHAR(10)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1.5,1.5,'1','1'),(3.5,3.5,'3','3');
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(c,0)='3 ' AND COALESCE(d,0)=COALESCE(c,0);
@@ -442,6 +442,28 @@ let $coll_pad='latin1_bin';
 
 SET NAMES latin1;
 --source include/ctype_like_range_mdev14350.inc
+
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT);
+CREATE TABLE t1 AS
+SELECT CAST('a' AS CHAR(10) CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+CREATE TABLE t1 AS
+SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLLATE DEFAULT) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.2 tests
@@ -510,4 +532,30 @@ SELECT CAST(CONVERT('-9223372036854775808' USING latin1) AS SIGNED) AS c1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+CREATE TABLE t1 AS
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

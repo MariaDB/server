@@ -33,6 +33,7 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "os0file.h"
 #include "row0mysql.h"
 #include "buf0dblwr.h"
+#include "log.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such
@@ -100,6 +101,7 @@ SysTablespace::parse_params(
 
 	ut_ad(m_last_file_size_max == 0);
 	ut_ad(!m_auto_extend_last_file);
+	ut_ad(!m_auto_shrink);
 
 	char*	new_str = mem_strdup(filepath_spec);
 	char*	str = new_str;
@@ -144,6 +146,11 @@ SysTablespace::parse_params(
 				str += (sizeof ":max:") - 1;
 
 				str = parse_units(str, &size);
+			}
+
+		        if (0 == strncmp(str, ":autoshrink",
+	                         (sizeof ":autoshrink") - 1)) {
+			   str += (sizeof ":autoshrink") - 1;
 			}
 
 			if (*str != '\0') {
@@ -266,6 +273,12 @@ SysTablespace::parse_params(
 				str = parse_units(str, &m_last_file_size_max);
 			}
 
+		        if (0 == strncmp(str, ":autoshrink",
+	                         (sizeof ":autoshrink") - 1)) {
+			   str += (sizeof ":autoshrink") - 1;
+			   m_auto_shrink = true;
+			}
+
 			if (*str != '\0') {
 				ut_free(new_str);
 				ib::error() << "syntax error in file path or"
@@ -333,6 +346,7 @@ SysTablespace::shutdown()
 	m_created_new_raw = 0;
 	m_is_tablespace_full = false;
 	m_sanity_checks_done = false;
+	m_auto_shrink = false;
 }
 
 /** Verify the size of the physical file.
@@ -393,11 +407,11 @@ SysTablespace::set_size(
 	Datafile&	file)
 {
 	ut_ad(!srv_read_only_mode || m_ignore_read_only);
+	const ib::bytes_iec b{uint64_t{file.m_size} << srv_page_size_shift};
 
 	/* We created the data file and now write it full of zeros */
-	ib::info() << "Setting file '" << file.filepath() << "' size to "
-		<< (file.m_size >> (20U - srv_page_size_shift)) << " MB."
-		" Physically writing the file full; Please wait ...";
+	ib::info() << "Setting file '" << file.filepath() << "' size to " << b
+		<< ". Physically writing the file full; Please wait ...";
 
 	bool	success = os_file_set_size(
 		file.m_filepath, file.m_handle,
@@ -405,8 +419,8 @@ SysTablespace::set_size(
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "
-			<< (file.m_size >> (20U - srv_page_size_shift))
-			<< " MB.";
+			<< b
+			<< ".";
 	} else {
 		ib::error() << "Could not set the file size of '"
 			<< file.filepath() << "'. Probably out of disk space";
@@ -548,15 +562,10 @@ SysTablespace::open_file(
 }
 
 /** Check the tablespace header for this tablespace.
-@param[out]	flushed_lsn	the value of FIL_PAGE_FILE_FLUSH_LSN
 @return DB_SUCCESS or error code */
-dberr_t
-SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
+inline dberr_t SysTablespace::read_lsn_and_check_flags()
 {
 	dberr_t	err;
-
-	/* Only relevant for the system tablespace. */
-	ut_ad(space_id() == TRX_SYS_SPACE);
 
 	files_t::iterator it = m_files.begin();
 
@@ -607,22 +616,46 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 	/* Make sure the tablespace space ID matches the
 	space ID on the first page of the first datafile. */
-	if (err != DB_SUCCESS) {
-	} else if (space_id() != it->m_space_id) {
+	if (err != DB_SUCCESS || space_id() != it->m_space_id) {
+		sql_print_error("InnoDB: The data file '%s'"
+				" has the wrong space ID."
+				" It should be " UINT32PF ", but " UINT32PF
+				" was found", it->filepath(),
+				space_id(), it->m_space_id);
+		it->close();
+		return err;
+	}
 
-		ib::error()
-			<< "The data file '" << it->filepath()
-			<< "' has the wrong space ID. It should be "
-			<< space_id() << ", but " << it->m_space_id
-			<< " was found";
-		err = DB_CORRUPTION;
-	} else {
-		*flushed_lsn = mach_read_from_8(
-			first_page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	if (srv_force_recovery != 6
+	    && srv_operation == SRV_OPERATION_NORMAL
+	    && !log_sys.next_checkpoint_lsn
+	    && log_sys.format == log_t::FORMAT_3_23) {
+
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
+		log_sys.next_checkpoint_lsn = mach_read_from_8(
+			first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
+		if (log_sys.next_checkpoint_lsn < 8204) {
+			/* Before MDEV-14425, InnoDB had a minimum LSN
+			of 8192+12=8204. Likewise, mariadb-backup
+			--prepare would create an empty ib_logfile0
+			after applying the log. We will allow an
+			upgrade from such an empty log. */
+			sql_print_error("InnoDB: ib_logfile0 is "
+					"empty, and LSN is unknown.");
+			err = DB_CORRUPTION;
+		} else {
+			log_sys.last_checkpoint_lsn =
+				recv_sys.lsn = recv_sys.file_checkpoint =
+				log_sys.next_checkpoint_lsn;
+			log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
+			log_sys.next_checkpoint_no = 0;
+		}
+
+		log_sys.latch.wr_unlock();
 	}
 
 	it->close();
-
 	return err;
 }
 
@@ -858,14 +891,12 @@ SysTablespace::check_file_spec(
 @param[in]  is_temp		whether this is a temporary tablespace
 @param[in]  create_new_db	whether we are creating a new database
 @param[out] sum_new_sizes	sum of sizes of the new files added
-@param[out] flush_lsn		FIL_PAGE_FILE_FLUSH_LSN of first file
 @return DB_SUCCESS or error code */
 dberr_t
 SysTablespace::open_or_create(
 	bool	is_temp,
 	bool	create_new_db,
-	ulint*	sum_new_sizes,
-	lsn_t*	flush_lsn)
+	ulint*	sum_new_sizes)
 {
 	dberr_t		err	= DB_SUCCESS;
 	fil_space_t*	space	= NULL;
@@ -914,18 +945,17 @@ SysTablespace::open_or_create(
 
 	}
 
-	if (!create_new_db && flush_lsn) {
-		/* Validate the header page in the first datafile
-		and read LSNs fom the others. */
-		err = read_lsn_and_check_flags(flush_lsn);
+	if (!create_new_db && space_id() == TRX_SYS_SPACE) {
+		/* Validate the header page in the first datafile. */
+		err = read_lsn_and_check_flags();
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
 	}
 
-	/* Close the curent handles, add space and file info to the
+	/* Close the current handles, add space and file info to the
 	fil_system cache and the Data Dictionary, and re-open them
-	in file_system cache so that they stay open until shutdown. */
+	in fil_system cache so that they stay open until shutdown. */
 	mysql_mutex_lock(&fil_system.mutex);
 	ulint	node_counter = 0;
 	for (files_t::iterator it = begin; it != end; ++it) {
@@ -978,6 +1008,7 @@ SysTablespace::normalize_size()
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
 		it->m_size <<= (20U - srv_page_size_shift);
+		it->m_user_param_size = it->m_size;
 	}
 
 	m_last_file_size_max <<= (20U - srv_page_size_shift);

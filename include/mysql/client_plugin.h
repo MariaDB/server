@@ -56,7 +56,7 @@
 #define MYSQL_CLIENT_reserved2               1
 #define MYSQL_CLIENT_AUTHENTICATION_PLUGIN   2
 
-#define MYSQL_CLIENT_AUTHENTICATION_PLUGIN_INTERFACE_VERSION  0x0100
+#define MYSQL_CLIENT_AUTHENTICATION_PLUGIN_INTERFACE_VERSION  0x0101
 
 #define MYSQL_CLIENT_MAX_PLUGINS             3
 
@@ -96,6 +96,7 @@ struct st_mysql_client_plugin_AUTHENTICATION
 {
   MYSQL_CLIENT_PLUGIN_HEADER
   int (*authenticate_user)(MYSQL_PLUGIN_VIO *vio, struct st_mysql *mysql);
+  int (*hash_password_bin)(struct st_mysql *mysql, unsigned char *hash, size_t *hash_length);
 };
 
 #include <mysql/auth_dialog_client.h>

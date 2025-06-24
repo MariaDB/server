@@ -17,7 +17,7 @@ set timestamp=default;
 --echo ### SUPER
 create user foo@127.0.0.1;
 grant super on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 disable_abort_on_error;
 set timestamp=1234567890.101112;
 enable_abort_on_error;
@@ -30,7 +30,7 @@ set timestamp=default;
 --echo ### BINLOG REPLAY
 create user foo@127.0.0.1;
 grant binlog replay on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 disable_abort_on_error;
 set timestamp=1234567890.101112;
 enable_abort_on_error;
@@ -42,7 +42,7 @@ set timestamp=default;
 
 --echo ### non-privileged user
 create user foo@127.0.0.1;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+connect con2,127.0.0.1,foo,,"*NO-ONE*",$SLAVE_MYPORT;
 disable_abort_on_error;
 set timestamp=1234567890.101112;
 enable_abort_on_error;
@@ -58,7 +58,7 @@ set time_zone='+00:00';
 set timestamp=1234567890.101112;
 select @@timestamp, now(6);
 
-create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6));
+create table t1 (b varchar(20), a timestamp(6) default current_timestamp(6)) charset=latin1;
 insert t1 (b) values ('replicated');
 sync_slave_with_master;
 create trigger t1rbr before insert on t1 for each row set new.a=now(6);

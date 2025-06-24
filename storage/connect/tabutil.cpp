@@ -205,7 +205,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
       if (v == 'K') {
         // Skip this column
         snprintf(g->Message, sizeof(g->Message), "Column %s skipped (unsupported type)", colname);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
         continue;
         } // endif v
 
@@ -218,7 +218,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
         len = zconv;
         snprintf(g->Message, sizeof(g->Message), "Column %s converted to varchar(%d)",
                 colname, len);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
         } // endif v
 
     crp = crp->Next;                       // Data_Type

@@ -13,16 +13,16 @@ id	str
 3	foo
 explain select * from t1 where str is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	str	str	11	const	2	Using index condition
+1	SIMPLE	t1	ref	str	str	41	const	2	Using index condition
 explain select * from t1 where str="foo";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	str	str	11	const	1	
+1	SIMPLE	t1	const	str	str	41	const	1	
 explain select * from t1 ignore key (str) where str="foo";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
 explain select * from t1 use key (str,str) where str="foo";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	str	str	11	const	1	
+1	SIMPLE	t1	const	str	str	41	const	1	
 explain select * from t1 use key (str,str,foo) where str="foo";
 ERROR 42000: Key 'foo' doesn't exist in table 't1'
 explain select * from t1 ignore key (str,str,foo) where str="foo";
@@ -154,7 +154,7 @@ INSERT INTO t2 VALUES (1),(2);
 EXPLAIN EXTENDED SELECT 1
 FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -162,7 +162,7 @@ Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(disti
 EXPLAIN EXTENDED SELECT 1
 FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -172,7 +172,7 @@ prepare s1 from
  FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
 execute s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -182,14 +182,14 @@ prepare s1 from
  FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
 execute s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
 execute s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -325,7 +325,7 @@ DROP TABLE t1;
 # Bug#56814 Explain + subselect + fulltext crashes server
 #
 CREATE TABLE t1(f1 VARCHAR(6) NOT NULL,
-FULLTEXT KEY(f1),UNIQUE(f1));
+FULLTEXT KEY `fulltext` (f1), UNIQUE `unique` (f1));
 INSERT INTO t1 VALUES ('test');
 EXPLAIN SELECT 1 FROM t1
 WHERE 1 > ALL((SELECT t1.f1 FROM t1 JOIN t1 a ON (MATCH(t1.f1) AGAINST (""))
@@ -333,7 +333,7 @@ WHERE t1.f1 GROUP BY t1.f1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 PREPARE stmt FROM
 'EXPLAIN SELECT 1 FROM t1
  WHERE 1 > ALL((SELECT t1.f1 FROM t1 RIGHT OUTER JOIN t1 a
@@ -343,12 +343,12 @@ EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 DEALLOCATE PREPARE stmt;
 PREPARE stmt FROM
 'EXPLAIN SELECT 1 FROM t1
@@ -359,12 +359,13 @@ EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
+INSERT into t1 values('test1'),('test2'),('test3'),('test4'),('test5');
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+1	PRIMARY	t1	index	NULL	unique	26	NULL	6	Using index
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
+2	SUBQUERY	a	index	NULL	unique	26	NULL	6	Using index
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 End of 5.1 tests.

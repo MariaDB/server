@@ -33,7 +33,6 @@ Created 2/27/1997 Heikki Tuuri
 #include "trx0purge.h"
 #include "btr0btr.h"
 #include "mach0data.h"
-#include "ibuf0ibuf.h"
 #include "row0undo.h"
 #include "row0vers.h"
 #include "trx0trx.h"
@@ -471,6 +470,8 @@ func_exit:
 	return(err);
 }
 
+bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2);
+
 /** Find out if an accessible version of a clustered index record
 corresponds to a secondary index entry.
 @param rec    record in a latched clustered index page
@@ -591,7 +592,7 @@ nochange_index:
 			a char field, but the collation identifies the old
 			and new value anyway! */
 
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 				break;
 			}
 		}
@@ -628,7 +629,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	mtr_t			mtr;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
-	row_mtr_start(&mtr, index, !modify_leaf);
+	row_mtr_start(&mtr, index);
 
 	pcur.btr_cur.page_cur.index = index;
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
@@ -639,8 +640,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 					 | BTR_RTREE_DELETE_MARK
 					 | BTR_RTREE_UNDO_INS)
 			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
-		btr_cur->thr = thr;
-		if (UNIV_LIKELY(!rtr_search(entry, mode, &pcur, &mtr))) {
+		if (UNIV_LIKELY(!rtr_search(entry, mode, &pcur, thr, &mtr))) {
 			goto found;
 		} else {
 			goto func_exit;
@@ -664,9 +664,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 	}
 
-	switch (UNIV_EXPECT(row_search_index_entry(entry, mode, &pcur, &mtr),
-			    ROW_FOUND)) {
-	case ROW_NOT_FOUND:
+	if (!row_search_index_entry(entry, mode, &pcur, &mtr)) {
 		/* In crash recovery, the secondary index record may
 		be missing if the UPDATE did not have time to insert
 		the secondary index records before the crash.  When we
@@ -677,14 +675,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		before it has inserted all updated secondary index
 		records, then the undo will not find those records. */
 		goto func_exit;
-	case ROW_FOUND:
-		break;
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
 	}
 
 found:
@@ -821,12 +811,13 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	}
 
 try_again:
-	row_mtr_start(&mtr, index, mode & 8);
+	row_mtr_start(&mtr, index);
 
-	btr_cur->thr = thr;
+	mem_heap_t* offsets_heap = nullptr;
+	rec_offs* offsets = nullptr;
 
 	if (index->is_spatial()) {
-		if (!rtr_search(entry, mode, &pcur, &mtr)) {
+		if (!rtr_search(entry, mode, &pcur, thr, &mtr)) {
 			goto found;
 		}
 
@@ -840,17 +831,7 @@ try_again:
 		goto not_found;
 	}
 
-	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
-		mem_heap_t*	heap;
-		mem_heap_t*	offsets_heap;
-		rec_offs*	offsets;
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
-	case ROW_NOT_FOUND:
+	if (!row_search_index_entry(entry, mode, &pcur, &mtr)) {
 not_found:
 		if (btr_cur->up_match >= dict_index_get_n_unique(index)
 		    || btr_cur->low_match >= dict_index_get_n_unique(index)) {
@@ -862,7 +843,7 @@ not_found:
 				<< " at: " << rec_index_print(
 					btr_cur_get_rec(btr_cur), index);
 			err = DB_DUPLICATE_KEY;
-			break;
+			goto func_exit;
 		}
 
 		ib::warn() << "Record in index " << index->name
@@ -876,8 +857,6 @@ not_found:
 		delete-unmark. */
 		big_rec_t*	big_rec;
 		rec_t*		insert_rec;
-		offsets = NULL;
-		offsets_heap = NULL;
 
 		err = btr_cur_optimistic_insert(
 			flags, btr_cur, &offsets, &offsets_heap,
@@ -906,16 +885,13 @@ not_found:
 		if (offsets_heap) {
 			mem_heap_free(offsets_heap);
 		}
-
-		break;
-	case ROW_FOUND:
+	} else {
 found:
 		btr_rec_set_deleted<false>(btr_cur_get_block(btr_cur),
 					   btr_cur_get_rec(btr_cur), &mtr);
-		heap = mem_heap_create(
+		mem_heap_t* heap = mem_heap_create(
 			sizeof(upd_t)
 			+ dtuple_get_n_fields(entry) * sizeof(upd_field_t));
-		offsets_heap = NULL;
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur),
 			index, nullptr, index->n_core_fields, ULINT_UNDEFINED,
@@ -954,6 +930,7 @@ found:
 		mem_heap_free(offsets_heap);
 	}
 
+func_exit:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
@@ -1243,7 +1220,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked);
+		node->table->release();
 		node->table = NULL;
 		return false;
 	}
@@ -1372,7 +1349,7 @@ rollback_clust:
 		bool update_statistics
 			= !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE);
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			switch (node->rec_type) {
 			case TRX_UNDO_UPD_EXIST_REC:
 				break;
@@ -1402,8 +1379,7 @@ rollback_clust:
 		}
 	}
 
-	dict_table_close(node->table, dict_locked);
-
+	node->table->release();
 	node->table = NULL;
 
 	return(err);

@@ -33,17 +33,6 @@ Created 2/17/1996 Heikki Tuuri
 struct btr_pcur_t;
 /** B-tree cursor */
 struct btr_cur_t;
-/** B-tree search information for the adaptive hash index */
-struct btr_search_t;
-
-#ifdef BTR_CUR_HASH_ADAPT
-/** Is search system enabled.
-Search system is protected by array of latches. */
-extern char	btr_search_enabled;
-
-/** Number of adaptive hash index partition. */
-extern ulong	btr_ahi_parts;
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /** The size of a reference to data stored on a different page.
 The reference is stored at the end of the prefix of the field
@@ -68,33 +57,14 @@ enum btr_latch_mode {
 	/** Search the previous record.
 	Used in btr_pcur_move_backward_from_page(). */
 	BTR_SEARCH_PREV = 4 | BTR_SEARCH_LEAF,
-	/** Modify the previous record.
-	Used in btr_pcur_move_backward_from_page() and ibuf_insert(). */
-	BTR_MODIFY_PREV = 4 | BTR_MODIFY_LEAF,
 	/** Start modifying the entire B-tree. */
 	BTR_MODIFY_TREE = 8 | BTR_MODIFY_LEAF,
 	/** Continue modifying the entire R-tree.
 	Only used by rtr_search_to_nth_level(). */
 	BTR_CONT_MODIFY_TREE = 4 | BTR_MODIFY_TREE,
 
-	/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually
-	exclusive. */
-	/** The search tuple will be inserted to the secondary index
-	at the searched position.  When the leaf page is not in the
-	buffer pool, try to use the change buffer. */
-	BTR_INSERT = 64,
-
-	/** Try to delete mark a secondary index leaf page record at
-	the searched position using the change buffer when the page is
-	not in the buffer pool. */
-	BTR_DELETE_MARK	= 128,
-
-	/** Try to purge the record using the change buffer when the
-	secondary index leaf page is not in the buffer pool. */
-	BTR_DELETE = BTR_INSERT | BTR_DELETE_MARK,
-
 	/** The caller is already holding dict_index_t::lock S-latch. */
-	BTR_ALREADY_S_LATCHED = 256,
+	BTR_ALREADY_S_LATCHED = 16,
 	/** Search and S-latch a leaf page, assuming that the
 	dict_index_t::lock S-latch is being held. */
 	BTR_SEARCH_LEAF_ALREADY_S_LATCHED = BTR_SEARCH_LEAF
@@ -111,28 +81,15 @@ enum btr_latch_mode {
 	BTR_MODIFY_ROOT_AND_LEAF_ALREADY_LATCHED = BTR_MODIFY_ROOT_AND_LEAF
 	| BTR_ALREADY_S_LATCHED,
 
-	/** Attempt to delete-mark a secondary index record. */
-	BTR_DELETE_MARK_LEAF = BTR_MODIFY_LEAF | BTR_DELETE_MARK,
-	/** Attempt to delete-mark a secondary index record
-	while holding the dict_index_t::lock S-latch. */
-	BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED = BTR_DELETE_MARK_LEAF
-	| BTR_ALREADY_S_LATCHED,
-	/** Attempt to purge a secondary index record. */
-	BTR_PURGE_LEAF = BTR_MODIFY_LEAF | BTR_DELETE,
-	/** Attempt to purge a secondary index record
-	while holding the dict_index_t::lock S-latch. */
-	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
-	| BTR_ALREADY_S_LATCHED,
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_DELETE = 32,
 
 	/** In the case of BTR_MODIFY_TREE, the caller specifies
 	the intention to delete record only. It is used to optimize
 	block->lock range.*/
-	BTR_LATCH_FOR_DELETE = 512,
-
-	/** In the case of BTR_MODIFY_TREE, the caller specifies
-	the intention to delete record only. It is used to optimize
-	block->lock range.*/
-	BTR_LATCH_FOR_INSERT = 1024,
+	BTR_LATCH_FOR_INSERT = 64,
 
 	/** Attempt to delete a record in the tree. */
 	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
@@ -143,12 +100,8 @@ enum btr_latch_mode {
 	/** Attempt to insert a record into the tree. */
 	BTR_INSERT_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT,
 
-	/** This flag ORed to BTR_INSERT says that we can ignore possible
-	UNIQUE definition on secondary indexes when we decide if we can use
-	the insert buffer to speed up inserts */
-	BTR_IGNORE_SEC_UNIQUE = 2048,
 	/** Rollback in spatial index */
-	BTR_RTREE_UNDO_INS = 4096,
+	BTR_RTREE_UNDO_INS = 128,
 	/** Try to delete mark a spatial index record */
-	BTR_RTREE_DELETE_MARK = 8192
+	BTR_RTREE_DELETE_MARK = 256
 };

@@ -40,7 +40,7 @@
     a function that knows how to compare values of this resource type.
     In the simple case it could be wt_resource_id_memcmp().
 
-  a wait-for graph - a graph, that represenst "wait-for" relationships.
+  a wait-for graph - a graph, that represents "wait-for" relationships.
     It has two types of nodes - threads and resources. There are directed
     edges from a thread to a resource it is waiting for (WT_THD::waiting_for),
     from a thread to resources that it "owns" (WT_THD::my_resources),
@@ -600,7 +600,7 @@ static int deadlock_search(struct deadlock_arg *arg, WT_THD *blocker,
 {
   WT_RESOURCE *rc, *volatile *shared_ptr= &blocker->waiting_for;
   WT_THD *cursor;
-  uint i;
+  size_t i;
   int ret= WT_OK;
   DBUG_ENTER("deadlock_search");
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, depth=%u",
@@ -669,7 +669,7 @@ retry:
       That is, only deadlocks that *we* have created. For example,
         thd->A->B->thd
       (thd waits for A, A waits for B, while B is waiting for thd).
-      While walking the graph we can encounter other cicles, e.g.
+      While walking the graph we can encounter other cycles, e.g.
         thd->A->B->C->A
       This will not be detected. Instead we will walk it in circles until
       the search depth limit is reached (the latter guarantees that an
@@ -829,7 +829,7 @@ static int unlock_lock_and_free_resource(WT_THD *thd, WT_RESOURCE *rc)
 
   if (rc->owners.elements || rc->waiter_count)
   {
-    DBUG_PRINT("wt", ("nothing to do, %u owners, %u waiters",
+    DBUG_PRINT("wt", ("nothing to do, %zu owners, %u waiters",
                       rc->owners.elements, rc->waiter_count));
     rc_unlock(rc);
     DBUG_RETURN(0);
@@ -1142,4 +1142,3 @@ void wt_thd_release(WT_THD *thd, const WT_RESOURCE_ID *resid)
     reset_dynamic(&thd->my_resources);
   DBUG_VOID_RETURN;
 }
-

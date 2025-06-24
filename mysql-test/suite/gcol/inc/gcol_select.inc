@@ -13,6 +13,7 @@
 # Change:                                                                    #
 ##############################################################################
 
+--source include/test_db_charset_latin1.inc
 --disable_query_log
 set @local_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,join_cache_hashed=off';
@@ -545,11 +546,11 @@ CREATE TABLE cc (
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
 --replace_column 9 # 10 #
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
-SELECT pk FROM cc WHERE col_int_key > 3;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 --replace_column 9 # 10 #
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
-SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 DROP TABLE cc;
 
 --echo #
@@ -872,7 +873,10 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES(2147483647);
 ALTER TABLE t1 ADD COLUMN h INT AS (a) VIRTUAL;
 ALTER TABLE t1 CHANGE h i INT AS (a) VIRTUAL, ALGORITHM=COPY;
+# COPY/NONE is not supported in embedded
+--error ER_WARN_DATA_OUT_OF_RANGE,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 ADD COLUMN b SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=NONE;
+--error ER_WARN_DATA_OUT_OF_RANGE,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 ADD COLUMN e SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=NONE;
 ALTER TABLE t1 ADD COLUMN f SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=SHARED;
 ALTER TABLE t1 ADD COLUMN g SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=EXCLUSIVE;
@@ -891,7 +895,7 @@ CREATE TABLE t (
 
 INSERT INTO t(a,b) VALUES(1,'cccc');
 let $query=
-SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
+SELECT 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 eval EXPLAIN $query;
 eval $query;
@@ -1018,13 +1022,12 @@ VALUES (1, 'j'), (2, 'c'), (0, 'a');
 
 ANALYZE TABLE t1, t2, t3, t4;
 
-# Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1045,13 +1048,12 @@ if ($support_virtual_index)
 ALTER TABLE t3 ADD INDEX v_idx2 (i2_key, i1);
 }
 
-# Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1075,11 +1077,11 @@ ALTER TABLE t3 DROP INDEX v_idx;
 
 # Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1113,11 +1115,11 @@ VALUES (10,1), (11,1), (12,1), (13,1), (14,1),(15,1), (16,1),(17,1), (18,1),
 --echo # non-covering.
 # Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
+SELECT t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o'
   )
@@ -1150,11 +1152,11 @@ eval $query;
 # an extra query condition is added to the subquery.
 # Hint is added to avoid materialization of the subquery
 let query=
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
   (
-    SELECT /*+ QB_NAME(subq1) */ t4.i1
+    SELECT t4.i1
     FROM t4
     WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
   )
@@ -1170,3 +1172,4 @@ DROP TABLE t1, t2, t3, t4;
 --disable_query_log
 set @@optimizer_switch=@local_optimizer_switch;
 --enable_query_log
+--source include/test_db_charset_restore.inc

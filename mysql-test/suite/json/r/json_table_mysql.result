@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 # 
 # WL#8867: Add JSON_TABLE table function
 # 
@@ -189,13 +190,20 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "tt",
-      "access_type": "ALL",
-      "rows": 40,
-      "filtered": 100,
-      "table_function": "json_table"
-    }
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 40,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "table_function": "json_table"
+        }
+      }
+    ]
   }
 }
 select * from
@@ -461,7 +469,7 @@ id	jid	val
 2	1	2
 2	2	4
 2	3	6
-SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+SELECT id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
@@ -472,14 +480,14 @@ id	jid	val
 2	1	2
 2	2	4
 2	3	6
-EXPLAIN SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+EXPLAIN SELECT id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+SELECT t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
@@ -506,7 +514,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-EXPLAIN SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+EXPLAIN SELECT t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
@@ -526,8 +534,7 @@ EXPLAIN SELECT * FROM t1 WHERE id IN
 (id INT PATH '$')) AS jt);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+1	PRIMARY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 DROP TABLE t1;
 SELECT * FROM JSON_TABLE('"asdf"', '$' COLUMNS(
 tm TIME PATH '$',
@@ -1450,7 +1457,7 @@ PATH '$')) AS jt1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `x` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+  `x` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
@@ -1501,12 +1508,10 @@ CREATE VIEW v1 AS
 SELECT * FROM JSON_TABLE('{"å":{"å":1}}', '$.å' COLUMNS (x INT PATH '$.å')) t;
 SELECT * FROM v1;
 x
-1
 SET NAMES latin1;
 SELECT * FROM v1;
 x
-1
-SET NAMES DEFAULT;
+SET NAMES latin1;
 DROP VIEW v1;
 CREATE VIEW v2 AS
 SELECT * FROM JSON_TABLE('{}', '$' COLUMNS (
@@ -1664,3 +1669,4 @@ SELECT HEX(a) FROM JSON_TABLE(
 ) e;
 HEX(a)
 0000000000
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

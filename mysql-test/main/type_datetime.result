@@ -199,13 +199,13 @@ exp
 set @org_mode=@@sql_mode;
 create table t1 (da date default '1962-03-03 23:33:34', dt datetime default '1962-03-03');
 Warnings:
-Note	1265	Data truncated for column 'da' at row 1
+Note	1265	Data truncated for column 'da' at row 0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `da` date DEFAULT '1962-03-03',
   `dt` datetime DEFAULT '1962-03-03 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ();
 insert into t1 values ('2007-03-23 13:49:38','2007-03-23 13:49:38');
 Warnings:
@@ -545,7 +545,7 @@ select * from t1
 where id in (select id from t1 as x1 where (t1.cur_date is null));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(t1)
 Warnings:
 Note	1276	Field or reference 'test.t1.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`cur_date` AS `cur_date` from `test`.`t1` semi join (`test`.`t1` `x1`) where `test`.`x1`.`id` = `test`.`t1`.`id` and `test`.`t1`.`cur_date` = 0
@@ -557,7 +557,7 @@ select * from t2
 where id in (select id from t2 as x1 where (t2.cur_date is null));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(t2)
 Warnings:
 Note	1276	Field or reference 'test.t2.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t2`.`id` AS `id`,`test`.`t2`.`cur_date` AS `cur_date` from `test`.`t2` semi join (`test`.`t2` `x1`) where `test`.`x1`.`id` = `test`.`t2`.`id` and `test`.`t2`.`cur_date` = 0
@@ -595,13 +595,13 @@ End of 5.0 tests
 set @org_mode=@@sql_mode;
 create table t1 (da date default '1962-03-03 23:33:34', dt datetime default '1962-03-03');
 Warnings:
-Note	1265	Data truncated for column 'da' at row 1
+Note	1265	Data truncated for column 'da' at row 0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `da` date DEFAULT '1962-03-03',
   `dt` datetime DEFAULT '1962-03-03 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ();
 insert into t1 values ('2007-03-23 13:49:38','2007-03-23 13:49:38');
 Warnings:
@@ -936,6 +936,8 @@ SELECT STR_TO_DATE('0000-00-00 00:00:00.000001','%Y-%m-%d %H:%i:%s.%f');
 STR_TO_DATE('0000-00-00 00:00:00.000001','%Y-%m-%d %H:%i:%s.%f')
 0000-00-00 00:00:00.000001
 SET old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT CAST(TIME'10:20:30' AS DATETIME);
 CAST(TIME'10:20:30' AS DATETIME)
 0000-00-00 10:20:30
@@ -1122,7 +1124,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `MAX(CAST(a AS DATETIME))` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -1695,7 +1697,7 @@ Warnings:
 Warning	1292	Incorrect datetime value: '0'
 Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col

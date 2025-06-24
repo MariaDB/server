@@ -121,7 +121,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 DROP TABLE t1;
-flush status;
+flush global status;
 show status like "binlog_cache_use";
 Variable_name	Value
 Binlog_cache_use	0

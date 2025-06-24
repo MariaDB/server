@@ -1,0 +1,39 @@
+# restart: with restart_parameters
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1;
+a
+foo
+bar
+# restart: with restart_parameters
+CREATE TABLE t2 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+INSERT INTO t2 VALUES ('baz'),('qux');
+SELECT * FROM t2;
+a
+baz
+qux
+#
+# This should not fail, but it does if the bug is not fixed
+#
+SELECT * FROM t1;
+a
+foo
+bar
+SHOW WARNINGS;
+Level	Code	Message
+# restart: with restart_parameters
+SELECT * FROM t1;
+a
+foo
+bar
+#
+# This should not fail, but it does if the bug is not fixed
+#
+SELECT * FROM t2;
+a
+baz
+qux
+SHOW WARNINGS;
+Level	Code	Message
+DROP TABLE t1, t2;
+# restart

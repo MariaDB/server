@@ -1,3 +1,7 @@
+--source include/test_db_charset_latin1.inc
+
+SET optimizer_switch='rowid_filter=on';
+
 --echo #
 --echo # MDEV-22553: Assertion `info->lastpos == (~ (my_off_t) 0)' failed in mi_rkey with rowid_filer=on
 --echo #
@@ -1623,3 +1627,426 @@ ALTER TABLE t1 ENABLE KEYS;
 --echo # Must not crash:
 SELECT * FROM t1 WHERE ( a BETWEEN 255 AND 270 OR f = 200 ) AND f IN ( 1, 4, 112, 143 ) AND d IN ('Montana', 'South Dakota');
 DROP TABLE t1;
+
+
+
+use test;
+
+--echo #
+--echo # MDEV-18816: potential range filter for one join table with
+--echo #             impossible WHERE for another
+--echo #
+
+create table t1 (
+  pk int not null primary key, c2 varchar(10) , i1 int,key (c2)
+) engine=myisam;
+insert into t1 values  (1,'a',-5),(2,'a',null);
+
+create table t2 (
+ pk int, i1 int, c1 varchar(30) , key c1 (c1(30)), key i1 (i1)
+) engine=myisam;
+insert into t2 values
+  (1,-5,'a'),(2,null,'a'),(3,null,'a'),(4,null,'a'),(5,5,'a'),(6,null,'a'),
+  (7,4,'a'),(8,55,'a'),(9,null,'a'),(10,null,'a'),(11,null,'a'),(12,-5,'a'),
+  (13,-5,'a'),(14,null,'a'),(15,null,'a'),(16,-5,'a'),(17,-5,'a');
+
+let $q=
+select 1
+  from t1
+       left join
+       t2 join t1 as t1_a on t2.i1 = t1_a.pk
+       on t1.c2 = t2.c1
+where t1_a.pk is null and t1_a.i1 != 3;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-18640: TABLE::prune_range_rowid_filters: Conditional jump or
+--echo #             move depends on uninitialized value
+--echo #
+
+CREATE TABLE t1 (
+  pk INT, i INT, PRIMARY KEY (pk), KEY (pk,i)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,10), (7,70), (2,20);
+
+SELECT * FROM t1 WHERE pk < 5;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18956: Possible rowid filter for subquery for which
+--echo #             in_to_exists strategy has been chosen
+--echo #
+
+CREATE TABLE t1 (pk int) engine=myisam ;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (
+  pk int PRIMARY KEY,
+  i1 int, i2 int,
+  c2 varchar(100),
+  KEY (i1),
+  KEY (i2)
+
+) engine=myisam;
+
+insert into t2
+select
+  seq, floor(seq/100), floor(seq/100), 'abcd'
+from
+  seq_1_to_10000;
+
+SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
+EXPLAIN EXTENDED
+SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-19255: rowid range filter built for range condition
+--echo #             that uses in expensive subquery
+--echo #
+
+CREATE TABLE t1 (
+  pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(b1)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(10,0,'z'),(11,3,'j'),(12,8,'f'),(13,8,'p'),(14,6,'w'),(15,0,'c'),(16,1,'j'),
+(17,1,'f'),(18,5,'v'),(19,3,'f'),(20,2,'q'),(21,8,'y'),(22,0,'a'),(23,9,'w'),
+(24,3,'e'),(25,1,'b'),(26,9,'r'),(27,2,'k'),(28,5,'c'),(29,3,'k'),(30,9,'b'),
+(31,8,'j'),(32,1,'t'),(33,8,'n'),(34,3,'z'),(35,0,'u'),(36,3,'a'),(37,3,'g'),
+(38,1,'f'),(39,6,'p'),(40,6,'m'),(41,6,'t'),(42,7,'i'),(43,4,'h'),(44,3,'d'),
+(45,2,'b'),(46,1,'o'),(47,2,'j'),(48,6,'s'),(49,5,'q'),(50,6,'l'),(51,9,'j'),
+(52,6,'y'),(53,0,'i'),(54,7,'x'),(55,2,'u'),(56,6,'t'),(57,4,'b'),(58,5,'m'),
+(59,4,'x'),(60,8,'x'),(61,6,'v'),(62,8,'m'),(63,4,'j'),(64,8,'z'),(65,2,'a'),
+(66,9,'i'),(67,4,'g'),(68,8,'h'),(69,1,'p'),(70,8,'a'),(71,0,'x'),(72,2,'s'),
+(73,6,'k'),(74,0,'m'),(75,6,'e'),(76,9,'y'),(77,7,'d'),(78,7,'w'),(79,6,'y'),
+(80,9,'s'),(81,9,'x'),(82,6,'l'),(83,9,'f'),(84,8,'x'),(85,1,'p'),(86,7,'y'),
+(87,6,'p'),(88,1,'g'),(89,3,'c'),(90,5,'h'),(91,3,'p'),(92,2,'b'),(93,1,NULL),
+(94,3,NULL),(95,2,'y'),(96,7,'s'),(97,7,'x'),(98,6,'i'),(99,9,'t'),(100,5,'j'),
+(101,0,'u'),(102,7,'r'),(103,2,'x'),(104,8,'e'),(105,8,'i'),(106,5,'q'),
+(107,8,'z'),(108,3,'k'),(109,65,NULL);
+
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 INT, b2 VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,1,'x');
+INSERT INTO t2 SELECT * FROM t1;
+
+let $q=
+SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+  WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+--source include/explain-no-costs.inc
+eval EXPLAIN FORMAT=JSON $q;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-21794: Optimizer flag rowid_filter leads to long query
+--echo #
+create table t10(a int);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t11(a int);
+insert into t11 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+
+CREATE TABLE t1 (
+  el_id int(10) unsigned NOT NULL ,
+  el_index blob NOT NULL,
+  el_index_60 varbinary(60) NOT NULL,
+  filler blob,
+
+  PRIMARY KEY (el_id),
+  KEY el_index (el_index(60)),
+  KEY el_index_60 (el_index_60,el_id)
+);
+
+insert into t1
+select
+  A.a+1000*B.a,
+  A.a+1000*B.a + 10000,
+  A.a+1000*B.a + 10000,
+  'filler-data-filler-data'
+from
+  t11 A, t10 B;
+analyze table t1 persistent for all;
+
+--echo # This must not use rowid_filter with key=el_index|el_index_60:
+explain
+select * from t1
+where el_index like '10%' and (el_index_60 like '10%' or el_index_60 like '20%');
+
+drop table t10, t11, t1;
+
+
+--echo #
+--echo # MDEV-22160: SIGSEGV in st_join_table::save_explain_data on SELECT
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+SET @@optimizer_switch="index_merge_sort_union=OFF";
+CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
+INSERT INTO t1 VALUES (0,0),(0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4),(3,3),(3,4),(3,5),(8,8),(8,9),(1,0),(2,0),(0,0),(0,0);
+explain
+SELECT * FROM t1 WHERE a > 0 AND b=0;
+SELECT * FROM t1 WHERE a > 0 AND b=0;
+drop table t1;
+SET @@optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # MDEV-21633
+--echo # Assertion `tmp >= 0' failed in best_access_path with rowid_filter=ON
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='rowid_filter=on';
+
+CREATE TABLE t1 (
+    pk INT AUTO_INCREMENT,
+    a INT,
+    b VARCHAR(8),
+    KEY(a),
+    PRIMARY KEY(pk),
+    KEY (a,pk)
+) ENGINE=MyISAM;
+
+INSERT INTO t1 (a,b) VALUES
+    (NULL,'d'),(9,'b'),(2,'x'),(5,'k'),(NULL,'d'),(3,'s'),(5,'k'),(1,'r'),
+    (8,'l'),(3,'z'),(1,'c'),(1,'q'),(NULL,'x'),(NULL,'p'),(NULL,'z'),(7,'a'),
+    (0,'i'),(3,'s'),(NULL,'h'),(4,'p'),(1,'i'),(4,'f'),(1,'c'),(NULL,'a'),
+    (NULL,'x'),(1,'b'),(NULL,'n'),(NULL,'h'),(5,'i'),(6,'e'),(NULL,'i'),
+    (7,'e'),(1,'r'),(NULL,'z'),(1,'i'),(14,'c'),(6,'u'),(3,'b'),(4,'z'),
+    (2,'c'),(70,'d'),(NULL,'p'),(21,'j'),(6,'e'),(5,'c'),(13,'i'),(42,'d'),
+    (80,'s'),(14,'t'),(9,'a'),(0,'2'),(0,NULL),(0,NULL),(0,NULL),(0,''),
+    (0,''),(0,'1'),(0,''),(0,''),(0,''),(0,''),(0,NULL),(0,''),(0,''),(0,''),
+    (0,NULL),(0,''),(0,''),(0,''),(0,''),(0,''),(0,''),(0,NULL),(0,NULL),
+    (0,NULL),(0,''),(0,''),(0,''),(0,''),(0,NULL),(0,''),(0,NULL),(0,NULL),
+    (0,''),(0,''),(0,''),(0,NULL),(0,''),(0,NULL),(0,''),(0,''),(0,''),(0,''),
+    (0,''),(0,''),(0,''),(0,NULL),(0,''),(0,NULL),(0,'');
+
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);
+
+SELECT * FROM t1 JOIN t2 WHERE a = c AND pk BETWEEN 4 AND 7 AND a BETWEEN 2 AND 12 AND b != 'foo';
+
+explain SELECT * FROM t1 JOIN t2 WHERE a = c AND pk BETWEEN 4 AND 7 AND a BETWEEN 2 AND 12 AND b != 'foo';
+
+SET optimizer_switch='rowid_filter=off';
+
+SELECT * FROM t1 JOIN t2 WHERE a = c AND pk BETWEEN 4 AND 7 AND a BETWEEN 2 AND 12 AND b != 'foo';
+
+SET @@optimizer_switch=@save_optimizer_switch;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-28846: Poor performance when rowid filter contains no elements
+--echo #
+
+--source include/have_sequence.inc
+
+create table t1 (
+  pk int primary key auto_increment,
+  nm varchar(32),
+  fl1 tinyint default 0,
+  fl2 tinyint default 0,
+  index idx1(nm, fl1),
+  index idx2(fl2)
+) engine=myisam;
+
+create table name (
+  pk int primary key auto_increment,
+  nm bigint
+) engine=myisam;
+
+create table flag2 (
+  pk int primary key auto_increment,
+  fl2 tinyint
+) engine=myisam;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $a=
+`select concat((select nm from t1 where fl2=0 order by RAND(13) limit 1),'%')`;
+eval select '$a' as a;
+
+set optimizer_switch='rowid_filter=on';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+--source include/analyze-format.inc
+eval
+analyze format=json
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+truncate table name;
+truncate table flag2;
+truncate table t1;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+set optimizer_switch='rowid_filter=off';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+--source include/analyze-format.inc
+eval
+analyze format=json
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+truncate table name;
+truncate table flag2;
+truncate table t1;
+
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 10 from seq_1_to_1000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $a=
+`select concat((select nm from t1 where fl2=0 order by RAND(13) limit 1),'%')`;
+eval select '$a' as a;
+
+set optimizer_switch='rowid_filter=on';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+truncate table name;
+truncate table flag2;
+truncate table t1;
+
+insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
+insert into flag2(fl2) select seq mod 100 from seq_1_to_10000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $a=
+`select concat(left((select nm from t1 where fl2=0 order by RAND(13) limit 1),2),'%')`;
+eval select '$a' as a;
+
+set optimizer_switch='rowid_filter=on';
+eval
+explain
+select * from t1  where nm like '$a' AND fl2 = 0;
+--source include/analyze-format.inc
+eval
+analyze format=json
+select * from t1  where nm like '$a' AND fl2 = 0;
+eval
+select * from t1  where nm like '$a' AND fl2 = 0;
+
+drop table name, flag2;
+drop table t1;
+
+# This test shows that if the container is empty there are no lookups into it
+
+create table t1 (
+  pk int primary key auto_increment,
+  nm char(255),
+  fl1 tinyint default 0,
+  fl2 int default 0,
+  index idx1(nm, fl1),
+  index idx2(fl2)
+) engine=myisam;
+
+create table name (
+  pk int primary key auto_increment,
+  nm bigint
+) engine=myisam;
+
+create table flag2 (
+  pk int primary key auto_increment,
+  fl2 int
+) engine=myisam;
+
+insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
+insert into flag2(fl2) select seq mod 10 from seq_1_to_10000 order by rand(19);
+
+insert into t1(nm,fl2)
+  select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+
+analyze table t1 persistent for all;
+
+let $q=
+select * from t1
+where
+(
+  nm like '3400%' or nm like '3402%' or nm like '3403%' or
+  nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
+  nm like '3409%' or
+  nm like '3411%' or nm like '3412%' or nm like '3413%' or
+  nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
+  nm like '3418%' or nm like '3419%' or
+  nm like '3421%' or nm like '3422%' or nm like '3423%' or
+  nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
+  nm like '3428%' or nm like '3429%' or
+  nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
+  nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
+  nm like '3439%' or
+  nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
+  nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
+  nm like '3448%'
+) and fl2 = 0;
+
+eval $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+create table t0 select * from t1  where nm like '34%';
+delete from t1 using t1,t0 where t1.nm=t0.nm;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+drop table t0;
+
+set optimizer_switch='rowid_filter=default';
+
+drop table name, flag2;
+drop table t1;
+
+--echo #
+--echo # MDEV-30944 Range_rowid_filter::fill() leaves file->keyread at MAX_KEY
+--echo #
+
+CREATE TABLE t1 ( a varchar(30) , i int , id int, UNIQUE KEY id (id), KEY (i ,id ,a), KEY (a(1),i)) engine=myisam;
+INSERT INTO t1 VALUES('fej',NULL,1),('jeyw',8,2),(NULL,181,3),('wrkovd',9,4),('',NULL,5),('ko',NULL,6),('vdgzyxkop',217,7),('',7,8),('zy',0,9),('yxkopv',8,10),('kopv',1,11),('opv',4,12),('vc',9,13),('ri',1,14),('tkcn',1,15),('cnm',6,16),('m',0,17),('d',9,18),('e',28,19),(NULL,0,20);
+explain SELECT i, MAX( id ) FROM t1 WHERE ( a IS NULL OR a IN ('o','h') ) AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) GROUP BY i;
+SELECT i, MAX( id ) FROM t1 WHERE ( a IS NULL OR a IN ('o','h') ) AND ( id BETWEEN 6 AND 7  OR id IN ( 8, 1) ) GROUP BY i;
+drop table t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

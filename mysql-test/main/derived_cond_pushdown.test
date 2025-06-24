@@ -27,13 +27,13 @@ insert into t2_double values
   (4,33.4,14.3333), (5,22.4,13.65), (7,17.89,18.9),
   (6,33.4,14.3333), (10,31.4,13.65), (12,33.4,13.65);
 
-create table t1_char(a char, b char(8), c int);
+create table t1_char(a char, b char(8), c int) charset=latin1;
 insert into t1_char values
   ('a','Ivan',1), ('b','Vika',2), ('b','Inga',6), ('c','Vika',7),
   ('b','Ivan',7), ('a','Alex',6), ('b','Inga',5), ('d','Ron',9),
   ('d','Harry',2), ('d','Hermione',3), ('c','Ivan',3), ('c','Harry',4);
 
-create table t2_char(a char, b char(8), c int);
+create table t2_char(a char, b char(8), c int) charset=latin1;
 insert into t2_char values
   ('b','Ivan',1), ('c','Vinny',3), ('c','Inga',9), ('a','Vika',1),
   ('c','Ivan',2), ('b','Ali',6), ('c','Inga',2), ('a','Ron',9),
@@ -112,6 +112,7 @@ let $query= select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -122,6 +123,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into HAVING
@@ -131,6 +133,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -140,6 +143,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -147,12 +151,14 @@ let $query= select * from v1,t2 where (v1.a>6) and (t2.b>v1.b);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query= select * from v2,t2 where (v2.b>25) and (t2.a<v2.a);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into WHERE
@@ -162,6 +168,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -170,6 +177,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -179,6 +187,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformulas : pushing into HAVING and WHERE
@@ -187,6 +196,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -195,6 +205,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -203,6 +214,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into HAVING and WHERE
@@ -213,6 +225,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -220,6 +233,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formulas : pushing into WHERE and HAVING
@@ -229,6 +243,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -238,6 +253,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # prepare of a query containing extracted or formula
@@ -249,7 +265,9 @@ deallocate prepare stmt;
 prepare stmt from
   "explain format=json select * from v1,t2 where
     ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));";
+--source include/explain-no-costs.inc
 execute stmt;
+--source include/explain-no-costs.inc
 execute stmt;
 deallocate prepare stmt;
 
@@ -260,12 +278,14 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query= select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformula : pushing into WHERE using equalities
@@ -273,6 +293,7 @@ let $query= select * from v1,t2 where (t2.a<5) and (v1.a=t2.a);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -280,6 +301,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformula : pushing into HAVING using equalities
@@ -287,6 +309,7 @@ let $query= select * from v1,t2 where (t2.c>150) and (v1.max_c=t2.c);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted and formula : pushing into WHERE
@@ -296,6 +319,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -303,6 +327,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -311,6 +336,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted and formula : pushing into WHERE using equalities
@@ -321,6 +347,7 @@ select * from v_decimal as v,t2_decimal as t where
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into HAVING using equalities
@@ -330,6 +357,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformulas : pushing into WHERE and HAVING using equalities
@@ -339,6 +367,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformulas : pushing into WHERE and HAVING
@@ -351,6 +380,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformulas : pushing into WHERE and HAVING
@@ -360,6 +390,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -371,6 +402,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -381,6 +413,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into WHERE
@@ -392,6 +425,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -402,6 +436,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # nothing to push
@@ -410,12 +445,14 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -424,6 +461,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -431,6 +469,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -439,6 +478,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : nothing to push
@@ -447,6 +487,7 @@ let $query= select * from v1,v2,t2 where
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -455,6 +496,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -463,6 +505,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : pushing in all tables
@@ -475,6 +518,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : pushing only in one table
@@ -486,6 +530,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : pushing only in one table
@@ -497,6 +542,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into WHERE
@@ -508,6 +554,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : pushing in all tables
@@ -521,6 +568,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : pushing in all tables
@@ -535,6 +583,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using several derived tables : pushing in all tables
@@ -553,6 +602,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted or formula : pushing into HAVING
@@ -565,6 +615,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # extracted and formula : pushing into WHERE
@@ -577,6 +628,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using query with union
@@ -589,6 +641,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using query with union
@@ -602,6 +655,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using query with union
@@ -616,6 +670,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using query with union
@@ -634,6 +689,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union
@@ -642,6 +698,7 @@ let $query= select * from v_union,t2 where (v_union.a<3) and (v_union.c>100);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union
@@ -653,6 +710,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union
@@ -665,6 +723,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 let $query=
@@ -673,6 +732,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union
@@ -686,6 +746,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union
@@ -698,6 +759,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union of selects without aggregation
@@ -707,6 +769,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union of selects without aggregation
@@ -716,6 +779,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union of selects without aggregation
@@ -726,6 +790,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union of
@@ -736,6 +801,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using derived table with union of
@@ -750,6 +816,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded derived table : pushing the same conditions
@@ -762,6 +829,7 @@ select * from v4,v1 where
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : nothing to push
@@ -773,6 +841,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing different conditions
@@ -786,6 +855,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing different conditions
@@ -798,6 +868,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing different conditions
@@ -810,6 +881,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing different conditions
@@ -823,6 +895,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing the same conditions
@@ -836,6 +909,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing the same conditions
@@ -849,6 +923,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing the same conditions
@@ -863,6 +938,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using embedded view : pushing the same conditions
@@ -875,6 +951,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1,v2,v3,v4;
@@ -982,6 +1059,7 @@ SELECT * FROM t1 WHERE a IN (
   )
 );
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM t1 WHERE a IN (
   SELECT b FROM v2 WHERE b < a OR b IN (
@@ -1004,6 +1082,7 @@ SELECT * FROM t1 WHERE a IN (
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 DROP VIEW v2,v3,v4;
@@ -1026,6 +1105,7 @@ SELECT * FROM
 ( SELECT * FROM t1
     WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM
 ( SELECT * FROM t1
@@ -1051,6 +1131,7 @@ SELECT * FROM t1 LEFT JOIN t2 ON a = b WHERE b IS NULL;
 
 SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
 
@@ -1065,6 +1146,7 @@ CREATE TABLE t1 (i INT);
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 INSERT INTO t1 VALUES (1),(2);
 --enable_prepare_warnings
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
 --disable_prepare_warnings
@@ -1092,12 +1174,14 @@ CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
 
 SELECT * FROM v1 AS sq
   WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM v1 AS sq
   WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
 
 SELECT * FROM ( SELECT * FROM t1 ) AS sq
   WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT * FROM t1 ) AS sq
   WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
@@ -1117,6 +1201,7 @@ INSERT INTO t2 VALUES (50);
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 
 SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
 
@@ -1124,6 +1209,7 @@ CREATE TABLE t3 (a INT, b INT) ENGINE=MYISAM;
 INSERT INTO t3 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
 CREATE VIEW v2 AS SELECT a, sum(b) AS s FROM t3 GROUP BY a ;
 SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
 
@@ -1145,6 +1231,7 @@ INSERT INTO t2 VALUES (5),(6);
 SELECT a, GROUP_CONCAT(b) FROM v1
   WHERE b IN ( SELECT COUNT(c) FROM t2 ) GROUP BY a;
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT a, GROUP_CONCAT(b) FROM v1
   WHERE b IN ( SELECT COUNT(c) FROM t2 ) GROUP BY a;
@@ -1163,6 +1250,7 @@ INSERT INTO t VALUES (1,1),(3,2);
 SELECT * FROM v AS v1, v AS v2
   WHERE v2.pk > v1.f AND v1.f IN ( SELECT COUNT(pk) FROM t );
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM v AS v1, v AS v2
   WHERE v2.pk > v1.f AND v1.f IN ( SELECT COUNT(pk) FROM t );
@@ -1182,6 +1270,7 @@ INSERT INTO t2 VALUES (3),(4);
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1200,6 +1289,7 @@ INSERT INTO t2 VALUES (3.2),(2.71);
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1214,6 +1304,7 @@ INSERT INTO t2 VALUES (3.21),(4.55);
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1228,6 +1319,7 @@ INSERT INTO t2 VALUES ('bbb'),('aa');
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1244,6 +1336,7 @@ INSERT INTO t2 VALUES
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1258,6 +1351,7 @@ INSERT INTO t2 VALUES ('2007-05-28'), ('2010-08-25');
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1272,6 +1366,7 @@ INSERT INTO t2 VALUES ('10:00:02'), ('11:00:10');
 
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
   WHERE i IN ( SELECT MIN(j) FROM t2 );
@@ -1288,6 +1383,7 @@ CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 INSERT INTO t1 VALUES (2), (1);
 
 SELECT * FROM v1 WHERE NULLIF(1, i);
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM v1 WHERE NULLIF(1, i);
 
@@ -1298,14 +1394,15 @@ DROP TABLE t1;
 --echo # MDEV-11608: pushdown of the predicate with cached null value
 --echo #
 
-CREATE TABLE t1 (c VARCHAR(3));
+CREATE TABLE t1 (c VARCHAR(3)) CHARSET=latin1;
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 INSERT INTO t1 VALUES ('foo'),('bar');
 
-CREATE TABLE t2 (c VARCHAR(3));
+CREATE TABLE t2 (c VARCHAR(3)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('foo'),('xyz');
 
 SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
 
@@ -1340,7 +1437,9 @@ PREPARE stmt1 FROM
 PREPARE stmt2 FROM
 "EXPLAIN FORMAT=JSON
  SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
+--source include/explain-no-costs.inc
 EXECUTE stmt1;
+--source include/explain-no-costs.inc
 EXECUTE stmt2;
 INSERT INTO t2 SELECT a+1 FROM t2;
 INSERT INTO t2 SELECT a+1 FROM t2;
@@ -1348,7 +1447,9 @@ INSERT INTO t2 SELECT a+1 FROM t2;
 INSERT INTO t2 SELECT a+1 FROM t2;
 INSERT INTO t2 SELECT a+1 FROM t2;
 INSERT INTO t2 SELECT a+1 FROM t2;
+--source include/explain-no-costs.inc
 EXECUTE stmt1;
+--source include/explain-no-costs.inc
 EXECUTE stmt2;
 DEALLOCATE PREPARE stmt1;
 # the result here will change after the merge with the fix for mdev-11859
@@ -1485,6 +1586,7 @@ from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
 where b > 2;
 
 eval $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 
 let $q2=
@@ -1493,6 +1595,7 @@ from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
 where a > 2;
 
 eval $q2;
+--source include/explain-no-costs.inc
 eval explain format=json $q2;
 
 let $q3=
@@ -1501,6 +1604,7 @@ from  ( select t1.a, v2.b, v2.c from t1, v2 where t1.a = v2.b ) as t
 where a > 2;
 
 eval $q3;
+--source include/explain-no-costs.inc
 eval explain format=json $q3;
 
 let $q4=
@@ -1509,6 +1613,7 @@ from  ( select t1.a, v3.b, v3.m from t1, v3 where t1.a = v3.m ) as t
 where a > 2;
 
 eval $q4;
+--source include/explain-no-costs.inc
 eval explain format=json $q4;
 
 drop view v1,v2,v3;
@@ -1526,6 +1631,7 @@ let $q=
 SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
 
 eval $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 DROP VIEW v1;
@@ -1548,6 +1654,7 @@ SELECT * FROM t1, ( SELECT * FROM v2 ) AS sq
   WHERE i1 = 1 AND ( i1 = i2 OR i1 = 2 );
 
 eval $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 DROP VIEW v2;
@@ -1566,6 +1673,7 @@ from ( select distinct regexp_substr(t1.a,'^[A-Za-z]+') as f from t1) as t
 where t.f = 'a' or t.f = 'b';
 
 eval $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 drop table t1;
@@ -1589,6 +1697,7 @@ SELECT * FROM t1
 WHERE (vc.ct>0);
 
 eval $q;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 
 DROP TABLE t1,t2;
@@ -1619,6 +1728,7 @@ WHERE (v1.a=1) AND (v1.b=v1.a) AND
       (v1.a=t2.x) AND (v1.max_c>30);
 eval $query;
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1634,6 +1744,7 @@ WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
       (v1.a=t2.x) AND (v1.max_c>30);
 eval $query;
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2;
@@ -1676,6 +1787,7 @@ WHERE (t1.a,t1.b) IN
 ;
 eval $query;
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1694,6 +1806,7 @@ WHERE (t1.a,t1.b) IN
 ;
 eval $query;
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1712,6 +1825,7 @@ WHERE (t1.a,t1.b) IN
 ;
 eval $query;
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1730,6 +1844,7 @@ WHERE (t1.a,t1.b) IN
 ;
 eval $query;
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2;
@@ -1768,6 +1883,7 @@ SELECT * FROM
 ) dt
 WHERE (dt.a=2);
 eval $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1780,6 +1896,7 @@ SELECT * FROM
 ) dt
 WHERE (dt.a>1);
 eval $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1791,6 +1908,7 @@ SELECT * FROM
 ) dt
 WHERE (dt.a='ab');
 eval $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1802,6 +1920,7 @@ SELECT * FROM
 ) dt
 WHERE (dt.a=1);
 eval $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1;
@@ -1830,6 +1949,7 @@ JOIN
 ) AS dt2
 ON dt1.a = dt2.a;
 eval $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 
 let $query=
@@ -1841,6 +1961,7 @@ SELECT * FROM
 ) AS dt, t1
 WHERE dt.a=t1.a AND dt.a IN (1,t1.a);
 eval $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 DROP TABLE t1;
 
@@ -1943,6 +2064,7 @@ let $q1=
 INSERT INTO t3
 SELECT * FROM (SELECT a, count(*) as c FROM t1 GROUP BY a) t WHERE a<=2;
 
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q1;
 eval $q1;
 
@@ -1952,6 +2074,7 @@ let $q2=
 UPDATE t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t SET t2.a=t.c+10
   WHERE t2.a= t.c and t.a>=3;
 
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q2;
 eval $q2;
 
@@ -1961,6 +2084,7 @@ let $q3=
 DELETE t2 FROM t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t
   WHERE t2.a= t.c+9 and t.a=2;
 
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q3;
 eval $q3;
 
@@ -1986,6 +2110,7 @@ FROM
 ) AS tab1
 WHERE (tab1.max_a=1);
 EVAL $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 LET $query=
@@ -1998,6 +2123,7 @@ FROM
 ) AS tab1
 WHERE (tab1.max_a=1);
 EVAL $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 LET $query=
@@ -2010,6 +2136,7 @@ FROM
 ) AS tab1
 WHERE (tab1.max_a=1);
 EVAL $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 LET $query=
@@ -2022,6 +2149,7 @@ FROM
 ) AS tab1
 WHERE (tab1.max_a=1);
 EVAL $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1;
@@ -2061,6 +2189,7 @@ SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 
 eval $q1;
 eval EXPLAIN $q1;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q1;
 SELECT * FROM t1;
 
@@ -2073,6 +2202,7 @@ SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ON v1.f=t1.f) AS t
   WHERE f IS NOT NULL;
 
 eval $q2;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q2;
 SELECT * FROM t1;
 
@@ -2089,10 +2219,11 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 text, f2 int);
 INSERT INTO t1 VALUES ('x',1), ('y',2);
 
-CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 ) AS t;
+CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 GROUP BY f2) AS t;
 let $q1 =
 UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
 eval $q1;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q1;
 
 SELECT * FROM t1;
@@ -2101,6 +2232,7 @@ CREATE VIEW v2 AS SELECT f2 FROM ( SELECT DISTINCT f2 FROM t1 ) AS t;
 let $q2 =
 SELECT * FROM v2, t1 WHERE v2.f2 < 2 AND t1.f2 = v2.f2;
 eval $q2;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q2;
 
 DROP VIEW v1,v2;
@@ -2136,6 +2268,7 @@ CREATE TABLE t1 (a INT, b INT);
 CREATE VIEW v1 AS SELECT a, MAX(b) FROM t1 GROUP BY a;
 
 SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
 
@@ -2280,6 +2413,7 @@ select col2, col1 from v2;
 explain select * from v3 where col1=123;
 
 --echo # This must use ref accesses for reading table t1, not full scans:
+--source include/explain-no-costs.inc
 explain format=json
 select * from v3 where col1=123 and col2=321;
 
@@ -2303,6 +2437,7 @@ select a, f1(a), sum(b) from t1 group by a, f1(a);
 --echo #   "a > 1" will be pushed all the way to the table scan on t1
 --echo #   "a2>123" will be pushed into HAVING (as it refers to an SP call which
 --echo #                                       prevents pushing it to the WHERE)
+--source include/explain-no-costs.inc
 explain format=json
 select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
 
@@ -2315,6 +2450,7 @@ insert into t4 select a,a,a from t1;
 --echo # The subquery must be materialized and must have
 --echo #  "attached_condition": "t1.a + 1 > 10",
 --echo #  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+--source include/explain-no-costs.inc
 explain format=json
 select *
 from t4
@@ -2359,6 +2495,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2368,6 +2505,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2376,6 +2514,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2384,6 +2523,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2393,6 +2533,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2402,6 +2543,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2412,6 +2554,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2425,6 +2568,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using intersect in view definition
@@ -2456,6 +2600,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2473,6 +2618,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2482,6 +2628,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2490,6 +2637,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2498,6 +2646,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2507,6 +2656,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2516,6 +2666,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2526,6 +2677,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2540,6 +2692,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 --echo # using except in view definition
@@ -2571,6 +2724,7 @@ let $query=
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2591,6 +2745,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2611,6 +2766,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2631,6 +2787,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2651,6 +2808,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2671,6 +2829,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2691,6 +2850,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2714,6 +2874,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2736,6 +2897,7 @@ let $query= select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1,v2;
@@ -2758,6 +2920,7 @@ let $query= select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1,v2;
@@ -2776,6 +2939,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2794,6 +2958,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2814,6 +2979,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2835,6 +3001,7 @@ let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) a
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2858,6 +3025,7 @@ let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2876,6 +3044,7 @@ let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2894,6 +3063,7 @@ let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
 eval $no_pushdown $query;
 eval $query;
 eval explain $query;
+--source include/explain-no-costs.inc
 eval explain format=json $query;
 
 drop view v1;
@@ -2909,12 +3079,12 @@ drop table t1,t2,t3;
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='split_materialized=off';
 
-create table t1 (a int, c varchar(16));
+create table t1 (a int, c varchar(16)) charset=latin1;
 insert into t1 values
 (8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
 (7,'aa'), (2,'aa'), (7,'bb');
 
-create table t2 (a int, b int, c varchar(16), index idx(a,c));
+create table t2 (a int, b int, c varchar(16), index idx(a,c)) charset=latin1;
 insert into t2 values
   (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
   (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
@@ -2930,6 +3100,7 @@ eval $no_pushdown $q1;
 --sorted_result
 eval $q1;
 eval explain $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 
 let $q2=
@@ -2946,6 +3117,7 @@ eval $no_pushdown $q2;
 --sorted_result
 eval $q2;
 eval explain $q2;
+--source include/explain-no-costs.inc
 eval explain format=json $q2;
 
 let $q3=
@@ -2956,6 +3128,7 @@ from (select a, c, sum(b) over (partition by a,c) as s from t2) as t, t1
 eval $no_pushdown $q3;
 eval $q3;
 eval explain $q3;
+--source include/explain-no-costs.inc
 eval explain format=json $q3;
 
 let $q4=
@@ -2974,6 +3147,7 @@ eval $no_pushdown $q4;
 --sorted_result
 eval $q4;
 eval explain $q4;
+--source include/explain-no-costs.inc
 eval explain format=json $q4;
 
 let $q5=
@@ -2988,6 +3162,7 @@ eval $no_pushdown $q5;
 --sorted_result
 eval $q5;
 eval explain $q5;
+--source include/explain-no-costs.inc
 eval explain format=json $q5;
 
 let $q6=
@@ -3002,6 +3177,7 @@ eval $no_pushdown $q6;
 --sorted_result
 eval $q6;
 eval explain $q6;
+--source include/explain-no-costs.inc
 eval explain format=json $q6;
 
 let $q7=
@@ -3016,6 +3192,7 @@ eval $no_pushdown $q7;
 --sorted_result
 eval $q7;
 eval explain $q7;
+--source include/explain-no-costs.inc
 eval explain format=json $q7;
 
 drop table t1,t2;
@@ -3032,12 +3209,12 @@ set optimizer_switch= @save_optimizer_switch;
 let
 $no_splitting= set statement optimizer_switch='split_materialized=off' for;
 
-create table t1 (a int, b int, index idx_b(b)) engine=myisam;
+create table t1 (a int, b int, index idx_b(b)) engine=myisam charset=latin1;
 insert into t1 values
 (8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
 (9,3), (8,1), (4,5), (2,3);
 
-create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam charset=latin1;
 insert into t2 values
   (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
   (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),
@@ -3063,6 +3240,7 @@ where t1.b < 3;
 eval $no_splitting $q1;
 eval $q1;
 eval explain extended $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 eval prepare stmt from "$q1";
 execute stmt;
@@ -3079,6 +3257,7 @@ where t1.b <= 5;
 eval $no_splitting $q10;
 eval $q10;
 eval explain extended $q10;
+--source include/explain-no-costs.inc
 eval explain format=json $q10;
 eval prepare stmt from "$q10";
 execute stmt;
@@ -3096,15 +3275,16 @@ from t1 left join
 eval $no_splitting $q2;
 eval $q2;
 eval explain extended $q2;
+--source include/explain-no-costs.inc
 eval explain format=json $q2;
 
-create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam charset=latin1;
 insert into t3 values
 (8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
 (7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
 (5,14,'dd'), (9,12,'ee');
 
-create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam charset=latin1;
 insert into t4 values
   (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
   (4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
@@ -3125,6 +3305,7 @@ where t3.b > 15;
 eval $no_splitting $q3;
 eval $q3;
 eval explain extended $q3;
+--source include/explain-no-costs.inc
 eval explain format=json $q3;
 
 let $q30=
@@ -3137,6 +3318,7 @@ where t3.b <= 15;
 eval $no_splitting $q30;
 eval $q30;
 eval explain extended $q30;
+--source include/explain-no-costs.inc
 eval explain format=json $q30;
 
 let $q4=
@@ -3149,6 +3331,7 @@ where t3.b > 15;
 eval $no_splitting $q4;
 eval $q4;
 eval explain extended $q4;
+--source include/explain-no-costs.inc
 eval explain format=json $q4;
 
 let $q40=
@@ -3161,6 +3344,7 @@ where t3.b <= 15;
 eval $no_splitting $q40;
 eval $q40;
 eval explain extended $q40;
+--source include/explain-no-costs.inc
 eval explain format=json $q40;
 
 drop index idx_a on t2;
@@ -3184,6 +3368,7 @@ eval $no_splitting $q5;
 --sorted_result
 eval $q5;
 eval explain extended $q5;
+--source include/explain-no-costs.inc
 eval explain format=json $q5;
 
 let $q50=
@@ -3194,6 +3379,7 @@ where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
 eval $no_splitting $q50;
 eval $q50;
 eval explain extended $q50;
+--source include/explain-no-costs.inc
 eval explain format=json $q50;
 
 let $q6=
@@ -3206,6 +3392,7 @@ eval $no_splitting $q6;
 --sorted_result
 eval $q6;
 eval explain extended $q6;
+--source include/explain-no-costs.inc
 eval explain format=json $q6;
 
 let $q60=
@@ -3218,6 +3405,7 @@ eval $no_splitting $q60;
 --sorted_result
 eval $q60;
 eval explain extended $q60;
+--source include/explain-no-costs.inc
 eval explain format=json $q60;
 
 drop table t1,t2,t3,t4;
@@ -3233,11 +3421,11 @@ INSERT INTO t1 VALUES (1),(9),(3);
 CREATE TABLE t2 (a int, i int);
 INSERT INTO t2 VALUES (1,9),(2,3),(3,7),(4,1);
 
-CREATE TABLE t3 (a int, c char(127), index(c));
+CREATE TABLE t3 (a int, c char(127), index(c)) charset=latin1;
 INSERT INTO t3 VALUES (1,'foo'),(3,'bar'),(4,'foo'),(2,'bar');
 INSERT INTO t3 SELECT a, concat(c,'a') FROM t3;
 
-CREATE TABLE t4 (a int, c char(127), index(a));
+CREATE TABLE t4 (a int, c char(127), index(a)) charset=latin1;
 INSERT INTO t4 VALUES
   (3,'abc'),(1,'foo'),(4,'def'),(8,'xxx'),(3,'yyy'),
   (5,'zzz'),(9,'xyz'),(2,'yxz'),(5,'zxy'),(7,'zyx') ;
@@ -3254,6 +3442,7 @@ SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
 eval $no_splitting $q1;
 eval $q1;
 eval explain extended $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 
 DROP VIEW v1;
@@ -3324,7 +3513,7 @@ CREATE TABLE t1 (pk1 INT PRIMARY KEY, f INT) ENGINE=Aria;
 INSERT INTO t1 VALUES (1,0),(2,0);
 
 CREATE TABLE t2 (pk2 INT PRIMARY KEY) ENGINE=Aria;
-INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(2),(3),(11),(12),(13);
 
 CREATE VIEW v2 AS SELECT pk2, COUNT(*) AS cnt FROM t2 GROUP BY pk2;
 
@@ -3333,6 +3522,7 @@ SELECT * FROM t1 INNER JOIN v2 ON pk1 = pk2 WHERE f <> 5;
 
 eval $q;
 eval EXPLAIN EXTENDED $q;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 
 DROP VIEW v2;
@@ -3601,7 +3791,8 @@ insert into t1 values
 (17,1),(17,3010),(17,3013),(17,3053),(21,2446),(21,2467),(21,2);
 
 create table t2 (a int) engine=myisam;
-insert into t2 values (1),(2),(3);
+insert into t2 values (1),(2),(3),(1000),(2000),(3000);
+insert into t2 select 5000 from seq_5000_to_6000;
 
 create  table t3 (id int) engine=myisam;
 insert into t3 values (1),(2);
@@ -3615,11 +3806,13 @@ select * from t1, (select a from t1 cp2 group by a) dt, t3
 set optimizer_switch="split_materialized=off";
 eval $q;
 eval explain $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 set optimizer_switch="split_materialized=default";
 eval $q;
 eval explain $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 eval prepare stmt from "$q";
@@ -3630,7 +3823,7 @@ deallocate prepare stmt;
 drop table t1,t2,t3;
 
 --echo #
---echo # MDEV-MDEV-27132: Splittable derived with equality in WHERE
+--echo # MDEV-27132: Splittable derived with equality in WHERE
 --echo #
 
 CREATE TABLE t1 (
@@ -3677,6 +3870,9 @@ INSERT INTO t2(deleted, t1_id, email, reporting_person)
 INSERT INTO t2(deleted, t1_id, email, reporting_person)
   SELECT deleted, t1_id+160000, email, reporting_person FROM t2;
 
+insert into t2 (id,t1_id) select -seq,-seq from seq_1_to_1000;
+
+
 CREATE TABLE t3 (
   id int PRIMARY KEY,
   deleted int,
@@ -3719,11 +3915,13 @@ set  optimizer_switch='split_materialized=on';
 
 eval $q;
 eval EXPLAIN $q;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 
 set  optimizer_switch='split_materialized=off';
 
 eval $q;
+eval EXPLAIN $q;
 
 set  optimizer_switch='split_materialized=default';
 
@@ -3826,6 +4024,7 @@ WHERE charges.to_ledger_id = 2;
 set optimizer_switch='split_materialized=on';
 eval $q;
 eval EXPLAIN $q;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 
 set optimizer_switch='split_materialized=off';
@@ -3858,6 +4057,7 @@ WHERE charges.to_ledger_id = 2;
 set optimizer_switch='split_materialized=on';
 eval $q1;
 eval EXPLAIN $q1;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q1;
 
 set optimizer_switch='split_materialized=off';
@@ -4294,3 +4494,24 @@ where cte1.a >= 1;
 drop table t;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-28958: condition pushable into view after simplification
+--echo #             contains constant TRUE/FALSE as subformula
+--echo #
+
+create table t1 (c1 int);
+insert into t1 values (3), (7), (1), (3), (1), (3);
+
+create table t2 (c2 int);
+insert into t2 values (3), (5), (7), (3);
+
+create view v1 as select * from t1 group by c1;
+create view v2 as select c1 as a, c2 as b from v1,t2 where c1=c2;
+
+select * from v2 group by a,b having a=b or b > a+10;
+
+drop view v1,v2;
+drop table t1,t2;
+
+--echo # End of 10.7 tests

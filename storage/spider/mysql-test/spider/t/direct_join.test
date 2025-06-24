@@ -129,9 +129,11 @@ eval CREATE TABLE tbl_c (
     KEY idx2(c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
 --enable_query_log
+--disable_ps_protocol
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
 insert into tbl_c values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500);
+--enable_ps_protocol
 
 --echo
 --echo select test
@@ -244,7 +246,9 @@ eval CREATE TABLE tbl_person (
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_CONST_TABLE_JOIN
     $MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN $MASTER_1_PART_CONST_TABLE_JOIN;
 echo SHOW CREATE TABLE tbl_person;
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_person;
+--enable_ps_protocol
 echo CREATE TABLE tbl_ncd_cm_person (
     id VARCHAR(50) NOT NULL,
     person_id VARCHAR(50) NULL DEFAULT '',
@@ -262,10 +266,12 @@ eval CREATE TABLE tbl_ncd_cm_person (
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_CONST_TABLE2_JOIN
     $MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN $MASTER_1_PART_CONST_TABLE2_JOIN;
 echo SHOW CREATE TABLE tbl_ncd_cm_person;
+--disable_ps_protocol
 SHOW CREATE TABLE tbl_ncd_cm_person;
 --enable_query_log
 INSERT INTO tbl_person VALUES ('24FC3F0A5119432BAE13DD65AABAA39C',
                                '1', '123-51041110620301-321', 510411);
+--enable_ps_protocol
 INSERT INTO tbl_person VALUES ('123456789012345678901234567890AB',
                                '1', '123-51041110620301-321', 510411);
 INSERT INTO tbl_ncd_cm_person VALUES ('123456789',

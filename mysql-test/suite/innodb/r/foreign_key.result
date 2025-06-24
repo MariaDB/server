@@ -40,7 +40,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) NOT NULL,
   KEY `idx` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -49,7 +49,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`a`),
   KEY `ind` (`b`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (1, 80);
 INSERT INTO t1 VALUES (2, 81);
 INSERT INTO t1 VALUES (3, 82);
@@ -265,6 +265,8 @@ ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
 SET SESSION FOREIGN_KEY_CHECKS = ON;
 ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Note	1831	Duplicate index `ft2`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
 ENGINE=InnoDB;
@@ -275,6 +277,8 @@ ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
 Warnings:
 Warning	1088	failed to load FOREIGN KEY constraints
 ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+Warnings:
+Note	1831	Duplicate index `ft2`. This is deprecated and will be disallowed in a future release
 DROP TABLE t1;
 #
 # MDEV-18630 Conditional jump or move depends on uninitialised value
@@ -553,7 +557,7 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`id`),
   KEY `ref_id` (`ref_id`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`ref_id`) REFERENCES `t1` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection con1;
 BEGIN;
 UPDATE t2 SET f = 11 WHERE id = 1;
@@ -776,7 +780,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -784,7 +788,7 @@ t2	CREATE TABLE `t2` (
   `fid` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table t1,t2;
@@ -811,7 +815,7 @@ t2	CREATE TABLE `t2` (
   `f2` int(11) NOT NULL,
   `f3` int(11) NOT NULL,
   PRIMARY KEY (`f3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
 ERROR 42S01: Table 't2' already exists
 DROP TABLE t2, t1;
@@ -939,7 +943,7 @@ t2	CREATE TABLE `t2` (
   KEY `fk` (`y`),
   CONSTRAINT `fk` FOREIGN KEY (`y`) REFERENCES `t1` (`y`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t3 (z int);
 alter table t3 add x int references t1(x), add y int constraint fk2 references t1(y);
 show create table t3;
@@ -952,7 +956,7 @@ t3	CREATE TABLE `t3` (
   KEY `fk2` (`y`),
   CONSTRAINT `fk2` FOREIGN KEY (`y`) REFERENCES `t1` (`y`),
   CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t3, t2, t1;
 create table t1 (id int primary key);
 create table t2 (id2 int references t1);
@@ -964,7 +968,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
   KEY `id` (`id`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t2, t1;
 set default_storage_engine= default;
 #
@@ -1017,7 +1021,7 @@ t2	CREATE TABLE `t2` (
   `a` int(11) NOT NULL,
   PRIMARY KEY (`a`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop tables t2, t1;
 #
 # MDEV-29182 Assertion fld->field_no < table->n_v_def failed on cascade
@@ -1146,7 +1150,7 @@ t2	CREATE TABLE `t2` (
   UNIQUE KEY `b` (`b`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`b`),
   CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 SET a=1;
 INSERT INTO t2 SET a=1;
 DELETE FROM t1;
@@ -1201,3 +1205,25 @@ set GLOBAL innodb_fast_shutdown=0;
 ALTER TABLE t2 FORCE;
 DROP TABLE t2, t1, t3;
 # End of 10.6 tests
+CREATE TABLE t1
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(32)BINARY NOT NULL,
+PRIMARY KEY (f1),
+INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('MySQL', 'InnoDB'), ('MariaDB', 'NDB');
+CREATE TABLE t2
+(
+f1 VARCHAR(32)BINARY NOT NULL,
+f2 VARCHAR(255)BINARY NOT NULL,
+f3 int, PRIMARY KEY (f1), INDEX(f1), INDEX(f2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES('MySQL', 'MySQL', 1),
+('MariaDB', 'MariaDB', 1);
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t2 (f2);
+ALTER TABLE t2 ADD FOREIGN KEY (f2) REFERENCES t2 (f2),
+ADD UNIQUE INDEX(f3);
+ERROR HY000: Cannot delete rows from table which is parent in a foreign key constraint 't1_ibfk_1' of table 't1'
+drop table t1, t2;
+# End of 10.11 tests

@@ -1,3 +1,6 @@
+show variables like "lower_case_table_names";
+Variable_name	Value
+lower_case_table_names	1
 create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
 create table t4 (id int primary key, Word varchar(40) not null);
 INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
@@ -95,7 +98,7 @@ show create table İ;
 Table	Create Table
 İ	CREATE TABLE `i` (
   `s1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show tables;
 Tables_in_test
 i
@@ -105,7 +108,7 @@ show create table İİ;
 Table	Create Table
 İİ	CREATE TABLE `ii` (
   `s1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show tables;
 Tables_in_test
 ii
@@ -163,4 +166,72 @@ ERROR 42000: Incorrect routine name ''
 delete from mysql.proc where name = '';
 #
 # End of 10.3 tests
+#
+#
+# Start of 11.3 tests
+#
+#
+# MDEV-31948 Add class DBNameBuffer, split check_db_name() into stages
+#
+SET NAMES utf8;
+SET @mb3char= _utf8 0xEFBFAD;
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 64), '`');
+ERROR 42000: Unknown database '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭'
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 65), '`');
+ERROR 42000: Incorrect database name '#mysql50#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
+#
+# End of 11.3 tests
+#
+#
+# Start of 11.4 tests
+#
+#
+# MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+#
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DROP PACKAGE test.pkg;
+#
+# End of 11.4 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-33281 Implement optimizer hints like in MySQL
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT /*+BKA(a) BKA(å)*/ a.a FROM t1 a, t1 å;
+a
+1
+2
+1
+2
+SELECT a.a, A.a FROM t1 a, t1 A;
+ERROR 42000: Not unique table/alias: 'A'
+SELECT /*+BKA(a) BKA(A)*/ a.a FROM t1 a;
+a
+1
+2
+Warnings:
+Warning	4219	Hint BKA("A") is ignored as conflicting/duplicated
+DROP TABLE t1;
+#
+# End of 11.7 tests
 #

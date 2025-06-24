@@ -272,6 +272,7 @@ select * from v0 where g < 4
 UNION ALL
 select * from t3;
 
+--source include/analyze-format.inc
 EXPLAIN format=json
 select * from t1
 UNION ALL

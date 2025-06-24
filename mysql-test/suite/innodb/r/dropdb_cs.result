@@ -3,6 +3,8 @@
 #
 SET @save_fpt=@@GLOBAL.innodb_file_per_table;
 SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE DATABASE Db;
 CREATE TABLE Db.t1 (c1 INT KEY) ENGINE=InnoDB;
 CREATE DATABASE DB;
@@ -14,3 +16,5 @@ DROP DATABASE Db;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'D%';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 SET GLOBAL innodb_file_per_table=@save_fpt;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release

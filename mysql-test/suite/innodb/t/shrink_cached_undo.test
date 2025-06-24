@@ -1,0 +1,47 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+--source include/big_test.inc
+--echo #
+--echo # MDEV-35398 Improve shrinking of system tablespace
+--echo #
+# Make pre-10.6.13 version data directory which skips the
+# purging of cached undo log records
+let $restart_parameters=--debug_dbug=d,skip_cached_undo;
+--source include/restart_mysqld.inc
+SET GLOBAL innodb_file_per_table= 0;
+CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+
+SET STATEMENT unique_checks=0,foreign_key_checks=0 FOR
+INSERT INTO t1 SELECT seq FROM seq_1_to_24576;
+SET STATEMENT unique_checks=0,foreign_key_checks=0 FOR
+INSERT INTO t2 SELECT seq FROM seq_1_to_24576;
+
+--echo # Insert 34 transaction which has undo cached records
+--disable_query_log
+let $c = 34;
+while ($c)
+{
+  connect (con$c,localhost,root,,);
+  START TRANSACTION;
+  eval INSERT INTO t1 SELECT seq+$c*32768 FROM seq_1_to_3753;
+  dec $c;
+}
+
+connection default;
+let $c = 34;
+while ($c)
+{
+  disconnect con$c;
+  dec $c;
+}
+--enable_query_log
+
+DROP TABLE t2, t1;
+SET GLOBAL innodb_fast_shutdown=0;
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+let $restart_parameters=;
+--source include/restart_mysqld.inc
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;

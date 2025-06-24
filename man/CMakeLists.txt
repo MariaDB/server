@@ -13,86 +13,31 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-SET(MAN1_WSREP wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
-    wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1 galera_new_cluster.1
-    wsrep_sst_backup.1)
-SET(MAN1_SERVER innochecksum.1 myisam_ftdump.1 myisamchk.1
-                aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
-                aria_s3_copy.1
-		myisamlog.1 myisampack.1 mysql.server.1 mariadb-conv.1
-		mysql_fix_extensions.1
-		mysql_install_db.1
-		mysql_upgrade.1
-		mysqld_multi.1 mysqld_safe.1
-		resolveip.1 mariadb-service-convert.1
-		mysqld_safe_helper.1
-		mysql_ldb.1 myrocks_hotbackup.1
-		mbstream.1 mariabackup.1)
-IF(WITH_WSREP)
-  SET(MAN1_SERVER ${MAN1_SERVER} ${MAN1_WSREP})
-ENDIF()
-SET(MAN8_SERVER mysqld.8)
-SET(MAN1_CLIENT msql2mysql.1 mysql.1 mysql_find_rows.1 mysql_waitpid.1
-		mysqldumpslow.1
-		mysqlaccess.1 mysqladmin.1 mysqlbinlog.1 mysqlcheck.1
-		mysqldump.1 mysqlimport.1 mysqlshow.1 mysqlslap.1 mytop.1
-                mysql_plugin.1 mysql_embedded.1 my_print_defaults.1
-                mysqlhotcopy.1 mysql_setpermission.1 mysql_tzinfo_to_sql.1
-                mysql_convert_table_format.1 replace.1 mysql_secure_installation.1
-		perror.1 resolve_stack_dump.1)
-SET(MAN1_DEVEL mysql_config.1)
-SET(MAN1_TEST mysql-stress-test.pl.1 mysql-test-run.pl.1 mysql_client_test.1
-              mysqltest.1 mysqltest_embedded.1 mysql_client_test_embedded.1
-              my_safe_process.1)
 IF(NOT WITHOUT_SERVER)
-  INSTALL(FILES ${MAN1_SERVER} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesServer)
-  INSTALL(FILES ${MAN8_SERVER} DESTINATION ${INSTALL_MANDIR}/man8 COMPONENT ManPagesServer)
+  INSTALL_MANPAGES(Server
+    innochecksum.1 myisam_ftdump.1 myisamchk.1 aria_chk.1 aria_dump_log.1
+    aria_ftdump.1 aria_pack.1 aria_read_log.1 myisamlog.1
+    myisampack.1 mysql.server.1 mariadb-conv.1 mariadb-fix-extensions.1
+    mariadb-install-db.1 mariadb-upgrade.1 mariadbd-multi.1 mariadbd-safe.1
+    resolveip.1 mariadb-service-convert.1 mariadbd-safe-helper.1 mariadbd.8)
+  INSTALL_MANPAGES(Backup mbstream.1 mariadb-backup.1)
+  IF(WITH_WSREP)
+    INSTALL_MANPAGES(Server
+      wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
+      wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1
+      galera_new_cluster.1 wsrep_sst_backup.1)
+  ENDIF()
 ENDIF()
-
-INSTALL(FILES ${MAN1_CLIENT} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesClient)
-INSTALL(FILES ${MAN1_DEVEL} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesDevelopment)
-INSTALL(FILES ${MAN1_TEST} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesTest)
-
-macro(MARIADB_SYMLINK_MANPAGE)
-  list(LENGTH MARIADB_SYMLINK_TOS _len)
-  math(EXPR _listlen "${_len}-1")
-
-  foreach(_index RANGE ${_listlen})
-    list(GET MARIADB_SYMLINK_TOS ${_index} _name)
-
-    set(_manname "${_name}")
-    list(FIND MAN1_SERVER ${_manname}.1 _iman1server)
-    list(FIND MAN8_SERVER ${_manname}.8 _iman8server)
-    list(FIND MAN1_CLIENT ${_manname}.1 _iman1client)
-    list(FIND MAN1_DEVEL ${_manname}.1 _iman1devel)
-    list(FIND MAN1_TEST ${_manname}.1 _iman1test)
-
-    if (${_iman1client} GREATER -1)
-      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesClient)
-    endif()
-    if (${_iman1devel} GREATER -1)
-      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesDevelopment)
-    endif()
-    if (${_iman1test} GREATER -1)
-      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesTest)
-    endif()
-    if (WITHOUT_SERVER)
-	    continue()
-    endif()
-    if (${_iman1server} GREATER -1)
-      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesServer)
-    endif()
-    if (${_iman8server} GREATER -1)
-      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 8 "man8" ManPagesServer)
-    endif()
-  endforeach(_index)
-endmacro(MARIADB_SYMLINK_MANPAGE)
-
-macro(MARIADB_SYMLINK_MANPAGE_CREATE mysqlname index mannr dir comp)
-  LIST(GET MARIADB_SYMLINK_FROMS ${index} _mariadbname)
-  SET(dest "${CMAKE_CURRENT_BINARY_DIR}/${_mariadbname}.${mannr}")
-  FILE(WRITE ${dest} ".so ${dir}/${mysqlname}.${mannr}")
-  INSTALL(FILES ${dest} DESTINATION ${INSTALL_MANDIR}/${dir} COMPONENT ${comp})
-endmacro(MARIADB_SYMLINK_MANPAGE_CREATE)
-
-MARIADB_SYMLINK_MANPAGE()
+INSTALL_MANPAGES(Client
+  msql2mysql.1 mariadb.1 mariadb-find-rows.1 mariadb-waitpid.1
+  mariadb-dumpslow.1 mariadb-access.1 mariadb-admin.1 mariadb-binlog.1
+  mariadb-check.1 mariadb-dump.1 mariadb-import.1 mariadb-show.1
+  mariadb-slap.1 mytop.1 mariadb-plugin.1 mariadb-embedded.1
+  my_print_defaults.1 mariadb-hotcopy.1 mariadb-setpermission.1
+  mariadb-tzinfo-to-sql.1 mariadb-convert-table-format.1 replace.1
+  mariadb-secure-installation.1 perror.1 resolve_stack_dump.1)
+INSTALL_MANPAGES(Development mariadb_config.1)
+INSTALL_MANPAGES(Test
+  mysql-stress-test.pl.1 mysql-test-run.pl.1 mariadb-client-test.1
+  mariadb-test.1 mariadb-test-embedded.1 mariadb-client-test-embedded.1
+  my_safe_process.1)

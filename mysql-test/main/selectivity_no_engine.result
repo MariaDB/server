@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 #  Engine-agnostic tests for statistics-based selectivity calculations.
 #   - selectivity tests that depend on the engine should go into
@@ -315,6 +316,25 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	1341	test.a.Host,test.a.User,test.a.Password,test.a.Select_priv,test.a.Insert_priv,test.a.Update_priv,test.a.Delete_priv,test.a.Create_priv,test.a.Drop_priv,test.a.Reload_priv,test.a.Shutdown_priv,test.a.Process_priv,test.a.File_priv,test.a.Grant_priv,test.a.References_priv,test.a.Index_priv,test.a.Alter_priv,test.a.Show_db_priv,test.a.Super_priv,test.a.Create_tmp_table_priv,test.a.Lock_tables_priv,test.a.Execute_priv,test.a.Repl_slave_priv,test.a.Repl_client_priv,test.a.Create_view_priv,test.a.Show_view_priv,test.a.Create_routine_priv,test.a.Alter_routine_priv,test.a.Create_user_priv,test.a.Event_priv,test.a.Trigger_priv,test.a.Create_tablespace_priv,test.a.Delete_history_priv,test.a.ssl_type,test.a.ssl_cipher,test.a.x509_issuer,test.a.x509_subject,test.a.max_questions,test.a.max_updates,test.a.max_connections,test.a.max_user_connections,test.a.plugin,test.a.authentication_string,test.a.password_expired,test.a.is_role,test.a.default_role,test.a.max_statement_time	5	Using where; Using join buffer (flat, BNLH join)
 DROP TABLE t1,t2,t3;
 #
+# MDEV-30529: Assertion `rnd_records <= s->found_records' failed in best_access_path
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b VARCHAR(1), c INT, d VARCHAR(1), e VARCHAR(1), KEY(b), KEY(d), KEY(e)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('x',0,'-','-'),
+('x',0,'-','-'),('x',5,'-','-'),('x',0,'-','-'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'w','-'),('x',0,'-','-'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','u'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'-','t'),('x',0,'-','-'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','p'),
+('x',0,'z','-'),('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','v');
+set @tmp_jcl=@@join_cache_level;
+SET JOIN_CACHE_LEVEL= 3;
+SELECT * FROM t1 JOIN t2 ON t1.a = t2.c WHERE t2.b IN ('o') OR t2.e >= 'f' OR t2.d > 'p';
+a	b	c	d	e
+set join_cache_level=@tmp_jcl;
+drop table t1,t2;
+#
 # MDEV-31199: Assertion `field->table->stats_is_read' fails with hash_join_cardinality=on
 #
 CREATE TABLE t1 (a VARCHAR(255));
@@ -344,3 +364,4 @@ set use_stat_tables= @save_use_stat_tables;
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -1,6 +1,6 @@
 drop procedure if exists check_instrument;
 truncate table performance_schema.events_statements_summary_by_digest;
-flush status;
+flush global status;
 create procedure check_instrument(in instr_name varchar(128))
 begin
 declare save_count_expected integer;
@@ -28,7 +28,7 @@ declare msg_detail varchar(512);
 declare cmd_1 varchar(512);
 declare cmd_2 varchar(512);
 declare done integer default 0;
-declare debug integer default 0;
+declare dbg integer default 0;
 declare pfs_cursor CURSOR FOR
 select table_name from information_schema.tables
 where table_schema= 'performance_schema'
@@ -106,7 +106,7 @@ set count_expected = save_count_expected - count_global_expected;
 end if;
 select concat("Checking table ", pfs_table_name, " ...") as status;
 select concat(cmd_1, pfs_table_name, cmd_2) into @cmd;
-if debug = 1
+if dbg = 1
 then
 select @cmd;
 end if;
@@ -218,10 +218,6 @@ close pfs_cursor;
 signal sqlstate '01000' set message_text='Done', mysql_errno=12000;
 end
 $
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show global variables like "performance_schema%";
 Variable_name	Value
 performance_schema	ON
@@ -255,7 +251,7 @@ performance_schema_max_socket_classes	10
 performance_schema_max_socket_instances	1000
 performance_schema_max_sql_text_length	1024
 performance_schema_max_stage_classes	160
-performance_schema_max_statement_classes	222
+performance_schema_max_statement_classes	227
 performance_schema_max_statement_stack	10
 performance_schema_max_table_handles	1000
 performance_schema_max_table_instances	500

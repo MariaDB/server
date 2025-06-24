@@ -3,6 +3,8 @@ drop table if exists t1;
 # MDEV-32884 Make s3_debug dynamic
 #
 create or replace table t1 (a int, b int, c varchar(1000), key (a), key(c)) engine=aria;
+Warnings:
+Note	1071	Specified key was too long; max key length is 2300 bytes
 insert into t1 select seq, seq+10, repeat(char(65+ mod(seq, 20)),mod(seq,1000)) from seq_1_to_100;
 alter table t1 engine=s3;
 show create table t1;
@@ -12,8 +14,8 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` varchar(1000) DEFAULT NULL,
   KEY `a` (`a`),
-  KEY `c` (`c`)
-) ENGINE=S3 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+  KEY `c` (`c`(575))
+) ENGINE=S3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 select count(*) from t1;
 count(*)
 100

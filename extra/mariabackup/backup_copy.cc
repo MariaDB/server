@@ -41,6 +41,9 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 *******************************************************/
 
 #include <my_global.h>
+#include <my_config.h>
+#include <unireg.h>
+#include <datadict.h>
 #include <os0file.h>
 #include <my_dir.h>
 #include <ut0mem.h>
@@ -67,19 +70,26 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <aclapi.h>
 #endif
 
+#ifdef MYSQL_CLIENT
+#define WAS_MYSQL_CLIENT 1
+#undef MYSQL_CLIENT
+#endif
+
+#include "table.h"
+
+#ifdef WAS_MYSQL_CLIENT
+#define MYSQL_CLIENT 1
+#undef WAS_MYSQL_CLIENT
+#endif
 
 #define ROCKSDB_BACKUP_DIR "#rocksdb"
 
-/* list of files to sync for --rsync mode */
-static std::set<std::string> rsync_list;
 /* locations of tablespaces read from .isl files */
 static std::map<std::string, std::string> tablespace_locations;
 
 /* Whether LOCK BINLOG FOR BACKUP has been issued during backup */
 bool binlog_locked;
 
-static void rocksdb_create_checkpoint();
-static bool has_rocksdb_plugin();
 static void rocksdb_backup_checkpoint(ds_ctxt *ds_data);
 static void rocksdb_copy_back(ds_ctxt *ds_data);
 
@@ -136,12 +146,8 @@ struct datadir_thread_ctxt_t {
 	bool			ret;
 };
 
-static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
-                                      const char *dir_path,
-                                      const char *prefix);
-
 /************************************************************************
-Retirn true if character if file separator */
+Return true if character is file separator */
 bool
 is_path_separator(char c)
 {
@@ -586,7 +592,6 @@ datafile_read(datafile_cur_t *cursor)
 Check to see if a file exists.
 Takes name of the file to check.
 @return true if file exists. */
-static
 bool
 file_exists(const char *filename)
 {
@@ -602,7 +607,6 @@ file_exists(const char *filename)
 
 /************************************************************************
 Trim leading slashes from absolute path so it becomes relative */
-static
 const char *
 trim_dotslash(const char *path)
 {
@@ -635,7 +639,7 @@ ends_with(const char *str, const char *suffix)
 	       && strcmp(str + str_len - suffix_len, suffix) == 0);
 }
 
-static bool starts_with(const char *str, const char *prefix)
+bool starts_with(const char *str, const char *prefix)
 {
 	return strncmp(str, prefix, strlen(prefix)) == 0;
 }
@@ -786,7 +790,6 @@ directory_exists_and_empty(const char *dir, const char *comment)
 /************************************************************************
 Check if file name ends with given set of suffixes.
 @return true if it does. */
-static
 bool
 filename_matches(const char *filename, const char **ext_list)
 {
@@ -801,6 +804,117 @@ filename_matches(const char *filename, const char **ext_list)
 	return(false);
 }
 
+// TODO: the code can be used to find storage engine of partitions
+/*
+static
+bool is_aria_frm_or_par(const char *path) {
+	if (!ends_with(path, ".frm") && !ends_with(path, ".par"))
+		return false;
+
+	const char *frm_path = path;
+	if (ends_with(path, ".par")) {
+		size_t frm_path_len = strlen(path);
+		DBUG_ASSERT(frm_path_len > strlen("frm"));
+		frm_path = strdup(path);
+		strcpy(const_cast<char *>(frm_path) + frm_path_len - strlen("frm"), "frm");
+	}
+
+	bool result = false;
+	File file;
+	uchar header[40];
+	legacy_db_type dbt;
+
+	if ((file= mysql_file_open(key_file_frm, frm_path, O_RDONLY | O_SHARE, MYF(0)))
+			< 0)
+		goto err;
+
+	if (mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP)))
+		goto err;
+
+	if (!strncmp((char*) header, "TYPE=VIEW\n", 10))
+		goto err;
+
+	if (!is_binary_frm_header(header))
+		goto err;
+
+	dbt = (legacy_db_type)header[3];
+
+	if (dbt == DB_TYPE_ARIA) {
+		result = true;
+	}
+	else if (dbt == DB_TYPE_PARTITION_DB) {
+		MY_STAT state;
+		uchar *frm_image= 0;
+//		uint n_length;
+
+		if (mysql_file_fstat(file, &state, MYF(MY_WME)))
+			goto err;
+
+		if (mysql_file_seek(file, 0, SEEK_SET, MYF(MY_WME)))
+			goto err;
+
+		if (read_string(file, &frm_image, (size_t)state.st_size))
+			goto err;
+
+		dbt = (legacy_db_type)frm_image[61];
+		if (dbt == DB_TYPE_ARIA) {
+			result = true;
+		}
+		my_free(frm_image);
+	}
+
+err:
+	if (file >= 0)
+		mysql_file_close(file, MYF(MY_WME));
+	if (frm_path != path)
+		free(const_cast<char *>(frm_path));
+  return result;
+}
+*/
+
+void parse_db_table_from_file_path(
+	const char *filepath, char *dbname, char *tablename) {
+	dbname[0] = '\0';
+	tablename[0] = '\0';
+	const char *dbname_start = nullptr;
+	const char *tablename_start = filepath;
+	const char *const_ptr;
+	while ((const_ptr = strchr(tablename_start, FN_LIBCHAR)) != NULL) {
+		dbname_start = tablename_start;
+		tablename_start = const_ptr + 1;
+	}
+	if (!dbname_start)
+		return;
+	size_t dbname_len = tablename_start - dbname_start - 1;
+	if (dbname_len >= FN_REFLEN)
+          dbname_len = FN_REFLEN-1;
+	strmake(dbname, dbname_start, dbname_len);
+	strmake(tablename, tablename_start, FN_REFLEN-1);
+	char *ptr;
+	if ((ptr = strchr(tablename, '.')))
+		*ptr = '\0';
+	if ((ptr = strstr(tablename, "#P#")))
+		*ptr = '\0';
+	if ((ptr = strstr(tablename, "#i#")))
+		*ptr = '\0';
+}
+
+bool is_system_table(const char *dbname, const char *tablename)
+{
+	DBUG_ASSERT(dbname);
+	DBUG_ASSERT(tablename);
+
+	Lex_ident_db lex_dbname;
+	Lex_ident_table lex_tablename;
+	lex_dbname.str = dbname;
+	lex_dbname.length = strlen(dbname);
+	lex_tablename.str = tablename;
+	lex_tablename.length = strlen(tablename);
+
+	TABLE_CATEGORY tg = get_table_category(lex_dbname, lex_tablename);
+
+	return (tg == TABLE_CATEGORY_LOG) || (tg == TABLE_CATEGORY_SYSTEM);
+}
 
 /************************************************************************
 Copy data file for backup. Also check if it is allowed to copy by
@@ -811,9 +925,8 @@ static
 bool
 datafile_copy_backup(ds_ctxt *ds_data, const char *filepath, uint thread_n)
 {
-	const char *ext_list[] = {"frm", "isl", "MYD", "MYI", "MAD", "MAI",
-		"MRG", "TRG", "TRN", "ARM", "ARZ", "CSM", "CSV", "opt", "par",
-		NULL};
+       const char *ext_list[] = {".frm", ".isl", ".TRG", ".TRN", ".opt", ".par",
+         NULL};
 
 	/* Get the name and the path for the tablespace. node->name always
 	contains the path (which may be absolute for remote tablespaces in
@@ -831,42 +944,7 @@ datafile_copy_backup(ds_ctxt *ds_data, const char *filepath, uint thread_n)
 
 	if (filename_matches(filepath, ext_list)) {
 		return ds_data->copy_file(filepath, filepath, thread_n);
-	}
-
-	return(true);
-}
-
-
-/************************************************************************
-Same as datafile_copy_backup, but put file name into the list for
-rsync command. */
-static
-bool
-datafile_rsync_backup(const char *filepath, bool save_to_list, FILE *f)
-{
-	const char *ext_list[] = {"frm", "isl", "MYD", "MYI", "MAD", "MAI",
-		"MRG", "TRG", "TRN", "ARM", "ARZ", "CSM", "CSV", "opt", "par",
-		NULL};
-
-	/* Get the name and the path for the tablespace. node->name always
-	contains the path (which may be absolute for remote tablespaces in
-	5.6+). space->name contains the tablespace name in the form
-	"./database/table.ibd" (in 5.5-) or "database/table" (in 5.6+). For a
-	multi-node shared tablespace, space->name contains the name of the first
-	node, but that's irrelevant, since we only need node_name to match them
-	against filters, and the shared tablespace is always copied regardless
-	of the filters value. */
-
-	if (check_if_skip_table(filepath)) {
-		return(true);
-	}
-
-	if (filename_matches(filepath, ext_list)) {
-		fprintf(f, "%s\n", filepath);
-		if (save_to_list) {
-			rsync_list.insert(filepath);
-		}
-	}
+        }
 
 	return(true);
 }
@@ -1005,16 +1083,15 @@ Copy file for backup/restore.
 bool
 ds_ctxt_t::copy_file(const char *src_file_path,
                      const char *dst_file_path,
-                     uint thread_n)
+		     uint thread_n,
+		     bool rewrite)
 {
 	char			 dst_name[FN_REFLEN];
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
 	DBUG_ASSERT(datasink->remove);
-	const char	*dst_path =
-		(xtrabackup_copy_back || xtrabackup_move_back)?
-		dst_file_path : trim_dotslash(dst_file_path);
+	const char	*dst_path = convert_dst(dst_file_path);
 
 	if (!datafile_open(src_file_path, &cursor, thread_n)) {
 		goto error_close;
@@ -1022,7 +1099,7 @@ ds_ctxt_t::copy_file(const char *src_file_path,
 
 	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));
 
-	dstfile = ds_open(this, dst_path, &cursor.statinfo);
+	dstfile = ds_open(this, dst_path, &cursor.statinfo, rewrite);
 	if (dstfile == NULL) {
 		msg(thread_n,"error: "
 			"cannot open the destination stream for %s", dst_name);
@@ -1246,279 +1323,42 @@ cleanup:
 }
 
 
-
-
-static
 bool
-backup_files(ds_ctxt *ds_data, const char *from, bool prep_mode)
+backup_files(ds_ctxt *ds_data, const char *from)
 {
-	char rsync_tmpfile_name[FN_REFLEN];
-	FILE *rsync_tmpfile = NULL;
 	datadir_iter_t *it;
 	datadir_node_t node;
 	bool ret = true;
-
-	if (prep_mode && !opt_rsync) {
-		return(true);
-	}
-
-	if (opt_rsync) {
-		snprintf(rsync_tmpfile_name, sizeof(rsync_tmpfile_name),
-			"%s/%s%d", opt_mysql_tmpdir,
-			"xtrabackup_rsyncfiles_pass",
-			prep_mode ? 1 : 2);
-		rsync_tmpfile = fopen(rsync_tmpfile_name, "w");
-		if (rsync_tmpfile == NULL) {
-			msg("Error: can't create file %s",
-				rsync_tmpfile_name);
-			return(false);
-		}
-	}
-
-	msg("Starting %s non-InnoDB tables and files",
-	       prep_mode ? "prep copy of" : "to backup");
-
+	msg("Starting to backup non-InnoDB tables and files");
 	datadir_node_init(&node);
 	it = datadir_iter_new(from);
-
 	while (datadir_iter_next(it, &node)) {
-
 		if (!node.is_empty_dir) {
-			if (opt_rsync) {
-				ret = datafile_rsync_backup(node.filepath,
-					!prep_mode, rsync_tmpfile);
-			} else {
-				ret = datafile_copy_backup(ds_data, node.filepath, 1);
-			}
+			ret = datafile_copy_backup(ds_data, node.filepath, 1);
 			if (!ret) {
 				msg("Failed to copy file %s", node.filepath);
 				goto out;
 			}
-		} else if (!prep_mode) {
+		} else {
 			/* backup fake file into empty directory */
 			char path[FN_REFLEN];
-			snprintf(path, sizeof(path),
-				 "%s/db.opt", node.filepath);
-			if (!(ret = ds_data->backup_file_printf(
-					trim_dotslash(path), "%s", ""))) {
+			snprintf(path, sizeof(path), "%s/db.opt", node.filepath);
+			if (!(ret = ds_data->backup_file_printf(trim_dotslash(path), "%s", ""))) {
 				msg("Failed to create file %s", path);
 				goto out;
 			}
 		}
 	}
-
-	if (opt_rsync) {
-		std::stringstream cmd;
-		int err;
-
-		if (buffer_pool_filename && file_exists(buffer_pool_filename)) {
-			fprintf(rsync_tmpfile, "%s\n", buffer_pool_filename);
-			rsync_list.insert(buffer_pool_filename);
-		}
-		if (file_exists("ib_lru_dump")) {
-			fprintf(rsync_tmpfile, "%s\n", "ib_lru_dump");
-			rsync_list.insert("ib_lru_dump");
-		}
-
-		fclose(rsync_tmpfile);
-		rsync_tmpfile = NULL;
-
-		cmd << "rsync -t . --files-from=" << rsync_tmpfile_name
-		    << " " << xtrabackup_target_dir;
-
-		msg("Starting rsync as: %s", cmd.str().c_str());
-		if ((err = system(cmd.str().c_str()) && !prep_mode) != 0) {
-			msg("Error: rsync failed with error code %d", err);
-			ret = false;
-			goto out;
-		}
-		msg("rsync finished successfully.");
-
-		if (!prep_mode && !opt_no_lock) {
-			char path[FN_REFLEN];
-			char dst_path[FN_REFLEN];
-			char *newline;
-
-			/* Remove files that have been removed between first and
-			second passes. Cannot use "rsync --delete" because it
-			does not work with --files-from. */
-			snprintf(rsync_tmpfile_name, sizeof(rsync_tmpfile_name),
-				"%s/%s", opt_mysql_tmpdir,
-				"xtrabackup_rsyncfiles_pass1");
-
-			rsync_tmpfile = fopen(rsync_tmpfile_name, "r");
-			if (rsync_tmpfile == NULL) {
-				msg("Error: can't open file %s",
-					rsync_tmpfile_name);
-				ret = false;
-				goto out;
-			}
-
-			while (fgets(path, sizeof(path), rsync_tmpfile)) {
-
-				newline = strchr(path, '\n');
-				if (newline) {
-					*newline = 0;
-				}
-				if (rsync_list.count(path) < 1) {
-					snprintf(dst_path, sizeof(dst_path),
-						"%s/%s", xtrabackup_target_dir,
-						path);
-					msg("Removing %s", dst_path);
-					unlink(dst_path);
-				}
-			}
-
-			fclose(rsync_tmpfile);
-			rsync_tmpfile = NULL;
-		}
-	}
-
-	msg("Finished %s non-InnoDB tables and files",
-	       prep_mode ? "a prep copy of" : "backing up");
-
+	msg("Finished backing up non-InnoDB tables and files");
 out:
 	datadir_iter_free(it);
 	datadir_node_free(&node);
-
-	if (rsync_tmpfile != NULL) {
-		fclose(rsync_tmpfile);
-	}
-
 	return(ret);
 }
 
-
-lsn_t get_current_lsn(MYSQL *connection)
-{
-	static const char lsn_prefix[] = "\nLog sequence number ";
-	lsn_t lsn = 0;
-	if (MYSQL_RES *res = xb_mysql_query(connection,
-					    "SHOW ENGINE INNODB STATUS",
-					    true, false)) {
-		if (MYSQL_ROW row = mysql_fetch_row(res)) {
-			const char *p= strstr(row[2], lsn_prefix);
-			DBUG_ASSERT(p);
-			if (p) {
-				p += sizeof lsn_prefix - 1;
-				lsn = lsn_t(strtoll(p, NULL, 10));
-			}
-		}
-		mysql_free_result(res);
-	}
-	return lsn;
-}
-
-lsn_t server_lsn_after_lock;
-extern void backup_wait_for_lsn(lsn_t lsn);
-/** Start --backup */
-bool backup_start(ds_ctxt *ds_data, ds_ctxt *ds_meta,
-                  CorruptedPages &corrupted_pages)
-{
-	if (!opt_no_lock) {
-		if (opt_safe_slave_backup) {
-			if (!wait_for_safe_slave(mysql_connection)) {
-				return(false);
-			}
-		}
-
-		if (!backup_files(ds_data, fil_path_to_mysql_datadir, true)) {
-			return(false);
-		}
-
-		history_lock_time = time(NULL);
-
-		if (!lock_tables(mysql_connection)) {
-			return(false);
-		}
-		server_lsn_after_lock = get_current_lsn(mysql_connection);
-	}
-
-	if (!backup_files(ds_data, fil_path_to_mysql_datadir, false)) {
-		return(false);
-	}
-
-        if (!backup_files_from_datadir(ds_data, fil_path_to_mysql_datadir,
-	                               "aws-kms-key") ||
-            (aria_log_dir_path &&
-             !backup_files_from_datadir(ds_data,
-                                        aria_log_dir_path,
-                                        "aria_log"))) {
-		return false;
-	}
-
-	if (has_rocksdb_plugin()) {
-		rocksdb_create_checkpoint();
-	}
-
-	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
-	backup_wait_for_lsn(server_lsn_after_lock);
-	DBUG_EXECUTE_FOR_KEY("sleep_after_waiting_for_lsn", {},
-		{
-			ulong milliseconds = strtoul(dbug_val, NULL, 10);
-			msg("sleep_after_waiting_for_lsn");
-			my_sleep(milliseconds*1000UL);
-		});
-
-	corrupted_pages.backup_fix_ddl(ds_data, ds_meta);
-
-	// There is no need to stop slave thread before coping non-Innodb data when
-	// --no-lock option is used because --no-lock option requires that no DDL or
-	// DML to non-transaction tables can occur.
-	if (opt_no_lock) {
-		if (opt_safe_slave_backup) {
-			if (!wait_for_safe_slave(mysql_connection)) {
-				return(false);
-			}
-		}
-	}
-
-	if (opt_slave_info) {
-		lock_binlog_maybe(mysql_connection);
-
-		if (!write_slave_info(ds_data, mysql_connection)) {
-			return(false);
-		}
-	}
-
-	/* The only reason why Galera/binlog info is written before
-	wait_for_ibbackup_log_copy_finish() is that after that call the xtrabackup
-	binary will start streamig a temporary copy of REDO log to stdout and
-	thus, any streaming from innobackupex would interfere. The only way to
-	avoid that is to have a single process, i.e. merge innobackupex and
-	xtrabackup. */
-	if (opt_galera_info) {
-		if (!write_galera_info(ds_data, mysql_connection)) {
-			return(false);
-		}
-	}
-
-	if (opt_binlog_info == BINLOG_INFO_ON) {
-
-		lock_binlog_maybe(mysql_connection);
-		write_binlog_info(ds_data, mysql_connection);
-	}
-
-	if (have_flush_engine_logs && !opt_no_lock) {
-		msg("Executing FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS...");
-		xb_mysql_query(mysql_connection,
-			"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
-	}
-
-	return(true);
-}
-
-/** Release resources after backup_start() */
+/** Release resources after backup_files() */
 void backup_release()
 {
-	/* release all locks */
-	if (!opt_no_lock) {
-		unlock_all(mysql_connection);
-		history_lock_time = 0;
-	} else {
-		history_lock_time = time(NULL) - history_lock_time;
-	}
-
 	if (opt_lock_ddl_per_table) {
 		mdl_unlock_all();
 	}
@@ -1532,11 +1372,11 @@ void backup_release()
 
 static const char *default_buffer_pool_file = "ib_buffer_pool";
 
-/** Finish after backup_start() and backup_release() */
+/** Finish after backup_files() and backup_release() */
 bool backup_finish(ds_ctxt *ds_data)
 {
 	/* Copy buffer pool dump or LRU dump */
-	if (!opt_rsync && opt_galera_info) {
+	if (opt_galera_info) {
 		if (buffer_pool_filename && file_exists(buffer_pool_filename)) {
 			ds_data->copy_file(buffer_pool_filename, default_buffer_pool_file, 0);
 		}
@@ -1562,7 +1402,7 @@ bool backup_finish(ds_ctxt *ds_data)
 		return(false);
 	}
 
-	if (!write_xtrabackup_info(ds_data, mysql_connection, XTRABACKUP_INFO,
+	if (!write_xtrabackup_info(ds_data, mysql_connection, MB_INFO,
 				    opt_history != 0, true)) {
 		return(false);
 	}
@@ -1573,7 +1413,7 @@ bool backup_finish(ds_ctxt *ds_data)
 
 /*
   Drop all empty database directories in the base backup
-  that do not exists in the icremental backup.
+  that do not exist in the incremental backup.
 
   This effectively re-plays all DROP DATABASE statements happened
   in between base backup and incremental backup creation time.
@@ -1618,11 +1458,15 @@ ibx_copy_incremental_over_full()
 	const char *ext_list[] = {"frm", "isl", "MYD", "MYI", "MAD", "MAI",
 		"MRG", "TRG", "TRN", "ARM", "ARZ", "CSM", "CSV", "opt", "par",
 		NULL};
-	const char *sup_files[] = {"xtrabackup_binlog_info",
-				   "xtrabackup_galera_info",
-				   "donor_galera_info",
-				   "xtrabackup_slave_info",
-				   "xtrabackup_info",
+	const char *sup_files[] = {MB_BINLOG_INFO,
+				   MB_GALERA_INFO,
+				   XTRABACKUP_DONOR_GALERA_INFO,
+				   MB_SLAVE_INFO,
+				   MB_INFO,
+				   XTRABACKUP_BINLOG_INFO,
+				   XTRABACKUP_GALERA_INFO,
+				   XTRABACKUP_SLAVE_INFO,
+				   XTRABACKUP_INFO,
 				   "ib_lru_dump",
 				   NULL};
 	datadir_iter_t *it = NULL;
@@ -1926,22 +1770,6 @@ copy_back()
 	if it exists. */
 
 	ds_tmp = ds_create(dst_dir, DS_TYPE_LOCAL);
-	MY_STAT stat_arg;
-	if (!my_stat(LOG_FILE_NAME, &stat_arg, MYF(0)) || !stat_arg.st_size) {
-		/* After completed --prepare, redo log files are redundant.
-		We must delete any redo logs at the destination, so that
-		the database will not jump to a different log sequence number
-		(LSN). */
-
-		char filename[FN_REFLEN];
-		snprintf(filename, sizeof filename, "%s/%s0", dst_dir,
-			 LOG_FILE_NAME_PREFIX);
-		unlink(filename);
-		snprintf(filename, sizeof filename, "%s/%s101", dst_dir,
-			 LOG_FILE_NAME_PREFIX);
-		unlink(filename);
-	}
-
 	if (!(ret = copy_or_move_file(ds_tmp, LOG_FILE_NAME, LOG_FILE_NAME,
 				      dst_dir, 1))) {
 		goto cleanup;
@@ -1976,8 +1804,12 @@ copy_back()
 
 	while (datadir_iter_next(it, &node)) {
 		const char *ext_list[] = {"backup-my.cnf",
-			"xtrabackup_binary", "xtrabackup_binlog_info",
-			"xtrabackup_checkpoints", ".qp", ".pmap", ".tmp",
+			"xtrabackup_binary",
+			MB_BINLOG_INFO,
+			MB_METADATA_FILENAME,
+			XTRABACKUP_BINLOG_INFO,
+			XTRABACKUP_METADATA_FILENAME,
+			".qp", ".pmap", ".tmp",
 			NULL};
 		const char *filename;
 		char c_tmp;
@@ -2184,8 +2016,6 @@ decrypt_decompress()
 
 	it = datadir_iter_new(".", false);
 
-	ut_a(xtrabackup_parallel >= 0);
-
 	ret = run_data_threads(it, decrypt_decompress_thread_func,
 		xtrabackup_parallel ? xtrabackup_parallel : 1);
 
@@ -2207,9 +2037,9 @@ decrypt_decompress()
   Do not copy the Innodb files (ibdata1, redo log files),
   as this is done in a separate step.
 */
-static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
-                                      const char *dir_path,
-                                      const char *prefix)
+bool backup_files_from_datadir(ds_ctxt_t *ds_data,
+                               const char *dir_path,
+                               const char *prefix)
 {
 	os_file_dir_t dir = os_file_opendir(dir_path);
 	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
@@ -2233,10 +2063,6 @@ static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
 			pname = info.name;
 
 		if (!starts_with(pname, prefix))
-			/* For ES exchange the above line with the following code:
-			(!xtrabackup_prepare || !xtrabackup_incremental_dir ||
-				!starts_with(pname, "aria_log")))
-			*/
 			continue;
 
 		if (xtrabackup_prepare && xtrabackup_incremental_dir &&
@@ -2259,7 +2085,7 @@ static int rocksdb_remove_checkpoint_directory()
 	return 0;
 }
 
-static bool has_rocksdb_plugin()
+bool has_rocksdb_plugin()
 {
 	static bool first_time = true;
 	static bool has_plugin= false;
@@ -2306,7 +2132,7 @@ ds_ctxt_t::make_hardlink(const char *from_path, const char *to_path)
 	}
 	else
 	{
-		strncpy(to_path_full, to_path, sizeof(to_path_full)-1);
+		strmake(to_path_full, to_path, sizeof(to_path_full)-1);
 	}
 #ifdef _WIN32
 	return  CreateHardLink(to_path_full, from_path, NULL);
@@ -2383,7 +2209,7 @@ static void rocksdb_lock_checkpoint()
 	MYSQL_ROW r = mysql_fetch_row(res);
 	if (r && r[0] && strcmp(r[0], "1"))
 	{
-		msg("Could not obtain rocksdb checkpont lock.");
+		msg("Could not obtain rocksdb checkpoint lock.");
 		exit(EXIT_FAILURE);
 	}
 	mysql_free_result(res);
@@ -2405,7 +2231,7 @@ static void rocksdb_unlock_checkpoint()
 #define MARIADB_CHECKPOINT_DIR "mariabackup-checkpoint"
 static 	char rocksdb_checkpoint_dir[FN_REFLEN];
 
-static void rocksdb_create_checkpoint()
+void rocksdb_create_checkpoint()
 {
 	MYSQL_RES *result = xb_mysql_query(mysql_connection, "SELECT @@rocksdb_datadir,@@datadir", true, true);
 	MYSQL_ROW row = mysql_fetch_row(result);
@@ -2484,4 +2310,40 @@ static void rocksdb_copy_back(ds_ctxt *ds_data) {
 	}
 	mkdirp(rocksdb_home_dir, 0777, MYF(0));
 	ds_data->copy_or_move_dir(ROCKSDB_BACKUP_DIR, rocksdb_home_dir, xtrabackup_copy_back, xtrabackup_copy_back);
+}
+
+void foreach_file_in_db_dirs(
+	const char *dir_path, std::function<bool(const char *)> func) {
+	DBUG_ASSERT(dir_path);
+
+	datadir_iter_t *it;
+	datadir_node_t node;
+
+	datadir_node_init(&node);
+	it = datadir_iter_new(dir_path);
+
+	while (datadir_iter_next(it, &node))
+		if (!node.is_empty_dir && !func(node.filepath))
+			break;
+
+	datadir_iter_free(it);
+	datadir_node_free(&node);
+}
+
+void foreach_file_in_datadir(
+	const char *dir_path, std::function<bool(const char *)> func)
+{
+	DBUG_ASSERT(dir_path);
+	os_file_dir_t dir = os_file_opendir(dir_path);
+	os_file_stat_t info;
+	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {
+		if (info.type != OS_FILE_TYPE_FILE)
+			continue;
+		const char *pname = strrchr(info.name, IF_WIN('\\', '/'));
+		if (!pname)
+			pname = info.name;
+		if (!func(pname))
+			break;
+	}
+	os_file_closedir(dir);
 }

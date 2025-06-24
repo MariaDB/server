@@ -54,6 +54,7 @@ static inline SHOW_SCOPE show_scope_from_type(enum enum_mysql_show_type type)
     case SHOW_UINT:
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
+    case SHOW_LONGLONG_NOFLUSH:
       return SHOW_SCOPE_GLOBAL;
 
     case SHOW_DOUBLE_STATUS:
@@ -170,12 +171,12 @@ int PFS_system_variable_cache::do_materialize_global(void)
   for (SHOW_VAR *show_var= m_show_var_array.front();
        show_var->value && (show_var != m_show_var_array.end()); show_var++)
   {
-    const char* name= show_var->name;
+    const Lex_ident_sys_var name= Lex_cstring_strlen(show_var->name);
     sys_var *value= (sys_var *)show_var->value;
     assert(value);
 
     if ((m_query_scope == OPT_GLOBAL) &&
-        (!my_strcasecmp(system_charset_info, name, "sql_log_bin")))
+        name.streq("sql_log_bin"_LEX_CSTRING))
     {
       /*
         PLEASE READ:
@@ -665,9 +666,9 @@ bool PFS_status_variable_cache::filter_by_name(const SHOW_VAR *show_var)
   if (show_var->type == SHOW_ARRAY)
   {
     /* The SHOW_ARRAY name is the prefix for the variables in the subarray. */
-    const char *prefix= show_var->name;
+    const Lex_ident_sys_var prefix= Lex_cstring_strlen(show_var->name);
     /* Exclude COM counters if not a SHOW STATUS command. */
-    if (!my_strcasecmp(system_charset_info, prefix, "Com") && !m_show_command)
+    if (prefix.streq("Com"_LEX_CSTRING) && !m_show_command)
       return true;
   }
   else
@@ -679,12 +680,12 @@ bool PFS_status_variable_cache::filter_by_name(const SHOW_VAR *show_var)
       Assume null prefix to ensure that only server-defined slave status
       variables are filtered.
     */
-    const char *name= show_var->name;
-    if (!my_strcasecmp(system_charset_info, name, "Slave_running") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_retried_transactions") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_last_heartbeat") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_received_heartbeats") ||
-        !my_strcasecmp(system_charset_info, name, "Slave_heartbeat_period"))
+    const Lex_ident_sys_var name= Lex_cstring_strlen(show_var->name);
+    if (name.streq("Slave_running"_LEX_CSTRING) ||
+        name.streq("Slave_retried_transactions"_LEX_CSTRING) ||
+        name.streq("Slave_last_heartbeat"_LEX_CSTRING) ||
+        name.streq("Slave_received_heartbeats"_LEX_CSTRING) ||
+        name.streq("Slave_heartbeat_period"_LEX_CSTRING))
     {
       return true;
     }
@@ -734,6 +735,7 @@ bool PFS_status_variable_cache::can_aggregate(enum_mysql_show_type variable_type
     case SHOW_DOUBLE_STATUS:
     case SHOW_HA_ROWS:
     case SHOW_LONG_NOFLUSH:
+    case SHOW_LONGLONG_NOFLUSH:
     case SHOW_SLONG:
     default:
       return false;
@@ -1263,7 +1265,7 @@ void sum_host_status(PFS_client *pfs_host, STATUS_VAR *status_totals)
 
 /*
   Get status totals for this account from active THDs and from totals aggregated
-  from disconnectd threads.
+  from disconnected threads.
 */
 void sum_account_status(PFS_client *pfs_account, STATUS_VAR *status_totals)
 {

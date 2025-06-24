@@ -1,0 +1,96 @@
+#
+# Test that node eviction event is generated in the status file.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Make sure that Galera library has node eviction event reporting.
+--let $galera_version=26.4.14
+--source suite/wsrep/include/check_galera_version.inc
+
+--connection node_1
+CALL mtr.add_suppression("\\[Warning\\] WSREP: evicting member .* ?at .+ permanently from group");
+
+--connection node_2
+CALL mtr.add_suppression("\\[Warning\\] WSREP: handshake with .* ?.+ failed: 'evicted'");
+CALL mtr.add_suppression("\\[ERROR\\] WSREP: exception from gcomm, backend must be restarted: this node has been evicted out of the cluster, gcomm backend restart is required \\(FATAL\\)");
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+CALL mtr.add_suppression("\\[Warning\\] WSREP: evicting member .* ?at .+ permanently from group");
+
+--connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+CALL mtr.add_suppression("\\[Warning\\] WSREP: evicting member .* ?at .+ permanently from group");
+
+# Save original auto_increment_offset values.
+
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--let $node_4=node_4
+--source include/auto_increment_offset_save.inc
+
+# Repeatedly isolate the node from the cluster until it's evicted.
+
+--disable_query_log
+--disable_result_log
+
+--let $evicted = 0
+while (!$evicted)
+{
+    --connection node_2
+
+    --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+    --source include/wait_condition.inc
+
+    --let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+    --source include/wait_condition.inc
+
+    --disable_query_log
+    --disable_result_log
+
+    SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+    --connection node_1
+    --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+    --source include/wait_condition.inc
+
+    --disable_query_log
+    --disable_result_log
+
+    --connection node_2
+    SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+    # As the cluster size doesn't change in case the node is evicted, there is
+    # no good condition to wait for in case the eviction happens, so sleep a bit.
+
+    --sleep 1
+
+    --connection node_1
+    --let $evicted = `SELECT VARIABLE_VALUE != '' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_evs_evict_list'`
+}
+
+--enable_query_log
+--enable_result_log
+
+--connection node_2
+--source include/wsrep_wait_disconnect.inc
+SET GLOBAL wsrep_on = OFF;
+
+# Check the status file to contain the eviction event message.
+
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/mysqld.2/data/status2.json
+--let $assert_text = Node evicted
+--let $assert_select = "status": "evicted"
+--source include/assert_grep.inc
+
+# Re-join the node after restart.
+
+--source include/restart_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--source include/auto_increment_offset_restore.inc

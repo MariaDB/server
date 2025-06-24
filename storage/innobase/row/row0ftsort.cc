@@ -96,6 +96,7 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 0);
 	field->name = NULL;
 	field->prefix_len = 0;
+	field->descending = false;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
@@ -112,6 +113,7 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 1);
 	field->name = NULL;
 	field->prefix_len = 0;
+	field->descending = false;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
@@ -151,6 +153,7 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 2);
 	field->name = NULL;
 	field->prefix_len = 0;
+	field->descending = false;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
@@ -188,7 +191,6 @@ row_fts_psort_info_init(
 	fts_psort_t*		merge_info = NULL;
 	ulint			block_size;
 	ibool			ret = TRUE;
-	bool			encrypted = false;
 	ut_ad(ut_is_2pow(old_zip_size));
 
 	block_size = 3 * srv_sort_buf_size;
@@ -218,10 +220,6 @@ row_fts_psort_info_init(
 	common_info->all_info = psort_info;
 	pthread_cond_init(&common_info->sort_cond, nullptr);
 	common_info->opt_doc_id_size = opt_doc_id_size;
-
-	if (log_tmp_is_encrypted()) {
-		encrypted = true;
-	}
 
 	ut_ad(trx->mysql_thd != NULL);
 	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
@@ -264,7 +262,7 @@ row_fts_psort_info_init(
 
 			/* If tablespace is encrypted, allocate additional buffer for
 			encryption/decryption. */
-			if (encrypted) {
+			if (srv_encrypt_log) {
 				/* Need to align memory for O_DIRECT write */
 				psort_info[j].crypt_block[i] =
 					static_cast<row_merge_block_t*>(
@@ -474,14 +472,12 @@ row_merge_fts_doc_tokenize(
 	ulint		len;
 	row_merge_buf_t* buf;
 	dfield_t*	field;
-	fts_string_t	t_str;
 	ibool		buf_full = FALSE;
-	byte		str_buf[FTS_MAX_WORD_LEN + 1];
+	CharBuffer<FTS_MAX_WORD_LEN> str_buf;
 	ulint		data_size[FTS_NUM_AUX_INDEX];
 	ulint		n_tuple[FTS_NUM_AUX_INDEX];
 	st_mysql_ftparser*	parser;
 
-	t_str.f_n_char = 0;
 	t_ctx->buf_used = 0;
 
 	memset(n_tuple, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
@@ -508,7 +504,7 @@ row_merge_fts_doc_tokenize(
 				row_merge_fts_doc_tokenize_by_parser(doc,
 					parser, t_ctx);
 
-				/* Just indictate we have parsed all the word */
+				/* Just indicate that we have parsed all words */
 				t_ctx->processed_len += 1;
 			}
 
@@ -546,11 +542,8 @@ row_merge_fts_doc_tokenize(
 			continue;
 		}
 
-		t_str.f_len = innobase_fts_casedn_str(
-			doc->charset, (char*) str.f_str, str.f_len,
-			(char*) &str_buf, FTS_MAX_WORD_LEN + 1);
-
-		t_str.f_str = (byte*) &str_buf;
+		str_buf.copy_casedn(doc->charset,
+			LEX_CSTRING{(const char *) str.f_str, str.f_len});
 
 		/* if "cached_stopword" is defined, ignore words in the
 		stopword list */
@@ -568,8 +561,8 @@ row_merge_fts_doc_tokenize(
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */
-		t_ctx->buf_used = fts_select_index(
-			doc->charset, t_str.f_str, t_str.f_len);
+		t_ctx->buf_used = fts_select_index(doc->charset,
+			(const byte*) str_buf.ptr(), str_buf.length());
 
 		buf = sort_buf[t_ctx->buf_used];
 
@@ -583,7 +576,7 @@ row_merge_fts_doc_tokenize(
 				       FTS_NUM_FIELDS_SORT * sizeof *field));
 
 		/* The first field is the tokenized word */
-		dfield_set_data(field, t_str.f_str, t_str.f_len);
+		dfield_set_data(field, str_buf.ptr(), str_buf.length());
 		len = dfield_get_len(field);
 
 		dict_col_copy_type(dict_index_get_nth_col(buf->index, 0), &field->type);
@@ -600,7 +593,7 @@ row_merge_fts_doc_tokenize(
 		variable-length column is less than 128 bytes or the
 		maximum length is less than 256 bytes. */
 
-		/* One variable length column, word with its lenght less than
+		/* One variable length column, word with its length less than
 		fts_max_token_size, add one extra size and one extra byte.
 
 		Since the max length for FTS token now is larger than 255,
@@ -880,7 +873,9 @@ loop:
 	if (t_ctx.rows_added[t_ctx.buf_used] && !processed) {
 		row_merge_buf_sort(buf[t_ctx.buf_used], NULL);
 		row_merge_buf_write(buf[t_ctx.buf_used],
+#ifndef DBUG_OFF
 				    merge_file[t_ctx.buf_used],
+#endif
 				    block[t_ctx.buf_used]);
 
 		if (!row_merge_write(merge_file[t_ctx.buf_used]->fd,
@@ -946,8 +941,11 @@ exit:
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (t_ctx.rows_added[i]) {
 			row_merge_buf_sort(buf[i], NULL);
-			row_merge_buf_write(
-				buf[i], merge_file[i], block[i]);
+			row_merge_buf_write(buf[i],
+#ifndef DBUG_OFF
+					    merge_file[i],
+#endif
+					    block[i]);
 
 			/* Write to temp file, only if records have
 			been flushed to temp file before (offset > 0):
@@ -1278,7 +1276,7 @@ row_fts_insert_tuple(
 		ulint	num_item;
 
 		/* Getting a new word, flush the last position info
-		for the currnt word in fts_node */
+		for the current word in fts_node */
 		if (ib_vector_size(positions) > 0) {
 			fts_cache_node_add_positions(
 				NULL, fts_node, *in_doc_id, positions);

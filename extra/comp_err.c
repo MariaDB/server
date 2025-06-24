@@ -37,7 +37,7 @@
 #define ERRORS_PER_RANGE 1000
 #define MAX_SECTIONS 4
 #define HEADER_LENGTH 32                /* Length of header in errmsg.sys */
-#define ERRMSG_VERSION 4                /* Version number of errmsg.sys */
+#define ERRMSG_VERSION 5                /* Version number of errmsg.sys */
 #define DEFAULT_CHARSET_DIR "../sql/share/charsets"
 #define ER_PREFIX "ER_"
 #define ER_PREFIX2 "MARIA_ER_"
@@ -85,7 +85,6 @@ struct languages
 {
   char *lang_long_name;				/* full name of the language */
   char *lang_short_name;			/* abbreviation of the lang. */
-  char *charset;				/* Character set name */
   struct languages *next_lang;			/* Pointer to next language */
 };
 
@@ -329,7 +328,7 @@ static int create_sys_files(struct languages *lang_head,
                             uint error_count)
 {
   FILE *to;
-  uint csnum= 0, i, row_nr;
+  uint i, row_nr;
   ulong length;
   uchar head[HEADER_LENGTH];
   char outfile[FN_REFLEN], *outfile_end;
@@ -345,16 +344,6 @@ static int create_sys_files(struct languages *lang_head,
   */
   for (tmp_lang= lang_head; tmp_lang; tmp_lang= tmp_lang->next_lang)
   {
-
-    /* setting charset name */
-    if (!(csnum= get_charset_number(tmp_lang->charset, MY_CS_PRIMARY,
-                                    MYF(MY_UTF8_IS_UTF8MB3))))
-    {
-      fprintf(stderr, "Unknown charset '%s' in '%s'\n", tmp_lang->charset,
-	      TXTFILE);
-      DBUG_RETURN(1);
-    }
-
     outfile_end= strxmov(outfile, DATADIRECTORY, 
                          tmp_lang->lang_long_name, NullS);
     if (!my_stat(outfile, &stat_info,MYF(0)))
@@ -410,7 +399,6 @@ static int create_sys_files(struct languages *lang_head,
     int2store(head + 10, max_error);            /* Max error */
     int2store(head + 12, row_nr);
     int2store(head + 14, section_count);
-    head[30]= csnum;
 
     my_fseek(to, 0l, MY_SEEK_SET, MYF(0));
     if (my_fwrite(to, (uchar*) head, HEADER_LENGTH, MYF(MY_WME | MY_FNABP)) ||
@@ -440,7 +428,7 @@ static void clean_up(struct languages *lang_head, struct errors *error_head)
 {
   struct languages *tmp_lang, *next_language;
   struct errors *tmp_error, *next_error;
-  uint count, i;
+  size_t count, i;
 
   if (default_language_changed)
     my_free((void*) default_language);
@@ -450,7 +438,6 @@ static void clean_up(struct languages *lang_head, struct errors *error_head)
     next_language= tmp_lang->next_lang;
     my_free(tmp_lang->lang_short_name);
     my_free(tmp_lang->lang_long_name);
-    my_free(tmp_lang->charset);
     my_free(tmp_lang);
   }
 
@@ -494,7 +481,7 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
   section_start= er_offset;
   section_count= 0;
 
-  if (!(file= my_fopen(file_name, O_RDONLY | O_SHARE, MYF(MY_WME))))
+  if (!(file= my_fopen(file_name, O_RDONLY | O_TEXT | O_SHARE, MYF(MY_WME))))
     DBUG_RETURN(0);
 
   while ((str= fgets(buff, sizeof(buff), file)))
@@ -724,7 +711,7 @@ static struct message *find_message(struct errors *err, const char *lang,
                                     my_bool no_default)
 {
   struct message *tmp, *return_val= 0;
-  uint i, count;
+  size_t i, count;
   DBUG_ENTER("find_message");
 
   count= (err->msg).elements;
@@ -787,12 +774,15 @@ static ha_checksum checksum_format_specifier(const char* msg)
     {
       chksum= my_checksum(chksum, p, 1);
       switch(*p) {
+      case 'c':
       case 'd':
+      case 'i':
+      case 'o':
+      case 'p':
       case 'u':
       case 'x':
+      case 'X':
       case 's':
-      case 'M':
-      case 'T':
         start= 0; /* Not in format specifier anymore */
         break;
       }
@@ -1112,12 +1102,6 @@ static struct languages *parse_charset_string(char *str)
     if (!(new_lang->lang_short_name= get_word(&str)))
       DBUG_RETURN(0);				/* OOM: Fatal error */
     DBUG_PRINT("info", ("short_name: %s", new_lang->lang_short_name));
-
-    /* getting the charset name */
-    str= skip_delimiters(str);
-    if (!(new_lang->charset= get_word(&str)))
-      DBUG_RETURN(0);				/* Fatal error */
-    DBUG_PRINT("info", ("charset: %s", new_lang->charset));
 
     /* skipping space, tab or "," */
     str= skip_delimiters(str);

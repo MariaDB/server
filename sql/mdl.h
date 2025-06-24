@@ -22,13 +22,13 @@
 #include <m_string.h>
 #include <mysql_com.h>
 #include <lf.h>
+#include "lex_ident.h"
 
 class THD;
 
 class MDL_context;
 class MDL_lock;
 class MDL_ticket;
-bool  ok_for_lower_case_names(const char *name);
 
 typedef unsigned short mdl_bitmap_t;
 #define MDL_BIT(A) static_cast<mdl_bitmap_t>(1U << A)
@@ -110,7 +110,8 @@ public:
      @see THD::notify_shared_lock()
    */
   virtual bool notify_shared_lock(MDL_context_owner *in_use,
-                                  bool needs_thr_lock_abort) = 0;
+                                  bool needs_thr_lock_abort,
+                                  bool needs_non_slave_abort) = 0;
 };
 
 /**
@@ -310,7 +311,7 @@ enum enum_mdl_type {
   Statement is modifying data, but will not block MDL_BACKUP_DDL or earlier
   BACKUP stages.
   ALTER TABLE is started with MDL_BACKUP_DDL, but changed to
-  MDL_BACKUP_ALTER_COPY while alter table is copying or modifing data.
+  MDL_BACKUP_ALTER_COPY while alter table is copying or modifying data.
 */
 
 #define MDL_BACKUP_ALTER_COPY enum_mdl_type(12)
@@ -435,7 +436,9 @@ public:
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
-    DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK || ok_for_lower_case_names(db));
+    DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK ||
+                     Lex_ident_fs(db, m_db_name_length).
+                       ok_for_lower_case_names());
   }
   void mdl_key_init(const MDL_key *rhs)
   {
@@ -699,7 +702,17 @@ public:
   */
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
+
+#ifndef DBUG_OFF
+  /**
+    Duration of lock represented by this ticket.
+    Context public. Debug-only.
+  */
 public:
+  enum_mdl_duration m_duration;
+#endif
+  ulonglong m_time;
+
 #ifdef WITH_WSREP
   void wsrep_report(bool debug) const;
 #endif /* WITH_WSREP */
@@ -741,10 +754,12 @@ private:
              , enum_mdl_duration duration_arg
 #endif
             )
-   : m_type(type_arg),
+   :
 #ifndef DBUG_OFF
      m_duration(duration_arg),
 #endif
+     m_time(0),
+     m_type(type_arg),
      m_ctx(ctx_arg),
      m_lock(NULL),
      m_psi(NULL)
@@ -764,13 +779,7 @@ private:
 private:
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
-#ifndef DBUG_OFF
-  /**
-    Duration of lock represented by this ticket.
-    Context private. Debug-only.
-  */
-  enum_mdl_duration m_duration;
-#endif
+
   /**
     Context of the owner of the metadata lock ticket. Externally accessible.
   */

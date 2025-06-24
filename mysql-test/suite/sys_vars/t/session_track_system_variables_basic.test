@@ -125,4 +125,16 @@ SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_s
 --echo # Restoring the original values.
 SET @@global.session_track_system_variables = @global_saved_tmp;
 
---echo # End of tests.
+--echo #
+--echo # MDEV-31609 Send initial values of system variables in first OK packet
+--echo #
+
+enable_session_track_info;
+
+connect foo,localhost,root;
+
+disable_session_track_info;
+connection default;
+disconnect foo;
+
+--echo # End of tests 11.5

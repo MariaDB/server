@@ -8,6 +8,12 @@
 #
 
 select from_unixtime(0);
+select from_unixtime(0.000001);
+select from_unixtime(1);
+
 # check 0 boundary
+
+select unix_timestamp('1969-12-31 14:00:00');
+select unix_timestamp('1969-12-31 14:00:00.000001');
 select unix_timestamp('1969-12-31 14:00:01');
 

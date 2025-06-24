@@ -5,6 +5,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 (a INT);
 create table t2 (a int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t2 VALUES (1);
 SET SESSION debug_dbug="+d,crash_commit_after_log";
 INSERT INTO t2 VALUES (2);

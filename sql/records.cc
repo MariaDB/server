@@ -15,10 +15,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma implementation /* gcc class implementation */
-#endif
-
 /**
   @file
 
@@ -197,8 +193,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->table=table;
   info->sort_info= filesort;
   
-  if ((table->s->tmp_table == INTERNAL_TMP_TABLE) &&
-      !using_addon_fields)
+  if ((table->s->tmp_table == INTERNAL_TMP_TABLE) && !using_addon_fields)
     (void) table->file->extra(HA_EXTRA_MMAP);
   
   if (using_addon_fields)
@@ -400,11 +395,8 @@ static int rr_handle_error(READ_RECORD *info, int error)
 static int rr_quick(READ_RECORD *info)
 {
   int tmp;
-  while ((tmp= info->select->quick->get_next()))
-  {
+  if ((tmp= info->select->quick->get_next()))
     tmp= rr_handle_error(info, tmp);
-    break;
-  }
   return tmp;
 }
 
@@ -427,16 +419,14 @@ static int rr_index_first(READ_RECORD *info)
   int tmp;
   // tell handler that we are doing an index scan
   if ((tmp = info->table->file->prepare_index_scan())) 
-  {
-    tmp= rr_handle_error(info, tmp);
-    return tmp;
-  }
+    goto err;
 
-  tmp= info->table->file->ha_index_first(info->record());
   info->read_record_func= rr_index;
-  if (tmp)
-    tmp= rr_handle_error(info, tmp);
-  return tmp;
+  if (!(tmp= info->table->file->ha_index_first(info->record())))
+    return tmp;
+
+err:
+  return rr_handle_error(info, tmp);
 }
 
 
@@ -455,9 +445,9 @@ static int rr_index_first(READ_RECORD *info)
 
 static int rr_index_last(READ_RECORD *info)
 {
-  int tmp= info->table->file->ha_index_last(info->record());
+  int tmp;
   info->read_record_func= rr_index_desc;
-  if (tmp)
+  if ((tmp= info->table->file->ha_index_last(info->record())))
     tmp= rr_handle_error(info, tmp);
   return tmp;
 }

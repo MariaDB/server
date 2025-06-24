@@ -25,7 +25,6 @@ struct my_rnd_struct {
 
 void my_rnd_init(struct my_rnd_struct *rand_st, ulong seed1, ulong seed2);
 double my_rnd(struct my_rnd_struct *rand_st);
-double my_rnd_ssl(struct my_rnd_struct *rand_st);
 
 C_MODE_END
 

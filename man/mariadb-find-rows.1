@@ -1,0 +1,158 @@
+'\" t
+.\"
+.TH "\fBMARIADB-FIND-ROWS\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-find-rows
+.SH "NAME"
+mariadb-find-rows \- extract SQL statements from files (mariadb-find-rows is now a symlink to mariadb-find-rows)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-find-rows\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIfile_name\fR\fR\fB\ \&.\&.\&.]\fR\ 'u
+\fBmariadb-find-rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\fB \&.\&.\&.]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb-find-rows\fR
+reads files containing SQL statements and extracts statements that match a given regular expression or that contain
+USE \fIdb_name\fR
+or
+SET
+statements\&. The utility was written for use with update log files (as used prior to MySQL 5\&.0) and as such expects statements to be terminated with semicolon (;) characters\&. It may be useful with other files that contain SQL statements as long as statements are terminated with semicolons\&.
+.PP
+Invoke
+\fBmariadb-find-rows\fR
+like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-find-rows [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIfile_name\fR\fR\fB \&.\&.\&.]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Each
+\fIfile_name\fR
+argument should be the name of file containing SQL statements\&. If no file names are given,
+\fBmariadb-find-rows\fR
+reads the standard input\&.
+.PP
+Examples:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb-find-rows \-\-regexp=problem_table \-\-rows=20 < update\&.log
+mariadb-find-rows \-\-regexp=problem_table  update\-log\&.1 update\-log\&.2
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBmariadb-find-rows\fR
+supports the following options:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-find-rows: help option
+.\" help option: mariadb-find-rows
+\fB\-\-help\fR,
+\fB\-\-Information\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-find-rows: regexp option
+.\" regexp option: mariadb-find-rows
+\fB\-\-regexp=\fR\fB\fIpattern\fR\fR
+.sp
+Display queries that match the pattern\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-find-rows: rows option
+.\" rows option: mariadb-find-rows
+\fB\-\-rows=\fR\fB\fIN\fR\fR
+.sp
+Quit after displaying
+\fIN\fR
+queries\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-find-rows: skip-use-db option
+.\" skip-use-db option: mariadb-find-rows
+\fB\-\-skip\-use\-db\fR
+.sp
+Do not include
+USE \fIdb_name\fR
+statements in the output\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-find-rows: start_row option
+.\" start_row option: mariadb-find-rows
+\fB\-\-start_row=\fR\fB\fIN\fR\fR
+.sp
+Start output from this row\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

@@ -145,7 +145,7 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   @param[in] ret return from the failed IO operation
 
   @return  0 - should retry last read/write operation
-           1 - some error has occured
+           1 - some error has occurred
 */
 static int handle_ssl_io_error(Vio *vio, int ret)
 {
@@ -216,7 +216,7 @@ int vio_ssl_close(Vio *vio)
     alert on socket shutdown to avoid truncation attacks. However, this can
     cause problems since we often hold a lock during shutdown and this IO can
     take an unbounded amount of time to complete. Since our packets are self
-    describing with length, we aren't vunerable to these attacks. Therefore,
+    describing with length, we aren't vulnerable to these attacks. Therefore,
     we just shutdown by closing the socket (quiet shutdown).
     */
     SSL_set_quiet_shutdown(ssl, 1); 

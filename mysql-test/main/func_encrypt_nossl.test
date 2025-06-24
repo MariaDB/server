@@ -1,8 +1,8 @@
--- source include/not_ssl.inc
+-- source include/is_embedded.inc
 
 #
 # Test output from des_encrypt and des_decrypt when server is
-# compiled without openssl suuport
+# compiled without openssl support
 #
 select des_encrypt("test", 'akeystr');
 select des_encrypt("test", 1);

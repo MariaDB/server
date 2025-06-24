@@ -6,7 +6,8 @@ call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted at srv0start.cc");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
-CREATE TABLE t1(c TEXT, KEY(c(3072)))ENGINE=InnoDB;
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
+CREATE TABLE t1(c TEXT, KEY(c(3072)))ENGINE=InnoDB CHARSET=latin1;
 DELIMITER |;
 
 CREATE PROCEDURE dorepeat()
@@ -22,7 +23,7 @@ send CALL dorepeat();
 connection default;
 sleep 10;
 let $shutdown_timeout=0;
-let $restart_parameters=--innodb_buffer_pool_size=5242880;
+let $restart_parameters=--innodb_buffer_pool_size=6m;
 --source include/restart_mysqld.inc
 DROP TABLE t1;
 DROP PROCEDURE dorepeat;
@@ -33,22 +34,17 @@ DROP PROCEDURE dorepeat;
 --echo #
 if ($have_debug) {
 SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
-let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug=+d,ibuf_init_corrupt;
+let $restart_parameters=--innodb_buffer_pool_size=6m --debug_dbug=+d,hdr_page_corrupt;
 }
 if (!$have_debug) {
 --echo SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
-let $restart_parameters=--innodb_buffer_pool_size=5242880;
+let $restart_parameters=--innodb_buffer_pool_size=6m;
 }
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 let $restart_noprint=1;
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
-if ($have_debug) {
-let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_PATTERN=\[ERROR\] InnoDB: The change buffer is corrupted or has been removed on upgrade to MariaDB 11.0 or later;
---source include/search_pattern_in_file.inc
-}
 let $restart_noprint=0;
 let $restart_parameters=;
 --source include/restart_mysqld.inc

@@ -330,7 +330,7 @@ not_locked:
 
 		/* We check if entry and rec are identified in the alphabetical
 		ordering */
-		if (0 == cmp_dtuple_rec(entry, rec, offsets)) {
+		if (0 == cmp_dtuple_rec(entry, rec, index, offsets)) {
 			/* The delete marks of rec and prev_version should be
 			equal for rec to be in the state required by
 			prev_version */
@@ -348,7 +348,7 @@ not_locked:
 			dtuple_set_types_binary(
 				entry, dtuple_get_n_fields(entry));
 
-			if (0 != cmp_dtuple_rec(entry, rec, offsets)) {
+			if (cmp_dtuple_rec(entry, rec, index, offsets)) {
 
 				break;
 			}
@@ -402,8 +402,8 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
-	/* The function must not be invoked under lock_sys latch to prevert
-	latching orded violation, i.e. page latch must be acquired before
+	/* The function must not be invoked under lock_sys latch to prevent
+	latching order violation, i.e. page latch must be acquired before
 	lock_sys latch */
 	lock_sys.assert_unlocked();
 	/* The current function can be called from lock_rec_unlock_unmodified()
@@ -522,7 +522,7 @@ row_vers_build_cur_vrow_low(
 	const rec_t*	version;
 	rec_t*		prev_version;
 	mem_heap_t*	heap = NULL;
-	ulint		num_v = dict_table_get_n_v_cols(index->table);
+	const auto	num_v = dict_table_get_n_v_cols(index->table);
 	const dfield_t* field;
 	ulint		i;
 	bool		all_filled = false;

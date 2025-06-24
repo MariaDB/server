@@ -1,0 +1,728 @@
+'\" t
+.\"
+.TH "\fBMARIADB-UPGRADE\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-upgrade
+.\" upgrading MariaDB
+.\" MariaDB: upgrading
+.SH "NAME"
+mariadb-upgrade \- check tables for MariaDB upgrade (mariadb-upgrade is now a symlink to mariadb-upgrade)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-upgrade\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb-upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb-upgrade\fR
+examines all tables in all databases for incompatibilities with the current version of the MariaDB Server\&.
+\fBmariadb-upgrade\fR
+also upgrades the system tables so that you can take advantage of new privileges or capabilities that might have been added\&.
+.PP
+\fBmariadb-upgrade\fR
+should be executed each time you upgrade MariaDB\&.
+.PP
+If a table is found to have a possible incompatibility,
+\fBmariadb-upgrade\fR
+performs a table check\&. If any problems are found, a table repair is attempted\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+On Windows Server 2008 and Windows Vista, you must run
+\fBmariadb-upgrade\fR
+with administrator privileges\&. You can do this by running a Command Prompt as Administrator and running the command\&. Failure to do so may result in the upgrade failing to execute correctly\&.
+.sp .5v
+.RE
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBCaution\fR
+.ps -1
+.br
+.PP
+You should always back up your current MariaDB installation
+\fIbefore\fR
+performing an upgrade\&.
+.sp .5v
+.RE
+.PP
+To use
+\fBmariadb-upgrade\fR, make sure that the server is running, and then invoke it like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-upgrade [\fR\fB\fIoptions\fR\fR\fB]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+After running
+\fBmariadb-upgrade\fR, stop the server and restart it so that any changes made to the system tables take effect\&.
+.PP
+\fBmariadb-upgrade\fR
+executes the following commands to check and repair tables and to upgrade the system tables:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb-check \-\-all\-databases \-\-check\-upgrade \-\-auto\-repair
+mariadb < \fIfix_priv_tables\fR
+mariadb-check \-\-all\-databases \-\-check\-upgrade \-\-fix\-db\-names \-\-fix\-table\-names
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Notes about the preceding commands:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Because
+\fBmariadb-upgrade\fR
+invokes
+\fBmariadb-check\fR
+with the
+\fB\-\-all\-databases\fR
+option, it processes all tables in all databases, which might take a long time to complete\&. Each table is locked and therefore unavailable to other sessions while it is being processed\&. Check and repair operations can be time\-consuming, particularly for large tables\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+For details about what checks the
+\fB\-\-check\-upgrade\fR
+option entails, see the description of the
+FOR UPGRADE
+option of the
+CHECK TABLE
+statement\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIfix_priv_tables\fR
+represents a script generated internally by
+\fBmariadb-upgrade\fR
+that contains SQL statements to upgrade the tables in the
+mysql
+database\&.
+.RE
+.PP
+All checked and repaired tables are marked with the current MariaDB version number\&. This ensures that next time you run
+\fBmariadb-upgrade\fR
+with the same version of the server, it can tell whether there is any need to check or repair the table again\&.
+.\" mariadb-upgrade_info file: mariadb-upgrade
+.\" mariadb-upgrade: mariadb-upgrade_info file
+.PP
+\fBmariadb-upgrade\fR
+also saves the MariaDB version number in a file named
+mariadb-upgrade_info
+in the data directory\&. This is used to quickly check whether all tables have been checked for this release so that table\-checking can be skipped\&. To ignore this file and perform the check regardless, use the
+\fB\-\-force\fR
+option\&.
+.PP
+For this reason, \fBmariadb-upgrade\fR needs to be run as a user with write access to the data directory\&.
+.PP
+If you install MariaDB from RPM packages on Linux, you must install the server and client RPMs\&.
+\fBmariadb-upgrade\fR
+is included in the server RPM but requires the client RPM because the latter includes
+\fBmariadb-check\fR\&.
+.PP
+.PP
+\fBmariadb-upgrade\fR
+supports the following options, which can be specified on the command line or in the
+[mariadb-upgrade]
+and
+[client]
+option file groups\&. Other options are passed to
+\fBmariadb-check\fR\&. For example, it might be necessary to specify the
+\fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR
+option\&.
+\fBmariadb-upgrade\fR
+also supports the options for processing option files\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: help option
+.\" help option: mariadb-upgrade
+\fB\-\-help\fR,
+\fB\-?\fR
+.sp
+Display a short help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: basedir option
+.\" basedir option: mariadb-upgrade
+\fB\-\-basedir=\fR\fB\fIpath\fR\fR
+.sp
+Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: character-sets-dir option
+.\" character-sets-dir option: mariadb-upgrade
+\fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
+.sp
+Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: check-if-upgrade-is-needed option
+.\" check-if-upgrade-is-needed option: mariadb-upgrade
+\fB\-\-check\-if\-upgrade\-is\-needed\fR
+.sp
+Exit with a status code indicating if an upgrade is needed\&. Returns 0 if upgrade needed or current version couldn't be determined, 1 when no action required\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: datadir option
+.\" datadir option: mariadb-upgrade
+\fB\-\-datadir=\fR\fB\fIpath\fR\fR
+.sp
+Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: debug option
+.\" debug option: mariadb-upgrade
+\fB\-\-debug=\fR\fB\fIpath\fR\fR,
+\fB\-# \fIpath\fR\fR
+.sp
+For debug builds, output debug log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: debug-check option
+.\" debug-check option: mariadb-upgrade
+\fB\-\-debug\-check\fR
+.sp
+Print some debugging information when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: debug-info option
+.\" debug-info option: mariadb-upgrade
+\fB\-\-debug\-info\fR,
+\fB\-T\fR
+.sp
+Print debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: default-character-set option
+.\" default-character-set option: mariadb-upgrade
+\fB\-\-default\-character\-set=\fR\fB\fIname\fR\fR
+.sp
+Old option accepted for backward compatibility but ignored\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: force option
+.\" force option: mariadb-upgrade
+\fB\-\-force\fR
+.sp
+Ignore the
+mariadb-upgrade_info
+file and force execution of
+\fBmariadb-check\fR
+even if
+\fBmariadb-upgrade\fR
+has already been executed for the current version of MariaDB\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: host option
+.\" host option: mariadb-upgrade
+\fB\-\-host\fR
+.sp
+Connect to MariaDB on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: password option
+.\" password option: mariadb-upgrade
+\fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
+\fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
+.sp
+The password to use when connecting to the server\&. If you use the short option form (\fB\-p\fR), you
+\fIcannot\fR
+have a space between the option and the password\&. If you omit the
+\fIpassword\fR
+value following the
+\fB\-\-password\fR
+or
+\fB\-p\fR
+option on the command line,
+\fBmariadb-upgrade\fR
+prompts for one\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: port option
+.\" port option: mariadb-upgrade
+\fB\-\-port=\fR\fB\fIport_num\fR\fR,
+\fB\-P \fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use for the connection\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: protocol option
+.\" protocol option: mariadb-upgrade
+\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.sp
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: silent option
+.\" silent option: mariadb-upgrade
+\fB\-\-silent\fR
+.sp
+Print less information\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: socket option
+.\" socket option: mariadb-upgrade
+\fB\-\-socket=\fR\fB\fIpath\fR\fR,
+\fB\-S \fR\fB\fIpath\fR\fR
+.sp
+For connections to
+localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL options
+.\" SSL options: mariadb-upgrade
+\fB\-\-ssl\fR
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with 
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL CA option
+.\" SSL CA option: mariadb-upgrade
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL CA Path option
+.\" SSL CA Path option: mariadb-upgrade
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL Cert option
+.\" SSL Cert option: mariadb-upgrade
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL Cipher option
+.\" SSL Cipher option: mariadb-upgrade
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL Key option
+.\" SSL Key option: mariadb-upgrade
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL Crl option
+.\" SSL CRL option: mariadb-upgrade
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-upgrade
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-upgrade
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: tmpdir option
+.\" tmpdir option: mariadb-upgrade
+\fB\-\-tmpdir=\fR\fB\fIpath\fR\fR,
+\fB\-t \fR\fB\fIpath\fR\fR
+.sp
+The path name of the directory to use for creating temporary files\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: upgrade-system-tables option
+.\" upgrade-system-tables option: mariadb-upgrade
+\fB\-\-upgrade\-system\-tables\fR\fR,
+\fB\-s \fR
+.sp
+Only upgrade the system tables in the mysql database\&. Tables in other databases are not checked or touched\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: user option
+.\" user option: mariadb-upgrade
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR,
+\fB\-u \fR\fB\fIuser_name\fR\fR
+.sp
+The MariaDB user name to use when connecting to the server and not using the current login\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: verbose option
+.\" verbose option: mariadb-upgrade
+\fB\-\-verbose\fR
+.sp
+Display more output about the process\&. Using it twice will print connection 
+arguments; using it 3 times will print out all CHECK, RENAME and ALTER TABLE 
+commands used during the check phase; using it 4 times (added in MariaDB 10.0.14)
+will also write out all mariadb-check commands used; using it 5 times will print all
+the mariadb commands used and their results while running mariadb-fix-privilege-tables script\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: version option
+.\" version option: mariadb-upgrade
+\fB\-\-version\fR,
+\fB\-V\fR
+.sp
+Output version information and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: version-check option
+.\" version-check option: mariadb-upgrade
+\fB\-\-version\-check\fR,
+\fB\-k\fR
+.sp
+Run this program only if its 'server version' matches the version 
+of the server to which it's connecting. Note: the 'server version' 
+of the program is the version of the MariaDB server with which 
+it was built/distributed. Defaults to on; use \fB\-\-skip\-version\-check\fR to disable\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-upgrade: write-binlog option
+.\" write-binlog option: mariadb-upgrade
+\fB\-\-write\-binlog\fR
+.sp
+Cause binary logging to be enabled while
+\fBmariadb-upgrade\fR
+runs\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

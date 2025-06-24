@@ -43,7 +43,7 @@ show create table `a/a`;
 Table	Create Table
 a/a	CREATE TABLE `a/a` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t1 like `a/a`;
 drop table `a/a`;
 drop table `t1`;
@@ -111,7 +111,7 @@ insert into t1 (b) values ("hello"),("my"),("world");
 create table t2 (key (b)) select * from t1;
 explain select * from t2 where b="world";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	B	B	21	const	1	Using index condition
+1	SIMPLE	t2	ref	B	B	81	const	1	Using index condition
 select * from t2 where b="world";
 a	B
 3	world
@@ -128,7 +128,7 @@ drop table t2;
 create table t2 select now() as a , curtime() as b, curdate() as c , 1+1 as d , 1.0 + 1 as e , 33333333333333333 + 3 as f;
 describe t2;
 Field	Type	Null	Key	Default	Extra
-a	datetime	NO		NULL	
+a	timestamp	NO		NULL	
 b	time	NO		NULL	
 c	date	NO		NULL	
 d	int(3)	NO		NULL	
@@ -245,7 +245,7 @@ t1	CREATE TABLE `t1` (
   KEY `b_29` (`b`),
   KEY `b_30` (`b`),
   KEY `b_31` (`b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 select if(1,'1','0'), month("2002-08-02");
 drop table t1;
@@ -263,7 +263,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET SESSION default_storage_engine="gemini";
 ERROR 42000: Unknown storage engine 'gemini'
@@ -275,7 +275,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET SESSION default_storage_engine=default;
 drop table t1;
 create table t1 ( k1 varchar(2), k2 int, primary key(k1,k2));
@@ -350,7 +350,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `id` int(11) NOT NULL,
   `name` char(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t3;
 id	name
 create table if not exists t3 like t1;
@@ -364,7 +364,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TEMPORARY TABLE `t3` (
   `id` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t3;
 id
 drop table t3;
@@ -373,7 +373,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `id` int(11) NOT NULL,
   `name` char(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t3;
 id	name
 drop table t2, t3;
@@ -385,14 +385,14 @@ Table	Create Table
 t3	CREATE TEMPORARY TABLE `t3` (
   `id` int(11) NOT NULL,
   `name` char(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t2 like t3;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `name` char(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2;
 id	name
 create table t3 like t1;
@@ -427,7 +427,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET SESSION default_storage_engine="gemini";
 ERROR 42000: Unknown storage engine 'gemini'
@@ -439,7 +439,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SET SESSION default_storage_engine=default;
 drop table t1;
 create table t1(a int,b int,c int unsigned,d date,e char,f datetime,g time,h blob);
@@ -510,7 +510,7 @@ t2	CREATE TABLE `t2` (
   `ifnull(c_text,       CAST('yet another binary data' AS BINARY))` blob DEFAULT NULL,
   `ifnull(c_mediumtext, CAST('yet another binary data' AS BINARY))` mediumblob DEFAULT NULL,
   `ifnull(c_longtext,   CAST('yet another binary data' AS BINARY))` longblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, l datetime, m enum('a','b'), n set('a','b'), o char(10));
@@ -528,12 +528,12 @@ t2	CREATE TABLE `t2` (
   `ifnull(h,h)` decimal(5,4) DEFAULT NULL,
   `ifnull(i,i)` year(4) DEFAULT NULL,
   `ifnull(j,j)` date DEFAULT NULL,
-  `ifnull(k,k)` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `ifnull(k,k)` timestamp NOT NULL,
   `ifnull(l,l)` datetime DEFAULT NULL,
   `ifnull(m,m)` varchar(1) DEFAULT NULL,
   `ifnull(n,n)` varchar(3) DEFAULT NULL,
   `ifnull(o,o)` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 create table t1(str varchar(10) default 'def',strnull varchar(10),intg int default '10',rel double default '3.14');
 insert into t1 values ('','',0,0.0);
@@ -607,14 +607,14 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `primary` int(11) DEFAULT NULL,
   KEY `primary_2` (`primary`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t2 (`PRIMARY` int, index(`PRIMARY`));
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `PRIMARY` int(11) DEFAULT NULL,
   KEY `PRIMARY_2` (`PRIMARY`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t3 (a int);
 alter table t3 add index `primary` (a);
 ERROR 42000: Incorrect index name 'primary'
@@ -627,7 +627,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `primary` int(11) DEFAULT NULL,
   KEY `primary_2` (`primary`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t5 (`PRIMARY` int);
 alter table t5 add index(`PRIMARY`);
 show create table t5;
@@ -635,7 +635,7 @@ Table	Create Table
 t5	CREATE TABLE `t5` (
   `PRIMARY` int(11) DEFAULT NULL,
   KEY `PRIMARY_2` (`PRIMARY`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2, t3, t4, t5;
 CREATE TABLE t1(id varchar(10) NOT NULL PRIMARY KEY, dsc longtext);
 INSERT INTO t1 VALUES ('5000000001', NULL),('5000000003', 'Test'),('5000000004', NULL);
@@ -706,7 +706,7 @@ Warnings:
 Note	1007	Can't create database 'mysqltest'; database exists
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 drop database mysqltest;
 use test;
 create table t1 (a int);
@@ -723,7 +723,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(112) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t2 (
 a int(11) default NULL
@@ -739,7 +739,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 ( 
@@ -755,7 +755,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `c` int(1) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 ( 
 a varchar(12) charset utf8 collate utf8_bin not null, 
@@ -768,7 +768,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `c` int(1) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 ( 
 a varchar(12) charset utf8 collate utf8_bin not null,
@@ -780,7 +780,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 ( 
 a varchar(12) charset utf8 collate utf8_bin,
@@ -792,7 +792,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2;
 create table t1 ( 
 a1 int not null,
@@ -829,7 +829,7 @@ t2	CREATE TABLE `t2` (
   `b` int(11) DEFAULT 3,
   `a1` int(11) DEFAULT NULL,
   `a2` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2;
 create table t1(a set("a,b","c,d") not null);
 ERROR 22007: Illegal set 'a,b' value found during parsing
@@ -838,19 +838,19 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=4294967295
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=4294967295
 alter table t1 max_rows=100;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=100
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=100
 alter table t1 max_rows=100000000000;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci MAX_ROWS=4294967295
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=4294967295
 drop table t1;
 create table t1 select * from t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
@@ -1083,12 +1083,14 @@ t1	CREATE TABLE `t1` (
   `STAGE` tinyint(2) NOT NULL,
   `MAX_STAGE` tinyint(2) NOT NULL,
   `PROGRESS` decimal(7,3) NOT NULL,
-  `MEMORY_USED` bigint(7) NOT NULL,
-  `MAX_MEMORY_USED` bigint(7) NOT NULL,
-  `EXAMINED_ROWS` int(7) NOT NULL,
-  `QUERY_ID` bigint(4) NOT NULL,
+  `MEMORY_USED` bigint(10) NOT NULL,
+  `MAX_MEMORY_USED` bigint(10) NOT NULL,
+  `EXAMINED_ROWS` bigint(10) NOT NULL,
+  `SENT_ROWS` bigint(10) NOT NULL,
+  `QUERY_ID` bigint(10) NOT NULL,
   `INFO_BINARY` blob,
-  `TID` bigint(4) NOT NULL
+  `TID` bigint(10) NOT NULL,
+  `TMP_SPACE_USED` bigint(10) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;
 create temporary table t1 like information_schema.processlist;
@@ -1107,12 +1109,14 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `STAGE` tinyint(2) NOT NULL,
   `MAX_STAGE` tinyint(2) NOT NULL,
   `PROGRESS` decimal(7,3) NOT NULL,
-  `MEMORY_USED` bigint(7) NOT NULL,
-  `MAX_MEMORY_USED` bigint(7) NOT NULL,
-  `EXAMINED_ROWS` int(7) NOT NULL,
-  `QUERY_ID` bigint(4) NOT NULL,
+  `MEMORY_USED` bigint(10) NOT NULL,
+  `MAX_MEMORY_USED` bigint(10) NOT NULL,
+  `EXAMINED_ROWS` bigint(10) NOT NULL,
+  `SENT_ROWS` bigint(10) NOT NULL,
+  `QUERY_ID` bigint(10) NOT NULL,
   `INFO_BINARY` blob,
-  `TID` bigint(4) NOT NULL
+  `TID` bigint(10) NOT NULL,
+  `TMP_SPACE_USED` bigint(10) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 drop table t1;
 create table t1 like information_schema.character_sets;
@@ -1120,7 +1124,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
+  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
@@ -1139,9 +1143,6 @@ CREATE TABLE t1(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURREN
 SET sql_mode = NO_ZERO_DATE;
 
 CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP DEFAULT 0);
-ERROR 42000: Invalid default value for 'c2'
-
-CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
 ERROR 42000: Invalid default value for 'c2'
 
 # -- Check that NULL column still can be created.
@@ -1183,7 +1184,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT 2008,
   `c2` year(4) DEFAULT 0000
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 INSERT INTO t1 VALUES();
 
@@ -1198,7 +1199,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT 0000,
   `c2` year(4) DEFAULT 0000
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 INSERT INTO t1 VALUES();
 
@@ -1396,12 +1397,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `dt` datetime DEFAULT '2008-02-31 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `dt` datetime DEFAULT '2008-02-31 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set @@sql_mode= @old_mode;
 drop tables t1, t2;
 CREATE TABLE t1 (id int);
@@ -1811,7 +1812,7 @@ t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL,
   `dynamic_cols` blob DEFAULT NULL,
   PRIMARY KEY (`item_name`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (
 n int,
@@ -1828,7 +1829,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `n` int(11) DEFAULT NULL,
   `c` char(32) GENERATED ALWAYS AS (cast(cast(`n` as char charset latin1) as char charset latin1)) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @@session.collation_server=filename;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -2069,3 +2070,91 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 ERROR 42000: Incorrect database name '#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
 SET NAMES DEFAULT;
 # End of 10.5 Test
+#
+# MDEV-35318 Assertion `tl->jtbm_subselect' failed in JOIN::calc_allowed_top_level_tables on 2nd execution of PS
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+PREPARE stmt FROM 'CREATE TABLE tmp AS SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0';
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+DEALLOCATE PREPARE stmt;
+# Now, run the same in SP:
+create procedure sp1()
+begin
+declare i int unsigned default 1;
+declare continue handler for SQLEXCEPTION
+begin
+select 'In Continue handler' as printf;
+end;
+while i <= 3 do
+begin
+select concat('Iteration ', i) as printf;
+CREATE temporary TABLE tmp AS
+SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0 ;
+drop temporary table if exists tmp;
+set i=i+1;
+end;
+end while;
+end|
+call sp1();
+printf
+Iteration 1
+printf
+In Continue handler
+printf
+Iteration 2
+printf
+In Continue handler
+printf
+Iteration 3
+printf
+In Continue handler
+Warnings:
+Note	1051	Unknown table 'test.tmp'
+DROP PROCEDURE sp1;
+DROP TABLE t;
+#
+# MDEV-36057: Assertion failure or unexpected outcome upon 2nd execution
+#             of parameterized PS (continues the above)
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+PREPARE stmt FROM 'UPDATE t SET a = 3 WHERE a IN (SELECT "" UNION SELECT ?)';
+EXECUTE stmt USING 4;
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+EXECUTE stmt USING 4;
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+DROP TABLE t;
+# End of 11.7 Test
+#
+# MDEV-36104 Server crashes when reading information_schema.COLUMNS after creating a table with virtual columns using the GIS data type
+#
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+ERROR HY000: Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+set sql_mode='';
+create table t (a point generated always as (1) stored,b int generated always as (1) virtual);
+Warnings:
+Warning	4078	Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+set sql_mode=default;
+select column_name,column_type from information_schema.columns where table_name='t';
+column_name	column_type
+a	point
+b	int(11)
+Warnings:
+Warning	4078	Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` point GENERATED ALWAYS AS (1) STORED,
+  `b` int(11) GENERATED ALWAYS AS (1) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+Warnings:
+Warning	4078	Cannot cast 'int' as 'point' in assignment of `test`.`t`.`a`
+insert t () values ();
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+alter table t add column c int, drop column a, drop column b;
+drop table t;
+# End of 11.8 Test

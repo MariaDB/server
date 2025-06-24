@@ -151,7 +151,7 @@ String *Item_func_inet6_aton::val_str(String *buffer)
   if ((null_value= tmp.is_null()))
     return NULL;
 
-  Inet4_null ipv4(*tmp.string());
+  Type_handler_inet4::Fbt_null ipv4(*tmp.string());
   if (!ipv4.is_null())
   {
     ipv4.to_binary(buffer);
@@ -190,7 +190,7 @@ String *Item_func_inet6_ntoa::val_str_ascii(String *buffer)
   if ((null_value= tmp.is_null()))
     return NULL;
 
-  Inet4_null ipv4(static_cast<const Binary_string&>(*tmp.string()));
+  Type_handler_inet4::Fbt_null ipv4(static_cast<const Binary_string&>(*tmp.string()));
   if (!ipv4.is_null())
   {
     ipv4.to_string(buffer);
@@ -218,7 +218,7 @@ bool Item_func_is_ipv4::val_bool()
 {
   DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
-  return !tmp.is_null() && !Inet4_null(*tmp.string()).is_null();
+  return !tmp.is_null() && !Type_handler_inet4::Fbt_null(*tmp.string()).is_null();
 }
 
 class IP6 : public Type_handler_inet6::Fbt_null
@@ -246,7 +246,8 @@ bool Item_func_is_ipv6::val_bool()
 {
   DBUG_ASSERT(fixed());
   String_ptr_and_buffer<STRING_BUFFER_USUAL_SIZE> tmp(args[0]);
-  return !tmp.is_null() && !Type_handler_inet6::Fbt_null(*tmp.string()).is_null();
+  return !tmp.is_null() && tmp.string()->strstr(STRING_WITH_LEN(":")) >= 0 &&
+         !Type_handler_inet6::Fbt_null(*tmp.string()).is_null();
 }
 
 /**

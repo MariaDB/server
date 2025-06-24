@@ -27,6 +27,8 @@ id int(10) unsigned NOT NULL AUTO_INCREMENT,
 val int(10) unsigned DEFAULT NULL,
 PRIMARY KEY(id)
 ) ENGINE=Spider COMMENT='table "tbl_a", srv "s_2_1"'
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (val) VALUES (1);
 
 test 1

@@ -51,7 +51,7 @@ bool With_clause::add_with_element(With_element *elem)
   elem->owner= this;
   elem->number= with_list.elements;
   elem->spec->with_element= elem;
-  with_list.link_in_list(elem, &elem->next);
+  with_list.insert(elem, &elem->next);
   return false;
 }
 
@@ -291,8 +291,7 @@ bool With_clause::check_dependencies()
          elem != with_elem;
          elem= elem->next)
     {
-      if (lex_string_cmp(system_charset_info, with_elem->get_name(),
-                         elem->get_name()) == 0)
+      if (with_elem->get_name().streq(elem->get_name()))
       {
         my_error(ER_DUP_QUERY_NAME, MYF(0),
                  with_elem->get_name_str());
@@ -414,8 +413,7 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
   {
     if (excl_spec && with_elem->spec == excl_spec)
       continue;
-    if (my_strcasecmp(system_charset_info, with_elem->get_name_str(),
-                      table->table_name.str) == 0 &&
+    if (with_elem->get_name().streq(table->table_name) &&
         !table->is_fqtn)
     {
       table->set_derived();
@@ -694,7 +692,7 @@ With_element::check_dependencies_in_with_clause(With_clause *with_clause,
 
 /**
   @brief
-    Find mutually recursive with elements and check that they have ancors
+    Find mutually recursive with elements and check that they have anchors
  
   @details
     This method performs the following:
@@ -823,7 +821,7 @@ bool With_clause::check_anchors()
 	    el->work_dep_map|= elem->work_dep_map;          
         }
       }
-      /* If the transitive closure displays any cycle report an arror */
+      /* If the transitive closure displays any cycle report an error */
       elem= with_elem;
       while ((elem= elem->get_next_mutually_recursive()) != with_elem)
       {
@@ -1338,7 +1336,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table,
     /* 
       If sl->master_unit() is the spec of a with element then the search for 
       a definition was already done by With_element::check_dependencies_in_spec
-      and it was unsuccesful. Yet for units cloned from the spec it has not 
+      and it was unsuccessful. Yet for units cloned from the spec it has not
       been done yet.
     */
     With_clause *attached_with_clause= sl->get_with_clause();
@@ -1441,7 +1439,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
   if (!with_elem ||!with_elem->is_recursive)
   {
     /*
-      If this select is not from the specifiocation of a with elememt or
+      If this select is not from the specification of a with elememt or
       if this not a recursive with element then there is nothing to check.
     */
     return false;
@@ -1654,10 +1652,14 @@ void With_clause::print(THD *thd, String *str, enum_query_type query_type)
 }
 
 
-static void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list)
+void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list,
+                              bool bracketed)
 {
   List_iterator_fast<Lex_ident_sys> li(*list);
   bool first= TRUE;
+
+  if (bracketed)
+    str->append('(');
   while(Lex_ident_sys *col_name= li++)
   {
     if (first)
@@ -1666,6 +1668,8 @@ static void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list)
       str->append(',');
     append_identifier(thd, str, col_name);
   }
+  if (bracketed)
+    str->append(')');
 }
 
 
@@ -1686,12 +1690,7 @@ void With_element::print(THD *thd, String *str, enum_query_type query_type)
 {
   str->append(get_name());
   if (column_list.elements)
-  {
-    List_iterator_fast<Lex_ident_sys> li(column_list);
-    str->append('(');
-    list_strlex_print(thd, str, &column_list);
-    str->append(')');
-  }
+    list_strlex_print(thd, str, &column_list, true);
   str->append(STRING_WITH_LEN(" as ("));
   spec->print(str, query_type);
   str->append(')');

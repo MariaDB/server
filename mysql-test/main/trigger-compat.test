@@ -61,23 +61,17 @@ CREATE TRIGGER wl2818_trg1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUE
 # portable and we have to load the file into a table, exclude the definers line,
 # then load the data to an outfile to accomplish the same effect
 
---disable_query_log
 --connection default
 CREATE TABLE patch (a blob);
 let $MYSQLD_DATADIR = `select @@datadir`;
-eval LOAD DATA LOCAL INFILE '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' INTO TABLE patch;
+evalp LOAD DATA LOCAL INFILE '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' INTO TABLE patch;
 # remove original t1.TRG file so SELECT INTO OUTFILE won't fail
 --remove_file $MYSQLD_DATADIR/mysqltest_db1/t1.TRG
---disable_cursor_protocol
---disable_ps2_protocol
-eval SELECT SUBSTRING_INDEX(a,'definers=',1) INTO OUTFILE
+evalp SELECT SUBSTRING_INDEX(a,'definers=',1) INTO OUTFILE
  '$MYSQLD_DATADIR/mysqltest_db1/t1.TRG' 
 FROM patch;
---enable_ps2_protocol
---enable_cursor_protocol
 DROP TABLE patch;
 --connection wl2818_definer_con
---enable_query_log
 
 #
 # Create a new trigger.
@@ -264,7 +258,7 @@ CREATE TABLE t2 ( a INT );
 INSERT INTO t1 VALUES (1), (2), (3);
 INSERT INTO t2 VALUES (1), (2), (3);
 
---echo # We write three trigger files. First trigger is syntaxically incorrect, next trigger is correct
+--echo # We write three trigger files. First trigger is syntactically incorrect, next trigger is correct
 --echo # and last trigger is broken.
 --echo # Next we try to execute SHOW CREATE TRIGGER command for broken trigger and then try to drop one.
 --write_file $MYSQLD_DATADIR/test/tr11.TRN

@@ -29,7 +29,7 @@ size_t pack_row(TABLE* table, MY_BITMAP const* cols,
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-int unpack_row(rpl_group_info *rgi,
+int unpack_row(const rpl_group_info *rgi,
                TABLE *table, uint const colcnt,
                uchar const *const row_data, MY_BITMAP const *cols,
                uchar const **const curr_row_end, ulong *const master_reclength,
@@ -37,7 +37,6 @@ int unpack_row(rpl_group_info *rgi,
 
 // Fill table's record[0] with default values.
 int prepare_record(TABLE *const table, const uint skip, const bool check);
-int fill_extra_persistent_columns(TABLE *table, int master_cols);
 #endif
 
 #endif

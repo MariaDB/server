@@ -18,9 +18,13 @@ SET @scrub= @@GLOBAL.innodb_immediate_scrub_data_uncompressed;
 SET GLOBAL innodb_immediate_scrub_data_uncompressed= 1;
 SET @fpt=@@GLOBAL.innodb_file_per_table;
 SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t ENGINE=InnoDB AS SELECT 1;
 DROP TABLE t;
 SET GLOBAL innodb_file_per_table=@fpt;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TEMPORARY TABLE tmp ENGINE=InnoDB AS SELECT 1;
 DROP TABLE tmp;
 SET GLOBAL INNODB_IMMEDIATE_SCRUB_DATA_UNCOMPRESSED= @scrub;

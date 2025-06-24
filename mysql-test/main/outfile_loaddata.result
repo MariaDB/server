@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS t1, t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Bug#31663 FIELDS TERMINATED BY special character
 #
@@ -268,3 +268,4 @@ LENGTH(a)
 800
 DROP TABLE t1, t2;
 # End of 5.1 tests.
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

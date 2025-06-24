@@ -12,7 +12,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(2)));
@@ -21,7 +21,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(2))
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a));
@@ -30,7 +30,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(120) COLLATE utf8mb3_unicode_nopad_ci, UNIQUE KEY(a(100)));
@@ -39,7 +39,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(120) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   UNIQUE KEY `a` (`a`(100))
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 INSERT INTO t1 VALUES ('ss'),('ß');
 DROP TABLE t1;
 #
@@ -50,26 +50,18 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 INSERT INTO t1 VALUES ('ss'),('ß');
-SET big_tables=0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
-SET big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 SELECT DISTINCT c FROM t1;
 c
 ss
 ß
 DROP TABLE t1;
-SET big_tables=DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 #
 # End of 10.4 tests
 #

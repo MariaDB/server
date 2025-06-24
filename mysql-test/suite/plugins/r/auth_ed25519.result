@@ -27,7 +27,7 @@ PLUGIN_STATUS	ACTIVE
 PLUGIN_TYPE	AUTHENTICATION
 PLUGIN_TYPE_VERSION	2.2
 PLUGIN_LIBRARY	auth_ed25519.so
-PLUGIN_LIBRARY_VERSION	1.14
+PLUGIN_LIBRARY_VERSION	1.15
 PLUGIN_AUTHOR	Sergei Golubchik
 PLUGIN_DESCRIPTION	Elliptic curve ED25519 based authentication
 PLUGIN_LICENSE	GPL
@@ -70,6 +70,20 @@ current_user()
 test1@localhost
 disconnect con1;
 connection default;
+create user test2@localhost identified via ed25519 using PASSWORD('');
+show grants for test2@localhost;
+Grants for test2@localhost
+GRANT USAGE ON *.* TO `test2`@`localhost` IDENTIFIED VIA ed25519 USING '4LH+dBF+G5W2CKTyId8xR3SyDqZoQjUNUVNxx8aWbG4'
+connect con2, localhost, test2,;
+select current_user();
+current_user()
+test2@localhost
+disconnect con2;
+connect(localhost,test2,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con3, localhost, test2, "wrong_pwd";
+ERROR 28000: Access denied for user 'test2'@'localhost' (using password: YES)
+connection default;
+drop user test2@localhost;
 drop user test1@localhost;
 uninstall plugin ed25519;
 select ed25519_password("foo");

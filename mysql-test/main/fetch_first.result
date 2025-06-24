@@ -334,7 +334,7 @@ drop table t_keyword;
 #
 # Test behaviour with a simple select.
 #
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 insert into t1 values
 (1, 'Alice', 'Fowler', 5),
 (2, 'John', 'Doe', 6),
@@ -435,14 +435,62 @@ id	first_name	last_name	score
 7	Bob	Trasc	9
 2	John	Doe	6
 6	John	Elton	8.1
+analyze FORMAT=JSON
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
+offset 2 rows
+fetch first 3 rows only;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 5,
+          "filesort": {
+            "sort_key": "t1.first_name, t1.last_name, t1.score",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_limit": 5,
+            "r_used_priority_queue": true,
+            "r_output_rows": 6,
+            "r_sort_mode": "sort_key,addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 8,
+              "r_rows": 8,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select * from t1
+order by first_name, last_name, score
 offset 2 rows
 fetch first 3 rows only;
 id	first_name	last_name	score
 2	John	Doe	6
 6	John	Elton	8.1
-5	John	Smith	7
+4	John	Smith	6
 select * from t1
 order by first_name, last_name
 offset 2 rows
@@ -454,7 +502,7 @@ id	first_name	last_name	score
 4	John	Smith	6
 5	John	Smith	7
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
 offset 3 rows
 fetch first 3 rows only;
 id	first_name	last_name	score
@@ -701,7 +749,7 @@ drop view v3;
 #
 # Test with ties when an index is used to provide the order by.
 #
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 create index t1_name on t1 (first_name, last_name);
 insert into t1 values
 (1, 'Alice', 'Fowler', 5),
@@ -791,6 +839,14 @@ fetch first 2 rows with ties;
 first_name	last_name
 Alice	Fowler
 Bob	Trasc
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by
 select first_name, last_name
 from t1
 where first_name != 'John'
@@ -815,7 +871,7 @@ select * from temp_table
 order by first_name, last_name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
-2	DERIVED	t1	range	t1_name	t1_name	103	NULL	3	Using where; Using index
+2	DERIVED	t1	range	t1_name	t1_name	206	NULL	3	Using where; Using index for group-by
 with temp_table as (
 select first_name, last_name
 from t1
@@ -1007,12 +1063,12 @@ id	first_name	last_name	score
 3	John	Smith	6
 select * from t1 order by first_name desc fetch first 3 rows with ties;
 id	first_name	last_name	score
-8	Silvia	Ganush	10
-2	John	Doe	6
-3	John	Smith	6
-4	John	Smith	6
-5	John	Smith	7
-6	John	Elton	8.1
+#	Silvia	#	#
+#	John	#	#
+#	John	#	#
+#	John	#	#
+#	John	#	#
+#	John	#	#
 (select * from t1 order by 1 fetch first 3 rows with ties)
 intersect
 (select * from t1 order by first_name desc fetch first 3 rows with ties)
@@ -1399,7 +1455,7 @@ a	b
 3	zzz
 EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 3 ROWS WITH TIES;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t1	index	NULL	a	5	NULL	3	Using temporary
 SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 3 ROWS WITH TIES;
 a	b
 2	foo

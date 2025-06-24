@@ -7,6 +7,7 @@ DROP TRIGGER IF EXISTS trg2;
 set sql_warnings = 0;
 SET @@session.default_storage_engine = 'MyISAM';
 SET optimizer_switch='derived_merge=off';
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create table t1 (a int,
 b int generated always as (-a) virtual,
 c int generated always as (-a) stored,
@@ -146,7 +147,7 @@ count(distinct c)
 3
 explain select count(distinct c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	c	5	NULL	6	Using index for group-by
+1	SIMPLE	t1	range	NULL	c	5	NULL	5	Using index for group-by
 ###
 ### filesort & range-based utils
 ###
@@ -792,18 +793,18 @@ PRIMARY KEY (pk),
 KEY (col_int_key)
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	#	#
-SELECT pk FROM cc WHERE col_int_key > 3;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 pk
 5
 6
 3
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	#	#
-SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 pk
 3
 5
@@ -1155,9 +1156,9 @@ INSERT INTO t1 VALUES(2147483647);
 ALTER TABLE t1 ADD COLUMN h INT AS (a) VIRTUAL;
 ALTER TABLE t1 CHANGE h i INT AS (a) VIRTUAL, ALGORITHM=COPY;
 ALTER TABLE t1 ADD COLUMN b SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+Got one of the listed errors
 ALTER TABLE t1 ADD COLUMN e SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+Got one of the listed errors
 ALTER TABLE t1 ADD COLUMN f SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=SHARED;
 ERROR 22003: Out of range value for column 'f' at row 1
 ALTER TABLE t1 ADD COLUMN g SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=EXCLUSIVE;
@@ -1173,14 +1174,14 @@ c BLOB GENERATED ALWAYS AS (a+b) VIRTUAL,
 UNIQUE KEY i0008 (a)
 );
 INSERT INTO t(a,b) VALUES(1,'cccc');
-EXPLAIN SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
+EXPLAIN SELECT 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
 Warning	1292	Truncated incorrect DECIMAL value: 'cccc'
-SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
+SELECT 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 c
 Warnings:
@@ -1314,27 +1315,26 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1370,27 +1370,26 @@ t	9
 # Test 2: Two alternative covering indexes for the range scan
 #
 ALTER TABLE t3 ADD INDEX v_idx2 (i2_key, i1);
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1428,27 +1427,26 @@ t	9
 #
 # Drop the index with only the virtual column
 ALTER TABLE t3 DROP INDEX v_idx;
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1495,27 +1493,26 @@ VALUES (10,1), (11,1), (12,1), (13,1), (14,1),(15,1), (16,1),(17,1), (18,1),
 (28,1), (29,1);
 # Change the query to read an extra column (t3.i1) making the index
 # non-covering.
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
+EXPLAIN SELECT t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
+SELECT t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o'
   )
@@ -1551,11 +1548,11 @@ t	9	48
 # Test 5: Test where the added primary key to secondary indexes is
 #         used after it has been included in the join buffer
 #
-EXPLAIN SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+EXPLAIN SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
 )
@@ -1566,11 +1563,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; End temporary; Using join buffer (flat, BNL join)
-SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
+SELECT t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
 (
-SELECT /*+ QB_NAME(subq1) */ t4.i1
+SELECT t4.i1
 FROM t4
 WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
 )
@@ -1603,6 +1600,7 @@ t	7
 t	9
 t	9
 DROP TABLE t1, t2, t3, t4;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 SET optimizer_switch='derived_merge=default';
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;

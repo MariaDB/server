@@ -165,7 +165,7 @@ WHERE ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00'
 ORDER BY ts DESC
 LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using index condition
 
 DROP TABLE t1;
 #
@@ -197,7 +197,7 @@ CREATE TABLE t3 (
 c1 TINYTEXT NOT NULL,
 i1 INT NOT NULL,
 KEY (c1(6),i1)
-);
+) CHARSET=latin1;
 INSERT INTO t3 SELECT CONCAT('c-',1000+t2.a,'=w'), 1 FROM t2;
 EXPLAIN
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w';
@@ -454,9 +454,10 @@ c1 INT NOT NULL,
 PRIMARY KEY (pk)
 );
 INSERT INTO t1 VALUES (1,9),(2,7),(3,6),(4,3),(5,1);
+insert into t1 select seq,seq from seq_100_to_110;
 EXPLAIN SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	16	Using where
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 pk	c1
@@ -464,6 +465,17 @@ pk	c1
 2	7
 4	3
 5	1
+100	100
+101	101
+102	102
+103	103
+104	104
+105	105
+106	106
+107	107
+108	108
+109	109
+110	110
 DROP TABLE t1;
 set optimizer_switch= @save_optimizer_switch;
 #
@@ -647,7 +659,7 @@ set optimizer_switch= @tmp_778434;
 #
 # Bug#885168: ICP for one index + potential ORDER BY for another
 #
-CREATE TABLE t1 (a varchar(64), b varchar(10), INDEX(a), INDEX(b)) ;
+CREATE TABLE t1 (a varchar(64), b varchar(10), INDEX(a), INDEX(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES 
 ('Ohio','Iowa'), ('k','d'), ('bdkpj','mbdkpjdanp'), ('d','xdmbdkpjda'),
 ('fkxdmbdkpjdanpje','o'), ('f','Pennsylvan'), ('Virginia','ei');
@@ -679,10 +691,9 @@ DROP TABLE t1;
 #
 # Bug#886145: join with ICP + ORDER BY  
 #
-CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
+CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,4,'Ill');
-insert into t1 select seq+100,5,seq from seq_1_to_100;
-CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
+CREATE TABLE t2 (a varchar(1024), KEY (a(512))) CHARSET=latin1;
 INSERT INTO t2 VALUES
 ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
 insert into t2 select seq from seq_1_to_100;
@@ -697,8 +708,8 @@ EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
 HAVING t1.c != 5 ORDER BY t1.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	#	Using where; Using filesort
-1	SIMPLE	t2	ref	a	a	515	test.t1.a	#	Using where
+1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	#	
+1	SIMPLE	t2	ref	a	a	515	const	#	Using where
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
 HAVING t1.c != 5 ORDER BY t1.c;
 b	c
@@ -708,8 +719,8 @@ EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
 HAVING t1.c != 5 ORDER BY t1.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	#	Using where; Using filesort
-1	SIMPLE	t2	ref	a	a	515	test.t1.a	#	Using where
+1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	#	
+1	SIMPLE	t2	ref	a	a	515	const	#	Using where
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
 HAVING t1.c != 5 ORDER BY t1.c;
 b	c
@@ -821,6 +832,8 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 SET @save_optimize_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on';
+set @save_optimizer_where_cost=@@optimizer_where_cost;
+set @@optimizer_where_cost=1;
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS t, t2
 WHERE c = g
@@ -844,6 +857,7 @@ OR a = 0 AND h < 'z' );
 COUNT(*)
 1478
 SET optimizer_switch=@save_optimizer_switch;
+set @@optimizer_where_cost=@save_optimizer_where_cost;
 DROP TABLE t1,t2;
 # check "Handler_pushed" status varuiables
 CREATE TABLE t1 (
@@ -896,7 +910,7 @@ c1 TEXT       ,
 c2 VARCHAR(2) ,
 INDEX idx1 (c2,c1(2)),
 INDEX idx2 (c2,c1(1))
-);
+) CHARSET=latin1;
 INSERT INTO t1 (c1,c2) VALUES ('aa','x'), ('a' ,'y');
 SELECT * FROM t1 IGNORE INDEX(idx1,idx2) WHERE (c1='aa' AND c2='x') OR (c1='a'  AND c2='y');
 c1	c2
@@ -934,12 +948,12 @@ DROP TABLE t1;
 # Bug#870046: ICP for a GROUP BY query
 #
 CREATE TABLE t1 (a int, b varchar(1), c varchar(1), INDEX idx(b));
-INSERT INTO t1 VALUES (2,'x','x'), (5,'x','y');
+INSERT INTO t1 VALUES (2,'x','x'), (5,'x','y'), (6,'a','b'), (7,'a','b');
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN
 SELECT a, MIN(c) FROM t1 WHERE b = 'x' AND c > 'x' GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx	idx	4	const	2	Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	idx	idx	7	const	2	Using where; Using temporary; Using filesort
 SELECT a, MIN(c) FROM t1 WHERE b = 'x' AND c > 'x' GROUP BY a;
 a	MIN(c)
 5	y
@@ -947,7 +961,7 @@ SET SESSION optimizer_switch='index_condition_pushdown=on';
 EXPLAIN
 SELECT a, MIN(c) FROM t1 WHERE b = 'x' AND c > 'x' GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx	idx	4	const	2	Using index condition; Using where; Using temporary; Using filesort
+1	SIMPLE	t1	ref	idx	idx	7	const	2	Using index condition; Using where; Using temporary; Using filesort
 SELECT a, MIN(c) FROM t1 WHERE b = 'x' AND c > 'x' GROUP BY a;
 a	MIN(c)
 5	y
@@ -1002,12 +1016,12 @@ set optimizer_switch='mrr=off';
 # Must not use ICP:
 explain select * from t1 where a between 5 and 8 order by a desc, col desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	40	Using where
+1	SIMPLE	t1	range	a	a	5	NULL	40	Using index condition
 set optimizer_switch= @tmp_10000051;
 # Must not use ICP:
 explain select * from t1 where a=3 and col > 500 order by a desc, col desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	10	NULL	10	Using where
+1	SIMPLE	t1	range	a	a	10	NULL	10	Using index condition
 drop table t0, t1;
 #
 # MDEV-13628: ORed condition in pushed index condition is not removed from the WHERE

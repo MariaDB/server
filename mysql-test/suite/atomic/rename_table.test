@@ -31,6 +31,7 @@ while ($e < $engine_count)
   let $engine=`select ELT($e, $engines)`;
   let $default_engine=$engine;
   let $extra_option=;
+  let $vector=, v vector(5) not null default x'e360d63ebe554f3fcdbc523f4522193f5236083d', vector index(v);
 
   if ($engine == "aria")
   {
@@ -41,16 +42,20 @@ while ($e < $engine_count)
     let $default_engine="aria";
     let $extra_option=transactional=0;
   }
+  if ($engine == "csv")
+  {
+    let $vector=;
+  }
 
   --eval set @@default_storage_engine=$default_engine
   --eval create table t1 (a int not null) $extra_option;
   --eval create table t2 (b int not null) $extra_option;
   --eval create table t3 (c int not null) $extra_option;
-  --eval create table t4 (d int not null) $extra_option;
+  --eval create table t4 (d int not null $vector) $extra_option;
   insert into t1 values(1);
   insert into t2 values(2);
   insert into t3 values(3);
-  insert into t4 values(4);
+  insert into t4 (d) values(4);
 
   delimiter |;
   create trigger t1_trg before insert on t1 for each row
@@ -121,7 +126,7 @@ while ($e < $engine_count)
       insert into t1 values(null);
       insert into t2 values(null);
       insert into t3 values(null);
-      insert into t4 values(null);
+      insert into t4 (d) values(null);
       let $res=`select (select sum(t1.a) from t1)+ (select sum(t2.b) from t2) + (select sum(t3.c) from t3)+ (select sum(t4.d) from t4)`;
       if ($res != 15010)
       {
@@ -139,7 +144,7 @@ while ($e < $engine_count)
   rename table t1 to t5, t2 to t1, t5 to t2, t4 to t5, t3 to t4;
   insert into t1 values(null);
   insert into t2 values(null);
-  insert into t5 values(null);
+  insert into t5 (d) values(null);
   insert into t4 values(null);
   let $res=`select (select sum(t1.b) from t1)+ (select sum(t2.a) from t2) + (select sum(t4.c) from t4)+ (select sum(t5.d) from t5)`;
   if ($res != 15010)

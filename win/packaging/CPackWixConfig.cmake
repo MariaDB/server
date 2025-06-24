@@ -1,121 +1,92 @@
+cmake_policy(SET CMP0011 NEW)
+cmake_policy(SET CMP0057 NEW)
 
-IF(ESSENTIALS)
- SET(CPACK_COMPONENTS_USED "Server;Client")
- SET(CPACK_WIX_UI "MyWixUI_Mondo")
- IF(CMAKE_SIZEOF_VOID_P MATCHES 8)
-  SET(CPACK_PACKAGE_FILE_NAME  "mariadb-essential-${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}-winx64")
- ELSE()
-  SET(CPACK_PACKAGE_FILE_NAME  "mariadb-essential-${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION}-win32")
- ENDIF()
-ELSE()
-  SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Documentation;Readme;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management;rocksdb-engine;backup;VCCRT")
-ENDIF()
+# Add a component to component-group based install (compare to cmake_add_component)
+macro(add_component compname)
+  if("${compname}" IN_LIST CPACK_COMPONENTS_ALL)
+    list(APPEND COMPONENTS_INSTALL ${compname})
+    string(TOUPPER ${compname} _CPACK_ADDCOMP_UNAME)
+    cmake_parse_arguments(CPACK_COMPONENT_${_CPACK_ADDCOMP_UNAME}
+      "HIDDEN"
+      "DISPLAY_NAME;DESCRIPTION;GROUP"
+      ""
+      ${ARGN}
+    )
+    string(TOUPPER ${CPACK_COMPONENT_${_CPACK_ADDCOMP_UNAME}_GROUP} _UGROUP)
+    if("${CPACK_COMPONENT_GROUP_${_UGROUP}_DISPLAY_NAME}" STREQUAL "")
+      message(FATAL_ERROR "group not found for ${compname}")
+    endif()
+  else()
+    message(STATUS "add_component : ignoring ${compname}, not in CPACK_COMPONENTS_ALL")
+  endif()
+endmacro()
 
-SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
-# Some components like Embedded are optional
-# We will build MSI without embedded if it was not selected for build
-#(need to modify CPACK_COMPONENTS_ALL for that)
-SET(CPACK_ALL)
-FOREACH(comp1 ${CPACK_COMPONENTS_USED})
- SET(found)
- FOREACH(comp2 ${CPACK_COMPONENTS_ALL})
-  IF(comp1 STREQUAL comp2)
-    SET(found 1)
-    BREAK()
-  ENDIF()
- ENDFOREACH()
- IF(found)
-   SET(CPACK_ALL ${CPACK_ALL} ${comp1})
- ENDIF()
-ENDFOREACH()
-SET(CPACK_COMPONENTS_ALL ${CPACK_ALL})
+# Add a group to component-group based install (compare to cmake_add_component_group)
+macro(add_component_group grpname)
+  string(TOUPPER ${grpname} _CPACK_ADDGRP_UNAME)
+  cmake_parse_arguments(CPACK_COMPONENT_GROUP_${_CPACK_ADDGRP_UNAME}
+    "EXPANDED;HIDDEN"
+    "DISPLAY_NAME;DESCRIPTION"
+    ""
+    ${ARGN}
+    )
+endmacro()
 
-# Always install (hidden), includes Readme files
-SET(CPACK_COMPONENT_GROUP_ALWAYSINSTALL_HIDDEN 1)
-SET(CPACK_COMPONENT_README_GROUP "AlwaysInstall")
-SET(CPACK_COMPONENT_COMMON_GROUP "AlwaysInstall")
-SET(CPACK_COMPONENT_VCCRT_GROUP "AlwaysInstall")
+message(STATUS "CPACK_COMPONENTS_ALL=${CPACK_COMPONENTS_ALL}")
+add_component_group(AlwaysInstall HIDDEN
+  DISPLAY_NAME "AlwaysInstall"
+  DESCRIPTION "Always installed components")
 
-# Feature MySQL Server
-SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DISPLAY_NAME "MariaDB Server")
-SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_EXPANDED "1")
-SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DESCRIPTION "Install server")
- # Subfeature "Server" (hidden)
- SET(CPACK_COMPONENT_SERVER_GROUP "MySQLServer")
- SET(CPACK_COMPONENT_SERVER_HIDDEN 1)
- # Subfeature "Client" 
- SET(CPACK_COMPONENT_CLIENT_GROUP "MySQLServer")
- SET(CPACK_COMPONENT_CLIENT_DISPLAY_NAME "Client Programs")
- SET(CPACK_COMPONENT_CLIENT_DESCRIPTION 
-   "Various helpful (commandline) tools including the mysql command line client" )
- # Subfeature "Debug binaries" 
- SET(CPACK_COMPONENT_DEBUGBINARIES_GROUP "MySQLServer")
- SET(CPACK_COMPONENT_DEBUGBINARIES_DISPLAY_NAME "Debug binaries")
- SET(CPACK_COMPONENT_DEBUGBINARIES_DESCRIPTION 
-   "Debug/trace versions of executables and libraries" )
- #SET(CPACK_COMPONENT_DEBUGBINARIES_WIX_LEVEL 2)
+foreach(c Readme Common VCCRT RuntimeDeps)
+  add_component(${c} GROUP AlwaysInstall)
+endforeach()
+
+add_component_group(MySQLServer EXPANDED DISPLAY_NAME "MariaDB Server" DESCRIPTION "Install server")
+add_component(Server
+  GROUP MySQLServer HIDDEN)
+add_component(Client
+  GROUP MySQLServer DISPLAY_NAME "Client Programs"
+  DESCRIPTION "Various helpful (commandline) tools including the command line client")
+add_component(Backup
+  GROUP MySQLServer
+  DISPLAY_NAME "Backup utilities"
+  DESCRIPTION "Installs backup utilities(mariabackup and mbstream)")
  
- # Subfeature "Backup"
- SET(CPACK_COMPONENT_BACKUP_GROUP "MySQLServer")
- SET(CPACK_COMPONENT_BACKUP_DISPLAY_NAME "Backup utilities")
- SET(CPACK_COMPONENT_BACKUP_DESCRIPTION "Installs backup utilities(mariabackup and mbstream)")
+#Miscellaneous hidden components, part of server / or client programs
+foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine
+       hashicorp-key-management)
+  add_component(${comp} GROUP MySQLServer HIDDEN)
+endforeach()
 
- 
- #Miscellaneous (hidden) components, part of server / or client programs
- FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management rocksdb-engine)
-   STRING(TOUPPER "${comp}" comp)
-   SET(CPACK_COMPONENT_${comp}_GROUP "MySQLServer")
-   SET(CPACK_COMPONENT_${comp}_HIDDEN 1)
- ENDFOREACH()
+add_component_group(Devel
+   DISPLAY_NAME "Development components"
+   DESCRIPTION "Installs C/C++ header files and libraries")
+add_component(Development
+   GROUP Devel HIDDEN)
+add_component(SharedLibraries
+   GROUP Devel
+   DISPLAY_NAME "Client C API library (shared)"
+   DESCRIPTION "Installs shared client library")
 
-#Feature "Devel"
-SET(CPACK_COMPONENT_GROUP_DEVEL_DISPLAY_NAME "Development Components")
-SET(CPACK_COMPONENT_GROUP_DEVEL_DESCRIPTION "Installs C/C++ header files and libraries")
- #Subfeature "Development"
- SET(CPACK_COMPONENT_DEVELOPMENT_GROUP "Devel")
- SET(CPACK_COMPONENT_DEVELOPMENT_HIDDEN 1)
- 
- #Subfeature "Shared libraries"
- SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "Devel")
- SET(CPACK_COMPONENT_SHAREDLIBRARIES_DISPLAY_NAME "Client C API library (shared)")
- SET(CPACK_COMPONENT_SHAREDLIBRARIES_DESCRIPTION "Installs shared client library")
- 
- #Subfeature "Embedded"
- SET(CPACK_COMPONENT_EMBEDDED_GROUP "Devel")
- SET(CPACK_COMPONENT_EMBEDDED_DISPLAY_NAME "Embedded server library")
- SET(CPACK_COMPONENT_EMBEDDED_DESCRIPTION "Installs embedded server library")
- SET(CPACK_COMPONENT_EMBEDDED_WIX_LEVEL 2)
+include(${CMAKE_CURRENT_LIST_DIR}/ComponentsIgnore.cmake)
+set(KNOWN_COMPONENTS ${COMPONENTS_IGNORE} ${COMPONENTS_INSTALL})
+foreach(c ${CPACK_COMPONENTS_ALL})
+  if(NOT (${c} IN_LIST KNOWN_COMPONENTS))
+    message(FATAL_ERROR "Component ${c} is not known. Either install it using add_component() macro \
+     or add to COMPONENTS_IGNORE list")
+  endif()
+endforeach()
 
-#Feature Debug Symbols
-SET(CPACK_COMPONENT_GROUP_DEBUGSYMBOLS_DISPLAY_NAME "Debug Symbols")
-SET(CPACK_COMPONENT_GROUP_DEBUGSYMBOLS_DESCRIPTION "Installs Debug Symbols")
-SET(CPACK_COMPONENT_DEBUGSYMBOLS_WIX_LEVEL 2)
- SET(CPACK_COMPONENT_DEBUGINFO_GROUP "DebugSymbols")
- SET(CPACK_COMPONENT_DEBUGINFO_HIDDEN 1)
+set(CPACK_COMPONENTS_ALL ${COMPONENTS_INSTALL})
 
-#Feature Documentation
-SET(CPACK_COMPONENT_DOCUMENTATION_DISPLAY_NAME "Documentation")
-SET(CPACK_COMPONENT_DOCUMENTATION_DESCRIPTION "Installs documentation")
-SET(CPACK_COMPONENT_DOCUMENTATION_WIX_LEVEL 2)
+# Extra things beyond CMake components
+# DBInstance (running mysql_install_db.exe)
+set(WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
 
-#Feature tests
-SET(CPACK_COMPONENT_TEST_DISPLAY_NAME "Tests")
-SET(CPACK_COMPONENT_TEST_DESCRIPTION "Installs unittests (requires Perl to run)")
-SET(CPACK_COMPONENT_TEST_WIX_LEVEL 2)
-
-
-#Feature Misc (hidden, installs only if everything is installed)
-SET(CPACK_COMPONENT_GROUP_MISC_HIDDEN 1)
-SET(CPACK_COMPONENT_GROUP_MISC_WIX_LEVEL 100)
-  SET(CPACK_COMPONENT_INIFILES_GROUP "Misc")
-  SET(CPACK_COMPONENT_SERVER_SCRIPTS_GROUP "Misc")
-
-#Add Firewall exception for mysqld.exe
-SET(bin.mysqld.exe.FILE_EXTRA "
+# Firewall exception for mysqld.exe
+set(bin.mysqld.exe.FILE_EXTRA "
   <FirewallException Id='firewallexception.mysqld.exe' Name='[ProductName]' Scope='any'
        IgnoreFailure='yes' xmlns='http://schemas.microsoft.com/wix/FirewallExtension' 
   />
-  "
-)
+")
 

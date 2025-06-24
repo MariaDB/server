@@ -41,8 +41,7 @@ end |
 call pr(1);
 b
 call pr(2);
-ERROR 42S22: Unknown column 'test.t1.b' in 'SELECT'
-drop table t1;
+a
 set global stored_program_cache=0;
 call pr(1);
 b

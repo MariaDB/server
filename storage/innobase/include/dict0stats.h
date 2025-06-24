@@ -30,84 +30,6 @@ Created Jan 06, 2010 Vasil Dimov
 #include "dict0types.h"
 #include "trx0types.h"
 
-enum dict_stats_upd_option_t {
-	DICT_STATS_RECALC_PERSISTENT,/* (re) calculate the
-				statistics using a precise and slow
-				algo and save them to the persistent
-				storage, if the persistent storage is
-				not present then emit a warning and
-				fall back to transient stats */
-	DICT_STATS_RECALC_TRANSIENT,/* (re) calculate the statistics
-				using an imprecise quick algo
-				without saving the results
-				persistently */
-	DICT_STATS_EMPTY_TABLE,	/* Write all zeros (or 1 where it makes sense)
-				into a table and its indexes' statistics
-				members. The resulting stats correspond to an
-				empty table. If the table is using persistent
-				statistics, then they are saved on disk. */
-	DICT_STATS_FETCH_ONLY_IF_NOT_IN_MEMORY /* fetch the stats
-				from the persistent storage if the in-memory
-				structures have not been initialized yet,
-				otherwise do nothing */
-};
-
-/*********************************************************************//**
-Set the persistent statistics flag for a given table. This is set only
-in the in-memory table object and is not saved on disk. It will be read
-from the .frm file upon first open from MySQL after a server restart. */
-UNIV_INLINE
-void
-dict_stats_set_persistent(
-/*======================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ibool		ps_on,	/*!< in: persistent stats explicitly enabled */
-	ibool		ps_off)	/*!< in: persistent stats explicitly disabled */
-	MY_ATTRIBUTE((nonnull));
-
-/** @return whether persistent statistics is enabled for a given table */
-UNIV_INLINE
-bool
-dict_stats_is_persistent_enabled(const dict_table_t* table)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/*********************************************************************//**
-Set the auto recalc flag for a given table (only honored for a persistent
-stats enabled table). The flag is set only in the in-memory table object
-and is not saved in InnoDB files. It will be read from the .frm file upon
-first open from MySQL after a server restart. */
-UNIV_INLINE
-void
-dict_stats_auto_recalc_set(
-/*=======================*/
-	dict_table_t*	table,			/*!< in/out: table */
-	ibool		auto_recalc_on,		/*!< in: explicitly enabled */
-	ibool		auto_recalc_off);	/*!< in: explicitly disabled */
-
-/** @return whether auto recalc is enabled for a given table*/
-UNIV_INLINE
-bool
-dict_stats_auto_recalc_is_enabled(const dict_table_t* table)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/*********************************************************************//**
-Initialize table's stats for the first time when opening a table. */
-UNIV_INLINE
-void
-dict_stats_init(
-/*============*/
-	dict_table_t*	table);	/*!< in/out: table */
-
-/*********************************************************************//**
-Deinitialize table's stats after the last close of the table. This is
-used to detect "FLUSH TABLE" and refresh the stats upon next open. */
-UNIV_INLINE
-void
-dict_stats_deinit(
-/*==============*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
-
 #ifdef WITH_WSREP
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
@@ -123,19 +45,6 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 	MY_ATTRIBUTE((nonnull));
 # define dict_stats_update_if_needed(t,trx) dict_stats_update_if_needed_func(t)
 #endif
-
-/*********************************************************************//**
-Calculates new estimates for table and index statistics. The statistics
-are used in query optimization.
-@return DB_* error code or DB_SUCCESS */
-dberr_t
-dict_stats_update(
-/*==============*/
-	dict_table_t*		table,	/*!< in/out: table */
-	dict_stats_upd_option_t	stats_upd_option);
-					/*!< in: whether to (re) calc
-					the stats or to fetch them from
-					the persistent storage */
 
 /** Execute DELETE FROM mysql.innodb_table_stats
 @param database_name  database name
@@ -172,6 +81,50 @@ dict_stats_update_for_index(
 /*========================*/
 	dict_index_t*	index)	/*!< in/out: index */
 	MY_ATTRIBUTE((nonnull));
+
+enum dict_stats_schema_check {
+  /** The InnoDB persistent statistics tables do not exist. */
+  SCHEMA_NOT_EXIST= -1,
+  /** The schema of the InnoDB persistent statistics tables is valid. */
+  SCHEMA_OK= 0,
+  /** The schema is invalid. */
+  SCHEMA_INVALID
+};
+
+/** @return whether the persistent statistics storage is usable */
+dict_stats_schema_check
+dict_stats_persistent_storage_check(bool dict_already_locked= false) noexcept;
+
+/** Save the persistent statistics of a table or an index.
+@param table            table whose stats to save
+@param only_for_index   the index ID to save statistics for (0=all)
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id= 0);
+
+/** Read the stored persistent statistics of a table. */
+dberr_t dict_stats_fetch_from_ps(dict_table_t *table);
+
+/**
+Calculate new estimates for table and index statistics. This function
+is relatively quick and is used to calculate non-persistent statistics.
+@param table    table for which the non-persistent statistics are being updated
+@return error code
+@retval DB_SUCCESS_LOCKED REC if the table under bulk insert operation */
+dberr_t dict_stats_update_transient(dict_table_t *table) noexcept;
+
+/**
+Calculate new estimates for table and index statistics. This function
+is slower than dict_stats_update_transient().
+@param table    table for which the persistent statistics are being updated
+@return DB_SUCCESS or error code
+@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
+dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept;
+
+/**
+Try to calculate and save new estimates for persistent statistics.
+If persistent statistics are not enabled for the table or not available,
+this does nothing. */
+dberr_t dict_stats_update_persistent_try(dict_table_t *table);
 
 /** Rename a table in InnoDB persistent stats storage.
 @param old_name  old table name
@@ -218,30 +171,16 @@ dict_stats_save_index_stat(
 	trx_t*		trx)
 	MY_ATTRIBUTE((nonnull(1, 3, 6, 7)));
 
-/** Report an error if updating table statistics failed because
-.ibd file is missing, table decryption failed or table is corrupted.
-@param[in,out]	table	Table
-@param[in]	defragment	true if statistics is for defragment
-@retval DB_DECRYPTION_FAILED if decryption of the table failed
-@retval DB_TABLESPACE_DELETED if .ibd file is missing
-@retval DB_CORRUPTION if table is marked as corrupted */
-dberr_t
-dict_stats_report_error(dict_table_t* table, bool defragment = false)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-#include "dict0stats.inl"
-
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
 void test_dict_stats_all();
 #endif /* UNIV_ENABLE_UNIT_TEST_DICT_STATS */
 
-/** Write all zeros (or 1 where it makes sense) into a table
-and its indexes'statistics members. The resulting stats
-correspond to an empty table.
-@param	table			table stats to be emptied
-@param  empty_defrag_stats	empty the defrag stats */
-void
-dict_stats_empty_table(
-	dict_table_t*	table,
-	bool		empty_defrag_stats);
+/** Write all zeros (or 1 where it makes sense) into a table and its indexes'
+statistics members. The resulting stats correspond to an empty table.
+@param table  table statistics to be emptied */
+void dict_stats_empty_table(dict_table_t *table);
+
+/** Clear the statistics for a table and save them if
+persistent statistics are enabled. */
+void dict_stats_empty_table_and_save(dict_table_t *table);
 #endif /* dict0stats_h */

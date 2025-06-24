@@ -289,7 +289,7 @@ PTDB JDBCDEF::GetTable(PGLOBAL g, MODE m)
 /*  containing the entire result of the executed query. This can be an */
 /*  issue for big tables and memory error can occur. An alternative is */
 /*  to use streaming (reading one row at a time) but to specify this,  */
-/*  a fech size of the integer min value must be send to the driver.   */
+/*  a fetch size of the integer min value must be send to the driver.  */
 /***********************************************************************/
 int JDBCPARM::CheckSize(int rows)
 {

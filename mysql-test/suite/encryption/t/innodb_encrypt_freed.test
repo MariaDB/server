@@ -21,7 +21,7 @@ CREATE TABLE t1(f1 BIGINT PRIMARY KEY, f2 int not null,
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
 CREATE TABLE t2 (f1 int not null)engine=innodb;
-let $restart_parameters=--debug=d,ib_log_checkpoint_avoid;
+let $restart_parameters=--debug-dbug=d,ib_log_checkpoint_avoid;
 --source include/restart_mysqld.inc
 
 # Stop the purge

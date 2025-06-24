@@ -2,9 +2,8 @@
 # This is a copy of innodb-alter.test except using remote tablespaces
 # and showing those files.
 #
-SET @innodb_file_per_table_orig=@@GLOBAL.innodb_file_per_table;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET default_storage_engine=InnoDB;
-SET GLOBAL innodb_file_per_table=ON;
 SET NAMES utf8mb4;
 CREATE TABLE t1 (
 c1 INT PRIMARY KEY, c2 INT DEFAULT 1, ct TEXT,
@@ -1385,8 +1384,8 @@ t1c.ibd
 t1p.ibd
 tt.ibd
 ALTER TABLE t1o CHANGE FTS_DOC_ID foo_id BIGINT UNSIGNED NOT NULL,
-LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try LOCK=SHARED
+ALGORITHM=INPLACE, LOCK=NONE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try ALGORITHM=COPY
 SELECT sc.pos FROM information_schema.innodb_sys_columns sc
 INNER JOIN information_schema.innodb_sys_tables st
 ON sc.TABLE_ID=st.TABLE_ID
@@ -1589,4 +1588,4 @@ DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
 ### files in MYSQL_DATA_DIR/test
 db.opt
 ### files in MYSQL_TMP_DIR/alt_dir/test
-SET GLOBAL innodb_file_per_table = @innodb_file_per_table_orig;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

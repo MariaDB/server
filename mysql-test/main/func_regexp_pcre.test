@@ -43,7 +43,8 @@ INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
 INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
 INSERT INTO t2 VALUES ('\\p{L}'), /* buggy before v10.45 ('\\p{Ll}'),('\\p{Lu}'),*/ ('\\p{L&}');
 INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
-SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+# Use "ORDER BY BINARY" to avoid dependency on the default utf8 collation
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY BINARY class, BINARY ch;
 DROP TABLE t1, t2;
 
 # Checking that UCP is disabled by default for binary data
@@ -195,7 +196,7 @@ SELECT REGEXP_REPLACE('a5b ab a5b','(?<=a)5*(?=b)','x');
 SELECT REGEXP_REPLACE('a5b a5b a5b','(?<=a)5*(?=b)','x');
 
 
-# Check that case sensitiviry respects the collation
+# Check that case sensitivity respects the collation
 SELECT REGEXP_REPLACE('A','a','b');
 SELECT REGEXP_REPLACE('a','A','b');
 SELECT REGEXP_REPLACE('A' COLLATE utf8_bin,'a','b');
@@ -416,7 +417,19 @@ SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this a
 --echo # Testing a warning
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP @regCheck;
+SELECT 0xE001 REGEXP @regCheck COLLATE latin1_bin;
+SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
+
+--echo # Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
+--echo # so a user variable and a literal in the pattern gave equal results
+--echo # But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
+--echo # so the query with a literal is performed as binary:
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
+
+--echo # while the query with a user variable is performed as string
+--echo # with a warning, like in 11.4
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck AS c2;
 
 --echo # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;
@@ -428,7 +441,7 @@ SET NAMES latin1;
 SET @regCheck= _binary '\\xE0\\x01';
 SELECT 0xE001 REGEXP @regCheck;
 
---echo # Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+--echo # Testing workaround N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
 SET NAMES latin1;
 SET @regCheck= '\\xE0\\x01';
 SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;

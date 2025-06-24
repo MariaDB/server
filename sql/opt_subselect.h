@@ -18,10 +18,6 @@
   Semi-join subquery optimization code definitions
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 int check_and_do_in_subquery_rewrites(JOIN *join);
 bool convert_join_subqueries_to_semijoins(JOIN *join);
 int pull_out_semijoin_tables(JOIN *join);
@@ -121,6 +117,7 @@ public:
            bound
         5. But some of the IN-equalities aren't (so this can't be handled by 
            FirstMatch strategy)
+        6. LooseScan strategy is enabled for this SJ nest
     */
     best_loose_scan_cost= DBL_MAX;
     if (!join->emb_sjm_nest && s->emb_sj_nest &&                        // (1)
@@ -131,7 +128,8 @@ public:
         !(remaining_tables & 
           s->emb_sj_nest->nested_join->sj_corr_tables) &&               // (4)
         remaining_tables & s->emb_sj_nest->nested_join->sj_depends_on &&// (5)
-        optimizer_flag(join->thd, OPTIMIZER_SWITCH_LOOSE_SCAN))
+        (s->emb_sj_nest->nested_join->sj_enabled_strategies &           // (6)
+          OPTIMIZER_SWITCH_LOOSE_SCAN))
     {
       /* This table is an LooseScan scan candidate */
       bound_sj_equalities= get_bound_sj_equalities(s->emb_sj_nest, 
@@ -226,15 +224,18 @@ public:
       if (!(found_part & 1 ) && /* no usable ref access for 1st key part */
           s->table->covering_keys.is_set(key))
       {
+        double records, read_time;
         part1_conds_met= TRUE;
+        handler *file= s->table->file;
         DBUG_PRINT("info", ("Can use full index scan for LooseScan"));
         
         /* Calculate the cost of complete loose index scan.  */
-        double records= rows2double(s->table->file->stats.records);
+        records= rows2double(file->stats.records);
 
         /* The cost is entire index scan cost (divided by 2) */
-        double read_time= s->table->file->keyread_time(key, 1,
-                                                       (ha_rows) records);
+        read_time= file->cost(file->ha_keyread_and_copy_time(key, 1,
+                                                             (ha_rows) records,
+                                                             0));
 
         /*
           Now find out how many different keys we will get (for now we
@@ -291,17 +292,29 @@ public:
     }
   }
 
-  void save_to_position(JOIN_TAB *tab, POSITION *pos)
+  void save_to_position(JOIN_TAB *tab, double record_count,
+                        double records_out,
+                        POSITION *pos)
   {
     pos->read_time=       best_loose_scan_cost;
     if (best_loose_scan_cost != DBL_MAX)
     {
+      /*
+        Make sure LooseScan plan doesn't produce more rows than
+        the records_out of other table access method.
+      */
+      set_if_smaller(best_loose_scan_records, records_out);
+
+      pos->loops= record_count;
       pos->records_read=    best_loose_scan_records;
+      pos->records_init=    pos->records_read;
+      pos->records_out=     best_loose_scan_records;
       pos->key=             best_loose_scan_start_key;
       pos->cond_selectivity= 1.0;
       pos->loosescan_picker.loosescan_key=   best_loose_scan_key;
       pos->loosescan_picker.loosescan_parts= best_max_loose_keypart + 1;
       pos->use_join_buffer= FALSE;
+      pos->firstmatch_with_join_buf= FALSE;
       pos->table=           tab;
       pos->range_rowid_filter_info= tab->range_rowid_filter_info;
       pos->ref_depend_map=  best_ref_depend_map;
@@ -320,7 +333,7 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
 void update_sj_state(JOIN *join, const JOIN_TAB *new_tab,
                      uint idx, table_map remaining_tables);
 void restore_prev_sj_state(const table_map remaining_tables, 
-                                  const JOIN_TAB *tab, uint idx);
+                           const JOIN_TAB *tab, uint idx);
 
 void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 

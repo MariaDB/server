@@ -24,7 +24,7 @@ drop table t1;
 --echo # MDEV-32093 long uniques break old->new replication
 --echo #
 
-# this is techically a bug in replication, but it needs an old master
+# this is technically a bug in replication, but it needs an old master
 # so we'll run it as a non-replicated test with BINLOG command
 sync_slave_with_master;
 create table t1 (id int not null, b1 varchar(255) not null, b2 varchar(2550) not null, unique (id), unique key (b1,b2) using hash) default charset utf8mb3;

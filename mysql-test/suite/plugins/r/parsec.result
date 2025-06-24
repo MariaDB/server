@@ -1,0 +1,45 @@
+create user test1@'%' identified via parsec using 'pwd';
+ERROR HY000: Wrong ext-salt format
+create user test1@'%' identified via parsec using PASSWORD('pwd');
+show grants for test1@'%';
+Grants for test1@%
+GRANT USAGE ON *.* TO `test1`@`%` IDENTIFIED VIA parsec USING 'P0:salt:password'
+connect con1, localhost, test1, pwd;
+select 1, USER(), CURRENT_USER();
+1	USER()	CURRENT_USER()
+1	test1@localhost	test1@%
+disconnect con1;
+connect con2, localhost, test1, pwd;
+select 2, USER(), CURRENT_USER();
+2	USER()	CURRENT_USER()
+2	test1@localhost	test1@%
+disconnect con2;
+connect(localhost,test1,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con3, localhost, test1, wrong_pwd;
+ERROR 28000: Access denied for user 'test1'@'localhost' (using password: NO)
+connection default;
+create function have_ssl() returns char(3)
+return (select if(variable_value > '','yes','no') as 'have_ssl'
+  from information_schema.session_status
+where variable_name='ssl_cipher');
+grant execute on test.* to test1@'%';
+# mysql -utest1 -ppwd --ssl-verify-server-cert -e "select test.have_ssl()"
+test.have_ssl()
+yes
+drop function have_ssl;
+drop user test1@'%';
+# MDEV-34854 Parsec sends garbage when using an empty password
+create user test2@'%' identified via parsec using PASSWORD('');
+show grants for test2@'%';
+Grants for test2@%
+GRANT USAGE ON *.* TO `test2`@`%` IDENTIFIED VIA parsec USING 'P0:salt:password'
+connect con4, localhost, test2,;
+select 4, USER(), CURRENT_USER();
+4	USER()	CURRENT_USER()
+4	test2@localhost	test2@%
+disconnect con4;
+connect(localhost,test2,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con5, localhost, test2, "wrong_pwd";
+ERROR 28000: Access denied for user 'test2'@'localhost' (using password: NO)
+connection default;
+drop user test2@'%';

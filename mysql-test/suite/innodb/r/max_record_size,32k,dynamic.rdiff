@@ -1,6 +1,6 @@
 --- max_record_size.result
-+++ max_record_size.reject
-@@ -3,45 +3,351 @@
++++ max_record_size,32k,dynamic.reject
+@@ -4,46 +4,352 @@
  c1 CHAR(255), c2 CHAR(255), c3 CHAR(255), c4 CHAR(255),
  c5 CHAR(255), c6 CHAR(255), c7 CHAR(255), c8 CHAR(255),
  c9 CHAR(255), c10 CHAR(255), c11 CHAR(255), c12 CHAR(255),
@@ -364,3 +364,4 @@
  ) ENGINE=INNODB;
 -ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 +ERROR 42000: Row size too large (> 16318). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+ ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

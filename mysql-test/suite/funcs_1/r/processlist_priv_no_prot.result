@@ -10,6 +10,8 @@ DROP USER ddicttestuser1@'localhost';
 DROP USER ddicttestuser2@'localhost';
 CREATE USER ddicttestuser1@'localhost';
 CREATE USER ddicttestuser2@'localhost';
+GRANT SELECT,UPDATE,DELETE,INSERT,CREATE,CREATE TEMPORARY TABLES,CREATE VIEW,DROP on test.* to ddicttestuser1@'localhost';
+GRANT SELECT,UPDATE,DELETE,INSERT,CREATE,CREATE TEMPORARY TABLES,CREATE VIEW,DROP on test.* to ddicttestuser2@'localhost';
 SET PASSWORD FOR ddicttestuser1@'localhost' = PASSWORD('ddictpass');
 SET PASSWORD FOR ddicttestuser2@'localhost' = PASSWORD('ddictpass');
 ####################################################################################
@@ -36,21 +38,23 @@ PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
   `STAGE` tinyint(2) NOT NULL,
   `MAX_STAGE` tinyint(2) NOT NULL,
   `PROGRESS` decimal(7,3) NOT NULL,
-  `MEMORY_USED` bigint(7) NOT NULL,
-  `MAX_MEMORY_USED` bigint(7) NOT NULL,
-  `EXAMINED_ROWS` int(7) NOT NULL,
-  `QUERY_ID` bigint(4) NOT NULL,
+  `MEMORY_USED` bigint(10) NOT NULL,
+  `MAX_MEMORY_USED` bigint(10) NOT NULL,
+  `EXAMINED_ROWS` bigint(10) NOT NULL,
+  `SENT_ROWS` bigint(10) NOT NULL,
+  `QUERY_ID` bigint(10) NOT NULL,
   `INFO_BINARY` blob,
-  `TID` bigint(4) NOT NULL
+  `TID` bigint(10) NOT NULL,
+  `TMP_SPACE_USED` bigint(10) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 SELECT * FROM processlist  ORDER BY id;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	root	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM processlist  ORDER BY id	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM processlist  ORDER BY id	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	root	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM processlist  ORDER BY id	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM processlist  ORDER BY id	TID	16384
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist  ORDER BY id;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY
 ID	root	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist  ORDER BY id	TIME_MS	0	0	0.000	MEMORY	ROWS	QUERY_ID	SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist  ORDER BY id
@@ -116,19 +120,21 @@ PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
   `STAGE` tinyint(2) NOT NULL,
   `MAX_STAGE` tinyint(2) NOT NULL,
   `PROGRESS` decimal(7,3) NOT NULL,
-  `MEMORY_USED` bigint(7) NOT NULL,
-  `MAX_MEMORY_USED` bigint(7) NOT NULL,
-  `EXAMINED_ROWS` int(7) NOT NULL,
-  `QUERY_ID` bigint(4) NOT NULL,
+  `MEMORY_USED` bigint(10) NOT NULL,
+  `MAX_MEMORY_USED` bigint(10) NOT NULL,
+  `EXAMINED_ROWS` bigint(10) NOT NULL,
+  `SENT_ROWS` bigint(10) NOT NULL,
+  `QUERY_ID` bigint(10) NOT NULL,
   `INFO_BINARY` blob,
-  `TID` bigint(4) NOT NULL
+  `TID` bigint(10) NOT NULL,
+  `TMP_SPACE_USED` bigint(10) NOT NULL
 )  DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM processlist  ORDER BY id;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM processlist  ORDER BY id	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM processlist  ORDER BY id	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM processlist  ORDER BY id	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM processlist  ORDER BY id	TID	0
 SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist  ORDER BY id;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist  ORDER BY id	TIME_MS	0	0	0.000	MEMORY	ROWS	QUERY_ID	SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist  ORDER BY id
@@ -152,6 +158,7 @@ ERROR 42000: Access denied for user 'ddicttestuser1'@'localhost' to database 'in
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 CREATE INDEX i_processlist ON processlist (user);
 ERROR 42000: Access denied for user 'ddicttestuser1'@'localhost' to database 'information_schema'
 DROP TABLE processlist;
@@ -188,12 +195,13 @@ connection con100;
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT PROCESS ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
 ####################################################################################
 4.2 New connection con101 (ddicttestuser1 with PROCESS privilege)
 SHOW/SELECT shows all processes/threads.
@@ -202,16 +210,17 @@ connect  con101,localhost,ddicttestuser1,ddictpass,information_schema;
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT PROCESS ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 5 Grant PROCESS privilege to anonymous user.
 connection default (user=root)
@@ -235,11 +244,11 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID		HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID		HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID		HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 6 Revoke PROCESS privilege from ddicttestuser1
 connection default (user=root)
@@ -255,16 +264,17 @@ ddicttestuser1 are visible.
 SHOW GRANTS;
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 7 Revoke PROCESS privilege from anonymous user
 connection default (user=root)
@@ -281,9 +291,9 @@ SHOW GRANTS FOR ''@'localhost';
 Grants for @localhost
 GRANT USAGE ON *.* TO ``@`localhost`
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID		HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID		HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID		HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID		HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 8 Grant SUPER (does not imply PROCESS) privilege to ddicttestuser1
 connection default (user=root)
@@ -298,6 +308,7 @@ Only the processes of ddicttestuser1 user are visible.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT SUPER ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -305,11 +316,11 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 9 Revoke SUPER privilege from user ddicttestuser1
 connection default (user=root)
@@ -325,6 +336,7 @@ Only the processes of ddicttestuser1 are visible.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -333,12 +345,12 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 10 Grant SUPER privilege with grant option to user ddicttestuser1.
 connection default (user=root)
@@ -353,6 +365,7 @@ Try to grant PROCESS privilege to user ddicttestuser2 without having it.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT SUPER ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1' WITH GRANT OPTION
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
 ERROR 28000: Access denied for user 'ddicttestuser1'@'localhost' (using password: YES)
 ####################################################################################
@@ -369,6 +382,7 @@ Grant PROCESS privilege to user ddicttestuser2
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT PROCESS, SUPER ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1' WITH GRANT OPTION
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
 ####################################################################################
 10.4 New connection con200 (ddicttestuser2 with PROCESS privilege)
@@ -378,6 +392,7 @@ ddicttestuser2 has now the PROCESS privilege and sees all connections
 SHOW GRANTS FOR 'ddicttestuser2'@'localhost';
 Grants for ddicttestuser2@localhost
 GRANT PROCESS ON *.* TO `ddicttestuser2`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser2`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -392,18 +407,18 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID		HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID		HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID		HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID		HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 11 User ddicttestuser1 revokes PROCESS privilege from user ddicttestuser2
 connection ddicttestuser1;
@@ -418,14 +433,15 @@ ddicttestuser2 has no more the PROCESS privilege and can only see own connects
 SHOW GRANTS;
 Grants for ddicttestuser2@localhost
 GRANT USAGE ON *.* TO `ddicttestuser2`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser2`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser2	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser2	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser2	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 11.2 Revoke SUPER,PROCESS,GRANT OPTION privilege from user ddicttestuser1
 connection default (user=root)
@@ -441,6 +457,7 @@ He is also unable to GRANT the PROCESS privilege to ddicttestuser2
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 GRANT PROCESS ON *.* TO 'ddicttestuser2'@'localhost';
 ERROR 28000: Access denied for user 'ddicttestuser1'@'localhost' (using password: YES)
 SHOW processlist;
@@ -454,15 +471,15 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 12 Revoke the SELECT privilege from user ddicttestuser1
 connection default (user=root)
@@ -480,6 +497,7 @@ Therefore the missing SELECT privilege does not affect SELECTs on PROCESSLIST.
 SHOW GRANTS FOR 'ddicttestuser1'@'localhost';
 Grants for ddicttestuser1@localhost
 GRANT USAGE ON *.* TO `ddicttestuser1`@`localhost` IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, CREATE TEMPORARY TABLES, CREATE VIEW ON `test`.* TO `ddicttestuser1`@`localhost`
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
@@ -492,16 +510,16 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	starting	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
-ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	QUERY_ID	INFO_BINARY	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
-ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	ROWS	QUERY_ID	NULL	TID
+ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_USED	MAX_MEMORY_USED	EXAMINED_ROWS	SENT_ROWS	QUERY_ID	INFO_BINARY	TID	TMP_SPACE_USED
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	Filling schema table	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	SELECT * FROM information_schema.processlist	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
+ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS	0	0	0.000	MEMORY	MAX_MEMORY	E_ROWS	S_ROWS	QUERY_ID	NULL	TID	0
 ####################################################################################
 12.2 Revoke only the SELECT privilege on the information_schema from ddicttestuser1.
 connection default (user=root)

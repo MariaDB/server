@@ -56,8 +56,6 @@ struct _ft_vft_ext
 #define FTS_ORDERED_RESULT                (1LL << 1)
 #define FTS_DOCID_IN_RESULT               (1LL << 2)
 
-#define FTS_DOC_ID_COL_NAME "FTS_DOC_ID"
-
 #ifndef FT_CORE
 struct st_ft_info
 {

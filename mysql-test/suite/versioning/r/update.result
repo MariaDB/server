@@ -257,12 +257,16 @@ select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for syste
 x	left(y, 4)	length(y)	check_row(row_start, row_end)
 1	LONG	8192	HISTORICAL ROW
 2	LONG	8192	CURRENT ROW
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 update t1 set y= 'SHORT';
 select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
 x	left(y, 4)	length(y)	check_row(row_start, row_end)
 1	LONG	8192	HISTORICAL ROW
 2	LONG	8192	HISTORICAL ROW
 2	SHOR	5	CURRENT ROW
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 drop tables t1;
 ### Issue tempesta-tech/mariadb#365, bug 7 (duplicate of historical row)
 create or replace table t1 (a int primary key, b int)
@@ -339,6 +343,7 @@ drop table t1;
 # MDEV-21342 Assertion in set_ok_status() upon spatial field error on system-versioned table
 #
 create or replace table t1 (f point, key(f)) with system versioning engine=myisam;
+insert t1 values (null);
 update t1 set f = null where f = 'foo';
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 drop table t1;

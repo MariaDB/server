@@ -11,6 +11,8 @@ create table t2 (c int);
 alter SERVER srv OPTIONS (DATABASE 'test');
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values (1), (2), (3);
 select * from t1;
 c

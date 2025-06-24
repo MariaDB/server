@@ -10,6 +10,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t1 (c int);
 create table t2 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (c INT KEY) ENGINE=Spider;
 LOCK TABLE t2 WRITE;
 LOCK TABLE t3 WRITE;
@@ -19,6 +21,8 @@ drop table t1, t2, t3;
 CREATE TABLE t (c INT) ENGINE=InnoDB;
 CREATE TABLE t1 (c INT) ENGINE=Spider;
 CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 LOCK TABLES t2 WRITE;
 LOCK TABLES t1 READ;
 ERROR HY000: Unable to connect to foreign data source: localhost
@@ -27,6 +31,8 @@ ERROR 42S01: Table 't' already exists
 drop table t, t1, t2;
 CREATE TABLE t (c INT) ENGINE=InnoDB;
 CREATE TABLE t2 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (c INT) ENGINE=InnoDB;
 LOCK TABLES t2 WRITE;
 LOCK TABLES mysql.proc WRITE,mysql.user WRITE;

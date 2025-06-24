@@ -135,7 +135,9 @@ eval CREATE TABLE tbl_a (
     FULLTEXT (words)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (pkey, words) VALUES (0, 'abc'),(1, 'def'),(2, 'ghi'),(3, 'jkl'),(4, 'mno'),(5, 'pqr'),(6, 'stu'),(7, 'vwx');
+--enable_ps_protocol
 
 --echo
 --echo select test

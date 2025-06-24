@@ -23,7 +23,7 @@ Janet	Arthur,Sandra,Peter,John
 #
 # Checking XCOL tables
 #
-CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children';
+CREATE TABLE child ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children';
 SELECT * FROM child;
 mother	children
 Sophia	Vivian
@@ -92,7 +92,7 @@ CREATE TABLE `child2` (
 `num` int NOT NULL SPECIAL=ROWNUM,
 `mother` varchar(12) NOT NULL COMMENT 'The mother of the children',
 `child` varchar(12) NOT NULL COMMENT 'The child name' FLAG=2
-) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist `OPTION_LIST`='colname=child';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=XCOL TABNAME=chlist `OPTION_LIST`='colname=child';
 SELECT * FROM child2;
 row	num	mother	child
 1	1	Sophia	Vivian

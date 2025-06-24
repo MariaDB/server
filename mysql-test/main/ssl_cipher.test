@@ -56,7 +56,7 @@ EOF
 --exec $MYSQL_TEST --ssl-cipher=AES256-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using a list of ciphers
 --exec $MYSQL_TEST --ssl-cipher=UNKNOWN-CIPHER:AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
-# Test to connect using a specifi cipher
+# Test to connect using a specific cipher
 --exec $MYSQL_TEST --ssl-cipher=AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using an unknown cipher
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
@@ -112,3 +112,20 @@ call mtr.add_suppression("TLSv1.0 and TLSv1.1 are insecure");
 --let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
 --let SEARCH_PATTERN= TLSv1.0 and TLSv1.1 are insecure
 --source include/search_pattern_in_file.inc
+
+#
+# Server is configured with ciphers that are not compatible with the server certificate (std_data/cacert.pem is RSA)
+#
+let $restart_parameters=--ssl-cipher=ECDHE-ECDSA-AES128-GCM-SHA256;
+source include/restart_mysqld.inc;
+
+# Connections are rejected as client attempts tls by default
+--error 1
+--exec $MYSQL --host=localhost -e "SHOW STATUS LIKE 'ssl_version'"
+
+# Connections are rejected if client explicitly specifies tls
+--error 1
+--exec $MYSQL --host=localhost --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-verify-server-cert -e "SHOW STATUS LIKE 'ssl_version'"
+
+# Connections can be made with --skip-ssl
+--exec $MYSQL --host=localhost --skip-ssl -e "SHOW STATUS LIKE 'ssl_version'"

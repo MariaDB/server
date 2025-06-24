@@ -40,7 +40,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -64,7 +64,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -89,7 +89,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP VIEW v1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -115,7 +115,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP VIEW v1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -606,8 +606,6 @@ SELECT 10,'a','b' FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -624,8 +622,6 @@ SELECT 10,'a' FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -642,8 +638,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -707,8 +701,8 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` text DEFAULT NULL,
-  `c` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -807,12 +801,12 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `int11` int(11) DEFAULT NULL,
   `text0` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `int11` int(11) DEFAULT NULL,
   `text0` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.3 tests
@@ -857,4 +851,89 @@ r.a	r.b
 DROP TABLE t1;
 #
 # End of 10.4 tests
+#
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+CREATE FUNCTION f1() RETURNS ROW TYPE OF step1.step2.step3 RETURN ROW(1,2);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.step3 RETURN ROW(1,2)' at line 1
+CREATE FUNCTION f1() RETURNS ROW TYPE OF t1 RETURN ROW(1,2);
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS ROW TYPE OF `test`.`t1`
+RETURN ROW(1,2)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURNS ROW TYPE OF test.t1 RETURN ROW(1,2);
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS ROW TYPE OF `test`.`t1`
+RETURN ROW(1,2)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT f1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP FUNCTION f1;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE FUNCTION f1() RETURNS ROW TYPE OF test.t1 RETURN (SELECT * FROM t1);
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS ROW TYPE OF `test`.`t1`
+RETURN (SELECT * FROM t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r ROW TYPE OF t1 DEFAULT f1();
+SELECT r.a, r.b;
+END;
+$$
+CALL p1();
+r.a	r.b
+NULL	NULL
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+c
+NULL
+SELECT f1()=ROW(NULL,NULL) AS c;
+c
+NULL
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1();
+r.a	r.b
+1	b1
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+c
+1
+SELECT f1()=ROW(1,'') AS c;
+c
+0
+SELECT f1()=ROW(2,'b1') AS c;
+c
+0
+SELECT f1()=ROW(1,NULL) AS c;
+c
+NULL
+SELECT f1()=ROW(NULL,'b1') AS c;
+c
+NULL
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS ROW TYPE OF `test`.`t1`
+RETURN (SELECT * FROM t1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+INSERT INTO t1 VALUES (2,'b2');
+CALL p1();
+ERROR 21000: Subquery returns more than 1 row
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+ERROR 21000: Subquery returns more than 1 row
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# End of 11.7 tests
 #

@@ -1,4 +1,4 @@
-set @@global.character_set_server=@@session.character_set_server;
+set @@global.collation_server=@@session.collation_server;
 connect  con1root,localhost,root,,;
 connection con1root;
 use test;
@@ -17,7 +17,7 @@ create procedure stamp(i int)
 insert into db1_secret.t1 values (user(), i);
 show procedure status like 'stamp';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db1_secret	stamp	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db1_secret	stamp	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 create function db() returns varchar(64)
 begin
 declare v varchar(64);
@@ -26,7 +26,7 @@ return v;
 end|
 show function status like 'db';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db1_secret	db	FUNCTION	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db1_secret	db	FUNCTION	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 call stamp(1);
 select * from t1;
 u	i
@@ -42,8 +42,8 @@ set sql_mode='';
 grant execute on procedure db1_secret.stamp to ''@'%';
 grant execute on function db1_secret.db to ''@'%';
 set sql_mode=default;
-connect  con2user1,localhost,user1,,;
-connect  con3anon,localhost,anon,,;
+connect  con2user1,localhost,user1,,"*NO-ONE*";
+connect  con3anon,localhost,anon,,"*NO-ONE*";
 connection con2user1;
 call db1_secret.stamp(2);
 select db1_secret.db();
@@ -84,11 +84,11 @@ anon@localhost	3
 alter procedure stamp sql security invoker;
 show procedure status like 'stamp';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db1_secret	stamp	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	INVOKER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db1_secret	stamp	PROCEDURE	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	INVOKER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 alter function db sql security invoker;
 show function status like 'db';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-db1_secret	db	FUNCTION	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	INVOKER		latin1	latin1_swedish_ci	latin1_swedish_ci
+db1_secret	db	FUNCTION	root@localhost	0000-00-00 00:00:00	0000-00-00 00:00:00	INVOKER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 call stamp(4);
 select * from t1;
 u	i
@@ -128,7 +128,7 @@ use db2;
 create procedure p () insert into t2 values (1);
 call p();
 ERROR 42000: INSERT command denied to user 'user1'@'localhost' for table `db2`.`t2`
-connect  con4user2,localhost,user2,,;
+connect  con4user2,localhost,user2,,"*NO-ONE*";
 connection con4user2;
 use db2;
 call p();
@@ -203,9 +203,9 @@ show grants for userc@localhost;
 Grants for userc@localhost
 GRANT USAGE ON *.* TO `userc`@`localhost`
 GRANT EXECUTE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
-connect  con2usera,localhost,usera,,;
-connect  con3userb,localhost,userb,,;
-connect  con4userc,localhost,userc,,;
+connect  con2usera,localhost,usera,,"*NO-ONE*";
+connect  con3userb,localhost,userb,,"*NO-ONE*";
+connect  con4userc,localhost,userc,,"*NO-ONE*";
 connection con2usera;
 call sptest.p1(1);
 grant execute on procedure sptest.p1 to userb@localhost;
@@ -240,7 +240,7 @@ grant all privileges on procedure sptest.p1 to userc@localhost;
 show grants for userc@localhost;
 Grants for userc@localhost
 GRANT USAGE ON *.* TO `userc`@`localhost`
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
+GRANT EXECUTE, ALTER ROUTINE, SHOW CREATE ROUTINE ON PROCEDURE `sptest`.`p1` TO `userc`@`localhost` WITH GRANT OPTION
 show grants for userb@localhost;
 Grants for userb@localhost
 GRANT USAGE ON *.* TO `userb`@`localhost`
@@ -270,6 +270,7 @@ use mysqltest//
 create table t1 (s1 int)//
 create user user1@localhost//
 grant select on t1 to user1@localhost//
+grant select on test.* to user1@localhost//
 create function bug_9503 () returns int sql security invoker begin declare v int;
 select min(s1) into v from t1; return v; end//
 connect  user1,localhost,user1,,test;
@@ -349,6 +350,7 @@ return 'ok';
 end;
 |
 create user user_bug12812@localhost IDENTIFIED BY 'ABC'|
+grant select,create view on test.* to user_bug12812@localhost|
 connect  test_user_12812,localhost,user_bug12812,ABC,test;
 SELECT test.bug12812()|
 ERROR 42000: execute command denied to user 'user_bug12812'@'localhost' for routine 'test.bug12812'
@@ -398,6 +400,7 @@ sql security definer
 select * from db_bug14533.t1;
 grant execute on procedure db_bug14533.bug14533_1 to user_bug14533@localhost;
 grant execute on procedure db_bug14533.bug14533_2 to user_bug14533@localhost;
+grant select on test.* to user_bug14533@localhost;
 connect  user_bug14533,localhost,user_bug14533,,test;
 call db_bug14533.bug14533_1();
 Field	Type	Null	Key	Default	Extra
@@ -429,35 +432,35 @@ CREATE FUNCTION wl2897_f1() RETURNS INT RETURN 1;
 connection mysqltest_1_con;
 USE mysqltest;
 CREATE DEFINER=root@localhost PROCEDURE wl2897_p2() SELECT 2;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 CREATE DEFINER=root@localhost FUNCTION wl2897_f2() RETURNS INT RETURN 2;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 connection mysqltest_2_con;
 use mysqltest;
 CREATE DEFINER='a @ b @ c'@localhost PROCEDURE wl2897_p3() SELECT 3;
 Warnings:
-Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
+Note	1446	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
 CREATE DEFINER='a @ b @ c'@localhost FUNCTION wl2897_f3() RETURNS INT RETURN 3;
 Warnings:
-Note	1449	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
+Note	1446	The user specified as a definer ('a @ b @ c'@'localhost') does not exist
 connection con1root;
 USE mysqltest;
 SHOW CREATE PROCEDURE wl2897_p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 wl2897_p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` PROCEDURE `wl2897_p1`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PROCEDURE wl2897_p3;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 wl2897_p3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` PROCEDURE `wl2897_p3`()
-SELECT 3	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT 3	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION wl2897_f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 wl2897_f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` FUNCTION `wl2897_f1`() RETURNS int(11)
-RETURN 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION wl2897_f3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 wl2897_f3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` FUNCTION `wl2897_f3`() RETURNS int(11)
-RETURN 3	latin1	latin1_swedish_ci	latin1_swedish_ci
+RETURN 3	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 DROP USER mysqltest_1@localhost;
 DROP USER mysqltest_2@localhost;
 DROP DATABASE mysqltest;
@@ -528,7 +531,7 @@ BEGIN
 DECLARE a INT;
 SET a=1;
 SELECT a;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 disconnect mysqltest_2_con;
 connect  mysqltest_2_con,localhost,user19857,meow,test;
 connection mysqltest_2_con;
@@ -672,7 +675,7 @@ create database mysqltest_db;
 create user bug57061_user@localhost;
 create function mysqltest_db.f1() returns int return 0;
 create procedure mysqltest_db.p1() begin end;
-connect  conn1, localhost, bug57061_user,,;
+connect  conn1, localhost, bug57061_user,,"*NO-ONE*";
 # Attempt to drop routine on which user doesn't have privileges
 # should result in the same 'access denied' type of error whether
 # routine exists or not.
@@ -697,7 +700,7 @@ CREATE DATABASE db1;
 CREATE PROCEDURE db1.p1() SELECT 1;
 CREATE USER user2@localhost IDENTIFIED BY '';
 GRANT SELECT(db) ON mysql.proc TO user2@localhost;
-connect  con2, localhost, user2;
+connect  con2, localhost, user2,,"*NO-ONE*";
 # The statement below before disclosed info from body_utf8 column.
 SHOW CREATE PROCEDURE db1.p1;
 ERROR 42000: PROCEDURE p1 does not exist
@@ -709,13 +712,14 @@ connection con2;
 SHOW CREATE PROCEDURE db1.p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
-SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection default;
 disconnect con2;
 DROP USER user2@localhost;
 DROP DATABASE db1;
 create user foo@local_ost;
 create user foo@`local\_ost` identified via mysql_old_password using '0123456789ABCDEF';
+grant select,create routine on test.* to foo@local_ost;
 create database foodb;
 grant create routine on foodb.* to foo@local_ost;
 connect con1,localhost,foo;
@@ -725,11 +729,13 @@ foo@localhost	foo@local_ost
 show grants;
 Grants for foo@local_ost
 GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT SELECT, CREATE ROUTINE ON `test`.* TO `foo`@`local_ost`
 GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
 create procedure fooproc() select 'i am fooproc';
 show grants;
 Grants for foo@local_ost
 GRANT USAGE ON *.* TO `foo`@`local_ost`
+GRANT SELECT, CREATE ROUTINE ON `test`.* TO `foo`@`local_ost`
 GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`local_ost`
 GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO `foo`@`local_ost`
 disconnect con1;
@@ -749,6 +755,7 @@ create function mysqltest_db.f1() returns int return 0;
 create procedure mysqltest_db.p1() begin end;
 # Create user with no privileges on mysqltest_db database.
 create user bug12602983_user@localhost;
+grant create view on test.* to bug12602983_user@localhost;
 connect  conn1, localhost, bug12602983_user,,;
 # Attempt to execute routine on which user doesn't have privileges
 # should result in the same 'access denied' error whether
@@ -796,8 +803,7 @@ CREATE USER u1@localhost;
 GRANT CREATE ROUTINE ON u1.* TO u1@localhost;
 GRANT ALTER ROUTINE ON FUNCTION u1.f1 TO u1@localhost;
 GRANT ALTER ROUTINE ON PROCEDURE u1.p1 TO u1@localhost;
-connect  u1, localhost, u1,,;
-USE u1;
+connect  u1, localhost, u1,,u1;
 CREATE OR REPLACE FUNCTION f1() RETURNS INT BEGIN RETURN 2; END; $$
 CREATE OR REPLACE PROCEDURE p1() BEGIN SELECT 1; END; $$
 disconnect u1;
@@ -830,10 +836,898 @@ set @cmd:="create definer=u function f(i int) returns char binary reads sql data
 prepare s from @cmd;
 execute s;
 Warnings:
-Note	1449	The user specified as a definer ('u'@'%') does not exist
+Note	1446	The user specified as a definer ('u'@'%') does not exist
 execute s;
 ERROR 42000: FUNCTION f already exists
 drop function f;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-29167: new db-level SHOW CREATE ROUTINE privilege
+#
+###
+### SHOW-Like commad test
+###
+SET @save_sql_mode=@@sql_mode;
+#
+### Prepare functions for the test and SHOW-like by root
+#
+create database test_db;
+use test_db;
+create procedure test_db.sp() select 1;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
+select 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME	ROUTINE_DEFINITION
+sp	select 1
+CREATE FUNCTION test_db.fn() RETURNS INT RETURN 1;
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn`() RETURNS int(11)
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	RETURN 1
+SET sql_mode=ORACLE;
+CREATE PACKAGE test_db.pk AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END;
+$$
+CREATE PACKAGE BODY test_db.pk AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END;
+$$
+SET sql_mode=@save_sql_mode;
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pk" AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pk" AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END
+pk	PACKAGE BODY	AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END
+use test;
+###
+### Pre-"SHOW-CREATE-ROUTINE" behaviour tests
+###
+#
+### Rights on mysql.proc
+#
+create user user@localhost;
+grant all privileges on mysql.* to user@localhost;
+grant all privileges on test.* to user@localhost;
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
+select 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME
+sp
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn`() RETURNS int(11)
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where
+ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	RETURN 1
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pk" AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pk" AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END
+pk	PACKAGE BODY	AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END
+connection default;
+disconnect conn1;
+revoke all privileges on mysql.* from user@localhost;
+#
+### No privileges
+#
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+ERROR 42000: PROCEDURE sp does not exist
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME
+show create function test_db.fn;
+ERROR 42000: FUNCTION fn does not exist
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where
+ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+show create package test_db.pk;
+ERROR 42000: PACKAGE pk does not exist
+show create package body test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+connection default;
+disconnect conn1;
+#
+### Execute provilege PROCEDURE/FUNCTION
+#
+grant execute on procedure test_db.sp to user@localhost;
+grant execute on function test_db.fn to user@localhost;
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME
+sp
+call test_db.sp();
+1
+1
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where
+ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	NULL
+select test_db.fn();
+test_db.fn()
+1
+connection default;
+disconnect conn1;
+revoke execute on procedure test_db.sp from user@localhost;
+revoke execute on function test_db.fn from user@localhost;
+#
+### Execute provilege PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant execute on package test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	NULL
+call test_db.pk.pkp();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.pk'
+select test_db.pk.pkf();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.pk'
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke execute on package test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Execute provilege PACKAGE- PACKAGE BODY+
+#
+SET sql_mode=ORACLE;
+grant execute on package body test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show create package test_db.pk;
+ERROR 42000: PACKAGE pk does not exist
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE BODY	NULL
+call test_db.pk.pkp();
+pkv
+2
+select test_db.pk.pkf();
+test_db.pk.pkf()
+2
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke execute on package body test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Alter routine provilege PROCEDURE/FUNCTION
+#
+grant alter routine on procedure test_db.sp to user@localhost;
+grant alter routine on function test_db.fn to user@localhost;
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME
+sp
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where
+ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	NULL
+connection default;
+disconnect conn1;
+revoke alter routine on procedure test_db.sp from user@localhost;
+revoke alter routine on function test_db.fn from user@localhost;
+#
+### Alter routine provilege PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant alter routine on package test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	NULL
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke alter routine on package test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Alter routine provilege PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant alter routine on package body test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show create package test_db.pk;
+ERROR 42000: PACKAGE pk does not exist
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE BODY	NULL
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke alter routine on package body test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+###
+### SHOW CREATE PROCEDURE tests
+###
+#
+### Global "show create routine" test
+#
+grant show create routine on *.* to user@localhost;
+show grants for user@localhost;
+Grants for user@localhost
+GRANT SHOW CREATE ROUTINE ON *.* TO `user`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `user`@`localhost`
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
+select 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME	ROUTINE_DEFINITION
+sp	select 1
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn`() RETURNS int(11)
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	RETURN 1
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pk" AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pk" AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END
+pk	PACKAGE BODY	AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END
+connection default;
+disconnect conn1;
+revoke show create routine on *.* from user@localhost;
+#
+### DB-level "show create routine" but other DB test
+#
+grant show create routine on db_test.* to user@localhost;
+show grants for user@localhost;
+Grants for user@localhost
+GRANT USAGE ON *.* TO `user`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `user`@`localhost`
+GRANT SHOW CREATE ROUTINE ON `db_test`.* TO `user`@`localhost`
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+ERROR 42000: PROCEDURE sp does not exist
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME	ROUTINE_DEFINITION
+show create function test_db.fn;
+ERROR 42000: FUNCTION fn does not exist
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+show create package test_db.pk;
+ERROR 42000: PACKAGE pk does not exist
+show create package body test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+connection default;
+disconnect conn1;
+revoke show create routine on db_test.* from user@localhost;
+#
+### DB-level "show create routine" test
+#
+grant show create routine on test_db.* to user@localhost;
+show grants for user@localhost;
+Grants for user@localhost
+GRANT USAGE ON *.* TO `user`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `user`@`localhost`
+GRANT SHOW CREATE ROUTINE ON `test_db`.* TO `user`@`localhost`
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
+select 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME	ROUTINE_DEFINITION
+sp	select 1
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn`() RETURNS int(11)
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	RETURN 1
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pk" AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pk" AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END
+pk	PACKAGE BODY	AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END
+connection default;
+disconnect conn1;
+revoke show create routine on test_db.* from user@localhost;
+#
+### Routine-level "show create routine" PROCEDURE and FUNCTION
+#
+grant show create routine on procedure test_db.sp to user@localhost;
+grant show create routine on function test_db.fn to user@localhost;
+connect conn1, localhost, user, , test;
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `sp`()
+select 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME	ROUTINE_DEFINITION
+sp	select 1
+call test_db.sp();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.sp'
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn`() RETURNS int(11)
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where
+ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	RETURN 1
+select test_db.fn();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.fn'
+connection default;
+disconnect conn1;
+revoke show create routine on procedure test_db.sp from user@localhost;
+revoke show create routine on function test_db.fn from user@localhost;
+#
+### Routine-level "show create routine" PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant show create routine on package test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pk" AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END
+call test_db.pk.pkp();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.pk'
+select test_db.pk.pkf();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.pk'
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke show create routine on package test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Routine-level "show create routine" PACKAGE- PACKAGE BODY+
+#
+SET sql_mode=ORACLE;
+grant show create routine on package body test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show create package test_db.pk;
+ERROR 42000: PACKAGE pk does not exist
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pk" AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE BODY	AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END
+call test_db.pk.pkp();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.pk'
+select test_db.pk.pkf();
+ERROR 42000: execute command denied to user 'user'@'localhost' for routine 'test_db.pk'
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke show create routine on package body test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+drop user user@localhost;
+drop database test_db;
+#
+### Check owner only rights
+#
+create user user@localhost;
+create database test_db;
+use test_db;
+create definer=user@localhost procedure test_db.sp() select 1;
+CREATE definer=user@localhost FUNCTION test_db.fn() RETURNS INT RETURN 1;
+SET sql_mode=ORACLE;
+CREATE definer=user@localhost PACKAGE test_db.pk AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END;
+$$
+CREATE definer=user@localhost PACKAGE BODY test_db.pk AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END;
+$$
+use test;
+connect conn1, localhost, user, , "*NO-ONE*";
+show create procedure test_db.sp;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+sp	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user`@`localhost` PROCEDURE `sp`()
+select 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PROCEDURE STATUS WHERE name="sp";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	sp	PROCEDURE	user@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME="sp";
+ROUTINE_NAME
+sp
+show create function test_db.fn;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+fn	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user`@`localhost` FUNCTION `fn`() RETURNS int(11)
+RETURN 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW FUNCTION STATUS WHERE name="fn";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	fn	FUNCTION	user@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES where
+ROUTINE_NAME="fn";
+ROUTINE_NAME	ROUTINE_DEFINITION
+fn	RETURN 1
+show create package test_db.pk;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="user"@"localhost" PACKAGE "pk" AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+show create package body test_db.pk;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pk	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="user"@"localhost" PACKAGE BODY "pk" AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW PACKAGE STATUS WHERE name="pk";
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test_db	pk	PACKAGE	user@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION from information_schema.ROUTINES where ROUTINE_NAME="pk";
+ROUTINE_NAME	ROUTINE_TYPE	ROUTINE_DEFINITION
+pk	PACKAGE	AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END
+pk	PACKAGE BODY	AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END
+connection default;
+disconnect conn1;
+drop user user@localhost;
+drop database test_db;
+#
+# End of 11.3 tests
+#
+set @@global.collation_server=@save_collation_server;

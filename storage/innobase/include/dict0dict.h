@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -146,21 +146,21 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
-/** Decrement the count of open handles */
-void dict_table_close(dict_table_t *table);
+/** Release a metadata lock.
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+void mdl_release(THD *thd, MDL_ticket *mdl) noexcept;
 
-/** Decrements the count of open handles of a table.
-@param[in,out]	table		table
-@param[in]	dict_locked	whether dict_sys.latch is being held
-@param[in]	thd		thread to release MDL
-@param[in]	mdl		metadata lock or NULL if the thread is a
-				foreground one. */
-void
-dict_table_close(
-	dict_table_t*	table,
-	bool		dict_locked,
-	THD*		thd = NULL,
-	MDL_ticket*	mdl = NULL);
+/** Release a table reference and a metadata lock.
+@param table  referenced table
+@param thd    connection that holds mdl
+@param mdl    metadata lock, or nullptr */
+inline void dict_table_close(dict_table_t* table, THD *thd, MDL_ticket *mdl)
+  noexcept
+{
+  table->release();
+  mdl_release(thd, mdl);
+}
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -303,7 +303,7 @@ TRUE.
 ibool
 dict_col_name_is_reserved(
 /*======================*/
-	const char*	name)	/*!< in: column name */
+	const LEX_CSTRING &name)	/*!< in: column name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Unconditionally set the AUTO_INCREMENT counter.
 @param[in,out]	table	table or partition
@@ -506,7 +506,7 @@ dict_foreign_find_index(
 @param[in]	table		table object
 @param[in]	col_nr		virtual column number(nth virtual column)
 @return column name. */
-const char*
+Lex_ident_column
 dict_table_get_v_col_name(
 	const dict_table_t*	table,
 	ulint			col_nr);
@@ -520,7 +520,7 @@ otherwise table->n_def */
 ulint
 dict_table_has_column(
 	const dict_table_t*	table,
-	const char*		col_name,
+	const LEX_CSTRING	&col_name,
 	ulint			col_nr = 0);
 
 /**********************************************************************//**
@@ -618,8 +618,6 @@ dict_table_get_next_index(
 #define dict_index_is_auto_gen_clust(index) (index)->is_gen_clust()
 #define dict_index_is_unique(index) (index)->is_unique()
 #define dict_index_is_spatial(index) (index)->is_spatial()
-#define dict_index_is_ibuf(index) (index)->is_ibuf()
-#define dict_index_is_sec_or_ibuf(index) !(index)->is_primary()
 #define dict_index_has_virtual(index) (index)->has_virtual()
 
 /** Get all the FTS indexes on a table.
@@ -634,7 +632,7 @@ dict_table_get_all_fts_indexes(
 /********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
-@return number of user-defined (e.g., not ROW_ID) non-virtual
+@return number of user-defined (e.g., not DB_ROW_ID) non-virtual
 columns of a table */
 UNIV_INLINE
 unsigned
@@ -647,7 +645,7 @@ Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of columns of a table */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -657,7 +655,7 @@ dict_table_get_n_cols(
 @param[in]	table	the table to check
 @return number of virtual columns of a table */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_table_get_n_v_cols(
 	const dict_table_t*	table);
 
@@ -674,7 +672,7 @@ TPOOL_SUPPRESS_TSAN
 @return estimated number of rows */
 inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
 {
-  ut_ad(table->stat_initialized);
+  ut_ad(table->stat_initialized());
   return table->stat_n_rows;
 }
 
@@ -748,7 +746,7 @@ dict_table_get_sys_col(
 @param[in]	col_nr	column number in table
 @return	column name */
 inline
-const char*
+Lex_ident_column
 dict_table_get_col_name(const dict_table_t* table, ulint col_nr)
 {
 	return(dict_table_get_nth_col(table, col_nr)->name(*table));
@@ -828,11 +826,8 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
-UNIV_INLINE
-ulint
-dict_tf_to_fsp_flags(ulint table_flags)
-	MY_ATTRIBUTE((const));
-
+inline uint32_t dict_tf_to_fsp_flags(unsigned table_flags)
+  MY_ATTRIBUTE((const));
 
 /** Extract the ROW_FORMAT=COMPRESSED page size from table flags.
 @param[in]	flags	flags
@@ -1057,16 +1052,16 @@ dict_table_get_nth_col_pos(
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/*******************************************************************//**
-Adds a column to index. */
-void
-dict_index_add_col(
-/*===============*/
-	dict_index_t*		index,		/*!< in/out: index */
-	const dict_table_t*	table,		/*!< in: table */
-	dict_col_t*		col,		/*!< in: column */
-	ulint			prefix_len)	/*!< in: column prefix length */
-	MY_ATTRIBUTE((nonnull));
+/** Add a column to an index.
+@param index          index
+@param table          table
+@param col            column
+@param prefix_len     column prefix length
+@param descending     whether to use descending order */
+void dict_index_add_col(dict_index_t *index, const dict_table_t *table,
+                        dict_col_t *col, ulint prefix_len,
+                        bool descending= false)
+  MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Copies types of fields contained in index to tuple. */
@@ -1350,26 +1345,9 @@ private:
   std::atomic<table_id_t> temp_table_id{DICT_HDR_FIRST_ID};
   /** hash table of temporary table IDs */
   hash_table_t temp_id_hash;
-  /** the next value of DB_ROW_ID, backed by DICT_HDR_ROW_ID
-  (FIXME: remove this, and move to dict_table_t) */
-  Atomic_relaxed<row_id_t> row_id;
-  /** The synchronization interval of row_id */
-  static constexpr size_t ROW_ID_WRITE_MARGIN= 256;
 public:
   /** Diagnostic message for exceeding the lock_wait() timeout */
   static const char fatal_msg[];
-
-  /** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
-  inline row_id_t get_new_row_id() noexcept;
-
-  /** Ensure that row_id is not smaller than id, on IMPORT TABLESPACE */
-  inline void update_row_id(row_id_t id) noexcept;
-
-  /** Recover the global DB_ROW_ID sequence on database startup */
-  void recover_row_id(row_id_t id) noexcept
-  {
-    row_id= ut_uint64_align_up(id, ROW_ID_WRITE_MARGIN) + ROW_ID_WRITE_MARGIN;
-  }
 
   /** @return a new temporary table ID */
   table_id_t acquire_temporary_table_id() noexcept
@@ -1405,7 +1383,7 @@ public:
   inline void add(dict_table_t *table) noexcept;
   /** Remove a table definition from the data dictionary cache.
   @param[in,out]	table	cached table definition to be evicted
-  @param[in]	lru	whether this is part of least-recently-used evictiono
+  @param[in]	lru	whether this is part of least-recently-used eviction
   @param[in]	keep	whether to keep (not free) the object */
   void remove(dict_table_t *table, bool lru= false, bool keep= false) noexcept;
 
@@ -1526,6 +1504,14 @@ public:
   bool load_sys_tables() noexcept;
   /** Create or check system tables on startup */
   dberr_t create_or_check_sys_tables() noexcept;
+
+  bool is_sys_table(table_id_t table_id) const noexcept
+  {
+    return (table_id > 0 && table_id <= 4) ||
+      table_id == sys_foreign->id ||
+      table_id == sys_foreign_cols->id ||
+      table_id == sys_virtual->id;
+  }
 };
 
 /** the data dictionary cache */

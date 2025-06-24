@@ -13,10 +13,6 @@
 // did not, you can find it at http://www.gnu.org/
 //
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation // gcc: Class implementation
-#endif
-
 #if defined(_MSC_VER) && _MSC_VER>=1400
 #define _CRT_SECURE_NO_DEPRECATE 1
 #define _CRT_NONSTDC_NO_DEPRECATE 1
@@ -653,7 +649,7 @@ template int CSphSEQuery::ParseArray<longlong> ( longlong **, const char * );
 
 static handler *	sphinx_create_handler ( handlerton * hton, TABLE_SHARE * table, MEM_ROOT * mem_root );
 static int			sphinx_init_func ( void * p );
-static int			sphinx_close_connection ( handlerton * hton, THD * thd );
+static int			sphinx_close_connection ( THD * thd );
 static int			sphinx_panic ( handlerton * hton, enum ha_panic_function flag );
 static bool			sphinx_show_status ( handlerton * hton, THD * thd, stat_print_fn * stat_print, enum ha_stat_type stat_type );
 
@@ -768,11 +764,11 @@ static bool sphinx_init_func_for_handlerton ()
 
 #if MYSQL_VERSION_ID>50100
 
-static int sphinx_close_connection ( handlerton * hton, THD * thd )
+static int sphinx_close_connection ( THD * thd )
 {
 	// deallocate common handler data
 	SPH_ENTER_FUNC();
-	CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, hton );
+	CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
 	SafeDelete ( pTls );
 	SPH_RET(0);
 }

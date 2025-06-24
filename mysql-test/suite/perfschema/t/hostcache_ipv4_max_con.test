@@ -223,7 +223,7 @@ select current_user();
 # the error number ER_CON_COUNT_ERROR (it always does)
 # or the error number 9999 (it never does, this error does not exist).
 # The exact error number and SQLSTATE is not printed in the result file,
-# makig this test robust for both cases:
+# making this test robust for both cases:
 # - ERROR 08004: Too many connections
 # - ERROR HY000: Too many connections
 

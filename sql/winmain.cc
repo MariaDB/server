@@ -55,6 +55,7 @@
 #include <windows.h>
 #include <string>
 #include <cassert>
+#include <winservice.h>
 
 static SERVICE_STATUS svc_status{SERVICE_WIN32_OWN_PROCESS};
 static SERVICE_STATUS_HANDLE svc_status_handle;
@@ -280,7 +281,7 @@ __declspec(dllexport) int mysqld_win_main(int argc, char **argv)
 /*
   Register/remove services functionality.
   This is kept for backward compatibility only, and is
-  superseeded by much more versatile mysql_install_db.exe
+  superseded by much more versatile mysql_install_db.exe
 
   "mysqld --remove=svc" has no advantage over
   OS own "sc delete svc"

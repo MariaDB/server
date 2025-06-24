@@ -28,19 +28,28 @@
 --source include/master-slave.inc
 
 --connection master
-call mtr.add_suppression("Got an error reading communication packets");
 call mtr.add_suppression("Got an error writing communication packets");
-call mtr.add_suppression("Could not read packet");
-call mtr.add_suppression("Could not write packet");
+call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Could not read packet:.* vio_errno: 1158");
+call mtr.add_suppression("Could not write packet:.* vio_errno: 1160");
+set @save_semi_sync_master_enabled= @@global.rpl_semi_sync_master_enabled;
+set @save_semi_sync_wp= @@global.rpl_semi_sync_master_wait_point;
 set @save_bgc_count= @@global.binlog_commit_wait_count;
 set @save_bgc_usec= @@global.binlog_commit_wait_usec;
 set @save_debug_dbug= @@global.debug_dbug;
 set @@global.binlog_commit_wait_count=3;
 set @@global.binlog_commit_wait_usec=10000000;
 set @@global.debug_dbug="+d,testing_cond_var_per_thd";
+set @@global.rpl_semi_sync_master_enabled= 1;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
 
 --echo # Ensure semi-sync is on
 --connection slave
+set @save_semi_sync_slave_enabled= @@global.rpl_semi_sync_master_enabled;
+--source include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled=1;
+--source include/start_slave.inc
+
 let $status_var= rpl_semi_sync_slave_status;
 let $status_var_value= ON;
 source include/wait_for_status_var.inc;
@@ -72,6 +81,9 @@ source include/wait_for_status_var.inc;
 --let $assert_only_after=CURRENT_TEST
 --source include/assert_grep.inc
 
+--sync_slave_with_master
+
+
 --echo #
 --echo # Cleanup
 --connection master
@@ -79,6 +91,7 @@ set @@global.binlog_commit_wait_count=@save_bgc_count;
 set @@global.binlog_commit_wait_usec=@save_bgc_usec;
 set @@global.debug_dbug=@save_debug_dbug;
 drop table t1, t2, t3;
+--sync_slave_with_master
 
 
 --echo #
@@ -122,6 +135,10 @@ create table t (a int) engine=innodb;
 --echo # the informational message is displayed
 --connection slave
 --source include/stop_slave.inc
+# Also kill the master-side dump thread so it doesn't try and send an event
+# over a dead connection (potentially resulting in an error in the log)
+--connection master
+--source include/kill_binlog_dump_threads.inc
 
 --connection server_1
 start transaction;
@@ -193,5 +210,12 @@ drop table tn;
 set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
 set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
 set @@global.debug_dbug=@save_debug_dbug;
+set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
+set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
+
+--connection slave
+--source include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semi_sync_slave_enabled;
+--source include/start_slave.inc
 
 --source include/rpl_end.inc

@@ -7,8 +7,8 @@ show variables like 'character_sets_dir%';
 Variable_name	Value
 character_sets_dir	MYSQL_TEST_DIR/std_data/ldml/
 show collation like 'utf8mb3_phone_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb3_phone_ci	utf8mb3	352			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE
 CREATE TABLE t1 (
 name VARCHAR(64),
 phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
@@ -34,10 +34,13 @@ Bar	+7-912-800-80-01
 SELECT * FROM t1 WHERE phone='7 9 1 2 8 0 0 8 0 0 1';
 name	phone
 Bar	+7-912-800-80-01
+SELECT * FROM t1 WHERE phone='tel.79128008001';
+name	phone
+Bar	+7-912-800-80-01
 DROP TABLE t1;
 show collation like 'utf8mb3_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb3_test_ci	utf8mb3	353			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE
 create table t1 (c1 char(1) character set utf8 collate utf8_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -45,8 +48,8 @@ c1
 a
 drop table t1;
 show collation like 'ucs2_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-ucs2_test_ci	ucs2	358			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+ucs2_test_ci	ucs2	358			8	PAD SPACE
 create table t1 (c1 char(1) character set ucs2 collate ucs2_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -54,8 +57,8 @@ c1
 a
 drop table t1;
 show collation like 'utf8mb4_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb4_test_ci	utf8mb4	326			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb4_test_ci	utf8mb4	326			8	PAD SPACE
 create table t1 (c1 char(1) character set utf8mb4 collate utf8mb4_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -63,8 +66,8 @@ c1
 a
 drop table t1;
 show collation like 'utf16_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf16_test_ci	utf16	327			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf16_test_ci	utf16	327			8	PAD SPACE
 create table t1 (c1 char(1) character set utf16 collate utf16_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -72,8 +75,8 @@ c1
 a
 drop table t1;
 show collation like 'utf32_test_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf32_test_ci	utf32	391			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf32_test_ci	utf32	391			8	PAD SPACE
 create table t1 (c1 char(1) character set utf32 collate utf32_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -171,8 +174,8 @@ Warning	1265	Data truncated for column 'c1' at row 1
 DROP TABLE t1;
 Vietnamese experimental collation
 show collation like 'ucs2_vn_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-ucs2_vn_ci	ucs2	359			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+ucs2_vn_ci	ucs2	359			8	PAD SPACE
 create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 insert into t1 values (0x0061),(0x0041),(0x00E0),(0x00C0),(0x1EA3),(0x1EA2),
 (0x00E3),(0x00C3),(0x00E1),(0x00C1),(0x1EA1),(0x1EA0);
@@ -446,67 +449,69 @@ drop table t1;
 Bug#46448 trailing spaces are not ignored when user collation maps space != 0x20
 set names latin1;
 show collation like 'latin1_test';
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_test	latin1	331			1
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_test	latin1	331			1	PAD SPACE
 select "foo" = "foo " collate latin1_test;
 "foo" = "foo " collate latin1_test
 1
 The following tests check that two-byte collation IDs work
 select * from information_schema.collations where id>256 and is_compiled<>'Yes' order by id;
-COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
-ascii2_general_nopad_ci	ascii2	318			1
-ascii2_bin2	ascii2	319			1
-ascii2_general_ci	ascii2	320	Yes		1
-ascii2_bin	ascii2	321			1
-ascii2_general_inherited_ci	ascii2	322			1
-ascii2_general_inherited2_ci	ascii2	323			1
-ascii2_badly_inherited_ci	ascii2	324			1
-ascii2_nopad_bin	ascii2	325			1
-utf8mb4_test_ci	utf8mb4	326			8
-utf16_test_ci	utf16	327			8
-utf8mb4_test_400_ci	utf8mb4	328			8
-utf8mb4_test_520_nopad_ci	utf8mb4	329			8
-latin1_test	latin1	331			1
-latin1_test2	latin1	332			1
-latin1_test2_cs	latin1	333			1
-latin1_swedish_nopad2_ci	latin1	334			1
-utf8mb3_bengali_standard_ci	utf8mb3	336			8
-utf8mb3_bengali_traditional_ci	utf8mb3	337			8
-utf8mb3_implicit_weights_ci	utf8mb3	338			8
-utf8mb3_phone_ci	utf8mb3	352			8
-utf8mb3_test_ci	utf8mb3	353			8
-utf8mb3_5624_1	utf8mb3	354			8
-utf8mb3_5624_2	utf8mb3	355			8
-utf8mb3_5624_3	utf8mb3	356			8
-utf8mb3_5624_4	utf8mb3	357			8
-ucs2_test_ci	ucs2	358			8
-ucs2_vn_ci	ucs2	359			8
-ucs2_5624_1	ucs2	360			8
-utf8mb3_5624_5	utf8mb3	368			8
-utf8mb3_5624_5_bad	utf8mb3	369			8
-utf8mb3_czech_test_w2	utf8mb3	370			4
-utf8mb3_czech_test_nopad_w2	utf8mb3	371			4
-utf8mb3_czech_test_bad_w2	utf8mb3	372			4
-utf32_test_ci	utf32	391			8
-utf8mb3_maxuserid_ci	utf8mb3	2047			8
+COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	PAD_ATTRIBUTE	COMMENT
+ascii2_general_nopad_ci	ascii2	318			1	NO PAD	
+ascii2_bin2	ascii2	319			1	PAD SPACE	
+ascii2_general_ci	ascii2	320	Yes		1	PAD SPACE	
+ascii2_bin	ascii2	321			1	PAD SPACE	
+ascii2_general_inherited_ci	ascii2	322			1	PAD SPACE	
+ascii2_general_inherited2_ci	ascii2	323			1	PAD SPACE	
+ascii2_badly_inherited_ci	ascii2	324			1	PAD SPACE	
+ascii2_nopad_bin	ascii2	325			1	NO PAD	
+utf8mb4_test_ci	utf8mb4	326			8	PAD SPACE	
+utf16_test_ci	utf16	327			8	PAD SPACE	
+utf8mb4_test_400_ci	utf8mb4	328			8	PAD SPACE	
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8	NO PAD	
+utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4	PAD SPACE	
+latin1_test	latin1	331			1	PAD SPACE	cp1252 West European
+latin1_test2	latin1	332			1	PAD SPACE	cp1252 West European
+latin1_test2_cs	latin1	333			1	PAD SPACE	cp1252 West European
+latin1_swedish_nopad2_ci	latin1	334			1	NO PAD	cp1252 West European
+utf8mb3_bengali_standard_ci	utf8mb3	336			8	PAD SPACE	
+utf8mb3_bengali_traditional_ci	utf8mb3	337			8	PAD SPACE	
+utf8mb3_implicit_weights_ci	utf8mb3	338			8	PAD SPACE	
+utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE	
+utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE	
+utf8mb3_5624_1	utf8mb3	354			8	PAD SPACE	
+utf8mb3_5624_2	utf8mb3	355			8	PAD SPACE	
+utf8mb3_5624_3	utf8mb3	356			8	PAD SPACE	
+utf8mb3_5624_4	utf8mb3	357			8	PAD SPACE	
+ucs2_test_ci	ucs2	358			8	PAD SPACE	
+ucs2_vn_ci	ucs2	359			8	PAD SPACE	
+ucs2_5624_1	ucs2	360			8	PAD SPACE	
+utf8mb3_5624_5	utf8mb3	368			8	PAD SPACE	
+utf8mb3_5624_5_bad	utf8mb3	369			8	PAD SPACE	
+utf8mb3_czech_test_w2	utf8mb3	370			4	PAD SPACE	
+utf8mb3_czech_test_nopad_w2	utf8mb3	371			4	NO PAD	
+utf8mb3_czech_test_bad_w2	utf8mb3	372			4	PAD SPACE	
+utf32_test_ci	utf32	391			8	PAD SPACE	
+utf8mb3_maxuserid_ci	utf8mb3	2047			8	PAD SPACE	
 show collation like '%test%';
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_test	latin1	331			1
-latin1_test2	latin1	332			1
-latin1_test2_cs	latin1	333			1
-utf8mb3_test_ci	utf8mb3	353			8
-utf8mb3_czech_test_w2	utf8mb3	370			4
-utf8mb3_czech_test_nopad_w2	utf8mb3	371			4
-utf8mb3_czech_test_bad_w2	utf8mb3	372			4
-ucs2_test_ci	ucs2	358			8
-utf8mb4_test_ci	utf8mb4	326			8
-utf8mb4_test_400_ci	utf8mb4	328			8
-utf8mb4_test_520_nopad_ci	utf8mb4	329			8
-utf16_test_ci	utf16	327			8
-utf32_test_ci	utf32	391			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_test	latin1	331			1	PAD SPACE
+latin1_test2	latin1	332			1	PAD SPACE
+latin1_test2_cs	latin1	333			1	PAD SPACE
+utf8mb3_test_ci	utf8mb3	353			8	PAD SPACE
+utf8mb3_czech_test_w2	utf8mb3	370			4	PAD SPACE
+utf8mb3_czech_test_nopad_w2	utf8mb3	371			4	NO PAD
+utf8mb3_czech_test_bad_w2	utf8mb3	372			4	PAD SPACE
+ucs2_test_ci	ucs2	358			8	PAD SPACE
+utf8mb4_test_ci	utf8mb4	326			8	PAD SPACE
+utf8mb4_test_400_ci	utf8mb4	328			8	PAD SPACE
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8	NO PAD
+utf8mb4_uca1400_test01_as_ci	utf8mb4	330			4	PAD SPACE
+utf16_test_ci	utf16	327			8	PAD SPACE
+utf32_test_ci	utf32	391			8	PAD SPACE
 show collation like 'ucs2_vn_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-ucs2_vn_ci	ucs2	359			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+ucs2_vn_ci	ucs2	359			8	PAD SPACE
 create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 insert into t1 values (0x0061);
 set @@character_set_results=NULL;
@@ -525,8 +530,8 @@ b
 DROP TABLE t1;
 SET NAMES utf8 COLLATE utf8_phone_ci;
 show collation like 'utf8mb3_phone_ci';
-Collation	Charset	Id	Default	Compiled	Sortlen
-utf8mb3_phone_ci	utf8mb3	352			8
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+utf8mb3_phone_ci	utf8mb3	352			8	PAD SPACE
 SET NAMES utf8;
 SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci)) as exp;
 exp
@@ -3051,7 +3056,7 @@ Table	Create Table
 case_folding	CREATE TABLE `case_folding` (
   `code` int(1) NOT NULL,
   `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_test_520_nopad_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO case_folding (code) VALUES
 (0x23A),
 (0x23E),
@@ -3063,6 +3068,17 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
@@ -3076,6 +3092,14 @@ HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
 26B	C9AB	E2B1A2	ɫ
 271	C9B1	E2B1AE	ɱ
 27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B0AF	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B19F	ⱟ
+A7C0	EA9F80	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F81	ꟁ
 DROP TABLE case_folding;
 #
 # End of 10.3 tests
@@ -3084,9 +3108,230 @@ DROP TABLE case_folding;
 # MDEV-7947 my_charset_same: strcmp() takes 0.37% in OLTP RO
 #
 SHOW COLLATION LIKE 'latin1_test_replace';
-Collation	Charset	Id	Default	Compiled	Sortlen
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
 SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;
 ERROR HY000: Unknown collation: 'latin1_test_replace'
 #
 # End of 10.5 tests
+#
+#
+# MDEV-27042 UCA: Resetting contractions to ignorable does not work well
+#
+CREATE TABLE t1 (
+phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
+);
+INSERT INTO t1 VALUES ('123');
+INSERT INTO t1 VALUES ('tel.123');
+INSERT INTO t1 VALUES ('tél.123');
+INSERT INTO t1 VALUES ('tèl.123');
+INSERT INTO t1 VALUES ('ťel.123');
+INSERT INTO t1 VALUES ('ťèl.123');
+INSERT INTO t1 VALUES ('tex.123');
+SELECT * FROM t1 WHERE phone='123' ORDER BY BINARY phone;
+phone
+123
+tel.123
+tél.123
+ťel.123
+SELECT * FROM t1 WHERE phone<>'123' ORDER BY BINARY phone;
+phone
+tex.123
+tèl.123
+ťèl.123
+SELECT phone, HEX(WEIGHT_STRING(phone)) FROM t1 ORDER BY phone, BINARY phone;
+phone	HEX(WEIGHT_STRING(phone))
+123	0E2A0E2B0E2C
+tel.123	0E2A0E2B0E2C
+tél.123	0E2A0E2B0E2C
+ťel.123	0E2A0E2B0E2C
+tèl.123	10020E8B0F2E025D0E2A0E2B0E2C
+ťèl.123	10020E8B0F2E025D0E2A0E2B0E2C
+tex.123	10020E8B105A025D0E2A0E2B0E2C
+DROP TABLE t1;
+#
+# End of 10.8 tests
+#
+#
+# MDEV-27009 Add UCA-14.0.0 collations
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci, comment VARCHAR(128));
+INSERT INTO t1 VALUES ('a', '0061 LATIN SMALL LETTER A');
+INSERT INTO t1 VALUES ('c', '0063 LATIN SMALL LETTER C');
+INSERT INTO t1 VALUES ('à', '00E0 LATIN SMALL LETTER A WITH GRAVE');
+INSERT INTO t1 VALUES ('ć', '0107 LATIN SMALL LETTER C WITH ACUTE');
+INSERT INTO t1 VALUES (_ucs2 0x0439, '0439 CYRILLIC SMALL LETTER SHORT I - precomposed');
+INSERT INTO t1 VALUES (_ucs2 0x04380306, '0438 0306 CYRILLIC SMALL LETTER SHORT I - contraction');
+INSERT INTO t1 VALUES (_ucs2 0x0CCB, '0CCB KANNADA VOWEL SIGN OO - precomposed');
+INSERT INTO t1 VALUES (_ucs2 0x0CC60CC20CD5, '0CC6 0CC2 0CD5 KANNADA VOWEL SIGN OO - contraction');
+SELECT
+'---' AS `---`,
+comment,
+HEX(a),
+HEX(WEIGHT_STRING(a)),
+HEX(WEIGHT_STRING(a LEVEL 1)),
+HEX(WEIGHT_STRING(a LEVEL 2)),
+WEIGHT_STRING(a LEVEL 1)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_ci) AS is_400,
+WEIGHT_STRING(a LEVEL 1)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_520_ci) AS is_520,
+WEIGHT_STRING(a LEVEL 1)=WEIGHT_STRING(a COLLATE utf8mb4_uca1400_ai_ci) AS is_1400
+FROM t1
+ORDER BY a, HEX(a);
+---	---
+comment	0061 LATIN SMALL LETTER A
+HEX(a)	61
+HEX(WEIGHT_STRING(a))	20750020
+HEX(WEIGHT_STRING(a LEVEL 1))	2075
+HEX(WEIGHT_STRING(a LEVEL 2))	0020
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	00E0 LATIN SMALL LETTER A WITH GRAVE
+HEX(a)	C3A0
+HEX(WEIGHT_STRING(a))	207500200025
+HEX(WEIGHT_STRING(a LEVEL 1))	2075
+HEX(WEIGHT_STRING(a LEVEL 2))	00200025
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	0063 LATIN SMALL LETTER C
+HEX(a)	63
+HEX(WEIGHT_STRING(a))	20A90020
+HEX(WEIGHT_STRING(a LEVEL 1))	20A9
+HEX(WEIGHT_STRING(a LEVEL 2))	0020
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	0107 LATIN SMALL LETTER C WITH ACUTE
+HEX(a)	C487
+HEX(WEIGHT_STRING(a))	20A900200024
+HEX(WEIGHT_STRING(a LEVEL 1))	20A9
+HEX(WEIGHT_STRING(a LEVEL 2))	00200024
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	0438 0306 CYRILLIC SMALL LETTER SHORT I - contraction
+HEX(a)	D0B8CC86
+HEX(WEIGHT_STRING(a))	24E10020
+HEX(WEIGHT_STRING(a LEVEL 1))	24E1
+HEX(WEIGHT_STRING(a LEVEL 2))	0020
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	0439 CYRILLIC SMALL LETTER SHORT I - precomposed
+HEX(a)	D0B9
+HEX(WEIGHT_STRING(a))	24E10020
+HEX(WEIGHT_STRING(a LEVEL 1))	24E1
+HEX(WEIGHT_STRING(a LEVEL 2))	0020
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	0CC6 0CC2 0CD5 KANNADA VOWEL SIGN OO - contraction
+HEX(a)	E0B386E0B382E0B395
+HEX(WEIGHT_STRING(a))	2D150020
+HEX(WEIGHT_STRING(a LEVEL 1))	2D15
+HEX(WEIGHT_STRING(a LEVEL 2))	0020
+is_400	0
+is_520	0
+is_1400	1
+---	---
+comment	0CCB KANNADA VOWEL SIGN OO - precomposed
+HEX(a)	E0B38B
+HEX(WEIGHT_STRING(a))	2D150020
+HEX(WEIGHT_STRING(a LEVEL 1))	2D15
+HEX(WEIGHT_STRING(a LEVEL 2))	0020
+is_400	0
+is_520	0
+is_1400	1
+DROP TABLE t1;
+#
+# MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code) VALUES
+(0x23A),
+(0x23E),
+(0x23F),
+(0x240),
+(0x250),
+(0x251),
+(0x252),
+(0x26B),
+(0x271),
+(0x27D);
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+INSERT INTO case_folding (code) VALUES
+(0x2C2F) /* GLAGOLITIC CAPITAL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0x2C5F) /* GLAGOLITIC SMALL LETTER CAUDATE CHRIVI (Unicode-14.0) */,
+(0xA7C0) /* LATIN CAPITAL LETTER OLD POLISH O (Unicode-14.0) */,
+(0xA7C1) /* LATIN SMALL LETTER OLD POLISH O (Unicode-14.0) */;
+UPDATE case_folding SET c=CHAR(code USING ucs2);
+SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
+HEX(code)	HEX(LOWER(c))	HEX(UPPER(c))	c
+23A	E2B1A5	C8BA	Ⱥ
+23E	E2B1A6	C8BE	Ⱦ
+23F	C8BF	E2B1BE	ȿ
+240	C980	E2B1BF	ɀ
+250	C990	E2B1AF	ɐ
+251	C991	E2B1AD	ɑ
+252	C992	E2B1B0	ɒ
+26B	C9AB	E2B1A2	ɫ
+271	C9B1	E2B1AE	ɱ
+27D	C9BD	E2B1A4	ɽ
+49	69	49	I
+69	69	49	i
+130	69	C4B0	İ
+131	C4B1	49	ı
+2C2F	E2B19F	E2B0AF	Ⱟ
+2C5F	E2B19F	E2B0AF	ⱟ
+A7C0	EA9F81	EA9F80	Ꟁ
+A7C1	EA9F81	EA9F80	ꟁ
+DROP TABLE case_folding;
+#
+# MDEV-30577 Case folding for uca1400 collations is not up to date
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci;
+CREATE OR REPLACE TABLE case_folding AS SELECT 0 AS code, SPACE(32) AS c, SPACE(64) AS comment LIMIT 0;
+SHOW CREATE TABLE case_folding;
+Table	Create Table
+case_folding	CREATE TABLE `case_folding` (
+  `code` int(1) NOT NULL,
+  `c` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci DEFAULT NULL,
+  `comment` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO case_folding (code, comment) VALUES (0x10595, 'VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x105BC, 'VITHKUQI SMALL LETTER ZE (Unicode-14.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x1E921, 'ADLAM CAPITAL LETTER SHA (Unicode-9.0)');
+INSERT INTO case_folding (code, comment) VALUES (0x1E943, 'ADLAM SMALL LETTER SHA (Unicode-9.0)');
+UPDATE case_folding SET c=CHAR(code USING utf32);
+SELECT
+HEX(CONVERT(c USING utf32)) AS ch,
+HEX(CONVERT(LOWER(c) USING utf32)) AS cl,
+HEX(CONVERT(UPPER(c) USING utf32)) AS cu,
+comment
+FROM case_folding ORDER BY BINARY(c);
+ch	cl	cu	comment
+00010595	000105BC	00010595	VITHKUQI CAPITAL LETTER ZE (Unicode-14.0)
+000105BC	000105BC	00010595	VITHKUQI SMALL LETTER ZE (Unicode-14.0)
+0001E921	0001E943	0001E921	ADLAM CAPITAL LETTER SHA (Unicode-9.0)
+0001E943	0001E943	0001E921	ADLAM SMALL LETTER SHA (Unicode-9.0)
+DROP TABLE case_folding;
+#
+# End of 10.10 tests
 #

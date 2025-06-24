@@ -23,10 +23,6 @@
 **	 - type set is out of optimization yet
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_LEX 1
 
 #include "mariadb.h"
@@ -138,8 +134,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
     pc->max_treemem = MAX_TREEMEM;
   }
 
-  if (!(pc->f_info=
-        (field_info**) thd->alloc(sizeof(field_info*) * field_list.elements)))
+  if (!(pc->f_info= thd->alloc<field_info*>(field_list.elements)))
     goto err;
   pc->f_end = pc->f_info + field_list.elements;
   pc->fields = field_list;
@@ -962,9 +957,10 @@ void field_longlong::get_opt_type(String *answer,
   else if (min_arg >= INT_MIN24 && max_arg <= (min_arg >= 0 ?
 					       UINT_MAX24 : INT_MAX24))
     snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", (int) max_length);
-  else if (min_arg >= INT_MIN32 && max_arg <= (min_arg >= 0 ?
-					       (longlong) UINT_MAX32 :
-                                               (longlong) INT_MAX32))
+  else if (min_arg >= INT_MIN32 &&
+           (ulonglong) max_arg <= (min_arg >= 0 ?
+                                   (ulonglong) UINT_MAX32 :
+                                   (ulonglong) INT_MAX32))
     snprintf(buff, sizeof(buff), "INT(%d)", (int) max_length);
   else
     snprintf(buff, sizeof(buff), "BIGINT(%d)", (int) max_length);

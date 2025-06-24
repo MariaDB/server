@@ -14,7 +14,7 @@ ERROR 42000: Undefined CURSOR: c
 SELECT c%ROWCOUNT;
 ERROR 42000: Undefined CURSOR: c
 #
-# Undefinite cursor attributes
+# Undefined cursor attributes
 #
 CREATE PROCEDURE p1
 AS
@@ -454,12 +454,12 @@ CALL p1('1b');
 msg
 Fetched a record a=1
 Warnings:
-Warning	1265	Data truncated for column 'p_a' at row 1
+Warning	1265	Data truncated for column 'p_a' at row 0
 CALL p1('b1');
 msg
 Fetched a record a=0
 Warnings:
-Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 0
 DROP PROCEDURE p1;
 #
 # One parameter in SELECT list + subselect
@@ -977,3 +977,120 @@ $$
 CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# Start of 10.8 tests
+#
+#
+# MDEV-10654 IN, OUT, INOUT parameters in CREATE FUNCTION
+#
+DECLARE
+va INT;
+CURSOR cur (a IN INT) IS SELECT a FROM dual;
+BEGIN
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+va
+1
+DECLARE
+va INT;
+CURSOR cur (a OUT INT) IS SELECT a FROM dual;
+BEGIN
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+DECLARE
+va INT;
+CURSOR cur (a INOUT INT) IS SELECT a FROM dual;
+BEGIN
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+#
+# End of 10.8 tests
+#
+# Start of 11.4 tests
+#
+# MDEV-36047 Package body variables are not allowed as FETCH targets
+#
+CREATE PACKAGE pkg AS
+FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+vc INT := 0;
+FUNCTION f1 RETURN INT AS
+CURSOR cur IS SELECT 1 AS c FROM DUAL;
+BEGIN
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc with a "PACKAGE_BODY" prefix
+CLOSE cur;
+RETURN vc;
+END;
+BEGIN
+DECLARE
+CURSOR cur IS SELECT 1 AS c FROM DUAL;
+BEGIN
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc without a prefix
+CLOSE cur;
+END;
+END;
+$$
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg AS
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+vc1 INT := 0;
+FUNCTION f1 RETURN TEXT AS
+CURSOR cur IS SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+vc2 INT := 0;
+BEGIN
+OPEN cur;
+FETCH cur INTO vc1, vc2;
+CLOSE cur;
+RETURN vc1 || ' ' || vc2;
+END;
+END;
+$$
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1 2
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg AS
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+vc ROW(p1 INT, p2 INT);
+FUNCTION f1 RETURN TEXT AS
+CURSOR cur IS SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+BEGIN
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN vc.p1 || ' ' || vc.p2;
+END;
+END;
+$$
+SELECT pkg.f1() FROM DUAL;
+pkg.f1()
+1 2
+DROP PACKAGE pkg;
+# End of 11.4 tests

@@ -58,7 +58,7 @@
   the table in MYRG_INFO::children_attached.
 
   If necessary, the compatibility of parent and children is checked.
-  This check is necessary when any of the objects are reopend. This is
+  This check is necessary when any of the objects are reopened. This is
   detected by comparing the current table def version against the
   remembered child def version. On parent open, the list members are
   initialized to an "impossible"/"undefined" version value. So the check
@@ -85,10 +85,6 @@
   On parent open the storage engine structures are allocated and initialized.
   They stay with the open table until its final close.
 */
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -121,7 +117,7 @@ ha_myisammrg::ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0), is_cloned(0)
 {
   init_sql_alloc(rg_key_memory_children, &children_mem_root,
-                 FN_REFLEN + ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(0));
+                 FN_REFLEN, 0, MYF(0));
 }
 
 
@@ -172,18 +168,6 @@ extern "C" void myrg_print_wrong_table(const char *table_name)
 }
 
 
-const char *ha_myisammrg::index_type(uint key_number)
-{
-  return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
-	  "FULLTEXT" :
-	  (table->key_info[key_number].flags & HA_SPATIAL) ?
-	  "SPATIAL" :
-	  (table->key_info[key_number].algorithm == HA_KEY_ALG_RTREE) ?
-	  "RTREE" :
-	  "BTREE");
-}
-
-
 /**
   Callback function for open of a MERGE parent table.
 
@@ -231,13 +215,8 @@ extern "C" int myisammrg_parent_open_callback(void *callback_param,
   ha_myisammrg  *ha_myrg= (ha_myisammrg*) callback_param;
   TABLE         *parent= ha_myrg->table_ptr();
   Mrg_child_def *mrg_child_def;
-  char          *db;
-  char          *table_name;
-  size_t        dirlen;
-  size_t        db_length;
-  size_t        table_name_length;
+  LEX_STRING    db, table_name;
   char          dir_path[FN_REFLEN];
-  char          name_buf[NAME_LEN];
   DBUG_ENTER("myisammrg_parent_open_callback");
 
   /*
@@ -249,70 +228,51 @@ extern "C" int myisammrg_parent_open_callback(void *callback_param,
   if (!has_path(filename))
   {
     /* Child is in the same database as parent. */
-    db_length= parent->s->db.length;
-    db= strmake_root(&ha_myrg->children_mem_root, parent->s->db.str, db_length);
+    db= ha_myrg->make_child_ident(parent->s->db);
     /* Child table name is encoded in parent dot-MRG starting with 5.1.46. */
-    if (parent->s->mysql_version >= 50146)
-    {
-      table_name_length= filename_to_tablename(filename, name_buf,
-                                               sizeof(name_buf));
-      table_name= strmake_root(&ha_myrg->children_mem_root, name_buf,
-                               table_name_length);
-    }
-    else
-    {
-      table_name_length= strlen(filename);
-      table_name= strmake_root(&ha_myrg->children_mem_root, filename,
-                               table_name_length);
-    }
+    table_name= (parent->s->mysql_version >= 50146) ?
+      ha_myrg->make_child_ident_filename_to_tablename(filename,
+                                                      lower_case_table_names) :
+      ha_myrg->make_child_ident_opt_casedn(Lex_cstring_strlen(filename),
+                                           lower_case_table_names);
   }
   else
   {
     DBUG_ASSERT(strlen(filename) < sizeof(dir_path));
     fn_format(dir_path, filename, "", "", 0);
     /* Extract child table name and database name from filename. */
-    dirlen= dirname_length(dir_path);
+    size_t dirlen= dirname_length(dir_path);
     /* Child db/table name is encoded in parent dot-MRG starting with 5.1.6. */
     if (parent->s->mysql_version >= 50106)
     {
-      table_name_length= filename_to_tablename(dir_path + dirlen, name_buf,
-                                               sizeof(name_buf));
-      table_name= strmake_root(&ha_myrg->children_mem_root, name_buf,
-                               table_name_length);
+      table_name= ha_myrg->make_child_ident_filename_to_tablename(
+                                                     dir_path + dirlen,
+                                                     lower_case_table_names);
       dir_path[dirlen - 1]= 0;
       dirlen= dirname_length(dir_path);
-      db_length= filename_to_tablename(dir_path + dirlen, name_buf, sizeof(name_buf));
-      db= strmake_root(&ha_myrg->children_mem_root, name_buf, db_length);
+      db= ha_myrg->make_child_ident_filename_to_tablename(dir_path + dirlen,
+                                                          false);
     }
     else
     {
-      table_name_length= strlen(dir_path + dirlen);
-      table_name= strmake_root(&ha_myrg->children_mem_root, dir_path + dirlen,
-                               table_name_length);
+      table_name= ha_myrg->make_child_ident_opt_casedn(
+                                         Lex_cstring_strlen(dir_path + dirlen),
+                                         lower_case_table_names);
       dir_path[dirlen - 1]= 0;
       dirlen= dirname_length(dir_path);
-      db_length= strlen(dir_path + dirlen);
-      db= strmake_root(&ha_myrg->children_mem_root, dir_path + dirlen,
-                       db_length);
+      db= ha_myrg->make_child_ident(Lex_cstring_strlen(dir_path + dirlen));
     }
   }
 
-  if (! db || ! table_name)
+  if (! db.str || ! table_name.str)
     DBUG_RETURN(1);
 
-  DBUG_PRINT("myrg", ("open: '%.*s'.'%.*s'", (int) db_length, db,
-                      (int) table_name_length, table_name));
-
-  /* Convert to lowercase if required. */
-  if (lower_case_table_names && table_name_length)
-  {
-    /* purecov: begin tested */
-    table_name_length= my_casedn_str(files_charset_info, table_name);
-    /* purecov: end */
-  }
+  DBUG_PRINT("myrg", ("open: '%.*s'.'%.*s'", (int) db.length, db.str,
+                      (int) table_name.length, table_name.str));
 
   mrg_child_def= new (&ha_myrg->children_mem_root)
-                 Mrg_child_def(db, db_length, table_name, table_name_length);
+                 Mrg_child_def(db.str, db.length,
+                               table_name.str, table_name.length);
 
   if (! mrg_child_def ||
       ha_myrg->child_def_list.push_back(mrg_child_def,
@@ -337,6 +297,33 @@ static void myrg_set_external_ref(MYRG_INFO *m_info, void *ext_ref_arg)
   {
     m_info->open_tables[i].table->external_ref= ext_ref_arg;
   }
+}
+
+IO_AND_CPU_COST ha_myisammrg::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /*
+    Row data is not cached. costs.row_lookup_cost includes the cost of
+    the reading the row from system (probably cached by the OS).
+  */
+  cost.io= 0;
+  return cost;
+}
+
+IO_AND_CPU_COST ha_myisammrg::keyread_time(uint index, ulong ranges,
+                                           ha_rows rows,
+                                           ulonglong blocks)
+{
+  IO_AND_CPU_COST cost= handler::keyread_time(index, ranges, rows, blocks);
+  if (!blocks)
+  {
+    cost.io*= file->tables;
+    cost.cpu*= file->tables;
+  }
+  /* Add the cost of having to do a key lookup in all trees */
+  if (file->tables)
+    cost.cpu+= (file->tables-1) * (ranges * KEY_LOOKUP_COST);
+  return cost;
 }
 
 /**
@@ -475,7 +462,7 @@ int ha_myisammrg::add_children_list(void)
     LEX_CSTRING db;
     LEX_CSTRING table_name;
 
-    child_l= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST));
+    child_l= thd->alloc<TABLE_LIST>(1);
     db.str= (char*) thd->memdup(mrg_child_def->db.str, mrg_child_def->db.length+1);
     db.length= mrg_child_def->db.length;
     table_name.str= (char*) thd->memdup(mrg_child_def->name.str,
@@ -926,7 +913,7 @@ int ha_myisammrg::attach_children(void)
         break;
     }
   }
-#if !defined(BIG_TABLES) || SIZEOF_OFF_T == 4
+#if SIZEOF_OFF_T == 4
   /* Merge table has more than 2G rows */
   if (table->s->crashed)
   {
@@ -1246,7 +1233,6 @@ int ha_myisammrg::delete_all_rows()
 int ha_myisammrg::info(uint flag)
 {
   MYMERGE_INFO mrg_info;
-  DBUG_ASSERT(this->file->children_attached);
   (void) myrg_status(file,&mrg_info,flag);
   /*
     The following fails if one has not compiled MySQL with -DBIG_TABLES
@@ -1254,7 +1240,7 @@ int ha_myisammrg::info(uint flag)
   */
   stats.records = (ha_rows) mrg_info.records;
   stats.deleted = (ha_rows) mrg_info.deleted;
-#if !defined(BIG_TABLES) || SIZEOF_OFF_T == 4
+#if SIZEOF_OFF_T == 4
   if ((mrg_info.records >= (ulonglong) 1 << 32) ||
       (mrg_info.deleted >= (ulonglong) 1 << 32))
     table->s->crashed= 1;
@@ -1273,26 +1259,17 @@ int ha_myisammrg::info(uint flag)
   table->s->keys_in_use.set_prefix(table->s->keys);
   stats.mean_rec_length= mrg_info.reclength;
   
-  /* 
+  /*
     The handler::block_size is used all over the code in index scan cost
     calculations. It is used to get number of disk seeks required to
     retrieve a number of index tuples.
-    If the merge table has N underlying tables, then (assuming underlying
-    tables have equal size, the only "simple" approach we can use)
-    retrieving X index records from a merge table will require N times more
-    disk seeks compared to doing the same on a MyISAM table with equal
-    number of records.
-    In the edge case (file_tables > myisam_block_size) we'll get
-    block_size==0, and index calculation code will act as if we need one
-    disk seek to retrieve one index tuple.
-
-    TODO: In 5.2 index scan cost calculation will be factored out into a
-    virtual function in class handler and we'll be able to remove this hack.
+    If the merge table has N underlying tables, there will be
+    N more disk seeks compared to a scanning a normal MyISAM table.
+    The number of bytes read is the rougly the same for a normal MyISAM
+    and a MyISAM merge tables.
   */
-  stats.block_size= 0;
-  if (file->tables)
-    stats.block_size= myisam_block_size / file->tables;
-  
+  stats.block_size= myisam_block_size;
+
   stats.update_time= 0;
 #if SIZEOF_OFF_T > 4
   ref_length=6;					// Should be big enough
@@ -1307,7 +1284,7 @@ int ha_myisammrg::info(uint flag)
       /*
         valgrind may be unhappy about it, because optimizer may access values
         between file->keys and table->key_parts, that will be uninitialized.
-        It's safe though, because even if opimizer will decide to use a key
+        It's safe though, because even if optimizer will decide to use a key
         with such a number, it'll be an error later anyway.
       */
       bzero((char*) table->key_info[0].rec_per_key,
@@ -1479,7 +1456,7 @@ void ha_myisammrg::update_create_info(HA_CREATE_INFO *create_info)
       {
         TABLE_LIST *ptr;
 
-        if (!(ptr= (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST))))
+        if (!(ptr= thd->calloc<TABLE_LIST>(1)))
           DBUG_VOID_RETURN;
 
         if (!(ptr->table_name.str= thd->strmake(child_table->table_name.str,
@@ -1524,7 +1501,7 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
     ntables++;
 
   /* Allocate a table_names array in thread mem_root. */
-  if (!(pos= table_names= (const char**) thd->alloc((ntables + 1) * sizeof(char*))))
+  if (!(pos= table_names= thd->alloc<const char*>(ntables + 1)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
 
   /* Create child path names. */
@@ -1578,6 +1555,11 @@ int ha_myisammrg::create(const char *name, TABLE *form,
 {
   char buff[FN_REFLEN];
   DBUG_ENTER("ha_myisammrg::create");
+  if (form->s->total_keys > form->s->keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MERGE", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
   fn_format(buff, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
   int res= create_mrg(buff, create_info);
   DBUG_RETURN(res);
@@ -1744,6 +1726,12 @@ int myisammrg_panic(handlerton *hton, ha_panic_function flag)
   return myrg_panic(flag);
 }
 
+static void myisammrg_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  myisam_update_optimizer_costs(costs);
+}
+
+
 static int myisammrg_init(void *p)
 {
   handlerton *myisammrg_hton;
@@ -1759,7 +1747,7 @@ static int myisammrg_init(void *p)
   myisammrg_hton->panic= myisammrg_panic;
   myisammrg_hton->flags= HTON_NO_PARTITION;
   myisammrg_hton->tablefile_extensions= ha_myisammrg_exts;
-
+  myisammrg_hton->update_optimizer_costs= myisammrg_update_optimizer_costs;
   return 0;
 }
 

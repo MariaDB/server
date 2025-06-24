@@ -1,16 +1,16 @@
 SET @start_global_value = @@global.histogram_type;
 SELECT @start_global_value;
 @start_global_value
-DOUBLE_PREC_HB
+JSON_HB
 SET @start_session_value = @@session.histogram_type;
 SELECT @start_session_value;
 @start_session_value
-DOUBLE_PREC_HB
+JSON_HB
 SET @@global.histogram_type = 1;
 SET @@global.histogram_type = DEFAULT;
 SELECT @@global.histogram_type;
 @@global.histogram_type
-DOUBLE_PREC_HB
+JSON_HB
 SET @@global.histogram_type = 0;
 SELECT @@global.histogram_type;
 @@global.histogram_type
@@ -71,9 +71,9 @@ HISTOGRAM_TYPE	DOUBLE_PREC_HB
 SET @@global.histogram_type = @start_global_value;
 SELECT @@global.histogram_type;
 @@global.histogram_type
-DOUBLE_PREC_HB
+JSON_HB
 SET @@session.histogram_type = @start_session_value;
 SELECT @@session.histogram_type;
 @@session.histogram_type
-DOUBLE_PREC_HB
+JSON_HB
 set sql_mode='';

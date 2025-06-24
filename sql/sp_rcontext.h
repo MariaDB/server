@@ -17,12 +17,9 @@
 #ifndef _SP_RCONTEXT_H_
 #define _SP_RCONTEXT_H_
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_class.h"                    // select_result_interceptor
 #include "sp_pcontext.h"                  // sp_condition_value
+#include "sp_rcontext_handler.h"
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext declaration.
@@ -71,7 +68,7 @@ public:
   ///
   /// @return valid sp_rcontext object or NULL in case of OOM-error.
   static sp_rcontext *create(THD *thd,
-                             const sp_head *owner,
+                             sp_head *owner,
                              const sp_pcontext *root_parsing_ctx,
                              Field *return_value_fld,
                              Row_definition_list &defs);
@@ -79,7 +76,7 @@ public:
   ~sp_rcontext();
 
 private:
-  sp_rcontext(const sp_head *owner,
+  sp_rcontext(sp_head *owner,
               const sp_pcontext *root_parsing_ctx,
               Field *return_value_fld,
               bool in_sub_stmt);
@@ -111,15 +108,18 @@ public:
     /// Text message.
     char *message;
 
+    /** Row number where the condition has happened */
+    ulong m_row_number;
+
     /// The constructor.
     ///
     /// @param _sql_condition  The SQL condition.
     /// @param arena           Query arena for SP
-    Sql_condition_info(const Sql_condition *_sql_condition,
-                       Query_arena *arena)
+    Sql_condition_info(const Sql_condition *_sql_condition, Query_arena *arena)
       :Sql_condition_identity(*_sql_condition)
     {
       message= strdup_root(arena->mem_root, _sql_condition->get_message_text());
+      m_row_number= _sql_condition->m_row_number;
     }
   };
 
@@ -166,7 +166,7 @@ public:
   /// checking if correct runtime context is used for variable handling,
   /// and to access the package run-time context.
   /// Also used by slow log.
-  const sp_head *m_sp;
+  sp_head *m_sp;
 
   /////////////////////////////////////////////////////////////////////////
   // SP-variables.
@@ -175,6 +175,35 @@ public:
   uint argument_count() const
   {
     return m_root_parsing_ctx->context_var_count();
+  }
+
+  uint max_var_index() const
+  {
+    return (uint) m_var_items.size();
+  }
+
+  /*
+    Return:
+    - for functions and procedures - 0.
+    - for PACKAGE BODY - the number of its package-wide variables,
+      which must keep their values even after running of
+      the PACKAGE BODY executable initialization secion.
+  */
+  uint persistent_variable_count() const
+  {
+    /*
+      The top level sp_pcontext contains function and procedure paramenters.
+      In case of a PACKAGE BODY there are no parameters, the context for
+      parameters still exists, with no variables.
+      PACKAGE BODY variables are in m_root_parsing_ctx->child_context(0).
+    */
+    const sp_pcontext *pc= m_root_parsing_ctx->child_context(0);
+    if (pc && pc->scope() == sp_pcontext::PACKAGE_BODY_SCOPE)
+    {
+      DBUG_ASSERT(m_root_parsing_ctx->context_var_count() == 0); // No params
+      return pc->current_var_count();
+    }
+    return 0;
   }
 
   int set_variable(THD *thd, uint var_idx, Item **value);
@@ -208,8 +237,34 @@ public:
 
   bool set_return_value(THD *thd, Item **return_value_item);
 
+  /*
+    Run the event handler for all SP variables (i.e. Fields in m_var_table)
+    in the range [start..end-1].
+  */
+  void expr_event_handler(THD *thd, expr_event_t event, uint start, uint end);
+
+  /*
+    Run the event (e.g. destruction) handler for all variables
+    except PACKAGE BODY variables, which must keep their values even after
+    running of the PACKAGE BODY executable initialization secion.
+  */
+  void expr_event_handler_not_persistent(THD *thd, expr_event_t event)
+  {
+    uint start= thd->spcont->persistent_variable_count();
+    uint end= max_var_index();
+    return expr_event_handler(thd, event, start, end);
+  }
+
   bool is_return_value_set() const
   { return m_return_value_set; }
+
+  /////////////////////////////////////////////////////////////////////////
+  // Parameters.
+  /////////////////////////////////////////////////////////////////////////
+  uint get_inited_param_count() const
+  { return m_inited_params_count; }
+  void set_inited_param_count(uint count)
+  { m_inited_params_count= count; }
 
   /////////////////////////////////////////////////////////////////////////
   // SQL-handlers.
@@ -402,6 +457,10 @@ private:
 
   /// Array of CASE expression holders.
   Bounds_checked_array<Item_cache *> m_case_expr_holders;
+
+  /// Number of parameters initialized by the callee. This is used to
+  /// determine which parameters should be initialized with the default value.
+  uint m_inited_params_count;
 }; // class sp_rcontext : public Sql_alloc
 
 #endif /* _SP_RCONTEXT_H_ */

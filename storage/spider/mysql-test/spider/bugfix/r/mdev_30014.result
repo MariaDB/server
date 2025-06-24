@@ -10,6 +10,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t1 (c int);
 create table t2 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (c INT KEY) ENGINE=Spider;
 LOCK TABLE t2 WRITE,t3 WRITE;
 ERROR HY000: Unable to connect to foreign data source: localhost
@@ -25,6 +27,8 @@ drop table t1, t2, t3, t4;
 create table t1 (c int);
 create table t2 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t3 (c INT KEY) ENGINE=Spider;
 LOCK TABLE t2 WRITE, t3 WRITE;
 ERROR HY000: Unable to connect to foreign data source: localhost

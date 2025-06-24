@@ -323,7 +323,25 @@ SET @@SESSION.collation_connection=utf32_estonian_ci;
 CREATE TABLE t1(c1 SET('a') COLLATE 'Binary',c2 JSON);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+SET NAMES utf8;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # Collation IDs in the protocol
+--echo #
+
+SET @charset='utf32';
+--source include/ctype_uca1400_ids_using_convert.inc
+
+--echo #
+--echo # End of 10.9 tests
 --echo #

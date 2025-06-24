@@ -1,9 +1,12 @@
-drop table if exists t1,t2;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+set @SINGLE_PREC_TYPE='single_prec_hb';
+set @DOUBLE_PREC_TYPE='double_prec_hb';
+set @DEFAULT_HIST_TYPE='double_prec_hb';
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_histogram_size=@@global.histogram_size;
 set @@global.histogram_size=0,@@local.histogram_size=0;
-set @save_hist_type=@@histogram_type;
-set histogram_type='single_prec_hb';
+set @save_hist_type=@DEFAULT_HIST_TYPE;
+set histogram_type=@SINGLE_PREC_TYPE;
 DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
@@ -220,18 +223,19 @@ test.t1	analyze	status	Table is already up to date
 SELECT db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, hist_type, HEX(histogram)
-FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
 test	t1	a	0	49	0.0000	1.0000	NULL	NULL	NULL
-test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	SINGLE_PREC_HB	003FBFFF
-test	t1	c	aaaa	dddddddd	0.1250	7.0000	4	SINGLE_PREC_HB	0055AAFF
-test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	SINGLE_PREC_HB	001919FF
-test	t1	e	0.01	0.112	0.2250	6.2000	4	SINGLE_PREC_HB	000564E1
-test	t1	f	1	5	0.2000	6.4000	4	SINGLE_PREC_HB	3F7FBFBF
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	SINGLE_PREC_HB	0.000,0.247,0.502,0.251,0.000
+test	t1	c	aaaa	dddddddd	0.1250	7.0000	4	SINGLE_PREC_HB	0.000,0.333,0.333,0.333,0.000
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	SINGLE_PREC_HB	0.000,0.098,0.000,0.902,0.000
+test	t1	e	0.01	0.112	0.2250	6.2000	4	SINGLE_PREC_HB	0.000,0.020,0.373,0.490,0.118
+test	t1	f	1	5	0.2000	6.4000	4	SINGLE_PREC_HB	0.247,0.251,0.251,0.000,0.251
 DELETE FROM mysql.column_stats;
 set histogram_size=8;
-set histogram_type='DOUBLE_PREC_HB';
+set histogram_type=@DOUBLE_PREC_TYPE;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -239,18 +243,19 @@ test.t1	analyze	status	Table is already up to date
 SELECT db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, hist_type, HEX(histogram)
-FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
 test	t1	a	0	49	0.0000	1.0000	NULL	NULL	NULL
-test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	8	DOUBLE_PREC_HB	0000FF3FFFBFFFFF
-test	t1	c	aaaa	dddddddd	0.1250	7.0000	8	DOUBLE_PREC_HB	00005555AAAAFFFF
-test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	DOUBLE_PREC_HB	0000031A031AFFFF
-test	t1	e	0.01	0.112	0.2250	6.2000	8	DOUBLE_PREC_HB	000005056464E1E1
-test	t1	f	1	5	0.2000	6.4000	8	DOUBLE_PREC_HB	FF3FFF7FFFBFFFBF
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	8	DOUBLE_PREC_HB	0.00000,0.24999,0.50001,0.25000,0.00000
+test	t1	c	aaaa	dddddddd	0.1250	7.0000	8	DOUBLE_PREC_HB	0.00000,0.33333,0.33333,0.33333,0.00000
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	DOUBLE_PREC_HB	0.00000,0.10161,0.00000,0.89839,0.00000
+test	t1	e	0.01	0.112	0.2250	6.2000	8	DOUBLE_PREC_HB	0.00000,0.01961,0.37255,0.49020,0.11765
+test	t1	f	1	5	0.2000	6.4000	8	DOUBLE_PREC_HB	0.24999,0.25000,0.25000,0.00000,0.25000
 DELETE FROM mysql.column_stats;
 set histogram_size= 0;
-set histogram_type='single_prec_hb';
+set histogram_type=@SINGLE_PREC_TYPE;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -1273,7 +1278,7 @@ Table	Op	Msg_type	Msg_text
 mysql.column_stats	analyze	error	Invalid argument
 ANALYZE TABLE mysql.column_stats;
 Table	Op	Msg_type	Msg_text
-mysql.column_stats	analyze	status	OK
+mysql.column_stats	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 SELECT * FROM mysql.column_stats;
@@ -1379,7 +1384,7 @@ WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -1450,7 +1455,7 @@ WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -1462,7 +1467,7 @@ WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -1491,13 +1496,13 @@ WORLD_INNODB	COUNTRYLANGUAGE	Percentage	1	2.7640
 use world;
 set use_stat_tables='preferably';
 set histogram_size=100;
-set histogram_type='SINGLE_PREC_HB';
+set histogram_type=@SINGLE_PREC_TYPE;
 ANALYZE TABLE CountryLanguage;
 set histogram_size=254;
-set histogram_type='DOUBLE_PREC_HB';
+set histogram_type=@DOUBLE_PREC_TYPE;
 ANALYZE TABLE City;
 FLUSH TABLES;
-select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';;
+select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';;
 UPPER(db_name)	WORLD
 UPPER(table_name)	COUNTRYLANGUAGE
 UPPER(column_name)	PERCENTAGE
@@ -1508,9 +1513,8 @@ avg_length	4.0000
 avg_frequency	2.7640
 hist_size	100
 hist_type	SINGLE_PREC_HB
-hex(histogram)	0000000000000000000000000101010101010101010202020303030304040404050505050606070707080809090A0A0B0C0D0D0E0E0F10111213131415161718191B1C1E202224292A2E33373B4850575F6A76818C9AA7B9C4CFDADFE5EBF0F4F8FAFCFF
 decode_histogram(hist_type,histogram)	0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.004,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.004,0.000,0.000,0.004,0.000,0.000,0.000,0.004,0.000,0.000,0.000,0.004,0.000,0.000,0.000,0.004,0.000,0.004,0.000,0.000,0.004,0.000,0.004,0.000,0.004,0.000,0.004,0.004,0.004,0.000,0.004,0.000,0.004,0.004,0.004,0.004,0.004,0.000,0.004,0.004,0.004,0.004,0.004,0.004,0.008,0.004,0.008,0.008,0.008,0.008,0.020,0.004,0.016,0.020,0.016,0.016,0.051,0.031,0.027,0.031,0.043,0.047,0.043,0.043,0.055,0.051,0.071,0.043,0.043,0.043,0.020,0.024,0.024,0.020,0.016,0.016,0.008,0.008,0.012,0.000
-select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';;
+select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';;
 UPPER(db_name)	WORLD
 UPPER(table_name)	CITY
 UPPER(column_name)	POPULATION
@@ -1521,9 +1525,8 @@ avg_length	4.0000
 avg_frequency	1.0467
 hist_size	254
 hist_type	DOUBLE_PREC_HB
-hex(histogram)	1F00A1002B023002350238023F02430249024E02520258025D02630268026E02720276027B02800285028C02920297029D02A102A802AC02B402BC02C402CC02D302DA02E302EA02F102F802010305030C03120319031F03290333033D0343034F03590363036D037803840390039A03A603B303C303D103E003F203020412042404330440045304600472047F049104A204B804C804DE04F2040A0526053F0558056F058E05B305D905F4051306380667068406AB06DA06020731075C079407C507F8072E085E08A508DF0824096909CC092E0A760AD50A400BA90B150CAD0C310D240E130F0E103B11B9126B14F0166B192F1CB71FFF240630483FC567
 decode_histogram(hist_type,histogram)	0.00047,0.00198,0.00601,0.00008,0.00008,0.00005,0.00011,0.00006,0.00009,0.00008,0.00006,0.00009,0.00008,0.00009,0.00008,0.00009,0.00006,0.00006,0.00008,0.00008,0.00008,0.00011,0.00009,0.00008,0.00009,0.00006,0.00011,0.00006,0.00012,0.00012,0.00012,0.00012,0.00011,0.00011,0.00014,0.00011,0.00011,0.00011,0.00014,0.00006,0.00011,0.00009,0.00011,0.00009,0.00015,0.00015,0.00015,0.00009,0.00018,0.00015,0.00015,0.00015,0.00017,0.00018,0.00018,0.00015,0.00018,0.00020,0.00024,0.00021,0.00023,0.00027,0.00024,0.00024,0.00027,0.00023,0.00020,0.00029,0.00020,0.00027,0.00020,0.00027,0.00026,0.00034,0.00024,0.00034,0.00031,0.00037,0.00043,0.00038,0.00038,0.00035,0.00047,0.00056,0.00058,0.00041,0.00047,0.00056,0.00072,0.00044,0.00060,0.00072,0.00061,0.00072,0.00066,0.00085,0.00075,0.00078,0.00082,0.00073,0.00108,0.00089,0.00105,0.00105,0.00151,0.00150,0.00110,0.00145,0.00163,0.00160,0.00165,0.00232,0.00201,0.00371,0.00365,0.00383,0.00459,0.00583,0.00662,0.00984,0.00969,0.01080,0.01379,0.02063,0.04308,0.05960,0.15816,0.59464
-set histogram_type='single_prec_hb';
+set histogram_type=@SINGLE_PREC_TYPE;
 set histogram_size=0;
 use test;
 DROP DATABASE world;
@@ -1543,7 +1546,7 @@ WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
 WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
 WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
 WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
-WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1172	1.0000
 WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
 WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
 WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
@@ -1590,10 +1593,11 @@ test.t1	analyze	status	OK
 select db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, hist_type, HEX(histogram)
-FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
-test	t1	a	1	3	0.0000	1.0000	10	SINGLE_PREC_HB	0000007F7F7F7FFFFFFF
+hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
+test	t1	a	1	3	0.0000	1.0000	10	SINGLE_PREC_HB	0.000,0.000,0.000,0.498,0.000,0.000,0.000,0.502,0.000,0.000,0.000
 set histogram_size=default;
 drop table t1;
 #
@@ -1603,7 +1607,7 @@ drop table t1;
 create table t1 ( a int);
 insert into t1 values (1),(2),(3),(4),(5);
 set histogram_size=10;
-set histogram_type='double_prec_hb';
+set histogram_type=@DOUBLE_PREC_TYPE;
 show variables like 'histogram%';
 Variable_name	Value
 histogram_size	10
@@ -1615,12 +1619,13 @@ test.t1	analyze	status	OK
 select db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, hist_type, HEX(histogram)
-FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
-test	t1	a	1	5	0.0000	1.0000	10	DOUBLE_PREC_HB	0000FF3FFF7FFFBFFFFF
+hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
+test	t1	a	1	5	0.0000	1.0000	10	DOUBLE_PREC_HB	0.00000,0.24999,0.25000,0.25000,0.25000,0.00000
 set histogram_size=0;
-set histogram_type='single_prec_hb';
+set histogram_type=@SINGLE_PREC_TYPE;
 drop table t1;
 #
 # Bug mdev-4369: histogram for a column with many distinct values 
@@ -1656,10 +1661,10 @@ test.t2	analyze	status	OK
 select db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, hist_type, HEX(histogram)
+hist_size, hist_type, decode_histogram(hist_type,histogram)
 FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
-test	t2	id	1	1024	0.0000	8.0000	63	SINGLE_PREC_HB	03070B0F13171B1F23272B2F33373B3F43474B4F53575B5F63676B6F73777B7F83878B8F93979B9FA3A7ABAFB3B7BBBFC3C7CBCFD3D7DBDFE3E7EBEFF3F7FB
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
+test	t2	id	1	1024	0.0000	8.0000	63	SINGLE_PREC_HB	0.012,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016,0.016
 set histogram_size=0;
 drop table t1, t2;
 set use_stat_tables=@save_use_stat_tables;
@@ -1677,13 +1682,13 @@ Level	Code	Message
 select db_name, table_name, column_name,
 HEX(min_value), HEX(max_value),
 nulls_ratio, avg_frequency,
-hist_size, hist_type, HEX(histogram)
+hist_size, hist_type, decode_histogram(hist_type,histogram)
 FROM mysql.column_stats;
-db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_frequency	hist_size	hist_type	decode_histogram(hist_type,histogram)
 test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
 drop table t1;
 #
-# MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+# MDEV-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
 # Encountered illegal value '' when converting to DECIMAL
 #
 set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
@@ -1775,12 +1780,12 @@ set use_stat_tables=@save_use_stat_tables;
 #
 # MDEV-10134 Add full support for DEFAULT
 #
-CREATE TABLE t1 (a BLOB, b TEXT DEFAULT DECODE_HISTOGRAM('SINGLE_PREC_HB',a));
+CREATE TABLE t1 (a BLOB, b TEXT DEFAULT DECODE_HISTOGRAM(@SINGLE_PREC_TYPE,a));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
-  `b` text DEFAULT decode_histogram('SINGLE_PREC_HB',`a`)
+  `b` text DEFAULT decode_histogram(@`SINGLE_PREC_TYPE`,`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (a) VALUES (0x0000000000000000000000000101010101010101010202020303030304040404050505050606070707080809090A0A0B0C0D0D0E0E0F10111213131415161718191B1C1E202224292A2E33373B4850575F6A76818C9AA7B9C4CFDADFE5EBF0F4F8FAFCFF);
 SELECT b FROM t1;
@@ -1834,7 +1839,7 @@ table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	
 t1	id	1	17384	0.0000	4.0000	14.0000	0.15705,0.15711,0.21463,0.15705,0.15711,0.15706
 set analyze_sample_percentage=0.1;
 #
-# This query will show an innacurate avg_frequency value.
+# This query will show an inaccurate avg_frequency value.
 #
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -1893,8 +1898,10 @@ t1	id	1	17384	0.0000	4.0000	14.0000	0.15705,0.15711,0.21463,0.15705,0.15711,0.15
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	229376	
+drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

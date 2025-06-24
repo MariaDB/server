@@ -44,30 +44,6 @@ select @@global.concurrent_insert;
 connect (con1, localhost, root,,);
 connect (con2, localhost, root,,);
 connection default;
---disable_warnings
-drop table if exists t0, t1, t2, t3, t4, t5;
-drop view if exists v1, v2;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop function if exists f1;
-drop function if exists f2;
-drop function if exists f3;
-drop function if exists f4;
-drop function if exists f5;
-drop function if exists f6;
-drop function if exists f7;
-drop function if exists f8;
-drop function if exists f9;
-drop function if exists f10;
-drop function if exists f11;
-drop function if exists f12;
-drop function if exists f13;
-drop function if exists f14;
-drop function if exists f15;
-drop function if exists f16;
-drop function if exists f17;
---enable_warnings
 create table t1 (i int primary key);
 insert into t1 values (1), (2), (3), (4), (5);
 create table t2 (j int primary key);
@@ -1103,3 +1079,123 @@ DROP TABLES t1, t2;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-28567 Assertion `0' in open_tables upon function-related operation
+--echo #
+# To get MDL trace run this case like this:
+# mtr --mysqld=--debug-dbug=d,mdl,query:i:o,/tmp/mdl.log ...
+# Cleanup trace like this:
+# sed -i -re '/(mysql|performance_schema|sys|mtr)\// d; /MDL_BACKUP_|MDL_INTENTION_/ d; /\/(t2|tr1|tr2)/ d' /tmp/mdl.log
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW UPDATE t2 SET b = 0;
+CREATE TRIGGER tr2 BEFORE INSERT ON t2 FOR EACH ROW UPDATE t1 SET a = 6;
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SET AUTOCOMMIT=OFF;
+SELECT * FROM t1;
+# T@6
+# Seized:   test/t1 (MDL_SHARED_READ)
+
+--connect (con1,localhost,root,,test)
+--send
+  DROP TRIGGER tr1;
+# T@7
+# Seized:   test/t1 (MDL_SHARED_NO_WRITE)
+# Waiting: test/t1 (MDL_EXCLUSIVE)
+# Waiting: test/t1 (MDL_SHARED_WRITE)
+# Deadlock: test/t1 (MDL_SHARED_WRITE)
+
+--connection default
+--error 0, ER_LOCK_DEADLOCK
+INSERT INTO t2 SELECT * FROM t2;
+# T@6
+# Released: test/t1 (MDL_SHARED_READ)
+# T@7
+# Acquired: test/t1 (MDL_EXCLUSIVE) (good)
+--error ER_SP_DOES_NOT_EXIST
+SELECT f() FROM t2;
+# T@6
+# Seized:   test/f (MDL_SHARED)
+# T@7
+# Released: test/t1 (MDL_EXCLUSIVE)
+# Good1: continue T@6 below
+# Bad1: continue T@8 below
+
+# Now we hold test/f, the below code creates concurrent
+# waiting of 3 threads for test/f which leads to deadlock (Bad)
+
+# To achieve Good comment out 'now wait_for s1' below and run multiple times.
+
+--connect (con2,localhost,root,,test)
+set debug_sync= 'after_open_table_mdl_shared signal s1';
+--send
+  ALTER VIEW v1 AS SELECT f() FROM t1;
+# T@8
+# Good2: Waiting: test/v1 (MDL_EXCLUSIVE)
+# Good2-3: continue T@7 below
+# Good5: Acquired: test/v1 (MDL_EXCLUSIVE)
+# Good5: Seized: test/v1 (MDL_EXCLUSIVE)
+# Good5-6: continue T@7 below
+# Good7: Seized:   test/t1 (MDL_SHARED_READ)
+# Good7: Waiting: test/f (MDL_SHARED)
+# Good7-8: continue T@7 below
+# Good9: Acquired: test/f (MDL_SHARED)
+# Good9: Released: test/f (MDL_SHARED)
+# Good9: Released: test/t1 (MDL_SHARED_READ)
+# Good9: Released: test/v1 (MDL_EXCLUSIVE)
+# Good9: command finished without error
+# Bad1: Seized: test/v1 (MDL_EXCLUSIVE)
+# Bad1: Seized: test/v1 (MDL_EXCLUSIVE)
+# Bad1: Seized: test/t1 (MDL_SHARED_READ)
+# Bad1-2: continue T@6 below
+# Bad4: Waiting: test/f (MDL_SHARED)
+# Bad4: Deadlock: test/f (MDL_SHARED)
+# Bad4: command finished with error
+
+--connection con1
+--reap
+--send
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+# T@7
+# Good3: Waiting: test/f (MDL_EXCLUSIVE)
+# Good3-4: continue T@6 below
+# Good6: Acquired: test/f (MDL_EXCLUSIVE)
+# Good6-7: continue T@8 above
+# Good8: Released: test/f (MDL_EXCLUSIVE)
+# Good8-9: continue T@8 above
+# Bad3: Waiting: test/f (MDL_EXCLUSIVE)
+# Bad3-4: continue T@8 above
+
+--connection default
+set debug_sync= 'now wait_for s1';
+--disable_result_log
+SELECT * FROM ( SELECT * FROM v1 ) sq;
+--enable_result_log
+# T@6
+# Good1: Seized:   test/v1 (MDL_SHARED_READ)
+# Good1-2: continue T@8 above
+# Good4: Seized:   test/t1 (MDL_SHARED_READ)
+# Bad2: Waiting: test/v1 (MDL_SHARED_READ)
+# Bad2-3: continue T@7 above
+
+# Cleanup
+COMMIT;
+# Good4: Released: test/t1 (MDL_SHARED_READ)
+# Good4: Released: test/v1 (MDL_SHARED_READ)
+# Good4: Released: test/f (MDL_SHARED)
+# Good4-5: continue T@8 above
+
+--connection con2
+--error 0, ER_SP_DOES_NOT_EXIST
+--reap
+--disconnect con1
+--disconnect con2
+--connection default
+--source include/wait_until_count_sessions.inc
+DROP VIEW v1;
+DROP FUNCTION IF EXISTS f;
+DROP TABLE t1, t2;
+set debug_sync= 'reset';

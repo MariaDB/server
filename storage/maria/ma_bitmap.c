@@ -65,7 +65,7 @@
   'min record length'.  Tail pages are for overflow data which can be of
   any size and thus doesn't have to be adjusted for different tables.
   If we add more columns to the table, some of the originally calculated
-  'cut off' points may not be optimal, but they shouldn't be 'drasticly
+  'cut off' points may not be optimal, but they shouldn't be 'drastically
   wrong'.
 
   When allocating data from the bitmap, we are trying to do it in a
@@ -661,7 +661,7 @@ static void _ma_bitmap_unpin_all(MARIA_SHARE *share)
                                  dynamic_array_ptr(&bitmap->pinned_pages, 0));
   MARIA_PINNED_PAGE *pinned_page= page_link + bitmap->pinned_pages.elements;
   DBUG_ENTER("_ma_bitmap_unpin_all");
-  DBUG_PRINT("info", ("pinned: %u", bitmap->pinned_pages.elements));
+  DBUG_PRINT("info", ("pinned: %zu", bitmap->pinned_pages.elements));
   while (pinned_page-- != page_link)
     pagecache_unlock_by_link(share->pagecache, pinned_page->link,
                              pinned_page->unlock, PAGECACHE_UNPIN,
@@ -1179,6 +1179,7 @@ static my_bool move_to_next_bitmap(MARIA_HA *info, MARIA_FILE_BITMAP *bitmap)
 {
   pgcache_page_no_t page= bitmap->page;
   MARIA_STATE_INFO *state= &info->s->state;
+  my_bool res;
   DBUG_ENTER("move_to_next_bitmap");
 
   if (state->first_bitmap_with_space != ~(pgcache_page_no_t) 0 &&
@@ -1193,7 +1194,8 @@ static my_bool move_to_next_bitmap(MARIA_HA *info, MARIA_FILE_BITMAP *bitmap)
     page+= bitmap->pages_covered;
     DBUG_ASSERT(page % bitmap->pages_covered == 0);
   }
-  DBUG_RETURN(_ma_change_bitmap_page(info, bitmap, page));
+  res= _ma_change_bitmap_page(info, bitmap, page);
+  DBUG_RETURN(res);
 }
 
 
@@ -1368,7 +1370,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
   else
   {
     /*
-      This is not stricly needed as used_size should be alligned on 6,
+      This is not strictly needed as used_size should be alligned on 6,
        but for easier debugging lets try to keep it more accurate
     */
     uint position= (uint)  (best_data - bitmap->map) + 6;
@@ -1742,7 +1744,7 @@ static my_bool find_head(MARIA_HA *info, uint length, uint position)
     1  error
 */
 
-static my_bool find_tail(MARIA_HA *info, uint length, uint position)
+static my_bool find_tail(MARIA_HA *info, uint length, size_t position)
 {
   MARIA_FILE_BITMAP *bitmap= &info->s->bitmap;
   MARIA_BITMAP_BLOCK *block;
@@ -1756,7 +1758,7 @@ static my_bool find_tail(MARIA_HA *info, uint length, uint position)
 
   /*
     We have to add DIR_ENTRY_SIZE to ensure we have space for the tail and
-    it's directroy entry on the page
+    its directory entry on the page
   */
   while (allocate_tail(bitmap, length + DIR_ENTRY_SIZE, block))
     if (move_to_next_bitmap(info, bitmap))
@@ -1823,7 +1825,7 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
   uint full_page_size= FULL_PAGE_SIZE(info->s);
   ulong pages;
   uint rest_length, used;
-  uint UNINIT_VAR(first_block_pos);
+  size_t UNINIT_VAR(first_block_pos);
   MARIA_BITMAP_BLOCK *first_block= 0;
   DBUG_ENTER("find_blob");
   DBUG_PRINT("enter", ("length: %lu", length));
@@ -1873,7 +1875,8 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
     DBUG_RETURN(1);
   first_block= dynamic_element(&info->bitmap_blocks, first_block_pos,
                                MARIA_BITMAP_BLOCK*);
-  first_block->sub_blocks= info->bitmap_blocks.elements - first_block_pos;
+  first_block->sub_blocks= (uint)(info->bitmap_blocks.elements
+                                  - first_block_pos);
   DBUG_RETURN(0);
 }
 
@@ -1894,7 +1897,7 @@ static my_bool find_blob(MARIA_HA *info, ulong length)
 static my_bool allocate_blobs(MARIA_HA *info, MARIA_ROW *row)
 {
   ulong *length, *end;
-  uint elements;
+  size_t elements;
   /*
     Reserve size for:
     head block
@@ -1908,7 +1911,7 @@ static my_bool allocate_blobs(MARIA_HA *info, MARIA_ROW *row)
     if (*length && find_blob(info, *length))
       return 1;
   }
-  row->extents_count= (info->bitmap_blocks.elements - elements);
+  row->extents_count= (uint)(info->bitmap_blocks.elements - elements);
   return 0;
 }
 
@@ -2181,7 +2184,7 @@ end:
                                  MARIA_BITMAP_BLOCK*);
   blocks->block->sub_blocks= ELEMENTS_RESERVED_FOR_MAIN_PART - position;
   /* First block's page_count is for all blocks */
-  blocks->count= info->bitmap_blocks.elements - position;
+  blocks->count= (uint)(info->bitmap_blocks.elements - position);
   res= 0;
 
 abort:
@@ -2205,7 +2208,7 @@ abort:
    This function is only called when the new row can't fit in the space of
    the old row in the head page.
 
-   This is essently same as _ma_bitmap_find_place() except that
+   This is essentially the same as _ma_bitmap_find_place() except that
    we don't call find_head() to search in bitmaps where to put the page.
 
   RETURN
@@ -2282,7 +2285,7 @@ end:
                                  MARIA_BITMAP_BLOCK*);
   blocks->block->sub_blocks= ELEMENTS_RESERVED_FOR_MAIN_PART - position;
   /* First block's page_count is for all blocks */
-  blocks->count= info->bitmap_blocks.elements - position;
+  blocks->count= (uint)(info->bitmap_blocks.elements - position);
   res= 0;
 
 abort:
@@ -2634,7 +2637,7 @@ void _ma_bitmap_flushable(MARIA_HA *info, int non_flushable_inc)
   DBUG_ENTER("_ma_bitmap_flushable");
 
   /*
-    Not transactional tables are never automaticly flushed and needs no
+    Not transactional tables are never automatically flushed and need no
     protection
   */
   if (!share->now_transactional)
@@ -3343,6 +3346,10 @@ static my_bool _ma_bitmap_create_missing(MARIA_HA *info,
     goto err;
 
   share->state.state.data_file_length= (page + 1) * bitmap->block_size;
+  if (info->s->tracked &&
+      _ma_update_tmp_file_size(&share->track_data,
+                               share->state.state.data_file_length))
+    goto err;
 
  DBUG_RETURN(FALSE);
 err:

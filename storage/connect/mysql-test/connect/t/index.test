@@ -22,7 +22,7 @@ CREATE TABLE t1
   sitmat    CHAR(1) NOT NULL,
   formation CHAR(5) NOT NULL,
   INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
 SELECT * FROM t1 LIMIT 10;
 SELECT SUM(brut) from t1;
 
@@ -55,17 +55,20 @@ create table t2
 (
   sexe  INT(1) KEY,
   genre CHAR(8) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t2;
-SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 LIMIT 10;
-
+--echo # t2 has only 3 rows. Force eq_ref by increasing table scan cost!
+set @@optimizer_scan_setup_cost=10000;
+explain SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 order by nom,prenom LIMIT 10;
+SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 order by nom,prenom LIMIT 10;
+set @@optimizer_scan_setup_cost=default;
 --echo #
 --echo # Another table
 --echo #
 CREATE TABLE t3 (
   sitmat    CHAR(1) KEY,
   situation CHAR(12) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t3;
 SELECT nom, prenom, genre, situation FROM t1 NATURAL JOIN t2 NATURAL JOIN t3 WHERE nom = 'FOCH';
 
@@ -77,13 +80,6 @@ DELETE FROM t1;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
-
-#
-# Clean up
-#
---remove_file $MYSQLD_DATADIR/test/emp.txt
---remove_file $MYSQLD_DATADIR/test/sexe.csv
---remove_file $MYSQLD_DATADIR/test/sitmat.csv
 
 --echo #
 --echo # MDEV-28299: Server crashes in
@@ -110,3 +106,20 @@ SELECT x.a
 FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
 WHERE x.pk > 3;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27591 Connect tables (FIX/DOS) don't work with DESC keys - wrong results
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 (
+  id INT,
+  f VARCHAR(32),
+  PRIMARY KEY (id DESC)
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='emp.txt';
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/emp.txt
+--remove_file $MYSQLD_DATADIR/test/sexe.csv
+--remove_file $MYSQLD_DATADIR/test/sitmat.csv

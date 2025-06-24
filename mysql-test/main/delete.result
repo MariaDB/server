@@ -92,6 +92,9 @@ select * from t1;
 a	b
 1	apple
 drop table t1;
+#
+# IGNORE option
+#
 create table t11 (a int NOT NULL, b int, primary key (a));
 create table t12 (a int NOT NULL, b int, primary key (a));
 create table t2 (a int NOT NULL, b int, primary key (a));
@@ -125,9 +128,13 @@ a	b
 33	10
 0	11
 2	12
+explain delete ignore t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t12	ALL	PRIMARY	NULL	NULL	NULL	3	
+1	PRIMARY	t11	eq_ref	PRIMARY	PRIMARY	4	test.t12.a	1	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	PRIMARY	NULL	NULL	NULL	3	Using where
 delete ignore t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 Warnings:
-Warning	1242	Subquery returns more than 1 row
 Warning	1242	Subquery returns more than 1 row
 select * from t11;
 a	b
@@ -252,13 +259,13 @@ a INT
 );
 INSERT INTO db2.t1 (a) SELECT * FROM t2;
 DELETE FROM t1 alias USING t1, t2 alias WHERE t1.a = alias.a;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'alias USING t1, t2 alias WHERE t1.a = alias.a' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING t1, t2 alias WHERE t1.a = alias.a' at line 1
 DELETE FROM alias USING t1, t2 alias WHERE t1.a = alias.a;
 DELETE FROM t1, alias USING t1, t2 alias WHERE t1.a = alias.a;
 DELETE FROM t1, t2 USING t1, t2 alias WHERE t1.a = alias.a;
 ERROR 42S02: Unknown table 't2' in MULTI DELETE
 DELETE FROM db1.t1 alias USING db1.t1, db2.t1 alias WHERE db1.t1.a = alias.a;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'alias USING db1.t1, db2.t1 alias WHERE db1.t1.a = alias.a' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING db1.t1, db2.t1 alias WHERE db1.t1.a = alias.a' at line 1
 DELETE FROM alias USING db1.t1, db2.t1 alias WHERE db1.t1.a = alias.a;
 DELETE FROM db2.alias USING db1.t1, db2.t1 alias WHERE db1.t1.a = alias.a;
 ERROR 42S02: Unknown table 'alias' in MULTI DELETE
@@ -266,7 +273,7 @@ DELETE FROM t1 USING t1 WHERE a = 1;
 SELECT * FROM t1;
 a
 DELETE FROM t1 alias USING t1 alias WHERE a = 2;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'alias USING t1 alias WHERE a = 2' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING t1 alias WHERE a = 2' at line 1
 SELECT * FROM t1;
 a
 DROP TABLE t1, t2;
@@ -557,3 +564,221 @@ having t3.a > any (select t2.b from t2
 where t2.b*10 < sum(t3.b)));
 drop table t1,t2,t3;
 End of 10.4 tests
+#
+# MDEV-26459: Assertion `block_size <= 0xFFFFFFFFL' failed
+# in calculate_block_sizes for 10.7 only
+#
+SET @sort_buffer_size_save= @@sort_buffer_size;
+SET sort_buffer_size=1125899906842624;
+CREATE TABLE t1 (a INT,b CHAR,KEY(a,b));
+DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
+DROP TABLE t1;
+SET sort_buffer_size= @sort_buffer_size_save;
+# End of 10.11 tests
+#
+# MDEV-29428: DELETE with ORDER BY without LIMIT clause
+#
+create table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1 values
+(1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create temporary table t select * from t1;
+explain delete from t1 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	8	Deleting all rows
+delete from t1 order by c2;
+select *from t1;
+c1	c2	c3
+delete from t1;
+insert into t1 select * from t;
+explain delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+select *from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+delete from t1;
+insert into t1 select * from t;
+explain delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
+order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+delete from t1
+where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
+order by c2;
+select *from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+2	1	4
+2	2	5
+drop table t1;
+End of 11.1 tests
+#
+# MDEV-33988 DELETE to support table aliases
+#
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM t1;
+c1
+1
+2
+DELETE FROM t1 AS a1 WHERE a1.c1 = 2;
+SELECT * FROM t1;
+c1
+1
+CREATE TABLE t2 (c2 INT);
+INSERT INTO t2 VALUES (1), (2);
+SELECT * FROM t2;
+c2
+1
+2
+DELETE FROM t2 a2 WHERE NOT EXISTS (SELECT * FROM t1 WHERE t1.c1 = a2.c2);
+SELECT * FROM t2;
+c2
+1
+DROP TABLE t1, t2;
+End of 11.6 tests
+#
+# MDEV-25008: Delete query gets stuck on mariadb, same query works
+#             on MySQL 8.0.21
+#
+CREATE TABLE t1 (
+id int NOT NULL PRIMARY KEY,
+item_id varchar(100),
+seller_name varchar(400),
+variant varchar(400),
+FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+explain
+DELETE FROM t1 WHERE id NOT IN
+(SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	#	
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
+drop table t1;
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain delete from t1  where    b <= 2 and a not in (select b from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	b	b	5	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20000	Using where
+explain delete from t1  where    b <= 3 and a not in (select b from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	b	b	5	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	20000	
+drop table t1, t2;
+# End of 11.7 tests
+#
+# MDEV-30469: Add support of ORDER BY and LIMIT to multidelete query.
+#
+# Check that limits work with hints
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+select * from t2 ORDER BY (id);
+id
+3
+8
+9
+10
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) DESC LIMIT 3;
+select * from t2;
+id
+3
+# Check some useless syntax
+DELETE t2.* FROM t2 FORCE INDEX FOR GROUP BY (xid) ORDER BY (id) LIMIT 1;
+drop table t2;
+# Check that hints work with limit
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+# default primary index
+explain
+DELETE t2.* FROM t2 ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	2	
+# make it use other undex
+explain
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+explain
+DELETE t2.* FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# prohibit primary index
+explain
+DELETE t2.* FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+drop table t2;
+# Check that limits work with hints & PS protocol
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+prepare stmt from
+"DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT ?";
+set @lim= 2;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+id
+3
+8
+9
+10
+set @lim= 1;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+id
+8
+9
+10
+set @lim= 3;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+id
+drop table t2;
+# Check that hints work with limit in normal DELETE syntax
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+# default primary index
+explain
+DELETE FROM t2 ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	2	
+# make it use other undex
+explain
+DELETE FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+explain
+DELETE FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# prohibit primary index
+explain
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	xid	4	NULL	2	
+# should issue warnings because we can not switch it internally
+# to multiupdate due to RETURNING
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2 RETURNING id;
+id
+1
+2
+Warnings:
+Warning	4207	Index hints are ignored because they are incompatible with RETURNING clause
+drop table t2;
+#
+# End of 11.4 test
+#

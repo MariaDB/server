@@ -8,11 +8,15 @@ SELECT @session_start_value;
 UTF8_IS_UTF8MB3
 '#--------------------FN_DYNVARS_152_01------------------------#'
 SET @@global.old_mode = "NO_PROGRESS_INFO";
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SET @@global.old_mode = DEFAULT;
 SELECT @@global.old_mode;
 @@global.old_mode
 UTF8_IS_UTF8MB3
 SET @@session.old_mode = "NO_PROGRESS_INFO";
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SET @@session.old_mode = DEFAULT;
 SELECT @@session.old_mode;
 @@session.old_mode
@@ -40,20 +44,28 @@ SELECT @@session.old_mode;
 
 '#--------------------FN_DYNVARS_152_03------------------------#'
 SET @@global.old_mode = NO_PROGRESS_INFO;
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_PROGRESS_INFO
 SET @@global.old_mode = NO_DUP_KEY_WARNINGS_WITH_IGNORE;
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
 SET @@global.old_mode = OFF;
 ERROR 42000: Variable 'old_mode' can't be set to the value of 'OFF'
 SET @@session.old_mode = NO_PROGRESS_INFO;
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SELECT @@session.old_mode;
 @@session.old_mode
 NO_PROGRESS_INFO
 SET @@session.old_mode = NO_DUP_KEY_WARNINGS_WITH_IGNORE;
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
 SELECT @@session.old_mode;
 @@session.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
@@ -103,19 +115,25 @@ SELECT @@global.old_mode;
 @@global.old_mode
 
 SET @@global.old_mode = 1;
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
 SET @@global.old_mode = 2;
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_PROGRESS_INFO
 SET @@global.old_mode = 4;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
-SET @@global.old_mode = 16;
-ERROR 42000: Variable 'old_mode' can't be set to the value of '16'
+SET @@global.old_mode = 6536;
+ERROR 42000: Variable 'old_mode' can't be set to the value of '6536'
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
@@ -123,6 +141,8 @@ SET @@global.old_mode = 0.4;
 ERROR 42000: Incorrect argument type to variable 'old_mode'
 '#---------------------FN_DYNVARS_152_08----------------------#'
 SET @@global.old_mode = TRUE;
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
@@ -132,7 +152,11 @@ SELECT @@global.old_mode;
 
 '#---------------------FN_DYNVARS_152_09----------------------#'
 SET old_mode = 'NO_PROGRESS_INFO';
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SET session old_mode = 1;
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
 SELECT @@old_mode;
 @@old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
@@ -142,10 +166,16 @@ SELECT @@global.old_mode;
 
 '#---------------------FN_DYNVARS_152_10----------------------#'
 SET @@session.old_mode = 'NO_PROGRESS_INFO,NO_DUP_KEY_WARNINGS_WITH_IGNORE';
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SELECT @@session.old_mode;
 @@session.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO
 SET @@global.old_mode = 'NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO';
+Warnings:
+Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed in a future release
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO
@@ -156,6 +186,8 @@ SELECT @@old_mode;
 @@old_mode
 
 SET @@old_mode=',,,,NO_PROGRESS_INFO,,,';
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
 SELECT @@old_mode;
 @@old_mode
 NO_PROGRESS_INFO
@@ -195,7 +227,7 @@ SELECT @@character_set_server,@@character_set_client,@@character_set_results,
 @@character_set_connection, @@character_set_filesystem, @@character_set_database,
 @@collation_connection, @@collation_server, @@collation_database;
 @@character_set_server	@@character_set_client	@@character_set_results	@@character_set_connection	@@character_set_filesystem	@@character_set_database	@@collation_connection	@@collation_server	@@collation_database
-latin1	latin1	latin1	latin1	binary	latin1	latin1_swedish_ci	latin1_swedish_ci	latin1_swedish_ci
+utf8mb4	latin1	latin1	latin1	binary	utf8mb4	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	utf8mb4_uca1400_ai_ci
 #
 # UTF8MB3 alias for UTF8
 #
@@ -263,4 +295,47 @@ SET @@collation_server = @save_collation_server;
 SET @@collation_database = @save_collation_database;
 #
 # End of 10.6 test
+#
+#
+# Beginning of 10.9 test
+#
+#
+# MDEV-24920: Merge "old" SQL variable to "old_mode" sql variable
+#
+# Checking that setting old will also set old_mode
+SELECT @@OLD_MODE;
+@@OLD_MODE
+UTF8_IS_UTF8MB3
+SET old= 1;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead
+SELECT @@OLD_MODE;
+@@OLD_MODE
+NO_PROGRESS_INFO,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM
+SET old= DEFAULT;
+Warnings:
+Warning	1287	'@@old' is deprecated and will be removed in a future release. Please use '@@old_mode' instead
+SELECT @@OLD_MODE;
+@@OLD_MODE
+UTF8_IS_UTF8MB3
+# Checking that old_mode can be set independently as well
+SELECT @@OLD_MODE;
+@@OLD_MODE
+UTF8_IS_UTF8MB3
+SET @save_old_mode = @@OLD_MODE;
+SET @@OLD_MODE= IGNORE_INDEX_ONLY_FOR_JOIN;
+Warnings:
+Warning	1287	'IGNORE_INDEX_ONLY_FOR_JOIN' is deprecated and will be removed in a future release
+SELECT @@OLD_MODE;
+@@OLD_MODE
+IGNORE_INDEX_ONLY_FOR_JOIN
+SET @@OLD_MODE=  COMPAT_5_1_CHECKSUM;
+Warnings:
+Warning	1287	'COMPAT_5_1_CHECKSUM' is deprecated and will be removed in a future release
+SELECT @@OLD_MODE;
+@@OLD_MODE
+COMPAT_5_1_CHECKSUM
+SET @@OLD_MODE= @save_old_mode;
+#
+# End of 10.9 test
 #

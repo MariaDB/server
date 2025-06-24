@@ -173,9 +173,9 @@ INSERT INTO t2 values (1),(2),(3);
 INSERT INTO t3 VALUES (1,'1'),(2,'2'),(1,'1'),(2,'2');
 explain SELECT distinct t3.a FROM t3,t2,t1 WHERE t3.a=t1.b AND t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	a	a	4	NULL	5	Using index; Using temporary
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using where
-1	SIMPLE	t3	ref	a	a	5	test.t1.b	2	Using index
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	4	Using where; Using temporary
+1	SIMPLE	t3	ref	a	a	5	test.t1.b	1	Using index
+1	SIMPLE	t2	ref	a	a	4	test.t1.a	1	Using index; Distinct
 SELECT distinct t3.a FROM t3,t2,t1 WHERE t3.a=t1.b AND t1.a=t2.a;
 a
 1
@@ -522,8 +522,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT DISTINCT t1_1.a, t1_1.b FROM t1 t1_1, t1 t1_2
 WHERE t1_1.a = t1_2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_1	ALL	PRIMARY	NULL	NULL	NULL	3	Using temporary
-1	SIMPLE	t1_2	eq_ref	PRIMARY	PRIMARY	4	test.t1_1.a	1	Using index; Distinct
+1	SIMPLE	t1_2	index	PRIMARY	PRIMARY	4	NULL	3	Using index; Using temporary
+1	SIMPLE	t1_1	eq_ref	PRIMARY	PRIMARY	4	test.t1_2.a	1	
 EXPLAIN SELECT a FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	3	Using index
@@ -538,10 +538,10 @@ PRIMARY KEY (a,b));
 INSERT INTO t2 VALUES (1,1,1,50), (1,2,3,40), (2,1,3,4);
 EXPLAIN SELECT DISTINCT a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	PRIMARY	4	NULL	4	Using index for group-by
+1	SIMPLE	t2	range	NULL	PRIMARY	4	NULL	3	Using index for group-by
 EXPLAIN SELECT DISTINCT a,a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	PRIMARY	4	NULL	4	Using index for group-by
+1	SIMPLE	t2	range	NULL	PRIMARY	4	NULL	3	Using index for group-by
 EXPLAIN SELECT DISTINCT b,a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	NULL	PRIMARY	8	NULL	3	Using index
@@ -652,7 +652,6 @@ SELECT DISTINCT 2 + 2, 'Bob' INTO @v17, @v18 FROM t1 WHERE fruit_name =
 SELECT @v17, @v18;
 @v17	@v18
 4	Bob
-DROP TABLE IF EXISTS t2;
 CREATE TABLE t2 (fruit_id INT NOT NULL, fruit_name varchar(20)
 default NULL);
 SELECT DISTINCT fruit_id, fruit_name INTO OUTFILE 
@@ -754,9 +753,6 @@ INSERT INTO t1(a, b, c) VALUES (1, 1, 1),
 (1, 2, 1),
 (1, 2, 2),
 (1, 2, 3);
-EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	PRIMARY	16	NULL	7	Using index for group-by; Using temporary
 SELECT DISTINCT a, b, d, c FROM t1;
 a	b	d	c
 1	1	0	1
@@ -765,6 +761,13 @@ a	b	d	c
 1	2	0	1
 1	2	0	2
 1	2	0	3
+EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	16	NULL	6	Using index
+INSERT INTO t1 SELECT seq/10,seq/10,seq/10,seq/10,seq from seq_1_to_100;
+EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	PRIMARY	16	NULL	10	Using index for group-by; Using temporary
 DROP TABLE t1;
 #
 # Bug #46159: simple query that never returns
@@ -1173,8 +1176,7 @@ a
 explain select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index; Using temporary
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; FirstMatch(t1)
 select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 10,10;
 a
 select distinct a from t1 where t1.a=1 and t1.a in (select a+0 from t2 where t2.b in (1,2)) limit 0,1;

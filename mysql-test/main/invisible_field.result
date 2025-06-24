@@ -11,9 +11,9 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `abc` int(11) NOT NULL,
-  `xyz` int(11) INVISIBLE DEFAULT NULL,
+  `xyz` int(11) DEFAULT NULL INVISIBLE,
   PRIMARY KEY (`abc`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,EXTRA from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	EXTRA
 def	test	t1	abc	
@@ -147,10 +147,10 @@ a	int(11)	YES		NULL
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `abc` int(11) NOT NULL INVISIBLE AUTO_INCREMENT,
+  `abc` int(11) NOT NULL AUTO_INCREMENT INVISIBLE,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`abc`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values(1);
 insert into t1 values(2);
 insert into t1 values(3);
@@ -419,11 +419,11 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
-  `b` int(11) INVISIBLE DEFAULT NULL,
-  `c` int(11) INVISIBLE DEFAULT NULL,
+  `b` int(11) DEFAULT NULL INVISIBLE,
+  `c` int(11) DEFAULT NULL INVISIBLE,
   PRIMARY KEY (`a`),
   UNIQUE KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	NO	PRI	NULL	
@@ -444,7 +444,7 @@ d	int(11)	YES	UNI	NULL
 drop table t1;
 SHOW STATUS LIKE 'Feature_invisible_columns';
 Variable_name	Value
-Feature_invisible_columns	52
+Feature_invisible_columns	54
 #invisible is non reserved
 create table t1(a int unique , invisible int invisible, c int );
 desc t1;
@@ -559,8 +559,6 @@ DROP TABLE t1;
 create or replace table t1 (a int, b int invisible);
 insert into t1 values (1),(2);
 select * from t1 into outfile 'f';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 load data infile 'f' into table t1;
 select a,b from t1;
 a	b
@@ -591,8 +589,6 @@ a	b
 truncate table t1;
 insert into t1(a,b) values (1,1),(2,2);
 select a,b from t1 into outfile 'a';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 load data infile 'a' into table t1(a,b);
 select a,b from t1;
 a	b

@@ -54,15 +54,11 @@ call mtr.add_suppression("Could not use master-bin for logging");
 SET @old_debug= @@global.debug_dbug;
 
 ### ACTION: create a large file (> 4096 bytes) that will be later used
-###         in LOAD DATA INFILE to check binlog errors in its vacinity
+###         in LOAD DATA INFILE to check binlog errors in its vicinity
 -- let $load_file= $MYSQLTEST_VARDIR/tmp/bug_46166.data
 -- let $MYSQLD_DATADIR= `select @@datadir`
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 -- eval SELECT repeat('x',8192) INTO OUTFILE '$load_file'
---enable_ps2_protocol
---enable_cursor_protocol
 
 ### ACTION: create a small file (< 4096 bytes) that will be later used
 ###         in LOAD DATA INFILE to check for absence of binlog errors
@@ -71,11 +67,7 @@ SET @old_debug= @@global.debug_dbug;
 -- let $load_file2= $MYSQLTEST_VARDIR/tmp/bug_46166-2.data
 -- let $MYSQLD_DATADIR= `select @@datadir`
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 -- eval SELECT repeat('x',10) INTO OUTFILE '$load_file2'
---enable_ps2_protocol
---enable_cursor_protocol
 
 RESET MASTER;
 
@@ -108,8 +100,8 @@ RESET MASTER;
 ### ACTION: create some tables (t1, t2, t4) and insert some values in
 ###         table t1
 CREATE TABLE t1 (a INT);
-CREATE TABLE t2 (a VARCHAR(16384)) Engine=InnoDB;
-CREATE TABLE t4 (a VARCHAR(16384));
+CREATE TABLE t2 (a VARCHAR(16384)) Engine=InnoDB CHARSET=latin1;
+CREATE TABLE t4 (a VARCHAR(16384)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1);
 RESET MASTER;
 
@@ -396,6 +388,11 @@ RESET MASTER;
 ### setup
 --source include/rpl_reset.inc
 -- connection slave
+
+# Slave tests rely on logic of non-gtid mode
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
 
 # slave suppressions
 

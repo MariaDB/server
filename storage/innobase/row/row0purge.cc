@@ -185,10 +185,6 @@ close_and_exit:
 			table = nullptr;
 		}
 
-		if (space_id) {
-			ibuf_delete_for_discarded_space(space_id);
-		}
-
 		mtr.start();
 		index->set_modified(mtr);
 
@@ -460,6 +456,21 @@ func_exit:
 	return (true);
 }
 
+/** @return whether two data tuples are equal */
+bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2)
+{
+  ut_ad(tuple1.magic_n == DATA_TUPLE_MAGIC_N);
+  ut_ad(tuple2.magic_n == DATA_TUPLE_MAGIC_N);
+  ut_ad(dtuple_check_typed(&tuple1));
+  ut_ad(dtuple_check_typed(&tuple2));
+  ut_ad(tuple1.n_fields == tuple2.n_fields);
+
+  for (ulint i= 0; i < tuple1.n_fields; i++)
+    if (cmp_dfield_dfield(&tuple1.fields[i], &tuple2.fields[i]))
+      return false;
+  return true;
+}
+
 /** Finds out if a version of the record, where the version >= the current
 purge_sys.view, should have ientry as its secondary index entry. We check
 if there is any not delete marked version of the record where the trx
@@ -540,7 +551,7 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 
 				entry = row_build_index_entry(
 					row, ext, index, heap);
-				if (entry && !dtuple_coll_cmp(ientry, entry)) {
+				if (entry && dtuple_coll_eq(*ientry, *entry)) {
 					goto unsafe_to_purge;
 				}
 			} else {
@@ -595,7 +606,7 @@ static bool row_purge_is_unsafe(const purge_node_t &node,
 			the clustered index record has already been updated to
 			a different binary value in a char field, but the
 			collation identifies the old and new value anyway! */
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 unsafe_to_purge:
 				mem_heap_free(heap);
 
@@ -700,7 +711,7 @@ nochange_index:
 			a char field, but the collation identifies the old
 			and new value anyway! */
 
-			if (entry && !dtuple_coll_cmp(ientry, entry)) {
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
 				goto unsafe_to_purge;
 			}
 		}
@@ -715,10 +726,10 @@ not delete marked version of a clustered index record where DB_TRX_ID
 is newer than the purge view.
 
 NOTE: This function should only be called by the purge thread, only
-while holding a latch on the leaf page of the secondary index entry
-(or keeping the buffer pool watch on the page).  It is possible that
-this function first returns true and then false, if a user transaction
-inserts a record that the secondary index entry would refer to.
+while holding a latch on the leaf page of the secondary index entry.
+It is possible that this function first returns true and then false,
+if a user transaction inserts a record that the secondary index entry
+would refer to.
 However, in that case, the user transaction would also re-insert the
 secondary index entry after purge has removed it and released the leaf
 page latch.
@@ -727,8 +738,8 @@ page latch.
 @param entry  secondary index entry
 @param mtr    mini-transaction for looking up clustered index
 @return whether the secondary index record can be purged */
-bool row_purge_poss_sec(purge_node_t *node, dict_index_t *index,
-                        const dtuple_t *entry, mtr_t *mtr)
+static bool row_purge_poss_sec(purge_node_t *node, dict_index_t *index,
+			       const dtuple_t *entry, mtr_t *mtr)
 {
   ut_ad(!index->is_clust());
   const auto savepoint= mtr->get_savepoint();
@@ -796,14 +807,11 @@ static bool row_purge_remove_sec_if_poss_tree(purge_node_t *node,
 	pcur.btr_cur.page_cur.index = index;
 
 	if (index->is_spatial()) {
-		if (!rtr_search(entry, BTR_PURGE_TREE, &pcur, &mtr)) {
-			goto found;
+		if (rtr_search(entry, BTR_PURGE_TREE, &pcur, nullptr, &mtr)) {
+			goto func_exit;
 		}
-		goto func_exit;
-	}
-
-	switch (row_search_index_entry(entry, BTR_PURGE_TREE, &pcur, &mtr)) {
-	case ROW_NOT_FOUND:
+	} else if (!row_search_index_entry(entry, BTR_PURGE_TREE,
+					   &pcur, &mtr)) {
 		/* Not found.  This is a legitimate condition.  In a
 		rollback, InnoDB will remove secondary recs that would
 		be purged anyway.  Then the actual purge will not find
@@ -813,25 +821,13 @@ static bool row_purge_remove_sec_if_poss_tree(purge_node_t *node,
 		index, it will remove it.  Then if/when the purge
 		comes to consider the secondary index record a second
 		time, it will not exist any more in the index. */
-
-		/* fputs("PURGE:........sec entry not found\n", stderr); */
-		/* dtuple_print(stderr, entry); */
 		goto func_exit;
-	case ROW_FOUND:
-		break;
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
 	}
 
 	/* We should remove the index record if no later version of the row,
 	which cannot be purged yet, requires its existence. If some requires,
 	we should do nothing. */
 
-found:
 	if (page_max_trx_id
 	    == page_get_max_trx_id(btr_cur_get_page(&pcur.btr_cur))
 	    || row_purge_poss_sec(node, index, entry, &mtr)) {
@@ -908,24 +904,17 @@ static trx_id_t row_purge_remove_sec_if_poss_leaf(purge_node_t *node,
 
 	pcur.btr_cur.page_cur.index = index;
 
-	/* Set the purge node for the call to row_purge_poss_sec(). */
-	pcur.btr_cur.purge_node = node;
 	if (index->is_spatial()) {
-		pcur.btr_cur.thr = NULL;
-		if (!rtr_search(entry, BTR_MODIFY_LEAF, &pcur, &mtr)) {
+		if (!rtr_search(entry, BTR_MODIFY_LEAF, &pcur, nullptr,
+				&mtr)) {
 			goto found;
 		}
-		goto func_exit;
-	}
-
-	/* Set the query thread, so that ibuf_insert_low() will be
-	able to invoke thd_get_trx(). */
-	pcur.btr_cur.thr = static_cast<que_thr_t*>(que_node_get_parent(node));
-
-	switch (row_search_index_entry(entry, index->has_virtual()
-				       ? BTR_MODIFY_LEAF : BTR_PURGE_LEAF,
-				       &pcur, &mtr)) {
-	case ROW_FOUND:
+	} else if (btr_pcur_open(entry, PAGE_CUR_LE, BTR_MODIFY_LEAF, &pcur,
+				 &mtr)
+		   == DB_SUCCESS
+		   && !btr_pcur_is_before_first_on_page(&pcur)
+		   && btr_pcur_get_low_match(&pcur)
+		   == dtuple_get_n_fields(entry)) {
 found:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
@@ -943,25 +932,18 @@ found:
 			if (index->is_spatial()) {
 				const buf_block_t* block = btr_pcur_get_block(
 					&pcur);
+                                const page_id_t id{block->page.id()};
 
-				if (block->page.id().page_no()
-				    != index->page
+				if (id.page_no() != index->page
 				    && page_get_n_recs(block->page.frame) < 2
-				    && !lock_test_prdt_page_lock(
-					    pcur.btr_cur.rtr_info
-					    && pcur.btr_cur.rtr_info->thr
-					    ? thr_get_trx(
-						   pcur.btr_cur.rtr_info->thr)
-					    : nullptr,
-					    block->page.id())) {
+				    && !lock_test_prdt_page_lock(nullptr, id)){
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending
 					on it, so do not delete */
 					DBUG_LOG("purge",
 						 "skip purging last"
-						 " record on page "
-						 << block->page.id());
+						 " record on page " << id);
 					goto func_exit;
 				}
 			}
@@ -972,24 +954,12 @@ found:
 					btr_pcur_get_page(&pcur));
 			}
 		}
-
-		/* (The index entry is still needed,
-		or the deletion succeeded) */
-		/* fall through */
-	case ROW_NOT_DELETED_REF:
-		/* The index entry is still needed. */
-	case ROW_BUFFERED:
-		/* The deletion was buffered. */
-	case ROW_NOT_FOUND:
-		/* The index entry does not exist, nothing to do. */
-		goto func_exit;
 	}
 
-	ut_ad("invalid state" == 0);
 func_exit:
 	mtr.commit();
 cleanup:
-	btr_pcur_close(&pcur); // FIXME: remove? when is btr_cur->rtr_info set?
+	btr_pcur_close(&pcur);
 	return page_max_trx_id;
 }
 
@@ -1026,10 +996,7 @@ Purges a delete marking of a record.
 @retval false the purge needs to be suspended because of
 running out of file space */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-bool
-row_purge_del_mark(
-/*===============*/
-	purge_node_t*	node)	/*!< in/out: row purge node */
+bool row_purge_del_mark(purge_node_t *node)
 {
   if (node->index)
   {
@@ -1549,7 +1516,7 @@ row_purge_record_func(
 	case TRX_UNDO_DEL_MARK_REC:
 		purged = row_purge_del_mark(node);
 		if (purged) {
-			if (node->table->stat_initialized
+			if (node->table->stat_initialized()
 			    && srv_stats_include_delete_marked) {
 				dict_stats_update_if_needed(
 					node->table, *thr->graph->trx);
@@ -1680,7 +1647,7 @@ row_purge_step(
 
 #ifdef UNIV_DEBUG
 /***********************************************************//**
-Validate the persisent cursor. The purge node has two references
+Validate the persistent cursor. The purge node has two references
 to the clustered index record - one via the ref member, and the
 other via the persistent cursor.  These two references must match
 each other if the found_clust flag is set.
@@ -1715,7 +1682,7 @@ purge_node_t::validate_pcur()
 	part in persistent cursor. Both cases we store n_uniq fields of the
 	cluster index and so it is fine to do the comparison. We note this
 	dependency here as pcur and ref belong to different modules. */
-	int st = cmp_dtuple_rec(ref, pcur.old_rec, offsets);
+	int st = cmp_dtuple_rec(ref, pcur.old_rec, clust_index, offsets);
 
 	if (st != 0) {
 		ib::error() << "Purge node pcur validation failed";

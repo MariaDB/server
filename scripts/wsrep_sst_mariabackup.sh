@@ -35,7 +35,7 @@ fi
 
 BACKUP_PID=""
 
-INFO_FILE='xtrabackup_galera_info'
+INFO_FILE='mariadb_backup_galera_info'
 DONOR_INFO_FILE='donor_galera_info'
 IST_FILE='xtrabackup_ist'
 
@@ -568,7 +568,7 @@ read_cnf()
         if [ "$tmode" != 'DISABLED' ]; then
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
-                encrypt=3 # enable cert/key SSL encyption
+                encrypt=3 # enable cert/key SSL encryption
                 # avoid CA verification if not set explicitly:
                 # nodes may happen to have different CA if self-generated,
                 # zeroing up tcert and tcap does the trick:
@@ -866,7 +866,13 @@ recv_joiner()
     done
 
     if [ $checkf -eq 1 ]; then
-        if [ ! -r "$MAGIC_FILE" ]; then
+        if [ -r "$MAGIC_FILE" ]; then
+            :
+        elif [ -r "$dir/xtrabackup_galera_info" ]; then
+            mv "$dir/xtrabackup_galera_info" "$MAGIC_FILE"
+            wsrep_log_info "the SST donor uses an old version" \
+                           "of mariabackup or xtrabackup"
+        else
             # this message should cause joiner to abort:
             wsrep_log_error "receiving process ended without creating" \
                             "magic file ($MAGIC_FILE)"
@@ -1183,12 +1189,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
         iopts="--databases-exclude='lost+found'${iopts:+ }$iopts"
 
-        if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-            wsrep_log_info "Forcing FTWRL due to environment variable" \
-                           "FORCE_FTWRL equal to $FORCE_FTWRL"
-            iopts="--no-backup-locks${iopts:+ }$iopts"
-        fi
-
         # if compression is enabled for backup files, then add the
         # appropriate options to the mariadb-backup command line:
         if [ "$compress" != 'none' ]; then
@@ -1366,7 +1366,7 @@ else # joiner
                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
                 -o -exec rm -rf {} >&2 \+
 
-        # Deleting files from previous SST and legacy files from old versions:
+        # Deleting legacy files from old versions:
         [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
         [ -f "$DATA/xtrabackup_pid" ]         && rm -f "$DATA/xtrabackup_pid"
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
@@ -1374,6 +1374,13 @@ else # joiner
         [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
         [ -f "$DATA/xtrabackup_binlog_info" ] && rm -f "$DATA/xtrabackup_binlog_info"
         [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
+
+        # Deleting files from previous SST:
+        [ -f "$DATA/mariadb_backup_checkpoints" ] && rm -f "$DATA/mariadb_backup_checkpoints"
+        [ -f "$DATA/mariadb_backup_info" ]        && rm -f "$DATA/mariadb_backup_info"
+        [ -f "$DATA/mariadb_backup_slave_info" ]  && rm -f "$DATA/mariadb_backup_slave_info"
+        [ -f "$DATA/mariadb_backup_binlog_info" ] && rm -f "$DATA/mariadb_backup_binlog_info"
+        [ -f "$DATA/mariadb_backup_binlog_pos_innodb" ] && rm -f "$DATA/mariadb_backup_binlog_pos_innodb"
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
@@ -1383,14 +1390,52 @@ else # joiner
         monitor_process $BACKUP_PID
         BACKUP_PID=""
 
-        if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
-            wsrep_log_error "xtrabackup_checkpoints missing," \
+        # It is possible that the old version of the galera
+        # information file will be transferred second time:
+        if [ ! -f "$DATA/$INFO_FILE" -a \
+               -f "$DATA/xtrabackup_galera_info" ]
+        then
+            mv "$DATA/xtrabackup_galera_info" "$DATA/$INFO_FILE"
+        fi
+
+        # Correcting the name of the common information file
+        # if the donor has an old version:
+        if [ ! -f "$DATA/mariadb_backup_info" -a \
+               -f "$DATA/xtrabackup_info" ]
+        then
+            mv "$DATA/xtrabackup_info" "$DATA/mariadb_backup_info"
+            wsrep_log_info "general information file with a legacy" \
+                           "name has been renamed"
+        fi
+
+        # Correcting the name for the file with the binlog position
+        # for the master if the donor has an old version:
+        if [ ! -f "$DATA/mariadb_backup_slave_info" -a \
+               -f "$DATA/xtrabackup_slave_info" ]
+        then
+            mv "$DATA/xtrabackup_slave_info" "$DATA/mariadb_backup_slave_info"
+            wsrep_log_info "binlog position file with a legacy" \
+                           "name has been renamed"
+        fi
+
+        # An old version of the donor may send a checkpoints
+        # list file under an outdated name:
+        if [ ! -f "$DATA/mariadb_backup_checkpoints" -a \
+               -f "$DATA/xtrabackup_checkpoints" ]
+        then
+            mv "$DATA/xtrabackup_checkpoints" "$DATA/mariadb_backup_checkpoints"
+            wsrep_log_info "list of checkpoints with a legacy" \
+                           "name has been renamed"
+        fi
+
+        if [ ! -s "$DATA/mariadb_backup_checkpoints" ]; then
+            wsrep_log_error "mariadb_backup_checkpoints missing," \
                             "failed mariadb-backup/SST on donor"
             exit 2
         fi
 
         # Compact backups are not supported by mariadb-backup
-        if grep -qw -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
+        if grep -qw -F 'compact = 1' "$DATA/mariadb_backup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
             wsrep_log_error "Compact backups are not supported by mariadb-backup"
             exit 2
@@ -1442,6 +1487,16 @@ else # joiner
             fi
         fi
 
+        # An old version of the donor may send a binary logs
+        # list file under an outdated name:
+        if [ ! -f "$DATA/mariadb_backup_binlog_info" -a \
+               -f "$DATA/xtrabackup_binlog_info" ]
+        then
+            mv "$DATA/xtrabackup_binlog_info" "$DATA/mariadb_backup_binlog_info"
+            wsrep_log_info "list of binary logs with a legacy" \
+                           "name has been renamed"
+        fi
+
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
         timeit 'mariadb-backup prepare stage' "$INNOAPPLY"
@@ -1454,14 +1509,14 @@ else # joiner
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
             cd "$DATA"
             binlogs=""
-            if [ -f 'xtrabackup_binlog_info' ]; then
+            if [ -f 'mariadb_backup_binlog_info' ]; then
                 NL=$'\n'
                 while read bin_string || [ -n "$bin_string" ]; do
                     bin_file=$(echo "$bin_string" | cut -f1)
                     if [ -f "$bin_file" ]; then
                         binlogs="$binlogs${binlogs:+$NL}$bin_file"
                     fi
-                done < 'xtrabackup_binlog_info'
+                done < 'mariadb_backup_binlog_info'
             else
                 binlogs=$(ls -d -1 "$binlog_base".[0-9]* 2>/dev/null || :)
             fi

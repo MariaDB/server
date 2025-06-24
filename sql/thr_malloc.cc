@@ -54,7 +54,7 @@ extern "C" {
     /* Skip writing to the error log to avoid mtr complaints */
     DBUG_EXECUTE_IF("simulate_out_of_memory", return;);
 
-    sql_print_error("%s", ER_THD_OR_DEFAULT(thd, ER_OUT_OF_RESOURCES));
+    sql_print_error("%s", ER_DEFAULT(ER_OUT_OF_RESOURCES));
   }
 }
 
@@ -76,7 +76,7 @@ char *sql_strmake_with_convert(THD *thd, const char *str, size_t arg_length,
   max_res_length--;				// Reserve place for end null
 
   set_if_smaller(new_length, max_res_length);
-  if (!(pos= (char*) thd->alloc(new_length + 1)))
+  if (!(pos= thd->alloc(new_length + 1)))
     return pos;					// Error
 
   if ((from_cs == &my_charset_bin) || (to_cs == &my_charset_bin))

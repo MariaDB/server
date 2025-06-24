@@ -17,7 +17,7 @@
 */
 
 /*
-  Functions to autenticate and handle reqests for a connection
+  Functions to authenticate and handle requests for a connection
 */
 
 #include "mariadb.h"
@@ -318,8 +318,8 @@ void init_max_user_conn(void)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   my_hash_init(key_memory_user_conn, &hash_user_connections,
-               system_charset_info, max_connections, 0, 0, get_key_conn,
-               my_free, 0);
+               USER_CONN::user_host_key_charset_info_for_hash(),
+               max_connections, 0, 0, get_key_conn, my_free, 0);
 #endif
 }
 
@@ -420,10 +420,7 @@ void init_user_stats(USER_STATS *user_stats,
                      ulonglong bytes_sent,
                      ulonglong binlog_bytes_written,
                      ha_rows rows_sent,
-                     ha_rows rows_read,
-                     ha_rows rows_inserted,
-                     ha_rows rows_deleted,
-                     ha_rows rows_updated,
+                     rows_stats *rows_stats,
                      ulonglong select_commands,
                      ulonglong update_commands,
                      ulonglong other_commands,
@@ -454,10 +451,7 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->bytes_sent= bytes_sent;
   user_stats->binlog_bytes_written= binlog_bytes_written;
   user_stats->rows_sent= rows_sent;
-  user_stats->rows_read= rows_read;
-  user_stats->rows_inserted= rows_inserted;
-  user_stats->rows_deleted= rows_deleted;
-  user_stats->rows_updated= rows_updated;
+  user_stats->rows_stats= *rows_stats;
   user_stats->select_commands= select_commands;
   user_stats->update_commands= update_commands;
   user_stats->other_commands= other_commands;
@@ -474,14 +468,17 @@ void init_user_stats(USER_STATS *user_stats,
 
 void init_global_user_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats, system_charset_info,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats,
+               USER_STATS::user_key_charset_info_for_hash(),
                max_connections, 0, 0, get_key_user_stats, my_free, 0);
 }
 
 void init_global_client_stats(void)
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats, system_charset_info,
-               max_connections, 0, 0, get_key_user_stats, my_free, 0);
+  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats,
+               USER_STATS::user_key_charset_info_for_hash(),
+               max_connections,
+               0, 0, get_key_user_stats, my_free, 0);
 }
 
 extern "C" const uchar *get_key_table_stats(const void *table_stats_,
@@ -550,6 +547,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
   if (!(user_stats= (USER_STATS*) my_hash_search(users_or_clients, (uchar*) name,
                                               name_length)))
   {
+    struct rows_stats rows_stats;
+    bzero(&rows_stats, sizeof(rows_stats));
     /* First connection for this user or client */
     if (!(user_stats= ((USER_STATS*)
                        my_malloc(PSI_INSTRUMENT_ME, sizeof(USER_STATS),
@@ -560,8 +559,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
                     0, 0, 0,   // connections
                     0, 0, 0,   // time
                     0, 0, 0,   // bytes sent, received and written
-                    0, 0,      // rows sent and read
-                    0, 0, 0,   // rows inserted, deleted and updated
+                    0,
+                    &rows_stats,
                     0, 0, 0,   // select, update and other commands
                     0, 0,      // commit and rollback trans
                     thd->status_var.access_denied_errors,
@@ -652,16 +651,22 @@ static void update_global_user_stats_with_user(THD *thd,
     (thd->status_var.binlog_bytes_written -
      thd->org_status_var.binlog_bytes_written);
   /* We are not counting rows in internal temporary tables here ! */
-  user_stats->rows_read+=      (thd->status_var.rows_read -
-                                thd->org_status_var.rows_read);
-  user_stats->rows_sent+=      (thd->status_var.rows_sent -
-                                thd->org_status_var.rows_sent);
-  user_stats->rows_inserted+=  (thd->status_var.ha_write_count -
-                                thd->org_status_var.ha_write_count);
-  user_stats->rows_deleted+=   (thd->status_var.ha_delete_count -
-                                thd->org_status_var.ha_delete_count);
-  user_stats->rows_updated+=   (thd->status_var.ha_update_count -
-                                thd->org_status_var.ha_update_count);
+  user_stats->rows_sent+=            (thd->status_var.rows_sent -
+                                      thd->org_status_var.rows_sent);
+  user_stats->rows_stats.read+=      (thd->status_var.rows_read -
+                                      thd->org_status_var.rows_read);
+  user_stats->rows_stats.inserted+=  (thd->status_var.ha_write_count -
+                                      thd->org_status_var.ha_write_count);
+  user_stats->rows_stats.deleted+=   (thd->status_var.ha_delete_count -
+                                      thd->org_status_var.ha_delete_count);
+  user_stats->rows_stats.updated+=   (thd->status_var.ha_update_count -
+                                      thd->org_status_var.ha_update_count);
+  user_stats->rows_stats.key_read_hit+= (thd->status_var.ha_read_key_count -
+                                         thd->org_status_var.ha_read_key_count -
+                                         (thd->status_var.ha_read_key_miss -
+                                          thd->org_status_var.ha_read_key_miss));
+  user_stats->rows_stats.key_read_miss+=   (thd->status_var.ha_read_key_miss -
+                                            thd->org_status_var.ha_read_key_miss);
   user_stats->select_commands+= thd->select_commands;
   user_stats->update_commands+= thd->update_commands;
   user_stats->other_commands+=  thd->other_commands;
@@ -760,6 +765,10 @@ void update_global_user_stats(THD *thd, bool create_user, time_t now)
 bool thd_init_client_charset(THD *thd, uint cs_number)
 {
   CHARSET_INFO *cs;
+
+  // Test a non-default collation ID. See also comments in this function below.
+  DBUG_EXECUTE_IF("thd_init_client_charset_utf8mb3_bin", cs_number= 83;);
+
   /*
    Use server character set and collation if
    - opt_character_set_client_handshake is not set
@@ -781,6 +790,25 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "character_set_client",
                cs->cs_name.str);
       return true;
+    }
+    /*
+      Some connectors (e.g. JDBC, Node.js) can send non-default collation IDs
+      in the handshake packet, to set @@collation_connection right during
+      handshake. Although this is a non-documenting feature,
+      for better backward compatibility with such connectors let's:
+      a. resolve only default collations according to @@character_set_collations
+      b. preserve non-default collations as is
+
+      Perhaps eventually we should change (b) also to resolve non-default
+      collations according to @@character_set_collations. Clients that used to
+      send a non-default collation ID in the handshake packet will have to set
+      @@character_set_collations instead.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+    {
+      Sql_used used;
+      cs= global_system_variables.character_set_collations.
+            get_collation_for_charset(&used, cs);
     }
     thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
@@ -1058,7 +1086,6 @@ static int check_connection(THD *thd)
     statistic_increment(aborted_connects_preauth, &LOCK_status);
     return 1; /* The error is set by alloc(). */
   }
-
   auth_rc= acl_authenticate(thd, 0);
   if (auth_rc == 0 && connect_errors != 0)
   {
@@ -1099,7 +1126,7 @@ void setup_connection_thread_globals(THD *thd)
 
 
 /*
-  Autenticate user, with error reporting
+  Authenticate user, with error reporting
 
   SYNOPSIS
    login_connection()
@@ -1113,7 +1140,7 @@ void setup_connection_thread_globals(THD *thd)
     1    error
 */
 
-bool login_connection(THD *thd)
+static bool login_connection(THD *thd)
 {
   NET *net= &thd->net;
   int error= 0;
@@ -1291,6 +1318,7 @@ pthread_handler_t handle_one_connection(void *arg)
   CONNECT *connect= (CONNECT*) arg;
 
   mysql_thread_set_psi_id(connect->thread_id);
+  my_thread_set_name("one_connection");
 
   if (init_new_connection_handler_thread())
     connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
@@ -1436,7 +1464,7 @@ end_thread:
   This and close_with_error are only called if we didn't manage to
   create a new thd object.
 
-  Note: err can be 0 if unknown/not inportant
+  Note: err can be 0 if unknown/not important
 */
 
 void CONNECT::close_and_delete(uint err)
@@ -1466,7 +1494,7 @@ void CONNECT::close_and_delete(uint err)
 
 /*
   Close a connection with a possible error to the end user
-  Alse deletes the connection object, like close_and_delete()
+  Else deletes the connection object, like close_and_delete()
 */
 
 void CONNECT::close_with_error(uint sql_errno,

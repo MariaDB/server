@@ -29,22 +29,6 @@
 
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
-/*
-  Allocating memory and *also* using it (reading and
-  writing from it) because some build instructions cause
-  compiler to optimize out stack_used_up. Since alloca()
-  here depends on stack_used_up, it doesnt get executed
-  correctly and causes json_debug_nonembedded to fail
-  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
-*/
-#define ALLOCATE_MEM_ON_STACK(A) do \
-                              { \
-                                uchar *array= (uchar*)alloca(A); \
-                                array[0]= 1; \
-                                array[0]++; \
-                                array[0] ? array[0]++ : array[0]--; \
-                              } while(0)
-
 class table_function_handlerton
 {
 public:
@@ -54,6 +38,7 @@ public:
     bzero(&m_hton, sizeof(m_hton));
     m_hton.tablefile_extensions= hton_no_exts;
     m_hton.slot= HA_SLOT_UNDEF;
+    m_hton.flags= HTON_HIDDEN;
   }
 };
 
@@ -245,6 +230,10 @@ public:
   int open(const char *name, int mode, uint test_if_locked) override
   { return 0; }
   int close(void) override { return 0; }
+  void update_optimizer_costs(OPTIMIZER_COSTS *costs) override
+  {
+    memcpy(costs, &heap_optimizer_costs, sizeof(*costs));
+  }
   int rnd_init(bool scan) override;
   int rnd_next(uchar *buf) override;
   int rnd_pos(uchar * buf, uchar *pos) override;
@@ -339,7 +328,8 @@ handle_new_nested:
 
   while (!json_get_path_next(&m_engine, &m_cur_path))
   {
-    if (json_path_compare(&m_path, &m_cur_path, m_engine.value_type))
+    if (json_path_compare(&m_path, &m_cur_path, m_engine.value_type,
+                          NULL))
       continue;
     /* path found. */
     ++m_ordinality_counter;
@@ -550,7 +540,7 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
       {
         json_engine_t je;
         json_path_step_t *cur_step;
-        uint array_counters[JSON_DEPTH_LIMIT];
+        int array_counters[JSON_DEPTH_LIMIT];
         int not_found;
         const uchar* node_start;
         const uchar* node_end;
@@ -614,7 +604,8 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
                 more matches for it in json and report an error if so.
               */
               if (jc->m_path.types_used &
-                    (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD) &&
+                    (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
+                     JSON_PATH_ARRAY_RANGE) &&
                   (json_scan_next(&je) ||
                    !json_find_path(&je, &jc->m_path, &cur_step,
                                    array_counters)))
@@ -708,7 +699,7 @@ int ha_json_table::info(uint)
 
   @param thd                  thread handle
   @param param                a description used as input to create the table
-  @param jt                   json_table specificaion
+  @param jt                   json_table specification
   @param table_alias          alias
 */
 
@@ -746,7 +737,8 @@ bool Create_json_table::finalize(THD *thd, TABLE *table,
 
   table->db_stat= HA_OPEN_KEYFILE;
   if (unlikely(table->file->ha_open(table, table->s->path.str, O_RDWR,
-                                    HA_OPEN_TMP_TABLE | HA_OPEN_INTERNAL_TABLE)))
+                                    HA_OPEN_TMP_TABLE | HA_OPEN_INTERNAL_TABLE |
+                                    HA_OPEN_SIZE_TRACKING)))
     DBUG_RETURN(true);
 
   table->set_created();
@@ -770,7 +762,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
   uint fieldnr= 0;
   MEM_ROOT *mem_root_save= thd->mem_root;
   List_iterator_fast<Json_table_column> jc_i(jt->m_columns);
-  Column_derived_attributes da(NULL);
+  Column_derived_attributes da(&my_charset_utf8mb4_general_ci);
   DBUG_ENTER("add_json_table_fields");
 
   thd->mem_root= &table->mem_root;
@@ -787,17 +779,15 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
        executing a prepared statement for the second time.
     */
     sql_f->length= sql_f->char_length;
-    if (!sql_f->charset)
-      sql_f->charset= &my_charset_utf8mb4_general_ci;
 
-    if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
-                              table->file->ha_table_flags(), &da))
+    if (sql_f->prepare_stage1(thd, thd->mem_root,
+                              COLUMN_DEFINITION_TABLE_FIELD,
+                              &da))
       goto err_exit;
 
     while ((jc2= it2++) != jc)
     {
-      if (lex_string_cmp(system_charset_info,
-            &sql_f->field_name, &jc2->m_field->field_name) == 0)
+      if (sql_f->field_name.streq(jc2->m_field->field_name))
       {
         my_error(ER_DUP_FIELDNAME, MYF(0), sql_f->field_name.str);
         goto err_exit;
@@ -889,8 +879,7 @@ TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table)
 
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
-  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
-                 FALSE);
+  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);
   table->alias_name_used= true;
@@ -921,7 +910,7 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
   /*
     This is done so the ::print function can just print the path string.
     Can be removed if we redo that function to print the path using it's
-    anctual content. Not sure though if we should.
+    actual content. Not sure though if we should.
   */
   m_path.s.c_str= (const uchar *) path.str;
 
@@ -929,6 +918,22 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
     m_format_json= m_field->type_handler() == &type_handler_long_blob_json;
 
   return 0;
+}
+
+
+int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
+                           const Lex_column_charset_collation_attrs_st &cl)
+{
+  if (cl.is_empty() || cl.is_contextually_typed_collate_default())
+    return set(thd, ctype, path, nullptr);
+
+  CHARSET_INFO *tmp;
+  if (!(tmp= cl.resolved_to_character_set(
+                  thd,
+                  thd->variables.character_set_collations,
+                  &my_charset_utf8mb4_general_ci)))
+    return 1;
+  return set(thd, ctype, path, tmp);
 }
 
 
@@ -974,7 +979,10 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
     if (str->append(column_type) ||
         ((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
-          str->append(&m_explicit_cs->cs_name))) ||
+          str->append(&m_explicit_cs->cs_name) ||
+          (Charset(m_explicit_cs).can_have_collate_clause() &&
+           (str->append(STRING_WITH_LEN(" COLLATE ")) ||
+            str->append(&m_explicit_cs->coll_name))))) ||
         str->append(m_column_type == PATH ? &path : &exists_path) ||
         print_path(str, &m_path))
       return 1;
@@ -1054,19 +1062,19 @@ int Json_table_column::On_response::print(const char *name, String *str) const
   switch (m_response)
   {
     case Json_table_column::RESPONSE_NULL:
-      lex_string_set3(&resp, STRING_WITH_LEN("NULL"));
+      resp= { STRING_WITH_LEN("NULL") };
       break;
     case Json_table_column::RESPONSE_ERROR:
-      lex_string_set3(&resp, STRING_WITH_LEN("ERROR"));
+      resp= { STRING_WITH_LEN("ERROR") };
       break;
     case Json_table_column::RESPONSE_DEFAULT:
     {
-      lex_string_set3(&resp, STRING_WITH_LEN("DEFAULT"));
+      resp= { STRING_WITH_LEN("DEFAULT") };
       ds= m_default->val_str(&val);
       break;
     }
     default:
-      lex_string_set3(&resp, "", 0);
+      resp= { "", 0 };
       DBUG_ASSERT(FALSE); /* should never happen. */
   }
 
@@ -1350,7 +1358,6 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
                   });
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
     return;
-
   while ((table= li++))
   {
     table->dep_tables |= deps;
@@ -1470,5 +1477,3 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
 
   return res;
 }
-
-

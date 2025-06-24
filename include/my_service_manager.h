@@ -37,6 +37,7 @@
 #endif
 
 #else
+#define sd_listen_fds(FD) (0)
 #define sd_listen_fds_with_names(FD, NAMES) (0)
 #define sd_is_socket_unix(FD, TYPE, LISTENING, PATH, SIZE) (0)
 #define sd_is_socket_inet(FD, FAMILY, TYPE, LISTENING, PORT) (0)

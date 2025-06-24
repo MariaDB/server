@@ -5,23 +5,34 @@ INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 analyze format=json select * from t0 where a<3;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 30,
-      "attached_condition": "t0.a < 3"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 30,
+          "attached_condition": "t0.a < 3",
+          "r_filtered": 30
+        }
+      }
+    ]
   }
 }
 create table t1 (a int, b int, c int, key(a));
@@ -35,38 +46,54 @@ analyze format=json
 select * from t0, t1 where t1.a=t0.a and t0.a > 9;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 0,
-      "attached_condition": "t0.a > 9 and t0.a is not null"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t0.a"],
-      "r_loops": 0,
-      "rows": 1,
-      "r_rows": null,
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": null
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 0,
+          "attached_condition": "t0.a > 9 and t0.a is not null",
+          "r_filtered": 0
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "loops": 10,
+          "r_loops": 0,
+          "rows": 1,
+          "r_rows": null,
+          "cost": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": null,
+          "r_filtered": null
+        }
+      }
+    ]
   }
 }
 analyze
@@ -78,41 +105,57 @@ analyze format=json
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t0",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t0.a is not null"
-    },
-    "table": {
-      "table_name": "t1",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t0.a"],
-      "r_loops": 10,
-      "rows": 1,
-      "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 40,
-      "attached_condition": "t1.b < 4"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t0.a is not null",
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "loops": 10,
+          "r_loops": 10,
+          "rows": 1,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 40,
+          "attached_condition": "t1.b < 4",
+          "r_filtered": 40
+        }
+      }
+    ]
   }
 }
 analyze 
@@ -124,93 +167,125 @@ analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "tbl1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 100,
-      "r_rows": 100,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 20,
-      "attached_condition": "tbl1.b < 20"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "tbl2",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 100,
-        "r_rows": 100,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 60,
-        "attached_condition": "tbl2.b < 60"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tbl1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 100,
+          "r_rows": 100,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 20,
+          "attached_condition": "tbl1.b < 20",
+          "r_filtered": 20
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL",
-      "r_loops": 20,
-      "r_filtered": 100,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 60
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "tbl2",
+            "access_type": "ALL",
+            "loops": 100,
+            "r_loops": 1,
+            "rows": 100,
+            "r_rows": 100,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_total_filtered": 60,
+            "attached_condition": "tbl2.b < 60",
+            "r_filtered": 60
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL",
+          "r_loops": 20,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 60
+        }
+      }
+    ]
   }
 }
 analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "tbl1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 100,
-      "r_rows": 100,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 20,
-      "attached_condition": "tbl1.b < 20"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "tbl2",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 100,
-        "r_rows": 100,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 60,
-        "attached_condition": "tbl2.b < 60"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tbl1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 100,
+          "r_rows": 100,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 20,
+          "attached_condition": "tbl1.b < 20",
+          "r_filtered": 20
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL",
-      "attached_condition": "tbl1.c > tbl2.c",
-      "r_loops": 20,
-      "r_filtered": 15.83333333,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 60
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "tbl2",
+            "access_type": "ALL",
+            "loops": 100,
+            "r_loops": 1,
+            "rows": 100,
+            "r_rows": 100,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_total_filtered": 60,
+            "attached_condition": "tbl2.b < 60",
+            "r_filtered": 60
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL",
+          "attached_condition": "tbl1.c > tbl2.c",
+          "r_loops": 20,
+          "r_filtered": 15.83333333,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 60
+        }
+      }
+    ]
   }
 }
 drop table t1;
@@ -225,41 +300,57 @@ insert into t2 values (0),(1);
 analyze format=json select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t1.a is not null"
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t1.a"],
-      "r_loops": 10,
-      "rows": 2,
-      "r_rows": 0.2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100,
-      "using_index": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t1.a is not null",
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t1.a"],
+          "loops": 10,
+          "r_loops": 10,
+          "rows": 1,
+          "r_rows": 0.2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
   }
 }
 drop table t1,t2;
@@ -279,23 +370,34 @@ NULL
 analyze format=json select * from test.t1 where t1.a<5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 50,
-      "attached_condition": "test.t1.a < 5"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 50,
+          "attached_condition": "test.t1.a < 5",
+          "r_filtered": 50
+        }
+      }
+    ]
   }
 }
 disconnect con1;
@@ -316,6 +418,9 @@ analyze format=json
 update t1 set b=pk;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -325,9 +430,10 @@ ANALYZE
       "access_type": "ALL",
       "rows": 1000,
       "r_rows": 1000,
-      "r_filtered": 100,
+      "r_total_filtered": 100,
       "r_total_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED
+      "r_engine_stats": REPLACED,
+      "r_filtered": 100
     }
   }
 }
@@ -335,34 +441,50 @@ analyze format=json
 select * from t1 where pk < 10 and b > 4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["pk"],
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 50,
-      "index_condition": "t1.pk < 10",
-      "attached_condition": "t1.b > 4"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_index_rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 50,
+          "index_condition": "t1.pk < 10",
+          "r_icp_filtered": 100,
+          "attached_condition": "t1.b > 4",
+          "r_filtered": 50
+        }
+      }
+    ]
   }
 }
 analyze format=json
 delete from t1 where pk < 10 and b > 4;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "r_total_time_ms": "REPLACED",
@@ -376,10 +498,11 @@ ANALYZE
       "used_key_parts": ["pk"],
       "rows": 10,
       "r_rows": 10,
-      "r_filtered": 50,
+      "r_total_filtered": 50,
       "r_total_time_ms": "REPLACED",
       "r_engine_stats": REPLACED,
-      "attached_condition": "t1.pk < 10 and t1.b > 4"
+      "attached_condition": "t1.pk < 10 and t1.b > 4",
+      "r_filtered": 50
     }
   }
 }
@@ -407,48 +530,64 @@ select * from t1, t2 where (t2.key1 between t1.lb1 and t1.rb1) and
 (t2.key3=t1.c1  OR t2.key4=t1.c2);
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 5,
-      "r_rows": 5,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "range-checked-for-each-record": {
-      "keys": ["key1", "key2", "key3", "key4"],
-      "r_keys": {
-        "full_scan": 1,
-        "index_merge": 1,
-        "range": {
-          "key1": 2,
-          "key2": 1,
-          "key3": 0,
-          "key4": 0
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 5,
+          "r_rows": 5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
         }
       },
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "possible_keys": ["key1", "key2", "key3", "key4"],
-        "r_loops": 5,
-        "rows": 1010,
-        "r_rows": 203.8,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 98.13542689
+      {
+        "range-checked-for-each-record": {
+          "keys": ["key1", "key2", "key3", "key4"],
+          "r_keys": {
+            "full_scan": 1,
+            "index_merge": 1,
+            "range": {
+              "key1": 2,
+              "key2": 1,
+              "key3": 0,
+              "key4": 0
+            }
+          },
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "possible_keys": ["key1", "key2", "key3", "key4"],
+            "loops": 5,
+            "r_loops": 5,
+            "rows": 1010,
+            "r_rows": 203.8,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_total_filtered": 98.13542689,
+            "r_filtered": 98.13542689
+          }
+        }
       }
-    }
+    ]
   }
 }
 drop table t1,t2,t3,t4;
@@ -462,6 +601,9 @@ INSERT INTO t1 select * from t0;
 analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tbl2 where a in (2,3));
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "table_name": "<union1,2>",
@@ -472,42 +614,58 @@ ANALYZE
         {
           "query_block": {
             "select_id": 1,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "tbl1",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 10,
-              "r_rows": 10,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 50,
-              "attached_condition": "tbl1.a < 5"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "tbl1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 10,
+                  "r_rows": 10,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 50,
+                  "attached_condition": "tbl1.a < 5",
+                  "r_filtered": 50
+                }
+              }
+            ]
           }
         },
         {
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "tbl2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 10,
-              "r_rows": 10,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 20,
-              "attached_condition": "tbl2.a in (2,3)"
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "tbl2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 10,
+                  "r_rows": 10,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 20,
+                  "attached_condition": "tbl2.a in (2,3)",
+                  "r_filtered": 20
+                }
+              }
+            ]
           }
         }
       ]
@@ -532,8 +690,12 @@ insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
 analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "having_condition": "TOP > t2.a",
@@ -546,18 +708,25 @@ ANALYZE
       "r_buffer_size": "REPLACED",
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 256,
-          "r_rows": 256,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 256,
+              "r_rows": 256,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -566,8 +735,12 @@ ANALYZE
 analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -579,18 +752,25 @@ ANALYZE
       "r_buffer_size": "REPLACED",
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 256,
-          "r_rows": 256,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 256,
+              "r_rows": 256,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -599,6 +779,9 @@ ANALYZE
 analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
     "table": {
@@ -610,8 +793,12 @@ ANALYZE
 analyze format=json select a, max(b) as TOP from t2 group by a;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -623,18 +810,25 @@ ANALYZE
       "r_buffer_size": "REPLACED",
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 256,
-          "r_rows": 256,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 256,
+              "r_rows": 256,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -650,46 +844,62 @@ INSERT INTO t2 VALUES (3),(4);
 ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 2,
-      "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 2,
-        "r_rows": 2,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 100,
-        "r_filtered": 0,
-        "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "65",
-      "join_type": "BNL",
-      "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
-      "r_loops": 2,
-      "r_filtered": null,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 0
-    },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 2,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 100,
+            "r_total_filtered": 0,
+            "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
+            "r_filtered": 0
+          },
+          "buffer_type": "flat",
+          "buffer_size": "65",
+          "join_type": "BNL",
+          "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
+          "r_loops": 2,
+          "r_filtered": null,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 0
+        }
+      }
+    ],
     "subqueries": [
       {
         "materialization": {
@@ -697,26 +907,36 @@ ANALYZE
           "r_loops": 2,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
-            "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            }
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
+              }
+            ]
           }
         }
       }
     ]
   }
 }
+SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
+a	b
 drop table t1,t2;
 #
 # MDEV-8864: Server crash #2 in Item_field::print on ANALYZE FORMAT=JSON
@@ -734,8 +954,12 @@ WHERE f3 IN ( 1, 2 )
 GROUP BY sq ORDER BY gc;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -756,79 +980,104 @@ ANALYZE
           "r_buffer_size": "REPLACED",
           "r_sort_mode": "sort_key,rowid",
           "temporary_table": {
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 2,
-              "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_engine_stats": REPLACED,
-              "filtered": 100,
-              "r_filtered": 100
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t3",
-                "access_type": "ALL",
-                "r_loops": 1,
-                "rows": 2,
-                "r_rows": 2,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
-                "r_engine_stats": REPLACED,
-                "filtered": 100,
-                "r_filtered": 0,
-                "attached_condition": "t3.f3 in (1,2)"
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "r_loops": 1,
+                  "rows": 2,
+                  "r_rows": 2,
+                  "cost": "REPLACED",
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_engine_stats": REPLACED,
+                  "filtered": 100,
+                  "r_total_filtered": 100,
+                  "r_filtered": 100
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "1",
-              "join_type": "BNL",
-              "r_loops": 2,
-              "r_filtered": null,
-              "r_unpack_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "r_effective_rows": 0
-            },
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ALL",
+                    "loops": 2,
+                    "r_loops": 1,
+                    "rows": 2,
+                    "r_rows": 2,
+                    "cost": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
+                    "filtered": 100,
+                    "r_total_filtered": 0,
+                    "attached_condition": "t3.f3 in (1,2)",
+                    "r_filtered": 0
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "1",
+                  "join_type": "BNL",
+                  "r_loops": 2,
+                  "r_filtered": null,
+                  "r_unpack_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "r_effective_rows": 0
+                }
+              }
+            ],
             "subqueries": [
               {
-                "expression_cache": {
+                "subquery_cache": {
                   "state": "uninitialized",
                   "r_loops": 0,
                   "query_block": {
                     "select_id": 2,
-                    "table": {
-                      "table_name": "t1",
-                      "access_type": "ALL",
-                      "r_loops": 0,
-                      "rows": 2,
-                      "r_rows": null,
-                      "r_engine_stats": REPLACED,
-                      "filtered": 100,
-                      "r_filtered": null
-                    },
-                    "block-nl-join": {
-                      "table": {
-                        "table_name": "t2",
-                        "access_type": "ALL",
-                        "r_loops": 0,
-                        "rows": 2,
-                        "r_rows": null,
-                        "r_engine_stats": REPLACED,
-                        "filtered": 100,
-                        "r_filtered": null
+                    "cost": "REPLACED",
+                    "nested_loop": [
+                      {
+                        "table": {
+                          "table_name": "t1",
+                          "access_type": "ALL",
+                          "loops": 1,
+                          "r_loops": 0,
+                          "rows": 2,
+                          "r_rows": null,
+                          "cost": "REPLACED",
+                          "r_engine_stats": REPLACED,
+                          "filtered": 100,
+                          "r_total_filtered": null,
+                          "r_filtered": null
+                        }
                       },
-                      "buffer_type": "flat",
-                      "buffer_size": "65",
-                      "join_type": "BNL",
-                      "attached_condition": "t2.f2 = t3.f3",
-                      "r_loops": 0,
-                      "r_filtered": null,
-                      "r_unpack_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
-                      "r_effective_rows": null
-                    }
+                      {
+                        "block-nl-join": {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 2,
+                            "r_loops": 0,
+                            "rows": 2,
+                            "r_rows": null,
+                            "cost": "REPLACED",
+                            "r_engine_stats": REPLACED,
+                            "filtered": 100,
+                            "r_total_filtered": null,
+                            "r_filtered": null
+                          },
+                          "buffer_type": "flat",
+                          "buffer_size": "65",
+                          "join_type": "BNL",
+                          "attached_condition": "t2.f2 = t3.f3",
+                          "r_loops": 0,
+                          "r_filtered": null,
+                          "r_unpack_time_ms": "REPLACED",
+                          "r_other_time_ms": "REPLACED",
+                          "r_effective_rows": null
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -851,52 +1100,71 @@ create table t2 as select * from t1;
 analyze format=json select a, (select t2.b from t2 where t2.a<t1.a order by t2.c limit 1) from t1 where t1.a<0;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 10,
-      "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 100,
-      "r_filtered": 0,
-      "attached_condition": "t1.a < 0"
-    },
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 0,
+          "attached_condition": "t1.a < 0",
+          "r_filtered": 0
+        }
+      }
+    ],
     "subqueries": [
       {
-        "expression_cache": {
+        "subquery_cache": {
           "state": "uninitialized",
           "r_loops": 0,
           "query_block": {
             "select_id": 2,
-            "read_sorted_file": {
-              "r_rows": null,
-              "filesort": {
-                "sort_key": "t2.c",
-                "r_loops": null,
-                "r_limit": null,
-                "r_used_priority_queue": null,
-                "r_output_rows": null,
-                "r_sort_mode": "sort_key,rowid",
-                "table": {
-                  "table_name": "t2",
-                  "access_type": "ALL",
-                  "r_loops": 0,
-                  "rows": 10,
+            "cost": "REPLACED",
+            "nested_loop": [
+              {
+                "read_sorted_file": {
                   "r_rows": null,
-                  "r_engine_stats": REPLACED,
-                  "filtered": 100,
-                  "r_filtered": null,
-                  "attached_condition": "t2.a < t1.a"
+                  "filesort": {
+                    "sort_key": "t2.c",
+                    "r_loops": null,
+                    "r_limit": null,
+                    "r_used_priority_queue": null,
+                    "r_output_rows": null,
+                    "r_sort_mode": "sort_key,rowid",
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "r_loops": 0,
+                      "rows": 10,
+                      "r_rows": null,
+                      "cost": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_total_filtered": null,
+                      "attached_condition": "t2.a < t1.a",
+                      "r_filtered": null
+                    }
+                  }
                 }
               }
-            }
+            ]
           }
         }
       }
@@ -931,47 +1199,63 @@ t11.a < 100
 and t10.b=t11.b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t11",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 1000,
-      "r_rows": 1000,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 10.15625,
-      "r_filtered": 10,
-      "attached_condition": "t11.a < 100"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t10",
-        "access_type": "ALL",
-        "r_loops": 1,
-        "rows": 1000,
-        "r_rows": 1000,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 70.3125,
-        "r_filtered": 70,
-        "attached_condition": "t10.a < 700"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t11",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 1000,
+          "r_rows": 1000,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 10,
+          "r_total_filtered": 10,
+          "attached_condition": "t11.a < 100",
+          "r_filtered": 10
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "1Kb",
-      "join_type": "BNL",
-      "attached_condition": "t10.b = t11.b",
-      "r_loops": 100,
-      "r_filtered": 0.424285714,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 700
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t10",
+            "access_type": "ALL",
+            "loops": 100,
+            "r_loops": 1,
+            "rows": 1000,
+            "r_rows": 1000,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 70,
+            "r_total_filtered": 70,
+            "attached_condition": "t10.a < 700",
+            "r_filtered": 70
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1Kb",
+          "join_type": "BNL",
+          "attached_condition": "t10.b = t11.b",
+          "r_loops": 100,
+          "r_filtered": 0.424285714,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 700
+        }
+      }
+    ]
   }
 }
 set @tmp=@@join_cache_level, join_cache_level=6;
@@ -983,52 +1267,501 @@ t11.a < 100
 and t10.b=t11.b;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t11",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 1000,
-      "r_rows": 1000,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_engine_stats": REPLACED,
-      "filtered": 10.15625,
-      "r_filtered": 10,
-      "attached_condition": "t11.a < 100 and t11.b is not null"
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t10",
-        "access_type": "hash_ALL",
-        "key": "#hash#$hj",
-        "key_length": "5",
-        "used_key_parts": ["b"],
-        "ref": ["test.t11.b"],
-        "r_loops": 1,
-        "rows": 1000,
-        "r_rows": 1000,
-        "r_table_time_ms": "REPLACED",
-        "r_other_time_ms": "REPLACED",
-        "r_engine_stats": REPLACED,
-        "filtered": 70.3125,
-        "r_filtered": 70,
-        "attached_condition": "t10.a < 700"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t11",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 1000,
+          "r_rows": 1000,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 10,
+          "r_total_filtered": 10,
+          "attached_condition": "t11.a < 100 and t11.b is not null",
+          "r_filtered": 10
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "3Kb",
-      "join_type": "BNLH",
-      "attached_condition": "t10.b = t11.b",
-      "r_loops": 100,
-      "r_filtered": 100,
-      "r_unpack_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "r_effective_rows": 2.97
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t10",
+            "access_type": "hash_ALL",
+            "key": "#hash#$hj",
+            "key_length": "5",
+            "used_key_parts": ["b"],
+            "ref": ["test.t11.b"],
+            "loops": 100,
+            "r_loops": 1,
+            "rows": 1000,
+            "r_rows": 1000,
+            "cost": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
+            "r_engine_stats": REPLACED,
+            "filtered": 0.209580004,
+            "r_total_filtered": 70,
+            "attached_condition": "t10.a < 700",
+            "r_filtered": 70
+          },
+          "buffer_type": "flat",
+          "buffer_size": "3Kb",
+          "join_type": "BNLH",
+          "attached_condition": "t10.b = t11.b",
+          "r_loops": 100,
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_effective_rows": 2.97
+        }
+      }
+    ]
   }
 }
 set join_cache_level=@tmp;
 drop table t10, t11;
+#
+# MDEV-18478: ANALYZE for statement should show selectivity of
+#             pushed index condition
+#
+create table t12 (a int, b varchar(10), c int, index(a,b), index(c));
+create table t13 (a int not null primary key, b int, index(b));
+insert into t12(a,b,c) values (1,"abc",100),
+(2,"abd",200),(2,"bfd",300),(2,"efg",400),
+(3,"abc",410),(3,"def",420),(3,"ghi",430),(3,"jkl",440),
+(4,"abc",600),(4,"def",700),(4,"ghi",800),(4,"jkl",900);
+insert into t13(a,b) values(1,1),(2,2),(3,3),(4,4),(5,5);
+analyze table t12;
+Table	Op	Msg_type	Msg_text
+test.t12	analyze	status	Engine-independent statistics collected
+test.t12	analyze	status	OK
+analyze table t13;
+Table	Op	Msg_type	Msg_text
+test.t13	analyze	status	Engine-independent statistics collected
+test.t13	analyze	status	OK
+# eq key condition only, no pushed condition
+analyze format=json select * from t12 where t12.a=2;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# pushed index condition
+analyze format=json select * from t12 where t12.a=2 and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_index_rows": 3,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 66.66666667,
+          "index_condition": "t12.b like '%f%'",
+          "r_icp_filtered": 66.66666667,
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# rowid filter only, no pushed condition
+analyze format=json select * from t12 where t12.a=2 and t12.c
+between 400 and 500;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 3,
+            "r_selectivity_pct": 33.33333333,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_index_rows": 3,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 41.66666794,
+          "r_total_filtered": 33.33333333,
+          "attached_condition": "t12.c between 400 and 500",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# pushed index condition and rowid filter
+analyze format=json select * from t12 where t12.a=2 and t12.c
+between 400 and 500 and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 2,
+            "r_selectivity_pct": 50,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 3,
+          "r_index_rows": 3,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 41.66666794,
+          "r_total_filtered": 33.33333333,
+          "index_condition": "t12.b like '%f%'",
+          "r_icp_filtered": 66.66666667,
+          "attached_condition": "t12.c between 400 and 500",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# pushed index condition on the inner table (t12) of a join
+analyze format=json select * from t13,t12
+where t13.a between 1 and 2 and t12.a=t13.a and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t13",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_index_rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "index_condition": "t13.a between 1 and 2",
+          "r_icp_filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t13.a"],
+          "loops": 2,
+          "r_loops": 2,
+          "rows": 3,
+          "r_index_rows": 2,
+          "r_rows": 1,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 50,
+          "index_condition": "t12.b like '%f%'",
+          "r_icp_filtered": 50,
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# rowid filter on inner table of a join, no ICP
+analyze format=json select * from t13,t12 where t13.b between 1 and 2 and t12.a=t13.a and t12.c
+between 400 and 450;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t13",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "b"],
+          "key": "b",
+          "key_length": "5",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_index_rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "index_condition": "t13.b between 1 and 2",
+          "r_icp_filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t13.a"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 4,
+            "r_selectivity_pct": 25,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 2,
+          "r_loops": 2,
+          "rows": 3,
+          "r_index_rows": 2,
+          "r_rows": 0.5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 41.66666794,
+          "r_total_filtered": 25,
+          "attached_condition": "t12.c between 400 and 450",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+# rowid filter and ICP on inner table of a join
+analyze format=json select * from t13,t12 where t13.b between 1 and 2 and t12.a=t13.a and t12.c
+between 400 and 450 and t12.b like '%f%';
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t13",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY", "b"],
+          "key": "b",
+          "key_length": "5",
+          "used_key_parts": ["b"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 2,
+          "r_index_rows": 2,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "index_condition": "t13.b between 1 and 2",
+          "r_icp_filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t12",
+          "access_type": "ref",
+          "possible_keys": ["a", "c"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t13.a"],
+          "rowid_filter": {
+            "range": {
+              "key": "c",
+              "used_key_parts": ["c"]
+            },
+            "rows": 5,
+            "selectivity_pct": 41.66666667,
+            "r_rows": 5,
+            "r_lookups": 2,
+            "r_selectivity_pct": 50,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "loops": 2,
+          "r_loops": 2,
+          "rows": 3,
+          "r_index_rows": 2,
+          "r_rows": 0.5,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 41.66666794,
+          "r_total_filtered": 25,
+          "index_condition": "t12.b like '%f%'",
+          "r_icp_filtered": 50,
+          "attached_condition": "t12.c between 400 and 450",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+drop table t12,t13;

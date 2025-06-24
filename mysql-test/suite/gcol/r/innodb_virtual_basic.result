@@ -1,4 +1,5 @@
 call mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set default_storage_engine=innodb;
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c CHAR(10), d CHAR(20), e CHAR(10) GENERATED ALWAYS AS (c), g INT);
 INSERT INTO t VALUES(10, DEFAULT, "aa", "bb", DEFAULT, 20);
@@ -959,12 +960,12 @@ CREATE TABLE t1 (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), h VARCHAR(10));
 INSERT INTO t1 VALUES (11, 3, DEFAULT, 'mm');
 INSERT INTO t1 VALUES (18, 1, DEFAULT, 'mm');
 INSERT INTO t1 VALUES (28, 1, DEFAULT, 'mm');
-ALTER TABLE t1 ADD INDEX idx12 (c) , FORCE, LOCK=NONE;
+ALTER TABLE t1 ADD INDEX idx12 (c), FORCE, ALGORITHM = INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: online rebuild with indexed virtual columns. Try LOCK=SHARED
 ALTER TABLE t1 ADD INDEX idx12 (c), LOCK=NONE;
-ALTER TABLE t1 DROP COLUMN h,  ADD INDEX idx (c) , FORCE, LOCK=NONE;
+ALTER TABLE t1 DROP COLUMN h,  ADD INDEX idx (c), FORCE, ALGORITHM = INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: online rebuild with indexed virtual columns. Try LOCK=SHARED
-ALTER TABLE t1 DROP COLUMN h,  ADD INDEX idx (c), LOCK=NONE;
+ALTER TABLE t1 DROP COLUMN h,  ADD INDEX idx (c), ALGORITHM = INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: online rebuild with indexed virtual columns. Try LOCK=SHARED
 DROP TABLE t1 ;
 CREATE TABLE t1 (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), d INT GENERATED ALWAYS AS(a+b), h VARCHAR(10));
@@ -1495,3 +1496,4 @@ SELECT * FROM t1;
 a	b	c
 1	2	3
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

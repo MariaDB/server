@@ -17,7 +17,7 @@ connection master;
 insert into t1(a) values(4);
 insert into t1(a) values(5);
 insert into t1(a) values(6);
-=====Removing relay log files and crashing/recoverying the slave=======;
+=====Removing relay log files and crashing/recovering the slave=======;
 connection slave;
 include/stop_slave_io.inc
 SET SESSION debug_dbug="d,crash_before_rotate_relaylog";

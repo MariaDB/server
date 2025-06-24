@@ -88,54 +88,6 @@ openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
 #define OpenSSL_key_len    32
 #define OpenSSL_iv_len     16
 
-/**
-   Calculate key and iv from a given salt and secret as in the
-   openssl command-line tool
-
-   @param salt   [in]  the given salt as extracted from the encrypted file
-   @param secret [in]  the given secret as String, provided by the user
-   @param key    [out] 32 Bytes of key are written to this pointer
-   @param iv     [out] 16 Bytes of iv are written to this pointer
-*/
-
-void Parser::bytes_to_key(const unsigned char *salt, const char *input,
-                          unsigned char *key, unsigned char *iv)
-{
-  unsigned char digest[MY_SHA1_HASH_SIZE];
-  int key_left   = OpenSSL_key_len;
-  int iv_left    = OpenSSL_iv_len;
-  const size_t ilen= strlen(input);
-  const size_t slen= OpenSSL_salt_len; // either this or explicit (size_t) casts below
-
-  my_sha1_multi(digest, input, ilen, salt, slen, NullS);
-
-  while (iv_left)
-  {
-    int left= MY_SHA1_HASH_SIZE;
-    if (key_left)
-    {
-      int store = MY_MIN(key_left, MY_SHA1_HASH_SIZE);
-      memcpy(&key[OpenSSL_key_len - key_left], digest, store);
-
-      key_left -= store;
-      left     -= store;
-    }
-
-    if (iv_left && left)
-    {
-      int store= MY_MIN(iv_left, left);
-      memcpy(&iv[OpenSSL_iv_len - iv_left], &digest[MY_SHA1_HASH_SIZE - left], store);
-
-      iv_left    -= store;
-    }
-
-    if (iv_left)
-      my_sha1_multi(digest, digest, MY_SHA1_HASH_SIZE,
-                            input, ilen, salt, slen, NullS);
-  }
-}
-
-
 bool Parser::parse(std::map<uint,keyentry> *keys)
 {
   const char *secret= filekey;
@@ -180,7 +132,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   {
     my_printf_error(EE_READ,
                     "Cannot read %s, the filekey is too long, "
-                    "max secret size is %dB ",
+                    "max secret size is %d bytes",
                     ME_ERROR_LOG, filekey, MAX_SECRET_SIZE);
     return 1;
   }
@@ -314,6 +266,7 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 char* Parser::read_and_decrypt_file(const char *secret)
 {
   int f;
+  size_t file_size= 0;
   if (!filename || !filename[0])
   {
     my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
@@ -328,52 +281,54 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err0;
   }
 
-  my_off_t file_size;
-  file_size= lseek(f, 0, SEEK_END);
-
-  if (file_size == MY_FILEPOS_ERROR || (my_off_t)lseek(f, 0, SEEK_SET) == MY_FILEPOS_ERROR)
-  {
-    my_error(EE_CANT_SEEK, MYF(0), filename, errno);
-    goto err1;
-  }
-
-  if (file_size > MAX_KEY_FILE_SIZE)
-  {
-    my_error(EE_READ, MYF(0), filename, EFBIG);
-    goto err1;
-  }
-
   //Read file into buffer
-  uchar *buffer;
-  buffer= (uchar*)malloc((size_t)file_size + 1);
+  uchar *buffer, *dst, *end;
+  buffer= (uchar *) malloc((size_t) MAX_KEY_FILE_SIZE+1 );
   if (!buffer)
   {
-    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, file_size);
+    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
     goto err1;
   }
 
-  if (read(f, buffer, (int)file_size) != (int)file_size)
+  /* read loop in case fifo buffer size is too small */
+  dst= buffer;
+  end= buffer + MAX_KEY_FILE_SIZE + 1;
+  for (ssize_t len= 1; len && dst < end; dst+= len)
   {
-    my_printf_error(EE_READ,
-      "read from %s failed, errno %d",
-      MYF(ME_ERROR_LOG|ME_FATAL), filename, errno);
+    if ((len= read(f, dst, (uint)(end - dst))) < 0)
+    {
+      my_printf_error(EE_READ, "Read from %s failed, errno %d",
+                     ME_ERROR_LOG, filename, errno);
+      goto err2;
+    }
+  }
+  file_size= dst - buffer;
+  if (file_size > MAX_KEY_FILE_SIZE)
+  {
+    my_printf_error(EE_READ, "File %s too large, must be less than %d bytes",
+                   ME_ERROR_LOG, filename, MAX_KEY_FILE_SIZE);
     goto err2;
   }
-
-// Check for file encryption
+  my_printf_error(EE_ERROR_FIRST,
+                  "Read from %s, read bytes: %zd, max key file size: %d bytes",
+                  ME_ERROR_LOG | ME_NOTE, filename, file_size,
+                  MAX_KEY_FILE_SIZE);
+  // Check for file encryption
   uchar *decrypted;
   if (file_size > OpenSSL_prefix_len && strncmp((char*)buffer, OpenSSL_prefix, OpenSSL_prefix_len) == 0)
   {
     uchar key[OpenSSL_key_len];
     uchar iv[OpenSSL_iv_len];
 
-    decrypted= (uchar*)malloc((size_t)file_size);
+    decrypted= (uchar*)malloc(file_size+1);
     if (!decrypted)
     {
       my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
       goto err2;
     }
-    bytes_to_key(buffer + OpenSSL_prefix_len, secret, key, iv);
+    my_bytes_to_key(buffer + OpenSSL_prefix_len,
+                    (const unsigned char *) secret, (uint) strlen(secret),
+                    key, iv, digest, use_pbkdf2);
     uint32 d_size;
     if (my_aes_crypt(MY_AES_CBC, ENCRYPTION_FLAG_DECRYPT,
                      buffer + OpenSSL_prefix_len + OpenSSL_salt_len,

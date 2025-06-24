@@ -304,10 +304,10 @@ struct st_myisam_info
   /* If info->buff has to be reread for rnext */
   my_bool buff_used;
   my_bool create_unique_index_by_sort;
+  my_bool has_cond_pushdown;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
   rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
-  rowid_filter_is_active_func_t rowid_filter_is_active_func;  /* is activefunction */
   void *rowid_filter_func_arg;             /* parameter for the func */
   THR_LOCK_DATA lock;
   uchar *rtree_recursion_state;         /* For RTREE */
@@ -742,19 +742,29 @@ my_bool mi_dynmap_file(MI_INFO *info, my_off_t size);
 int mi_munmap_file(MI_INFO *info);
 void mi_remap_file(MI_INFO *info, my_off_t size);
 
-check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr, uchar *record);
+check_result_t mi_check_index_tuple_real(MI_INFO *info, uint keynr,
+                                         uchar *record);
+static inline check_result_t mi_check_index_tuple(MI_INFO *info, uint keynr,
+                                                  uchar *record)
+{
+  if (!info->has_cond_pushdown && ! info->rowid_filter_func)
+    return CHECK_POS;
+  return mi_check_index_tuple_real(info, keynr, record);
+}
 
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
-void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);
-void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...);
-void mi_check_print_info(HA_CHECK *param, const char *fmt, ...);
+void mi_check_print_error(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+void mi_check_print_warning(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+void mi_check_print_info(HA_CHECK *param, const char *fmt, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 pthread_handler_t thr_find_all_keys(void *arg);
 extern void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t check_func,
                                    void *func_arg);
 extern void mi_set_rowid_filter_func(MI_INFO *info,
                                      rowid_filter_func_t check_func,
-                                     rowid_filter_is_active_func_t is_active_func,
                                      void *func_arg);
 int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
                  ulonglong *dirty_part_map);

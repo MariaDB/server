@@ -1,5 +1,6 @@
 -- source include/no_valgrind_without_big.inc
 -- source include/have_innodb.inc
+-- source include/have_sequence.inc
 
 # Note: the tests uses only non-semijoin subqueries so semi-join switch
 #       settings are not relevant.
@@ -558,9 +559,12 @@ from
 --echo #
 --echo # MDEV-6081: ORDER BY+ref(const): selectivity is very incorrect (MySQL Bug#14338686)
 --echo #
---source include/have_sequence.inc
 
+
+# Table t2 has 100 equal values / key value, which causes it to prefer index scan instead of ref
+# Fix it by adding more different values to key1
 insert into t2 select seq,seq,seq from seq_10000_to_11000;
+
 alter table t2 add key2 int;
 update t2 set key2=key1;
 alter table t2 add key(key2);
@@ -574,6 +578,14 @@ explain select
     FROM t2
     WHERE t2.key1 = t1.a
     ORDER BY t2.key2 ASC LIMIT 1)
+from 
+  t1;
+select 
+   (SELECT 
+      concat(id, '-', key1, '-', col1)
+    FROM t2
+    WHERE t2.key1 = t1.a
+    ORDER BY t2.key2 ASC LIMIT 1) as subq
 from 
   t1;
 

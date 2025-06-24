@@ -296,7 +296,7 @@ functions:
          cache block by block.
  6. Query_cache::resize
        - Used to change the available memory used by the query cache. This
-         will also invalidate the entrie query cache in one free operation.
+         will also invalidate the entire query cache in one free operation.
  7. Query_cache::pack
        - Used when a FLUSH QUERY CACHE is issued. This changes the order of
          the used memory blocks in physical memory order and move all avail-
@@ -338,7 +338,6 @@ TODO list:
 #include "sql_base.h"                           // TMP_TABLE_KEY_EXTRA
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_table.h"
-#ifdef HAVE_QUERY_CACHE
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -1373,7 +1372,7 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     Testing 'query_cache_size' without a lock here is safe: the thing
     we may loose is that the query won't be cached, but we save on
     mutex locking in the case when query cache is disabled or the
-    query is uncachable.
+    query is uncacheable.
 
     See also a note on double-check locking usage above.
   */
@@ -2351,13 +2350,13 @@ void Query_cache::invalidate(THD *thd, const char *key, size_t  key_length,
    Remove all cached queries that uses the given database.
 */
 
-void Query_cache::invalidate(THD *thd, const char *db)
+void Query_cache::invalidate(THD *thd, const LEX_CSTRING &db)
 {
   DBUG_ENTER("Query_cache::invalidate (db)");
   if (is_disabled())
     DBUG_VOID_RETURN;
 
-  DBUG_SLOW_ASSERT(ok_for_lower_case_names(db));
+  DBUG_SLOW_ASSERT(Lex_ident_fs(db).ok_for_lower_case_names());
 
   bool restart= FALSE;
   /*
@@ -2377,7 +2376,7 @@ void Query_cache::invalidate(THD *thd, const char *db)
         {
           Query_cache_block *next= table_block->next;
           Query_cache_table *table = table_block->table();
-          if (strcmp(table->db(),db) == 0)
+          if (strcmp(table->db(), db.str) == 0)
           {
             Query_cache_block_table *list_root= table_block->table(0);
             invalidate_query_block_list(list_root);
@@ -2561,7 +2560,7 @@ void Query_cache::init()
     0x0A LINE FEED
     0x0B VERTICAL TAB
     0x0C FORM FEED
-    0x0D CARRIAGE RETUR
+    0x0D CARRIAGE RETURN
     0x20 SPACE
     
     Additionally, only some of the ASCII-compatible character sets
@@ -3590,7 +3589,7 @@ Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
     header->set_hashed(hash);
 
     /*
-      We insert this table without the assumption that it isn't refrenenced by
+      We insert this table without the assumption that it isn't referenced by
       any queries.
     */
     header->m_cached_query_count= 0;
@@ -3662,7 +3661,7 @@ Query_cache::allocate_block(size_t len, my_bool not_less, size_t min)
 
   if (len >= MY_MIN(query_cache_size, query_cache_limit))
   {
-    DBUG_PRINT("qcache", ("Query cache hase only %zu memory and limit %zu",
+    DBUG_PRINT("qcache", ("Query cache has only %zu memory and limit %zu",
 			query_cache_size, query_cache_limit));
     DBUG_RETURN(0); // in any case we don't have such piece of memory
   }
@@ -3704,7 +3703,7 @@ Query_cache::get_free_block(size_t len, my_bool not_less, size_t min)
       first = list;
       uint n = 0;
       while ( n < QUERY_CACHE_MEM_BIN_TRY &&
-	      first->length < len) //we don't need irst->next != list
+	      first->length < len) //we don't need first->next != list
       {
 	first=first->next;
 	n++;
@@ -4175,7 +4174,7 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
     if (thd->in_multi_stmt_transaction_mode() &&
 	((*tables_type)&HA_CACHE_TBL_TRANSACT))
     {
-      DBUG_PRINT("qcache", ("not in autocommin mode"));
+      DBUG_PRINT("qcache", ("not in autocommit mode"));
       DBUG_RETURN(0);
     }
     DBUG_PRINT("qcache", ("select is using %d tables", table_count));
@@ -4899,7 +4898,7 @@ my_bool Query_cache::check_integrity(bool locked)
 
     DBUG_PRINT("qcache", ("block %p, type %u...", 
 			  block, (uint) block->type));  
-    // Check allignment
+    // Check alignment
     if ((((size_t)block) % ALIGN_SIZE(1)) !=
 	(((size_t)first_block) % ALIGN_SIZE(1)))
     {
@@ -4985,7 +4984,7 @@ my_bool Query_cache::check_integrity(bool locked)
       break;
     }
     case Query_cache_block::RES_INCOMPLETE:
-      // This type of block can be not lincked yet (in multithread environment)
+      // This type of block can be not linked yet (in multithread environment)
       break;
     case Query_cache_block::RES_BEG:
     case Query_cache_block::RES_CONT:
@@ -5153,7 +5152,7 @@ my_bool Query_cache::in_blocks(Query_cache_block * point)
   if (block != first_block)
   {
     DBUG_PRINT("error",
-	       ("block %p (%p<-->%p) not owned by pysical list",
+	       ("block %p (%p<-->%p) not owned by physical list",
 		block, block->pprev, block->pnext));
     return 1;
   }
@@ -5166,7 +5165,7 @@ err1:
     if (block->pnext->pprev != block)
     {
       DBUG_PRINT("error",
-		 ("block %p in physicel list is incorrect linked, next block %p referred as prev to %p (check from %p)",
+		 ("block %p in physical list is incorrect linked, next block %p referred as prev to %p (check from %p)",
 		  block, block->pnext,
 		  block->pnext->pprev,
 		  point));
@@ -5322,6 +5321,3 @@ err2:
 }
 
 #endif /* DBUG_OFF */
-
-#endif /*HAVE_QUERY_CACHE*/
-

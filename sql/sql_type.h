@@ -17,18 +17,15 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
-
 #include "mysqld.h"
 #include "lex_string.h"
+#include "sql_type_timeofday.h"
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
 #include "sql_type_string.h"
 #include "sql_type_real.h"
+#include "sql_type_ref.h"
 #include "compat56.h"
 #include "log_event_data_type.h"
 
@@ -56,6 +53,8 @@ class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_func_last_value;
+class Item_func_sp;
 class Item_bool_func2;
 class Item_bool_rowready_func2;
 class Item_func_between;
@@ -158,6 +157,57 @@ scalar_comparison_op_to_lex_cstring(scalar_comparison_op op)
   }
   DBUG_ASSERT(0);
   return LEX_CSTRING{STRING_WITH_LEN("<?>")};
+}
+
+
+enum class expr_event_t : uint32
+{
+  NONE=                               0,
+
+  /*
+    A result set row has been sent to the result sink, e.g. to the client.
+    All values in the row are not needed any more.
+  */
+  DESTRUCT_RESULT_SET_ROW_FIELD= 1 << 0,
+
+  /*
+     An Item_func evaluated its result,
+     argument values are not needed any more.
+  */
+  DESTRUCT_ROUTINE_ARG=          1 << 1,
+
+  /*
+    A value has been assigned to an SP variable.
+  */
+  DESTRUCT_ASSIGNMENT_RIGHT_HAND= 1 << 2,
+
+  /*
+    Flow control has left a BEGIN..END block,
+    all variables declared in this block are not needed any more.
+  */
+  DESTRUCT_OUT_OF_SCOPE=         1 << 3,
+
+  /*
+    A prepared statement has finished.
+    The values of Item_param instances are not needed any more.
+  */
+  DESTRUCT_DYNAMIC_PARAM=        1 << 4,
+
+  /*
+    Any kind of destruction listed above.
+  */
+  DESTRUCT_ANY= (uint32) (DESTRUCT_RESULT_SET_ROW_FIELD |
+                          DESTRUCT_ROUTINE_ARG |
+                          DESTRUCT_ASSIGNMENT_RIGHT_HAND |
+                          DESTRUCT_OUT_OF_SCOPE |
+                          DESTRUCT_DYNAMIC_PARAM)
+};
+
+
+static inline constexpr expr_event_t operator&(const expr_event_t a,
+                                               const expr_event_t b)
+{
+  return (expr_event_t) (((uint32) a) & ((uint32) b));
 }
 
 
@@ -803,7 +853,7 @@ public:
 
 
 /*
-  A heler class to perform additive operations between
+  A helper class to perform additive operations between
   two MYSQL_TIME structures and return the result as a
   combination of seconds, microseconds and sign.
 */
@@ -1263,7 +1313,7 @@ public:
   };
 
 public:
-  // Contructors for Item
+  // Constructors for Item
   Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate);
   Temporal_hybrid(THD *thd, Item *item)
    :Temporal_hybrid(thd, item, Options(thd))
@@ -1319,7 +1369,7 @@ public:
     else
       make_from_decimal(thd, warn, nr, mode);
   }
-  // End of constuctors
+  // End of constructors
 
   bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
   {
@@ -1339,7 +1389,7 @@ public:
   {
     return is_valid_temporal() ? TIME_to_double(this) : 0;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_temporal() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -1991,7 +2041,7 @@ public:
       str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_time() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2350,7 +2400,7 @@ public:
       str->length(my_date_to_str(this, const_cast<char*>(str->ptr())));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_date() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2488,7 +2538,7 @@ public:
   Datetime(THD *thd, int *warn, const my_decimal *d, date_mode_t fuzzydate)
    :Datetime(thd, warn, Sec9(d), fuzzydate)
   { }
-  Datetime(THD *thd, const timeval &tv);
+  Datetime(THD *thd, const my_timeval &tv);
 
   Datetime(THD *thd, Item *item, date_mode_t fuzzydate, uint dec)
    :Datetime(thd, item, fuzzydate)
@@ -2531,6 +2581,20 @@ public:
   }
   Datetime(my_time_t unix_time, ulong second_part,
            const Time_zone* time_zone);
+  Datetime(uint year_arg, uint month_arg, uint day_arg, const TimeOfDay6 &td)
+  {
+    neg= 0;
+    year= year_arg;
+    month= month_arg;
+    day= day_arg;
+    hour= td.hour();
+    minute= td.minute();
+    second= td.second();
+    second_part= td.usecond();
+    time_type= MYSQL_TIMESTAMP_DATETIME;
+    if (!is_valid_datetime_slow())
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
 
   bool is_valid_datetime() const
   {
@@ -2662,7 +2726,7 @@ public:
       str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
-  my_decimal *to_decimal(my_decimal *to)
+  my_decimal *to_decimal(my_decimal *to) const
   {
     return is_valid_datetime() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
@@ -2679,6 +2743,12 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime());
     return Temporal::fraction_remainder(dec);
+  }
+
+  Datetime time_of_day(const TimeOfDay6 &td) const
+  {
+    DBUG_ASSERT(is_valid_datetime()); // not SQL NULL
+    return Datetime(year, month, day, td);
   }
 
   Datetime &trunc(uint dec)
@@ -2758,7 +2828,7 @@ public:
 };
 
 
-class Timestamp: protected Timeval
+class Timestamp: public Timeval
 {
   static uint binary_length_to_precision(uint length);
 protected:
@@ -2791,12 +2861,11 @@ public:
   Timestamp(my_time_t timestamp, ulong sec_part)
    :Timeval(timestamp, sec_part)
   { }
-  explicit Timestamp(const timeval &tv)
+  explicit Timestamp(const my_timeval &tv)
    :Timeval(tv)
   { }
   explicit Timestamp(const Native &native);
   Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code);
-  const struct timeval &tv() const { return *this; }
   int cmp(const Timestamp &other) const
   {
     return tv_sec < other.tv_sec   ? -1 :
@@ -2854,6 +2923,11 @@ class Timestamp_or_zero_datetime: protected Timestamp
 {
   bool m_is_zero_datetime;
 public:
+  static Timestamp_or_zero_datetime zero()
+  {
+    return Timestamp_or_zero_datetime(Timestamp(0, 0), true);
+  }
+public:
   Timestamp_or_zero_datetime()
    :Timestamp(0,0), m_is_zero_datetime(true)
   { }
@@ -2861,7 +2935,7 @@ public:
    :Timestamp(native.length() ? Timestamp(native) : Timestamp(0,0)),
     m_is_zero_datetime(native.length() == 0)
   { }
-  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime)
+  Timestamp_or_zero_datetime(const Timestamp &tm, bool is_zero_datetime= false)
    :Timestamp(tm), m_is_zero_datetime(is_zero_datetime)
   { }
   Timestamp_or_zero_datetime(THD *thd, const MYSQL_TIME *ltime, uint *err_code);
@@ -2888,6 +2962,11 @@ public:
     if (other.is_zero_datetime())
       return 1;
     return Timestamp::cmp(other);
+  }
+  const Timestamp &to_timestamp() const
+  {
+    DBUG_ASSERT(!is_zero_datetime());
+    return *this;
   }
   bool to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const;
   /*
@@ -2921,7 +3000,7 @@ public:
   {
     return is_zero_datetime() ?
            Datetime::zero() :
-           Datetime(thd, Timestamp(*this).tv());
+           Datetime(thd, Timestamp(*this));
   }
   bool is_zero_datetime() const
   {
@@ -3006,13 +3085,49 @@ static inline my_repertoire_t &operator|=(my_repertoire_t &a,
 
 enum Derivation
 {
-  DERIVATION_IGNORABLE= 6,
-  DERIVATION_NUMERIC= 5,
-  DERIVATION_COERCIBLE= 4,
+  DERIVATION_IGNORABLE= 8, // Explicit NULL
+
+  /*
+    Explicit or implicit conversion from numeric/temporal data to string:
+    - Numbers/temporals in string context
+    - Numeric user variables
+    - CAST(numeric_or_temporal_expr AS CHAR)
+  */
+  DERIVATION_NUMERIC= 7,
+
+  /*
+    - String literals
+  */
+  DERIVATION_COERCIBLE= 6,
+
+  /*
+    - String user variables
+  */
+  DERIVATION_USERVAR= 5,
+
+  /*
+    String cast and conversion functions:
+    - CAST(string_expr AS CHAR)
+    - CONVERT(expr USING cs)
+  */
+  DERIVATION_CAST= 4,
+
+  /*
+    utf8 metadata functions:
+    - DATABASE()
+    - CURRENT_ROLE()
+    - USER()
+  */
   DERIVATION_SYSCONST= 3,
+
+  /*
+    - Table columns
+    - SP variables
+    - BINARY(expr) and CAST(expr AS BINARY)
+  */
   DERIVATION_IMPLICIT= 2,
-  DERIVATION_NONE= 1,
-  DERIVATION_EXPLICIT= 0
+  DERIVATION_NONE= 1,      // A mix (e.g. CONCAT) of two different collations
+  DERIVATION_EXPLICIT= 0   // An explicit COLLATE clause
 };
 
 
@@ -3066,6 +3181,12 @@ public:
     derivation(derivation_arg),
     repertoire(repertoire_arg)
   { }
+  static DTCollation string_typecast(CHARSET_INFO *collation_arg)
+  {
+    return DTCollation(collation_arg,
+                       collation_arg == &my_charset_bin ?
+                       DERIVATION_IMPLICIT : DERIVATION_CAST);
+  }
   void set(const DTCollation &dt)
   {
     *this= dt;
@@ -3094,6 +3215,16 @@ public:
   bool aggregate(const DTCollation &dt, uint flags= 0);
   bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
   { set(dt1); return aggregate(dt2, flags); }
+  bool merge_charset_and_collation(Sql_used *used,
+                                   const Charset_collation_map_st &map,
+                                   CHARSET_INFO *cs,
+                                   const Lex_extended_collation_st &cl,
+                                   my_repertoire_t repertoire);
+  bool merge_collation(Sql_used *used,
+                       const Charset_collation_map_st &map,
+                       const Lex_extended_collation_st &cl,
+                       my_repertoire_t repertoire,
+                       bool allow_ignorable_with_context_collation);
   const char *derivation_name() const
   {
     switch(derivation)
@@ -3101,6 +3232,8 @@ public:
       case DERIVATION_NUMERIC:   return "NUMERIC";
       case DERIVATION_IGNORABLE: return "IGNORABLE";
       case DERIVATION_COERCIBLE: return "COERCIBLE";
+      case DERIVATION_USERVAR:   return "USERVAR";
+      case DERIVATION_CAST:      return "CAST";
       case DERIVATION_IMPLICIT:  return "IMPLICIT";
       case DERIVATION_SYSCONST:  return "SYSCONST";
       case DERIVATION_EXPLICIT:  return "EXPLICIT";
@@ -3389,6 +3522,98 @@ public:
 };
 
 
+/*
+  A container for very specific data type attributes.
+  For now it provides space for:
+  - one const pointer attributes
+  - one unt32 attribute
+*/
+class Type_extra_attributes
+{
+  const void *m_attr_const_void_ptr[1];
+  uint32 m_attr_uint32[1];
+public:
+  Type_extra_attributes()
+   :m_attr_const_void_ptr{0},
+    m_attr_uint32{0}
+  { }
+  Type_extra_attributes(const void *const_void_ptr)
+   :m_attr_const_void_ptr{const_void_ptr},
+    m_attr_uint32{0}
+  { }
+  /*
+    Generic const pointer attributes.
+    The ENUM and SET data types store TYPELIB information here.
+  */
+  Type_extra_attributes & set_attr_const_void_ptr(uint i, const void *value)
+  {
+    m_attr_const_void_ptr[i]= value;
+    return *this;
+  }
+  const void *get_attr_const_void_ptr(uint i) const
+  {
+    return m_attr_const_void_ptr[i];
+  }
+  /*
+    Generic uint32 attributes.
+    The GEOMETRY data type stores SRID here.
+  */
+  Type_extra_attributes & set_attr_uint32(uint i, uint32 value)
+  {
+    m_attr_uint32[i]= value;
+    return *this;
+  }
+  uint32 get_attr_uint32(uint i) const
+  {
+    return m_attr_uint32[i];
+  }
+  /*
+    Helper methods for TYPELIB attributes.
+    They are mostly needed to simplify the code
+    in Column_definition_attributes and Column_definition methods.
+    Eventually we should move this code into Type_typelib_attributes
+    and remove these methods.
+  */
+  Type_extra_attributes & set_typelib(const TYPELIB *typelib)
+  {
+    return set_attr_const_void_ptr(0, typelib);
+  }
+  const TYPELIB *typelib() const
+  {
+    return (const TYPELIB*) get_attr_const_void_ptr(0);
+  }
+};
+
+
+class Type_typelib_attributes
+{
+protected:
+  const TYPELIB *m_typelib;
+public:
+  Type_typelib_attributes()
+   :m_typelib(nullptr)
+  { }
+  Type_typelib_attributes(const TYPELIB *typelib)
+   :m_typelib(typelib)
+  { }
+  Type_typelib_attributes(const Type_extra_attributes &eattr)
+   :m_typelib((const TYPELIB *) eattr.get_attr_const_void_ptr(0))
+  { }
+  void store(Type_extra_attributes *to) const
+  {
+    to->set_attr_const_void_ptr(0, m_typelib);
+  }
+  const TYPELIB *typelib() const
+  {
+    return m_typelib;
+  }
+  void set_typelib(const TYPELIB *typelib)
+  {
+    m_typelib= typelib;
+  }
+};
+
+
 class Type_all_attributes: public Type_std_attributes
 {
 public:
@@ -3399,8 +3624,8 @@ public:
   virtual uint32 character_octet_length() const { return max_length; }
   // Returns total number of decimal digits
   virtual decimal_digits_t decimal_precision() const= 0;
-  virtual const TYPELIB *get_typelib() const= 0;
-  virtual void set_typelib(const TYPELIB *typelib)= 0;
+  virtual Type_extra_attributes *type_extra_attributes_addr() = 0;
+  virtual const Type_extra_attributes type_extra_attributes() const= 0;
 };
 
 
@@ -3420,28 +3645,21 @@ class Type_cast_attributes
   bool m_length_specified;
   bool m_decimals_specified;
 public:
-  Type_cast_attributes(const char *c_len, const char *c_dec, CHARSET_INFO *cs)
+  Type_cast_attributes(const Lex_length_and_dec_st &length_and_dec,
+                       CHARSET_INFO *cs)
     :m_charset(cs), m_length(0), m_decimals(0),
      m_length_specified(false), m_decimals_specified(false)
   {
-    set_length_and_dec(c_len, c_dec);
+    m_length= length_and_dec.length_overflowed() ? (ulonglong) UINT_MAX32 + 1 :
+                                                   length_and_dec.length();
+    m_decimals= length_and_dec.dec();
+    m_length_specified= length_and_dec.has_explicit_length();
+    m_decimals_specified= length_and_dec.has_explicit_dec();
   }
   Type_cast_attributes(CHARSET_INFO *cs)
     :m_charset(cs), m_length(0), m_decimals(0),
      m_length_specified(false), m_decimals_specified(false)
   { }
-  void set_length_and_dec(const char *c_len, const char *c_dec)
-  {
-    int error;
-    /*
-      We don't have to check for error here as sql_yacc.yy has guaranteed
-      that the values are in range of ulonglong
-    */
-    if ((m_length_specified= (c_len != NULL)))
-      m_length= (ulonglong) my_strtoll10(c_len, NULL, &error);
-    if ((m_decimals_specified= (c_dec != NULL)))
-      m_decimals= (ulonglong) my_strtoll10(c_dec, NULL, &error);
-  }
   CHARSET_INFO *charset() const { return m_charset; }
   bool length_specified() const { return m_length_specified; }
   bool decimals_specified() const { return m_decimals_specified; }
@@ -3453,17 +3671,12 @@ public:
 class Name: private LEX_CSTRING
 {
 public:
-  Name(const char *str_arg, uint length_arg)
-  {
-    DBUG_ASSERT(length_arg < UINT_MAX32);
-    LEX_CSTRING::str= str_arg;
-    LEX_CSTRING::length= length_arg;
-  }
-  Name(const LEX_CSTRING &lcs)
-  {
-    LEX_CSTRING::str= lcs.str;
-    LEX_CSTRING::length= lcs.length;
-  }
+  constexpr Name(const char *str_arg, uint length_arg) :
+    LEX_CSTRING({str_arg, length_arg})
+  { }
+  constexpr Name(const LEX_CSTRING &lcs) :
+    LEX_CSTRING(lcs)
+  { }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return (uint) LEX_CSTRING::length; }
   const LEX_CSTRING &lex_cstring() const { return *this; }
@@ -3867,6 +4080,16 @@ public:
     const Type_handler *res= type_handler_base();
     return res ? res : this;
   }
+  /*
+    In 10.11.8 the semantics of this method has changed to the opposite.
+    It used to be called with the old data type handler as "this".
+    Now it's called with the new data type hander as "this".
+    To avoid problems during merges, the method name was renamed.
+  */
+  virtual const Type_handler *type_handler_for_implicit_upgrade() const
+  {
+    return this;
+  }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler *type_handler_for_native_format() const
   {
@@ -3896,6 +4119,18 @@ public:
   {
     return this;
   }
+
+  /*
+    Returns true if this data type is complex (has some side effect),
+    so values of this type need additional handling, e.g. on destruction.
+    For example, SYS_REFCURSOR has a side effect:
+      it writes and reads THD::m_statement_cursors.
+  */
+  virtual bool is_complex() const
+  {
+    return false;
+  }
+
   virtual bool partition_field_check(const LEX_CSTRING &field_name, Item *)
     const
   {
@@ -3914,6 +4149,15 @@ public:
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
   { return this; }
+  /*
+    Check if an Spvar_definition instance is of a complex data type,
+    or contains a complex data type in its components (e.g. a ROW member).
+  */
+  virtual bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
+                                                                         const
+  {
+    return false;
+  }
   virtual bool adjust_spparam_type(Spvar_definition *def, Item *from) const
   {
     return false;
@@ -3926,6 +4170,7 @@ public:
   */
   bool is_traditional_scalar_type() const;
   virtual bool is_scalar_type() const { return true; }
+  virtual bool can_return_bool() const { return can_return_int(); }
   virtual bool can_return_int() const { return true; }
   virtual bool can_return_decimal() const { return true; }
   virtual bool can_return_real() const { return true; }
@@ -4012,9 +4257,13 @@ public:
   virtual bool validate_implicit_default_value(THD *thd,
                                                const Column_definition &def)
                                                const;
-  // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
-  virtual void Column_definition_implicit_upgrade(Column_definition *c) const
-  { }
+  /*
+    Automatic upgrade, e.g. for REPAIR or ALTER TABLE t1 FORCE
+    - from the data type specified in old->type_handler()
+    - to the data type specified in "this"
+  */
+  virtual void Column_definition_implicit_upgrade_to_this(
+                                                  Column_definition *old) const;
   // Validate CHECK constraint after the parser
   virtual bool Column_definition_validate_check_constraint(THD *thd,
                                                            Column_definition *c)
@@ -4023,7 +4272,6 @@ public:
   virtual bool Column_definition_set_attributes(THD *thd,
                                                 Column_definition *def,
                                                 const Lex_field_type_st &attr,
-                                                CHARSET_INFO *cs,
                                                 column_definition_type_t type)
                                                 const;
   // Fix attributes after the parser
@@ -4040,8 +4288,7 @@ public:
   virtual bool Column_definition_prepare_stage1(THD *thd,
                                                 MEM_ROOT *mem_root,
                                                 Column_definition *c,
-                                                handler *file,
-                                                ulonglong table_flags,
+                                                column_definition_type_t type,
                                                 const Column_derived_attributes
                                                       *derived_attr)
                                                 const;
@@ -4090,6 +4337,11 @@ public:
                                           const handler *file) const;
   virtual bool Key_part_spec_init_spatial(Key_part_spec *part,
                                           const Column_definition &def) const;
+  virtual bool Key_part_spec_init_vector(Key_part_spec *part,
+                                         const Column_definition &def) const
+  {
+    return true; // Error
+  }
   virtual bool Key_part_spec_init_ft(Key_part_spec *part,
                                      const Column_definition &def) const
   {
@@ -4162,6 +4414,9 @@ public:
   virtual void Item_param_setup_conversion(THD *thd, Item_param *) const {}
   virtual void Item_param_set_param_func(Item_param *param,
                                          uchar **pos, ulong len) const;
+  virtual void Item_param_expr_event_handler(THD *thd, Item_param *param,
+                                             expr_event_t event) const
+  { }
   virtual bool Item_param_set_from_value(THD *thd,
                                          Item_param *param,
                                          const Type_all_attributes *attr,
@@ -4169,6 +4424,12 @@ public:
   virtual bool Item_param_val_native(THD *thd,
                                          Item_param *item,
                                          Native *to) const;
+  virtual Type_ref_null Item_param_val_ref(THD *thd, const Item_param *item)
+                                                                       const
+  {
+    return Type_ref_null();
+  }
+
   virtual bool Item_send(Item *item, Protocol *p, st_value *buf) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
@@ -4250,11 +4511,50 @@ public:
   virtual Item *make_const_item_for_comparison(THD *thd,
                                                Item *src,
                                                const Item *cmp) const= 0;
+  /**
+    When aggregating function arguments for comparison
+    (e.g. for  =, <, >, <=, >=, NULLIF), in some cases we rewrite
+    arguments. For example, if the predicate
+        timestamp_expr0 = datetime_const_expr1
+    decides to compare arguments as DATETIME,
+    we can try to rewrite datetime_const_expr1 to a TIMESTAMP constant
+    and perform the comparison as TIMESTAMP, which is faster because
+    does not have to perform TIMESTAMP->DATETIME data type conversion per row.
+
+    "this" is the type handler that is used to compare
+    "subject" and "counterpart" (DATETIME in the above example).
+    @param thd          the current thread
+    @param subject      the comparison side that we want try to rewrite
+    @param counterpart  the other comparison side
+    @retval             subject, if the subject does not need to be rewritten
+    @retval             NULL in case of error (e.g. EOM)
+    @retval             Otherwise, a pointer to a new Item which can
+                        be used as a replacement for the subject.
+  */
+  virtual Item *convert_item_for_comparison(THD *thd,
+                                            Item *subject,
+                                            const Item *counterpart) const
+  {
+    return subject;
+  }
+
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual Item *make_constructor_item(THD *thd, List<Item> *args) const
   {
     return NULL;
   }
+
+  /**
+     normalize_cond() replaces
+     `WHERE table_column` to
+     `WHERE table_column IS TRUE`
+     This method creates a literal Item corresponding to FALSE.
+     For example:
+      - for numeric data types it returns Item_int(0)
+      - for INET6 it returns Item_literal_fbt('::')
+  */
+  virtual Item_literal *create_boolean_false_item(THD *thd) const;
+
   /**
     A builder for literals with data type name prefix, e.g.:
       TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
@@ -4365,6 +4665,10 @@ public:
                                                 Item_func_hybrid_field_type *,
                                                 MYSQL_TIME *,
                                                 date_mode_t) const;
+  virtual
+  Type_ref_null Item_func_hybrid_field_type_val_ref(THD *thd,
+                                            Item_func_hybrid_field_type *item)
+                                                                         const;
   virtual
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const= 0;
   virtual
@@ -4521,8 +4825,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -4539,6 +4842,9 @@ public:
   {
     return false;
   }
+  bool Spvar_definition_with_complex_data_types(Spvar_definition *def)
+                                                       const override;
+
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *, const Record_addr &,
                           const Type_all_attributes &, TABLE_SHARE *)
     const override
@@ -4631,11 +4937,7 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems)
-                                       const override
-  {
-    MY_ASSERT_UNREACHABLE();
-    return true;
-  }
+                                       const override;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override
   {
     MY_ASSERT_UNREACHABLE();
@@ -4836,8 +5138,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -5396,8 +5697,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -5500,8 +5800,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -6068,8 +6367,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -6261,7 +6559,8 @@ public:
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
                                const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6585,7 +6884,8 @@ public:
                              const Type_cast_attributes &attr) const override;
   bool validate_implicit_default_value(THD *thd, const Column_definition &def)
                                        const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
@@ -6608,6 +6908,9 @@ public:
   }
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
+  Item *convert_item_for_comparison(THD *thd,
+                                    Item *subject,
+                                    const Item *counterpart) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const override;
   double Item_func_min_max_val_real(Item_func_min_max *) const override;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
@@ -6723,7 +7026,8 @@ public:
   {
     return true;
   }
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  void Column_definition_implicit_upgrade_to_this(
+                                         Column_definition *old) const override;
   bool
   Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
                                           TABLE_SHARE *share,
@@ -6779,6 +7083,8 @@ public:
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override;
   bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *,
@@ -6912,8 +7218,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -6970,8 +7275,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -7041,7 +7345,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
@@ -7076,6 +7379,7 @@ public:
   {
     return MYSQL_TYPE_VARCHAR;
   }
+  const Type_handler *type_handler_for_implicit_upgrade() const override;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const override
   {
     return varstring_type_handler(item);
@@ -7083,7 +7387,6 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
-  void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -7139,7 +7442,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
@@ -7409,8 +7711,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -7689,7 +7990,7 @@ extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_ge0>    type_han
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
 
 extern Named_type_handler<Type_handler_utiny>       type_handler_utiny;
-extern Named_type_handler<Type_handler_ushort>      type_handler_ushort;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ushort>      type_handler_ushort;
 extern Named_type_handler<Type_handler_uint24>      type_handler_uint24;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulong>       type_handler_ulong;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulonglong>   type_handler_ulonglong;

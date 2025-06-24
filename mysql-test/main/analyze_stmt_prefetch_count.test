@@ -9,7 +9,7 @@ create table t1 (
   c varchar(255),
   d varchar(255),
   primary key(a,b,c,d)
-) engine=innodb;
+) engine=innodb character set latin1;
 
 # The data size is 16K * 1K = 16M 
 #  16M / (page_size=16K) = 1K pages.
@@ -39,7 +39,7 @@ let $analyze_output= `analyze format=json
 select * from t1 force index (PRIMARY) order by a,b,c,d`;
 evalp set @js='$analyze_output';
 
-set @js=json_extract(@js, '$.query_block.table.r_engine_stats');
+set @js=json_extract(@js, '$.query_block.nested_loop[0].table.r_engine_stats');
 #select @js;
 set @pages_accessed= cast(json_value(@js,'$.pages_accessed') as INT);
 set @pages_read_count= cast(json_value(@js,'$.pages_read_count') as INT);
@@ -63,7 +63,7 @@ select @innodb_pages_read_incr > 1000, @innodb_pages_read_incr < 1500;
 let $analyze_output= `analyze format=json 
 select * from t1 force index (PRIMARY) order by a,b,c,d`;
 evalp set @js='$analyze_output';
-set @js=json_extract(@js, '$.query_block.table.r_engine_stats');
+set @js=json_extract(@js, '$.query_block.nested_loop[0].table.r_engine_stats');
 
 --echo # This must just print pages_accessed. No page reads or prefetch reads,
 --echo # because the previous query has read all the needed pages into the

@@ -369,27 +369,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* cycles */
   mti->cycles.frequency= 1000000000;
-#if defined _WIN32 || defined __i386__ || defined __x86_64__
-  mti->cycles.routine= MY_TIMER_ROUTINE_RDTSC;
-#elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_IA64;
-#elif defined(__GNUC__) && defined(__ia64__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_IA64;
-#elif defined __GNUC__ && defined __powerpc__
-  mti->cycles.routine= MY_TIMER_ROUTINE_PPC_GET_TIMEBASE;
-#elif defined(__GNUC__) && defined(__sparcv9) && defined(_LP64) && (__GNUC__>2)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC64;
-#elif defined(__GNUC__) && defined(__sparc__) && !defined(_LP64) && (__GNUC__>2)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_GCC_SPARC32;
-#elif defined(__GNUC__) && defined(__s390__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_ASM_S390;
-#elif defined(__GNUC__) && defined (__aarch64__)
-  mti->cycles.routine= MY_TIMER_ROUTINE_AARCH64;
-#elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
-  mti->cycles.routine= MY_TIMER_ROUTINE_GETHRTIME;
-#else
-  mti->cycles.routine= 0;
-#endif
+  mti->cycles.routine= MY_TIMER_ROUTINE_CYCLES;
 
   if (!mti->cycles.routine || !my_timer_cycles())
   {
@@ -798,7 +778,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
    Any clock-based timer can be affected by NPT (ntpd program),
    which means:
    - full-second correction can occur for leap second
-   - tiny corrections can occcur approimately every 11 minutes
+   - tiny corrections can occur approximately every 11 minutes
      (but I think they only affect the RTC which isn't the PIT).
 
    We define "precision" as "frequency" and "high precision" is

@@ -66,6 +66,7 @@ sys.memory_by_user_by_current_bytes                OK
 sys.memory_global_by_current_bytes                 OK
 sys.memory_global_total                            OK
 sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
 sys.processlist                                    OK
 sys.ps_check_lost_instrumentation                  OK
 sys.schema_auto_increment_columns                  OK
@@ -156,14 +157,14 @@ performance_schema
 sys
 sys.sys_config                                     OK
 test
-test.mysql_json_test                               Needs upgrade
-test.mysql_json_test_big                           Needs upgrade
-test.tempty                                        Needs upgrade
+test.mysql_json_test                               Needs upgrade with ALTER TABLE FORCE
+test.mysql_json_test_big                           Needs upgrade with ALTER TABLE FORCE
+test.tempty                                        Needs upgrade with ALTER TABLE FORCE
 
 Repairing tables
-test.mysql_json_test                               OK
-test.mysql_json_test_big                           OK
-test.tempty                                        OK
+`test`.`mysql_json_test`                           OK
+`test`.`mysql_json_test_big`                       OK
+`test`.`tempty`                                    OK
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK

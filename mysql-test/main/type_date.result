@@ -390,7 +390,7 @@ call test5041();
 d
 2013-09-21
 Warnings:
-Note	1265	Data truncated for column 'd' at row 1
+Note	1265	Data truncated for column 'd' at row 0
 drop procedure test5041;
 SET @@timestamp=DEFAULT;
 #
@@ -884,7 +884,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c1` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
@@ -1111,7 +1111,7 @@ t2	CREATE TABLE `t2` (
   `CEIL(a)` int(8) unsigned DEFAULT NULL,
   `ROUND(a)` int(8) unsigned DEFAULT NULL,
   `TRUNCATE(a,0)` int(8) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2,t1;
 #
 # MDEV-23388 Assertion `args[0]->decimals == 0' failed in Item_func_round::fix_arg_int
@@ -1140,7 +1140,7 @@ t2	CREATE TABLE `t2` (
   `GREATEST(c_date,c_date)` date NOT NULL,
   `GREATEST(c_date,c_int)` date DEFAULT NULL,
   `GREATEST(c_int,c_date)` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -1274,7 +1274,7 @@ Warnings:
 Warning	1292	Incorrect datetime value: '0'
 Warning	1292	Incorrect datetime value: '1'
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col

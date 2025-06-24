@@ -13,7 +13,7 @@
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
@@ -36,6 +36,21 @@ INSERT INTO t1 VALUES (3);
 
 --connection node_2
 SELECT COUNT(*) = 3 FROM t1;
+
+--connection node_3
+SET @@session.binlog_alter_two_phase = 1;
+ALTER TABLE t1 ADD COLUMN f2 INT;
+INSERT INTO t1 VALUES (4,1);
+
+--connection node_1
+--let $count = 4
+--let $table = t1
+--source include/wait_until_rows_count.inc
+
+--connection node_2
+--let $count = 4
+--let $table = t1
+--source include/wait_until_rows_count.inc
 
 --connection node_3
 DROP TABLE t1;

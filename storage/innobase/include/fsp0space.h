@@ -47,22 +47,13 @@ public:
 	/** Data file iterator */
 	typedef files_t::const_iterator const_iterator;
 
-	Tablespace()
-		:
-		m_files(),
-		m_space_id(ULINT_UNDEFINED),
-		m_path(),
-		m_flags(),
-		m_ignore_read_only(false)
-	{
-		/* No op */
-	}
+	Tablespace() {}
 
 	virtual ~Tablespace()
 	{
 		shutdown();
 		ut_ad(m_files.empty());
-		ut_ad(m_space_id == ULINT_UNDEFINED);
+		ut_ad(m_space_id == UINT32_MAX);
 	}
 
 	// Disable copying
@@ -104,22 +95,19 @@ public:
 
 	/** Set the space id of the tablespace
 	@param[in]	space_id	 tablespace ID to set */
-	void set_space_id(ulint space_id)
+	void set_space_id(uint32_t space_id)
 	{
-		ut_ad(m_space_id == ULINT_UNDEFINED);
+		ut_ad(m_space_id == UINT32_MAX);
 		m_space_id = space_id;
 	}
 
 	/** Get the space id of the tablespace
 	@return m_space_id space id of the tablespace */
-	ulint space_id()	const
-	{
-		return(m_space_id);
-	}
+	uint32_t space_id() const { return m_space_id; }
 
 	/** Set the tablespace flags
 	@param[in]	fsp_flags	tablespace flags */
-	void set_flags(ulint fsp_flags)
+	void set_flags(uint32_t fsp_flags)
 	{
 		ut_ad(fil_space_t::is_valid_flags(fsp_flags, false));
 		m_flags = fsp_flags;
@@ -127,24 +115,15 @@ public:
 
 	/** Get the tablespace flags
 	@return m_flags tablespace flags */
-	ulint flags()	const
-	{
-		return(m_flags);
-	}
+	uint32_t flags() const { return m_flags; }
 
 	/** Get the tablespace encryption mode
 	@return m_mode tablespace encryption mode */
-	fil_encryption_t encryption_mode() const
-	{
-		return (m_mode);
-	}
+	fil_encryption_t encryption_mode() const { return m_mode; }
 
 	/** Get the tablespace encryption key_id
 	@return m_key_id tablespace encryption key_id */
-	uint32_t key_id() const
-	{
-		return (m_key_id);
-	}
+	uint32_t key_id() const { return m_key_id; }
 
 	/** Set Ignore Read Only Status for tablespace.
 	@param[in]	read_only_status	read only status indicator */
@@ -210,16 +189,13 @@ private:
 	@param[in]	file	data file object */
 	void file_found(Datafile& file);
 
-	/* DATA MEMBERS */
-
 	/** Tablespace ID */
-	ulint		m_space_id;
-
-	/** Path where tablespace files will reside, not including a filename.*/
-	char*		m_path;
-
+	uint32_t	m_space_id = UINT32_MAX;
 	/** Tablespace flags */
-	ulint		m_flags;
+	uint32_t	m_flags = UINT32_MAX;
+
+	/** Path where tablespace files will reside, excluding a filename */
+	char*		m_path;
 
 	/** Encryption mode and key_id */
 	fil_encryption_t m_mode;
@@ -227,7 +203,7 @@ private:
 
 protected:
 	/** Ignore server read only configuration for this tablespace. */
-	bool		m_ignore_read_only;
+	bool		m_ignore_read_only = false;
 };
 
 #endif /* fsp0space_h */

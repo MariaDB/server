@@ -74,4 +74,3 @@ int main(int argc, char** argv)
   my_end(MY_CHECK_ERROR);
   return exit_status();
 }
-

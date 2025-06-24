@@ -407,8 +407,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_mb_wc_latin1,
     my_wc_mb_latin1,
     my_mb_ctype_8bit,
-    my_caseup_str_8bit,
-    my_casedn_str_8bit,
     my_caseup_8bit,
     my_casedn_8bit,
     my_snprintf_8bit,
@@ -427,7 +425,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_generic
+    my_wc_to_printable_generic,
+    my_casefold_multiply_1,
+    my_casefold_multiply_1
 };
 
 
@@ -446,19 +446,17 @@ struct charset_info_st my_charset_latin1=
     NULL,		/* uca          */
     cs_to_uni,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    &my_unicase_default,/* caseinfo     */
+    NULL,               /* casefold     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_simple_ci_handler
 };
@@ -479,19 +477,17 @@ struct charset_info_st my_charset_latin1_nopad=
     NULL,                         /* uca              */
     cs_to_uni,                    /* tab_to_uni       */
     NULL,                         /* tab_from_uni     */
-    &my_unicase_default,          /* caseinfo         */
+    NULL,                         /* casefold     */
     NULL,                         /* state_map        */
     NULL,                         /* ident_map        */
     1,                            /* strxfrm_multiply */
-    1,                            /* caseup_multiply  */
-    1,                            /* casedn_multiply  */
     1,                            /* mbminlen         */
     1,                            /* mbmaxlen         */
     0,                            /* min_sort_char    */
     255,                          /* max_sort_char    */
     ' ',                          /* pad char         */
     0,                            /* escape_with_backslash_is_dangerous */
-    1,                            /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_simple_nopad_ci_handler
 };
@@ -677,25 +673,40 @@ static int my_strnncollsp_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_latin1_de(CHARSET_INFO *cs,
                       uchar *dst, size_t dstlen, uint nweights,
                       const uchar* src, size_t srclen, uint flags)
 {
+  my_strnxfrm_ret_t rc;
   uchar *de= dst + dstlen;
+  const uchar *src0= src;
   const uchar *se= src + srclen;
   uchar *d0= dst;
+  uint warnings= 0;
   for ( ; src < se && dst < de && nweights; src++, nweights--)
   {
     uchar chr= combo1map[*src];
     *dst++= chr;
-    if ((chr= combo2map[*src]) && dst < de && nweights > 1)
+    if ((chr= combo2map[*src]))
     {
-      *dst++= chr;
-      nweights--;
+      if (nweights > 1)
+      {
+        if (dst < de)
+        {
+          *dst++= chr;
+          nweights--;
+        }
+        else
+          warnings= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
+      }
     }
   }
-  return my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de, nweights, flags, 0);
+  rc= my_strxfrm_pad_desc_and_reverse(cs, d0, dst, de,
+                                      nweights, flags, 0);
+  return my_strnxfrm_ret_construct(rc.m_result_length, src - src0,
+           rc.m_warnings | warnings |
+           (src < se ? MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0));
 }
 
 
@@ -737,12 +748,14 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_8bit,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_latin1_de,
   my_propagate_complex,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -761,19 +774,17 @@ struct charset_info_st my_charset_latin1_german2_ci=
   NULL,					/* uca          */
   cs_to_uni,				/* tab_to_uni   */
   NULL,					/* tab_from_uni */
-  &my_unicase_default,                  /* caseinfo     */
+  NULL,                                 /* casefold     */
   NULL,					/* state_map    */
   NULL,					/* ident_map    */
   2,					/* strxfrm_multiply */
-  1,                                    /* caseup_multiply  */
-  1,                                    /* casedn_multiply  */
   1,					/* mbminlen   */
   1,					/* mbmaxlen  */
   0,					/* min_sort_char */
   247,					/* max_sort_char */
   ' ',                                  /* pad char      */
   0,                                    /* escape_with_backslash_is_dangerous */
-  1,                                    /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_german2_ci_handler
 };
@@ -794,19 +805,17 @@ struct charset_info_st my_charset_latin1_bin=
   NULL,					/* uca          */
   cs_to_uni,				/* tab_to_uni   */
   NULL,					/* tab_from_uni */
-  &my_unicase_default,                  /* caseinfo     */
+  NULL,                                 /* casefold     */
   NULL,					/* state_map    */
   NULL,					/* ident_map    */
   1,					/* strxfrm_multiply */
-  1,                                    /* caseup_multiply  */
-  1,                                    /* casedn_multiply  */
   1,					/* mbminlen   */
   1,					/* mbmaxlen  */
   0,					/* min_sort_char */
   255,					/* max_sort_char */
   ' ',                                  /* pad char      */
   0,                                    /* escape_with_backslash_is_dangerous */
-  1,                                    /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_8bit_bin_handler
 };
@@ -827,19 +836,17 @@ struct charset_info_st my_charset_latin1_nopad_bin=
   NULL,                                /* uca              */
   cs_to_uni,                           /* tab_to_uni       */
   NULL,                                /* tab_from_uni     */
-  &my_unicase_default,                 /* caseinfo         */
+  NULL,                                /* casefold         */
   NULL,                                /* state_map        */
   NULL,                                /* ident_map        */
   1,                                   /* strxfrm_multiply */
-  1,                                   /* caseup_multiply  */
-  1,                                   /* casedn_multiply  */
   1,                                   /* mbminlen         */
   1,                                   /* mbmaxlen         */
   0,                                   /* min_sort_char    */
   255,                                 /* max_sort_char    */
   ' ',                                 /* pad char         */
   0,                                   /* escape_with_backslash_is_dangerous */
-  1,                                   /* levels_for_order */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_8bit_nopad_bin_handler
 };

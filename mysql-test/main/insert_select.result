@@ -787,7 +787,7 @@ EXPLAIN
 SELECT (SELECT SUM(LENGTH(c)) FROM t1 WHERE c='13_characters') FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	t1	ref	ix_c	ix_c	13	const	1	Using where
+2	SUBQUERY	t1	ref	ix_c	ix_c	43	const	1	Using where
 SELECT (SELECT SUM(LENGTH(c)) FROM t1 WHERE c='13_characters') FROM t1;
 (SELECT SUM(LENGTH(c)) FROM t1 WHERE c='13_characters')
 13
@@ -862,7 +862,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` binary(0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2;
 End of 5.5 tests
 #
@@ -1066,26 +1066,37 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "temporary_table": {
-      "table": {
-        "table_name": "t1",
-        "access_type": "ALL",
-        "rows": 4,
-        "filtered": 100,
-        "attached_condition": "t1.`id` = 3"
-      },
-      "block-nl-join": {
-        "table": {
-          "table_name": "t",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100,
-          "attached_condition": "t.`id` = 3"
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 4,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t1.`id` = 3"
+          }
         },
-        "buffer_type": "flat",
-        "buffer_size": "65",
-        "join_type": "BNL"
-      }
+        {
+          "block-nl-join": {
+            "table": {
+              "table_name": "t",
+              "access_type": "ALL",
+              "loops": 4,
+              "rows": 4,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t.`id` = 3"
+            },
+            "buffer_type": "flat",
+            "buffer_size": "65",
+            "join_type": "BNL"
+          }
+        }
+      ]
     }
   }
 }

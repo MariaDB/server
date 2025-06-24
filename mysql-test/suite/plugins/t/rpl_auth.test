@@ -1,0 +1,42 @@
+if ($MTR_COMBINATION_ED25519) {
+  let $AUTH_PLUGIN = ed25519;
+  let $CLIENT_PLUGIN=client_ed25519;
+}
+
+if ($MTR_COMBINATION_PARSEC) {
+  let $AUTH_PLUGIN = parsec;
+  let $CLIENT_PLUGIN=parsec;
+}
+
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = '$AUTH_PLUGIN'`)
+{
+  --skip Needs $AUTH_PLUGIN plugin
+}
+
+--replace_result $CLIENT_PLUGIN CLIENT_PLUGIN
+--error ER_CANT_OPEN_LIBRARY,ER_CANT_FIND_DL_ENTRY
+eval install soname '$CLIENT_PLUGIN';
+if ($errno == 1126) {
+  # this happens in bintars when C/C is linked with gnutls
+  skip $CLIENT_PLUGIN is not found or contains unresolved symbols;
+}
+
+# create a user for replication with auth plugin
+--replace_result $AUTH_PLUGIN PLUGIN
+eval create user rpluser@'%' identified via $AUTH_PLUGIN using PASSWORD('rpl_pass');
+grant replication slave on *.* to rpluser@'%';
+
+source include/master-slave.inc;
+connection slave;
+
+# Set the slave to connect using the user created with the auth plugin for replication
+source include/stop_slave.inc;
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+change master to master_user='rpluser', master_password='rpl_pass';
+source include/start_slave.inc;
+source include/stop_slave.inc;
+change master to master_user='root', master_password='';
+source include/start_slave.inc;
+
+source include/rpl_end.inc;
+drop user rpluser@'%';

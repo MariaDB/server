@@ -226,6 +226,7 @@ grant create temporary tables on db.* to bar@localhost;
 create temporary table tmp (a int, key(a));
 show tables;
 show full tables;
+--replace_column 7 X 8 X 9 X 10 X 11 X 12 X 13 X 14 X 19 X
 show table status;
 show index in tmp;
 show columns in tmp;

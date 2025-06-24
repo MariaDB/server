@@ -52,7 +52,7 @@ set @save_slave_parallel_workers= @@global.slave_parallel_workers;
 # to avoid warnings
 set @save_slave_transaction_retries= @@global.slave_transaction_retries;
 RESET SLAVE ALL;
-evalp CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos;
+evalp CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos, MASTER_SSL_VERIFY_SERVER_CERT=0;
 SET default_master_connection='slave1';
 SET @@global.slave_parallel_workers=1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
@@ -68,7 +68,7 @@ source include/assert.inc;
 # the thread.
 let $thread_name= `select name from performance_schema.threads where thread_id= (select Thread_Id from performance_schema.replication_applier_status_by_worker)`;
 let $assert_text= thread_name should should indicate worker thread.;
-let $assert_cond= "$thread_name" = "thread/sql/rpl_parallel_thread";
+let $assert_cond= "$thread_name" = "thread/sql/rpl_parallel";
 source include/assert.inc;
 
 let $ps_value= query_get_value(select Service_State from performance_schema.replication_applier_status_by_worker, Service_State, 1);
@@ -214,7 +214,7 @@ select Last_Error_Message from performance_schema.replication_applier_status_by_
 # The timestamp format is slightly different in SSS and PS.
 # SSS => YYMMDD HH:MM:SS
 # PS  => YYYY-MM-DD HH:MM:SS
-# To match the two, we get rid of hyphons from PS output and first two digits
+# To match the two, we get rid of hyphens from PS output and first two digits
 # the year field so that it can be matched directly.
 
 #--- TODO: Can we include Last_SQL_Error_Timestamp as part of SSS

@@ -1,0 +1,518 @@
+--- a/mysql-test/main/vector.result
++++ b/mysql-test/main/vector.result
+@@ -305,8 +305,30 @@
+ create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+ insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+ truncate table t1;
++
++MyISAM file:         datadir/test/t1#i#01
++Record format:       Packed
++Character set:       ? (0)
++Data records:                    0  Deleted blocks:                 0
++Recordlength:                   30
++
++table description:
++Key Start Len Index   Type
++1   3     6   unique  varbin NULL          
++2   2     1   multip. int8                 
+ insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+ truncate table t1;
++
++MyISAM file:         datadir/test/t1#i#01
++Record format:       Packed
++Character set:       ? (0)
++Data records:                    0  Deleted blocks:                 0
++Recordlength:                   30
++
++table description:
++Key Start Len Index   Type
++1   3     6   unique  varbin NULL          
++2   2     1   multip. int8                 
+ insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
+ select id, hex(v) from t1;
+ id	hex(v)
+@@ -324,26 +346,32 @@
+ # Test RENAME TABLE with vector index
+ create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ rename table t1 to t2;
+ db.opt
+-t2#i#01.ibd
++t2#i#01.MYD
++t2#i#01.MYI
++t2.MYD
++t2.MYI
+ t2.frm
+-t2.ibd
+ create database test1;
+ rename table test.t2 to test1.t1;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+-call mtr.add_suppression('InnoDB: Cannot rename.*because the source file does not exist');
+-call mtr.add_suppression('InnoDB: File ./test1/t1#i#01.ibd was not found');
+ rename table test1.t1 to test1.t2;
+ Got one of the listed errors
+ db.opt
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ drop database test1;
+ db.opt
+@@ -387,9 +387,11 @@
+ # ADD/DROP COLUMN, ALGORITHM=COPY
+ alter table t1 add column a int, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -398,12 +400,14 @@
+   `a` int(11) DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 drop column a, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -415,13 +415,15 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # ADD/DROP INDEX, ALGORITHM=COPY (non-vector)
+ alter table t1 add index a(id), algorithm=copy;
+ db.opt
+-t1#i#02.ibd
++t1#i#02.MYD
++t1#i#02.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -432,12 +432,14 @@
+   PRIMARY KEY (`id`),
+   KEY `a` (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 drop index a, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -445,13 +447,15 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # CREATE/DROP INDEX, ALGORITHM=COPY (non-vector)
+ create index a on t1(id) algorithm=copy;
+ db.opt
+-t1#i#02.ibd
++t1#i#02.MYD
++t1#i#02.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -464,12 +464,14 @@
+   PRIMARY KEY (`id`),
+   KEY `a` (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ drop index a on t1;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -479,13 +479,15 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # ADD/DROP COLUMN IF [NOT] EXISTS, ALGORITHM=COPY (non-vector)
+ alter table t1 add column if not exists a int, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -494,12 +496,14 @@
+   `a` int(11) DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 drop column if exists a, algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` ( 
+@@ -509,24 +511,27 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # ADD/DROP INDEX, ALGORITHM=COPY (vector)
+ alter table t1 drop index v, algorithm=copy;
+ db.opt
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 add vector index v(v), algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -539,24 +539,27 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # CREATE/DROP INDEX, ALGORITHM=COPY (vector)
+ drop index v on t1;
+ db.opt
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ create vector index v on t1(v) algorithm=copy;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -567,7 +567,7 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # ADD/DROP INDEX, ALGORITHM=INPLACE (non-vector)
+ alter table t1 add index a(id), algorithm=inplace;
+ ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+@@ -590,31 +590,15 @@
+ alter table t1 modify column v vector(6) not null, algorithm=inplace;
+ ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
+-alter table t1 add column a varchar(10), algorithm=inplace;
+-alter table t1 change column a a varchar(20), algorithm=inplace;
+-alter table t1 modify column a varchar(30), algorithm=inplace;
+-alter table t1 drop column a, algorithm=inplace;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # ENABLE/DISABLE INDEXES
+ alter table t1 disable keys;
+ alter table t1 enable keys;
+-Warnings:
+-Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -606,13 +606,15 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # RENAME COLUMN (vector)
+ alter table t1 rename column v to w;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -622,14 +622,16 @@
+   `w` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`w`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 rename column w to v;
+ # RENAME INDEX (vector)
+ alter table t1 rename key v to w;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -639,7 +639,7 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `w` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 rename key w to v;
+ # IF [NOT] EXISTS
+ create vector index if not exists v on t1(v);
+@@ -650,15 +650,16 @@
+ Warnings:
+ Note	1091	Can't DROP INDEX `v`; check that it exists
+ db.opt
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ create vector index if not exists v on t1(v);
+ # CHANGE/MODIFY/DROP COLUMN (vector)
+ alter table t1 modify column v int;
+@@ -666,62 +666,6 @@
+ alter table t1 alter key if exists v ignored;
+ alter table t1 alter key if exists v not ignored;
+ # ENGINE
+-alter table t1 engine=myisam;
+-db.opt
+-t1#i#01.MYD
+-t1#i#01.MYI
+-t1.MYD
+-t1.MYI
+-t1.frm
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t1 engine=innodb;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t1 rename to t2, engine=myisam;
+-db.opt
+-t2#i#01.MYD
+-t2#i#01.MYI
+-t2.MYD
+-t2.MYI
+-t2.frm
+-show create table t2;
+-Table	Create Table
+-t2	CREATE TABLE `t2` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+-alter table t2 rename to t1, engine=innodb;
+-db.opt
+-t1#i#01.ibd
+-t1.frm
+-t1.ibd
+-show create table t1;
+-Table	Create Table
+-t1	CREATE TABLE `t1` (
+-  `id` int(11) NOT NULL AUTO_INCREMENT,
+-  `v` vector(5) NOT NULL,
+-  PRIMARY KEY (`id`),
+-  VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ # CHANGE/MODIFY/DROP COLUMN (vector)
+ alter table t1 modify column v int;
+ ERROR HY000: Incorrect arguments to VECTOR INDEX
+@@ -671,9 +672,11 @@
+ ERROR 42000: All parts of a VECTOR index must be NOT NULL
+ alter table t1 modify column v vector(7) not null;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -681,12 +684,14 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 change column v v vector(5) not null;
+ db.opt
+-t1#i#01.ibd
++t1#i#01.MYD
++t1#i#01.MYI
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -699,15 +699,16 @@
+   `v` vector(5) NOT NULL,
+   PRIMARY KEY (`id`),
+   VECTOR KEY `v` (`v`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ alter table t1 drop column v;
+ db.opt
++t1.MYD
++t1.MYI
+ t1.frm
+-t1.ibd
+ show create table t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+   `id` int(11) NOT NULL AUTO_INCREMENT,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ drop table t1;
+@@ -877,5 +877,5 @@
+ t	CREATE TABLE `t` (
+   `v` vector(1) NOT NULL,
+   VECTOR KEY `v` (`v`) `distance`=cosine
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ drop table t;

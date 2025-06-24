@@ -1,2 +1,2 @@
-xtrabackup_checkpoints
-xtrabackup_info
+mariadb_backup_checkpoints
+mariadb_backup_info

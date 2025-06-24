@@ -225,7 +225,7 @@ revoke LOCK TABLES, ALTER on mysqltest.* from mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
 GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, CREATE TEMPORARY TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER, DELETE HISTORY ON `mysqltest`.* TO `mysqltest_1`@`localhost` WITH GRANT OPTION
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, CREATE TEMPORARY TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER, DELETE HISTORY, SHOW CREATE ROUTINE ON `mysqltest`.* TO `mysqltest_1`@`localhost` WITH GRANT OPTION
 revoke all privileges on mysqltest.* from mysqltest_1@localhost;
 delete from mysql.user where user='mysqltest_1';
 flush privileges;
@@ -517,7 +517,7 @@ grant update (a) on mysqltest_1.t1 to mysqltest_3@localhost;
 grant select (b) on mysqltest_1.t2 to mysqltest_3@localhost;
 grant select (c) on mysqltest_2.t1 to mysqltest_3@localhost;
 grant update (d) on mysqltest_2.t2 to mysqltest_3@localhost;
-connect  conn1,localhost,mysqltest_3,,;
+connect  conn1,localhost,mysqltest_3,,"*NO-ONE*",;
 connection conn1;
 SELECT * FROM INFORMATION_SCHEMA.COLUMN_PRIVILEGES
 WHERE GRANTEE = '''mysqltest_3''@''localhost'''
@@ -630,15 +630,16 @@ Select	Tables	To retrieve rows from table
 Show databases	Server Admin	To see all databases with SHOW DATABASES
 Show view	Tables	To see views with SHOW CREATE VIEW
 Shutdown	Server Admin	To shut down the server
-Super	Server Admin	To use KILL thread, SET GLOBAL, CHANGE MASTER, etc.
+Super	Server Admin	To set few server variables
 Trigger	Tables	To use triggers
 Create tablespace	Server Admin	To create/alter/drop tablespaces
 Update	Tables	To update existing rows
 Set user	Server	To create views and stored routines with a different definer
 Federated admin	Server	To execute the CREATE SERVER, ALTER SERVER, DROP SERVER statements
 Connection admin	Server	To bypass connection limits and kill other users' connections
-Read_only admin	Server	To perform write operations even if @@read_only=ON
+Read_only admin	Server	To perform write operations even if @@read_only=READ_ONLY or READ_ONLY_NO_LOCK
 Usage	Server Admin	No privileges - allow connect only
+Show Create Routine	Databases,Functions,Procedures	To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE
 connect  root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection root;
 create database mysqltest;
@@ -776,7 +777,7 @@ flush privileges;
 use test;
 set @user123="non-existent";
 select * from mysql.db where user=@user123;
-Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv
+Host	Db	User	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Create_tmp_table_priv	Lock_tables_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Execute_priv	Event_priv	Trigger_priv	Delete_history_priv	Show_create_routine_priv
 set names koi8r;
 create database ÂÄ;
 grant select on ÂÄ.* to root@localhost;
@@ -859,24 +860,29 @@ mysqltest_8	'%'
 mysqltest_8	'host8'
 Schema privileges
 grant select on mysqltest.* to mysqltest_8@'';
+grant select on test.* to mysqltest_8@'';
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 GRANT SELECT ON `mysqltest`.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 grant select on mysqltest.* to mysqltest_8@;
 show grants for mysqltest_8@;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 GRANT SELECT ON `mysqltest`.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 grant select on mysqltest.* to mysqltest_8;
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 GRANT SELECT ON `mysqltest`.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 select * from  information_schema.schema_privileges
 where grantee like "'mysqltest_8'%";
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_8'@'%'	def	mysqltest	SELECT	NO
+'mysqltest_8'@'%'	def	test	SELECT	NO
 connect  conn3,localhost,mysqltest_8,,;
 select * from t1;
 a
@@ -886,25 +892,31 @@ revoke select on mysqltest.* from mysqltest_8@'';
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 select * from  information_schema.schema_privileges
 where grantee like "'mysqltest_8'%";
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
+'mysqltest_8'@'%'	def	test	SELECT	NO
 flush privileges;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 show grants for mysqltest_8@;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 grant select on mysqltest.* to mysqltest_8@'';
 flush privileges;
 show grants for mysqltest_8@;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 GRANT SELECT ON `mysqltest`.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 revoke select on mysqltest.* from mysqltest_8@'';
 flush privileges;
 Column privileges
@@ -913,19 +925,23 @@ grant update (a) on t1 to mysqltest_8;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 flush privileges;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 select * from  information_schema.column_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -939,37 +955,45 @@ revoke update (a) on t1 from mysqltest_8@'';
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 select * from  information_schema.column_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 flush privileges;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 Table privileges
 grant update on t1 to mysqltest_8@'';
 grant update on t1 to mysqltest_8;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE ON `test`.`t1` TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE ON `test`.`t1` TO `mysqltest_8`@`%`
 flush privileges;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE ON `test`.`t1` TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE ON `test`.`t1` TO `mysqltest_8`@`%`
 select * from  information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -985,9 +1009,11 @@ revoke update on t1 from mysqltest_8@'';
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 select * from  information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
@@ -996,9 +1022,11 @@ flush privileges;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 "DROP USER" should clear privileges
 grant all privileges on mysqltest.* to mysqltest_8@'';
 grant select on mysqltest.* to mysqltest_8@'';
@@ -1008,11 +1036,13 @@ grant all privileges on mysqltest.* to mysqltest_8;
 show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT ALL PRIVILEGES ON `mysqltest`.* TO `mysqltest_8`@`%`
 GRANT UPDATE, UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT ALL PRIVILEGES ON `mysqltest`.* TO `mysqltest_8`@`%`
 GRANT UPDATE, UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 select * from  information_schema.user_privileges
@@ -1030,11 +1060,13 @@ show grants for mysqltest_8@'';
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 GRANT ALL PRIVILEGES ON `mysqltest`.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE, UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 show grants for mysqltest_8;
 Grants for mysqltest_8@%
 GRANT USAGE ON *.* TO `mysqltest_8`@`%`
 GRANT ALL PRIVILEGES ON `mysqltest`.* TO `mysqltest_8`@`%`
+GRANT SELECT ON `test`.* TO `mysqltest_8`@`%`
 GRANT UPDATE, UPDATE (`a`) ON `test`.`t1` TO `mysqltest_8`@`%`
 drop user mysqltest_8@'';
 show grants for mysqltest_8@'';
@@ -1066,7 +1098,7 @@ GRANT SHOW VIEW        ON mysqltest2.v_ny TO 'mysqltest_1'@'localhost' IDENTIFIE
 GRANT SELECT           ON mysqltest2.v_yn TO 'mysqltest_1'@'localhost' IDENTIFIED BY 'mysqltest_1';
 GRANT SELECT           ON mysqltest2.*    TO 'mysqltest_1'@'localhost' IDENTIFIED BY 'mysqltest_1';
 GRANT SHOW VIEW,SELECT ON mysqltest2.v_yy TO 'mysqltest_1'@'localhost' IDENTIFIED BY 'mysqltest_1';
-connect  mysqltest_1, localhost, mysqltest_1, mysqltest_1,;
+connect  mysqltest_1, localhost, mysqltest_1, mysqltest_1,"*NO-ONE*";
 SHOW CREATE VIEW  mysqltest2.v_nn;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table `mysqltest2`.`v_nn`
 SHOW CREATE TABLE mysqltest2.v_nn;
@@ -1441,8 +1473,6 @@ declare tmp varchar(30);
 select col1 from test limit 1 into tmp;
 return '1';
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create view v1 as select test.* from test where test.col1=test_function();
 grant update (col1) on v1 to 'greg'@'localhost';
 drop user 'greg'@'localhost';
@@ -1550,7 +1580,7 @@ select db, routine_name, routine_type, proc_priv from mysql.procs_priv where use
 db	routine_name	routine_type	proc_priv
 mysqltest1	f1	FUNCTION	Execute
 mysqltest1	p1	PROCEDURE	Execute
-connect  bug36544_con1,localhost,mysqluser1,,;
+connect  bug36544_con1,localhost,mysqluser1,,"*NO-ONE*";
 call mysqltest1.p1();
 select mysqltest1.f1();
 mysqltest1.f1()
@@ -1579,7 +1609,7 @@ Grants for mysqluser1@localhost
 GRANT USAGE ON *.* TO `mysqluser1`@`localhost`
 select db, routine_name, routine_type, proc_priv from mysql.procs_priv where user='mysqluser1' and host='localhost';
 db	routine_name	routine_type	proc_priv
-connect  bug36544_con2,localhost,mysqluser1,,;
+connect  bug36544_con2,localhost,mysqluser1,,"*NO-ONE*";
 # Newly created user should not be able to access any of the routines.
 call mysqltest1.p1();
 ERROR 42000: execute command denied to user 'mysqluser1'@'localhost' for routine 'mysqltest1.p1'
@@ -1661,7 +1691,7 @@ select db, routine_name, routine_type, proc_priv from mysql.procs_priv where use
 db	routine_name	routine_type	proc_priv
 select db, table_name, table_priv from mysql.tables_priv where user='mysqluser1' and host='localhost';
 db	table_name	table_priv
-connect  bug36544_con3,localhost,mysqluser1,,;
+connect  bug36544_con3,localhost,mysqluser1,,"*NO-ONE*";
 # Newly created user should not be able to access to any of the
 # stored routines or tables.
 call mysqltest1.p1();
@@ -1693,7 +1723,7 @@ select db, table_name, table_priv from mysql.tables_priv where user='mysqluser10
 db	table_name	table_priv
 mysqltest1	t11	Select
 mysqltest1	t22	Select
-connect  bug36544_con4,localhost,mysqluser10,,;
+connect  bug36544_con4,localhost,mysqluser10,,"*NO-ONE*";
 call mysqltest1.p1();
 select mysqltest1.f1();
 mysqltest1.f1()
@@ -1826,7 +1856,7 @@ SHOW GRANTS FOR 'user1'@'localhost';
 Grants for user1@localhost
 GRANT USAGE ON *.* TO `user1`@`localhost`
 GRANT CREATE, CREATE ROUTINE ON `db1`.* TO `user1`@`localhost`
-connect  con1,localhost,user1,,;
+connect  con1,localhost,user1,,"*NO-ONE*";
 ** Connect as user1 and create a procedure.
 ** The creation will imply implicitly assigned
 ** EXECUTE and ALTER ROUTINE privileges to
@@ -1843,7 +1873,7 @@ BEGIN
 SET @x = 0;
 REPEAT SET @x = @x + 1; UNTIL @x > p1 END REPEAT;
 END ;||
-connect  con2,localhost,user2,,;
+connect  con2,localhost,user2,,"*NO-ONE*";
 ** Connect as user2 and create a procedure.
 ** Implicitly assignment of privileges will
 ** fail because the user2@localhost is an
@@ -2632,9 +2662,9 @@ create database mysqltest_db1;
 create user mysqltest_u1;
 # Both GRANT statements below should fail with the same error.
 grant execute on function mysqltest_db1.f1 to mysqltest_u1;
-ERROR 42000: FUNCTION or PROCEDURE f1 does not exist
+ERROR 42000: FUNCTION f1 does not exist
 grant execute on procedure mysqltest_db1.p1 to mysqltest_u1;
-ERROR 42000: FUNCTION or PROCEDURE p1 does not exist
+ERROR 42000: PROCEDURE p1 does not exist
 # Let us show that GRANT behaviour for routines is consistent
 # with GRANT behaviour for tables. Attempt to grant privilege
 # on non-existent table also results in an error.
@@ -2681,13 +2711,13 @@ DROP USER foo@'127.0.0.1';
 create user foo@localhost;
 create database foodb;
 grant create routine on foodb.* to foo@localhost;
-connect con1,localhost,foo;
+connect con1,localhost,foo,,foodb;
 create procedure fooproc() select 'i am fooproc';
 show grants;
 Grants for foo@localhost
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`localhost`
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO `foo`@`localhost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `foodb`.`fooproc` TO `foo`@`localhost`
 disconnect con1;
 connection default;
 rename table mysql.procs_priv to mysql.procs_priv1;
@@ -2706,9 +2736,9 @@ show grants for foo@localhost;
 Grants for foo@localhost
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT CREATE ROUTINE ON `foodb`.* TO `foo`@`localhost`
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO `foo`@`localhost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `foodb`.`fooproc` TO `foo`@`localhost`
 drop user foo@localhost;
-drop procedure fooproc;
+drop procedure foodb.fooproc;
 drop database foodb;
 #
 # Bug#11756966 - 48958: STORED PROCEDURES CAN BE LEVERAGED TO BYPASS
@@ -2718,14 +2748,13 @@ DROP DATABASE IF EXISTS secret;
 DROP DATABASE IF EXISTS no_such_db;
 CREATE DATABASE secret;
 GRANT USAGE ON *.* TO untrusted@localhost;
-connect  con1, localhost, untrusted;
+connect  con1, localhost, untrusted,,"*NO-ONE*";
 SHOW GRANTS;
 Grants for untrusted@localhost
 GRANT USAGE ON *.* TO `untrusted`@`localhost`
 SHOW DATABASES;
 Database
 information_schema
-test
 # Both statements below should fail with the same error.
 # They used to give different errors, thereby
 # hinting that the secret database exists.
@@ -2762,7 +2791,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT user()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ();
 GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
 connect  conn1,localhost,dummy,pwd,test;
@@ -2785,7 +2814,7 @@ DROP USER dummy@localhost;
 CREATE USER foo;
 CREATE DATABASE db;
 CREATE TABLE db.t (a INT);
-connect  con1,localhost,foo,,;
+connect  con1,localhost,foo,,"*NO-ONE*";
 GRANT ALL ON db.t TO foo;
 ERROR 42000: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT, REFERENCES, INDEX, ALTER, CREATE VIEW, SHOW ... command denied to user 'foo'@'localhost' for table `db`.`t`
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT OPTION, REFERENCES,
@@ -2818,11 +2847,11 @@ CREATE USER ten2;
 GRANT ALL ON *.* TO ten2;
 SHOW GRANTS FOR ten2;
 Grants for ten2@%
-GRANT ALL PRIVILEGES ON *.* TO `ten2`@`%`
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `ten2`@`%`
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR ten2;
 Grants for ten2@%
-GRANT ALL PRIVILEGES ON *.* TO `ten2`@`%`
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `ten2`@`%`
 DROP USER ten2;
 # switching back from mysql.user to mysql.global_priv
 #
@@ -2839,12 +2868,14 @@ DROP USER bar3@localhost;
 #
 # MDEV-17946 : Unsorted acl_dbs after RENAME USER
 #
+CREATE USER a;
 CREATE USER foo;
 GRANT SELECT ON test.* TO foo;
-RENAME USER '' TO 'name';
+RENAME USER 'a' TO 'name';
 GRANT UPDATE ON test.* TO foo;
-RENAME USER 'name' to '';
+RENAME USER 'name' to 'a';
 DROP USER foo;
+DROP USER a;
 #
 # End of 10.4 tests
 #

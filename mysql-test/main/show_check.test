@@ -18,8 +18,9 @@
 --source include/have_csv.inc
 
 # Test results assumes we are using latin1
+--source include/test_db_charset_latin1.inc
 --source include/default_charset.inc
-SET @@global.character_set_server= @@session.character_set_server;
+SET @@global.collation_server= @@session.collation_server;
 set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 
 #
@@ -349,7 +350,7 @@ drop database mysqltest;
 disconnect con1;
 --source include/wait_until_disconnected.inc
 
-connect (con2,localhost,mysqltest_2,,test);
+connect (con2,localhost,mysqltest_2,,"*NO-ONE*");
 connection con2;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysqltest.t1;
@@ -362,7 +363,7 @@ drop database mysqltest;
 disconnect con2;
 --source include/wait_until_disconnected.inc
 
-connect (con3,localhost,mysqltest_3,,test);
+connect (con3,localhost,mysqltest_3,,"*NO-ONE*");
 connection con3;
 --error ER_TABLEACCESS_DENIED_ERROR
 select * from mysqltest.t1;
@@ -535,7 +536,7 @@ DROP VIEW IF EXISTS v1;
 DROP PROCEDURE IF EXISTS p1;
 --enable_warnings
 
-# Check that SHOW CREATE VIEW shows SQL_CACHE flag exaclty as
+# Check that SHOW CREATE VIEW shows SQL_CACHE flag exactly as
 # specified by the user.
 CREATE VIEW v1 AS SELECT 1;
 SHOW CREATE VIEW v1;
@@ -710,7 +711,7 @@ CREATE FUNCTION f1() RETURNS INT RETURN 1;
 
 # Test.
 
-set names utf8;
+set names utf8 collate utf8_general_ci;
 
 --echo -- Here we enable metadata just to check that the collation of the
 --echo -- resultset is non-binary for string type. This should be changed
@@ -1259,7 +1260,7 @@ SHOW STORAGE ENGINES;
 CREATE USER test_u@localhost;
 GRANT PROCESS ON *.* TO test_u@localhost;
 
-connect (conn1, localhost, test_u,,);
+connect (conn1, localhost, test_u,,"*NO-ONE*");
 
 --disable_result_log
 SHOW ENGINE MYISAM MUTEX;
@@ -1416,4 +1417,5 @@ SHOW CONTRIBUTORS;
 --enable_result_log
 SHOW WARNINGS;
 
-SET @@global.character_set_server=@save_character_set_server;
+SET @@global.collation_server=@save_collation_server;
+--source include/test_db_charset_restore.inc

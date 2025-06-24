@@ -9,16 +9,12 @@ CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t_remote (a INT);
 CREATE TABLE t (a INT) ENGINE=SPIDER COMMENT = 'wrapper "mysql", srv "srv", table "t_remote"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE OR REPLACE TABLE t_remote LIKE t;
-ERROR 08S01: Got timeout reading communication packets
-SHOW WARNINGS;
-Level	Code	Message
-Error	1159	Got timeout reading communication packets
-Error	1159	Got timeout reading communication packets
-Error	1159	Got timeout reading communication packets
-Error	1159	Got timeout reading communication packets
-Error	1159	Got timeout reading communication packets
+Got one of the listed errors
 drop table t;
+drop table if exists t_remote;
 drop server srv;
 for master_1
 for child2

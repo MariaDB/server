@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 RESET MASTER;
 #
 # Verify that SET string values and character sets can be printed correctly
@@ -14,7 +15,7 @@ RESET MASTER;
 SET GLOBAL binlog_row_metadata = FULL;
 INSERT INTO t1 VALUES("set1_v1_Ã¥", "set2_v2_Ã¤");
 # Columns(`c_set_1` SET('set1_v1_å','set1_v2_ä','set1_v3_ö') CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c_set_2` SET('\0\0\0s\0\0\0e\0\0\0t\0\0\02\0\0\0_\0\0\0v\0\0\01\0\0\0_\0\0\0å','\0\0\0s\0\0\0e\0\0\0t\0\0\02\0\0\0_\0\0\0v\0\0\02\0\0\0_\0\0\0ä','\0\0\0s\0\0\0e\0\0\0t\0\0\02\0\0\0_\0\0\0v\0\0\03\0\0\0_\0\0\0ö') CHARSET utf32 COLLATE utf32_general_ci)
+#         `c_set_2` SET('\0\0\0s\0\0\0e\0\0\0t\0\0\02\0\0\0_\0\0\0v\0\0\01\0\0\0_\0\0\0å','\0\0\0s\0\0\0e\0\0\0t\0\0\02\0\0\0_\0\0\0v\0\0\02\0\0\0_\0\0\0ä','\0\0\0s\0\0\0e\0\0\0t\0\0\02\0\0\0_\0\0\0v\0\0\03\0\0\0_\0\0\0ö') CHARSET utf32 COLLATE utf32_uca1400_ai_ci)
 INSERT INTO t1 VALUES("set1_v3_Ã¶", "set2_v3_Ã¶");
 INSERT INTO t1 VALUES("set1_v1_Ã¥", "set2_v1_Ã¥");
 SELECT c_set_1, HEX(c_set_1) FROM t1;
@@ -45,7 +46,7 @@ RESET MASTER;
 SET GLOBAL binlog_row_metadata = FULL;
 INSERT INTO t1 VALUES("enum1_v1_Ã¥", "enum2_v2_Ã¤");
 # Columns(`c_enum_1` ENUM('enum1_v1_å','enum1_v2_ä','enum1_v3_ö') CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c_enum_2` ENUM('\0\0\0e\0\0\0n\0\0\0u\0\0\0m\0\0\02\0\0\0_\0\0\0v\0\0\01\0\0\0_\0\0\0å','\0\0\0e\0\0\0n\0\0\0u\0\0\0m\0\0\02\0\0\0_\0\0\0v\0\0\02\0\0\0_\0\0\0ä','\0\0\0e\0\0\0n\0\0\0u\0\0\0m\0\0\02\0\0\0_\0\0\0v\0\0\03\0\0\0_\0\0\0ö') CHARSET utf32 COLLATE utf32_general_ci)
+#         `c_enum_2` ENUM('\0\0\0e\0\0\0n\0\0\0u\0\0\0m\0\0\02\0\0\0_\0\0\0v\0\0\01\0\0\0_\0\0\0å','\0\0\0e\0\0\0n\0\0\0u\0\0\0m\0\0\02\0\0\0_\0\0\0v\0\0\02\0\0\0_\0\0\0ä','\0\0\0e\0\0\0n\0\0\0u\0\0\0m\0\0\02\0\0\0_\0\0\0v\0\0\03\0\0\0_\0\0\0ö') CHARSET utf32 COLLATE utf32_uca1400_ai_ci)
 INSERT INTO t1 VALUES("enum1_v3_Ã¶", "enum2_v3_Ã¶");
 INSERT INTO t1 VALUES("enum1_v1_Ã¥", "enum2_v1_Ã¥");
 SELECT c_enum_1, HEX(c_enum_1) FROM t1;
@@ -63,3 +64,4 @@ enum2_v1_Ã¥	000000650000006E000000750000006D000000320000005F00000076000000310000
 DROP TABLE t1;
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = NO_LOG;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

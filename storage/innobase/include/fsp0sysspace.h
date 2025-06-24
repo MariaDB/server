@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,6 +119,12 @@ public:
 		return(m_auto_extend_last_file);
 	}
 
+	/** @return auto shrink */
+	bool can_auto_shrink() const
+	{
+		return m_auto_shrink;
+	}
+
 	/** Set the last file size.
 	@param[in]	size	the size to set */
 	void set_last_file_size(uint32_t size)
@@ -143,6 +150,16 @@ public:
 	}
 
 	/**
+	@return user specified tablespace size */
+	uint32_t get_min_size() const
+	{
+	  uint32_t full_size= 0;
+	  for (uint32_t i= 0; i < m_files.size(); i++)
+	    full_size+= m_files.at(i).m_user_param_size;
+	  return full_size;
+	}
+
+	/**
 	@return next increment size */
 	uint32_t get_increment() const;
 
@@ -150,20 +167,22 @@ public:
 	@param[in]  is_temp		whether this is a temporary tablespace
 	@param[in]  create_new_db	whether we are creating a new database
 	@param[out] sum_new_sizes	sum of sizes of the new files added
-	@param[out] flush_lsn		FIL_PAGE_FILE_FLUSH_LSN of first file
 	@return DB_SUCCESS or error code */
 	dberr_t open_or_create(
 		bool	is_temp,
 		bool	create_new_db,
-		ulint*	sum_new_sizes,
-		lsn_t*	flush_lsn)
+		ulint*	sum_new_sizes)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** @return whether shrinking failed during
+	previous attempt of system tablespace shrinking */
+	bool is_shrink_fail() noexcept { return m_auto_shrink_fail; }
+
+	void set_shrink_fail() noexcept { m_auto_shrink_fail= true; }
 private:
 	/** Check the tablespace header for this tablespace.
-	@param[out]	flushed_lsn	the value of FIL_PAGE_FILE_FLUSH_LSN
 	@return DB_SUCCESS or error code */
-	dberr_t read_lsn_and_check_flags(lsn_t* flushed_lsn);
+	inline dberr_t read_lsn_and_check_flags();
 
 	/**
 	@return true if the last file size is valid. */
@@ -253,6 +272,14 @@ private:
 
 	/** if false, then sanity checks are still pending */
 	bool		m_sanity_checks_done;
+
+	/** Shrink the system tablespace if the value is
+	enabled */
+	bool		m_auto_shrink;
+
+	/** Set to true only when InnoDB system tablespace
+	shrink fails during startup */
+	bool		m_auto_shrink_fail;
 };
 
 /* GLOBAL OBJECTS */
@@ -266,24 +293,15 @@ extern SysTablespace srv_tmp_space;
 /** Check if the space_id is for a system-tablespace (shared + temp).
 @param[in]	id	Space ID to check
 @return true if id is a system tablespace, false if not. */
-UNIV_INLINE
-bool
-is_system_tablespace(ulint	id)
+inline bool is_system_tablespace(uint32_t id)
 {
-	return(id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID);
+  return id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID;
 }
 
 /** Check if predefined shared tablespace.
 @return true if predefined shared tablespace */
-UNIV_INLINE
-bool
-is_predefined_tablespace(
-	ulint   id)
+inline bool is_predefined_tablespace(uint32_t id)
 {
-	ut_ad(srv_sys_space.space_id() == TRX_SYS_SPACE);
-	ut_ad(TRX_SYS_SPACE == 0);
-	return(id == TRX_SYS_SPACE
-	       || id == SRV_TMP_SPACE_ID
-	       || srv_is_undo_tablespace(id));
+  return is_system_tablespace(id) || srv_is_undo_tablespace(id);
 }
 #endif /* fsp0sysspace_h */

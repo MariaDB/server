@@ -115,8 +115,6 @@ SELECT t1.a, t2.b FROM t2, t1 WHERE t1.a = t2.a ORDER BY t2.b, t1.a
 INTO OUTFILE '<DATADIR>/select.out' 
 CHARACTER SET utf8
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '''';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 200,'bar'
 200,'bar'
 100,'foobar'
@@ -128,12 +126,8 @@ INTO DUMPFILE '<DATADIR>/select.dump';
 ERROR 42000: Result consisted of more than one row
 SELECT t1.*, t2.* FROM t1, t2 ORDER BY t2.b, t1.a, t2.a, t1.b, t1.pk, t2.pk LIMIT 1
 INTO DUMPFILE '<DATADIR>/select.dump';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 1z2200bar3
 SELECT MIN(a), MAX(a) FROM t1 INTO @min, @max;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT @min, @max;
 @min	@max
 1	200

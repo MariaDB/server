@@ -11,7 +11,7 @@ Table	Create Table
 innodb_page_compressed1	CREATE TABLE `innodb_page_compressed1` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=1
 create table innodb_page_compressed2 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=2;
 show warnings;
 Level	Code	Message
@@ -20,7 +20,7 @@ Table	Create Table
 innodb_page_compressed2	CREATE TABLE `innodb_page_compressed2` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=2
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=2
 create table innodb_page_compressed3 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=3;
 show warnings;
 Level	Code	Message
@@ -29,7 +29,7 @@ Table	Create Table
 innodb_page_compressed3	CREATE TABLE `innodb_page_compressed3` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=3
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=3
 create table innodb_page_compressed4 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=4;
 show warnings;
 Level	Code	Message
@@ -38,7 +38,7 @@ Table	Create Table
 innodb_page_compressed4	CREATE TABLE `innodb_page_compressed4` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=4
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=4
 create table innodb_page_compressed5 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=5;
 show warnings;
 Level	Code	Message
@@ -47,7 +47,7 @@ Table	Create Table
 innodb_page_compressed5	CREATE TABLE `innodb_page_compressed5` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=5
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=5
 create table innodb_page_compressed6 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=6;
 show warnings;
 Level	Code	Message
@@ -56,7 +56,7 @@ Table	Create Table
 innodb_page_compressed6	CREATE TABLE `innodb_page_compressed6` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=6
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=6
 create table innodb_page_compressed7 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=7;
 show warnings;
 Level	Code	Message
@@ -65,7 +65,7 @@ Table	Create Table
 innodb_page_compressed7	CREATE TABLE `innodb_page_compressed7` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=7
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=7
 create table innodb_page_compressed8 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=8;
 show warnings;
 Level	Code	Message
@@ -74,7 +74,7 @@ Table	Create Table
 innodb_page_compressed8	CREATE TABLE `innodb_page_compressed8` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=8
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=8
 create table innodb_page_compressed9 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=9;
 show warnings;
 Level	Code	Message
@@ -83,7 +83,7 @@ Table	Create Table
 innodb_page_compressed9	CREATE TABLE `innodb_page_compressed9` (
   `c1` int(11) DEFAULT NULL,
   `b` char(20) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `page_compressed`=1 `page_compression_level`=9
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `page_compressed`=1 `page_compression_level`=9
 create procedure innodb_insert_proc (repeat_count int)
 begin
 declare current_num int;

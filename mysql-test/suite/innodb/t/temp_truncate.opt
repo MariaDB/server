@@ -1,0 +1,2 @@
+--innodb_temp_data_file_path=ibtmp1:5M:autoextend
+--innodb_sys_tablespaces

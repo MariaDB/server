@@ -20,7 +20,7 @@ include/assert.inc [Value returned by SSS and PS table for SSL_Verify_Server_Cer
 include/assert.inc [Value returned by SSS and PS table for SSL_Crl_File should be same.]
 include/assert.inc [Value returned by SSS and PS table for SSL_Crl_Path should be same.]
 include/assert.inc [Value returned by SSS and PS table for Connection_Retry_Interval should be same.]
-include/assert.inc [Value returned by PS table for Connection_Retry_Count should be 10.]
+include/assert.inc [Value returned by PS table for Connection_Retry_Count should be 30.]
 
 # Heartbeat_Interval is part of I_S and P_S. We will compare the
 # two to make sure both match.
@@ -67,7 +67,7 @@ master_ssl_ca= '',
 master_ssl_cert= '',
 master_ssl_key= '',
 master_ssl_verify_server_cert=0,
-master_ssl=0,
+master_ssl=1,
 master_use_gtid=no;
 include/start_slave.inc
 

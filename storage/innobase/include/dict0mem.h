@@ -48,6 +48,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "mysql_com.h"
+#include "lex_ident.h"
 #include <sql_const.h>
 #include <set>
 #include <algorithm>
@@ -65,7 +66,6 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
-#define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
@@ -113,7 +113,7 @@ are described in fsp0fsp.h. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
-#define DICT_N_COLS_COMPACT	0x80000000UL
+constexpr uint32_t DICT_N_COLS_COMPACT= 1U << 31;
 
 /** Width of the COMPACT flag */
 #define DICT_TF_WIDTH_COMPACT		1
@@ -266,7 +266,8 @@ use its own tablespace instead of the system tablespace. */
 #define DICT_TF2_USE_FILE_PER_TABLE	16U
 
 /** Set when we discard/detach the tablespace */
-#define DICT_TF2_DISCARDED		32U
+constexpr unsigned DICT_TF2_POS_DISCARDED= 5;
+constexpr unsigned DICT_TF2_DISCARDED= 1U << DICT_TF2_POS_DISCARDED;
 
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
@@ -284,8 +285,8 @@ index tables) of a FTS table are in HEX format. */
 	(table->flags2 &= ~(flag) & ((1U << DICT_TF2_BITS) - 1))
 
 /** Tables could be chained together with Foreign key constraint. When
-first load the parent table, we would load all of its descedents.
-This could result in rescursive calls and out of stack error eventually.
+first load the parent table, we would load all of its descendants.
+This could result in recursive calls and out of stack error eventually.
 DICT_FK_MAX_RECURSIVE_LOAD defines the maximum number of recursive loads,
 when exceeded, the child table will not be loaded. It will be loaded when
 the foreign constraint check needs to be run. */
@@ -357,8 +358,8 @@ dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	ulint		nth_col,/*!< in: column index */
-	const char*	from,	/*!< in: old column name */
-	const char*	to,	/*!< in: new column name */
+	const LEX_CSTRING &from,/*!< in: old column name */
+	const LEX_CSTRING &to,	/*!< in: new column name */
 	bool		is_virtual);
 				/*!< in: if this is a virtual column */
 /**********************************************************************//**
@@ -397,18 +398,7 @@ dict_mem_index_create(
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
-/**********************************************************************//**
-Adds a field definition to an index. NOTE: does not take a copy
-of the column name if the field is a column. The memory occupied
-by the column name may be released only after publishing the index. */
-void
-dict_mem_index_add_field(
-/*=====================*/
-	dict_index_t*	index,		/*!< in: index */
-	const char*	name,		/*!< in: column name */
-	ulint		prefix_len);	/*!< in: 0 or the column prefix length
-					in a MySQL index like
-					INDEX (textcol(25)) */
+
 /**********************************************************************//**
 Frees an index memory object. */
 void
@@ -421,28 +411,6 @@ Creates and initializes a foreign constraint memory object.
 dict_foreign_t*
 dict_mem_foreign_create(void);
 /*=========================*/
-
-/**********************************************************************//**
-Sets the foreign_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
-will point to foreign_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_foreign_table_name_lookup_set(
-/*===================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	bool		do_alloc);	/*!< in: is an alloc needed */
-
-/**********************************************************************//**
-Sets the referenced_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
-will point to referenced_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
 
 /** Fills the dependent virtual columns in a set.
 Reason for being dependent are
@@ -582,7 +550,7 @@ public:
 
   /** Retrieve the column name.
   @param table  the table of this column */
-  const char *name(const dict_table_t &table) const;
+  Lex_ident_column name(const dict_table_t &table) const;
 
   /** @return whether this is a virtual column */
   bool is_virtual() const { return prtype & DATA_VIRTUAL; }
@@ -887,9 +855,11 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+	/** 1=DESC, 0=ASC */
+	unsigned	descending:1;
 
 	/** Zero-initialize all fields */
-	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
+	dict_field_t() { memset((void*) this, 0, sizeof *this); }
 
 	/** Check whether two index fields are equivalent.
 	@param[in]	old	the other index field
@@ -956,13 +926,10 @@ struct zip_pad_info_t {
 				rounds */
 };
 
-/** Number of samples of data size kept when page compression fails for
-a certain index.*/
-#define STAT_DEFRAG_DATA_SIZE_N_SAMPLE	10
-
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
-const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
+static constexpr
+Lex_cstring GEN_CLUST_INDEX = "GEN_CLUST_INDEX"_LEX_CSTRING;
 
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
@@ -1005,7 +972,7 @@ struct dict_index_t {
 # define DICT_INDEX_MERGE_THRESHOLD_DEFAULT 50
 	unsigned	type:DICT_IT_BITS;
 				/*!< index type (DICT_CLUSTERED, DICT_UNIQUE,
-				DICT_IBUF, DICT_CORRUPT) */
+				DICT_CORRUPT) */
 #define MAX_KEY_LENGTH_BITS 12
 	unsigned	trx_id_offset:MAX_KEY_LENGTH_BITS;
 				/*!< position of the trx id column
@@ -1084,8 +1051,59 @@ struct dict_index_t {
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
-	btr_search_t*	search_info;
-				/*!< info used in optimistic searches */
+  /** The search info struct in an index */
+  struct ahi {
+    ahi()= default;
+    ahi(const ahi&)= default;
+    ~ahi()= default;
+    /** Dummy assignment operator for dict_index_t::clone(), which
+    will return a clone where these fields are reset to default values
+    (because no AHI entries exist yet for the clone) */
+    ahi &operator=(const ahi&) { new(this) ahi(); return *this; }
+    /** the root page when it was last time fetched, or nullptr */
+    buf_block_t *root_guess= nullptr;
+# ifdef BTR_CUR_HASH_ADAPT
+  private:
+    /** After change in n_fields or n_bytes, this many rounds are
+    waited before starting the hash analysis again: this is to save
+    CPU time when there is no hope in building a hash index. */
+    static constexpr uint8_t HASH_ANALYSIS= 16;
+    /** the number of calls to hash_analysis_useful() */
+    Atomic_relaxed<uint8_t> hash_analysis{0};
+  public:
+    bool hash_analysis_useful() noexcept
+    {
+      return hash_analysis > HASH_ANALYSIS ||
+        hash_analysis.fetch_add(1) >= HASH_ANALYSIS;
+    }
+    void hash_analysis_reset() noexcept { hash_analysis= 0; }
+
+    /** number of consecutive searches which would have succeeded, or
+    did succeed, using the hash index; the range is 0
+    .. BTR_SEARCH_BUILD_LIMIT */
+    Atomic_relaxed<uint8_t> n_hash_potential{0};
+
+    /** whether the last search would have succeeded, or
+    did succeed, using the hash index; NOTE that the value
+    here is not exact: it is not calculated for every
+    search, and the calculation itself is not always accurate! */
+    Atomic_relaxed<bool> last_hash_succ{false};
+
+    /** recommended parameters; @see buf_block_t::left_bytes_fields */
+    Atomic_relaxed<uint32_t> left_bytes_fields{buf_block_t::LEFT_SIDE | 1};
+    /** number of buf_block_t::index pointers to this index */
+    Atomic_counter<size_t> ref_count{0};
+
+#  ifdef UNIV_SEARCH_PERF_STAT
+    /** number of successful hash searches */
+    size_t n_hash_succ{0};
+    /** number of failed hash searches */
+    size_t n_hash_fail{0};
+    /** number of searches */
+    size_t n_searches{0};
+#  endif /* UNIV_SEARCH_PERF_STAT */
+# endif /* BTR_CUR_HASH_ADAPT */
+  } search_info;
 #endif /* BTR_CUR_ADAPT */
 	row_log_t*	online_log;
 				/*!< the log of modifications
@@ -1115,32 +1133,12 @@ struct dict_index_t {
 				is indexed from 0 to n_uniq-1); This
 				is used when innodb_stats_method is
 				"nulls_ignored". */
-	ulint		stat_index_size;
+	uint32_t	stat_index_size;
 				/*!< approximate index size in
 				database pages */
-	ulint		stat_n_leaf_pages;
+	uint32_t	stat_n_leaf_pages;
 				/*!< approximate number of leaf pages in the
 				index tree */
-	bool		stats_error_printed;
-				/*!< has persistent statistics error printed
-				for this index ? */
-	/* @} */
-	/** Statistics for defragmentation, these numbers are estimations and
-	could be very inaccurate at certain times, e.g. right after restart,
-	during defragmentation, etc. */
-	/* @{ */
-	ulint		stat_defrag_modified_counter;
-	ulint		stat_defrag_n_pages_freed;
-				/* number of pages freed by defragmentation. */
-	ulint		stat_defrag_n_page_split;
-				/* number of page splits since last full index
-				defragmentation. */
-	ulint		stat_defrag_data_size_sample[STAT_DEFRAG_DATA_SIZE_N_SAMPLE];
-				/* data size when compression failure happened
-				the most recent 10 times. */
-	ulint		stat_defrag_sample_next_slot;
-				/* in which slot the next sample should be
-				saved. */
 	/* @} */
 private:
   /** R-tree split sequence number */
@@ -1193,12 +1191,8 @@ public:
 	/** @return whether instant ALTER TABLE is in effect */
 	inline bool is_instant() const;
 
-	/** @return whether the index is the primary key index
-	(not the clustered index of the change buffer) */
-	bool is_primary() const
-	{
-		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
-	}
+	/** @return whether the index is the primary key index */
+	bool is_primary() const { return is_clust(); }
 
 	/** @return whether this is a generated clustered index */
 	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
@@ -1212,23 +1206,20 @@ public:
 	/** @return whether this is a spatial index */
 	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
 
-	/** @return whether this is the change buffer */
-	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
-
 	/** @return whether this index requires locking */
-	bool has_locking() const { return !is_ibuf(); }
+	static constexpr bool has_locking() { return true; }
 
 	/** @return whether this is a normal B-tree index
         (not the change buffer, not SPATIAL or FULLTEXT) */
 	bool is_btree() const {
-		return UNIV_LIKELY(!(type & (DICT_IBUF | DICT_SPATIAL
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
 					     | DICT_FTS | DICT_CORRUPT)));
 	}
 
 	/** @return whether this is a normal, non-virtual B-tree index
-	(not the change buffer, not SPATIAL or FULLTEXT) */
+	(not SPATIAL or FULLTEXT) */
 	bool is_normal_btree() const noexcept {
-		return UNIV_LIKELY(!(type & (DICT_IBUF | DICT_SPATIAL
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
 					     | DICT_FTS | DICT_CORRUPT
 					     | DICT_VIRTUAL)));
 	}
@@ -1376,8 +1367,8 @@ public:
   /** Clone this index for lazy dropping of the adaptive hash index.
   @return this or a clone */
   dict_index_t* clone_if_needed();
-  /** @return number of leaf pages pointed to by the adaptive hash index */
-  inline ulint n_ahi_pages() const;
+  /** @return whether any leaf pages may be in the adaptive hash index */
+  bool any_ahi_pages() const noexcept { return search_info.ref_count; }
   /** @return whether mark_freed() had been invoked */
   bool freed() const { return UNIV_UNLIKELY(page == 1); }
   /** Note that the index is waiting for btr_search_lazy_free() */
@@ -1483,6 +1474,21 @@ inline void dict_col_t::detach(const dict_index_t &index)
     reinterpret_cast<dict_v_col_t*>(this)->detach(index);
 }
 
+/** Add a field definition to an index.
+@param index         index
+@param name          pointer to column name
+@param prefix_len    column prefix length, or 0
+@param descending    whether to use descending order */
+inline void dict_mem_index_add_field(dict_index_t *index, const char *name,
+                                     ulint prefix_len, bool descending= false)
+{
+  ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+  dict_field_t &field= index->fields[index->n_def++];
+  field.name= name;
+  field.prefix_len= prefix_len & ((1U << 12) - 1);
+  field.descending= descending;
+}
+
 /** The status of online index creation */
 enum online_index_status {
 	/** the index is complete and ready for access */
@@ -1551,6 +1557,17 @@ struct dict_foreign_t
   /** Check whether the fulltext index gets affected by
   foreign key constraint */
   bool affects_fulltext() const;
+  /** Set the foreign_table_name_lookup pointer based on the value of
+  lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
+  will point to foreign_table_name.  If 2, then another string is
+  allocated from the heap and set to lower case. */
+  void foreign_table_name_lookup_set();
+  /** Set the referenced_table_name_lookup pointer based on the value of
+  lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
+  will point to referenced_table_name.  If 2, then another string is
+  allocated from the heap and set to lower case. */
+  void referenced_table_name_lookup_set();
+
   /** The flags for ON_UPDATE and ON_DELETE can be ORed;
   the default is that a foreign key constraint is enforced,
   therefore RESTRICT just means no flag */
@@ -1725,11 +1742,12 @@ struct dict_foreign_matches_id {
 
 	bool operator()(const dict_foreign_t*	foreign) const
 	{
-		if (0 == innobase_strcasecmp(foreign->id, m_id)) {
+		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
+		if (ident.streq(Lex_cstring_strlen(foreign->id))) {
 			return(true);
 		}
 		if (const char* pos = strchr(foreign->id, '/')) {
-			if (0 == innobase_strcasecmp(m_id, pos + 1)) {
+			if (ident.streq(Lex_cstring_strlen(pos + 1))) {
 				return(true);
 			}
 		}
@@ -2191,7 +2209,7 @@ public:
 	/** The tablespace of the table */
 	fil_space_t*				space;
 	/** Tablespace ID */
-	ulint					space_id;
+	uint32_t				space_id;
 
 	/** Stores information about:
 	1 row format (redundant or compact),
@@ -2221,8 +2239,9 @@ public:
 	process of altering partitions */
 	unsigned                                skip_alter_undo:1;
 
-	/*!< whether this is in a single-table tablespace and the .ibd
-	file is missing or page decryption failed and page is corrupted */
+	/** whether this is in a single-table tablespace and the .ibd file
+	is believed to be missing or page decryption failed and page is
+	corrupted */
 	unsigned				file_unreadable:1;
 
 	/** TRUE if the table object has been added to the dictionary cache. */
@@ -2277,6 +2296,13 @@ public:
 
 	/** Instantly dropped or reordered columns, or NULL if none */
 	dict_instant_t*				instant;
+
+	/** Retrieve a column name from a 0-separated list
+	@param str     the list in the format "name1\0name2\0...nameN\0"
+	@param col_nr  the position
+	*/
+	static Lex_ident_column get_name_from_z_list(const char *str,
+							size_t col_nr);
 
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
@@ -2352,62 +2378,31 @@ public:
 	/** Statistics for query optimization. Mostly protected by
 	dict_sys.latch and stats_mutex_lock(). @{ */
 
-	/** TRUE if statistics have been calculated the first time after
-	database startup or table creation. */
-	unsigned				stat_initialized:1;
-
 	/** Timestamp of last recalc of the stats. */
 	time_t					stats_last_recalc;
 
-	/** The two bits below are set in the 'stat_persistent' member. They
-	have the following meaning:
-	1. _ON=0, _OFF=0, no explicit persistent stats setting for this table,
-	the value of the global srv_stats_persistent is used to determine
-	whether the table has persistent stats enabled or not
-	2. _ON=0, _OFF=1, persistent stats are explicitly disabled for this
-	table, regardless of the value of the global srv_stats_persistent
-	3. _ON=1, _OFF=0, persistent stats are explicitly enabled for this
-	table, regardless of the value of the global srv_stats_persistent
-	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
-	#define DICT_STATS_PERSISTENT_ON	(1 << 1)
-	#define DICT_STATS_PERSISTENT_OFF	(1 << 2)
+  static constexpr uint32_t STATS_INITIALIZED= 1U;
+  static constexpr uint32_t STATS_PERSISTENT_ON= 1U << 1;
+  static constexpr uint32_t STATS_PERSISTENT_OFF= 1U << 2;
+  static constexpr uint32_t STATS_AUTO_RECALC_ON= 1U << 3;
+  static constexpr uint32_t STATS_AUTO_RECALC_OFF= 1U << 4;
 
-	/** Indicates whether the table uses persistent stats or not. See
-	DICT_STATS_PERSISTENT_ON and DICT_STATS_PERSISTENT_OFF. */
-	ib_uint32_t				stat_persistent;
+  /** flags for index cardinality statistics */
+  Atomic_relaxed<uint32_t> stat;
+  /** Approximate clustered index size in database pages. */
+  uint32_t stat_clustered_index_size;
+  /** Approximate size of other indexes in database pages. */
+  uint32_t stat_sum_of_other_index_sizes;
 
-	/** The two bits below are set in the 'stats_auto_recalc' member. They
-	have the following meaning:
-	1. _ON=0, _OFF=0, no explicit auto recalc setting for this table, the
-	value of the global srv_stats_persistent_auto_recalc is used to
-	determine whether the table has auto recalc enabled or not
-	2. _ON=0, _OFF=1, auto recalc is explicitly disabled for this table,
-	regardless of the value of the global srv_stats_persistent_auto_recalc
-	3. _ON=1, _OFF=0, auto recalc is explicitly enabled for this table,
-	regardless of the value of the global srv_stats_persistent_auto_recalc
-	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
-	#define DICT_STATS_AUTO_RECALC_ON	(1 << 1)
-	#define DICT_STATS_AUTO_RECALC_OFF	(1 << 2)
 
-	/** Indicates whether the table uses automatic recalc for persistent
-	stats or not. See DICT_STATS_AUTO_RECALC_ON and
-	DICT_STATS_AUTO_RECALC_OFF. */
-	ib_uint32_t				stats_auto_recalc;
-
-	/** The number of pages to sample for this table during persistent
-	stats estimation. If this is 0, then the value of the global
-	srv_stats_persistent_sample_pages will be used instead. */
-	ulint					stats_sample_pages;
+  /** The number of pages to sample for this table during persistent
+  stats estimation. If this is 0, then the value of the global
+  srv_stats_persistent_sample_pages will be used instead. */
+  uint32_t stats_sample_pages;
 
 	/** Approximate number of rows in the table. We periodically calculate
 	new estimates. */
 	ib_uint64_t				stat_n_rows;
-
-	/** Approximate clustered index size in database pages. */
-	ulint					stat_clustered_index_size;
-
-	/** Approximate size of other indexes in database pages. */
-	ulint					stat_sum_of_other_index_sizes;
 
 	/** How many rows are modified since last stats recalc. When a row is
 	inserted, updated, or deleted, we add 1 to this number; we calculate
@@ -2418,7 +2413,7 @@ public:
 	ib_uint64_t				stat_modified_counter;
 
 	bool		stats_error_printed;
-				/*!< Has persistent stats error beein
+				/*!< Has persistent stats error been
 				already printed for this table ? */
 	/* @} */
 
@@ -2451,6 +2446,8 @@ private:
   /** RW-lock protecting locks and statistics on this table */
   lock_latch_type lock_latch;
 public:
+  /** The next DB_ROW_ID value */
+  Atomic_counter<uint64_t> row_id{0};
   /** Autoinc counter value to give to the next inserted row. */
   uint64_t autoinc;
 
@@ -2518,7 +2515,7 @@ public:
   columns; protected by lock_latch */
   dict_vcol_templ_t *vc_templ;
 
-  /* @return whether the table has any other transcation lock
+  /* @return whether the table has any other transaction lock
   other than the given transaction */
   bool has_lock_other_than(const trx_t *trx) const
   {
@@ -2530,7 +2527,7 @@ public:
   }
 
   /** @return whether a DDL operation is in progress on this table */
-  bool is_active_ddl() const
+  bool is_native_online_ddl() const
   {
     return UT_LIST_GET_FIRST(indexes)->online_log;
   }
@@ -2540,10 +2537,39 @@ public:
   bool is_stats_table() const;
 
   /** @return number of unique columns in FTS_DOC_ID index */
-  unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+  uint16_t fts_n_uniq() const { return versioned() ? 2 : 1; }
 
   /** @return the index for that starts with a specific column */
   dict_index_t *get_index(const dict_col_t &col) const;
+
+  /** @return whether the statistics are initialized */
+  static bool stat_initialized(uint32_t stat) noexcept
+  { return stat & STATS_INITIALIZED; }
+
+  /** @return whether STATS_PERSISTENT is enabled */
+  static bool stats_is_persistent(uint32_t stat) noexcept
+  {
+    ut_ad(~(stat & (STATS_PERSISTENT_ON | STATS_PERSISTENT_OFF)));
+    if (stat & STATS_PERSISTENT_ON) return true;
+    return !(stat & STATS_PERSISTENT_OFF) && srv_stats_persistent;
+  }
+  /** @return whether STATS_AUTO_RECALC is enabled */
+  static bool stats_is_auto_recalc(uint32_t stat) noexcept
+  {
+    ut_ad(stat_initialized(stat));
+    ut_ad(~(stat & (STATS_AUTO_RECALC_ON | STATS_AUTO_RECALC_OFF)));
+    if (stat & STATS_AUTO_RECALC_ON) return true;
+    return !(stat & STATS_AUTO_RECALC_OFF) && srv_stats_auto_recalc;
+  }
+
+  /** @return whether the statistics are initialized */
+  bool stat_initialized() const noexcept { return stat_initialized(stat); }
+  /** @return whether STATS_PERSISTENT is enabled */
+  bool stats_is_persistent() const noexcept
+  { return stats_is_persistent(stat); }
+  /** @return whether STATS_AUTO_RECALC is enabled */
+  bool stats_is_auto_recalc() const noexcept
+  { return stats_is_auto_recalc(stat); }
 
   /** Create metadata.
   @param name     table name
@@ -2556,6 +2582,16 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
+
+  /** Check whether the table has any spatial indexes */
+  bool has_spatial_index() const
+  {
+    for (auto i= UT_LIST_GET_FIRST(indexes);
+         (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+      if (i->is_spatial())
+        return true;
+    return false;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
@@ -2716,19 +2752,6 @@ dict_col_get_spatial_status(
 	}
 
 	return(spatial_status);
-}
-
-/** Clear defragmentation summary. */
-inline void dict_stats_empty_defrag_summary(dict_index_t* index)
-{
-	index->stat_defrag_n_pages_freed = 0;
-}
-
-/** Clear defragmentation related index stats. */
-inline void dict_stats_empty_defrag_stats(dict_index_t* index)
-{
-	index->stat_defrag_modified_counter = 0;
-	index->stat_defrag_n_page_split = 0;
 }
 
 #include "dict0mem.inl"

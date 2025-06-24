@@ -10,7 +10,7 @@ include/stop_slave.inc
 set @save_slave_parallel_workers= @@global.slave_parallel_workers;
 set @save_slave_transaction_retries= @@global.slave_transaction_retries;
 RESET SLAVE ALL;
-CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos;
+CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos, MASTER_SSL_VERIFY_SERVER_CERT=0;
 SET default_master_connection='slave1';
 SET @@global.slave_parallel_workers=1;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;

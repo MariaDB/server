@@ -290,7 +290,7 @@ int initialize_audit_plugin(void *plugin_)
   mysql_mutex_unlock(&LOCK_audit_mask);
 
   /*
-    Pre-acquire the newly inslalled audit plugin for events that
+    Pre-acquire the newly installed audit plugin for events that
     may potentially occur further during INSTALL PLUGIN.
 
     When audit event is triggered, audit subsystem acquires interested
@@ -350,14 +350,11 @@ static my_bool calc_class_mask(THD *thd, plugin_ref plugin, void *arg)
 int finalize_audit_plugin(void *plugin_)
 {
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  int deinit_status= 0;
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
   
-  if (plugin->plugin->deinit && plugin->plugin->deinit(NULL))
-  {
-    DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                            plugin->name.str));
-    DBUG_EXECUTE("finalize_audit_plugin", return 1; );
-  }
+  if (plugin->plugin->deinit)
+    deinit_status= plugin->plugin->deinit(NULL);
   
   plugin->data= NULL;
   bzero(&event_class_mask, sizeof(event_class_mask));
@@ -376,7 +373,7 @@ int finalize_audit_plugin(void *plugin_)
   bmove(mysql_global_audit_mask, event_class_mask, sizeof(event_class_mask));
   mysql_mutex_unlock(&LOCK_audit_mask);
 
-  return 0;
+  return deinit_status;
 }
 
 

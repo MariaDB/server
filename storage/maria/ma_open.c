@@ -156,8 +156,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
     info.lock_type= F_WRLCK;
 
   _ma_set_data_pagecache_callbacks(&info.dfile, share);
-  my_bitmap_init(&info.changed_fields, changed_fields_bitmap,
-                 share->base.fields, 0);
+  my_bitmap_init(&info.changed_fields, changed_fields_bitmap, share->base.fields);
   if ((*share->init)(&info))
     goto err;
 
@@ -182,7 +181,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
       maria_delay_key_write)
     share->delay_key_write=1;
 
-  if (!share->now_transactional)       /* If not transctional table */
+  if (!share->now_transactional)       /* If not transactional table */
   {
     /* Pagecache requires access to info->trn->rec_lsn */
     _ma_set_tmp_trn_for_table(&info, &dummy_transaction_object);
@@ -549,7 +548,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     /*
       A transactional table is not usable on this system if:
       - share->state.create_trid > trnman_get_max_trid()
-        - Critical as trid as stored releative to create_trid.
+        - Critical as trid is stored relative to create_trid.
       - uuid is different
 
         STATE_NOT_MOVABLE is reset when a table is zerofilled
@@ -761,19 +760,14 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
 	}
-	if (keyinfo->flag & HA_SPATIAL)
+	if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
 	{
-#ifdef HAVE_SPATIAL
 	  uint sp_segs=SPDIMS*2;
 	  keyinfo->seg=pos-sp_segs;
 	  keyinfo->keysegs--;
           versioning= 0;
-#else
-	  my_errno=HA_ERR_UNSUPPORTED;
-	  goto err;
-#endif
 	}
-        else if (keyinfo->flag & HA_FULLTEXT)
+        else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
 	{
           versioning= 0;
           DBUG_ASSERT(fulltext_keys);
@@ -797,6 +791,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
             memcpy(&share->ft2_keyinfo, keyinfo, sizeof(MARIA_KEYDEF));
             share->ft2_keyinfo.keysegs=1;
             share->ft2_keyinfo.flag=0;
+            share->ft2_keyinfo.key_alg=HA_KEY_ALG_BTREE;
             share->ft2_keyinfo.keylength=
             share->ft2_keyinfo.minlength=
             share->ft2_keyinfo.maxlength=HA_FT_WLEN+share->base.rec_reflength;
@@ -997,6 +992,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       share->w_locks++;			/* We don't have to update status */
       share->tot_locks++;
     }
+    share->tracked= MY_TEST(open_flags & HA_OPEN_SIZE_TRACKING);
 
     _ma_set_index_pagecache_callbacks(&share->kfile, share);
     share->this_process=(ulong) getpid();
@@ -1030,7 +1026,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       MARIA_STATE_HISTORY_CLOSED *history;
       if ((history= (MARIA_STATE_HISTORY_CLOSED *)
            my_hash_search(&maria_stored_state,
-                       (uchar*) &share->state.create_rename_lsn, 0)))
+                       (uchar*) &share->state.create_rename_lsn,
+                       sizeof(share->state.create_rename_lsn))))
       {
         /*
           Move history from hash to share. This is safe to do as we
@@ -1400,19 +1397,15 @@ static void setup_key_functions(register MARIA_KEYDEF *keyinfo)
 {
   if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
   {
-#ifdef HAVE_RTREE_KEYS
     keyinfo->ck_insert = maria_rtree_insert;
     keyinfo->ck_delete = maria_rtree_delete;
-#else
-    DBUG_ASSERT(0); /* maria_open should check it never happens */
-#endif
   }
   else
   {
     keyinfo->ck_insert = _ma_ck_write;
     keyinfo->ck_delete = _ma_ck_delete;
   }
-  if (keyinfo->flag & HA_SPATIAL)
+  if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
     keyinfo->make_key= _ma_sp_make_key;
   else
     keyinfo->make_key= _ma_make_key;
@@ -1467,11 +1460,15 @@ static void setup_key_functions(register MARIA_KEYDEF *keyinfo)
   /* set keyinfo->write_comp_flag */
   if (keyinfo->flag & HA_SORT_ALLOWS_SAME)
     keyinfo->write_comp_flag=SEARCH_BIGGER; /* Put after same key */
-  else if (keyinfo->flag & ( HA_NOSAME | HA_FULLTEXT))
+  else if (keyinfo->flag & HA_NOSAME)
   {
     keyinfo->write_comp_flag= SEARCH_FIND | SEARCH_UPDATE; /* No duplicates */
     if (keyinfo->flag & HA_NULL_ARE_EQUAL)
       keyinfo->write_comp_flag|= SEARCH_NULL_ARE_EQUAL;
+  }
+  else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
+  {
+    keyinfo->write_comp_flag= SEARCH_FIND | SEARCH_UPDATE;
   }
   else
     keyinfo->write_comp_flag= SEARCH_SAME; /* Keys in rec-pos order */

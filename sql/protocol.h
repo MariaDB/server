@@ -17,10 +17,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_error.h"
 #include "my_decimal.h"                         /* my_decimal */
 #include "sql_type.h"
@@ -33,6 +29,12 @@ class Item_param;
 struct TABLE_LIST;
 typedef struct st_mysql_field MYSQL_FIELD;
 typedef struct st_mysql_rows MYSQL_ROWS;
+
+struct unit_results_desc
+{
+  ulonglong generated_id;
+  ulonglong affected_rows;
+};
 
 class Protocol
 {
@@ -99,6 +101,7 @@ public:
   bool send_result_set_row(List<Item> *row_items);
 
   bool store(I_List<i_string> *str_list);
+
   bool store_string_or_null(const char *from, CHARSET_INFO *cs);
   bool store_warning(const char *from, size_t length);
   String *storage_packet() { return packet; }
@@ -198,12 +201,10 @@ class Protocol_text :public Protocol
   StringBuffer<FLOATING_POINT_BUFFER> buffer;
   bool store_numeric_string_aux(const char *from, size_t length);
 public:
-  Protocol_text(THD *thd_arg, ulong prealloc= 0)
-   :Protocol(thd_arg)
-  {
-    if (prealloc)
-      packet->alloc(prealloc);
-  }
+  Protocol_text(THD *thd_arg)
+   :Protocol(thd_arg) {};
+  bool __attribute__((warn_unused_result))
+       allocate(size_t size) { return packet->alloc(size); }
   void prepare_for_resend() override;
   bool store_null() override;
   bool store_tiny(longlong from) override;

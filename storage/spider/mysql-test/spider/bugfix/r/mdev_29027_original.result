@@ -6,8 +6,13 @@ CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 (a INT);
 CREATE TABLE t_spider (a INT) ENGINE=SPIDER PARTITION BY HASH(a) (PARTITION p1 COMMENT = "wrapper 'mysql', srv 'srv', table 't1'");
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE t2 (a INT);
 ALTER TABLE t_spider ADD PARTITION (PARTITION p2 COMMENT = "wrapper 'mysql', srv 'srv', table 't2'");
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 DROP TABLE t_spider, t1, t2;
 drop server srv;
 for master_1

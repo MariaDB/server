@@ -29,6 +29,8 @@ let $create4 = create table t1 (a int,
 				d varchar(16));
 eval $create1;
 set sql_warnings = 1;
+# Prefer table scans to range
+set @@optimizer_scan_setup_cost=0;
 
 --echo #
 --echo # *** INSERT ***
@@ -197,6 +199,7 @@ select * from t1;
 --echo # UPDATE tbl_name SET non-vcol=expr 
 --echo # WHERE vcol=between const1 and const2 ORDER BY vcol LIMIT 2
 insert into t1 (a) values (1), (2), (3), (4), (5);
+
 select * from t1;
 update t1 set a=6 where c between -1 and 0
           order by c limit 2;

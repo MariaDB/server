@@ -33,11 +33,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 //#include <mysql.h>
 #include <my_global.h>
 #include <thr_lock.h>
@@ -222,7 +217,6 @@ public:
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref)=0;
   virtual void set_thd(void *thd) { }
-
 };
 
 
@@ -291,17 +285,16 @@ private:
                                       FEDERATEDX_IO_RESULT *result);
   bool create_where_from_key(String *to, KEY *key_info,
                              const key_range *start_key,
-                             const key_range *end_key,
-                             bool records_in_range, bool eq_range);
+                             const key_range *end_key, bool eq_range);
   int stash_remote_error();
 
   static federatedx_txn *get_txn(THD *thd, bool no_create= FALSE);
-  static int disconnect(handlerton *hton, MYSQL_THD thd);
-  static int savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv);
-  static int savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv);
-  static int savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv);
-  static int commit(handlerton *hton, MYSQL_THD thd, bool all);
-  static int rollback(handlerton *hton, MYSQL_THD thd, bool all);
+  static int disconnect(MYSQL_THD thd);
+  static int savepoint_set(MYSQL_THD thd, void *sv);
+  static int savepoint_rollback(MYSQL_THD thd, void *sv);
+  static int savepoint_release(MYSQL_THD thd, void *sv);
+  static int commit(MYSQL_THD thd, bool all);
+  static int rollback(MYSQL_THD thd, bool all);
   static int discover_assisted(handlerton *, THD*, TABLE_SHARE *,
                                HA_CREATE_INFO *);
 
@@ -366,29 +359,31 @@ public:
     Talk to Kostja about this - how to get the
     number of rows * ...
     disk scan time on other side (block size, size of the row) + network time ...
-    The reason for "records * 1000" is that such a large number forces
-    this to use indexes "
+    The reason for "1000" is that such a large number forces this to use indexes "
   */
-  double scan_time() override
+  IO_AND_CPU_COST scan_time() override
   {
     DBUG_PRINT("info", ("records %lu", (ulong) stats.records));
-    return (double)(stats.records*1000);
+    return
+    {
+      0,
+        (double) (stats.mean_rec_length * stats.records)/8192 * DISK_READ_COST+
+        1000,
+    };
   }
-  /*
-    The next method will never be called if you do not implement indexes.
-  */
-  double read_time(uint index, uint ranges, ha_rows rows) override
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override
   {
-    /*
-      Per Brian, this number is bugus, but this method must be implemented,
-      and at a later date, he intends to document this issue for handler code
-    */
-    return (double) rows /  20.0+1;
+    return {0, (double) (ranges + rows) * DISK_READ_COST };
+  }
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override
+  {
+    return {0, (double) rows * DISK_READ_COST };
   }
 
   const key_map *keys_to_use_for_scanning() override { return &key_map_full; }
   /*
-    Everything below are methods that we implment in ha_federatedx.cc.
+    Everything below are methods that we implement in ha_federatedx.cc.
 
     Most of these methods are not obligatory, skip them and
     MySQL will treat them as not implemented
@@ -467,6 +462,7 @@ public:
   const FEDERATEDX_SHARE *get_federatedx_share() const { return share; }
   friend class ha_federatedx_derived_handler;
   friend class ha_federatedx_select_handler;
+  friend class federatedx_handler_base;
 };
 
 extern const char ident_quote_char;              // Character for quoting

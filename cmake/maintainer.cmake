@@ -37,7 +37,6 @@ SET(MY_WARNING_FLAGS
   -Wno-unused-private-field
   -Wnon-virtual-dtor
   -Woverloaded-virtual
-  -Wsuggest-override
   -Wvla
   -Wwrite-strings
   -Wcast-function-type-strict
@@ -61,10 +60,11 @@ FOREACH(F ${MY_WARNING_FLAGS_NON_FATAL})
   MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-error=${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
-SET(MY_ERROR_FLAGS -Werror -fno-operator-names)
+SET(MY_ERROR_FLAGS -Werror -fno-operator-names -Wsuggest-override)
 
-IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
+  SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=non-virtual-dtor) # gcc bug 7302
 ENDIF()
 
 IF(MYSQL_MAINTAINER_MODE MATCHES "OFF|WARN")

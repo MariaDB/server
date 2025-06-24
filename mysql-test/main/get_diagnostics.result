@@ -628,7 +628,7 @@ v
 NULL
 Warnings:
 Note	1050	Table 't1' already exists
-Error	1406	Data too long for column 'v' at row 1
+Error	1406	Data too long for column 'v' at row 0
 DROP TABLE t1;
 DROP PROCEDURE p1;
 
@@ -774,10 +774,10 @@ Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value 
 GET DIAGNOSTICS CONDITION 1 @var1 = MESSAGE_TEXT, @var2 = CLASS_ORIGIN;
 SELECT CHARSET(@var1), COLLATION(@var1), COERCIBILITY(@var1);
 CHARSET(@var1)	COLLATION(@var1)	COERCIBILITY(@var1)
-utf8mb3	utf8mb3_general_ci	2
+utf8mb3	utf8mb3_general_ci	5
 SELECT CHARSET(@var2), COLLATION(@var2), COERCIBILITY(@var2);
 CHARSET(@var2)	COLLATION(@var2)	COERCIBILITY(@var2)
-utf8mb3	utf8mb3_general_ci	2
+utf8mb3	utf8mb3_general_ci	5
 #
 # Command statistics
 #
@@ -799,3 +799,1066 @@ CREATE TABLE t2 (a char(1)) VALUES ('a'),('b') UNION VALUES ('foo');
 Warnings:
 Warning	1406	Data too long for column 'a' at row 3
 DROP TABLE t1, t2;
+#
+# End of 10.6 tests
+#
+#
+# MDEV-10075: Provide index of error causing error in array INSERT
+#
+#
+# INSERT STATEMENT
+#
+CREATE TABLE t1(id1 INT PRIMARY KEY, val1 VARCHAR(10), d1 DOUBLE);
+CREATE TABLE t2(id2 INT PRIMARY KEY, val2 VARCHAR(10), d2 DOUBLE, p2 POINT);
+# Simple INSERT statement
+INSERT INTO t1 VALUES(1,'a',1.00101), (2,'b',1.00102), (3,'c',1.00103);
+INSERT INTO t1 VALUES (4,'d',1.00104),(1,'a',1.00101),(2,'b',1.00102);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var1= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var2= ROW_NUMBER;
+Warnings:
+Error	1062	Duplicate entry '1' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var1, @var2;
+@var1	@var2
+2	
+INSERT INTO t1 VALUES (5,'e',1.00105),(6,'f',1.79769313486232e+308);
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var3= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var4= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var3, @var4;
+@var3	@var4
+2	NULL
+INSERT INTO t1 VALUES (7,'g',1.00107),(8,'h',1.00108),(9,'i'),(10,'j');
+ERROR 21S01: Column count doesn't match value count at row 3
+GET DIAGNOSTICS CONDITION 1 @var5= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var6= ROW_NUMBER;
+Warnings:
+Error	1136	Column count doesn't match value count at row 3
+Error	1758	Invalid condition number
+SELECT @var5, @var6;
+@var5	@var6
+3	NULL
+INSERT INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var7= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var8= ROW_NUMBER;
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var7, @var8;
+@var7	@var8
+2	NULL
+INSERT INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+GET DIAGNOSTICS CONDITION 1 @var9= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var10= ROW_NUMBER;
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+Error	1758	Invalid condition number
+SELECT @var9, @var10;
+@var9	@var10
+2	NULL
+INSERT INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
+ERROR 21000: Operand should contain 1 column(s)
+GET DIAGNOSTICS CONDITION 1 @var11= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var12= ROW_NUMBER;
+Warnings:
+Error	1241	Operand should contain 1 column(s)
+Error	1758	Invalid condition number
+SELECT @var11, @var12;
+@var11	@var12
+2	NULL
+delete from t1 where id1=0;
+INSERT INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (16/0,'p',1.0116);
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+GET DIAGNOSTICS CONDITION 1 @var13= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var14= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var15= ROW_NUMBER;
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+Error	1758	Invalid condition number
+SELECT @var13, @var14, @var15;
+@var13	@var14	@var15
+3	3	NULL
+TRUNCATE TABLE t1;
+# INSERT ... IGNORE
+INSERT IGNORE INTO t1 VALUES(1,'a',1.00101), (2,'b',1.00102), (3,'c',1.00103);
+INSERT IGNORE INTO t1 VALUES (4,'d',1.00104),(1,'a',1.00101),(2,'b',1.00102);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var16= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var17= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var18= ROW_NUMBER;
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var16, @var17, @var18;
+@var16	@var17	@var18
+2	3	NULL
+INSERT IGNORE INTO t1 VALUES (5,'e',1.00105),(6,'f',1.79769313486232e+308);
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var19= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var20= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var19, @var20;
+@var19	@var20
+2	NULL
+INSERT IGNORE INTO t1 VALUES (7,'g',1.00107),(8,'h',1.00108),(9,'i'),(10,'j');
+ERROR 21S01: Column count doesn't match value count at row 3
+GET DIAGNOSTICS CONDITION 1 @var21= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var22= ROW_NUMBER;
+Warnings:
+Error	1136	Column count doesn't match value count at row 3
+Error	1758	Invalid condition number
+SELECT @var21, @var22;
+@var21	@var22
+3	NULL
+INSERT IGNORE INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var23= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var24= ROW_NUMBER;
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var23, @var24;
+@var23	@var24
+2	NULL
+INSERT IGNORE INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+GET DIAGNOSTICS CONDITION 1 @var25= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var26= ROW_NUMBER;
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+Error	1758	Invalid condition number
+SELECT @var25, @var26;
+@var25	@var26
+2	NULL
+INSERT IGNORE INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
+ERROR 21000: Operand should contain 1 column(s)
+GET DIAGNOSTICS CONDITION 1 @var27= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var28= ROW_NUMBER;
+Warnings:
+Error	1241	Operand should contain 1 column(s)
+Error	1758	Invalid condition number
+SELECT @var27, @var28;
+@var27	@var28
+2	NULL
+INSERT IGNORE INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115),
+(16/0,'p',1.0116);
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+Warning	1062	Duplicate entry '0' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var29= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var30= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var31= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 4 @var32= ROW_NUMBER;
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+Warning	1062	Duplicate entry '0' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var29, @var30, @var31, @var32;
+@var29	@var30	@var31	@var32
+3	3	3	NULL
+TRUNCATE TABLE t1;
+# INSERT ... SET
+INSERT INTO t1 SET id1=1, val1='a', d1=1.00101;
+INSERT INTO t1 SET id1=2, val1='b', d1=1.00102;
+INSERT INTO t1 SET id1=3, val1='c', d1=1.00103;
+INSERT INTO t1 SET id1=1, val1='a', d1=1.00101;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var33= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var34= ROW_NUMBER;
+Warnings:
+Error	1062	Duplicate entry '1' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var33, @var34;
+@var33	@var34
+1	NULL
+INSERT INTO t1 SET id1=6, val1='f', d1=1.79769313486232e+308);
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var35= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var36= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var35, @var36;
+@var35	@var36
+1	NULL
+INSERT INTO t1 SET id1=9, val1=CAST(123 AS CHAR(1)), d1=1.00109;
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var37= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var38= ROW_NUMBER;
+Warnings:
+Error	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var37, @var38;
+@var37	@var38
+1	NULL
+INSERT INTO t1 SET id1='x', val1='foo', d1=1.0203;
+ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+GET DIAGNOSTICS CONDITION 1 @var39= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var40= ROW_NUMBER;
+Warnings:
+Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Error	1758	Invalid condition number
+SELECT @var39, @var40;
+@var39	@var40
+1	NULL
+INSERT INTO t1 SET id1=3/0, val1='p', d1=1.0116;
+ERROR 22012: Division by 0
+GET DIAGNOSTICS CONDITION 1 @var41= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var42= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var43= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 4 @var44= ROW_NUMBER;
+Warnings:
+Error	1365	Division by 0
+Error	1048	Column 'id1' cannot be null
+Error	1105	Unknown error
+Error	1758	Invalid condition number
+SELECT @var41, @var42, @var43, @var44;
+@var41	@var42	@var43	@var44
+1	1	1	NULL
+TRUNCATE TABLE t1;
+# INSERT ... ON DUPLICATE KEY UPDATE
+INSERT INTO t1 VALUES(1,'a',1.00101), (2,'b',1.00102), (3,'c',1.00103);
+INSERT INTO t1 VALUES (4,'d',1.00104),(1,'a',1.00101) 
+ON DUPLICATE KEY UPDATE val1='a', d1=1.00101;
+GET DIAGNOSTICS CONDITION 1 @var45= ROW_NUMBER;
+Warnings:
+Error	1758	Invalid condition number
+GET DIAGNOSTICS CONDITION 2 @var46= ROW_NUMBER;
+Warnings:
+Error	1758	Invalid condition number
+Error	1758	Invalid condition number
+SELECT @var45, @var46;
+@var45	@var46
+NULL	NULL
+INSERT INTO t1 VALUES (5,'e',1.00105),(3,'f',1.79769313486232e+308)
+ON DUPLICATE KEY UPDATE val1='c';
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var47= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var48= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var47, @var48;
+@var47	@var48
+2	NULL
+INSERT INTO t1 VALUES (5,'e',1.00105), (3,'i')
+ON DUPLICATE KEY UPDATE val1='c';
+ERROR 21S01: Column count doesn't match value count at row 2
+GET DIAGNOSTICS CONDITION 1 @var49= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var50= ROW_NUMBER;
+Warnings:
+Error	1136	Column count doesn't match value count at row 2
+Error	1758	Invalid condition number
+SELECT @var49, @var50;
+@var49	@var50
+2	NULL
+INSERT INTO t1 VALUES (3, CAST(123 AS CHAR(1)), 1.00103)
+ON DUPLICATE KEY UPDATE val1='c';
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var51= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var52= ROW_NUMBER;
+Warnings:
+Error	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var51, @var52;
+@var51	@var52
+1	NULL
+INSERT INTO t1 VALUES (10,10,10),('x','foo',1.0203)
+ON DUPLICATE KEY UPDATE val1='c';
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+GET DIAGNOSTICS CONDITION 1 @var53= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var54= ROW_NUMBER;
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+Error	1758	Invalid condition number
+SELECT @var53, @var54;
+@var53	@var54
+2	NULL
+INSERT INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113)) ON DUPLICATE KEY UPDATE val1='c';
+ERROR 21000: Operand should contain 1 column(s)
+GET DIAGNOSTICS CONDITION 1 @var55= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var56= ROW_NUMBER;
+Warnings:
+Error	1241	Operand should contain 1 column(s)
+Error	1758	Invalid condition number
+SELECT @var55, @var56;
+@var55	@var56
+2	NULL
+INSERT INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (2/0,'p',1.00102)
+ON DUPLICATE KEY UPDATE val1='b';
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+GET DIAGNOSTICS CONDITION 1 @var57= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var58= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var59= ROW_NUMBER;
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+Error	1758	Invalid condition number
+SELECT @var57, @var58, @var59;
+@var57	@var58	@var59
+3	3	NULL
+INSERT INTO t1 VALUES (1,'e',1.0),(5,'e',1.0),(5,'f',1.7)
+ON DUPLICATE KEY UPDATE id1='1';
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var60= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var61= ROW_NUMBER;
+Warnings:
+Error	1062	Duplicate entry '1' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var60, @var61;
+@var60	@var61
+3	NULL
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+DROP TABLE t2;
+INSERT ... SELECT
+CREATE TABLE t1(id1 INT PRIMARY KEY, val1 VARCHAR(10), d1 DOUBLE);
+CREATE TABLE t2(id2 INT PRIMARY KEY, val2 VARCHAR(10), d2 DOUBLE, p2 POINT);
+INSERT INTO t2 VALUES(1,'a',1.00101,PointFromText('POINT(20 10)')),
+(2,'b',1.00102,PointFromText('POINT(20 10)')),
+(3,'c',1.00103,PointFromText('POINT(20 10)'));
+INSERT INTO t1 SELECT id2, val2, d2 FROM t2;
+INSERT INTO t1 SELECT id2, val2, d2 FROM t2 WHERE id2=1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var62= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var63= ROW_NUMBER;
+Warnings:
+Error	1062	Duplicate entry '1' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var62, @var63;
+@var62	@var63
+1	NULL
+INSERT INTO t1 SELECT id2, val2, p2 from t2;
+ERROR HY000: Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
+GET DIAGNOSTICS CONDITION 1 @var64= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var65= ROW_NUMBER;
+Warnings:
+Error	4078	Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
+Error	1758	Invalid condition number
+SELECT @var64, @var65;
+@var64	@var65
+1	NULL
+INSERT INTO t1 SELECT id2, val2 FROM t2;
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @var66= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var67= ROW_NUMBER;
+Warnings:
+Error	1136	Column count doesn't match value count at row 1
+Error	1758	Invalid condition number
+SELECT @var66, @var67;
+@var66	@var67
+1	NULL
+INSERT INTO t2 VALUES(4,'a',1.00101,PointFromText('POINT(20 10)'));
+INSERT INTO t1 SELECT id2, CAST(123 AS CHAR(1)), d2 FROM t2 WHERE id2=4;
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var68= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var69= ROW_NUMBER;
+Warnings:
+Error	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var68, @var69;
+@var68	@var69
+1	NULL
+INSERT INTO t1 SELECT id2, val2, 1.79769313486232e+308 FROM t2;
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var70= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var71= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var70, @var71;
+@var70	@var71
+1	NULL
+INSERT INTO t1 SELECT id2/0, val2, d2 FROM t2;
+ERROR 22012: Division by 0
+GET DIAGNOSTICS CONDITION 1 @var72= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var73= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var74= ROW_NUMBER;
+Warnings:
+Error	1365	Division by 0
+Error	1048	Column 'id1' cannot be null
+Error	1758	Invalid condition number
+SELECT @var72, @var73, @var74;
+@var72	@var73	@var74
+1	1	NULL
+DROP TABLE t1,t2;
+# Checking ROW_NUMBER in STORED PROCEDURE for INSERT
+CREATE TABLE t1(id1 INT PRIMARY KEY);
+CREATE PROCEDURE proc1 ()
+BEGIN
+DECLARE var75 INT;
+DECLARE var76 INT;
+INSERT INTO t1 VALUES (1),(2);
+INSERT IGNORE INTO t1 VALUES(2);
+GET DIAGNOSTICS CONDITION 1 var75= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 var76= ROW_NUMBER;
+SELECT var75, var76;
+END;
+|
+CALL proc1();
+var75	var76
+1	NULL
+Warnings:
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+Error	1758	Invalid condition number
+TRUNCATE TABLE t1;
+# Checking ROW_NUMBER in PREPARED STATEMENTS for INSERT
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT IGNORE INTO t1 VALUES(2),(3),(4);
+Warnings:
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+Warning	1062	Duplicate entry '3' for key 'PRIMARY'
+PREPARE stmt1 FROM "GET DIAGNOSTICS CONDITION 2 @var77= ROW_NUMBER";
+EXECUTE stmt1;
+SELECT @var77;
+@var77
+2
+DROP PROCEDURE proc1;
+DROP PREPARE stmt1;
+DROP TABLE t1;
+#
+# REPLACE STATEMENT
+#
+CREATE TABLE t1(id1 INT PRIMARY KEY, val1 VARCHAR(10), d1 DOUBLE);
+CREATE TABLE t2(id2 INT PRIMARY KEY, val2 VARCHAR(10), d2 DOUBLE);
+# Simple REPLACE statement
+REPLACE INTO t1 VALUES(1,'a',1.00101), (2,'b',1.00102), (3,'c',1.00103);
+REPLACE INTO t1 VALUES (4,'d',1.00104),(1,'a',1.00101),(2,'b',1.00102);
+GET DIAGNOSTICS CONDITION 1 @var78= ROW_NUMBER;
+Warnings:
+Error	1758	Invalid condition number
+SELECT @var78;
+@var78
+NULL
+REPLACE INTO t1 VALUES (5,'e',1.00105),(6,'f',1.79769313486232e+308);
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var79= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var80= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var79, @var80;
+@var79	@var80
+2	NULL
+REPLACE INTO t1 VALUES (7,'g',1.00107),(8,'h',1.00108),(9,'i'),(10,'j');
+ERROR 21S01: Column count doesn't match value count at row 3
+GET DIAGNOSTICS CONDITION 1 @var81= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var82= ROW_NUMBER;
+Warnings:
+Error	1136	Column count doesn't match value count at row 3
+Error	1758	Invalid condition number
+SELECT @var81, @var82;
+@var81	@var82
+3	NULL
+REPLACE INTO t1 VALUES (8,8,8),(9,CAST(123 AS CHAR(1)),1.00109);
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var83= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var84= ROW_NUMBER;
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var83, @var84;
+@var83	@var84
+2	NULL
+REPLACE INTO t1 VALUES (10,10,10),('x','foo',1.0203);
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+GET DIAGNOSTICS CONDITION 1 @var85= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var86= ROW_NUMBER;
+Warnings:
+Warning	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 2
+Error	1758	Invalid condition number
+SELECT @var85, @var86;
+@var85	@var86
+2	NULL
+REPLACE INTO t1 VALUES (11,11,11),(12,12,(13,'m',1.0113));
+ERROR 21000: Operand should contain 1 column(s)
+GET DIAGNOSTICS CONDITION 1 @var87= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var88= ROW_NUMBER;
+Warnings:
+Error	1241	Operand should contain 1 column(s)
+Error	1758	Invalid condition number
+SELECT @var87, @var88;
+@var87	@var88
+2	NULL
+REPLACE INTO t1 VALUES (14,'n',1.0114), (15,'o',1.0115), (16/0,'p',1.0116);
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+GET DIAGNOSTICS CONDITION 1 @var89= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var90= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var91= ROW_NUMBER;
+Warnings:
+Warning	1365	Division by 0
+Warning	1048	Column 'id1' cannot be null
+Error	1758	Invalid condition number
+SELECT @var89, @var90, @var91;
+@var89	@var90	@var91
+3	3	NULL
+TRUNCATE TABLE t1;
+# REPLACE ... SET
+REPLACE INTO t1 SET id1=1, val1='a', d1=1.00101;
+REPLACE INTO t1 SET id1=2, val1='b', d1=1.00102;
+REPLACE INTO t1 SET id1=3, val1='c', d1=1.00103;
+REPLACE INTO t1 SET id1=1, val1='a', d1=1.00101;
+GET DIAGNOSTICS CONDITION 1 @var92= ROW_NUMBER;
+Warnings:
+Error	1758	Invalid condition number
+SELECT @var92;
+@var92
+NULL
+REPLACE INTO t1 SET id1=6, val1='f', d1=1.79769313486232e+308);
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var93= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var94= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var93, @var94;
+@var93	@var94
+1	NULL
+REPLACE INTO t1 SET id1=9, val1=CAST(123 AS CHAR(1)), d1=1.00109;
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var95= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var96= ROW_NUMBER;
+Warnings:
+Error	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var95, @var96;
+@var95	@var96
+1	NULL
+REPLACE INTO t1 SET id1='x', val1='foo', d1=1.0203;
+ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+GET DIAGNOSTICS CONDITION 1 @var97= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var98= ROW_NUMBER;
+Warnings:
+Error	1366	Incorrect integer value: 'x' for column `test`.`t1`.`id1` at row 1
+Error	1758	Invalid condition number
+SELECT @var97, @var98;
+@var97	@var98
+1	NULL
+REPLACE INTO t1 SET id1=3/0, val1='p', d1=1.0116;
+ERROR 22012: Division by 0
+GET DIAGNOSTICS CONDITION 1 @var99= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var100= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var101= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 4 @var102= ROW_NUMBER;
+Warnings:
+Error	1365	Division by 0
+Error	1048	Column 'id1' cannot be null
+Error	1105	Unknown error
+Error	1758	Invalid condition number
+SELECT @var99, @var100, @var101, @var102;
+@var99	@var100	@var101	@var102
+1	1	1	NULL
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+DROP TABLE t2;
+# REPLACE ... SELECT
+CREATE TABLE t1(id1 INT PRIMARY KEY, val1 VARCHAR(10), d1 DOUBLE);
+CREATE TABLE t2(id2 INT PRIMARY KEY, val2 VARCHAR(10), d2 DOUBLE, p2 POINT);
+INSERT INTO t2 VALUES(1,'a',1.00101,PointFromText('POINT(20 10)')),
+(2,'b',1.00102,PointFromText('POINT(20 10)')),
+(3,'c',1.00103,PointFromText('POINT(20 10)'));
+INSERT INTO t1 SELECT id2, val2, d2 FROM t2;
+INSERT INTO t1 SELECT id2, val2, d2 FROM t2 WHERE id2=1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @var103= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var104= ROW_NUMBER;
+Warnings:
+Error	1062	Duplicate entry '1' for key 'PRIMARY'
+Error	1758	Invalid condition number
+SELECT @var103, @var104;
+@var103	@var104
+1	NULL
+INSERT INTO t1 SELECT id2, val2, p2 from t2;
+ERROR HY000: Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
+GET DIAGNOSTICS CONDITION 1 @var105= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var106= ROW_NUMBER;
+Warnings:
+Error	4078	Cannot cast 'point' as 'double' in assignment of `test`.`t1`.`d1`
+Error	1758	Invalid condition number
+SELECT @var105, @var106;
+@var105	@var106
+1	NULL
+INSERT INTO t1 SELECT id2, val2 FROM t2;
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @var107= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var108= ROW_NUMBER;
+Warnings:
+Error	1136	Column count doesn't match value count at row 1
+Error	1758	Invalid condition number
+SELECT @var107, @var108;
+@var107	@var108
+1	NULL
+INSERT INTO t2 VALUES(4,'a',1.00101,PointFromText('POINT(20 10)'));
+INSERT INTO t1 SELECT id2, CAST(123 AS CHAR(1)), d2 FROM t2 WHERE id2=4;
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+GET DIAGNOSTICS CONDITION 1 @var109= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var110= ROW_NUMBER;
+Warnings:
+Error	1292	Truncated incorrect CHAR(1) value: '123'
+Error	1758	Invalid condition number
+SELECT @var109, @var110;
+@var109	@var110
+1	NULL
+INSERT INTO t1 SELECT id2, val2, 1.79769313486232e+308 FROM t2;
+ERROR 22007: Illegal double '1.79769313486232e+308' value found during parsing
+GET DIAGNOSTICS CONDITION 1 @var111= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var112= ROW_NUMBER;
+Warnings:
+Error	1367	Illegal double '1.79769313486232e+308' value found during parsing
+Error	1758	Invalid condition number
+SELECT @var111, @var112;
+@var111	@var112
+1	NULL
+INSERT INTO t1 SELECT id2/0, val2, d2 FROM t2;
+ERROR 22012: Division by 0
+GET DIAGNOSTICS CONDITION 1 @var113= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 2 @var114= ROW_NUMBER;
+GET DIAGNOSTICS CONDITION 3 @var115= ROW_NUMBER;
+Warnings:
+Error	1365	Division by 0
+Error	1048	Column 'id1' cannot be null
+Error	1758	Invalid condition number
+SELECT @var113, @var114, @var115;
+@var113	@var114	@var115
+1	1	NULL
+DROP TABLE t1,t2;
+# Checking ROW_NUMBER in STORED PROCEDURE
+CREATE TABLE t1(id1 INT PRIMARY KEY);
+CREATE PROCEDURE proc1 ()
+BEGIN
+DECLARE var116 INT;
+REPLACE INTO t1 VALUES (1),(2);
+GET DIAGNOSTICS CONDITION 1 var116= ROW_NUMBER;
+SELECT var116;
+END;
+|
+CALL proc1();
+var116
+NULL
+Warnings:
+Error	1758	Invalid condition number
+TRUNCATE TABLE t1;
+# Checking ROW_NUMBER in PREPARED STATEMENTS
+REPLACE INTO t1 VALUES (1), (2), (3);
+PREPARE stmt1 FROM "GET DIAGNOSTICS CONDITION 2 @var117= ROW_NUMBER";
+EXECUTE stmt1;
+Warnings:
+Error	1758	Invalid condition number
+SELECT @var117;
+@var117
+NULL
+DROP PROCEDURE proc1;
+DROP PREPARE stmt1;
+DROP TABLE t1;
+#
+# Checking that ROW_NUMBER is only for errors with rows/values
+#
+# INSERT STATEMENT
+CREATE TABLE t1(id1 INT);
+CREATE TABLE t2(id2 INT);
+CREATE VIEW v AS SELECT t1.id1 AS A, t2.id2 AS b FROM t1,t2;
+INSERT INTO t1(id1, id1) VALUES (1,1);
+ERROR 42000: Column 'id1' specified twice
+GET DIAGNOSTICS CONDITION 1 @var118= ROW_NUMBER;
+SELECT @var118;
+@var118
+0
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES (1);
+RETURN 1;
+END |
+INSERT INTO t1 VALUES (1), (f1());
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+GET DIAGNOSTICS CONDITION 1 @var119= ROW_NUMBER;
+SELECT @var119;
+@var119
+0
+INSERT INTO t1 VALUES (1) RETURNING id2;
+ERROR 42S22: Unknown column 'id2' in 'RETURNING'
+GET DIAGNOSTICS CONDITION 1 @var120= ROW_NUMBER;
+SELECT @var120;
+@var120
+0
+INSERT INTO t1(id2) VALUES(1);
+ERROR 42S22: Unknown column 'id2' in 'INSERT INTO'
+GET DIAGNOSTICS CONDITION 1 @var121= ROW_NUMBER;
+SELECT @var121;
+@var121
+0
+INSERT INTO v VALUES(1,2);
+ERROR HY000: Can not insert into join view 'test.v' without fields list
+GET DIAGNOSTICS CONDITION 1 @var122= ROW_NUMBER;
+SELECT @var122;
+@var122
+0
+INSERT INTO v(a,b) VALUES (1,2);
+ERROR HY000: Can not modify more than one base table through a join view 'test.v'
+GET DIAGNOSTICS CONDITION 1 @var123= ROW_NUMBER;
+SELECT @var123;
+@var123
+0
+# REPLACE STATEMENT
+REPLACE INTO t1(id1, id1) VALUES (1,1);
+ERROR 42000: Column 'id1' specified twice
+GET DIAGNOSTICS CONDITION 1 @var124= ROW_NUMBER;
+SELECT @var124;
+@var124
+0
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+REPLACE INTO t1 VALUES (1);
+RETURN 1;
+END |
+REPLACE INTO t1 VALUES (1), (f2());
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+GET DIAGNOSTICS CONDITION 1 @var125= ROW_NUMBER;
+SELECT @var125;
+@var125
+0
+REPLACE INTO t1 VALUES (1) RETURNING id2;
+ERROR 42S22: Unknown column 'id2' in 'RETURNING'
+GET DIAGNOSTICS CONDITION 1 @var126= ROW_NUMBER;
+SELECT @var126;
+@var126
+0
+REPLACE INTO t1(id2) VALUES(1);
+ERROR 42S22: Unknown column 'id2' in 'INSERT INTO'
+GET DIAGNOSTICS CONDITION 1 @var127= ROW_NUMBER;
+SELECT @var127;
+@var127
+0
+REPLACE INTO v VALUES(1,2);
+ERROR HY000: Can not insert into join view 'test.v' without fields list
+GET DIAGNOSTICS CONDITION 1 @var128= ROW_NUMBER;
+SELECT @var128;
+@var128
+0
+REPLACE INTO v(a,b) VALUES (1,2);
+ERROR HY000: Can not modify more than one base table through a join view 'test.v'
+GET DIAGNOSTICS CONDITION 1 @var129= ROW_NUMBER;
+SELECT @var129;
+@var129
+0
+DROP TABLE t1,t2;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP  VIEW v;
+#
+# MDEV-26606: ROW_NUMBER property value isn't passed from inside a
+# stored procedure
+#
+# Test 1: Without RESIGNAL
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY);
+CREATE OR REPLACE PROCEDURE sp(a INT) INSERT INTO t1 VALUES (2),(a);
+SET @num=null, @msg=null;
+INSERT INTO t1 VALUES(1);
+CALL sp(1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @num = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @num, @msg;
+@num	@msg
+2	Duplicate entry '1' for key 'PRIMARY'
+DROP PROCEDURE sp;
+DROP TABLE t1;
+# Test 2: With RESIGNAL
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY);
+CREATE OR REPLACE PROCEDURE sp(a INT)
+BEGIN
+DECLARE n INT;
+DECLARE m VARCHAR(255);
+DECLARE EXIT HANDLER FOR 1062
+BEGIN
+GET DIAGNOSTICS CONDITION 1 n = ROW_NUMBER, m = MESSAGE_TEXT;
+SELECT n, m;
+RESIGNAL;
+END;
+INSERT INTO t1 VALUES (2), (a);
+END |
+SET @num=null, @msg=null;
+INSERT INTO t1 VALUES (1);
+CALL sp(1);
+n	m
+2	Duplicate entry '1' for key 'PRIMARY'
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @num = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @num, @msg;
+@num	@msg
+2	Duplicate entry '1' for key 'PRIMARY'
+DROP PROCEDURE sp;
+DROP TABLE t1;
+# Checking more errors
+CREATE TABLE t1 (val1 TINYINT);
+CREATE PROCEDURE sp(a INT) INSERT INTO t1 VALUES (2),(a);
+INSERT INTO t1 VALUES(1);
+CALL sp(100000);
+Warnings:
+Warning	1264	Out of range value for column 'val1' at row 2
+GET DIAGNOSTICS CONDITION 1 @var1= ROW_NUMBER;
+SELECT @var1;
+@var1
+2
+DROP TABLE t1;
+DROP PROCEDURE sp;
+#
+# MDEV-26684: Unexpected ROW_NUMBER in a condition raised by a diagnostics statement
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+GET DIAGNOSTICS CONDITION 5 @msg = MESSAGE_TEXT;
+Warnings:
+Error	1758	Invalid condition number
+SHOW WARNINGS;
+Level	Code	Message
+Error	1758	Invalid condition number
+GET DIAGNOSTICS CONDITION 1 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @ind, @msg;
+@ind	@msg
+0	Invalid condition number
+INSERT INTO t1 VALUES (3),(4);
+GET DIAGNOSTICS CONDITION 1 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+Warnings:
+Error	1758	Invalid condition number
+SELECT @ind, @msg;
+@ind	@msg
+0	Invalid condition number
+GET DIAGNOSTICS CONDITION 5 @ind = ROW_NUMBER, @msg = MESSAGE_TEXT;
+Warnings:
+Error	1758	Invalid condition number
+Error	1758	Invalid condition number
+SELECT @ind, @msg;
+@ind	@msg
+0	Invalid condition number
+DROP TABLE t1;
+#
+# MDEV-26681: ROW_NUMBER is not available within compound statement blocks
+#
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, a CHAR(3));
+INSERT IGNORE INTO t1 VALUES (1,'foo'),(1,'bar'),(2,'foobar');
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1265	Data truncated for column 'a' at row 3
+BEGIN NOT ATOMIC
+DECLARE i INT DEFAULT 0;
+DECLARE rnum INT DEFAULT -1;
+DECLARE msg VARCHAR(1024) DEFAULT '';
+DECLARE err INT DEFAULT -1;
+WHILE i < @@warning_count
+DO
+SET i = i + 1;
+GET DIAGNOSTICS CONDITION i rnum = ROW_NUMBER, msg = MESSAGE_TEXT, err = MYSQL_ERRNO;
+SELECT i, rnum, msg, err;
+END WHILE;
+END |
+i	rnum	msg	err
+1	2	Duplicate entry '1' for key 'PRIMARY'	1062
+i	rnum	msg	err
+2	3	Data truncated for column 'a' at row 3	1265
+GET DIAGNOSTICS CONDITION 1 @rnum = ROW_NUMBER, @msg = MESSAGE_TEXT, @err = MYSQL_ERRNO;
+select @rnum, @msg, @err;
+@rnum	@msg	@err
+2	Duplicate entry '1' for key 'PRIMARY'	1062
+GET DIAGNOSTICS CONDITION 2 @rnum = ROW_NUMBER, @msg = MESSAGE_TEXT, @err = MYSQL_ERRNO;
+SELECT @rnum, @msg, @err;
+@rnum	@msg	@err
+3	Data truncated for column 'a' at row 3	1265
+DROP TABLE t1;
+#
+# ROW_NUMBER differs from the number in the error message upon
+# ER_WARN_DATA_OUT_OF_RANGE
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT CAST(a AS DECIMAL(2,2)) AS f FROM t;
+f
+0.99
+0.99
+Warnings:
+Warning	1264	Out of range value for column 'f' at row 1
+Warning	1264	Out of range value for column 'f' at row 2
+GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER, @m = MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+2	Out of range value for column 'f' at row 2
+DROP TABLE t;
+#
+# MDEV-26832: ROW_NUMBER in SIGNAL/RESIGNAL causes a syntax error
+#
+# using signal
+CREATE PROCEDURE signal_syntax()
+BEGIN
+DECLARE errno INT DEFAULT 0;
+DECLARE msg TEXT DEFAULT "foo";
+DECLARE row_num INT DEFAULT 0;
+DECLARE cond CONDITION FOR SQLSTATE "01234";
+DECLARE CONTINUE HANDLER for 1012
+BEGIN
+GET DIAGNOSTICS CONDITION 1 errno = MYSQL_ERRNO, msg = MESSAGE_TEXT, row_num= ROW_NUMBER;
+END;
+SIGNAL cond SET MESSAGE_TEXT = "Signal message", MYSQL_ERRNO = 1012, ROW_NUMBER= 5;
+SELECT errno, msg, row_num;
+END|
+CALL signal_syntax();
+errno	msg	row_num
+1012	Signal message	5
+DROP PROCEDURE signal_syntax;
+# using resignal
+CREATE PROCEDURE resignal_syntax()
+BEGIN
+DECLARE CONTINUE HANDLER
+FOR 1146
+BEGIN
+RESIGNAL SET
+MESSAGE_TEXT = '`temptab` does not exist', ROW_NUMBER= 105;
+END;
+SELECT `c` FROM `temptab`;
+END|
+CALL resignal_syntax();
+ERROR 42S02: `temptab` does not exist
+GET DIAGNOSTICS CONDITION 1 @row_num= ROW_NUMBER;
+SELECT @row_num;
+@row_num
+105
+DROP PROCEDURE resignal_syntax;
+#
+# MDEV-26842: ROW_NUMBER is not set and differs from the message upon
+# WARN_DATA_TRUNCATED produced by inplace ALTER
+#
+CREATE TABLE t1 (a VARCHAR(64)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),(null);
+ALTER TABLE t1 ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
+ERROR 01000: Data truncated for column 'a' at row 2
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+2	Data truncated for column 'a' at row 2
+DROP TABLE t1;
+#
+# MDEV-26841: ROW_NUMBER is not set and differs from the message upon
+# ER_WRONG_VALUE_COUNT_ON_ROW for the 1st row
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1,2),(3);
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+1	Column count doesn't match value count at row 1
+INSERT INTO t1(a) VALUES(1,2), (3);
+ERROR 21S01: Column count doesn't match value count at row 1
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER, @m= MESSAGE_TEXT;
+SELECT @n, @m;
+@n	@m
+1	Column count doesn't match value count at row 1
+DROP TABLE t1;
+#
+# MDEV-26830: Wrong ROW_NUMBER in diagnostics upon INSERT IGNORE with
+# CHECK violation
+#
+CREATE TABLE t1 (a INT, CHECK(a>0));
+INSERT IGNORE INTO t1 VALUES (1),(0),(2),(0);
+Warnings:
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+2
+GET DIAGNOSTICS CONDITION 2 @n= ROW_NUMBER;
+SELECT @n;
+@n
+4
+DROP TABLE t1;
+#
+# MDEV-26844: DELETE returns ROW_NUMBER=1 for every row upon
+# ER_TRUNCATED_WRONG_VALUE
+#
+# without ORDER BY
+CREATE TABLE t (a VARCHAR(8));
+INSERT INTO t VALUES ('val1'),('val2'),('100'),('val4');
+SELECT * FROM t;
+a
+val1
+val2
+100
+val4
+DELETE FROM t WHERE a = 100;
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'val1'
+Warning	1292	Truncated incorrect DECIMAL value: 'val2'
+Warning	1292	Truncated incorrect DECIMAL value: 'val4'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect DECIMAL value: 'val1'
+Warning	1292	Truncated incorrect DECIMAL value: 'val2'
+Warning	1292	Truncated incorrect DECIMAL value: 'val4'
+GET DIAGNOSTICS CONDITION 3 @n = ROW_NUMBER;
+SELECT @n;
+@n
+4
+DROP TABLE t;
+#
+# MDEV-26695: Number of an invalid row is not calculated for table value constructor
+#
+CREATE TABLE t1 (a CHAR(1)) VALUES ('a'),('b'),('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+3
+CREATE TABLE t2 (a CHAR(1)) VALUES ('a'),('b') UNION VALUES ('foo');
+Warnings:
+Warning	1406	Data too long for column 'a' at row 3
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+3
+DROP TABLE t1, t2;
+# Checking that CREATE ... SELECT works
+CREATE TABLE t1 (val1 CHAR(5));
+INSERT INTO t1 VALUES ('A'),('B'),('C'),('DEF');
+CREATE TABLE t2 (val2 CHAR(1)) SELECT val1 as val2 FROM t1;
+Warnings:
+Warning	1406	Data too long for column 'val2' at row 4
+GET DIAGNOSTICS CONDITION 1 @n= ROW_NUMBER;
+SELECT @n;
+@n
+4
+SELECT * FROM t2;
+val2
+A
+B
+C
+D
+DROP TABLE t1,t2;
+#
+# End of 10.7 tests
+#

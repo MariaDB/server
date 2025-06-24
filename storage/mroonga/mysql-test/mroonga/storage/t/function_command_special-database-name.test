@@ -28,7 +28,7 @@ SET NAMES UTF8;
 CREATE TABLE diaries (
   title TEXT,
   FULLTEXT KEY (title)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 
 #Check after fix MDEV-31554
 --disable_cursor_protocol

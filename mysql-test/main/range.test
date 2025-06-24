@@ -3,6 +3,8 @@
 # Problem with range optimizer
 #
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+
 SET optimizer_use_condition_selectivity=4;
 
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
@@ -236,7 +238,7 @@ SELECT * FROM t1 WHERE a IN(1,2) AND b=5;
 DROP TABLE t1;
 
 #
-# Test problem with range optimzer and sub ranges
+# Test problem with range optimizer and sub ranges
 #
 
 CREATE TABLE t1 (a int, b int, c int, INDEX (c,a,b));
@@ -263,9 +265,9 @@ WHERE
 );
 DROP TABLE t1;
 
-#
-# Test of problem with IN on many different keyparts. (Bug #4157)
-#
+--echo #
+--echo # Test of problem with IN on many different keyparts. (Bug #4157)
+--echo #
 
 CREATE TABLE t1 (
 id int( 11 ) unsigned NOT NULL AUTO_INCREMENT ,
@@ -284,7 +286,10 @@ KEY recount( owner, line )
 ) ENGINE = MYISAM;
 
 INSERT into t1 (owner,id,columnid,line) values (11,15,15,1),(11,13,13,5);
+INSERT into t1 (owner,id,columnid,line) select 11,seq+20,seq,seq from seq_1_to_100;
 
+explain SELECT id, columnid, tableid, content, showid, line, ordinal FROM t1 WHERE owner=11 AND ((columnid IN ( 15, 13, 14 ) AND line IN ( 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 31 )) OR (columnid IN ( 13, 14 ) AND line IN ( 15 ))) LIMIT 0 , 30;
+--sorted_result
 SELECT id, columnid, tableid, content, showid, line, ordinal FROM t1 WHERE owner=11 AND ((columnid IN ( 15, 13, 14 ) AND line IN ( 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 31 )) OR (columnid IN ( 13, 14 ) AND line IN ( 15 ))) LIMIT 0 , 30;
 drop table t1;
 
@@ -525,7 +530,7 @@ drop table t1, t2;
 # Bug #20732: Partial index and long sjis search with '>' fails sometimes
 #
 
-create table t1(a char(2), key(a(1)));
+create table t1(a char(2), key(a(1))) charset=latin1;
 insert into t1 values ('x'), ('xx');
 explain select a from t1 where a > 'x';
 select a from t1 where a > 'x';
@@ -741,7 +746,7 @@ CREATE TABLE t1 (
   status varchar(20),
   PRIMARY KEY  (id),
   KEY (status)
-);
+) CHARSET=latin1;
 
 INSERT INTO t1 VALUES
 (1,'B'), (2,'B'), (3,'B'), (4,'B'), (5,'B'), (6,'B'),
@@ -852,7 +857,7 @@ insert into t1 values ('a  ', '');
 insert into t1 select concat('a', 1000 + A.a + 10 * (B.a + 10 * C.a)), ''
   from t3 A, t3 B, t3 C;
 
-create table t2 (a varchar(10), filler char(200), key(a));
+create table t2 (a varchar(10), filler char(200), key(a)) charset=latin1;
 insert into t2 select * from t1;
 
 --replace_column 9 #
@@ -910,7 +915,7 @@ CREATE TABLE t1 (
   started datetime NOT NULL default '0000-00-00 00:00:00', 
   price decimal(16,3) NOT NULL default '0.000',                 
   PRIMARY KEY (item,started)                     
-) ENGINE=MyISAM;   
+) ENGINE=MyISAM CHARSET=latin1;
 
 INSERT INTO t1 VALUES
 ('A1','2005-11-01 08:00:00',1000),
@@ -1025,7 +1030,8 @@ create table t2 (a int, b int, filler char(100));
 insert into t2 select A.a + 10 * (B.a + 10 * C.a), 10, 'filler' from t1 A,
 t1 B, t1 C where A.a < 5;
 
-insert into t2 select 1000, b, 'filler' from t2;
+insert into t2 select 1000, b, 'filler' from t2 limit 50;
+select count(*) from t2;
 alter table t2 add index (a,b);
 # t2 values 
 #  ( 1  , 10, 'filler')
@@ -1033,13 +1039,14 @@ alter table t2 add index (a,b);
 #  ( 3  , 10, 'filler')
 #  (... , 10, 'filler')
 #   ...
-#  (1000, 10, 'filler') - 500 times
+#  (1000, 10, 'filler') - 100 times
 
-# 500 rows, 1 row
+# 50 rows, 1 row
 
-select 'In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)' Z;
+--echo # In following EXPLAIN the access method should be ref, #rows~=50
+--echo # (and not 2) when we are not using rowid-ordered scans
+
 explain select * from t2 where a=1000 and b<11;
-
 drop table t1, t2;
 
 #
@@ -1760,7 +1767,7 @@ CREATE TABLE t1 (a DATETIME);
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00');
 INSERT INTO t1 VALUES ('2001-01-01 11:22:33');
 
-CREATE TABLE t2 (b VARCHAR(64), KEY (b));
+CREATE TABLE t2 (b VARCHAR(64), KEY (b)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('2001-01-01');
 INSERT INTO t2 VALUES ('2001.01.01');
 INSERT INTO t2 VALUES ('2001#01#01');
@@ -1887,7 +1894,7 @@ DROP TABLE t1;
 --echo #             from <row> IN (<row value list>) 
 --echo #
 
-create table t1(a int, b int, c varchar(16),  key idx(a,b)) engine=myisam;
+create table t1(a int, b int, c varchar(16),  key idx(a,b)) engine=myisam charset=latin1;
 
 insert into t1 values
   (1,1,'xx'), (2,2,'yyy'), (3,3,'zzzz'), (1,2,'zz'), (1,3,'x'),
@@ -1910,6 +1917,7 @@ insert into t1 values
 let $q1= 
 select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
 eval explain $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 eval $q1;
 eval prepare stmt from "$q1";
@@ -1921,6 +1929,7 @@ deallocate prepare stmt;
 let $q2=
 select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
 eval explain $q2;
+--source include/explain-no-costs.inc
 eval explain format=json $q2;
 eval $q2;
 
@@ -1928,6 +1937,7 @@ eval $q2;
 let $q3=
 select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
 eval explain $q3;
+--source include/explain-no-costs.inc
 eval explain format=json $q3;
 eval $q3;
 
@@ -1937,7 +1947,7 @@ set optimizer_switch='index_merge=off';
                 
 create table t2(
   d int, e int, key idx1(d), key idx2(e), f varchar(32)
-) engine=myisam;
+) engine=myisam charset=latin1;
 
 insert into t2 values
   (9,5,'a'), (9,8,'b'), (9,3,'c'), (9,2,'d'), (9,1,'e'),
@@ -1951,6 +1961,7 @@ let $q4=
 select * from t1,t2
   where a = d and (a,e) in ((3,3),(7,7),(2,2));
 eval explain $q4;
+--source include/explain-no-costs.inc
 eval explain format=json $q4;
 eval $q4;
 
@@ -1976,10 +1987,14 @@ let $q5=
 select * from t1,t2
   where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 eval explain $q5;
+--source include/explain-no-costs.inc
 eval explain format=json $q5;
+--sorted_result
 eval $q5;
 eval prepare stmt from "$q5";
+--sorted_result
 execute stmt;
+--sorted_result
 execute stmt;
 deallocate prepare stmt;
   
@@ -1991,7 +2006,9 @@ let $q6=
 select * from t1,t2 
   where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 eval explain $q6;
+--source include/explain-no-costs.inc
 eval explain format=json $q6;
+--sorted_result
 eval $q6;
 
 alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
@@ -2002,7 +2019,9 @@ let $q7=
 select * from t1,t2 
   where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 eval explain $q7;
+--source include/explain-no-costs.inc
 eval explain format=json $q7;
+--sorted_result
 eval $q7;
 
 --echo # join order: (t1,t2) with ref access of t2
@@ -2011,7 +2030,9 @@ let $q8=
 select * from t1,t2
   where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
 eval explain $q8;
+--source include/explain-no-costs.inc
 eval explain format=json $q8;
+--sorted_result
 eval $q8;
 
 --echo # join order: (t1,t2) with ref access of t2
@@ -2020,7 +2041,9 @@ let $q9=
 select * from t1,t2
   where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
 eval explain $q9;
+--source include/explain-no-costs.inc
 eval explain format=json $q9;
+--sorted_result
 eval $q9;
 
 --echo # join order: (t1,t2) with ref access of t2
@@ -2030,6 +2053,7 @@ select * from t1,t2
   where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
         length(c) = 1 and length(f) = 1;
 eval explain $q10;
+--source include/explain-no-costs.inc
 eval explain format=json $q10;
 eval $q10;
 eval prepare stmt from "$q10";
@@ -2050,6 +2074,7 @@ select * from t1,t2,t3
         (a,v+1) in ((2,2),(7,7),(8,8)) and
         length(c) = 1 and length(f) = 1;
 eval explain $q11;
+--source include/explain-no-costs.inc
 eval explain format=json $q11;
 eval $q11;
 
@@ -2347,7 +2372,7 @@ eval $q;
 let $q=
 SELECT * FROM t1
   WHERE t1.subset_id IN (SELECT max(t2.id) FROM t2 group by t2.col);
---echo # non-mergable subquery
+--echo # non-mergeable subquery
 --echo # expected for t1: range access and rows = 4 (not 1000)
 eval explain $q;
 eval $q;
@@ -2536,3 +2561,57 @@ DROP TABLE t1;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
               @innodb_stats_persistent_sample_pages_save;
+
+--echo #
+--echo # MDEV-31258 Assertion `cond_selectivity <= 1.000000001' upon range
+--echo # query
+--echo #
+
+CREATE TABLE t1 (id int, a int, b char(3), PRIMARY KEY (id), KEY idx (a,b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1,8,'UT'),(2,0,'NU'),(3,1,'SD'),(4,0,'QU'),(5,0,'FL'),(6,0,'ZR'),
+(7,3,'LA'),(8,5,'NU'),(9,0,'NU'),(10,0,'SD'),(11,0,'NU'),(12,1,'SD'),
+(13,0,'BD'),(14,0,'PA'),(15,0,'VT'),(16,4,'WA'),(17,0,'ME'),(18,6,'OH'),
+(19,0,'ME'),(20,4,'NU'),(21,0,'SC'),(22,0,'GA'),(23,1,'CO'),(24,0,'IL'),
+(25,0,'GA'),(26,0,'HI'),(27,0,'BU'),(28,0,'NU'),(29,7,'LA'),(30,0,'NU'),
+(31,0,'JR'),(32,6,'BR'),(33,0,'NU'),(34,6,'CO'),(35,7,'NU'),(36,2,'LA'),
+(37,0,'PR'),(38,1,'UT'),(39,2,'BR'),(40,1,'HI'),(41,0,'SD'),(42,0,'RI'),
+(43,2,'LA'),(44,0,'TN'),(45,4,'HI'),(46,0,'VT'),(47,1,'NU'),(48,0,'SC'),
+(49,0,'TX'),(50,8,'DC'),(51,4,'NU'),(52,0,'AL'),(53,0,'CO'),(54,9,'PR'),
+(55,0,'AR'),(56,0,'SD'),(57,0,'RI'),(58,0,'XE'),(59,0,'NU'),(60,4,'EL'),
+(61,2,'LA'),(62,5,'UT'),(63,3,'NU'),(64,0,'RI'),(65,1,'NU'),(66,0,'BR'),
+(67,3,'WA'),(68,0,'TN'),(69,3,'HI'),(70,0,'OH'),(71,8,'GA'),(72,6,'AL'),
+(73,6,'NU'),(74,1,'HI'),(75,5,'JR'),(76,3,'RI'),(77,0,'DC'),(78,0,'SC'),
+(79,0,'CO'),(80,2,'BO'),(81,8,'XE'),(82,1,'NU'),(83,0,'SD'),(84,0,'PA'),
+(85,5,'PA'),(86,0,'QU'),(87,0,'PA'),(88,0,'NU'),(89,0,'ND'),(90,0,'UT'),
+(91,0,'NU'),(92,0,'NU'),(93,6,'ZR'),(94,0,'NU'),(95,2,'EL'),(96,0,'NU'),
+(97,0,'RI'),(98,5,'DC'),(99,7,'JR'),(100,5,'CO'),(101,0,'UT'),(102,0,'QU'),
+(103,0,'NU'),(104,0,'GA'),(105,7,'AK'),(106,0,'ZR'),(107,0,'YT'),(108,0,'MD'),
+(109,0,'NU'),(110,1,'EL'),(111,0,'ME'),(112,0,'VT'),(113,2,'NU'),(114,0,'CO'),
+(115,5,'TN'),(116,0,'OH'),(117,0,'GA'),(118,9,'GA'),(119,0,'CO'),(120,0,'AL'),
+(121,0,'NU'),(122,2,'NE'),(123,2,'TX'),(124,3,'CO'),(125,0,'TN'),(126,0,'WA'),
+(127,0,'NE'),(128,6,'TN'),(129,0,'BR'),(130,0,'ID'),(131,0,'NU'),(132,2,'EL'),
+(133,0,'PR'),(134,0,'NU'),(135,1,'AZ'),(136,7,'EL'),(137,0,'TN'),(138,0,'PA'),
+(139,5,'QU'),(140,0,'AR'),(141,0,'DC'),(142,2,'WA'),(143,7,'OH'),(144,2,'CO'),
+(145,6,'NU'),(146,9,'FL'),(147,0,'HI'),(148,0,'WA'),(149,1,'BR'),(150,3,'QU');
+ 
+SELECT id, MIN(id) FROM t1
+WHERE (b > 'TX' OR b BETWEEN 'NE' AND 'SC') AND id IN (1,7,8) AND a = 5
+GROUP BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31237 Assertion `!(tab->select && tab->select->quick)' failed
+--echo # in make_join_readinfo
+--echo #
+
+CREATE TABLE lineitem (l_orderkey int, l_linenumber int, l_receiptDATE date DEFAULT NULL, PRIMARY KEY (l_orderkey,l_linenumber), KEY i_l_receiptdate (l_receiptDATE), KEY i_l_orderkey (l_orderkey)) ENGINE=InnoDB;
+INSERT INTO lineitem VALUES (291,1,'1994-06-23'),(291,2,'1994-06-19'),
+       (291,3,'1994-03-24'),(292,1,'1992-03-18'),(292,2,'1992-04-20');
+EXPLAIN SELECT DISTINCT l_orderkey FROM lineitem FORCE KEY (i_l_orderkey, i_l_receiptdate) WHERE l_orderkey > 1 ORDER BY l_receiptdate;
+SELECT DISTINCT l_orderkey FROM lineitem FORCE KEY (i_l_orderkey, i_l_receiptdate) WHERE l_orderkey > 1 ORDER BY l_receiptdate;
+DROP TABLE lineitem;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

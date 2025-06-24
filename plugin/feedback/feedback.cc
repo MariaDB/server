@@ -358,23 +358,23 @@ static int free(void *p)
 
 static MYSQL_SYSVAR_STR(server_uid, server_uid_ptr,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
-       "Automatically calculated server unique id hash.", NULL, NULL, 0);
+       "Automatically calculated server unique id hash", NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(user_info, user_info,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "User specified string that will be included in the feedback report.",
+       "User specified string that will be included in the feedback report",
        NULL, NULL, "");
 static MYSQL_SYSVAR_STR(url, url, PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Space separated URLs to send the feedback report to.", NULL, NULL,
+       "Space separated URLs to send the feedback report to", NULL, NULL,
        DEFAULT_PROTO "feedback.mariadb.org/rest/v1/post");
 static MYSQL_SYSVAR_ULONG(send_timeout, send_timeout, PLUGIN_VAR_RQCMDARG,
-       "Timeout (in seconds) for the sending the report.",
+       "Timeout (in seconds) for the sending the report",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_ULONG(send_retry_wait, send_retry_wait, PLUGIN_VAR_RQCMDARG,
-       "Wait this many seconds before retrying a failed send.",
+       "Wait this many seconds before retrying a failed send",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_STR(http_proxy, http_proxy,
                         PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Proxy server host:port.", NULL, NULL,0);
+       "Proxy server host:port", NULL, NULL,0);
 
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_ULONG(debug_startup_interval, debug_startup_interval,

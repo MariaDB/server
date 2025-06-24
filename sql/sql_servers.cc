@@ -45,6 +45,7 @@
 #include "sp.h"
 #include "transaction.h"
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
+#include "create_options.h"
 
 /*
   We only use 1 mutex to guard the data structures - THR_LOCK_servers.
@@ -233,8 +234,9 @@ bool servers_init(bool dont_read_servers_table)
     DBUG_RETURN(TRUE);
 
   /* initialise our servers cache */
-  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32,
-                   0, 0, servers_cache_get_key, 0, 0))
+  if (my_hash_init(key_memory_servers, &servers_cache,
+                   Lex_ident_server::charset_info(),
+                   32, 0, 0, servers_cache_get_key, 0, 0))
   {
     return_val= TRUE; /* we failed, out of memory? */
     goto end;
@@ -253,6 +255,8 @@ bool servers_init(bool dont_read_servers_table)
   if (!(thd=new THD(0)))
     DBUG_RETURN(TRUE);
   thd->store_globals();
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:servers_init"),
+                       default_charset_info);
   /*
     It is safe to call servers_reload() since servers_* arrays and hashes which
     will be freed there are global static objects and thus are initialized
@@ -313,7 +317,7 @@ end:
 
 /*
   Forget current servers cache and read new servers 
-  from the conneciton table.
+  from the connection table.
 
   SYNOPSIS
     servers_reload()
@@ -370,6 +374,45 @@ end:
   DBUG_RETURN(return_val);
 }
 
+static bool parse_server_options_json(FOREIGN_SERVER *server, char *ptr)
+{
+  enum json_types vt;
+  const char *keyname, *keyname_end, *v;
+  int v_len, nkey= 0;
+  engine_option_value *option_list_last;
+  DBUG_ENTER("parse_server_options_json");
+  while ((vt= json_get_object_nkey(ptr, ptr+strlen(ptr), nkey++,
+                    &keyname, &keyname_end, &v, &v_len)) != JSV_NOTHING)
+  {
+    if (vt != JSV_STRING)
+      DBUG_RETURN(TRUE);
+    /*
+      We have to make copies here to create "clean" strings and
+      avoid mutating ptr.
+    */
+    Lex_cstring name= {keyname, keyname_end}, value= {v, v + v_len},
+      name_copy= safe_lexcstrdup_root(&mem, name),
+      value_copy= safe_lexcstrdup_root(&mem, value);
+    engine_option_value *option= new (&mem) engine_option_value(
+      engine_option_value::Name(name_copy),
+      engine_option_value::Value(value_copy), true);
+    option->link(&server->option_list, &option_list_last);
+    if (option->value.length)
+    {
+      LEX_CSTRING *optval= &option->value;
+      char *unescaped= (char *) alloca(optval->length);
+      int len= json_unescape_json(optval->str, optval->str + optval->length,
+                                  unescaped, unescaped + optval->length);
+      if (len < 0)
+        DBUG_RETURN(TRUE);
+      DBUG_ASSERT(len <= (int) optval->length);
+      if (len < (int) optval->length)
+        strncpy((char *) optval->str, unescaped, len);
+      optval->length= len;
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
 
 /*
   Initialize structures responsible for servers used in federated
@@ -430,6 +473,10 @@ get_server_from_table_to_cache(TABLE *table)
   server->scheme= ptr ? ptr : blank;
   ptr= get_field(&mem, table->field[8]);
   server->owner= ptr ? ptr : blank;
+  ptr= table->field[9] ? get_field(&mem, table->field[9]) : NULL;
+  server->option_list= NULL;
+  if (ptr && parse_server_options_json(server, ptr))
+    DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("server->server_name %s", server->server_name));
   DBUG_PRINT("info", ("server->host %s", server->host));
   DBUG_PRINT("info", ("server->db %s", server->db));
@@ -598,7 +645,33 @@ store_server_fields(TABLE *table, FOREIGN_SERVER *server)
     table->field[8]->store(server->owner,
                            (uint) strlen(server->owner), system_charset_info))
     goto err;
-  return 0;
+  {
+    engine_option_value *option= server->option_list;
+    StringBuffer<1024> json(table->field[9]->charset());
+    json.append('{');
+    while (option)
+    {
+      if (option->value.str)
+      {
+        json.append('"');
+        json.append(option->name.str, option->name.length);
+        json.append('"');
+        json.append({STRING_WITH_LEN(": \"")});
+        int len= json_escape_string(
+          option->value.str, option->value.str + option->value.length,
+          json.c_ptr() + json.length(), json.c_ptr() + json.alloced_length());
+        json.length(json.length() + len);
+        json.append('"');
+        json.append({STRING_WITH_LEN(", ")});
+      }
+      option= option->next;
+    }
+    if (server->option_list)
+      json.length(json.length() - 2);
+    json.append('}');
+    if (!table->field[9]->store(json.ptr(), json.length(), system_charset_info))
+      return 0;
+  }
 
 err:
   THD *thd= table->in_use;
@@ -868,7 +941,7 @@ end:
       FOREIGN_SERVER *altered
 
   NOTES
-    This function takes as an argument the FOREIGN_SERVER structi pointer
+    This function takes as an argument the FOREIGN_SERVER struct pointer
     for the existing server and the FOREIGN_SERVER struct populated with only 
     the members which have been updated. It then "merges" the "altered" struct
     members to the existing server, the existing server then represents an
@@ -1206,6 +1279,23 @@ end:
 }
 
 
+static void copy_option_list(MEM_ROOT *mem, FOREIGN_SERVER *server,
+                             engine_option_value *option_list)
+{
+  engine_option_value *option_list_last;
+  server->option_list= NULL;
+  for (engine_option_value *option= option_list; option;
+       option= option->next)
+  {
+    engine_option_value *new_option= new (mem) engine_option_value(option);
+    new_option->name= engine_option_value::Name(
+      safe_lexcstrdup_root(mem, option->name));
+    new_option->value= engine_option_value::Value(
+      safe_lexcstrdup_root(mem, option->value));
+    new_option->link(&server->option_list, &option_list_last);
+  }
+}
+
 /*
 
   SYNOPSIS
@@ -1261,6 +1351,7 @@ prepare_server_struct_for_insert(LEX_SERVER_OPTIONS *server_options)
   SET_SERVER_OR_RETURN(password, "");
   SET_SERVER_OR_RETURN(socket, "");
   SET_SERVER_OR_RETURN(owner, "");
+  copy_option_list(&mem, server, server_options->option_list);
 
   server->server_name_length= server_options->server_name.length;
 
@@ -1315,6 +1406,8 @@ prepare_server_struct_for_update(LEX_SERVER_OPTIONS *server_options,
   SET_ALTERED(socket);
   SET_ALTERED(scheme);
   SET_ALTERED(owner);
+  merge_engine_options(existing->option_list, server_options->option_list,
+                       &altered->option_list, &mem);
 
   /*
     port is initialised to -1, so if unset, it will be -1
@@ -1376,7 +1469,7 @@ void servers_free(bool end)
    FOREIGN_SEVER pointer (copy of one supplied FOREIGN_SERVER)
 */
 
-static FOREIGN_SERVER *clone_server(MEM_ROOT *mem, const FOREIGN_SERVER *server,
+static FOREIGN_SERVER *clone_server(MEM_ROOT *mem, FOREIGN_SERVER *server,
                                     FOREIGN_SERVER *buffer)
 {
   DBUG_ENTER("sql_server.cc:clone_server");
@@ -1397,6 +1490,7 @@ static FOREIGN_SERVER *clone_server(MEM_ROOT *mem, const FOREIGN_SERVER *server,
   buffer->socket= safe_strdup_root(mem, server->socket);
   buffer->owner= safe_strdup_root(mem, server->owner);
   buffer->host= safe_strdup_root(mem, server->host);
+  copy_option_list(mem, buffer, server->option_list);
 
  DBUG_RETURN(buffer);
 }

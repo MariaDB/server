@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMY_PRINT_DEFAULTS" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMY_PRINT_DEFAULTS\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -21,9 +21,9 @@ my_print_defaults \- display options from option files
 .PP
 \fBmy_print_defaults\fR
 displays the options that are present in option groups of option files\&. The output indicates what options will be used by programs that read the specified option groups\&. For example, the
-\fBmysqlcheck\fR
+\fBmariadb-check\fR
 program reads the
-[mysqlcheck]
+[mariadb-check]
 and
 [client]
 option groups\&. To see what options are present in those groups in the standard option files, invoke
@@ -34,7 +34,7 @@ like this:
 .RS 4
 .\}
 .nf
-shell> \fBmy_print_defaults mysqlcheck client\fR
+shell> \fBmy_print_defaults mariadb-check client\fR
 \-\-user=myusername
 \-\-password=secret
 \-\-host=localhost
@@ -80,8 +80,8 @@ Display a help message and exit\&.
 \fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-c \fR\fB\fIfile_name\fR\fR
 .sp
-Read only the given option file\&. If no extension is given, default extension(.ini or .cnf) will 
-be used\&. If \fB\-\-defaults\-file\fR is 
+Read only the given option file\&. If no extension is given, default extension(.ini or .cnf) will
+be used\&. If \fB\-\-defaults\-file\fR is
 the first option, then read this file only, do not read global or per\-user config files; should be the first option.
 .RE
 .sp
@@ -100,9 +100,7 @@ the first option, then read this file only, do not read global or per\-user conf
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/my_print_defaults\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/my_print_defaults.trace'.
 .RE
 .sp
 .RS 4
@@ -120,7 +118,7 @@ string is
 .\" extra-file option: my_print_defaults
 \fB\-e \fR\fB\fIfile_name\fR\fR
 .sp
-Read this option file after the global option file but (on Unix) before the user option 
+Read this option file after the global option file but (on Unix) before the user option
 file\&. Should be the first option\&.
 .RE
 .sp
@@ -148,11 +146,27 @@ In addition to the groups named on the command line, read groups that have the g
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" my_print_defaults: --mysqld option
-.\" mysqld option: my_print_defaults
-\fB\-\-mysqld\fR
+.\" my_print_defaults: --mariadbd option
+.\" mariadbd option: my_print_defaults
+\fB\-\-mariadbd\fR
 .sp
-Read the same set of groups that the mysqld binary does.
+Read the same set of groups that the mariadbd binary does.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+.\" my_print_defaults: --mariadbd option
+.\" mariadbd option: my_print_defaults
+\fB\-\-mariadbd\fR
+.sp
+Read the same set of groups that the mariadbd binary does.
 .RE
 .sp
 .RS 4
@@ -205,7 +219,7 @@ Display version information and exit\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

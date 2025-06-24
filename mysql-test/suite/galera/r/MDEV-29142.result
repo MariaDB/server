@@ -11,11 +11,11 @@ call mtr.add_suppression("WSREP: Failed to open table mysql\\.wsrep_streaming_lo
 call mtr.add_suppression("WSREP: Failed to open SR table for write");
 call mtr.add_suppression("WSREP: Failed to recover SR transactions from schema: wsrep_on : 0");
 call mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
-SET @@global.tx_read_only = ON;
+SET @@global.transaction_read_only = ON;
 SET default_storage_engine = SEQUENCE;
 create table t1 (c1 int);
 ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
-CREATE TABLE t1(c1 VARCHAR(20)) engine=innodb;
+CREATE TABLE t1(c1 VARCHAR(20)) engine=innodb charset=latin1;
 INSERT INTO t1  VALUES(0xA9B8);
 create TABLE t1 (c1 int) engine=innodb;
 ERROR 42S01: Table 't1' already exists

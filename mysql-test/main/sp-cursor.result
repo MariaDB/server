@@ -167,12 +167,12 @@ CALL p1('1b');
 v_a
 1
 Warnings:
-Warning	1265	Data truncated for column 'p_a' at row 1
+Warning	1265	Data truncated for column 'p_a' at row 0
 CALL p1('b1');
 v_a
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 0
 DROP PROCEDURE p1;
 SET sql_mode=DEFAULT;
 #
@@ -812,3 +812,178 @@ DROP TABLE t;
 #
 # End of 10.6 tests
 #
+#
+# Start of 10.8 tests
+#
+#
+# MDEV-10654 IN, OUT, INOUT parameters in CREATE FUNCTION
+#
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (IN a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+va
+1
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (OUT a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (INOUT a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+#
+# End of 10.8 tests
+#
+# Start of 11.4 tests
+#
+# MDEV-36047 Package body variables are not allowed as FETCH targets
+#
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc INT DEFAULT 0;
+FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc with a "PACKAGE_BODY" prefix
+CLOSE cur;
+RETURN vc;
+END;
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc; -- SHOW CODE should display vc without a prefix
+CLOSE cur;
+END;
+END;
+$$
+SELECT pkg.f1();
+pkg.f1()
+1
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc1 INT DEFAULT 0;
+FUNCTION f1() RETURNS TEXT
+BEGIN
+DECLARE vc2 INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc1, vc2;
+CLOSE cur;
+RETURN CONCAT(vc1, ' ', vc2);
+END;
+END;
+$$
+SELECT pkg.f1();
+pkg.f1()
+1 2
+DROP PACKAGE pkg;
+CREATE PACKAGE pkg
+FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+DECLARE vc ROW(p1 INT, p2 INT);
+FUNCTION f1() RETURNS TEXT
+BEGIN
+DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+OPEN cur;
+FETCH cur INTO vc;
+CLOSE cur;
+RETURN CONCAT(vc.p1, ' ', vc.p2);
+END;
+END;
+$$
+SELECT pkg.f1();
+pkg.f1()
+1 2
+DROP PACKAGE pkg;
+#
+# MDEV-36462: Crash on `DECLARE spvar1 ROW TYPE OF cursor1` after a table recreation
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR SELECT a FROM t1;
+BEGIN
+DECLARE va ROW TYPE OF c; -- the crash happens here
+END;
+END;
+/
+CREATE PROCEDURE p2()
+BEGIN
+FOR i IN 1..10 DO  -- usually it crashes on the third iteration, but not always
+SELECT i;
+CREATE OR REPLACE TABLE t1 (a INT);
+CALL p1;
+CALL p1;
+END FOR;
+END;
+/
+CALL p2;
+i
+1
+i
+2
+i
+3
+i
+4
+i
+5
+i
+6
+i
+7
+i
+8
+i
+9
+i
+10
+# Clean up
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+# The following test is taken from the task MDEV-36114 which is
+# partially a duplicate of the task MDEV-36462
+CREATE PROCEDURE p()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+END;
+END;
+/
+CREATE TABLE t (id INT);
+CALL p();
+CREATE OR REPLACE TABLE t (id INT);
+CALL p();
+# Clean up
+DROP PROCEDURE p;
+DROP TABLE t;
+# End of 11.4 tests

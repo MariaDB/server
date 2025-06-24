@@ -1,6 +1,10 @@
 SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t(a INT)ENGINE=InnoDB;
 SET GLOBAL innodb_file_per_table=1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE ibd4(a INT UNIQUE)ENGINE=InnoDB;
 CREATE TABLE ibd4f(a INT UNIQUE)ENGINE=InnoDB;
 CREATE TABLE ibd5(a INT UNIQUE, b INT UNIQUE)ENGINE=InnoDB;

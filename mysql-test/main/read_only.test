@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS t1,t2,t3;
 
 create user test@localhost;
 grant CREATE, SELECT, DROP on *.* to test@localhost;
+grant ALL on test.* to test@localhost;
 
 connect (con1,localhost,test,,test);
 
@@ -145,7 +146,8 @@ send set global read_only=1;
 connection con1;
 select @@global.read_only;
 unlock tables ;
-let $wait_condition= SELECT @@global.read_only= 1;
+let $wait_timeout=10;
+let $wait_condition= SELECT @@global.read_only="on";
 --source include/wait_condition.inc
 select @@global.read_only;
 
@@ -265,6 +267,7 @@ create user `mysqltest_u1`@`%`;
 grant all on mysqltest_db2.* to `mysqltest_u1`@`%`;
 create database mysqltest_db1;
 grant all on mysqltest_db1.* to `mysqltest_u1`@`%`;
+grant select on test.* to `mysqltest_u1`@`%`;
 flush privileges;
 connect (con_bug27440,127.0.0.1,mysqltest_u1,,test,$MASTER_MYPORT,);
 connection con_bug27440;
@@ -286,6 +289,7 @@ set global read_only= @start_read_only;
 --echo #
 --echo # MDEV-16987 - ALTER DATABASE possible in read-only mode
 --echo #
+
 CREATE USER user1@localhost;
 GRANT ALTER ON test1.* TO user1@localhost;
 CREATE DATABASE test1;
@@ -312,6 +316,7 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2);
 
 CREATE USER user1;
+GRANT ALL on test.* to user1;
 connect (con1, localhost, user1);
 connection default;
 
@@ -359,3 +364,104 @@ DROP TABLE t1;
 --source include/wait_until_count_sessions.inc
 
 --echo # End of 10.0 tests
+
+--echo #
+--echo # MDEV-36425 Extend read_only to also block share locks and super user
+--echo #
+
+
+CREATE USER user1;
+GRANT ALL on test.* to user1;
+connect (con1, localhost, user1);
+connection default;
+
+CREATE TABLE t1 (a int primary key auto_increment);
+insert into t1 values (1),(2);
+show variables like "read_only";
+
+SET GLOBAL read_only=1;
+show variables like "read_only";
+--echo # admin
+insert into t1 values ();
+lock tables t1 read;
+unlock tables;
+lock tables t1 write;
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+commit;
+
+--echo # user
+connection con1;
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t1 values ();
+lock tables t1 read;
+unlock tables;
+--error ER_OPTION_PREVENTS_STATEMENT
+lock tables t1 write;
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+commit;
+
+connection default;
+SET GLOBAL read_only=2;
+show variables like "read_only";
+
+--echo # admin
+insert into t1 values ();
+lock tables t1 read;
+unlock tables;
+lock tables t1 write;
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+commit;
+
+--echo #user
+connection con1;
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t1 values ();
+--error ER_OPTION_PREVENTS_STATEMENT
+lock tables t1 read;
+unlock tables;
+--error ER_OPTION_PREVENTS_STATEMENT
+lock tables t1 write;
+unlock tables;
+begin;
+--error ER_OPTION_PREVENTS_STATEMENT
+select count(*) from t1 LOCK IN SHARE MODE;
+--error ER_OPTION_PREVENTS_STATEMENT
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+commit;
+
+connection default;
+SET GLOBAL read_only=3;
+show variables like "read_only";
+
+--echo # admin
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t1 values ();
+--error ER_OPTION_PREVENTS_STATEMENT
+lock tables t1 read;
+unlock tables;
+--error ER_OPTION_PREVENTS_STATEMENT
+lock tables t1 write;
+unlock tables;
+begin;
+--error ER_OPTION_PREVENTS_STATEMENT
+select count(*) from t1 LOCK IN SHARE MODE;
+--error ER_OPTION_PREVENTS_STATEMENT
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+commit;
+
+SET GLOBAL read_only=0;
+select count(*) from t1;
+drop table t1;
+drop user user1;
+disconnect con1;
+
+--echo # End of 11.8 tests

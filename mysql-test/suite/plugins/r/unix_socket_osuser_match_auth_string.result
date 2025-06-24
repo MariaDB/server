@@ -1,0 +1,139 @@
+########################################################################
+# Test for case:
+#     - create user A identified via unix_socket as 'B' or unix_socket as 'C';
+#     - connect as database user A using unix user of B
+# Expected result:
+#     - connection succeed
+########################################################################
+create user 'DB_USER1' identified via unix_socket as 'OS_USER' or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name';
+grant select on test.* to 'DB_USER1';
+#
+# Auth succeed with OS user matches the first authentication string.
+# @@external_user is set to OS_USER name.
+#
+select user(), current_user(), database();
+user()	current_user()	database()
+DB_USER1@localhost	DB_USER1@%	test
+select @@external_user;
+@@external_user
+OS_USER
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string from mysql.global_priv where user='DB_USER1';
+host	user	authentication_string	optional_authentication_string
+%	DB_USER1	-Cannot-Match-Any-Legal-Unix-User-Name	OS_USER
+
+########################################################################
+# Test for case:
+#     - create user A identified via unix_socket as 'B' or unix_socket as 'C';
+#     - connect as database user A using unix user of C
+# Expected result:
+#     - connection succeed
+########################################################################
+create user 'DB_USER2' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name' or unix_socket as 'OS_USER';
+grant select on test.* to 'DB_USER2';
+#
+# Auth succeed with OS user matches the optional authentication string.
+# @@external_user is set to OS_USER name.
+#
+select user(), current_user(), database();
+user()	current_user()	database()
+DB_USER2@localhost	DB_USER2@%	test
+select @@external_user;
+@@external_user
+OS_USER
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string from mysql.global_priv where user='DB_USER1';
+host	user	authentication_string	optional_authentication_string
+%	DB_USER1	-Cannot-Match-Any-Legal-Unix-User-Name	OS_USER
+
+########################################################################
+# Test for case:
+#     - create user A identified via unix_socket as 'B';
+#     - connect as database user A using unix user of D
+# Expected result:
+#     - connection is refused
+########################################################################
+create user 'DB_USER3' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name';
+grant select on test.* to 'DB_USER3';
+#
+# Auth fail with OS user that does not match the authentication string.
+#
+#
+########################################################################
+# Test for case:
+#     - create user A identified via unix_socket as 'B' or unix_socket as 'C';
+#     - connect as database user A using unix user of D
+# Expected result:
+#     - connection is refused
+########################################################################
+create user 'DB_USER4' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-1'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-2';
+grant select on test.* to 'DB_USER4';
+#
+# Auth fail with OS user that does not match the authentication string.
+#
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string from mysql.global_priv where user='DB_USER1';
+host	user	authentication_string	optional_authentication_string
+%	DB_USER1	-Cannot-Match-Any-Legal-Unix-User-Name	OS_USER
+########################################################################
+# Test for case:
+#     - create user A identified via unix_socket as 'B' or unix_socket as 'C' or unix_socket as 'D' or unix_socket as 'E' or unix_socket as 'F';
+#     - connect as database user A using unix user of 'D'
+# Expected result:
+#     - connection succeed
+########################################################################
+create user 'DB_USER5' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-B'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-C'
+                                        or unix_socket as 'OS_USER'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-E'
+                                        or unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name-F';
+grant select on test.* to 'DB_USER5';
+#
+# Auth succeed with OS user matches the first authentication string.
+# @@external_user is set to OS_USER name.
+#
+select user(), current_user(), database();
+user()	current_user()	database()
+DB_USER5@localhost	DB_USER5@%	test
+select @@external_user;
+@@external_user
+OS_USER
+select host, user, json_value(priv, '$.authentication_string') as authentication_string,
+json_value(priv, '$.auth_or[0].authentication_string') as optional_authentication_string_0,
+json_value(priv, '$.auth_or[1].authentication_string') as optional_authentication_string_1,
+json_value(priv, '$.auth_or[2].authentication_string') as optional_authentication_string_2,
+json_value(priv, '$.auth_or[3].authentication_string') as optional_authentication_string_3
+from mysql.global_priv where user='DB_USER5';
+host	user	authentication_string	optional_authentication_string_0	optional_authentication_string_1	optional_authentication_string_2	optional_authentication_string_3
+%	DB_USER5	-Cannot-Match-Any-Legal-Unix-User-Name-F	-Cannot-Match-Any-Legal-Unix-User-Name-B	-Cannot-Match-Any-Legal-Unix-User-Name-C	OS_USER	-Cannot-Match-Any-Legal-Unix-User-Name-E
+
+########################################################################
+# Test for case:
+#     - create user A identified via unix_socket as 'B';
+#     - connect as database user A using unix user of A
+# Expected result:
+#     - connection is rejected
+########################################################################
+#
+# Create DB user different with the OS user name, but using OS user name as the authentication string.
+#
+create user 'OS_USER' identified via unix_socket as '-Cannot-Match-Any-Legal-Unix-User-Name';
+grant select on test.* to 'OS_USER';
+#
+# Auth fail with OS user that does not match the authentication string.
+#
+
+########################################################################
+# Removing the test user.
+########################################################################
+drop user 'DB_USER1';
+drop user 'DB_USER2';
+drop user 'DB_USER3';
+drop user 'DB_USER4';
+drop user 'DB_USER5';
+drop user 'OS_USER';
+FLUSH PRIVILEGES;
+########################################################################
+# Removing the test file.
+########################################################################

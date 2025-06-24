@@ -1,6 +1,6 @@
 --- instant_alter_limit.result
 +++ instant_alter_limit,32k.reject
-@@ -43,5 +43,12 @@
+@@ -44,6 +44,13 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
@@ -14,3 +14,4 @@
 +ALTER TABLE t1 ADD UNIQUE KEY (f2(9));
 +ALTER TABLE t1 ADD COLUMN f5 TEXT, ALGORITHM=INPLACE;
 +DROP TABLE t1;
+ ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

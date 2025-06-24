@@ -51,44 +51,57 @@ SELECT 1;
 [log_grep.inc] lines:   0
 [log_grep.inc] file: log_slow_innodb-verbosity_2 pattern: ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+$
 [log_grep.inc] lines:   0
+#
+# Test 'query_plan'
+#
 SET SESSION log_slow_verbosity='query_plan';
+[slow_log_start.inc] log_slow_innodb-verbosity_3
+INSERT INTO t1 VALUE(1001,1001);
 [log_slow_stop.inc] log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000)
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Thread_id: .+ Schema: .+  QC_hit: (Yes|No)$ expected_matches: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Thread_id: .+ Schema: .+  QC_hit: (Yes|No)$ expected_matches: 2
 [log_grep.inc] found expected match count: 2
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Query_time: \d+\.\d+  Lock_time: \d+\.\d+  Rows_sent: \d+  Rows_examined: \d+$ expected_matches: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Query_time: \d+\.\d+  Lock_time: \d+\.\d+  Rows_sent: \d+  Rows_examined: \d+$ expected_matches: 2
 [log_grep.inc] found expected match count: 2
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Rows_affected: \d+  Bytes_sent: \d+$ expected_matches: 2
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Rows_affected: \d+  Bytes_sent: \d+$ expected_matches: 2
 [log_grep.inc] found expected match count: 2
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Full_scan: (Yes|No)  Full_join: (Yes|No)  Tmp_table: (Yes|No)  Tmp_table_on_disk: (Yes|No)$
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Full_scan: (Yes|No)  Full_join: (Yes|No)  Tmp_table: (Yes|No)  Tmp_table_on_disk: (Yes|No)$
 [log_grep.inc] lines:   0
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
 [log_grep.inc] lines:   0
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Filesort: (Yes|No)  Filesort_on_disk: (Yes|No)  Merge_passes: \d+\ Priority_queue: (Yes|No)$
 [log_grep.inc] lines:   0
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Tmp_tables: \d+  Tmp_disk_tables: \d+$
 [log_grep.inc] lines:   0
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Pages_accessed: \d+  Pages_read: \d+  Pages_prefetched: \d+  Pages_updated: \d+  Old_rows_read: \d+$
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Pages_accessed: \d+  Pages_read: \d+  Pages_prefetched: \d+  Pages_updated: \d+  Old_rows_read: \d+$
 [log_grep.inc] lines:   0
-[log_grep.inc] file: log_slow_innodb-verbosity_3
---source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000) pattern: ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+$
+[log_grep.inc] file: log_slow_innodb-verbosity_3 pattern: ^# Pages_read_time: \d+\.\d+  Engine_time: \d+\.\d+$
 [log_grep.inc] lines:   0
 DROP TABLE t1;
+#
+# Test max_tmp_disk_space_used
+#
+CREATE TABLE t1(a INT primary key, c varchar(1024)) ENGINE=InnoDB;
+insert into t1 select seq, concat(repeat(char(65+mod(seq,61)),32),repeat(char(65+mod(seq,59)),32)) from seq_1_to_1000;
+SET SESSION log_slow_verbosity='query_plan';
+SET SESSION sort_buffer_size=16384;
+SET SESSION long_query_time=0;
+[slow_log_start.inc] log_slow_innodb-verbosity_4
+SELECT c, count(*) from t1 group by c order by 2 limit 700,10;
+c	count(*)
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM	2
+DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN	2
+EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO	2
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP	2
+GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ	2
+HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR	2
+IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIISSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS	2
+JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT	2
+KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU	2
+LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV	2
+[log_slow_stop.inc] log_slow_innodb-verbosity_4
+[log_grep.inc] file: log_slow_innodb-verbosity_4 pattern: ^# Max_tmp_disk_space_used.* expected_matches: 1
+[log_grep.inc] found expected match count: 1
+drop table t1;
+#
+# Cleanup
+#

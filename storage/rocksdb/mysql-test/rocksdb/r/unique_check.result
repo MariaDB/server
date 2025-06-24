@@ -66,12 +66,12 @@ id	id2	value
 2	1	2
 truncate table t2;
 connection con1;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go';
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go1';
 insert into t1 values (1,1);
 connection default;
 set debug_sync='now WAIT_FOR parked1';
 connection con2;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go';
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go2';
 insert into t2 values (1,1,1);
 connection default;
 set debug_sync='now WAIT_FOR parked2';
@@ -82,7 +82,8 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into t2 values (2,1,2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
-set debug_sync='now SIGNAL go';
+set debug_sync='now SIGNAL go1';
+set debug_sync='now SIGNAL go2';
 connection con1;
 connection con2;
 connection default;
@@ -115,3 +116,9 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 insert into t3 values (1, 1), (1, 1);
 set @@session.unique_checks = @old_val;
 drop table t1, t2, t3;
+#
+# MDEV-35077 Assertion failure in myrocks::ha_rocksdb::position_to_correct_key upon using unique hash key
+#
+CREATE TABLE t (s INT, UNIQUE(s) USING HASH) ENGINE=RocksDB;
+UPDATE t SET s = 1 WHERE s > 2;
+DROP TABLE t;

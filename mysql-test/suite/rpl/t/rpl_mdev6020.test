@@ -4,6 +4,9 @@
 --source include/have_partition.inc
 --source include/have_binlog_format_mixed_or_row.inc
 --source include/master-slave.inc
+--connection master
+--source include/test_db_charset_latin1.inc
+--sync_slave_with_master
 --connection slave
 --source include/stop_slave.inc
 
@@ -31,7 +34,7 @@ SET GLOBAL default_storage_engine=InnoDB;
 SET @old_parallel= @@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=12;
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
-eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4, master_use_gtid=no;
 --source include/start_slave.inc
 
 --connection master
@@ -63,9 +66,10 @@ DROP TABLE table1_key_pk_parts_2_int_autoinc;
 DROP TABLE table2_int_autoinc;
 DROP TABLE table2_key_pk_parts_2_int_autoinc;
 SET sql_log_bin=1;
-
+--source include/test_db_charset_restore.inc
 --source include/start_slave.inc
 
 --connection master
+--source include/test_db_charset_restore.inc
 
 --source include/rpl_end.inc

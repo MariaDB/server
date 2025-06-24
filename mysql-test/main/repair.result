@@ -1,4 +1,5 @@
 call mtr.add_suppression("character set is multi-byte");
+call mtr.add_suppression("exists only for compatibility");
 drop table if exists t1;
 create table t1 SELECT 1,"table 1";
 repair table t1 use_frm;
@@ -10,7 +11,7 @@ repair table t1 use_frm;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	note	The storage engine for the table doesn't support repair
 drop table t1;
-create table t1(id int PRIMARY KEY, st varchar(10), KEY st_key(st));
+create table t1(id int PRIMARY KEY, st varchar(10), KEY st_key(st)) CHARSET=latin1;
 insert into t1 values(1, "One");
 alter table t1 disable keys;
 show keys from t1;
@@ -58,7 +59,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 USE test;
 DROP TABLE t1;
-CREATE TABLE t1(a CHAR(255), KEY(a));
+CREATE TABLE t1(a CHAR(255), KEY(a)) CHARSET=latin1;
 SET myisam_sort_buffer_size=4096;
 INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
@@ -86,7 +87,7 @@ test.t1	repair	status	OK
 SET myisam_repair_threads=@@global.myisam_repair_threads;
 SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
 DROP TABLE t1;
-CREATE TABLE t1(a CHAR(255), KEY(a));
+CREATE TABLE t1(a CHAR(255), KEY(a)) CHARSET=latin1;
 SET myisam_sort_buffer_size=4496;
 INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
@@ -121,15 +122,17 @@ SELECT * FROM t1;
 id
 1
 2
-# Run CHECK TABLE, it should indicate table need a REPAIR TABLE
+# Run CHECK TABLE, it should indicate table need a ALTER TABLE
 CHECK TABLE t1 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
 # REPAIR old table USE_FRM should fail
 REPAIR TABLE t1 USE_FRM;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	warning	Number of rows changed from 0 to 1
-test.t1	repair	status	OK
+test.t1	repair	note	Table data recovered
+t1	repair	error	Table rebuild required. Please do "ALTER TABLE `test.t1` FORCE" or dump/reload to fix it!
+test.t1	repair	status	Operation failed
 # Run REPAIR TABLE to upgrade .frm file
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -147,6 +150,11 @@ test.t1	repair	status	OK
 SELECT * FROM t1;
 id
 1
+DROP TABLE t1;
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 DROP TABLE t1;
 # End of 5.0 tests
 DROP TABLE IF EXISTS tt1;
@@ -186,29 +194,35 @@ drop tables t1, t2;
 # .frm file from MySQL 3.23
 #
 # Test with a saved table from 3.23
-SET @save_global_character_set_server= @@global.character_set_server;
-set @@global.character_set_server=@@character_set_server;
+SET @save_global_collation_server= @@global.collation_server;
+set @@global.collation_server=@@collation_server;
 select count(*) from t1;
-ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You can try REPAIR TABLE ... USE_FRM possibly followed by ALTER TABLE ... FORCE or dump and restore the table to fix this" from storage engine MyISAM
 check table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You can try REPAIR TABLE ... USE_FRM possibly followed by ALTER TABLE ... FORCE or dump and restore the table to fix this" from storage engine MyISAM
 test.t1	check	error	Corrupt
 repair table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You can try REPAIR TABLE ... USE_FRM possibly followed by ALTER TABLE ... FORCE or dump and restore the table to fix this" from storage engine MyISAM
 test.t1	repair	error	Corrupt
 repair table t1 use_frm;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	status	OK
+test.t1	repair	note	Table data recovered
+t1	repair	error	Table rebuild required. Please do "ALTER TABLE `test.t1` FORCE" or dump/reload to fix it!
+test.t1	repair	status	Operation failed
 select count(*) from t1;
 count(*)
 0
 check table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
+alter table t1 force;
+check table t1;
+Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
-set @@global.character_set_server=@save_global_character_set_server;
+set @@global.collation_server=@save_global_collation_server;
 create table t1 (a blob);
 create view v1 as select * from t1;
 repair view v1;
@@ -251,3 +265,53 @@ test.t1	repair	status	OK
 set myisam_repair_threads = default;
 drop table t1;
 # End of 10.2 tests
+#
+# MDEV-33737 The way of ignoring alter-algorithm is inconsistent with
+# other options and with itself
+#
+select * from information_schema.system_variables where variable_name = 'ALTER_ALGORITHM';
+VARIABLE_NAME	ALTER_ALGORITHM
+SESSION_VALUE	DEFAULT
+GLOBAL_VALUE	DEFAULT
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	DEFAULT
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Unused
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	DEFAULT,COPY,INPLACE,NOCOPY,INSTANT
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+GLOBAL_VALUE_PATH	NULL
+set alter_algorithm=COPY;
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+select @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+set statement alter_algorithm=COPY FOR SELECT @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+# restart: --alter-algorithm=COPY
+select @@alter_algorithm;
+@@alter_algorithm
+DEFAULT
+#
+# MDEV-33826 Assertion `tl->table == __null' failed in
+# THD::open_temporary_table
+#
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t3 (i INT);
+REPAIR TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+test.t2	repair	status	OK
+test.t3	repair	status	OK
+DROP TABLE t1,t2,t3;
+# End of 11.5 tests

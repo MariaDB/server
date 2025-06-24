@@ -82,6 +82,7 @@ static unsigned long log_level;
 static int rotate_key;
 static int request_timeout;
 static char* endpoint_url;
+static char* keyfile_dir;
 
 #ifndef DBUG_OFF
 #define WITH_AWS_MOCK 1
@@ -187,13 +188,23 @@ protected:
   }
 };
 
-/*  Get list of files in current directory */
-static vector<string> traverse_current_directory()
+/* Get keyfile directory */
+static const char * get_keyfile_dir()
+{
+  if (keyfile_dir && keyfile_dir[0])
+    return keyfile_dir;
+  return ".";
+}
+
+/*  Get list of files in keyfile directory */
+static vector<string> traverse_keyfile_directory()
 {
   vector<string> v;
 #ifdef _WIN32
   WIN32_FIND_DATA find_data;
-  HANDLE h= FindFirstFile("*.*", &find_data);
+  char path[FN_REFLEN];
+  snprintf(path, sizeof(path), "%s\\*.*", get_keyfile_dir());
+  HANDLE h= FindFirstFile(path, &find_data);
   if (h == INVALID_HANDLE_VALUE)
     return v;
   do
@@ -203,7 +214,7 @@ static vector<string> traverse_current_directory()
   while (FindNextFile(h, &find_data));
   FindClose(h);
 #else
-  DIR *dir = opendir(".");
+  DIR *dir = opendir(get_keyfile_dir());
   if (!dir)
     return v;
   struct dirent *e;
@@ -272,7 +283,7 @@ static int plugin_init(void *p)
   if (init())
     return -1;
 
-  vector<string> files= traverse_current_directory();
+  vector<string> files= traverse_keyfile_directory();
   for (size_t i=0; i < files.size(); i++)
   {
 
@@ -316,7 +327,7 @@ static int plugin_deinit(void *p)
 /*  Generate filename to store the ciphered key */
 static void format_keyfile_name(char *buf, size_t size, uint key_id, uint version)
 {
-  snprintf(buf, size, "aws-kms-key.%u.%u", key_id, version);
+  snprintf(buf, size, "%s%saws-kms-key.%u.%u", get_keyfile_dir(), IF_WIN("\\","/"), key_id, version);
 }
 
 /* Extract key id and version from file name */
@@ -336,7 +347,7 @@ static int extract_id_and_version(const char *name, uint *id, uint *ver)
 static int load_key(KEY_INFO *info)
 {
   int ret;
-  char path[256];
+  char path[FN_REFLEN];
 
   format_keyfile_name(path, sizeof(path), info->key_id, info->key_version);
   ret= read_and_decrypt_key(path, info);
@@ -531,7 +542,7 @@ static int generate_and_save_datakey(uint keyid, uint version)
      return -1;
 
   string out;
-  char filename[20];
+  char filename[FN_REFLEN];
   format_keyfile_name(filename, sizeof(filename), keyid, version);
   int fd= open(filename, O_WRONLY |O_CREAT|O_BINARY, IF_WIN(_S_IREAD, S_IRUSR| S_IRGRP| S_IROTH));
   if (fd < 0)
@@ -652,7 +663,6 @@ static unsigned int get_key(
   return(0);
 }
 
-
 /* Plugin defs */
 struct st_mariadb_encryption aws_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
@@ -663,11 +673,7 @@ struct st_mariadb_encryption aws_key_management_plugin= {
 };
 
 
-static TYPELIB key_spec_typelib =
-{
-  array_elements(key_spec_names) - 1, "",
-  key_spec_names, NULL
-};
+static TYPELIB key_spec_typelib = CREATE_TYPELIB_FOR(key_spec_names);
 
 const char *log_level_names[] =
 {
@@ -681,11 +687,7 @@ const char *log_level_names[] =
   0
 };
 
-static TYPELIB log_level_typelib =
-{
-  array_elements(log_level_names) - 1, "",
-  log_level_names, NULL
-};
+static TYPELIB log_level_typelib = CREATE_TYPELIB_FOR(log_level_names);
 
 static MYSQL_SYSVAR_STR(master_key_id, master_key_id,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -694,7 +696,7 @@ static MYSQL_SYSVAR_STR(master_key_id, master_key_id,
 
 static MYSQL_SYSVAR_ENUM(key_spec, key_spec,
   PLUGIN_VAR_RQCMDARG,
-  "Encryption algorithm used to create new keys.",
+  "Encryption algorithm used to create new keys",
   NULL, NULL, 0, &key_spec_typelib);
 
 
@@ -712,12 +714,12 @@ static MYSQL_SYSVAR_INT(rotate_key, rotate_key,
 
 static MYSQL_SYSVAR_INT(request_timeout, request_timeout,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Timeout in milliseconds for create HTTPS connection or execute AWS request. Specify 0 to use SDK default.",
+  "Timeout in milliseconds for create HTTPS connection or execute AWS request. Specify 0 to use SDK default",
   NULL, NULL, 0, 0, INT_MAX, 1);
 
 static MYSQL_SYSVAR_STR(region, region,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "AWS region. For example us-east-1, or eu-central-1. If no value provided, SDK default is used.",
+  "AWS region. For example us-east-1, or eu-central-1. If no value provided, SDK default is used",
   NULL, NULL, "");
 
 static MYSQL_SYSVAR_STR(endpoint_url, endpoint_url,
@@ -725,10 +727,16 @@ static MYSQL_SYSVAR_STR(endpoint_url, endpoint_url,
   "Used to override the default AWS API endpoint. If not set, the default will be used",
   NULL, NULL, "");
 
+static MYSQL_SYSVAR_STR(keyfile_dir, keyfile_dir,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Define the directory in which to save key files for the AWS key"
+  "management plugin. If not set, the root datadir will be used",
+  NULL, NULL, "");
+
 #if WITH_AWS_MOCK
 static MYSQL_SYSVAR_BOOL(mock, mock,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
- "Mock AWS KMS calls (for testing).",
+ "Mock AWS KMS calls (for testing)",
   NULL,  NULL, 0);
 #endif
 
@@ -740,6 +748,7 @@ static struct st_mysql_sys_var* settings[]= {
   MYSQL_SYSVAR(request_timeout),
   MYSQL_SYSVAR(region),
   MYSQL_SYSVAR(endpoint_url),
+  MYSQL_SYSVAR(keyfile_dir),
 #if WITH_AWS_MOCK
   MYSQL_SYSVAR(mock),
 #endif

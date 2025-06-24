@@ -56,12 +56,8 @@ is acceptable for the program to die with a clear assert failure. */
 #define BTR_MAX_LEVELS		100
 
 #define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)		\
-	btr_latch_mode((latch_mode) & ~(BTR_INSERT	\
-				| BTR_DELETE_MARK		\
-				| BTR_RTREE_UNDO_INS		\
+	btr_latch_mode((latch_mode) & ~(BTR_RTREE_UNDO_INS	\
 				| BTR_RTREE_DELETE_MARK		\
-				| BTR_DELETE			\
-				| BTR_IGNORE_SEC_UNIQUE		\
 				| BTR_ALREADY_S_LATCHED		\
 				| BTR_LATCH_FOR_INSERT		\
 				| BTR_LATCH_FOR_DELETE))
@@ -79,6 +75,14 @@ btr_root_adjust_on_import(
 	const dict_index_t*	index)	/*!< in: index tree */
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Check a file segment header within a B-tree root page.
+@param offset      file segment header offset
+@param block       B-tree root page
+@param space       tablespace
+@return whether the segment header is valid */
+bool btr_root_fseg_validate(ulint offset, const buf_block_t &block,
+                            const fil_space_t &space);
+
 /** Report a read failure if it is a decryption failure.
 @param err   error code
 @param index the index that is being accessed */
@@ -88,13 +92,12 @@ ATTRIBUTE_COLD void btr_read_failed(dberr_t err, const dict_index_t &index);
 @param  index         index tree
 @param  page          page number
 @param  latch_mode    latch mode
-@param  merge         whether change buffer merge should be attempted
 @param  mtr           mini-transaction
 @param  err           error code
 @param  first         set if this is a first-time access to the page
 @return block */
 buf_block_t *btr_block_get(const dict_index_t &index, uint32_t page,
-                           rw_lock_type_t latch_mode, bool merge, mtr_t *mtr,
+                           rw_lock_type_t latch_mode, mtr_t *mtr,
                            dberr_t *err= nullptr, bool *first= nullptr
 #if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
                            , ulint page_get_mode= BUF_GET
@@ -252,15 +255,7 @@ btr_root_raise_and_insert(
 	mtr_t*		mtr,	/*!< in: mtr */
 	dberr_t*	err)	/*!< out: error code */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*************************************************************//**
-Reorganizes an index page.
-
-IMPORTANT: On success, the caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index. This has to
-be done either within the same mini-transaction, or by invoking
-ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
-IBUF_BITMAP_FREE is unaffected by reorganization.
-
+/** Reorganize an index page.
 @param cursor  page cursor
 @param mtr     mini-transaction
 @return error code
@@ -357,6 +352,7 @@ btr_check_node_ptr(
 /*===============*/
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: index page */
+	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((warn_unused_result));
 #endif /* UNIV_DEBUG */
@@ -460,15 +456,8 @@ btr_root_block_get(
 					or RW_X_LATCH */
 	mtr_t*			mtr,	/*!< in: mtr */
 	dberr_t*		err);	/*!< out: error code */
-/*************************************************************//**
-Reorganizes an index page.
 
-IMPORTANT: On success, the caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index. This has to
-be done either within the same mini-transaction, or by invoking
-ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
-IBUF_BITMAP_FREE is unaffected by reorganization.
-
+/** Reorganize an index page.
 @return error code
 @retval DB_FAIL if reorganizing a ROW_FORMAT=COMPRESSED page failed */
 dberr_t btr_page_reorganize_block(
@@ -539,9 +528,10 @@ btr_lift_page_up(
 				must not be empty: use
 				btr_discard_only_page_on_level if the last
 				record from the page should be removed */
+	que_thr_t*	thr,	/*!< in/out: query thread for SPATIAL INDEX */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	dberr_t*	err)	/*!< out: error code */
-	__attribute__((nonnull));
+	__attribute__((nonnull(1,2,4,5)));
 
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2

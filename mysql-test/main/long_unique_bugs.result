@@ -25,7 +25,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL,
   UNIQUE KEY `b` (`b`) USING HASH
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-18713 Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed in test_if_reopen upon REPLACE into table with key on blob
@@ -175,7 +175,7 @@ Cardinality	0
 Sub_part	NULL
 Packed	NULL
 Null	
-Index_type	BTREE
+Index_type	HASH
 Comment	
 Index_comment	
 Ignored	NO
@@ -301,9 +301,9 @@ unique key a using hash (c(1))
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `c` char(10) DEFAULT NULL,
   UNIQUE KEY `a` (`c`(1)) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ('б');
 insert into t1 values ('бб');
 ERROR 23000: Duplicate entry '�' for key 'a'
@@ -464,7 +464,7 @@ f1 varchar(25),
 v1 mediumtext generated always as (concat('f1:', f1)) virtual,
 unique key (f1) using hash,
 key (v1(1000))
-);
+) charset=latin1;
 flush status;
 insert ignore t1 (f1) values (9599),(94410);
 show status like 'handler_read_next';
@@ -761,10 +761,10 @@ b	CREATE TABLE `b` (
   UNIQUE KEY `unique_b` (`id`,`long_text`) USING HASH,
   KEY `b_fk_id` (`id`),
   CONSTRAINT `b_fk_id` FOREIGN KEY (`id`) REFERENCES `a` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table b;
 drop table a;
-# veirfy that duplicate has unique is detected
+# verify that duplicate has unique is detected
 create table t1 (a blob unique);
 alter table t1 add constraint constraint_1 unique (a);
 Warnings:

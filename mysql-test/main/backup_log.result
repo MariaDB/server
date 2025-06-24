@@ -27,7 +27,7 @@ rename table t2_innodb to t1_innodb;
 truncate table t1_innodb;
 repair table t1_innodb;
 Table	Op	Msg_type	Msg_text
-test.t1_innodb	repair	note	The storage engine for the table doesn't support repair
+test.t1_innodb	repair	status	OK
 optimize table t1_innodb;
 Table	Op	Msg_type	Msg_text
 test.t1_innodb	optimize	note	Table does not support optimize, doing recreate + analyze instead
@@ -83,7 +83,7 @@ Table	Create Table
 t42	CREATE TABLE `t42` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t40, t41, t42;
 #
 # Testing rename
@@ -171,67 +171,67 @@ ALTER,InnoDB,0,test,t1_innodb,id: 3,InnoDB,0,test,t1_innodb,id: 4
 RENAME,InnoDB,0,test,t1_innodb,id: 4,InnoDB,0,test,t2_innodb,id: 4
 RENAME,InnoDB,0,test,t2_innodb,id: 4,InnoDB,0,test,t1_innodb,id: 4
 TRUNCATE,InnoDB,0,test,t1_innodb,id: 4,,0,,,
-repair,InnoDB,0,test,t1_innodb,id: 4,,0,,,
-ALTER,InnoDB,0,test,t1_innodb,id: 4,InnoDB,0,test,t1_innodb,id: 5
-DROP,InnoDB,0,test,t1_innodb,id: 5,,0,,,
-CREATE,MyISAM,0,test,t20,id: 6,,0,,,
-DROP,MyISAM,0,test,t20,id: 6,,0,,,
-CREATE,MyISAM,0,test,t21,id: 7,,0,,,
-DROP,MyISAM,0,test,t21,id: 7,,0,,,
-CREATE,MyISAM,0,test,t30,id: 8,,0,,,
-CREATE,MyISAM,0,test,t31,id: 9,,0,,,
-DROP,MyISAM,0,test,t31,id: 9,,0,,,
+repair,InnoDB,0,test,t1_innodb,id: 4,,0,test,t1_innodb,id: 5
+optimize,InnoDB,0,test,t1_innodb,id: 5,,0,test,t1_innodb,id: 6
+DROP,InnoDB,0,test,t1_innodb,id: 6,,0,,,
+CREATE,MyISAM,0,test,t20,id: 7,,0,,,
+DROP,MyISAM,0,test,t20,id: 7,,0,,,
+CREATE,MyISAM,0,test,t21,id: 8,,0,,,
+DROP,MyISAM,0,test,t21,id: 8,,0,,,
+CREATE,MyISAM,0,test,t30,id: 9,,0,,,
 CREATE,MyISAM,0,test,t31,id: 10,,0,,,
 DROP,MyISAM,0,test,t31,id: 10,,0,,,
-DROP_AFTER_CREATE,MyISAM,0,test,t31,id: 11,,0,,,
-CREATE,MyISAM,0,test,t32,id: 12,,0,,,
-DROP,MyISAM,0,test,t30,id: 8,,0,,,
-DROP,MyISAM,0,test,t32,id: 12,,0,,,
-CREATE,MyISAM,0,test,t40,id: 13,,0,,,
-CREATE,InnoDB,0,test,t41,id: 14,,0,,,
-CREATE,MyISAM,0,test,t42,id: 15,,0,,,
-DROP,MyISAM,0,test,t42,id: 15,,0,,,
-CREATE,InnoDB,0,test,t42,id: 16,,0,,,
-DROP,MyISAM,0,test,t40,id: 13,,0,,,
-DROP,InnoDB,0,test,t41,id: 14,,0,,,
-DROP,InnoDB,0,test,t42,id: 16,,0,,,
-CREATE,MyISAM,0,test,t50,id: 17,,0,,,
-CREATE,MyISAM,0,test,t51,id: 18,,0,,,
-RENAME,MyISAM,0,test,t50,id: 17,MyISAM,0,test,t52,id: 17
-RENAME,MyISAM,0,test,t51,id: 18,MyISAM,0,test,t53,id: 18
-RENAME,MyISAM,0,test,t52,id: 17,MyISAM,0,test,tmp,id: 17
-RENAME,MyISAM,0,test,t53,id: 18,MyISAM,0,test,t52,id: 18
-RENAME,MyISAM,0,test,tmp,id: 17,MyISAM,0,test,t53,id: 17
-DROP,MyISAM,0,test,t52,id: 18,,0,,,
-DROP,MyISAM,0,test,t53,id: 17,,0,,,
-CREATE,Aria,0,test,t60,id: 19,,0,,,
-CHANGE_INDEX,Aria,0,test,t60,id: 19,,0,,,
-CHANGE_INDEX,Aria,0,test,t60,id: 19,,0,,,
-DROP,Aria,0,test,t60,id: 19,,0,,,
-CREATE,Aria,0,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,0,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,0,test,t70,id: 20,,0,,,
-CREATE,Aria,0,test,t71,id: 21,,0,,,
-BULK_INSERT,Aria,0,test,t71,id: 21,,0,,,
-DROP,Aria,0,test,t70,id: 20,,0,,,
-DROP,Aria,0,test,t71,id: 21,,0,,,
-CREATE,MyISAM,0,test,t@00201,id: 22,,0,,,
-DROP,MyISAM,0,test,t@00201,id: 22,,0,,,
-CREATE,MyISAM,0,test,t80,id: 23,,0,,,
+CREATE,MyISAM,0,test,t31,id: 11,,0,,,
+DROP,MyISAM,0,test,t31,id: 11,,0,,,
+DROP_AFTER_CREATE,MyISAM,0,test,t31,id: 12,,0,,,
+CREATE,MyISAM,0,test,t32,id: 13,,0,,,
+DROP,MyISAM,0,test,t30,id: 9,,0,,,
+DROP,MyISAM,0,test,t32,id: 13,,0,,,
+CREATE,MyISAM,0,test,t40,id: 14,,0,,,
+CREATE,InnoDB,0,test,t41,id: 15,,0,,,
+CREATE,MyISAM,0,test,t42,id: 16,,0,,,
+DROP,MyISAM,0,test,t42,id: 16,,0,,,
+CREATE,InnoDB,0,test,t42,id: 17,,0,,,
+DROP,MyISAM,0,test,t40,id: 14,,0,,,
+DROP,InnoDB,0,test,t41,id: 15,,0,,,
+DROP,InnoDB,0,test,t42,id: 17,,0,,,
+CREATE,MyISAM,0,test,t50,id: 18,,0,,,
+CREATE,MyISAM,0,test,t51,id: 19,,0,,,
+RENAME,MyISAM,0,test,t50,id: 18,MyISAM,0,test,t52,id: 18
+RENAME,MyISAM,0,test,t51,id: 19,MyISAM,0,test,t53,id: 19
+RENAME,MyISAM,0,test,t52,id: 18,MyISAM,0,test,tmp,id: 18
+RENAME,MyISAM,0,test,t53,id: 19,MyISAM,0,test,t52,id: 19
+RENAME,MyISAM,0,test,tmp,id: 18,MyISAM,0,test,t53,id: 18
+DROP,MyISAM,0,test,t52,id: 19,,0,,,
+DROP,MyISAM,0,test,t53,id: 18,,0,,,
+CREATE,Aria,0,test,t60,id: 20,,0,,,
+CHANGE_INDEX,Aria,0,test,t60,id: 20,,0,,,
+CHANGE_INDEX,Aria,0,test,t60,id: 20,,0,,,
+DROP,Aria,0,test,t60,id: 20,,0,,,
+CREATE,Aria,0,test,t70,id: 21,,0,,,
+BULK_INSERT,Aria,0,test,t70,id: 21,,0,,,
+BULK_INSERT,Aria,0,test,t70,id: 21,,0,,,
+CREATE,Aria,0,test,t71,id: 22,,0,,,
+BULK_INSERT,Aria,0,test,t71,id: 22,,0,,,
+DROP,Aria,0,test,t70,id: 21,,0,,,
+DROP,Aria,0,test,t71,id: 22,,0,,,
+CREATE,MyISAM,0,test,t@00201,id: 23,,0,,,
+DROP,MyISAM,0,test,t@00201,id: 23,,0,,,
+CREATE,MyISAM,0,test,t80,id: 24,,0,,,
 CREATE,VIEW,0,test,v1,,,0,,,
 CREATE,TRIGGER,0,test,trg,,,0,,,
 DROP,TRIGGER,0,test,trg,,,0,,,
 DROP,VIEW,0,test,v1,,,0,,,
-DROP,MyISAM,0,test,t80,id: 23,,0,,,
-CREATE,MyISAM,0,test,t85,id: 24,,0,,,
-ALTER,MyISAM,0,test,t85,id: 24,InnoDB,0,test,t85,id: 25
-DROP,InnoDB,0,test,t85,id: 25,,0,,,
+DROP,MyISAM,0,test,t80,id: 24,,0,,,
+CREATE,MyISAM,0,test,t85,id: 25,,0,,,
+ALTER,MyISAM,0,test,t85,id: 25,InnoDB,0,test,t85,id: 26
+DROP,InnoDB,0,test,t85,id: 26,,0,,,
 CREATE,DATABASE,0,mysqltest,,,,0,,,
-CREATE,MyISAM,0,mysqltest,t90,id: 26,,0,,,
-CREATE,InnoDB,0,mysqltest,t91,id: 27,,0,,,
+CREATE,MyISAM,0,mysqltest,t90,id: 27,,0,,,
+CREATE,InnoDB,0,mysqltest,t91,id: 28,,0,,,
 ALTER,DATABASE,0,mysqltest,,,,0,,,
-DROP,MyISAM,0,mysqltest,t90,id: 26,,0,,,
-DROP,InnoDB,0,mysqltest,t91,id: 27,,0,,,
+DROP,MyISAM,0,mysqltest,t90,id: 27,,0,,,
+DROP,InnoDB,0,mysqltest,t91,id: 28,,0,,,
 DROP,DATABASE,0,mysqltest,,,,0,,,
 #
 # Cleanup

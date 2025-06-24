@@ -2,7 +2,7 @@
 --source include/have_partition.inc
 
 --echo # Actual test of key caches
---echo # Verifing that reads/writes use the key cache correctly
+--echo # Verifying that reads/writes use the key cache correctly
 SET @org_key_cache_buffer_size= @@global.default.key_buffer_size;
 --echo # Minimize default key cache (almost disabled).
 SET @@global.default.key_buffer_size = 4096;
@@ -27,7 +27,7 @@ CREATE TABLE t2 (
   PRIMARY KEY (a),
   KEY `inx_b` (b));
 FLUSH TABLES;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 # Genereate 4096 rows. Idea from:
 # http://datacharmer.blogspot.com/2007/12/data-from-nothing-solution-to-pop-quiz.html
@@ -42,7 +42,7 @@ CREATE VIEW x AS SELECT 1 FROM v,v a,v b;
 #  SELECT IF(VARIABLE_VALUE = 0,"Yes!","No!") as 'Was zero reads?'
 #  FROM INFORMATION_SCHEMA.SESSION_STATUS
 #  WHERE VARIABLE_NAME = 'KEY_READS';
-#  FLUSH STATUS;
+#  FLUSH GLOBAL STATUS;
 #END|
 #DELIMITER ;|
 
@@ -54,18 +54,18 @@ SELECT PARTITION_NAME, SUBPARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PAR
 DROP VIEW x;
 DROP VIEW v;
 FLUSH TABLES;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT COUNT(b) FROM t1 WHERE b >= 0;
 --source include/check_key_reads.inc
 INSERT t2 SELECT a,b,c FROM t1;
 --source include/check_key_req.inc
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 SELECT COUNT(b) FROM t2 WHERE b >= 0;
 --source include/check_key_reads.inc
 FLUSH TABLES;
 --echo # Setting the default key cache to 1M
 SET GLOBAL key_buffer_size = 1024*1024;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --echo # All these have to read the indexes
 LOAD INDEX INTO CACHE t1 PARTITION (p1);
 --source include/check_key_reads.inc

@@ -1,0 +1,769 @@
+--enable_prepare_warnings
+--disable_view_protocol # Since optimizer hints are not supported inside views
+SET NAMES utf8mb4;
+
+--echo # Testing that index names in hints are accent sensitive case insensitive
+CREATE TABLE t1 (a INT, ä INT, INDEX idx_a(a), INDEX idx_ä(ä));
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_A) */ a FROM t1;
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+SELECT /*+ NO_MRR(t1 idx_å) */ a FROM t1;
+SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo # Testing that query block names are accent sensitive case insensitive
+CREATE TABLE t1 (a INT);
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@A) */ * FROM t1;
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@å) */ * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT, f2 INT);
+INSERT INTO t1 VALUES
+(1,1),(2,2),(3,3);
+
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL, f3 CHAR(200), KEY(f1, f2));
+INSERT INTO t2 VALUES
+(1,1, 'qwerty'),(1,2, 'qwerty'),(1,3, 'qwerty'),
+(2,1, 'qwerty'),(2,2, 'qwerty'),(2,3, 'qwerty'), (2,4, 'qwerty'),(2,5, 'qwerty'),
+(3,1, 'qwerty'),(3,4, 'qwerty'),
+(4,1, 'qwerty'),(4,2, 'qwerty'),(4,3, 'qwerty'), (4,4, 'qwerty'),
+(1,1, 'qwerty'),(1,2, 'qwerty'),(1,3, 'qwerty'),
+(2,1, 'qwerty'),(2,2, 'qwerty'),(2,3, 'qwerty'), (2,4, 'qwerty'),(2,5, 'qwerty'),
+(3,1, 'qwerty'),(3,4, 'qwerty'),
+(4,1, 'qwerty'),(4,2, 'qwerty'),(4,3, 'qwerty'), (4,4, 'qwerty');
+
+CREATE TABLE t3 (f1 INT NOT NULL, f2 INT, f3 VARCHAR(32),
+                 PRIMARY KEY(f1), KEY f2_idx(f1), KEY f3_idx(f3));
+INSERT INTO t3 VALUES
+(1, 1, 'qwerty'), (2, 1, 'ytrewq'),
+(3, 2, 'uiop'), (4, 2, 'poiu'), (5, 2, 'lkjh'),
+(6, 2, 'uiop'), (7, 2, 'poiu'), (8, 2, 'lkjh'),
+(9, 2, 'uiop'), (10, 2, 'poiu'), (11, 2, 'lkjh'),
+(12, 2, 'uiop'), (13, 2, 'poiu'), (14, 2, 'lkjh');
+INSERT INTO t3 SELECT f1 + 20, f2, f3 FROM t3;
+INSERT INTO t3 SELECT f1 + 40, f2, f3 FROM t3;
+
+ANALYZE TABLE t1;
+ANALYZE TABLE t2;
+ANALYZE TABLE t3;
+
+--echo # NO_RANGE_OPTIMIZATION hint testing
+set optimizer_switch=default;
+
+--disable_ps2_protocol
+--disable_cursor_protocol
+--echo # Check statistics with no hint
+FLUSH STATUS;
+SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+SHOW STATUS LIKE 'handler_read%';
+
+--echo # Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+SHOW STATUS LIKE 'handler_read%';
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+EXPLAIN EXTENDED SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY key
+--echo # Should use range access by f2_idx key
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY & f2_idx keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for all keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY & f2_idx keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) NO_RANGE_OPTIMIZATION(t3 f2_idx) */ f1
+  FROM t3 WHERE f1 > 30 AND f1 < 33;
+
+--echo # Create a clone of t3 with cyrillic names
+CREATE TABLE таблица (f1 INT NOT NULL, поле2 INT, поле3 VARCHAR(32),
+                 PRIMARY KEY(f1), KEY f2_индекс(f1), KEY f3_индекс(поле3))
+                 AS SELECT * FROM t3;
+ANALYZE TABLE таблица;
+--echo # Turn off range access for PRIMARY key
+--echo # Should use range access by f2_индекс key
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY & f2_индекс keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY, f2_индекс) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for all keys
+--echo # Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+--echo # Turn off range access for PRIMARY & f2_индекс keys
+--echo # Should use index access
+EXPLAIN EXTENDED
+  SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY) NO_RANGE_OPTIMIZATION(таблица f2_индекс) */ f1
+  FROM таблица WHERE f1 > 30 AND f1 < 33;
+DROP TABLE таблица;
+
+--echo # NO_ICP hint testing
+set optimizer_switch='index_condition_pushdown=on';
+
+CREATE TABLE t4 (x INT, y INT, KEY x_idx(x), KEY y_idx(y));
+INSERT INTO t4 (x) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13);
+UPDATE t4 SET y=x;
+
+EXPLAIN EXTENDED SELECT * FROM
+  (SELECT t4.x, t5.y FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
+EXPLAIN EXTENDED SELECT * FROM
+  (SELECT /*+ NO_ICP(t5 x_idx, y_idx) */ t4.x, t5.y FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
+EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@qb1 x_idx) */ * FROM
+  (SELECT /*+ QB_NAME(QB1) */ t4.x, t5.y FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
+--echo # Cyrillic query block name
+EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@блок1 x_idx) */ * FROM
+  (SELECT /*+ QB_NAME(блок1) */ t4.x, t5.y FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
+
+--echo # Expected warning for z_idx key, unresolved name.
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+EXPLAIN EXTENDED SELECT * FROM
+  (SELECT /*+ NO_ICP(t5 y_idx, x_idx, z_idx) */ t4.x, t5.y FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+--enable_ps_protocol
+
+--echo # ICP should still be used
+EXPLAIN EXTENDED SELECT * FROM
+  (SELECT /*+ NO_ICP(t5 y_idx) */ t4.x, t5.y FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+
+--echo # BKA & NO_BKA hint testing
+set optimizer_switch = DEFAULT;
+set optimizer_switch = 'mrr=on,mrr_cost_based=off';
+set join_cache_level = 8;
+
+CREATE TABLE t10(a INT);
+INSERT INTO t10 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t11(a INT);
+INSERT INTO t11 SELECT A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+CREATE TABLE t12(a INT, b INT);
+INSERT INTO t12 SELECT a,a from t10;
+CREATE TABLE t13(a INT, b INT, c INT, filler CHAR(100), key (a,b));
+INSERT INTO t13 select a,a,a, 'filler-data' FROM t11;
+
+--echo # Make sure BKA is expected to be used when there are no hints
+EXPLAIN
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+--echo # Disable BKA
+set optimizer_switch='join_cache_bka=off';
+EXPLAIN EXTENDED
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+--disable_ps2_protocol
+--disable_cursor_protocol
+--echo # Check statistics without hint
+FLUSH STATUS;
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+SHOW STATUS LIKE 'handler_read%';
+
+--echo # Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ BKA() */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+SHOW STATUS LIKE 'handler_read%';
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+EXPLAIN EXTENDED SELECT /*+ BKA(t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ BKA() */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ BKA(t12) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13 
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+--echo # Hint overrides both join_cache_level and optimizer switch
+set join_cache_level = 0;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+set join_cache_level = 2;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+set join_cache_level = 4;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+set join_cache_level = 8;
+
+--echo # Enable BKA
+set optimizer_switch='join_cache_bka=on';
+
+EXPLAIN EXTENDED SELECT /*+ NO_BKA(t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ NO_BKA() */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ NO_BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ NO_BKA(t12) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) NO_BKA(t13@QB1) */ * FROM t12, t13 
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+--echo # UPDATE|DELETE|INSERT|REPLACE hint testing
+EXPLAIN EXTENDED UPDATE t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+  (SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+    t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
+--echo # Turn off range access for PRIMARY key.
+--echo # Range access should be used for f2_idx key.
+EXPLAIN EXTENDED UPDATE /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) */ t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+  (SELECT /*+ BKA(t2) NO_BNL(t1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+    t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
+--echo # Turn off range access for all keys.
+EXPLAIN EXTENDED UPDATE /*+ NO_RANGE_OPTIMIZATION(t3) */ t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+  (SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+    t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
+EXPLAIN EXTENDED DELETE FROM t3
+WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+  (SELECT /*+ QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+    t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
+--echo # Turn off range access. Range access should not be used.
+EXPLAIN EXTENDED
+DELETE /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) NO_BNL(t1@QB1) */ FROM t3
+WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+  (SELECT /*+ QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+    t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+
+--echo # Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+  (SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+  (SELECT /*+ NO_ICP(t5 x_idx) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+   WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+
+--echo # Misc tests
+
+--echo # Should issue warning
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
+--echo # Should issue warning
+EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
+WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1;
+
+--echo # Should not crash
+PREPARE stmt1 FROM "SELECT /*+ BKA(t2) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
+WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1";
+EXECUTE stmt1;
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;
+
+--echo # Check use of alias
+set optimizer_switch='join_cache_bka=off';
+EXPLAIN EXTENDED
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+--echo # Turn on BKA for multiple tables. BKA should be used for tbl13.
+EXPLAIN EXTENDED SELECT /*+ BKA(tbl12, tbl13) */ * FROM t12 tbl12, t13 tbl13 
+WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
+
+--echo # Print warnings for nonexistent names
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+EXPLAIN EXTENDED
+SELECT /*+ BKA(t2) NO_BNL(t1) BKA(t3) NO_RANGE_OPTIMIZATION(t3 idx1) NO_RANGE_OPTIMIZATION(t3) */
+t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1;
+--enable_ps_protocol
+
+--echo # Check illegal syntax
+EXPLAIN EXTENDED SELECT /*+ BKA(qb1 t3@qb1) */ f2 FROM
+  (SELECT /*+ QB_NAME(qb1) */ f2, f3, f1 FROM t3 WHERE f1 > 2 AND f3 = 'poiu') AS TD
+    WHERE TD.f1 > 2 AND TD.f3 = 'poiu';
+
+--echo # Check illegal syntax
+EXPLAIN EXTENDED SELECT * FROM
+  (SELECT /*+ QB_NAME(qb1) BKA(@qb1 t1@qb1, t2@qb1, t3) */ t2.f1, t2.f2, t2.f3 FROM t1,t2,t3) tt;
+
+--echo # Check '@qb_name table_name' syntax
+EXPLAIN EXTENDED SELECT /*+ BKA(@qb1 t13) */ * FROM (SELECT /*+ QB_NAME(QB1) */ t12.a, t13.b FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1)) AS s1;
+
+--echo # Check that original table name is not recognized if alias is used.
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+EXPLAIN EXTENDED SELECT /*+ BKA(tbl2) */ * FROM t12 tbl12, t13 tbl13 
+WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
+--enable_ps_protocol
+
+--disable_ps2_protocol
+--disable_cursor_protocol
+--echo # Check that PS and conventional statements give the same result.
+FLUSH STATUS;
+SELECT /*+ BKA(t13) */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+SHOW STATUS LIKE 'handler_read%';
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+PREPARE stmt1 FROM "SELECT /*+ BKA(t13) */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1)";
+FLUSH STATUS;
+EXECUTE stmt1;
+SHOW STATUS LIKE 'handler_read%';
+
+FLUSH STATUS;
+EXECUTE stmt1;
+SHOW STATUS LIKE 'handler_read%';
+
+DEALLOCATE PREPARE stmt1;
+
+DROP TABLE t1, t2, t3, t4, t10, t11, t12, t13;
+
+--echo # MRR & NO_MRR hint testing
+set optimizer_switch=default;
+set join_cache_level = 8;
+
+CREATE TABLE t1
+(
+  f1 int NOT NULL DEFAULT '0',
+  f2 int NOT NULL DEFAULT '0',
+  f3 int NOT NULL DEFAULT '0',
+  INDEX idx1(f2, f3), INDEX idx2(f3)
+);
+
+INSERT INTO t1(f1) VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+INSERT INTO t1(f2, f3) VALUES (3,4), (3,4);
+ANALYZE TABLE t1;
+
+set optimizer_switch='mrr=on,mrr_cost_based=off';
+
+--disable_ps2_protocol
+--disable_cursor_protocol
+--echo # Check statistics without hint
+FLUSH STATUS;
+SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+SHOW STATUS LIKE 'handler_read%';
+
+--echo # Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+SHOW STATUS LIKE 'handler_read%';
+
+--echo # Make sure hints are preserved in a stored procedure body
+CREATE PROCEDURE p() SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+SHOW CREATE PROCEDURE p;
+FLUSH STATUS;
+CALL p();
+SHOW STATUS LIKE 'handler_read%';
+
+DROP PROCEDURE p;
+--enable_ps2_protocol
+--enable_cursor_protocol
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn off MRR. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn off MRR. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1 idx2) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn off MRR for unused key. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1 idx1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+
+set optimizer_switch='mrr=off,mrr_cost_based=off';
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 IDX2) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn on MRR for unused key. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 idx1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+
+set optimizer_switch='mrr=off,mrr_cost_based=on';
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 idx2) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+--echo # Turn on MRR for unused key. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 IDX1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+
+DROP TABLE t1;
+
+set optimizer_switch=default;
+
+--echo #
+--echo # Duplicate hints
+--echo #
+
+CREATE TABLE t1 (i INT PRIMARY KEY);
+
+SELECT /*+ BKA() BKA() */ 1;
+SELECT /*+ BKA(t1) BKA(t1) */ * FROM t1;
+SELECT /*+ QB_NAME(q1) BKA(t1@q1) BKA(t1@q1) */ * FROM t1;
+SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Hints inside views are not supported
+--echo #
+CREATE TABLE t1 (a INT, INDEX idx_a(a));
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+SELECT * FROM v1;
+--echo # Make sure hints are not present inside the view definition:
+SHOW CREATE VIEW v1;
+EXPLAIN EXTENDED SELECT * FROM v1;
+
+CREATE OR REPLACE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) BKA(t1)*/ a FROM t1;
+SHOW CREATE VIEW v1;
+
+ALTER VIEW v1 AS SELECT /*+ QB_NAME(q1)*/ a FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+
+--echo # Wrong place for the hint, must be simply ignored:
+CREATE OR REPLACE VIEW v1 AS SELECT a /*+ NO_ICP(t1 idx_a)*/ FROM t1;
+SHOW CREATE VIEW v1;
+
+--echo # Incorrect hint does not prevent view creation, only a warning generated:
+CREATE VIEW v2 AS SELECT /*+ BAD HINT*/ a+10 FROM t1;
+SELECT * FROM v2;
+EXPLAIN EXTENDED SELECT * FROM v2;
+SHOW CREATE VIEW v2;
+
+DROP VIEW v1, v2;
+DROP TABLE t1;
+
+--echo #
+--echo # Tests of parser for optimizer hints
+--echo #
+
+CREATE TABLE t1 (i INT, j INT);
+CREATE INDEX i1 ON t1(i);
+CREATE INDEX i2 ON t1(j);
+
+--echo
+--echo # invalid hint sequences, must issue warnings:
+--echo
+SELECT /*+*/ 1;
+SELECT /*+ */ 1;
+SELECT /*+ * ** / // /* */ 1;
+SELECT /*+ @ */ 1;
+SELECT /*+ @foo */ 1;
+SELECT /*+ foo@bar */ 1;
+SELECT /*+ foo @bar */ 1;
+SELECT /*+ `@` */ 1;
+SELECT /*+ `@foo` */ 1;
+SELECT /*+ `foo@bar` */ 1;
+SELECT /*+ `foo @bar` */ 1;
+SELECT /*+ BKA( @) */ 1;
+SELECT /*+ BKA( @) */ 1;
+SELECT /*+ BKA(t1 @) */ 1;
+
+--echo
+--echo # We don't support "*/" inside quoted identifiers (syntax error):
+--echo
+
+--error ER_PARSE_ERROR
+SELECT /*+ BKA(`test*/`) */ 1;
+
+--echo
+--echo # invalid hint sequences, must issue warnings:
+--echo
+SELECT  /*+ NO_ICP() */ 1;
+SELECT  /*+NO_ICP()*/ 1;
+SELECT  /*+ NO_ICP () */ 1;
+SELECT  /*+ NO_ICP (  ) */ 1;
+
+SELECT  /*+ NO_ICP() */ 1 UNION SELECT 1;
+(SELECT /*+ NO_ICP() */ 1) UNION (SELECT 1);
+
+((SELECT  /* + NO_ICP() */ 1));
+
+UPDATE  /*+ NO_ICP() */ t1 SET i = 10;
+INSERT  /*+ NO_ICP() */ INTO t1 VALUES ();
+DELETE  /*+ NO_ICP() */ FROM t1 WHERE 1;
+
+
+SELECT /*+ BKA(a b) */   1 FROM t1 a, t1 b;
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+SELECT /*+ NO_ICP(i1) */ 1 FROM t1;
+SELECT /*+ NO_ICP(i1 i2) */ 1 FROM t1;
+--enable_ps_protocol
+SELECT /*+ NO_ICP(@qb ident) */ 1 FROM t1;
+
+--echo
+--echo # valid hint sequences, no warnings expected:
+--echo
+SELECT /*+ BKA(t1) */    1 FROM t1;
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) */ 1 UNION SELECT /*+ QB_NAME(qb2) */ 1;
+EXPLAIN EXTENDED (SELECT /*+ QB_NAME(qb1) */ 1) UNION (SELECT /*+ QB_NAME(qb2) */ 1);
+
+--echo #
+--echo # test explainable statements for hint support:
+--echo # they should warn with a hint syntax error near "test */"
+--echo #
+
+EXPLAIN EXTENDED SELECT /*+ test */ 1;
+EXPLAIN EXTENDED INSERT /*+ test */ INTO t1 VALUES (10, 10);
+EXPLAIN EXTENDED UPDATE /*+ test */ t1 SET i = 10 WHERE j = 10;
+EXPLAIN EXTENDED DELETE /*+ test */ FROM t1 WHERE i = 10;
+
+--echo
+--echo # non-alphabetic and non-ASCII identifiers, should warn:
+--echo
+
+CREATE INDEX 3rd_index ON t1(i, j);
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+SELECT /*+ NO_ICP(3rd_index) */ 1 FROM t1;
+
+CREATE INDEX $index ON t1(j, i);
+SELECT /*+ NO_ICP($index) */ 1 FROM t1;
+
+CREATE TABLE ` quoted name test` (i INT);
+SELECT /*+ BKA(` quoted name test`) */ 1 FROM t1;
+SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
+DROP TABLE ` quoted name test`;
+
+SET SQL_MODE = 'ANSI_QUOTES';
+
+CREATE TABLE " quoted name test" (i INT);
+SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
+SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
+
+CREATE TABLE `test1``test2``` (i INT);
+
+SELECT /*+ BKA(`test1``test2```) */ 1;
+SELECT /*+ BKA("test1""test2""") */ 1;
+
+SET SQL_MODE = '';
+--echo # should warn:
+SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
+
+DROP TABLE ` quoted name test`;
+DROP TABLE `test1``test2```;
+--enable_ps_protocol
+
+--echo # Valid hints, no warning:
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*`) */ 1;
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`a*`) */ 1;
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*b`) */ 1;
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`a
+b`) */ 1;
+
+--echo # Identifiers starting with digits must be supported:
+CREATE OR REPLACE TABLE 0a (8a INT, KEY 6a(8a));
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(0a 6a) BKA(0a)*/ 8a FROM 0a;
+DROP TABLE 0a;
+
+--echo # hint syntax error: empty quoted identifier
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(``) */ 1;
+
+SET NAMES utf8;
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`\BF``\BF`) */ 1;
+
+CREATE TABLE tableТ (i INT);
+
+--echo # invalid hints, should warn:
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+SELECT /*+ BKA(tableТ) */ 1 FROM t1;
+SELECT /*+ BKA(test@tableТ) */ 1 FROM t1;
+DROP TABLE tableТ;
+
+CREATE TABLE таблица (i INT);
+
+SELECT /*+ BKA(`таблица`) */ 1 FROM t1;
+SELECT /*+ BKA(таблица) */ 1 FROM t1;
+SELECT /*+ BKA(test@таблица) */ 1 FROM t1;
+
+SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
+
+DROP TABLE таблица;
+--enable_ps_protocol
+
+--echo
+--echo # derived tables and other subqueries:
+--echo
+
+SELECT * FROM (SELECT /*+ DEBUG_HINT3 */ 1) a;
+SELECT (SELECT /*+ DEBUG_HINT3 */ 1);
+SELECT 1 FROM DUAL WHERE 1 IN (SELECT /*+ DEBUG_HINT3 */ 1);
+
+--echo
+--echo # invalid hint sequences (should warn):
+--echo
+SELECT /*+ 10 */ 1;
+SELECT /*+ NO_ICP() */ 1;
+--disable_ps_protocol # to avoid warnings duplication, see details above
+SELECT /*+ NO_ICP(10) */ 1;
+--enable_ps_protocol
+SELECT /*+ NO_ICP( */ 1;
+SELECT /*+ NO_ICP) */ 1;
+SELECT /*+ NO_ICP(t1 */ 1;
+SELECT /*+ NO_ICP(t1 ( */ 1;
+(SELECT 1) UNION (SELECT /*+ NO_ICP() */ 1);
+
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+
+--echo
+--echo # wrong place for hint, so recognize that stuff as a regular commentary:
+--echo
+
+SELECT 1 FROM /*+ regular commentary, not a hint! */ t1;
+SELECT 1 FROM /*+ #1 */ t1 WHERE /*+ #2 */ 1 /*+ #3 */;
+SELECT 1 FROM /*+ QB_NAME(q1) */ t1 /*+ NO_ICP() */WHERE /*+ NO_MRR(t1) */ 1 /*+ #3 */;
+
+--echo # Warnings expected:
+SELECT /*+ NO_ICP() */ 1
+  FROM /*+ regular commentary, not a hint! */ t1;
+
+SELECT /*+ NO_ICP(t1) bad_hint */ 1 FROM t1;
+
+SELECT /*+
+  NO_ICP(@qb ident)
+*/ 1 FROM t1;
+
+SELECT /*+
+  ? bad syntax
+*/ 1;
+
+SELECT
+/*+ ? bad syntax */ 1;
+
+DROP TABLE t1;
+
+--echo
+--echo # MDEV-36486 Optimizer hints are resolved against the INSERT part of INSERT..SELECT
+--echo
+
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE TABLE t2 (a INT, KEY(a));
+INSERT INTO t2 VALUES (1),(2),(3);
+
+--echo # See that the range optimization is employed when there are no hints:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # No range optimization any more:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT /*+ no_range_optimization (t1 a)*/ a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # Hints at the INSERT part of a INSERT..SELECT are not supported:
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+
+--echo # If hints are present at both INSERT and SELECT parts,
+--echo # those at the INSERT part are ignored
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT /*+ mrr(t1)*/ a 
+  FROM t1 WHERE a>1 AND a<=3;
+
+--echo # Table `t2` cannot be resolved since it is not present in the SELECT part
+--echo # (a warning expected):
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+EXPLAIN EXTENDED
+INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 AND a<=3;
+--enable_ps_protocol
+
+DROP TABLE t1, t2;
+
+set optimizer_switch = DEFAULT;
+set join_cache_level = DEFAULT;
+
+--echo #
+--echo # MDEV-36675 Optimizer hints parser catches irrelevant `thd->is_error()`
+--echo #              set by multi-RENAME TABLE
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (0);
+--error ER_NO_SUCH_TABLE
+RENAME TABLE t1 TO t2, t3 TO t4;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1;
+RENAME TABLE t1 TO t2;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1;
+DROP TABLE t2;
+
+--echo #
+--echo # End of 12.0 tests
+--echo #

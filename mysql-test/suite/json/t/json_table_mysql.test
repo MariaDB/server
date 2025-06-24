@@ -1,6 +1,8 @@
 # For stable statistics
 #--source include/have_innodb_16k.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
+
 --echo # 
 --echo # WL#8867: Add JSON_TABLE table function
 --echo # 
@@ -167,6 +169,7 @@ select * from
 
 #eval $query;
 #eval explain $query;
+--source include/explain-no-costs.inc
 explain format=json 
 select * from
   json_table(
@@ -376,18 +379,18 @@ INSERT INTO t1 values (1, '[1,3,5]'),(2,'[2,4,6]');
 SELECT id, jt.* FROM t1,
   JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
                                  val INT PATH '$')) AS jt;
-SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+SELECT id, jt.*
   FROM t1,
   JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
                                  val INT PATH '$')) AS jt;
 
-EXPLAIN SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
+EXPLAIN SELECT id, jt.*
   FROM t1,
   JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
                                  val INT PATH '$')) AS jt;
 
 --sorted_result
-SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+SELECT t1.id, t2.id, jt.*
   FROM t1,
     JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
                                       val INT PATH '$')) AS jt,
@@ -399,7 +402,7 @@ EXPLAIN SELECT t1.id, t2.id, jt.*
                                       val INT PATH '$')) AS jt,
     t1 AS t2;
 
-EXPLAIN SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
+EXPLAIN SELECT t1.id, t2.id, jt.*
   FROM t1,
     JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
                                       val INT PATH '$')) AS jt,
@@ -1306,7 +1309,7 @@ SELECT * FROM v1;
 SET NAMES latin1;
 # Used to return zero rows.
 SELECT * FROM v1;
-SET NAMES DEFAULT;
+SET NAMES latin1;
 DROP VIEW v1;
 
 CREATE VIEW v2 AS
@@ -1485,3 +1488,5 @@ SELECT HEX(a) FROM JSON_TABLE(
   '$'
   COLUMNS(a BINARY(5) PATH '$[1]' NULL ON EMPTY)
 ) e;
+
+--source include/test_db_charset_restore.inc

@@ -244,7 +244,7 @@ dict_table_get_next_index(
 /********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
-@return number of user-defined (e.g., not ROW_ID) non-virtual
+@return number of user-defined (e.g., not DB_ROW_ID) non-virtual
 columns of a table */
 UNIV_INLINE
 unsigned
@@ -264,7 +264,7 @@ Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of non-virtual columns of a table */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -277,7 +277,7 @@ dict_table_get_n_cols(
 @param[in]	table	the table to check
 @return number of virtual columns of a table */
 UNIV_INLINE
-unsigned
+uint16_t
 dict_table_get_n_v_cols(
 	const dict_table_t*	table)
 {
@@ -568,19 +568,16 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
-UNIV_INLINE
-ulint
-dict_tf_to_fsp_flags(ulint table_flags)
+inline uint32_t dict_tf_to_fsp_flags(unsigned table_flags)
 {
-	ulint fsp_flags;
-	ulint page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(
+	uint32_t fsp_flags;
+	uint32_t page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(
 		table_flags);
 
 	ut_ad((DICT_TF_GET_PAGE_COMPRESSION(table_flags) == 0)
 	      == (page_compression_level == 0));
 
-	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
-			return(ULINT_UNDEFINED););
+	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure", return UINT32_MAX;);
 
 	/* No ROW_FORMAT=COMPRESSED for innodb_checksum_algorithm=full_crc32 */
 	if ((srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
@@ -591,7 +588,8 @@ dict_tf_to_fsp_flags(ulint table_flags)
 			| FSP_FLAGS_FCRC32_PAGE_SSIZE();
 
 		if (page_compression_level) {
-			fsp_flags |= innodb_compression_algorithm
+			fsp_flags |= static_cast<uint32_t>(
+				innodb_compression_algorithm)
 				<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
 		}
 	} else {
@@ -1078,8 +1076,8 @@ dict_table_is_file_per_table(
 /** Acquire the table handle. */
 inline void dict_table_t::acquire()
 {
-  ut_ad(dict_sys.frozen());
-  n_ref_count++;
+  ut_d(const auto old=) n_ref_count++;
+  ut_ad(old || dict_sys.frozen());
 }
 
 /** Release the table handle.

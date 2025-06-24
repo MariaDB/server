@@ -5,6 +5,9 @@
 
 call mtr.add_suppression("Can't find record in .*");
 
+--source include/test_db_charset_latin1.inc
+
+
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set optimizer_switch='rowid_filter=off';
@@ -244,3 +247,4 @@ use test;
 
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 
+--source include/test_db_charset_restore.inc

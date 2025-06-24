@@ -69,6 +69,7 @@ set @@optimizer_switch = 'exists_to_in=on,in_to_exists=on,semijoin=on,materializ
 -- echo Q1.1m:
 -- echo MATERIALIZATION: there are too many rows in the outer query
 -- echo to be looked up in the inner table.
+
 EXPLAIN
 SELECT Name FROM Country
 WHERE (EXISTS (select 1 from City where City.Population > 100000 and

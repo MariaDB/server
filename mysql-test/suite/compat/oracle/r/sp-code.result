@@ -1514,3 +1514,22 @@ SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	stmt 31 "max_error_count:=10"
 DROP PROCEDURE p1;
+# End of 10.5 tests
+# Start of 11.8 tests
+#
+# MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+#
+CREATE OR REPLACE PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1)
+AS
+var1 INT DEFAULT 5;
+BEGIN
+SELECT par1, par2 FROM DUAL;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set default param par2@1 1
+1	set var1@2 5
+2	stmt 0 "SELECT par1, par2 FROM DUAL"
+DROP PROCEDURE p1;
+# End of 11.8 tests

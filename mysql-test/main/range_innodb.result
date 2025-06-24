@@ -53,9 +53,9 @@ set optimizer_switch='extended_keys=on';
 explain
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ref	PRIMARY,idx1,idx2	idx1	5	const	3	Using index condition
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	PRIMARY,idx1,idx2	idx1	5	const	#	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (incremental, BNL join)
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 pk	a	b
 1	6	0
@@ -83,6 +83,7 @@ drop table t1,t2;
 # MDEV-14440: Server crash in in handler::ha_external_lock or Assertion `inited==RND'
 # failed in handler::ha_rnd_end upon SELECT from partitioned table
 #
+call mtr.add_suppression("Got error .* when reading table");
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
 create table t0(a int);
@@ -229,3 +230,23 @@ SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
 a
 drop table t1;
 # End of 10.4 tests
+#
+# MDEV-31501 Assertion `cond_selectivity <= 1.000000001' failed
+# (actual value 1.125)
+#
+CREATE TABLE lineitem (l_orderkey int(11) NOT NULL DEFAULT '0', l_partkey int(11) DEFAULT NULL, l_suppkey int(11) DEFAULT NULL, l_linenumber int(11) NOT NULL DEFAULT '0', l_quantity double DEFAULT NULL, l_extendedprice double DEFAULT NULL, l_discount double DEFAULT NULL, l_tax double DEFAULT NULL, l_returnflag char(1) DEFAULT NULL, l_linestatus char(1) DEFAULT NULL, l_shipDATE date DEFAULT NULL, l_commitDATE date DEFAULT NULL, l_receiptDATE date DEFAULT NULL, l_shipinstruct char(25) DEFAULT NULL, l_shipmode char(10) DEFAULT NULL, l_comment varchar(44) DEFAULT NULL, PRIMARY KEY (l_orderkey,l_linenumber), KEY i_l_shipdate (l_shipDATE), KEY i_l_suppkey_partkey (l_partkey,l_suppkey), KEY i_l_partkey (l_partkey), KEY i_l_suppkey (l_suppkey), KEY i_l_receiptdate (l_receiptDATE), KEY i_l_orderkey (l_orderkey), KEY i_l_orderkey_quantity (l_orderkey,l_quantity), KEY i_l_commitdate (l_commitDATE)) ENGINE=InnoDB;
+CREATE TABLE part (p_partkey int(11) NOT NULL, p_name varchar(55) DEFAULT NULL, p_mfgr char(25) DEFAULT NULL, p_brand char(10) DEFAULT NULL, p_type varchar(25) DEFAULT NULL, p_size int(11) DEFAULT NULL, p_container char(10) DEFAULT NULL, p_retailprice double DEFAULT NULL, p_comment varchar(23) DEFAULT NULL, PRIMARY KEY (p_partkey)) ENGINE=InnoDB;
+CREATE TABLE partsupp (ps_partkey int(11) NOT NULL DEFAULT '0', ps_suppkey int(11) NOT NULL DEFAULT '0', ps_availqty int(11) DEFAULT NULL, ps_supplycost double DEFAULT NULL, ps_comment varchar(199) DEFAULT NULL, PRIMARY KEY (ps_partkey,ps_suppkey), KEY i_ps_partkey (ps_partkey), KEY i_ps_suppkey (ps_suppkey)) ENGINE=InnoDB;
+INSERT INTO lineitem VALUES (581,7,1,1,41,37187,0.09,0.07,'N','O','1997-05-26','1997-04-06','1997-06-10','TAKE BACK RETURN','MAIL','even, bold excuses about the'),(581,10,1,2,14,12740.14,0.06,0.08,'N','O','1997-05-17','1997-04-14','1997-06-08','NONE','MAIL','furiously silent depths'),(581,11,1,3,49,44639.49,0.1,0.02,'N','O','1997-02-27','1997-04-24','1997-03-10','TAKE BACK RETURN','MAIL','furiously regular theodolites wake qu'),(581,8,1,4,30,27240,0.1,0.08,'N','O','1997-06-19','1997-05-21','1997-06-22','TAKE BACK RETURN','TRUCK','even deposits wa'),(582,6,1,1,7,6342,0.07,0,'N','O','1997-11-16','1997-11-29','1997-12-10','TAKE BACK RETURN','FOB','carefully final requests sleep slyly. even,'),(582,6,1,2,49,44394,0.05,0.03,'N','O','1997-12-17','1998-01-12','1997-12-31','COLLECT COD','REG AIR','carefully regular'),(582,15,1,3,42,38430.42,0.07,0,'N','O','1997-11-15','1997-12-21','1997-12-03','COLLECT COD','SHIP','pending, spe'),(582,17,1,4,36,33012.36,0.06,0.01,'N','O','1997-12-09','1997-11-27','1997-12-26','TAKE BACK RETURN','SHIP','slyly final foxes nag permanen');
+INSERT INTO part VALUES (1,'goldenrod lace spring peru powder','Manufacturer#1','Brand#13','PROMO BURNISHED COPPER',7,'JUMBO PKG',901,'final deposits s'),(2,'blush rosy metallic lemon navajo','Manufacturer#1','Brand#13','LARGE BRUSHED BRASS',1,'LG CASE',902,'final platelets hang f'),(3,'dark green antique puff wheat','Manufacturer#4','Brand#42','STANDARD POLISHED BRASS',21,'WRAP CASE',903,'unusual excuses ac'),(4,'chocolate metallic smoke ghost drab','Manufacturer#3','Brand#34','SMALL PLATED BRASS',14,'MED DRUM',904,'ironi'),(5,'forest blush chiffon thistle chocolate','Manufacturer#3','Brand#32','STANDARD POLISHED TIN',15,'SM PKG',905,'pending, spe'),(6,'white ivory azure firebrick black','Manufacturer#2','Brand#24','PROMO PLATED STEEL',4,'MED BAG',906,'pending pinto be'),(7,'blue blanched tan indian olive','Manufacturer#1','Brand#11','SMALL PLATED COPPER',45,'SM BAG',907,'blithely ironic');
+INSERT INTO partsupp VALUES (1,1,3325,771.64,'requests after the carefully ironic ideas cajole alongside of the enticingly special accounts. fluffily regular deposits haggle about the blithely ironic deposits. regular requests sleep c'),(2,1,8895,378.49,'furiously even asymptotes are furiously regular plate'),(3,1,4651,920.92,'ironic, pending theodolites sleep slyly at the slyly final foxes. slyly ironic accounts sleep express accounts. quickly fina'),(4,1,1339,113.97,'furiously even accounts sleep. slyly regular deposits hag'),(5,1,3735,255.88,'even, ironic requests snooze blithely throughout the carefully pending deposits. busy deposits mold blithely after the furiously final pinto beans. regular, unus'),(6,1,8851,130.72,'carefully regular asymptotes wake slyly according to the quickly re'),(7,1,7454,763.98,'carefully even ideas should wake. blithely final instructions are special foxes. pending, ironic requests wake blithely about the furiously regular foxes. ironic idea'),(8,1,6834,249.63,'furiously unusual instructions use quickly. unusual deposits among the regular deposits doze unusual epitaph'),(9,1,7054,84.2,'final ideas through the requests boost quickly about the furiously regular accounts. blithely silent foxes affix carefully ironic instructions. blithely bold foxe'),(10,1,2952,996.12,'blithely even foxes nag furiously about the quickly ex'),(11,1,4540,709.87,'final packages mold after the carefully unusual requests. quickly fi'),(12,1,3610,659.73,'unusual dolphins sleep slyly. ironic deposits use fluffily. carefully unusual platelets poach slyly. evenly pending deposits nag ironi'),(13,1,612,169.44,'blithely special theodolites serve quickly. regular deposits are alongside of the fluffily sl'),(14,1,5278,650.07,'quickly even deposits doze quickly pending, bold deposits. carefully regular packages sublate carefully'),(15,1,7047,835.7,'packages haggle across the carefully express ideas. slyly bold instructions promise even, express packages. furiously ironic acc');
+SELECT ps_suppkey FROM part
+JOIN partsupp ON (p_partkey = ps_partkey)
+JOIN lineitem ON (ps_partkey = l_partkey AND ps_suppkey = l_suppkey)
+WHERE p_partkey != 222 order by 1 limit 1;
+ps_suppkey
+1
+drop table partsupp,part,lineitem;
+#
+# End of 11.0 tests
+#

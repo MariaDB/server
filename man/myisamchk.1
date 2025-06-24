@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYISAMCHK\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMYISAMCHK\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -189,20 +189,20 @@ Otherwise, when you run
 .RS 4
 .\}
 .nf
-warning: clients are using or haven\'t closed the table properly
+warning: clients are using or haven't closed the table properly
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 This means that you are trying to check a table that has been updated by another program (such as the
-\fBmysqld\fR
-server) that hasn\'t yet closed the file or that has died without closing the file properly, which can sometimes lead to the corruption of one or more
+\fBmariadbd\fR
+server) that hasn't yet closed the file or that has died without closing the file properly, which can sometimes lead to the corruption of one or more
 MyISAM
 tables\&.
 .PP
 If
-\fBmysqld\fR
+\fBmariadbd\fR
 is running, you must force it to flush any table modifications that are still buffered in memory by using
 FLUSH TABLES\&. You should then ensure that no one is using the tables while you are running
 \fBmyisamchk\fR
@@ -273,9 +273,7 @@ Display a help message and exit\&. Options are presented in a single list\&.
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is
-\'d:t:o,\fIfile_name\fR\'\&. The default is
-\'d:t:o,/tmp/myisamchk\&.trace\'\&.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/myisamchk.trace'.
 .RE
 .sp
 .RS 4
@@ -350,7 +348,7 @@ Display version information and exit\&.
 \fB\-w\fR
 .sp
 Instead of terminating with an error if the table is locked, wait until the table is unlocked before continuing\&. If you are running
-\fBmysqld\fR
+\fBmariadbd\fR
 with external locking disabled, the table can be locked only by another
 \fBmyisamchk\fR
 command\&.
@@ -606,7 +604,7 @@ ft_stopword_file
 values to
 \fBmyisamchk\fR
 that you use for
-\fBmysqld\fR\&. For example, if you have set the minimum word length to 3, you can repair a table with
+\fBmariadbd\fR\&. For example, if you have set the minimum word length to 3, you can repair a table with
 \fBmyisamchk\fR
 like this:
 .sp
@@ -623,7 +621,7 @@ shell> \fBmyisamchk \-\-recover \-\-ft_min_word_len=3 \fR\fB\fItbl_name\fR\fR\fB
 To ensure that
 \fBmyisamchk\fR
 and the server use the same values for full\-text parameters, you can place each one in both the
-[mysqld]
+[mariadbd]
 and
 [myisamchk]
 sections of an option file:
@@ -632,7 +630,7 @@ sections of an option file:
 .RS 4
 .\}
 .nf
-[mysqld]
+[mariadbd]
 ft_min_word_len=3
 [myisamchk]
 ft_min_word_len=3
@@ -729,7 +727,7 @@ the section called \(lqMYISAMCHK TABLE INFORMATION\(rq\&.
 \fB\-\-fast\fR,
 \fB\-F\fR
 .sp
-Check only tables that haven\'t been closed properly\&.
+Check only tables that haven't been closed properly\&.
 .RE
 .sp
 .RS 4
@@ -751,7 +749,7 @@ finds any errors in the table\&. The repair type is the same as that specified w
 \fB\-\-recover\fR
 or
 \fB\-r\fR
-option\&. States will be updated as with 
+option\&. States will be updated as with
 \fB\-\-update\-state\fR\&.
 .RE
 .sp
@@ -805,7 +803,7 @@ operation\&. This finds only 99\&.99% of all errors, which should be good enough
 Do not mark the table as checked\&. This is useful if you use
 \fBmyisamchk\fR
 to check a table that is in use by some other application that does not use locking, such as
-\fBmysqld\fR
+\fBmariadbd\fR
 when run with external locking disabled\&.
 .RE
 .sp
@@ -826,8 +824,8 @@ Store information in the
 \&.MYI
 file to indicate when the table was checked and whether the table crashed\&. This should be used to get full benefit of the
 \fB\-\-check\-only\-changed\fR
-option, but you shouldn\'t use this option if the
-\fBmysqld\fR
+option, but you shouldn't use this option if the
+\fBmariadbd\fR
 server is using the table and you are running it with external locking disabled\&.
 .RE
 .SH "MYISAMCHK REPAIR OPTIONS"
@@ -902,8 +900,8 @@ Correct the checksum information for the table\&.
 .\" create-missing-keys option: myisamchk
 \fB\-\-create\-missing\-keys\fR
 .sp
-Create missing keys. This assumes that the data file is correct and that the 
-number of rows stored in the index file is correct\&. Enables 
+Create missing keys. This assumes that the data file is correct and that the
+number of rows stored in the index file is correct\&. Enables
 \fB\-\-quick\fR\&.
 
 .RE
@@ -960,8 +958,8 @@ the section called \(lqMYISAMCHK TABLE INFORMATION\(rq\&.
 Overwrite old intermediate files (files with names like
 \fItbl_name\fR\&.TMD) instead of aborting\&. Add another
 \fB\-\-force\fR
-to avoid 'myisam_sort_buffer_size is too small' errors\&. In this case 
-we will attempt to do the repair with the given 
+to avoid 'myisam_sort_buffer_size is too small' errors\&. In this case
+we will attempt to do the repair with the given
 \fBmyisam_sort_buffer_size\fR
 and dynamically allocate as many management buffers as needed\&.
 .RE
@@ -1287,8 +1285,8 @@ Sort records according to a particular index\&. This makes your data much more l
 SELECT
 and
 ORDER BY
-operations that use this index\&. (The first time you use this option to sort a table, it may be very slow\&.) To determine a table\'s index numbers, use
-SHOW INDEX, which displays a table\'s indexes in the same order that
+operations that use this index\&. (The first time you use this option to sort a table, it may be very slow\&.) To determine a table's index numbers, use
+SHOW INDEX, which displays a table's indexes in the same order that
 \fBmyisamchk\fR
 sees them\&. Indexes are numbered beginning with 1\&.
 .sp
@@ -1311,7 +1309,7 @@ must unpack key blocks first, then re\-create indexes and pack the key blocks ag
 .\" stats_method option: myisamchk
 \fB\-\-stats\-method=name\fR
 .sp
-Specifies how index statistics collection code should treat NULLs\&. Possible values 
+Specifies how index statistics collection code should treat NULLs\&. Possible values
 of name are "nulls_unequal" (default), "nulls_equal" (emulate MySQL 4 behavior), and "nulls_ignored"\&.
 .RE
 .SH "MYISAMCHK TABLE INFORMATION"
@@ -1616,7 +1614,7 @@ sorted index pages\&.
 Auto increment key,
 Last value
 .sp
-The key number associated the table\'s
+The key number associated the table's
 AUTO_INCREMENT
 column, and the most recently generated value for this column\&. These fields do not appear if there is no such column\&.
 .RE
@@ -1757,7 +1755,7 @@ displays some low\-level information:
 .\}
 Key
 .sp
-This key\'s number\&. This value is shown only for the first column of the key\&. If this value is missing, the line corresponds to the second or later column of a multiple\-column key\&. For the table shown in the example, there are two
+This key's number\&. This value is shown only for the first column of the key\&. If this value is missing, the line corresponds to the second or later column of a multiple\-column key\&. For the table shown in the example, there are two
 table description
 lines for the second index\&. This indicates that it is a multiple\-part index with two parts\&.
 .RE
@@ -2507,7 +2505,7 @@ instead of
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

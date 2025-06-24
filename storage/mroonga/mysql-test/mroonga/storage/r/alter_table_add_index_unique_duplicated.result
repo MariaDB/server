@@ -9,7 +9,7 @@ SHOW CREATE TABLE ids;
 Table	Create Table
 ids	CREATE TABLE `ids` (
   `id` int(11) DEFAULT NULL
-) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SELECT * FROM ids;
 id
 1

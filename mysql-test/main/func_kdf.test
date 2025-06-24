@@ -1,0 +1,64 @@
+--echo #
+--echo # MDEV-31474 KDF() function
+--echo #
+select hex(kdf('foo', 'bar'));
+select hex(kdf('foo', 'bar')); # same result every time
+select hex(kdf('faa', 'bar'));
+select hex(kdf('foo', 'bor'));
+
+select hex(kdf('foo', 'bar', 10));
+select hex(kdf('foo', 'bar', 11));
+
+select hex(kdf('foo', 'bar', 'info', 'hkdf'));
+select hex(kdf('foo', 'bar', 'infa', 'hkdf'));
+select hex(kdf('foo', 'bar', 'info', 'pbkdf2_hmac'));
+select hex(kdf('foo', 'bar', -1, 'pbkdf2_hmac'));
+select hex(kdf('foo', 'bar',  0, 'pbkdf2_hmac'));
+select hex(kdf('foo', 'bar',  1, 'pbkdf2_hmac'));
+select hex(kdf('foo', 'bar', 10, 'pbkdf2_hmac'));
+
+select hex(kdf(NULL, 'bar'));
+select hex(kdf('foo', NULL));
+select hex(kdf('foo', 'bar', NULL, 'hkdf'));
+select hex(kdf('foo', 'bar', NULL, 'pbkdf2_hmac'));
+select hex(kdf('foo', 'bar', 2000, NULL));
+select hex(kdf('foo', 'bar', 2000, 'foo'));
+select hex(kdf('foo', 'bar', 2000, '\n\n\n\0!!!'));
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', NULL));
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', -8));
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', 10));
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', 16));
+
+set @@block_encryption_mode='aes-192-cbc';
+select hex(kdf('foo', 'bar', 'info', 'hkdf'));
+select hex(kdf('foo', 'bar', 'info', 'hkdf', 256));
+select hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac'));
+select hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac', 256));
+
+set @key=kdf('password', 'salt', 2048);
+select hex(aes_encrypt('secret', @key, '1234123412341234'));
+select aes_decrypt(x'9EED553CDDEE426D5635EF559E015ECA', @key, '1234123412341234');
+
+select length(kdf('foo', 'bar', 'info', 'hkdf', -1));
+select length(kdf('foo', 'bar', 'info', 'hkdf', 0));
+select length(kdf('foo', 'bar', 'info', 'hkdf', 32768));
+select length(kdf('foo', 'bar', 'info', 'hkdf', 65536));
+select length(kdf('foo', 'bar', 'info', 'hkdf', 65537));
+
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', -1));
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 0));
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 32768));
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65536));
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65537));
+
+--echo #
+--echo # MDEV-33659 Test kdf() without parameters
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select kdf();
+
+--echo #
+--echo # End of 11.3 tests
+--echo #
+

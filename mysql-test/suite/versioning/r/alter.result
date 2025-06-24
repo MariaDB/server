@@ -8,7 +8,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t drop system versioning;
 ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
@@ -16,7 +16,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add column y int;
 ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t add primary key (a);
@@ -30,7 +30,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set system_versioning_alter_history= keep;
 alter table t add system versioning;
 alter table t drop system versioning, drop column row_start;
@@ -67,7 +67,7 @@ t	CREATE TABLE `t` (
   `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop system versioning;
 ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `trx_start`'
 alter table t drop column trx_start, drop column trx_end;
@@ -78,7 +78,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t add column trx_start timestamp(6) as row start;
 ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
@@ -86,18 +86,18 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add column trx_start timestamp(6) as row start;
-ERROR HY000: Duplicate ROW START column `trx_start`
+ERROR HY000: Wrong parameters for `t`: missing 'AS ROW END'
 alter table t modify a int as row start;
-ERROR HY000: Duplicate ROW START column `a`
+ERROR 42000: Incorrect column specifier for column 'a'
 alter table t add column b int;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add column c int;
 show create table t;
 Table	Create Table
@@ -105,7 +105,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add column d int first;
 show create table t;
 Table	Create Table
@@ -114,7 +114,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add column e int after d;
 show create table t;
 Table	Create Table
@@ -124,7 +124,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop column a;
 show create table t;
 Table	Create Table
@@ -133,7 +133,7 @@ t	CREATE TABLE `t` (
   `e` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t (
 a int,
 row_start timestamp(6) as row start invisible,
@@ -153,7 +153,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop column row_start;
 ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
 alter table t drop column row_end;
@@ -178,7 +178,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 insert into t values(2);
 select * from t for system_time all;
 a
@@ -199,8 +199,6 @@ a
 2
 1
 select row_start from t where a=3 into @tm;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table t add column b int;
 select @tm=row_start from t where a=3;
 @tm=row_start
@@ -210,7 +208,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t;
 a	b
 3	NULL
@@ -230,7 +228,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t modify a int with system versioning;
 ERROR HY000: Table `t` is not system-versioned
 alter table t modify a int without system versioning;
@@ -242,14 +240,14 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t modify a int with system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create or replace table t(
 a int
 ) engine=innodb;
@@ -265,14 +263,14 @@ t	CREATE TABLE `t` (
   `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 # Issue #211: drop of system columns required before drop system versioning
 alter table t drop column trx_start, drop column trx_end;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop system versioning;
 insert into t values(1);
 call verify_trt;
@@ -292,7 +290,7 @@ t	CREATE TABLE `t` (
   `trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START INVISIBLE,
   `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t drop column trx_start, drop column trx_end;
 call verify_trt;
 No	A	B	C	D
@@ -306,7 +304,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 update t set a= 2;
 select * from t for system_time all;
 a
@@ -318,7 +316,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t;
 a	b
 2	NULL
@@ -329,7 +327,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t for system_time all;
 a
 2
@@ -341,7 +339,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 call verify_trt;
 No	A	B	C	D
 create or replace table t (a int);
@@ -416,7 +414,7 @@ t	CREATE TABLE `t` (
   `c` int(11) DEFAULT NULL,
   PRIMARY KEY (`b`),
   UNIQUE KEY `c` (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t;
 a	b	c
 1	2	3
@@ -467,7 +465,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `c` text DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t add fulltext key (c);
 create or replace table t (a int) with system versioning;
 alter table t drop column a;
@@ -503,7 +501,7 @@ t	CREATE TABLE `t` (
   `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t
 drop column row_start,
 drop column row_end,
@@ -513,7 +511,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t drop period for system_time;
 ERROR HY000: Table `t` is not system-versioned
 create or replace table t (
@@ -577,7 +575,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (0) STORED
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t1;
 a	b
 1	0
@@ -593,7 +591,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select * from t1;
 a	b
 1	0
@@ -664,7 +662,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t
 change column a new_a int,
 drop system versioning;
@@ -673,7 +671,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `new_a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t add system versioning;
 alter table t change column new_a a int without system versioning;
 show create table t;
@@ -681,7 +679,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
   `b` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t
 add column c int,
 change column c c int without system versioning,
@@ -721,7 +719,7 @@ t1	CREATE TABLE `t1` (
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PRIMARY KEY (`b`,`row_end`),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t1 drop column b;
 ERROR 42000: Key column 'b' doesn't exist in table
 create or replace table t1 (
@@ -739,7 +737,7 @@ t1	CREATE TABLE `t1` (
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PRIMARY KEY (`b`,`row_end`),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 alter table t1 drop column b;
 ERROR 42000: Key column 'b' doesn't exist in table
 drop table t1;
@@ -878,6 +876,61 @@ t1	CREATE TABLE `t1` (
   `x` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `y` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`x`, `y`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-27293 Allow converting a versioned table from implicit
+#            to explicit row_start/row_end columns
+#
+create table t1 (x int) with system versioning;
+insert t1 values (0), (1);
+update t1 set x= x + 10;
+set @old_system_versioning_alter_history= @@system_versioning_alter_history;
+set @@system_versioning_alter_history= keep;
+alter table t1 add column y int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+alter table t1 add column rs timestamp(6) as row start;
+ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW END'
+alter table t1 add column re timestamp(6) as row end, add period for system_time (row_start, re);
+ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW START'
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end;
+ERROR HY000: Wrong parameters for `t1`: missing 'PERIOD FOR SYSTEM_TIME'
+alter table t1 rename column row_start to re;
+ERROR 42S22: Unknown column 'row_start' in 't1'
+alter table t1 add column rs timestamp(5) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+ERROR 42000: Incorrect column specifier for column 'rs'
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `rs` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `re` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`rs`, `re`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+select x, check_row_ts(rs, re) from t1 for system_time all order by x;
+x	check_row_ts(rs, re)
+0	HISTORICAL ROW
+1	HISTORICAL ROW
+10	CURRENT ROW
+11	CURRENT ROW
+create or replace table t1 (x int) engine innodb with system versioning;
+alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end, add period for system_time (rs,re);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `rs` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `re` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`rs`, `re`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+set @@system_versioning_alter_history= @old_system_versioning_alter_history;
+drop table t1;
+# End of 11.6 tests

@@ -89,7 +89,7 @@ person	CREATE TABLE `person` (
   `Name` varchar(50) NOT NULL,
   PRIMARY KEY (`Id`),
   CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `group` (`Id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,
@@ -110,7 +110,7 @@ person2	CREATE TABLE `person2` (
   `Name` varchar(50) NOT NULL,
   PRIMARY KEY (`Id`),
   CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `kg_test1`.`group` (`Id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SHOW WARNINGS;
 Level	Code	Message
 DROP DATABASE kg_test2;
@@ -136,7 +136,7 @@ Table	Create Table
   KEY `id_depart_in` (`id_depart_in`),
   CONSTRAINT `#departaments_tree_ibfk_1` FOREIGN KEY (`id_depart`) REFERENCES `#departaments` (`id_depart`),
   CONSTRAINT `#departaments_tree_ibfk_2` FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments` (`id_depart`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE `#departaments_tree`;
 DROP TABLE `#departaments`;
 CREATE TABLE `boroda` (
@@ -164,7 +164,7 @@ Table	Create Table
   KEY `b` (`b`),
   CONSTRAINT `#boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
   CONSTRAINT `#boroda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE `#boroda`;
 CREATE TABLE `boroda` (
 `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -188,7 +188,7 @@ bor#oda	CREATE TABLE `bor#oda` (
   KEY `b` (`b`),
   CONSTRAINT `bor#oda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `bor#oda` (`id`),
   CONSTRAINT `bor#oda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE `bor#oda`;
 #
 # MDEV-21127 Assertion `(size_t)(ptr - buf) < MAX_TEXT - 4' failed in key_text::key_text

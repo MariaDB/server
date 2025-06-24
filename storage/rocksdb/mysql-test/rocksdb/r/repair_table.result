@@ -4,23 +4,23 @@ INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
 CREATE TABLE t2 (a INT, b CHAR(8) PRIMARY KEY) ENGINE=rocksdb;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 INSERT INTO t1 (a,b) VALUES (3,'c');
 INSERT INTO t2 (a,b) VALUES (4,'d');
 REPAIR NO_WRITE_TO_BINLOG TABLE t1, t2;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
-test.t2	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
+test.t2	repair	status	OK
 INSERT INTO t2 (a,b) VALUES (5,'e'),(6,'f');
 REPAIR LOCAL TABLE t2;
 Table	Op	Msg_type	Msg_text
-test.t2	repair	note	The storage engine for the table doesn't support repair
+test.t2	repair	status	OK
 INSERT INTO t1 (a,b) VALUES (7,'g'),(8,'h');
 INSERT INTO t2 (a,b) VALUES (9,'i');
 REPAIR LOCAL TABLE t2, t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t2	repair	note	The storage engine for the table doesn't support repair
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t2	repair	status	OK
+test.t1	repair	status	OK
 INSERT INTO t1 (a,b) VALUES (10,'j');
 INSERT INTO t2 (a,b) VALUES (11,'k');
 REPAIR TABLE t1, t2 QUICK USE_FRM;

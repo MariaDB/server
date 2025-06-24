@@ -40,7 +40,7 @@ SET @identifier := REPEAT('a', 65);
 CALL sys.table_exists(@identifier, 't1', @exists);
 ERROR 22001: Data too long for column 'in_db' at row 1
 CALL sys.table_exists('test', @identifier, @exists);
-ERROR 22001: Data too long for column 'in_table' at row 1
+ERROR 22001: Data too long for column 'in_table' at row 0
 SET @identifier := NULL;
 #
 # MDEV-28391: table_exists procedure fails with
@@ -64,9 +64,126 @@ CALL sys.table_exists('test', 'ab`c', @tbl_type);
 SELECT @tbl_type;
 @tbl_type
 TEMPORARY
-# We cannot send quoted identifer to the procedure, no table will be found
+# We cannot send quoted identifier to the procedure, no table will be found
 CALL sys.table_exists('test', '`ab``c`', @tbl_type);
 SELECT @tbl_type;
 @tbl_type
 
+# Remove temporary table
 DROP TABLE `ab``c`;
+CALL sys.table_exists('test', 'ab`c', @tbl_type);
+SELECT @tbl_type;
+@tbl_type
+BASE TABLE
+# Remove base table
+DROP TABLE `ab``c`;
+# MDEV-12459: The information_schema tables for getting temporary tables
+#             info is missing, at least for innodb, there is no
+#             INNODB_TEMP_TABLE_INFO
+#
+CREATE TABLE t1 (id INT PRIMARY KEY);
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+BASE TABLE
+CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+DROP TEMPORARY TABLE t1;
+DROP TABLE t1;
+#
+# MDEV-28335: TABLE_TYPE for temporary sequences
+#             is the same as for permanent ones
+#
+CREATE TEMPORARY SEQUENCE s1;
+CALL sys.table_exists('test', 's1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY SEQUENCE
+DROP SEQUENCE s1;
+CREATE SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists);
+SELECT @exists;
+@exists
+SEQUENCE
+CREATE TEMPORARY SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+DROP SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists);
+SELECT @exists;
+@exists
+SEQUENCE
+DROP SEQUENCE s;
+CALL sys.table_exists('test', 's', @exists);
+SELECT @exists;
+@exists
+
+CREATE TEMPORARY SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY SEQUENCE
+CREATE TABLE t1 (id INT PRIMARY KEY);
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+ERROR 42S01: Table 't1' already exists
+CREATE SEQUENCE t1;
+ERROR 42S01: Table 't1' already exists
+DROP SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+BASE TABLE
+CREATE SEQUENCE t1;
+ERROR 42S01: Table 't1' already exists
+CREATE TEMPORARY SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+DROP SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+BASE TABLE
+CREATE TEMPORARY TABLE t1 (id INT PRIMARY KEY);
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+CREATE TEMPORARY SEQUENCE t1;
+ERROR 42S01: Table 't1' already exists
+CREATE SEQUENCE t1;
+ERROR 42S01: Table 't1' already exists
+DROP TEMPORARY TABLE t1;
+DROP TABLE t1;
+CREATE SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+SEQUENCE
+CREATE TEMPORARY TABLE t1(t int);
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+DROP TABLE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+SEQUENCE
+CREATE TEMPORARY SEQUENCE t1;
+CALL sys.table_exists('test', 't1', @exists);
+SELECT @exists;
+@exists
+TEMPORARY
+DROP TABLE t1;
+DROP TABLE t1;

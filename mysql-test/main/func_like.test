@@ -6,7 +6,7 @@
 drop table if exists t1;
 --enable_warnings
 
-create table t1 (a varchar(10), key(a));
+create table t1 (a varchar(10), key(a)) charset=latin1;
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain extended select * from t1 where a like 'abc%';
 explain extended select * from t1 where a like concat('abc','%');
@@ -201,7 +201,7 @@ drop view v1;
 create table t1 (a varchar(100),
   b int default (a like '%f\\_'),
   c int default (a like '%f\\_' escape ''),
-  d int default (a like '%f\\_' escape '\\'));
+  d int default (a like '%f\\_' escape '\\')) charset=latin1;
 show create table t1;
 insert t1 (a) values ('1 f_'), ('1 f\\_');
 set sql_mode=no_backslash_escapes;
@@ -290,4 +290,19 @@ SELECT 1 LIKE c1|c2, 1 LIKE c1&c2, 1 LIKE c2>>c1, 2 LIKE c2<<c1,
 SELECT * FROM v1;
 EXPLAIN EXTENDED SELECT * FROM v1;
 DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-36211 Incorrect query result for binary_column NOT LIKE binary_column
+--echo #
+CREATE TABLE t1 (c1 BLOB NOT NULL);
+INSERT INTO t1 (c1) VALUES (1);
+SELECT c1 FROM t1 WHERE c1 NOT LIKE c1;
+SELECT c1 FROM t1 WHERE c1 LIKE c1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 BLOB);
+INSERT INTO t1 (c1) VALUES (1);
+SELECT c1 FROM t1 WHERE c1 NOT LIKE c1;
+SELECT c1 FROM t1 WHERE c1 LIKE c1;
 DROP TABLE t1;

@@ -2091,7 +2091,8 @@ static my_bool write_tail(MARIA_HA *info,
         data_file_length after writing any log record (FILE_ID/REDO/UNDO) (see
         collect_tables()).
       */
-      _ma_set_share_data_file_length(share, position + block_size);
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        res= 1;
     }
   }
   DBUG_RETURN(res);
@@ -2194,7 +2195,10 @@ static my_bool write_full_pages(MARIA_HA *info,
     DBUG_ASSERT(block->used & BLOCKUSED_USED);
   }
   if (share->state.state.data_file_length < max_position)
-    _ma_set_share_data_file_length(share, max_position);
+  {
+    if (_ma_set_share_data_file_length(info, max_position))
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
@@ -3215,7 +3219,10 @@ static my_bool write_block_record(MARIA_HA *info,
     /* Increase data file size, if extended */
     position= (my_off_t) head_block->page * block_size;
     if (share->state.state.data_file_length <= position)
-      _ma_set_share_data_file_length(share, position + block_size);
+    {
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        goto disk_err;
+    }
   }
 
   if (share->now_transactional && (tmp_data_used || blob_full_pages_exists))
@@ -5047,7 +5054,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
 #ifdef EXTRA_DEBUG
   if (share->calc_checksum && !info->in_check_table)
   {
-    /* Esnure that row checksum is correct */
+    /* Ensure that row checksum is correct */
     DBUG_ASSERT(((share->calc_checksum)(info, record) & 255) ==
                 cur_row->checksum);
   }
@@ -5708,7 +5715,7 @@ uint ma_calc_length_for_store_length(ulong nr)
 }
 
 
-/* Retrive a stored number */
+/* Retrieve a stored number */
 
 static ulong ma_get_length(const uchar **packet)
 {
@@ -6237,7 +6244,7 @@ my_bool write_hook_for_undo_row_delete(enum translog_record_type type
 
 
 /**
-   @brief Upates "records" and "checksum" and calls the generic UNDO hook
+   @brief Updates "records" and "checksum" and calls the generic UNDO hook
 
    @return Operation status, always 0 (success)
 */

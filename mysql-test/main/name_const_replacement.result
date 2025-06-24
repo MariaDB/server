@@ -6,13 +6,20 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100,
-      "attached_condition": "t1.a = 1"
-    }
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
   }
 }
 explain format=json
@@ -21,25 +28,36 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "const_condition": "1",
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "t2",
-        "access_type": "ALL",
-        "rows": 2,
-        "filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "141",
-      "join_type": "BNL",
-      "attached_condition": "trigcond(t2.b = t1.b and trigcond(t1.a = 1))"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "141",
+          "join_type": "BNL",
+          "attached_condition": "trigcond(t2.b = t1.b and trigcond(t1.a = 1))"
+        }
+      }
+    ]
   }
 }
 create table t2 (

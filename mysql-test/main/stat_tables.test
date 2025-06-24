@@ -125,7 +125,6 @@ order by o_year;
 eval EXPLAIN $Q8;
 eval $Q8;
 
-
 let $Q9=
 select nation, o_year, sum(amount) as sum_profit
 from (select n_name as nation, 
@@ -140,6 +139,7 @@ group by nation, o_year
 order by nation, o_year desc;
 
 eval EXPLAIN $Q9;
+eval EXPLAIN EXTENDED $Q9;
 eval $Q9;
 
 

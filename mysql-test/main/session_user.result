@@ -1,0 +1,56 @@
+# Create a stored procedure which calls the different functions to retrieve the user
+CREATE FUNCTION test.func_session_user() RETURNS CHAR(80) SQL SECURITY DEFINER RETURN CONCAT(USER(), '; ', CURRENT_USER(), '; ', SESSION_USER());
+# Create a view which calls the different functions to retrieve the user
+CREATE SQL SECURITY DEFINER VIEW test.view_session_user AS SELECT USER(), CURRENT_USER(), SESSION_USER();
+# Create test_user
+CREATE USER 'test_user'@'%';
+GRANT EXECUTE, CREATE, DROP, SELECT ON test.* TO 'test_user'@'%';
+# Connect as test_user
+connect  test_user_con,localhost,test_user,,;
+# Check the function called directly
+SELECT USER(), CURRENT_USER(), SESSION_USER();
+USER()	CURRENT_USER()	SESSION_USER()
+test_user@localhost	test_user@%	test_user@%
+# Check the function inside of a stored procedure
+SELECT test.func_session_user();
+test.func_session_user()
+test_user@localhost; root@localhost; test_user@%
+# Check the function inside of a view
+SELECT * FROM test.view_session_user;
+USER()	CURRENT_USER()	SESSION_USER()
+test_user@localhost	root@localhost	test_user@%
+# Check SESSION_USER is allowed in virtual columns
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()));
+# Check SESSION_USER is not allowed for indexed virtual columns
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()), INDEX idx (b));
+ERROR HY000: Function or expression 'session_user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# Check SESSION_USER is not allowed in virtual columns when CHECK constraints are provided
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()) CHECK (b <> ''));
+ERROR HY000: Function or expression 'b' cannot be used in the CHECK clause of `b`
+# Check SESSION_USER is not allowed for stored virtual columns
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) GENERATED ALWAYS AS (SESSION_USER()) STORED);
+ERROR HY000: Function or expression 'session_user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# Check SESSION_USER is allowed as default
+CREATE OR REPLACE TABLE t1 (a int, b varchar(100) DEFAULT (SESSION_USER()));
+# Test old mode SESSION_USER_IS_USER behaves properly
+SELECT @@OLD_MODE, @@GLOBAL.OLD_MODE;
+@@OLD_MODE	@@GLOBAL.OLD_MODE
+UTF8_IS_UTF8MB3	UTF8_IS_UTF8MB3
+SELECT USER(), SESSION_USER();
+USER()	SESSION_USER()
+test_user@localhost	test_user@%
+SET @@OLD_MODE = CONCAT(@@OLD_MODE, ',SESSION_USER_IS_USER');
+Warnings:
+Warning	1287	'SESSION_USER_IS_USER' is deprecated and will be removed in a future release
+SELECT @@OLD_MODE, @@GLOBAL.OLD_MODE;
+@@OLD_MODE	@@GLOBAL.OLD_MODE
+UTF8_IS_UTF8MB3,SESSION_USER_IS_USER	UTF8_IS_UTF8MB3
+SELECT USER(), SESSION_USER();
+USER()	SESSION_USER()
+test_user@localhost	test_user@localhost
+# Cleanup
+connection default;
+DROP USER 'test_user'@'%';
+DROP FUNCTION test.func_session_user;
+DROP VIEW test.view_session_user;
+DROP TABLE test.t1;

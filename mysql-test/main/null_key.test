@@ -107,6 +107,7 @@ CREATE TABLE t2 (
 
 INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,2),(5,NULL),(6,NULL),(7,3),(8,4),(9,NULL),(10,NULL);
 INSERT INTO t1 VALUES (11,5),(12,6),(13,7),(14,8),(15,9);
+INSERT INTO t1 VALUES (1000,1000),(1010,1010);
 INSERT INTO t2 VALUES (1,NULL),(2,NULL),(3,1),(4,2),(5,NULL),(6,NULL),(7,3),(8,4),(9,NULL),(10,NULL);
 #
 # Check IS NULL optimization
@@ -125,6 +126,12 @@ select id from t2 where uniq_id is null;
 #
 DELETE FROM t1 WHERE uniq_id IS NULL;
 DELETE FROM t2 WHERE uniq_id IS NULL;
+
+#
+# Delete extra records that were used to force null optimization
+#
+DELETE FROM t1 WHERE id >= 1000;
+
 #
 # Select what is left -- notice the difference
 #

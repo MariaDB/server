@@ -1,0 +1,5 @@
+# These are from stop word list
+spelling-error-in-binary noone no one [usr/lib/x86_64-linux-gnu/libmariadbd.so.19]
+spelling-error-in-binary thats that's [usr/lib/x86_64-linux-gnu/libmariadbd.so.19]
+spelling-error-in-binary theres there's [usr/lib/x86_64-linux-gnu/libmariadbd.so.19]
+spelling-error-in-binary yuR your [usr/lib/x86_64-linux-gnu/libmariadbd.so.19]

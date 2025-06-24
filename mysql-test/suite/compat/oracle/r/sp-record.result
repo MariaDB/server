@@ -1,0 +1,775 @@
+# Start of 11.8 tests
+# 
+# MDEV-34317 DECLARE TYPE type_name IS RECORD (..) with scalar members in stored routines
+# 
+set sql_mode=oracle;
+#
+# Basic RECORD
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+str VARCHAR(1024);
+BEGIN
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+SELECT str;
+END;
+$$
+str
+dept_id:   11; dept_name: a; mgr_id:    201; loc_id:    1700
+#
+# RECORD fields with anchored type
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    t1.dept_id%TYPE,
+dept_name  t1.dept_name%TYPE,
+mgr_id     t1.mgr_id%TYPE,
+loc_id     t1.loc_id%TYPE
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+str VARCHAR(1024);
+BEGIN
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+SELECT str;
+END;
+$$
+str
+dept_id:   11; dept_name: a; mgr_id:    201; loc_id:    1700
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(5) CHARACTER SET utf8mb4, b INT, c DOUBLE);
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE RecT IS RECORD (
+a t1.a%TYPE,
+b t1.b%TYPE,
+c t1.c%TYPE
+);
+rec RecT:= RecT('a',2,3.5);
+BEGIN
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "rec.a" varchar(5) DEFAULT NULL,
+  "rec.b" int(11) DEFAULT NULL,
+  "rec.c" double DEFAULT NULL
+)
+rec.a	rec.b	rec.c
+a	2	3.5
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# RECORD using SUBTYPE
+# This is not supported yet
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+DECLARE
+SUBTYPE DeptRecTyp IS t1%ROWTYPE;
+dept_rec DeptRecTyp;
+str VARCHAR(1024);
+BEGIN
+dept_rec.dept_id  := 11;
+dept_rec.dept_name:= 'a';
+dept_rec.mgr_id   := 201;
+dept_rec.loc_id   := 1700;
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+SELECT str;
+END;
+$$
+ERROR HY000: Unknown data type: 'DeptRecTyp'
+DROP TABLE t1;
+#
+# RECORD with NOT NULL or default clauses
+# This is not supported yet
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4) NOT NULL := 10,
+dept_name  VARCHAR2(30) NOT NULL := 'Administration',
+mgr_id     NUMBER(6) := 200,
+loc_id     NUMBER(4) := 1700
+);
+dept_rec DeptRecTyp;
+str VARCHAR(1024);
+BEGIN
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || chr(13) ||
+'mgr_id:    ' || dept_rec.mgr_id    || chr(13) ||
+'loc_id:    ' || dept_rec.loc_id;
+SELECT str;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT NULL := 10,
+dept_name  VARCHAR2(30) NOT NULL := 'Administration',
+mgr_id ...' at line 3
+#
+# Nested RECORDs
+# This is not supported yet
+#
+DECLARE
+TYPE name_rec IS RECORD (
+first  VARCHAR(64),
+last   VARCHAR(64)
+);
+TYPE contact IS RECORD (
+name  name_rec,     -- a nested record
+phone VARCHAR(32)
+);
+person contact;
+str VARCHAR(1024);
+BEGIN
+person.name.first := 'John';
+person.name.last := 'Brown';
+person.phone := '1-654-222-1234';
+str:= 
+person.name.first  || ' ' ||
+person.name.last   || ', ' ||
+person.phone;
+SELECT str;
+END;
+$$
+ERROR HY000: Unknown data type: 'name_rec'
+#
+# RECORD duplicate type declaration
+#
+DECLARE
+TYPE RcType IS RECORD (
+a NUMBER(4)
+);
+TYPE RcType IS RECORD (
+b NUMBER(4)
+);
+BEGIN
+END;
+$$
+ERROR HY000: Duplicate declaration: 'RcType'
+#
+# RECORD with no field
+#
+DECLARE
+TYPE RcType IS RECORD (
+);
+rec RcType;
+str VARCHAR(1024);
+BEGIN
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ');
+rec RcType;
+str VARCHAR(1024);
+BEGIN
+END' at line 3
+#
+# RECORD field test
+#
+DECLARE
+TYPE RcType IS RECORD (
+int11 INT,
+dec103 DECIMAL(10,3),
+flt0 FLOAT,
+dbl0 DOUBLE,
+enum0 ENUM('a','b'),
+bit3 BIT(3),
+varchar10 VARCHAR(10),
+text1 TEXT,
+tinytext1 TINYTEXT,
+mediumtext1 MEDIUMTEXT CHARACTER SET utf8,
+longtext1 LONGTEXT,
+time3 TIME(3),
+datetime4 DATETIME(4),
+timestamp5 TIMESTAMP(5),
+date0 DATE
+);
+rec1,rec2 RcType:= RcType(4, 11.2, 6.7, 111.43234663, 'a', b'101',
+'bbbb', 'TEXT', 'TINY', 'MEDIUM', 'LONG',
+'10:14:22','2001-07-22 10:14:22', '2001-07-22 12:12:12', '2001-07-22');
+rec3 RcType;
+BEGIN
+SELECT rec1.int11, rec2.timestamp5, rec3.date0;
+END;
+$$
+rec1.int11	rec2.timestamp5	rec3.date0
+4	2001-07-22 12:12:12.00000	NULL
+#
+# RECORD with field manipulations
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec DeptRecTyp;
+test INT:=4;
+BEGIN
+dept_rec.dept_id:= 2;
+test:= test + dept_rec.dept_id;
+dept_rec.dept_id:= 5;
+SELECT dept_rec.dept_id, test;
+END;
+$$
+dept_rec.dept_id	test
+5	6
+#
+# RECORD comparison
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR(20)
+);
+dept_rec1 DeptRecTyp := DeptRecTyp(1,'a');
+dept_rec2 DeptRecTyp := DeptRecTyp(1,'a');
+BEGIN
+SELECT dept_rec1 = dept_rec2;
+dept_rec2.dept_id:= 2;
+SELECT dept_rec1 = dept_rec2;
+END;
+$$
+dept_rec1 = dept_rec2
+1
+dept_rec1 = dept_rec2
+0
+#
+# RECORD comparison
+# RECORD type comparison is not supported for records with only
+# one field (bug, see MDEV-35274)
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec1 DeptRecTyp;
+dept_rec2 DeptRecTyp;
+BEGIN
+SELECT dept_rec1 = dept_rec2;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+#
+# RECORD assignment with the same type
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec1 DeptRecTyp:= DeptRecTyp(11);
+dept_rec2 DeptRecTyp:= DeptRecTyp(12);
+BEGIN
+dept_rec1:= dept_rec2;
+SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+dept_rec1.dept_id	dept_rec2.dept_id
+12	12
+#
+# RECORD assignment with different types, but the same fields
+# This fails in ORACLE TODO
+#
+DECLARE
+TYPE DeptRecTyp1 IS RECORD (
+dept_id    NUMBER(4)
+);
+TYPE DeptRecTyp2 IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec1 DeptRecTyp1:= DeptRecTyp1(11);
+dept_rec2 DeptRecTyp2:= DeptRecTyp2(12);
+BEGIN
+dept_rec1:= dept_rec2;
+SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+dept_rec1.dept_id	dept_rec2.dept_id
+12	12
+#
+# RECORD assignment with different types
+# This fails in ORACLE with
+# PLS-00382: expression is of wrong type
+# In MariaDB we need to set sql_mode='strict_all_tables'
+# to get a similar effect. Otherwise we only get a warning.
+#
+DECLARE
+TYPE DeptRecTyp1 IS RECORD (
+dept_id    NUMBER(4)
+);
+TYPE DeptRecTyp2 IS RECORD (
+dept_id    VARCHAR2(30)
+);
+dept_rec1 DeptRecTyp1:= DeptRecTyp1(11);
+dept_rec2 DeptRecTyp2:= DeptRecTyp2('a');
+BEGIN
+dept_rec1:= dept_rec2;
+SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+dept_rec1.dept_id	dept_rec2.dept_id
+0	a
+Warnings:
+Warning	1366	Incorrect decimal value: 'a' for column ``.``.`dept_id` at row 0
+#
+# RECORD assignment with anchored ROWTYPE from table
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4)
+);
+INSERT INTO t1 VALUES(12);
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec1 DeptRecTyp:= DeptRecTyp(11);
+dept_rec2 t1%ROWTYPE;
+BEGIN
+SELECT dept_id INTO dept_rec2 FROM t1 WHERE ROWNUM < 2;
+dept_rec1:= dept_rec2;
+SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+$$
+dept_rec1.dept_id	dept_rec2.dept_id
+12	12
+DROP TABLE t1;
+#
+# RECORD assignment with anchored ROWTYPE from cursor (1)
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4)
+);
+INSERT INTO t1 VALUES(12);
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+CURSOR c1 IS SELECT * FROM t1;
+dept_rec1 DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+DECLARE
+dept_rec2 c1%ROWTYPE;
+BEGIN
+SELECT dept_id INTO dept_rec2 FROM t1 WHERE ROWNUM < 2;
+dept_rec1:= dept_rec2;
+SELECT dept_rec1.dept_id, dept_rec2.dept_id;
+END;
+END;
+$$
+dept_rec1.dept_id	dept_rec2.dept_id
+12	12
+DROP TABLE t1;
+#
+# RECORD assignment with anchored ROWTYPE from cursor (2)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+b VARCHAR(10)
+);
+CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+DECLARE
+rec1 DeptRecTyp:=DeptRecTyp(11,'a');
+rec2 cur1%ROWTYPE;
+BEGIN
+rec2.a:= 10;
+rec2.b:= 'bbb';
+rec1:= rec2;
+SELECT rec1.dept_id, rec2.a;
+END;
+END;
+$$
+CALL p1();
+rec1.dept_id	rec2.a
+10	10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# RECORD within stored procedures
+#
+CREATE OR REPLACE PROCEDURE p1() AS
+TYPE DeptRecTyp IS RECORD(dept_id    NUMBER(4));
+dept_rec DeptRecTyp;
+BEGIN
+END;
+$$
+DROP PROCEDURE p1;
+#
+# SELECT INTO RECORD (??)
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+INSERT INTO t1 VALUES(12, 'b',202,2000);
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    t1.dept_id%TYPE,
+dept_name  t1.dept_name%TYPE,
+mgr_id     t1.mgr_id%TYPE,
+loc_id     t1.loc_id%TYPE
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+str VARCHAR(1024);
+BEGIN
+SELECT * INTO dept_rec FROM t1 WHERE ROWNUM <= 1;
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+SELECT str;
+END;
+$$
+str
+dept_id:   12; dept_name: b; mgr_id:    202; loc_id:    2000
+DROP TABLE t1;
+#
+# INSERT RECORDs INTO table
+# Not supported (?)
+# This is supported in Oracle with `VALUES row_constructor_list`
+CREATE TABLE t1
+(
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    t1.dept_id%TYPE,
+dept_name  t1.dept_name%TYPE,
+mgr_id     t1.mgr_id%TYPE,
+loc_id     t1.loc_id%TYPE
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+str VARCHAR(1024);
+BEGIN
+INSERT INTO t1 VALUES dept_rec;
+SELECT * FROM t1;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'dept_rec;
+SELECT * FROM t1;
+END' at line 11
+DROP TABLE t1;
+#
+# UPDATE table using RECORD
+# This is supported in Oracle
+CREATE TABLE t1
+(
+dept_id    NUMBER(4)
+);
+INSERT INTO t1 VALUES(12);
+DECLARE
+TYPE DeptRecTyp IS RECORD(dept_id    NUMBER(4));
+dept_rec DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+UPDATE t1 SET ROW = dept_rec WHERE dept_id = 12;
+END;
+$$
+ERROR 42S22: Unknown column 'ROW' in 'SET'
+DROP TABLE t1;
+#
+# Wrong parameter count to RECORD's constructor (actual < expected)
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201);
+str VARCHAR(1024);
+BEGIN
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+select str;
+END;
+$$
+ERROR 21000: Operand should contain 4 column(s)
+#
+# Wrong parameter count to RECORD's constructor (actual > expected)
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700,2000);
+str VARCHAR(1024);
+BEGIN
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+SELECT str;
+END;
+$$
+ERROR 21000: Operand should contain 4 column(s)
+#
+# Case insensitivity test for RECORD variable
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11);
+str VARCHAR(1024);
+BEGIN
+SELECT DEPT_rec.DEPT_id;
+END;
+$$
+DEPT_rec.DEPT_id
+11
+#
+# Quoted indentifier test for RECORD variable
+#
+DECLARE
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+"dept/rec" DeptRecTyp:= DeptRecTyp(11);
+str VARCHAR(1024);
+BEGIN
+SELECT "dept/rec".dept_id;
+END;
+$$
+"dept/rec".dept_id
+11
+#
+# RECORD type used in a stored PROCEDURE
+#
+CREATE PROCEDURE p1(v NUMBER) AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+SELECT dept_rec.dept_id + v;
+END;
+$$
+CALL p1(4);
+dept_rec.dept_id + v
+15
+DROP PROCEDURE p1;
+#
+# RECORD type used in a stored FUNCTION
+#
+CREATE FUNCTION f1(v NUMBER)
+RETURN NUMBER IS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11);
+BEGIN
+RETURN dept_rec.dept_id + v;
+END;
+$$
+SELECT f1(4);
+f1(4)
+15
+DROP FUNCTION f1;
+#
+# RECORD keyword as identifier (sp var name)
+#
+DECLARE
+RECORD NUMBER(4);
+BEGIN
+SELECT RECORD;
+END;
+$$
+RECORD
+NULL
+#
+# RECORD keyword as identifier (function name)
+#
+CREATE FUNCTION RECORD(a IN NUMBER) 
+RETURN NUMBER 
+IS b NUMBER(11,2);
+BEGIN
+b:= a;
+RETURN(b); 
+END;
+$$
+DROP FUNCTION RECORD;
+SET sql_mode=default;
+#
+# Basic RECORD, anonymous block sql_mode=default;
+#
+BEGIN NOT ATOMIC
+DECLARE TYPE DeptRecTyp IS RECORD (
+dept_id    INT
+);
+DECLARE dept_rec DeptRecTyp DEFAULT DeptRecTyp(11);
+SELECT dept_rec.dept_id;
+END;
+$$
+ERROR HY000: Unknown data type: 'DeptRecTyp'
+#
+# Basic RECORD, stored procedure sql_mode=default;
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE TYPE DeptRecTyp IS RECORD (
+dept_id    INT
+);
+DECLARE dept_rec DeptRecTyp DEFAULT DeptRecTyp(11);
+SELECT dept_rec.dept_id;
+END;
+$$
+ERROR HY000: Unknown data type: 'DeptRecTyp'
+CALL p1();
+ERROR 42000: PROCEDURE test.p1 does not exist
+DROP PROCEDURE p1;
+ERROR 42000: PROCEDURE test.p1 does not exist
+#
+# Basic RECORD, stored function sql_mode=default;
+#
+CREATE OR REPLACE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE TYPE DeptRecTyp IS RECORD (
+dept_id    INT
+);
+DECLARE dept_rec DeptRecTyp DEFAULT DeptRecTyp(11);
+RETURN dept_rec.dept_id;
+END;
+$$
+ERROR HY000: Unknown data type: 'DeptRecTyp'
+SELECT f1();
+ERROR 42000: FUNCTION test.f1 does not exist
+DROP FUNCTION f1;
+ERROR 42000: FUNCTION test.f1 does not exist
+SET sql_mode=ORACLE;
+#
+# Ensure keyword TYPE can still be used when sql_mode=ORACLE
+# for DATABASE
+#
+CREATE DATABASE TYPE;
+DROP DATABASE TYPE;
+#
+# Ensure keyword TYPE can still be used when sql_mode=ORACLE
+# for TABLE
+#
+CREATE TABLE TYPE(a INTEGER);
+INSERT INTO TYPE VALUES (1);
+SELECT * FROM TYPE;
+a
+1
+DROP TABLE TYPE;
+#
+# Ensure keyword TYPE can still be used when sql_mode=ORACLE
+# for COLUMN name
+#
+CREATE TABLE t1(TYPE INTEGER);
+INSERT INTO t1 VALUES (1);
+SELECT TYPE FROM t1 WHERE TYPE=1;
+TYPE
+1
+SELECT b.TYPE FROM t1 b WHERE b.TYPE=1;
+TYPE
+1
+DROP TABLE t1;
+#
+# Ensure that DATE field of a record maps correctly to MariaDB
+# DATETIME
+#
+DECLARE
+TYPE rec_t IS RECORD (
+a INT,
+b DATE
+);
+rec rec_t:= rec_t(1,'2021-01-01 10:20:30');
+BEGIN
+CREATE TABLE t1 AS SELECT rec.a, rec.b;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "rec.a" int(11) DEFAULT NULL,
+  "rec.b" datetime DEFAULT NULL
+)
+rec.a	rec.b
+1	2021-01-01 10:20:30
+#
+# Ensure that nested record types are properly parsed (without crash, etc)
+#
+SET sql_mode=ORACLE;
+DECLARE
+TYPE rec_t IS RECORD (
+a INT,
+b DATE
+);
+rec rec_t:= rec_t(1,'2021-01-01 10:20:30');
+TYPE rec2_t IS RECORD
+(
+a INT,
+b rec_t
+);
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: 'rec_t'
+#
+# Multiple RECORD variable declaration+initialization test
+#
+DECLARE
+TYPE rec_t IS RECORD (
+a  NUMBER(4),
+b  VARCHAR2(30)
+);
+rec0, rec1, rec2 rec_t := rec_t(1,'a'); BEGIN
+SELECT rec0.a || rec0.b AS r0, rec1.a || rec1.b AS t1, rec2.a || rec2.b AS r2; END;
+$$
+r0	t1	r2
+1a	1a	1a
+# End of 11.8 tests

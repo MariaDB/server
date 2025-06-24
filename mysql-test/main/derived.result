@@ -1,4 +1,5 @@
 drop table if exists t1,t2,t3;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 select * from (select 2 from DUAL) b;
@@ -205,6 +206,7 @@ SELECT a.x FROM (SELECT 1 AS x) AS a HAVING a.x = 1;
 x
 1
 create user mysqltest_1;
+grant all on test.* to mysqltest_1;
 create table t1 select 1 as a;
 connect  con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection con1;
@@ -316,7 +318,7 @@ a	7.0000
 b	3.5000
 explain SELECT s.name, AVG(s.val) AS median FROM (SELECT x.name, x.val FROM t1 x, t1 y WHERE x.name=y.name GROUP BY x.name, x.val HAVING SUM(y.val <= x.val) >= COUNT(*)/2 AND SUM(y.val >= x.val) >= COUNT(*)/2) AS s GROUP BY s.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	289	Using temporary; Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
 2	DERIVED	x	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
 2	DERIVED	y	ALL	NULL	NULL	NULL	NULL	17	Using where; Using join buffer (flat, BNL join)
 drop table t1;
@@ -369,6 +371,15 @@ a
 2
 3
 3
+set @save2_derived_optimizer_switch_bug=@@optimizer_switch;
+set @@optimizer_switch=default;
+select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+a
+1
+2
+3
+3
+set @@optimizer_switch=@save2_derived_optimizer_switch_bug;
 drop table t1, t2, t3;
 create table t1 (a int);
 create table t2 (a int);
@@ -638,7 +649,7 @@ SELECT f3 FROM t2 HAVING f3 >= 8
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	const	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
 4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
@@ -1282,14 +1293,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 analyze select * from t1 , ((select distinct t2.a, t2.b from t2 order by c))q  where t1.a=q.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	1.00	100.00	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
 # multiple selects in derived table
 # NO UNION ALL
 analyze select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t1.a	1	1.00	100.00	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	6.00	NULL	NULL	
@@ -1305,7 +1316,7 @@ a	a
 analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	0.50	100.00	100.00	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t1.a	1	0.50	100.00	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 4	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
@@ -1314,6 +1325,23 @@ select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a fr
 a	a
 3	3
 4	4
+6	6
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.17	100.00	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+4	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	7.00	NULL	NULL	
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+a	a
+3	3
+3	3
+4	4
+4	4
+5	5
+6	6
 6	6
 drop table t1,t2,t3;
 #
@@ -1355,3 +1383,3976 @@ drop table t1,t2,t3;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-24588: Fix crash with unnamed column in derived table.
+# Assertion `item->name.str && item->name.str[0]` in
+# `TABLE_LIST::create_field_translation` fails when a SELECT
+# query includes a derived table containing unnamed column
+# (eg: `SELECT '' from t`).
+#
+# Tests from the bug report
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a) FROM t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+SET sql_mode='';
+PREPARE p FROM 'SELECT SHA(pk) IN (SELECT * FROM (SELECT \'\' FROM t) AS a) FROM t;';
+EXECUTE p;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+EXECUTE p;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a)
+0
+0
+0
+DEALLOCATE PREPARE p;
+# Tests on derived tables
+SELECT * FROM (SELECT 1, '' FROM t) AS a;
+1	
+1	
+1	
+1	
+SELECT * FROM (SELECT '', 1 FROM t) AS a;
+	1
+	1
+	1
+	1
+SELECT * FROM (SELECT 1, 2, '' FROM t) AS a;
+1	2	
+1	2	
+1	2	
+1	2	
+SELECT * FROM (SELECT pk, '' FROM t) AS a;
+pk	
+1	
+2	
+3	
+SELECT '/', '/';
+/	/
+/	/
+SELECT * FROM (SELECT pk, '', '' as c1 FROM t) AS a;
+pk		c1
+1		
+2		
+3		
+SELECT * FROM (SELECT '', '' from t) AS a;
+ERROR 42S21: Duplicate column name ''
+SELECT * FROM (SELECT '/', '/' FROM t) AS a;
+ERROR 42S21: Duplicate column name '/'
+SELECT * FROM (SELECT '/', '/') AS a;
+ERROR 42S21: Duplicate column name '/'
+DROP TABLE t;
+# Tests on views
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+CREATE VIEW v_t AS SELECT * FROM t;
+SHOW CREATE VIEW v_t;
+View	Create View	character_set_client	collation_connection
+v_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_t` AS select `t`.`pk` AS `pk` from `t`	latin1	latin1_swedish_ci
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a) FROM v_t;
+SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a)
+0
+0
+0
+SELECT * FROM (SELECT pk, '', '' as c1 FROM v_t) AS a;
+pk		c1
+1		
+2		
+3		
+SELECT * FROM (SELECT '', '' from v_t) AS a;
+ERROR 42S21: Duplicate column name ''
+SELECT * FROM (SELECT '/', '/' from v_t) AS a;
+ERROR 42S21: Duplicate column name '/'
+CREATE VIEW v1 AS SELECT '/', '/';
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select '/' AS `/`,'/' AS `My_exp_/`	latin1	latin1_swedish_ci
+DROP VIEW v_t, v1;
+DROP TABLE t;
+# Tests on views created using SELECT statements that contain derived columns
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+CREATE VIEW v1_t AS SELECT '' FROM t;
+SHOW CREATE VIEW v1_t;
+View	Create View	character_set_client	collation_connection
+v1_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1_t` AS select '' AS `Name_exp_1` from `t`	latin1	latin1_swedish_ci
+SELECT * FROM v1_t;
+Name_exp_1
+
+
+
+CREATE VIEW v2_t AS SELECT * FROM (SELECT '' FROM t) AS a;
+SHOW CREATE VIEW v2_t;
+View	Create View	character_set_client	collation_connection
+v2_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2_t` AS select `tmp_field` AS `Name_exp_1` from (select '' from `t`) `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v2_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * FROM v2_t;
+ERROR HY000: View 'test.v2_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE VIEW v3_t AS SELECT * FROM (SELECT '' as c1 FROM t) AS a;
+SHOW CREATE VIEW v3_t;
+View	Create View	character_set_client	collation_connection
+v3_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3_t` AS select `a`.`c1` AS `c1` from (select '' AS `c1` from `t`) `a`	latin1	latin1_swedish_ci
+SELECT * FROM v3_t;
+c1
+
+
+
+CREATE VIEW v4_t AS SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SHOW CREATE VIEW v4_t;
+View	Create View	character_set_client	collation_connection
+v4_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4_t` AS select `a`.`1` AS `1`,`tmp_field` AS `Name_exp_2` from (select 1 AS `1`,'' from `t`) `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v4_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * from v4_t;
+ERROR HY000: View 'test.v4_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+CREATE VIEW v5_t AS SELECT '';
+SHOW CREATE VIEW v5_t;
+View	Create View	character_set_client	collation_connection
+v5_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v5_t` AS select '' AS `Name_exp_1`	latin1	latin1_swedish_ci
+SELECT * FROM v5_t;
+Name_exp_1
+
+CREATE VIEW v6_t AS SELECT * FROM (SELECT '') AS a;
+SHOW CREATE VIEW v6_t;
+View	Create View	character_set_client	collation_connection
+v6_t	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v6_t` AS select `tmp_field` AS `Name_exp_1` from (select '') `a`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+SELECT * FROM v6_t;
+ERROR HY000: View 'test.v6_t' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
+DROP TABLE t;
+# End of 10.11 tests
+#
+# Test of "Derived tables and union can now create distinct keys"
+#
+create table t1 (a int);
+insert into t1 values (100),(100),(100),(100),(100),(100),(100),(100),(100),(100);
+create table duplicates_tbl (a int);
+insert into duplicates_tbl select seq/100 from seq_1_to_10000;
+explain
+select
+t1.a IN ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	Using where
+3	DERIVED	duplicates_tbl	ALL	NULL	NULL	NULL	NULL	10000	
+select
+t1.a IN ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+A
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+explain
+select
+t1.a = all ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	DEPENDENT SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	Using where
+3	DERIVED	duplicates_tbl	ALL	NULL	NULL	NULL	NULL	10000	
+select
+t1.a = all ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+A
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+drop table t1, duplicates_tbl;
+#
+# MDEV-30310
+# Assertion failure in best_access_path upon IN exceeding
+# IN_PREDICATE_CONVERSION_THRESHOLD, derived_with_keys=off
+#
+CREATE TABLE t1 (l_orderkey int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (o_orderkey int);
+INSERT INTO t2 VALUES (3),(4);
+SET IN_PREDICATE_CONVERSION_THRESHOLD= 2;
+SET OPTIMIZER_SWITCH='derived_with_keys=on';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+l_orderkey	o_orderkey
+SET OPTIMIZER_SWITCH='derived_with_keys=off';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+l_orderkey	o_orderkey
+SET @@IN_PREDICATE_CONVERSION_THRESHOLD=@@global.IN_PREDICATE_CONVERSION_THRESHOLD;
+SET @@OPTIMIZER_SWITCH=@@global.OPTIMIZER_SWITCH;
+DROP TABLE t1, t2;
+#
+# MDEV-30540 Wrong result with IN list length reaching
+# IN_PREDICATE_CONVERSION_THRESHOLD
+#
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 SELECT seq FROM seq_1_to_30;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET IN_PREDICATE_CONVERSION_THRESHOLD=4;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+a
+1
+2
+SET IN_PREDICATE_CONVERSION_THRESHOLD=100;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+a
+1
+2
+drop table t1;
+#
+# MDEV-31022: SIGSEGV in maria_create from create_internal_tmp_table
+# keydef incorrectly allocated on the stack in create_internal_tmp_table()
+#
+CREATE TABLE t1 (c CHAR(1) NULL) ENGINE=MyISAM;
+INSERT INTO t1 (c) VALUES (1);
+SET statement
+optimizer_where_cost=1,
+tmp_memory_table_size=0,
+in_predicate_conversion_threshold=2
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+c
+SET statement
+optimizer_where_cost=1,
+tmp_memory_table_size=0,
+in_predicate_conversion_threshold=2,
+sql_mode=''
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+c
+DROP TABLE t1;
+#
+# End of 11.0 tests
+#
+#
+# MDEV-28883: single/multi-table UPDATE/DELETE whose WHERE condition
+#             contains subquery from mergeable derived table
+#             that uses the updated/deleted table
+#
+create table t1 (pk int, a int);
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain update t1 set a = 10
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+update t1 set a = 10
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	10
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "update t1 set a = 10
+where a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	10
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	10
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+explain update t1 set a = 10
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+update t1 set a = 10
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+select * from t1;
+pk	a
+4	9
+3	10
+1	10
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+prepare stmt from "update t1 set a = 10
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2";
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	10
+1	10
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	10
+1	10
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+explain delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a;
+pk	a
+4	9
+select * from t1;
+pk	a
+3	1
+1	3
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+prepare stmt from "delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a";
+execute stmt;
+pk	a
+4	9
+select * from t1;
+pk	a
+3	1
+1	3
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+pk	a
+4	9
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain delete from t1
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using filesort
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+select * from t1;
+pk	a
+2	7
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2";
+execute stmt;
+select * from t1;
+pk	a
+2	7
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+execute stmt;
+select * from t1;
+pk	a
+2	7
+4	9
+deallocate prepare stmt;
+create table t2 (pk int, a int);
+insert into t2 values (1,3), (2, 7), (3,1), (4,9);
+create table t3 (a int);
+insert into t3 VALUES (0),(1);
+explain update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+2	7
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	9
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	9
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+insert into t3 values (9), (10), (7);
+explain delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+drop table t1,t2,t3;
+# End of MariaDB 11.1 tests
+#
+# MDEV-34880: Incorrect result for query with derived table having TEXT field
+#
+CREATE TABLE t1 (id int NOT NULL  PRIMARY KEY, notes TEXT NOT NULL);
+INSERT INTO t1 VALUES (1, 'test1'), (2, 'test2');
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1;
+id	notes
+1	test1
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1 AND
+notes = 'test1';
+id	notes
+1	test1
+DROP TABLE t1;
+#
+# End of 11.2 tests
+#
+#
+# MDEV-31466 Add optional correlation column list for derived tables
+#
+# simple examples of renaming a TVC
+select *, c1 from (values (3,4),(5,6)) as tvc(c1, c2);
+c1	c2	c1
+3	4	3
+5	6	5
+# multibyte chars as names
+select * from (values (3,4),(5,6)) as tvc(c1, `柱`);
+c1	柱
+3	4
+5	6
+# illustrate column name at each level
+select outmost from
+(
+select outercol1, outercol2 from
+(
+select concat(innercol1, innercol2), 1 from
+(
+values (3,4),(5,6),(7,8)
+)
+as tvc(innercol1, innercol2)
+)
+as derived (outercol1, outercol2)
+)
+derived2 (outmost, outmost1);
+outmost
+34
+56
+78
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values (1,2,3),(4,5,6);
+create table t2 like t1;
+insert into t2 values (7,8,9),(10,11,12);
+create table t3 like t1;
+insert into t3 values (10,11,12),(13,14,15);
+# nested mergeable derived tables
+select * from
+(
+select ic1, ic2, ic3 from
+(
+select c1, c2, c3 from t1
+) dt2 (ic1, ic2, ic3)
+) dt1 (oc1, oc2, oc3)
+join t2 on t2.c1 = dt1.oc1+6;
+oc1	oc2	oc3	c1	c2	c3
+1	2	3	7	8	9
+4	5	6	10	11	12
+select * from
+(
+select ic1, ic2, ic3 from
+(
+select c1, c2, c3 from t1
+) dt2 (ic1, ic2, ic3)
+join t2 on t2.c1 = dt2.ic1+6
+) dt1 (oc1, oc2, oc3);
+oc1	oc2	oc3
+1	2	3
+4	5	6
+select * from
+(
+select ic1, ic2, ic3 from
+(
+select t1.c1, t1.c2, t1.c3 from t1
+join t2 on t2.c1 = t1.c1+6
+) dt2 (ic1, ic2, ic3)
+) dt1 (oc1, oc2, oc3);
+oc1	oc2	oc3
+1	2	3
+4	5	6
+select * from
+(
+select ic1, ic2, ic3 from
+(
+select c1, c2, c3 from t1
+) dt2 (ic1, ic2, ic3)
+join t2 on t2.c1 = dt2.ic1+6
+) dt1 (oc1, oc2, oc3)
+join t3 on t3.c1 = dt1.oc1+9;
+oc1	oc2	oc3	c1	c2	c3
+1	2	3	10	11	12
+4	5	6	13	14	15
+explain select * from
+(
+select ic1, ic2, ic3 from
+(
+select c1, c2, c3 from t1
+) dt2 (ic1, ic2, ic3)
+join t2 on t2.c1 = dt2.ic1+6
+) dt1 (oc1, oc2, oc3)
+join t3 on t3.c1 = dt1.oc1+9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+select * from
+(
+select ic1, ic2, ic3 from
+(
+select c1, c2, c3 from t1 group by c1
+) dt2 (ic1, ic2, ic3)
+join t2 on t2.c1 = dt2.ic1+6
+group by ic1
+) dt1 (oc1, oc2, oc3)
+join t3 on t3.c1 = dt1.oc1+9;
+oc1	oc2	oc3	c1	c2	c3
+1	2	3	10	11	12
+4	5	6	13	14	15
+explain select * from
+(
+select ic1, ic2, ic3 from
+(
+select c1, c2, c3 from t1 group by c1
+) dt2 (ic1, ic2, ic3)
+join t2 on t2.c1 = dt2.ic1+6
+group by ic1
+) dt1 (oc1, oc2, oc3)
+join t3 on t3.c1 = dt1.oc1+9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+# test natural join on renamed columns
+select * from
+(
+select join_col, ic2, ic3, jc2, jc3 from
+(
+select c1+7, c2+1, c3+1 from t1
+) dt2 (join_col, ic2, ic3)
+natural join
+(
+select c1+1, c2+1, c3+1 from t2
+) dt3 (join_col, jc2, jc3)
+) dt1 (oc1, oc2, oc3, c3, oc5)
+natural join t3;
+c3	oc1	oc2	oc3	oc5	c1	c2
+12	11	6	7	13	10	11
+explain format=json select * from
+(
+select join_col, ic2, ic3, jc2, jc3 from
+(
+select c1+7, c2+1, c3+1 from t1
+) dt2 (join_col, ic2, ic3)
+natural join
+(
+select c1+1, c2+1, c3+1 from t2
+) dt3 (join_col, jc2, jc3)
+) dt1 (oc1, oc2, oc3, c3, oc5)
+natural join t3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL",
+          "attached_condition": "t1.c1 + 7 = t2.c1 + 1"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t3",
+            "access_type": "ALL",
+            "loops": 4,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "incremental",
+          "buffer_size": "217",
+          "join_type": "BNL",
+          "attached_condition": "t2.c2 + 1 = t3.c3"
+        }
+      }
+    ]
+  }
+}
+# create views with alternate syntax
+create view v1 as select * from
+(select * from t1) as d1 (a1, a2, a3);
+create view v2 as select * from
+(select c1, c2, sum(c3) from t2 group by c1, c2)
+as d2 (b1, b2, b3);
+create view v3 as select * from (select * from t3 where c1=10)
+as d3 (d1, d2, d3);
+create view v4 as select * from
+(select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2)
+as d2 (e1, e2, e3);
+create view v5 as select * from
+(
+select c1, c2, sum(c3) as s from t1 group by c1, c2 having s > 2
+union
+select c1, c2, sum(c3) as s from t2 group by c1, c2 having s > 3
+)
+as d2 (f1, f2, f3);
+create view v6 as select a1 from
+(
+select * from t1 union select * from t2 order by c1
+) as d3 (a1, a2, a3);
+create view v7 (b1) as select a1 from (select c1 from t1) dt (a1);
+create view v8 (b1, b2, b3) as select a1, a2, a3 from
+(
+select * from t1 union select * from t2 order by c1
+) as d3 (a1, a2, a3);
+# test parent query mergability
+explain format=json select a1 from v1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+select a1 from v1;
+a1
+1
+4
+select a1, a2 from v1;
+a1	a2
+1	2
+4	5
+select * from v1;
+a1	a2	a3
+1	2	3
+4	5	6
+select b1 from v2;
+b1
+7
+10
+select b1, b2 from v2;
+b1	b2
+7	8
+10	11
+select * from v2;
+b1	b2	b3
+7	8	9
+10	11	12
+select a1 from v1 union select b1 from v2;
+a1
+1
+4
+7
+10
+select a1, a2 from v1 union select b1, b2 from v2;
+a1	a2
+1	2
+4	5
+7	8
+10	11
+select * from v1 union select * from v2;
+a1	a2	a3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+select * from v3 intersect select * from v2 union select * from v1;
+d1	d2	d3
+10	11	12
+1	2	3
+4	5	6
+select * from v4 where e3 < 10;
+e1	e2	e3
+1	2	3
+4	5	6
+select * from v6;
+a1
+1
+4
+7
+10
+show create view v6;
+View	Create View	character_set_client	collation_connection
+v6	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v6` AS select `d3`.`a1` AS `a1` from (select `t1`.`c1` AS `a1`,`t1`.`c2` AS `a2`,`t1`.`c3` AS `a3` from `t1` union select `t2`.`c1` AS `c1`,`t2`.`c2` AS `c2`,`t2`.`c3` AS `c3` from `t2` order by `c1`) `d3`(`a1`,`a2`,`a3`)	latin1	latin1_swedish_ci
+select * from v7;
+b1
+1
+4
+show create view v7;
+View	Create View	character_set_client	collation_connection
+v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select `dt`.`a1` AS `b1` from (select `t1`.`c1` AS `a1` from `t1`) `dt`(`a1`)	latin1	latin1_swedish_ci
+select * from v8;
+b1	b2	b3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+show create view v8;
+View	Create View	character_set_client	collation_connection
+v8	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v8` AS select `d3`.`a1` AS `b1`,`d3`.`a2` AS `b2`,`d3`.`a3` AS `b3` from (select `t1`.`c1` AS `a1`,`t1`.`c2` AS `a2`,`t1`.`c3` AS `a3` from `t1` union select `t2`.`c1` AS `c1`,`t2`.`c2` AS `c2`,`t2`.`c3` AS `c3` from `t2` order by `c1`) `d3`(`a1`,`a2`,`a3`)	latin1	latin1_swedish_ci
+# show materialization and condition pushdown into having
+explain format=json select * from v4 where e3 < 10;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.e3 < 10",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "having_condition": "e3 > 2 and e3 < 10",
+              "filesort": {
+                "sort_key": "t1.c1, t1.c2",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# these views embedded in a CTE
+with cte (c1, c2, c3 )
+as (select * from v3 intersect select * from v2 union select * from v1)
+select * from cte where c1 = 1;
+c1	c2	c3
+1	2	3
+# and executed as a prepared query
+prepare stmt from "with cte (c1, c2, c3 )
+as (select * from v3 intersect select * from v2 union select * from v1)
+select * from cte where c1 = 1";
+execute stmt;
+c1	c2	c3
+1	2	3
+execute stmt;
+c1	c2	c3
+1	2	3
+deallocate prepare stmt;
+prepare stmt from
+"select * from (select * from t1) as d1 (a1, a2, a3)";
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+deallocate prepare stmt;
+prepare stmt from
+"select * from (select * from t1) as d1 (a1, a2, a3) union select * from "
+"(select * from t1) as d1 (na1, na2, na3)";
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+execute stmt;
+a1	a2	a3
+1	2	3
+4	5	6
+deallocate prepare stmt;
+# as well as a stored procedure
+create procedure p1(a int)
+with cte (ct1)
+as (select d1 from v3 intersect select b1 from v2 union select a1 from v1)
+select ct1 from cte where ct1 = a;
+call p1(1);
+ct1
+1
+call p1(1);
+ct1
+1
+call p1(4);
+ct1
+4
+call p1(7);
+ct1
+drop procedure p1;
+create procedure p1(a int)
+with cte (ct1, ct2, ct3)
+as (select * from v3 intersect select * from v2 union select * from v1)
+select * from cte where ct1 = a;
+call p1(1);
+ct1	ct2	ct3
+1	2	3
+call p1(1);
+ct1	ct2	ct3
+1	2	3
+call p1(4);
+ct1	ct2	ct3
+4	5	6
+call p1(7);
+ct1	ct2	ct3
+drop procedure p1;
+# name resolution in the select list and in the where condition
+select *, a2 from
+(select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where a1 = 1;
+a1	a2	a3	a2
+1	2	3	2
+# and elsewhere
+select a1, sum(a3) from
+(select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where a2 = 1
+group by a1
+order by a1 desc;
+a1	sum(a3)
+# creation of a having condition in materialized subquery
+select * from
+(select c1, sum(c2), sum(c3) from t1 where c1 = 1
+group by c1 order by c1 desc) as d1 (a1, a2, a3)
+where a3=3;
+a1	a2	a3
+1	2	3
+explain format=json select * from
+(select c1, sum(c2), sum(c3) from t1 where c1 = 1
+group by c1 order by c1 desc) as d1 (a1, a2, a3)
+where a3=3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d1.a3 = 3",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "having_condition": "a3 = 3",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 2,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.c1 = 1"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# and augmentation
+select * from
+(select c1, c2, max(c3) as m, avg(c3) from t1
+group by c1, c2 having m < 7) dt (d1, d2, d3, d4),
+t2 where (dt.d1 = t2.c1) and (dt.d3 > 3);
+d1	d2	d3	d4	c1	c2	c3
+explain format=json select * from
+(select c1, c2, max(c3) as m, avg(c3) from t1
+group by c1, c2 having m < 7) dt (d1, d2, d3, d4),
+t2 where (dt.d1 = t2.c1) and (dt.d3 > 3);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["d1"],
+          "ref": ["test.t2.c1"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.d3 > 3",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "having_condition": "d3 < 7 and d3 > 3",
+              "filesort": {
+                "sort_key": "t1.c1, t1.c2",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# pushing subformula into where condition for join to t2 (t2.c1 = 7)
+# and translating v4.e1=1 into condition t1.c1 = 1 for t1
+select * from v4,t2 where (t2.c1=v4.e1+6) and (v4.e2+6=t2.c2) and (v4.e1=1);
+e1	e2	e3	c1	c2	c3
+1	2	3	7	8	9
+explain format=json select * from v4,t2 where (t2.c1=v4.e1+6) and (v4.e2+6=t2.c2) and (v4.e1=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.020930975,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.010089369,
+          "filtered": 100,
+          "attached_condition": "d2.e1 = 1",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": 0.011611947,
+              "having_condition": "e3 > 2",
+              "filesort": {
+                "sort_key": "t1.c1, t1.c2",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": 0.01034841,
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 = 1"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": 0.010841606,
+            "filtered": 100,
+            "attached_condition": "t2.c1 = 7"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "294",
+          "join_type": "BNL",
+          "attached_condition": "d2.e2 + 6 = t2.c2"
+        }
+      }
+    ]
+  }
+}
+# calculated result pushed into condition for t1 (t1.c1 = 4)
+select * from v4,t2 where (v4.e1=t2.c1-6) and (v4.e2+6=t2.c2) and (t2.c1=10);
+e1	e2	e3	c1	c2	c3
+4	5	6	10	11	12
+explain format=json select * from v4,t2 where (v4.e1=t2.c1-6) and (v4.e2+6=t2.c2) and (t2.c1=10);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.e1 = 4",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "having_condition": "e3 > 2",
+              "filesort": {
+                "sort_key": "t1.c1, t1.c2",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 = 4"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t2.c1 = 10"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "294",
+          "join_type": "BNL",
+          "attached_condition": "d2.e2 + 6 = t2.c2"
+        }
+      }
+    ]
+  }
+}
+# pushing into HAVING using equalities e3 > 2
+select * from v4,t2
+where ((t2.c1<4) and (v4.e1=t2.c1)) or ((t2.c3>10) and (v4.e3=t2.c3));
+e1	e2	e3	c1	c2	c3
+explain format=json select * from v4,t2
+where ((t2.c1<4) and (v4.e1=t2.c1)) or ((t2.c3>10) and (v4.e3=t2.c3));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "having_condition": "e3 > 2",
+              "filesort": {
+                "sort_key": "t1.c1, t1.c2",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "294",
+          "join_type": "BNL",
+          "attached_condition": "t2.c1 = d2.e1 and d2.e1 < 4 or t2.c3 > 10 and d2.e3 = t2.c3"
+        }
+      }
+    ]
+  }
+}
+# pushing into multiple places
+select * from v1,v5,t2 where ((v1.a1=v5.f1) or (v1.a1=t2.c1)) and
+((v5.f2<50) or (v5.f2=19)) and (v1.a3<300);
+a1	a2	a3	f1	f2	f3	c1	c2	c3
+1	2	3	1	2	3	7	8	9
+1	2	3	1	2	3	10	11	12
+4	5	6	4	5	6	7	8	9
+4	5	6	4	5	6	10	11	12
+explain format=json select * from v1,v5,t2 where ((v1.a1=v5.f1) or (v1.a1=t2.c1)) and
+((v5.f2<50) or (v5.f2=19)) and (v1.a3<300);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.c3 < 300"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "173",
+          "join_type": "BNL"
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived5>",
+            "access_type": "ALL",
+            "loops": 4,
+            "rows": 4,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "d2.f2 < 50 or d2.f2 = 19"
+          },
+          "buffer_type": "incremental",
+          "buffer_size": "217",
+          "join_type": "BNL",
+          "attached_condition": "(d2.f1 = t1.c1 or t2.c1 = t1.c1) and (d2.f2 < 50 or d2.f2 = 19)",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union5,6>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "cost": "COST_REPLACED",
+                      "having_condition": "f3 > 2",
+                      "filesort": {
+                        "sort_key": "t1.c1, t1.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "COST_REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t1.c2 < 50 or t1.c2 = 19"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 6,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "having_condition": "f3 > 3",
+                      "filesort": {
+                        "sort_key": "t2.c1, t2.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "COST_REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "t2.c2 < 50 or t2.c2 = 19"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# pushing into multiple places, inline subquery definition of forced
+# materialization
+SELECT * FROM
+(
+SELECT a1 FROM v1
+WHERE 1 IN (0,v1.a1)
+GROUP BY v1.a1
+) AS dt1 (a)
+JOIN
+(
+SELECT v5.f1 FROM v5
+WHERE 1 IN (0,v5.f1)
+) AS dt2 (b)
+ON dt1.a = dt2.b;
+a	b
+1	1
+explain format=json SELECT * FROM
+(
+SELECT a1 FROM v1
+WHERE 1 IN (0,v1.a1)
+GROUP BY v1.a1
+) AS dt1 (a)
+JOIN
+(
+SELECT v5.f1 FROM v5
+WHERE 1 IN (0,v5.f1)
+) AS dt2 (b)
+ON dt1.a = dt2.b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "1 in (0,dt1.a) and dt1.a is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.c1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "1 in (0,t1.c1) and 1 in (0,t1.c1)"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived7>",
+          "access_type": "ref",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["dt1.a"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union7,8>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 7,
+                      "cost": "COST_REPLACED",
+                      "having_condition": "f3 > 2",
+                      "filesort": {
+                        "sort_key": "t1.c1, t1.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t1",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "COST_REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "1 in (0,t1.c1)"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 8,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "having_condition": "f3 > 3",
+                      "filesort": {
+                        "sort_key": "t2.c1, t2.c2",
+                        "temporary_table": {
+                          "nested_loop": [
+                            {
+                              "table": {
+                                "table_name": "t2",
+                                "access_type": "ALL",
+                                "loops": 1,
+                                "rows": 2,
+                                "cost": "COST_REPLACED",
+                                "filtered": 100,
+                                "attached_condition": "1 in (0,t2.c1)"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# pushdown with update statement (t1.c1 >= 3)
+explain format=json update t2,
+(select c1, count(*) from t1 group by c1) t (a, c)
+set t2.c1=t.c+10
+where t2.c1 = t.c and t.a >= 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["c"],
+          "ref": ["test.t2.c1"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 = t.c and t.a >= 3",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.c1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 >= 3"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# pushdown with delete statement (t1.c1 >= 3)
+explain format=json delete t2 from t2,
+(select c1, count(*) from t1 group by c1) t (a, c)
+where t2.c1 = t.c and t.a >= 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["c"],
+          "ref": ["test.t2.c1"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 = t.c and t.a >= 3",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.c1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 >= 3"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# pushdown with insert statement (t1.c1 >= 3)
+explain format=json insert into t3  select t2.* from t2,
+(select c1, count(*) from t1 group by c1) t (a, c)
+where t2.c1 = t.c and t.a >= 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["c"],
+          "ref": ["test.t2.c1"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.c1 = t.c and t.a >= 3",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.c1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 >= 3"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# pushdown into union with different column names
+explain format=json
+select * from (select min(c1) from t1 union all select max(c1) from t1) t (x)
+where x > 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t.x > 0",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "having_condition": "x > 0",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "having_condition": "x > 0",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# complex conditions
+explain format=json select * from v1 where if( a1 regexp 'def', 'foo', a2 )
+in ('abc', a3);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "if(t1.c1 regexp 'def','foo',t1.c2) in ('abc',t1.c3)"
+        }
+      }
+    ]
+  }
+}
+# pushdown through GROUP BY
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+create view v9 as select * from
+(select c1, f1(c2), sum(c3) from t1 group by c1, f1(c2)) as f (c1, c2, c3);
+explain format=json select * from v9 where (c3+1) > 10 and c1 > 1 and c2 > 123;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010089369,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.010089369,
+          "filtered": 100,
+          "attached_condition": "f.c3 + 1 > 10 and f.c1 > 1 and f.c2 > 123",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": 0.011611947,
+              "having_condition": "c3 + 1 > 10 and c2 > 123",
+              "filesort": {
+                "sort_key": "t1.c1, f1(t1.c2)",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 2,
+                        "cost": 0.01034841,
+                        "filtered": 100,
+                        "attached_condition": "t1.c1 > 1"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop function f1;
+# name resolution for multi select units
+select a1 from
+(select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+a1
+1
+4
+7
+10
+select a1, a2 from
+(select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+a1	a2
+1	2
+4	5
+7	8
+10	11
+# wildcard expansion for multi select units
+select * from
+(select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
+a1	a2	a3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+# name resolution in where/group by etc
+select a1, count(*) from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+group by a1 order by a1;
+a1	count(*)
+1	1
+4	1
+select a1, count(*) from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where a1 in (select c1 from t2);
+a1	count(*)
+NULL	0
+select a1, count(*) from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+where exists (select c1 from t2 where c1 = a1);
+a1	count(*)
+NULL	0
+select *, a1 from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join t2 on a1=c1;
+a1	a2	a3	c1	c2	c3	a1
+select *, a1 from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join (values (1, 2, 3), (4, 5, 6)) as d2 (b1, b2, b3)
+on a1=b1;
+a1	a2	a3	b1	b2	b3	a1
+1	2	3	1	2	3	1
+4	5	6	4	5	6	4
+# some error checking, more elsewhere
+--error ER_NONUNIQ_TABLE
+select * from
+( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join (values (1, 2, 3), (4, 5, 6)) as d1 (b1, b2, b3)
+on a1=b1
+select * from (values (3,4),(5,6)) as foo(Col1, Col1);
+ERROR 42S21: Duplicate column name 'Col1'
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where c1 = 1;
+ERROR 42S22: Unknown column 'c1' in 'WHERE'
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2) where c1 = 1;
+ERROR HY000: Incorrect column name count for derived table
+select * from ( select c1, c2 from t1 union select c1, c2 from t1) as d1 (a1);
+ERROR HY000: Incorrect column name count for derived table
+select * from ( select * from t1 union select * from t1) as d1 (a1, a2);
+ERROR HY000: Incorrect column name count for derived table
+select * from ( select c1, c2, c3 from t1 ) as d1 () where c1 = 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') where c1 = 1' at line 1
+select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
+join ( select c1, c2, c3 from t1 ) as d2 (a1, a2, a3)
+where d1.a1=a1;
+ERROR 23000: Column 'a1' in WHERE is ambiguous
+# We expect to see the results of the 1st select in the union as names
+# check wildcard expansion and name resolution in the outer select list
+select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2;
+a1	a2	a3	a1
+4	5	6	4
+7	8	9	1
+10	11	12	1
+select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2 order by a2;
+a1	a2	a3	a1
+4	5	6	4
+7	8	9	1
+10	11	12	1
+select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) where a1=a2+1 union select *, 1 as c4 from t2 order by a2;
+a1	a2	a3	a1
+7	8	9	1
+10	11	12	1
+select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2;
+a1	a2	a3	a1
+4	5	6	4
+7	8	9	1
+10	11	12	1
+select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 order by a2;
+a1	a2	a3	a1
+4	5	6	4
+7	8	9	1
+10	11	12	1
+explain format=json select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,3>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.c1 > 1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "UNION",
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+explain format=json select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2 order by a2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,3>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.c1 > 1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "UNION",
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+explain format=json select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) where a1=a2+1 union select *, 1 as c4 from t2 order by a2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,3>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.c1 = t1.c2 + 1 and t1.c1 > 1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "UNION",
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+explain format=json select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.c1 > 1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "UNION",
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+explain format=json select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 order by a2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,3>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100,
+                  "attached_condition": "t1.c1 > 1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 3,
+            "operation": "UNION",
+            "cost": "COST_REPLACED",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "loops": 1,
+                  "rows": 2,
+                  "cost": "COST_REPLACED",
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+# Internally, we cannot have 2 column names the same (a1 from select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3))
+select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2) d2;
+ERROR 42S21: Duplicate column name 'a1'
+select *, o4 from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2) d2 (o1, o2, o3, o4) where o2=o3+1;
+o1	o2	o3	o4	o4
+select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2 order by a2) d2 (o1, o2, o3, o4);
+o1	o2	o3	o4
+4	5	6	4
+7	8	9	1
+10	11	12	1
+select *, o4 from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2) d2 (o1, o2, o3, o4) where o2=o3+1;
+o1	o2	o3	o4	o4
+select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 order by a2) d2 (o1, o2, o3, o4);
+o1	o2	o3	o4
+4	5	6	4
+7	8	9	1
+10	11	12	1
+# different query result set operations (union etc)
+explain format=json select *, o4 from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2) d2 (o1, o2, o3, o4)
+where o2=o3+1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o2 = d2.o3 + 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1 and t1.c2 = t1.c3 + 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.c2 = t2.c3 + 1"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select *, o4 from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2)
+d2 (o1, o2, o3, o4) where o2=o3+1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o2 = d2.o3 + 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1 and t1.c2 = t1.c3 + 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.c2 = t2.c3 + 1"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) intersect select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<intersect2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "INTERSECT",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) intersect all select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<intersect2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "INTERSECT",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) except select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<except2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "EXCEPT",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) except all select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<except2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "EXCEPT",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (values (1, 2, 4, 7) union select *, 1 as c4 from t2 order by 1)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 3,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (values (1, 2, 4, 7) union all select *, 1 as c4 from t2 order by 1)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 3,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (values (1, 2, 4, 7) union all select *, 1 as c4 from t2 order by 1)
+d2 (o1, o2, o3, o4) where o1=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 3,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o1 = 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "No tables used"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.c1 = 1"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) union select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived3>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) union all select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived3>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from (select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) union all select *, 1 as c4 from t2 order by a2)
+d2 (o1, o2, o3, o4) where o1=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o1 = 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived3>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "d2.a1 = 1",
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 3,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.c1 = 1"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from
+(select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 union all select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) order by a2) d2 (o1, o2, o3, o4) where o1=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o1 = 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4,5>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "Impossible WHERE"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.c1 = 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived6>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "d2.a1 = 1",
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 6,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from
+(select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 union all select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) order by a2 limit 1)
+as d2 (o1, o2, o3, o4) where o1=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 6,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o1 = 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4,5>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived6>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 6,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from
+(select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 union all select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) order by a2)
+as d2 (o1, o2, o3, o4) where o1=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o1 = 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4,5>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "table": {
+                        "message": "Impossible WHERE"
+                      }
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t2.c1 = 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived6>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "d2.a1 = 1",
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 6,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json select * from
+(select *, a1 from
+(select c1, c2, c3 from t1 where c1 > 1)
+as d1 (a1, a2, a3) union all select *, 1 as c4 from t2 union all select * from (values (1, 2, 4, 7)) as d2 (a1, a2, a3, a4) order by a2, a3 limit 1)
+as d2 (o1, o2, o3, o4) where o1=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 6,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "d2.o1 = 1",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "table_name": "<union2,4,5>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.c1 > 1"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 4,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 5,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived6>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 2,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "materialized": {
+                              "query_block": {
+                                "union_result": {
+                                  "query_specifications": [
+                                    {
+                                      "query_block": {
+                                        "select_id": 6,
+                                        "table": {
+                                          "message": "No tables used"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# both group by references should work
+select c1 as col, sum(c2) as s from t1 group by c1;
+col	s
+1	2
+4	5
+select c1 as col, sum(c2) as s from t1 group by col;
+col	s
+1	2
+4	5
+select d1 from
+(select c1 as col, sum(c2) as s from t1 group by c1) as dt (d1,d2);
+d1
+1
+4
+select * from
+(select c1 as col, sum(c2) as s from t1 group by c1) as dt (d1,d2);
+d1	d2
+1	2
+4	5
+select d1 from
+(select c1 as col, sum(c2) as s from t1 group by col) as dt (d1,d2);
+d1
+1
+4
+select * from
+(select c1 as col, sum(c2) as s from t1 group by col) as dt (d1,d2);
+d1	d2
+1	2
+4	5
+# name resolution again at a different lexical depth
+select *, e1 from
+(select d2 from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+where d1 > 2 group by d1) td (e1);
+e1	e1
+5	5
+# check resolution in grouping operations
+select * from
+(select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+where d1 > 2 group by d1 having sum(d3) > 4 order by d2) td (e1, e2, e3);
+e1	e2	e3
+4	5	6
+select * from
+(select * from (select * from t1 where c1 < 7) tt (d1, d2, d3)
+where d1 > 2 group by d1 having sum(d3) > 4 order by d2) td (e1, e2, e3)
+where e3 < 5;
+e1	e2	e3
+select d1, row_number() over (partition by d1 order by d2)
+from (select * from t1) dt (d1, d2, d3);
+d1	row_number() over (partition by d1 order by d2)
+1	1
+4	1
+select
+d1, d2,
+count(*) over w1 as dc1,
+count(*) over w2 as dc2,
+count(*) over w3 as dc3
+from (select * from t1)  dt (d1, d2, d3)
+window
+w1 as (partition by d2),
+w2 as (w1 order by d1),
+w3 as (w2 rows between 2 preceding and 2 following);
+d1	d2	dc1	dc2	dc3
+1	2	1	1	1
+4	5	1	1	1
+with
+cte1 as
+(select * from (select * from t1 group by c1)
+as dt2 (d1,d2,d3)),
+cte as
+(select cte1.d1, sum(cte1.d2) over (partition by cte1.d1 order by cte1.d1)
+as k from cte1)
+select * from cte;
+d1	k
+1	2
+4	5
+# check non select queries
+update t1, (select * from t2) as dt (d1,d2,d3)
+set c1=c1+1 where d1= c1+6;
+delete t1 from t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+5;
+insert into t1 values (1,2,3),(4,5,6);
+delete from t1 using t1, (select * from t2) as dt (d1,d2,d3) where d1= c1+6;
+insert into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3);
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d1 limit 1);
+c1	(select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d1 limit 1)
+1	1
+4	4
+replace into t1 select * from (select c1-6, c2-6, c3-6 from t2) as dt (d1,d2,d3)
+returning c1, (select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d2 limit 1);
+c1	(select c1 from (select * from t1) as dt (d4,d5,d6)
+where c1=d2 limit 1)
+1	NULL
+4	NULL
+alter table t1 rename column c1 to cc1;
+select * from v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1, v2, v3, v4, v5, v6, v7, v8, v9;
+drop table t1, t2, t3;
+create table t10 (a int);
+create table t20 (b int);
+insert into t10 values (1),(2);
+insert into t20 values (1),(3);
+create view v10 as select *, 'U' as u from t10
+left join (select 'Y' as y, t20.b from t20) dt1 (y, b1) on t10.a= dt1.b1
+limit 3;
+create view v11 as select b1, 'U' as u from t10
+left join (select 'Y' as y, t20.b from t20) dt1 (y, b1) on t10.a= dt1.b1
+limit 3;
+create table t30 (c int);
+insert into t30 values (1),(3);
+create view v20 as select * from t30
+left join (select 'X' as x, v10.u, v10.y, v10.b1 from v10) dt2 (x, u1, y1, b2)
+on t30.c=dt2.b2 limit 6;
+create view v21 as select * from t30
+left join (select 'X' as x, v11.u, v11.b1 from v11) dt2 (x, u1, b1)
+on t30.c=dt2.b1 order by x;
+select * from v20;
+c	x	u1	y1	b2
+1	X	U	Y	1
+3	NULL	NULL	NULL	NULL
+select * from v20  order by c limit 9;
+c	x	u1	y1	b2
+1	X	U	Y	1
+3	NULL	NULL	NULL	NULL
+select * from v21 order by c;
+c	x	u1	b1
+1	X	U	1
+3	NULL	NULL	NULL
+drop view v10, v20, v11, v21;
+drop table t10, t20, t30;
+#
+# End of 11.7 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -6,9 +6,9 @@
 
 SET @@global.innodb_stats_persistent=0;
 SHOW CREATE TABLE mysql.innodb_table_stats;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_table_stats;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_index_stats;
 SET @@global.innodb_stats_persistent=1;
 
@@ -17,9 +17,9 @@ INSERT INTO t1 VALUES (10);
 DROP TABLE t1;
 
 SET @@global.innodb_stats_persistent=0;
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_table_stats;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW CREATE TABLE mysql.innodb_index_stats;
 SET @@global.innodb_stats_persistent=1;
 
@@ -34,8 +34,8 @@ SET @@global.innodb_stats_persistent=1;
 --echo # Testing MySQL-5.6-alike Field_timestampf: BINARY(4) based, without UNSIGNED_FLAG
 --echo #
 
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TYPE_MYSQL_TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
 SHOW COLUMNS FROM mysql.innodb_table_stats LIKE 'last_update';
 SHOW COLUMNS FROM mysql.innodb_index_stats LIKE 'last_update';
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
@@ -58,5 +58,5 @@ WHERE database_name='test' AND table_name='t1' AND stat_name='size';
 --echo # Restore the structure of the tables
 --echo #
 
-ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP;
-ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP;
+ALTER TABLE mysql.innodb_table_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();
+ALTER TABLE mysql.innodb_index_stats MODIFY last_update TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp();

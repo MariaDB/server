@@ -6,6 +6,8 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
+--source include/test_db_charset_latin1.inc
+
 create temporary table t (a char(1) character set filename) engine=innodb;
 drop temporary table t;
 
@@ -25,9 +27,6 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: in ALTER TABLE `test`.`t1`");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: in RENAME TABLE table `test`.`t1`");
 
 --disable_warnings
-SET @innodb_rows_deleted_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_deleted');
-SET @innodb_rows_inserted_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_inserted');
-SET @innodb_rows_updated_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_updated');
 SET @innodb_row_lock_waits_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_waits');
 SET @innodb_row_lock_current_waits_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_current_waits');
 SET @innodb_row_lock_time_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time');
@@ -727,7 +726,7 @@ create table t1 (id int unsigned not null auto_increment, code tinyint unsigned 
 
 BEGIN;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-SELECT @@tx_isolation,@@global.tx_isolation;
+SELECT @@transaction_isolation, @@global.transaction_isolation;
 insert into t1 (code, name) values (1, 'Tim'), (1, 'Monty'), (2, 'David');
 select id, code, name from t1 order by id;
 COMMIT;
@@ -912,7 +911,7 @@ DROP TABLE t1,t2,t3;
 
 CREATE TABLE t1 (a int not null primary key, b int not null, unique (b)) engine=innodb;
 INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
-# We need the a < 1000 test here to quard against the halloween problems
+# We need the a < 1000 test here to guard against the halloween problems
 UPDATE t1 set a=a+100 where b between 2 and 3 and a < 1000;
 SELECT * from t1;
 drop table t1;
@@ -1007,7 +1006,7 @@ SELECT * from t1;
 drop table t1;
 
 #
-# Test dictionary handling with spaceand quoting
+# Test dictionary handling with space and quoting
 #
 
 CREATE TABLE t1 (`id 1` INT NOT NULL, PRIMARY KEY (`id 1`)) ENGINE=INNODB;
@@ -1109,7 +1108,13 @@ CREATE TABLE t2 (
 ) ENGINE=InnoDB;
 
 INSERT INTO t2 VALUES("3524", "1"),("3525", "1"),("1794", "4"),("102", "5"),("1822", "6"),("3382", "9");
+# We have to analyze the tables to make the row count stable
+ANALYZE table t1,t2;
 
+explain SELECT t2.id, t1.`label` FROM t2 INNER JOIN
+(SELECT t1.id_object as id_object FROM t1 WHERE t1.`label` LIKE '%test%') AS lbl 
+ON (t2.id = lbl.id_object) INNER JOIN t1 ON (t2.id = t1.id_object);
+--sorted_result
 SELECT t2.id, t1.`label` FROM t2 INNER JOIN
 (SELECT t1.id_object as id_object FROM t1 WHERE t1.`label` LIKE '%test%') AS lbl 
 ON (t2.id = lbl.id_object) INNER JOIN t1 ON (t2.id = t1.id_object);
@@ -1319,9 +1324,6 @@ drop table t1;
 # uses previous ones(pages_created, rows_deleted, ...).
 SELECT IF(variable_value BETWEEN 488 AND 512, 'OK', variable_value) FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
 SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_page_size';
-SELECT variable_value - @innodb_rows_deleted_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_deleted';
-SELECT variable_value - @innodb_rows_inserted_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_inserted';
-SELECT variable_value - @innodb_rows_updated_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_updated';
 
 # Test for row locks InnoDB status variables.
 SELECT variable_value - @innodb_row_lock_waits_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_waits';
@@ -2383,7 +2385,7 @@ CONNECT (c1,localhost,root,,);
 CONNECT (c2,localhost,root,,);
 CONNECTION c1;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 ( a int ) ENGINE=InnoDB;
@@ -2391,7 +2393,7 @@ CREATE TABLE t2 LIKE t1;
 SELECT * FROM t2;
 CONNECTION c2;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 INSERT INTO t1 VALUES (1);
 COMMIT;
@@ -2403,12 +2405,12 @@ CONNECT (c1,localhost,root,,);
 CONNECT (c2,localhost,root,,);
 CONNECTION c1;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 SELECT * FROM t2;
 CONNECTION c2;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 INSERT INTO t1 VALUES (2);
 COMMIT;
@@ -2622,3 +2624,5 @@ DROP TABLE t1;
 CREATE TABLE t1(c TEXT(1) NOT NULL, INDEX (c)) ENGINE=InnoDB;
 INSERT INTO t1 SET c='';
 DROP TABLE t1;
+
+--source include/test_db_charset_restore.inc

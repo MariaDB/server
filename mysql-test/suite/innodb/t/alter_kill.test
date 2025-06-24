@@ -7,6 +7,9 @@
 let MYSQLD_DATADIR=`select @@datadir`;
 let PAGE_SIZE=`select @@innodb_page_size`;
 
+SELECT @@innodb_doublewrite;
+SET GLOBAL innodb_doublewrite=fast;
+
 -- disable_query_log
 call mtr.add_suppression("InnoDB: innodb_force_recovery is on.");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for.*bug16720368");
@@ -15,18 +18,17 @@ call mtr.add_suppression("InnoDB: Operating system error.*in a file operation");
 call mtr.add_suppression("InnoDB: \(The error means\|If you are\)");
 call mtr.add_suppression("InnoDB: Ignoring tablespace `test/bug16720368` because it could not be opened");
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at.*bug16735660");
-call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace.");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted*");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
-call mtr.add_suppression("InnoDB: Table `test`\\.`bug16720368` is corrupted");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
+call mtr.add_suppression("Table .*bug16720368.* is corrupted");
 -- enable_query_log
 
 -- echo #
 -- echo # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 -- echo #
 
-SET GLOBAL innodb_file_per_table=1;
 SET GLOBAL innodb_stats_persistent=0;
 
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -75,11 +77,14 @@ syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
+-- let $restart_parameters=--innodb-flush-method=O_DIRECT
 -- source include/start_mysqld.inc
+-- let $restart_parameters=
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT @@innodb_doublewrite;
+--error ER_TABLE_CORRUPT
 SELECT COUNT(*) FROM bug16720368;
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 INSERT INTO bug16720368 VALUES(1);
 INSERT INTO bug16720368_1 VALUES(1);
 
@@ -129,8 +134,6 @@ DROP TABLE bug16720368, bug16720368_1;
 -- echo # Bug#16735660 ASSERT TABLE2 == NULL, ROLLBACK OF RESURRECTED TXNS,
 -- echo # DICT_TABLE_ADD_TO_CACHE
 -- echo #
-
-SET GLOBAL innodb_file_per_table=1;
 
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;

@@ -24,7 +24,7 @@ RETURN a;
 END;
 $$
 SELECT f1(ROW(10,20));
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `f1(ROW(10,20))`
 DROP FUNCTION f1;
 #
 # ROW as an SP parameter
@@ -91,20 +91,6 @@ a.a	a.b
 10	20
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
-#
-# ROW as an SP return value is not supported yet
-#
-CREATE FUNCTION p1() RETURN ROW(a INT)
-AS
-BEGIN
-RETURN NULL;
-END;
-$$
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT)
-AS
-BEGIN
-RETURN NULL;
-END' at line 1
 #
 # Diplicate row field
 #
@@ -189,7 +175,7 @@ SELECT COALESCE(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 AS
@@ -199,7 +185,7 @@ SELECT COALESCE(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data type row for operation 'coalesce'
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 AS
@@ -261,7 +247,7 @@ SELECT f1(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `a`
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1(a INT) RETURN INT
@@ -278,7 +264,7 @@ SELECT f1(a);
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `a`
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 #
@@ -332,7 +318,7 @@ RETURN rec;
 END;
 $$
 SELECT f1(10);
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'int' in assignment of `f1(10)`
 DROP FUNCTION f1;
 #
 # Using the entire ROW in SELECT..CREATE
@@ -822,9 +808,9 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "rec1.a" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec2.a" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec3.a" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "rec1.a" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec2.a" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec3.a" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1914,8 +1900,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec.var" char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "var" char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec.var" char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1954,8 +1940,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec.var" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "var" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec.var" varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2163,8 +2149,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec.var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec.var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2173,8 +2159,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec.var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec.var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2183,8 +2169,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec.var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec.var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2193,8 +2179,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
-  "rec.var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  "var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
+  "rec.var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2835,8 +2821,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -2851,8 +2835,6 @@ SELECT * FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -2867,8 +2849,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -2884,8 +2864,6 @@ SELECT 10,'a','b' FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -2900,8 +2878,6 @@ SELECT 10,'a' FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -2916,8 +2892,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -2934,8 +2908,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -2951,8 +2923,6 @@ SELECT * FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -2968,8 +2938,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -3127,3 +3095,96 @@ t1	CREATE TABLE "t1" (
   "int11" int(11) DEFAULT NULL,
   "text1" text DEFAULT NULL
 )
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-12252 ROW data type for stored function return values
+#
+CREATE FUNCTION f1() RETURN ROW(a INT)
+AS
+BEGIN
+RETURN NULL;
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN row(a int(11))
+AS
+BEGIN
+RETURN NULL;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32))
+AS
+BEGIN
+RETURN ROW(1,'b1');
+END;
+$$
+CREATE PROCEDURE p1col2
+AS
+r ROW(a INT, b VARCHAR(32)) := f1();
+BEGIN
+SELECT r.a, r.b;
+END;
+$$
+CREATE PROCEDURE p1col3
+AS
+r ROW(a INT, b VARCHAR(32),c DOUBLE) := f1();
+BEGIN
+SELECT r.a, r.b, r.c;
+END;
+$$
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN row(a int(11),b varchar(32) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci)
+AS
+BEGIN
+RETURN ROW(1,'b1');
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+CALL p1col2();
+r.a	r.b
+1	b1
+CALL p1col3();
+ERROR 21000: Operand should contain 3 column(s)
+SELECT f1();
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1()=ROW(1,'b1') AS c;
+c
+1
+DROP FUNCTION f1;
+DROP PROCEDURE p1col2;
+DROP PROCEDURE p1col3;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE FUNCTION f1() RETURN ROW(a INT, b VARCHAR(32))
+AS
+BEGIN
+RETURN (SELECT * FROM t1);
+END;
+$$
+CREATE PROCEDURE p1
+AS
+r ROW(a INT, b VARCHAR(32)) := f1();
+BEGIN
+SELECT r.a, r.b;
+END;
+$$
+# Testing with no rows
+CALL p1;
+r.a	r.b
+NULL	NULL
+# Testing with one row
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1;
+r.a	r.b
+1	b1
+# Testing with two rows
+INSERT INTO t1 VALUES (1,'b1');
+CALL p1;
+ERROR 21000: Subquery returns more than 1 row
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of 11.7 tests
+#

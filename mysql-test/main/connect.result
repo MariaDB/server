@@ -106,14 +106,14 @@ update mysql.user set plugin="", authentication_string="", password=old_password
 flush privileges;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
 update mysql.user set plugin='mysql_old_password' where user='test';
 flush privileges;
 show grants for test@localhost;
 Grants for test@localhost
-GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
-connect  con10,localhost,test,gambling2,;
-connect  con5,localhost,test,gambling2,mysql;
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
+connect con10,localhost,test,gambling2,,,,auth=mysql_old_password:mysql_native_password;
+connect con5,localhost,test,gambling2,mysql,,,auth=mysql_old_password:mysql_native_password;
 set password="";
 set password='gambling3';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number
@@ -152,7 +152,7 @@ time_zone_transition_type
 transaction_registry
 user
 user_bak
-connect  con6,localhost,test,gambling3,test;
+connect  con6,localhost,test,gambling3,test,,,auth=mysql_old_password:mysql_native_password;
 show tables;
 Tables_in_test
 connection default;
@@ -160,16 +160,16 @@ disconnect con10;
 disconnect con5;
 disconnect con6;
 connect(localhost,test,,test2,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,,test2;
+connect  fail_con,localhost,test,,test2,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
 connect(localhost,test,,test,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,,;
+connect  fail_con,localhost,test,,,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
 connect(localhost,test,zorro,test2,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,zorro,test2;
+connect  fail_con,localhost,test,zorro,test2,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
-connect  fail_con,localhost,test,zorro,;
+connect  fail_con,localhost,test,zorro,,,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 # switching back from mysql.user to mysql.global_priv
 delete from mysql.user where user=_binary"test";
@@ -285,7 +285,7 @@ DROP USER mysqltest_u1@localhost;
 
 # -- Bug#35074: max_used_connections is not correct.
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 SHOW STATUS LIKE 'max_used_connections';
 Variable_name	Value
@@ -353,9 +353,9 @@ user()	current_user()
 mysqltest_up1@localhost	mysqltest_up1@%
 disconnect pcon2;
 connect(localhost,mysqltest_up2,newpw,test,MASTER_PORT,MASTER_SOCKET);
-connect pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,;
+connect pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,,auth=mysql_old_password:mysql_native_password;
 ERROR 28000: Access denied for user 'mysqltest_up2'@'localhost' (using password: YES)
-connect pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,;
+connect pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,,auth=mysql_old_password:mysql_native_password;
 select user(), current_user();
 user()	current_user()
 mysqltest_up2@localhost	mysqltest_up2@%
@@ -381,7 +381,7 @@ select user(), current_user();
 user()	current_user()
 mysqltest_up1@localhost	mysqltest_up1@%
 disconnect pcon6;
-connect pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,;
+connect pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,,auth=mysql_old_password:mysql_native_password;
 select user(), current_user();
 user()	current_user()
 mysqltest_up2@localhost	mysqltest_up2@%
@@ -422,7 +422,7 @@ Warning	1287	'@@secure_auth' is deprecated and will be removed in a future relea
 # MDEV-19277: Add status variable that gets incremented if
 # connection is aborted prior to authentication
 #
-flush status;
+flush global status;
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
 Aborted_connects	0

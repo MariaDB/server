@@ -10,7 +10,6 @@
 #
 ##############################################################################
 tablespace               : disabled in MariaDB (no TABLESPACE table attribute)
-events_time_zone         : Test is not predictable as it depends on precise timing.
 read_many_rows_innodb    : Bug#11748886 2010-11-15 mattiasj report already exists
 mysql_embedded           : Bug#12561297 2011-05-14 Anitha Dependent on PB2 changes - eventum#41836
 #show_explain  : Psergey: random timeout in range-checked-for-each record query.

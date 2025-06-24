@@ -32,7 +32,9 @@ eval CREATE TABLE tbl_a (
 eval CREATE TABLE tbl_a (
     a INT
 ) $MASTER_1_ENGINE CHARSET utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+--disable_ps_protocol
 SELECT * FROM tbl_a;
+--enable_ps_protocol
 
 --error ER_ILLEGAL_HA_CREATE_OPTION
 ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16;

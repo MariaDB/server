@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,7 +44,7 @@ deleting the data file of that tablespace.
 The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU.
 @param id    tablespace identifier */
-void buf_flush_remove_pages(ulint id) noexcept;
+void buf_flush_remove_pages(uint32_t id) noexcept;
 
 /** Relocate a buffer control block in buf_pool.flush_list.
 @param bpage   control block being moved
@@ -90,32 +90,6 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn) noexcept;
 @param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
 @param furious  true=furious flushing, false=limit to innodb_io_capacity */
 ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious) noexcept;
-
-/********************************************************************//**
-This function should be called at a mini-transaction commit, if a page was
-modified in it. Puts the block to the list of modified blocks, if it not
-already in it. */
-inline void buf_flush_note_modification(buf_block_t *b, lsn_t start, lsn_t end)
-  noexcept
-{
-  ut_ad(!srv_read_only_mode);
-  ut_d(const auto s= b->page.state());
-  ut_ad(s > buf_page_t::FREED);
-  ut_ad(s < buf_page_t::READ_FIX);
-  ut_ad(mach_read_from_8(b->page.frame + FIL_PAGE_LSN) <= end);
-  mach_write_to_8(b->page.frame + FIL_PAGE_LSN, end);
-  if (UNIV_LIKELY_NULL(b->page.zip.data))
-    memcpy_aligned<8>(FIL_PAGE_LSN + b->page.zip.data,
-                      FIL_PAGE_LSN + b->page.frame, 8);
-
-  const lsn_t oldest_modification= b->page.oldest_modification();
-
-  if (oldest_modification > 1)
-    ut_ad(oldest_modification <= start);
-  else
-    buf_pool.insert_into_flush_list(b, start);
-  srv_stats.buf_pool_write_requests.inc();
-}
 
 /** Initialize page_cleaner. */
 ATTRIBUTE_COLD void buf_flush_page_cleaner_init() noexcept;

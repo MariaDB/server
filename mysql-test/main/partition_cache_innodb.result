@@ -22,13 +22,13 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `created_at` datetime NOT NULL,
   `cool` tinyint(4) DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (to_days(`created_at`))
 (PARTITION `month_2010_4` VALUES LESS THAN (734258) ENGINE = InnoDB,
  PARTITION `month_2010_5` VALUES LESS THAN (734289) ENGINE = InnoDB,
  PARTITION `month_max` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 INSERT INTO t1 VALUES (1, now(), 0);
-flush status;
+flush global status;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -71,7 +71,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `created_at` datetime NOT NULL,
   `cool` tinyint(4) DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (to_days(`created_at`))
 SUBPARTITION BY HASH (`cool`)
 SUBPARTITIONS 3
@@ -79,7 +79,7 @@ SUBPARTITIONS 3
  PARTITION `month_2010_5` VALUES LESS THAN (734289) ENGINE = InnoDB,
  PARTITION `month_max` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 INSERT INTO t1 VALUES (1, now(), 0);
-flush status;
+flush global status;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -107,7 +107,7 @@ drop table t1;
 # from previous transaction
 #
 flush query cache;
-flush status;
+flush global status;
 SET GLOBAL query_cache_size=1024*1024*512;
 CREATE TABLE `t1` (
 `id` int(11) NOT NULL ,

@@ -1,0 +1,15 @@
+PREPARE s_1 FROM 'SHOW RELAYLOG EVENTS';
+/* 1 */ SET default_master_connection='MASTER';
+/* 1 */ EXECUTE s_1;
+ERROR HY000: There is no master connection 'MASTER'
+/* 2 */ SET default_master_connection='MASTER';
+/* 2 */ EXECUTE s_1;
+ERROR HY000: There is no master connection 'MASTER'
+create procedure p() SHOW RELAYLOG EVENTS;
+/* 1 */ SET default_master_connection='MASTER';
+/* 1 */ call p;
+ERROR HY000: There is no master connection 'MASTER'
+/* 2 */ SET default_master_connection='MASTER';
+/* 2 */ call p;
+ERROR HY000: There is no master connection 'MASTER'
+drop procedure p;

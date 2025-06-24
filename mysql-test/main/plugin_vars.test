@@ -89,3 +89,5 @@ select plugin_status from information_schema.plugins where plugin_name='archive'
 --error ER_UNKNOWN_STORAGE_ENGINE
 execute s;
 drop table t1;
+let $datadir=`select @@datadir`;
+remove_file $datadir/test/t1.ARZ;

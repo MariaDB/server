@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --echo #
 --echo # MDEV-10914 ROW data type for stored routine variables
 --echo #
@@ -27,7 +29,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT f1(ROW(10,20));
 DROP FUNCTION f1;
 
@@ -96,20 +98,6 @@ DELIMITER ;$$
 CALL p2();
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
-
-
---echo #
---echo # ROW as an SP return value is not supported yet
---echo #
-
-DELIMITER $$;
---error ER_PARSE_ERROR
-CREATE FUNCTION p1() RETURNS ROW(a INT)
-BEGIN
-  RETURN NULL;
-END;
-$$
-DELIMITER ;$$
 
 
 --echo #
@@ -216,7 +204,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 
@@ -229,7 +217,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 
@@ -307,7 +295,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
@@ -393,7 +381,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT f1(10);
 DROP FUNCTION f1;
 
@@ -1605,3 +1593,166 @@ EXECUTE s0 USING @a;
 DROP FUNCTION f0;
 
 --echo # End of 10.6 tests
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-12252 ROW data type for stored function return values
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION p1() RETURNS ROW(a INT)
+BEGIN
+  RETURN NULL;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION p1;
+--error ER_OPERAND_COLUMNS
+SELECT p1();
+DROP FUNCTION p1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT, b VARCHAR(32)) RETURNS ROW(a INT, b VARCHAR(32))
+BEGIN
+  RETURN ROW(a,b);
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+SELECT DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_NAME='f1';
+SELECT DATA_TYPE, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1' AND PARAMETER_NAME IS NULL;
+SELECT f1(1,'b1') = ROW(1,'b1');
+SELECT f1(1,'b1') = ROW(2,'b1');
+SELECT f1(1,'b1') = ROW(1,'b2');
+SELECT f1(1,'b1') = ROW(1,NULL);
+SELECT f1(1,NULL) = ROW(1,'b2');
+SELECT f1(1,NULL) = ROW(1,NULL);
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT, b VARCHAR(32), c TEXT) RETURNS ROW(a INT, b VARCHAR(32), c TEXT)
+BEGIN
+  RETURN ROW(a+1,CONCAT(b,'xb'),CONCAT(c,'xc'));
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(a INT, b VARCHAR(32), c TEXT) DEFAULT f1(1,'b1','c1');
+  SELECT r.a, r.b, r.c;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE FUNCTION f1;
+SHOW CREATE PROCEDURE p1;
+CALL p1;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-36322 Comparison ROW(stored_func(),1)=ROW(1,1) calls the function twice per row
+--echo #
+
+--disable_ps2_protocol
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SET @counter= COALESCE(@counter, 0) + 1;
+  RETURN @counter;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # Queries without ROW comparison
+--echo #
+
+
+SET @counter=0;
+SELECT f1() FROM seq_1_to_5;
+
+--disable_view_protocol
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 ORDER BY f;
+
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 ORDER BY f DESC;
+--enable_view_protocol
+
+SET @counter=0;
+SELECT f1()=1 AS eq, @counter AS counter FROM seq_1_to_5;
+
+--echo #
+--echo # Queries without ROW comparison + HAVING
+--echo # The counter is incremented by 2 per row.
+--echo #
+
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 HAVING f1()<>0;
+
+SET @counter=0;
+SELECT f1() AS f FROM seq_1_to_5 HAVING f<>0;
+
+
+--echo #
+--echo # Queries with ROW comparison.
+--echo # Item_row::bring_value() is called on the left side, which calls
+--echo # Item_func_sp::bring_value() for f1(),
+--echo # which does *not* call Item_func_sp::execute()
+--echo # because the return type of f1() is scalar.
+--echo # Item_func_sp::execute() will be called from Item_func_sp::val_int()
+--echo # from Arg_comparator::compare_int_signed().
+--echo #
+
+SET @counter=0;
+SELECT ROW(f1(),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+
+SET @counter=0;
+SELECT ROW(COALESCE(f1()),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+
+SET @counter=0;
+SELECT ROW(@f1:=f1(),1) = ROW(1,1) AS eq, @counter AS counter FROM seq_1_to_5;
+
+SET @counter=0;
+SELECT ROW(f1(),1) IN ((1,1),(1,2)) AS c0, @counter AS counter FROM seq_1_to_5;
+
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Queries with comparison of an SP returning ROW vs a ROW constant.
+--echo # Item_func_sp::bring_value() is called on the left side,
+--echo # which calls execute().
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION f1() RETURNS ROW (a INT,b VARCHAR(10))
+BEGIN
+  SET @counter= COALESCE(@counter, 0) + 1;
+  RETURN ROW(1,'b1');
+END;
+/
+DELIMITER ;/
+
+--disable_view_protocol
+SET @counter=0;
+SELECT f1() = ROW(1,'b1') AS eq, @counter AS counter FROM seq_1_to_5;
+--enable_view_protocol
+
+DROP FUNCTION f1;
+
+--enable_ps2_protocol
+
+--echo # End of 11.8 tests

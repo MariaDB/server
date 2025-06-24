@@ -50,6 +50,8 @@ $homedir = $ENV{HOME};
 $my_progname = $0;
 $my_progname =~ s/.*[\/]//;
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-multi' instead\n"
+  if $0 =~ m/mysqld_multi$/;
 
 if (defined($ENV{UMASK})) {
   my $UMASK = $ENV{UMASK};
@@ -227,7 +229,7 @@ sub defaults_for_group
 
 ####
 #### Init log file. Check for appropriate place for log file, in the following
-#### order:  my_print_defaults mysqld datadir, @datadir@
+#### order:  my_print_defaults mysqld datadir, @localstatedir@
 ####
 
 sub init_log
@@ -241,7 +243,7 @@ sub init_log
   }
   if (!defined($logdir))
   {
-    $logdir= "@datadir@" if (-d "@datadir@" && -w "@datadir@");
+    $logdir= "@localstatedir@" if (-d "@localstatedir@" && -w "@localstatedir@");
   }
   if (!defined($logdir))
   {

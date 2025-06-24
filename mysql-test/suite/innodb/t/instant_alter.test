@@ -1,5 +1,6 @@
 --source include/innodb_page_size.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 let $datadir=`select @@datadir`;
 
@@ -974,3 +975,5 @@ copy_file std_data/mysql_upgrade/mdev28822_100427_innodb.frm $datadir/test/mdev2
 ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
 DROP TABLE mdev28822_100427_innodb;
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+
+--source include/test_db_charset_restore.inc

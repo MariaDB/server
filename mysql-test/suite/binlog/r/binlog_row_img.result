@@ -1,0 +1,1367 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+#
+# FULL_NODUP mode works as expected
+#
+SET binlog_row_image = "FULL_NODUP";
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 varchar(100),
+c3 INT DEFAULT 1000, c4 TEXT);
+CREATE TABLE t2 (c1 INT, c2 char(100), c3 INT DEFAULT 1000, c4 TEXT);
+FLUSH BINARY LOGS;
+
+#########################################################################
+# binlog_row_image = FULL_NODUP
+#########################################################################
+
+INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+(2, "insert_to_t1", 2, repeat('a', 20)),
+(3, "insert_to_t1", 3, repeat('a', 20));
+INSERT INTO t1(c1) VALUES(4);
+UPDATE t1 SET c2 = "only_c2_changed";
+UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t1 WHERE c1 = 1;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t1", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1(c1) VALUES(4)
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=NULL /* VARSTRING(100) meta=100 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=NULL /* VARSTRING(100) meta=100 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t1 WHERE c1 = 1
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+FLUSH BINARY LOGS;
+
+# t2 has no primary key.
+# It will binlog full before and after image for all modes if the
+# table has no primary key. FULL_NODUP follows the behavior.
+
+INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+(2, "insert_to_t2", 2, repeat('a', 20)),
+(3, "insert_to_t2", 3, repeat('a', 20));
+INSERT INTO t2(c1) VALUES(4);
+UPDATE t2 SET c2 = "only_c2_changed";
+UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t2 WHERE c1 > 2;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t2", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2(c1) VALUES(4)
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t2 WHERE c1 > 2
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 2
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+DROP TABLE t1, t2;
+#
+# MINIMAL mode works as expected
+#
+SET binlog_row_image = "MINIMAL";
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 varchar(100),
+c3 INT DEFAULT 1000, c4 TEXT);
+CREATE TABLE t2 (c1 INT, c2 char(100), c3 INT DEFAULT 1000, c4 TEXT);
+FLUSH BINARY LOGS;
+
+#########################################################################
+# binlog_row_image = MINIMAL
+#########################################################################
+
+INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+(2, "insert_to_t1", 2, repeat('a', 20)),
+(3, "insert_to_t1", 3, repeat('a', 20));
+INSERT INTO t1(c1) VALUES(4);
+UPDATE t1 SET c2 = "only_c2_changed";
+UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t1 WHERE c1 = 1;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t1", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1(c1) VALUES(4)
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+### SET
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t1 WHERE c1 = 1
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+FLUSH BINARY LOGS;
+
+# t2 has no primary key.
+# It will binlog full before and after image for all modes if the
+# table has no primary key. FULL_NODUP follows the behavior.
+
+INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+(2, "insert_to_t2", 2, repeat('a', 20)),
+(3, "insert_to_t2", 3, repeat('a', 20));
+INSERT INTO t2(c1) VALUES(4);
+UPDATE t2 SET c2 = "only_c2_changed";
+UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t2 WHERE c1 > 2;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t2", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2(c1) VALUES(4)
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t2 WHERE c1 > 2
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 2
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+DROP TABLE t1, t2;
+#
+# NOBLOB mode works as expected
+#
+SET binlog_row_image = "NOBLOB";
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 varchar(100),
+c3 INT DEFAULT 1000, c4 TEXT);
+CREATE TABLE t2 (c1 INT, c2 char(100), c3 INT DEFAULT 1000, c4 TEXT);
+FLUSH BINARY LOGS;
+
+#########################################################################
+# binlog_row_image = NOBLOB
+#########################################################################
+
+INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+(2, "insert_to_t1", 2, repeat('a', 20)),
+(3, "insert_to_t1", 3, repeat('a', 20));
+INSERT INTO t1(c1) VALUES(4);
+UPDATE t1 SET c2 = "only_c2_changed";
+UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t1 WHERE c1 = 1;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t1", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1(c1) VALUES(4)
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=NULL /* VARSTRING(100) meta=100 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=NULL /* VARSTRING(100) meta=100 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t1 WHERE c1 = 1
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+FLUSH BINARY LOGS;
+
+# t2 has no primary key.
+# It will binlog full before and after image for all modes if the
+# table has no primary key. FULL_NODUP follows the behavior.
+
+INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+(2, "insert_to_t2", 2, repeat('a', 20)),
+(3, "insert_to_t2", 3, repeat('a', 20));
+INSERT INTO t2(c1) VALUES(4);
+UPDATE t2 SET c2 = "only_c2_changed";
+UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t2 WHERE c1 > 2;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t2", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2(c1) VALUES(4)
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t2 WHERE c1 > 2
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 2
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+DROP TABLE t1, t2;
+#
+# FULL mode works as expected
+#
+SET binlog_row_image = "FULL";
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 varchar(100),
+c3 INT DEFAULT 1000, c4 TEXT);
+CREATE TABLE t2 (c1 INT, c2 char(100), c3 INT DEFAULT 1000, c4 TEXT);
+FLUSH BINARY LOGS;
+
+#########################################################################
+# binlog_row_image = FULL
+#########################################################################
+
+INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+(2, "insert_to_t1", 2, repeat('a', 20)),
+(3, "insert_to_t1", 3, repeat('a', 20));
+INSERT INTO t1(c1) VALUES(4);
+UPDATE t1 SET c2 = "only_c2_changed";
+UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t1 WHERE c1 = 1;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1 VALUES(1, "insert_to_t1", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t1", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t1", 3, repeat('a', 20))
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1(c1) VALUES(4)
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=NULL /* VARSTRING(100) meta=100 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='insert_to_t1' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2=NULL /* VARSTRING(100) meta=100 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t1 WHERE c1 = 1
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='only_c2_changed' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+FLUSH BINARY LOGS;
+
+# t2 has no primary key.
+# It will binlog full before and after image for all modes if the
+# table has no primary key. FULL_NODUP follows the behavior.
+
+INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+(2, "insert_to_t2", 2, repeat('a', 20)),
+(3, "insert_to_t2", 3, repeat('a', 20));
+INSERT INTO t2(c1) VALUES(4);
+UPDATE t2 SET c2 = "only_c2_changed";
+UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed";
+DELETE FROM t2 WHERE c1 > 2;
+
+# Verify that rows events are binlogged as expeced.
+
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2 VALUES(1, "insert_to_t2", 1, repeat('a', 20)),
+#Q> (2, "insert_to_t2", 2, repeat('a', 20)),
+#Q> (3, "insert_to_t2", 3, repeat('a', 20))
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 3
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t2(c1) VALUES(4)
+### INSERT INTO `test`.`t2`
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c2 = "only_c2_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='insert_to_t2' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2=NULL /* STRING(100) meta=65124 nullable=1 is_null=1 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t2 SET c3 = 1, c4 = "c3_c4_changed"
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='aaaaaaaaaaaaaaaaaaaa' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### UPDATE `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1000 /* INT meta=0 nullable=1 is_null=0 */
+###   @4=NULL /* BLOB/TEXT meta=2 nullable=1 is_null=1 */
+### SET
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 4
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t2 WHERE c1 > 2
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### DELETE FROM `test`.`t2`
+### WHERE
+###   @1=4 /* INT meta=0 nullable=1 is_null=0 */
+###   @2='only_c2_changed' /* STRING(100) meta=65124 nullable=1 is_null=0 */
+###   @3=1 /* INT meta=0 nullable=1 is_null=0 */
+###   @4='c3_c4_changed' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 2
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+DROP TABLE t1, t2;
+RESET MASTER;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

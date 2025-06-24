@@ -1,0 +1,3135 @@
+'\" t
+.\"
+.TH "\fBMARIADB\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb
+.\" command-line tool
+.\" tools: command-line
+.\" scripts: SQL
+.\" SQL scripts
+.\" batch SQL files
+.SH "NAME"
+mariadb \- the MariaDB command\-line tool (mysql is now a symlink to mariadb)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
+\fBmariadb [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb\fR
+is a simple SQL shell (with GNU
+readline
+capabilities)\&. It supports interactive and non\-interactive use\&. When used interactively, query results are presented in an ASCII\-table format\&. When used non\-interactively (for example, as a filter), the result is presented in tab\-separated format\&. The output format can be changed using command options\&.
+.PP
+If you have problems due to insufficient memory for large result sets, use the
+\fB\-\-quick\fR
+option\&. This forces
+\fBmariadb\fR
+to retrieve results from the server a row at a time rather than retrieving the entire result set and buffering it in memory before displaying it\&. This is done by returning the result set using the
+mariadb_use_result()
+C API function in the client/server library rather than
+mysql_store_result()\&.
+.PP
+Using
+\fBmariadb\fR
+is very easy\&. Invoke it from the prompt of your command interpreter as follows:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Or:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \-\-user=\fR\fB\fIuser_name\fR\fR\fB \-\-password=\fR\fB\fIyour_password\fR\fR\fB \fR\fB\fIdb_name\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Then type an SQL statement, end it with
+\(lq;\(rq,
+\eg, or
+\eG
+and press Enter\&.
+.PP
+Typing Control\-C causes
+\fBmariadb\fR
+to attempt to kill the current statement\&. If this cannot be done, or Control\-C is typed again before the statement is killed,
+\fBmariadb\fR
+exits\&.
+.PP
+You can execute SQL statements in a script file (batch file) like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIscript\&.sql\fR\fR\fB > \fR\fB\fIoutput\&.tab\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.SH "MARIADB OPTIONS"
+.\" mariadb command options
+.\" command options: mariadb
+.\" options: command-line: mariadb
+.\" startup parameters: mariadb
+.PP
+\fBmariadb\fR
+supports the following options, which can be specified on the command line or in the
+[mariadb], [client], [client-server] or [client-mariadb]
+option file groups\&.
+\fBmariadb\fR
+also supports the options for processing option files\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: help option
+.\" help option: mariadb
+\fB\-\-help\fR,
+\fB\-?\fR,
+\fB\-I\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: abort-source-on-error option
+.\" abort-source-on-error: mariadb
+\fB\-\-abort\-source\-on\-error\fR
+.sp
+Abort 'source filename' operations in case of errors\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: auto-rehash option
+.\" auto-rehash option: mariadb
+\fB\-\-auto\-rehash\fR
+.sp
+Enable automatic rehashing\&. This option is on by default, which enables database, table, and column name completion\&. Use
+\fB\-\-disable\-auto\-rehash\fR, \fB\-\-no\-auto\-rehash\fR,  or \fB\-\-skip\-auto\-rehash\fR
+to disable rehashing\&. That causes
+\fBmariadb\fR
+to start faster, but you must issue the
+rehash
+command if you want to use name completion\&.
+.sp
+To complete a name, enter the first part and press Tab\&. If the name is unambiguous,
+\fBmariadb\fR
+completes it\&. Otherwise, you can press Tab again to see the possible names that begin with what you have typed so far\&. Completion does not occur if there is no default database\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: auto-vertical-output option
+.\" auto-vertical-output option: mariadb
+\fB\-\-auto\-vertical\-output\fR
+.sp
+Automatically switch to vertical output mode if the result is wider than the terminal width\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: batch option
+.\" batch option: mariadb
+\fB\-\-batch\fR,
+\fB\-B\fR
+.sp
+Print results using tab as the column separator, with each row on a new line\&. With this option,
+\fBmariadb\fR
+does not use the history file\&.
+.sp
+Batch mode results in nontabular output format and escaping of special characters\&. Escaping may be disabled by using raw mode; see the description for the
+\fB\-\-raw\fR
+option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: binary-mode option
+.\" binary-mode option: mariadb
+\fB\-\-binary\-mode\fR
+.sp
+Binary mode allows certain character sequences to be processed as data that
+would otherwise be treated with a special meaning by the parser\&.
+Specifically, this switch turns off parsing of all client commands except \eC
+and DELIMITER in non-interactive mode (i\&.e\&., when binary mode is combined
+with either 1) piped input, 2) the --batch mariadb option, or 3) the 'source'
+command)\&. Also, in binary mode, occurrences of '\er\en' and ASCII '\e0' are
+preserved within strings, whereas by default, '\er\en' is translated to '\en'
+and '\e0' is disallowed in user input\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: character-sets-dir option
+.\" character-sets-dir option: mariadb
+\fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
+.sp
+The directory where character sets are installed\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: column-names option
+.\" column-names option: mariadb
+\fB\-\-column\-names\fR
+.sp
+Write column names in results\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: column-type-info option
+.\" column-type-info option: mariadb
+\fB\-\-column\-type\-info\fR,
+\fB\-m\fR
+.sp
+Display result set metadata\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: comments option
+.\" comments option: mariadb
+\fB\-\-comments\fR,
+\fB\-c\fR
+.sp
+Whether to preserve comments in statements sent to the server\&. The default is \-\-skip\-comments (discard comments), enable with \-\-comments (preserve comments)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: compress option
+.\" compress option: mariadb
+\fB\-\-compress\fR,
+\fB\-C\fR
+.sp
+Compress all information sent between the client and the server if both support compression\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: connect-timeout option
+.\" connect-timeout option: mariadb
+\fB\-\-connect\-timeout=\fR\fB\fIseconds\fR\fR
+.sp
+Set the number of seconds before connection timeout\&. (Default value is 0\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: database option
+.\" database option: mariadb
+\fB\-\-database=\fR\fB\fIdb_name\fR\fR,
+\fB\-D \fR\fB\fIdb_name\fR\fR
+.sp
+The database to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: debug option
+.\" debug option: mariadb
+\fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
+\fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
+.sp
+Write a debugging log\&. A typical
+\fIdebug_options\fR
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysql.trace'.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: debug-check option
+.\" debug-check option: mariadb
+\fB\-\-debug\-check\fR
+.sp
+Print some debugging information when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: debug-info option
+.\" debug-info option: mariadb
+\fB\-\-debug\-info\fR,
+\fB\-T\fR
+.sp
+Prints debugging information and memory and CPU usage statistics when the program exits\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: default-auth option
+.\" default-auth option: mariadb
+\fB\-\-default\-auth=\fR\fB\fIname\fR
+.sp
+Default authentication client-side plugin to use\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: default-character-set option
+.\" default-character-set option: mariadb
+\fB\-\-default\-character\-set=\fR\fB\fIcharset_name\fR\fR
+.sp
+Use
+\fIcharset_name\fR
+as the default character set for the client and connection\&.
+.sp
+A common issue that can occur when the operating system uses
+utf8
+or another multi\-byte character set is that output from the
+\fBmariadb\fR
+client is formatted incorrectly, due to the fact that the MariaDB client uses the
+latin1
+character set by default\&. You can usually fix such issues by using this option to force the client to use the system character set instead\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: defaults-extra-file option
+.\" defaults-extra-file option: mariadb
+\fB\-\-defaults-extra-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
+Must be given as first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: defaults-file option
+.\" defaults-file option: mariadb
+\fB\-\-defaults-file=\fR\fB\fIfilename\fR\fR
+.sp
+Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&. Must be given as first option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: defaults-group-suffix option
+.\" defaults-group-suffix option: mariadb
+\fB\-\-defaults\-group\-suffix=\fR\fB\fIsuffix\fR\fR
+.sp
+In addition to the groups named on the command line, read groups that have the given suffix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: delimiter option
+.\" delimiter option: mariadb
+\fB\-\-delimiter=\fR\fB\fIstr\fR\fR
+.sp
+Set the statement delimiter\&. The default is the semicolon character (\(lq;\(rq)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: disable named commands
+.\" disable named command: mariadb
+\fB\-\-disable\-named\-commands\fR
+.sp
+Disable named commands\&. Use the
+\e*
+form only, or use named commands only at the beginning of a line ending with a semicolon (\(lq;\(rq)\&.
+\fBmariadb\fR
+starts with this option
+\fIenabled\fR
+by default\&. However, even with this option, long\-format commands still work from the first line\&. See
+the section called \(lqMARIADB COMMANDS\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: enable cleartext plugin option
+.\" enable cleartext plugin option: mariadb
+\fB\-\-enable\-cleartext\-plugin\fR
+.sp
+Obsolete option\&. Exists only for MySQL compatibility\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: execute option
+.\" execute option: mariadb
+\fB\-\-execute=\fR\fB\fIstatement\fR\fR,
+\fB\-e \fR\fB\fIstatement\fR\fR
+.sp
+Execute the statement and quit\&. Disables \fB\-\-force\fR and history file\&. The default output format is like that produced with
+\fB\-\-batch\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: force option
+.\" force option: mariadb
+\fB\-\-force\fR,
+\fB\-f\fR
+.sp
+Continue even if an SQL error occurs\&. Sets \fB\-\-abort\-source\-on-error\fR to 0\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: host option
+.\" host option: mariadb
+\fB\-\-host=\fR\fB\fIhost_name\fR\fR,
+\fB\-h \fR\fB\fIhost_name\fR\fR
+.sp
+Connect to the MariaDB server on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: html option
+.\" html option: mariadb
+\fB\-\-html\fR,
+\fB\-H\fR
+.sp
+Produce HTML output\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: ignore-spaces option
+.\" ignore-spaces option: mariadb
+\fB\-\-ignore\-spaces\fR,
+\fB\-i\fR
+.sp
+Ignore spaces after function names\&. Allows one to have spaces (including tab characters and new line characters) between function name and '('\&. The drawback is that this causes built in functions to become reserved words\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: init-command option
+.\" init-command option: mariadb
+\fB\-\-init\-command=\fR\fB\fIstr\fR\fR\fR
+.sp
+SQL Command to execute when connecting to the MariaDB server\&. Will automatically be re-executed when reconnecting\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: line-numbers option
+.\" line-numbers option: mariadb
+\fB\-\-line\-numbers\fR
+.sp
+Write line numbers for errors\&. Disable this with
+\fB\-\-skip\-line\-numbers\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: local-infile option
+.\" local-infile option: mariadb
+\fB\-\-local\-infile[={0|1}]\fR
+.sp
+Enable or disable
+LOCAL
+capability for
+LOAD DATA INFILE\&. With no value, the option enables
+LOCAL\&. The option may be given as
+\fB\-\-local\-infile=0\fR
+or
+\fB\-\-local\-infile=1\fR
+to explicitly disable or enable
+LOCAL\&. Enabling
+LOCAL
+has no effect if the server does not also support it\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: max-allowed-packet option
+.\" max-allowed-packet option: mariadb
+\fB\-\-max\-allowed\-packet=\fR\fB\fInum\fR\fR
+.sp
+Set the maximum packet length to send to or receive from the server\&. (Default value is 16MB, largest 1GB\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: max-join-size option
+.\" max-join-size option: mariadb
+\fB\-\-max\-join\-size=\fR\fB\fInum\fR\fR
+.sp
+Set the automatic limit for rows in a join when using
+\fB\-\-safe\-updates\fR\&. (Default value is 1,000,000\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: named-commands option
+.\" named-commands option: mariadb
+\fB\-\-named\-commands\fR,
+\fB\-G\fR
+.sp
+Enable named
+\fBmariadb\fR
+commands\&. Long\-format commands are allowed, not just short\-format commands\&. For example,
+quit
+and
+\eq
+both are recognized\&. Use
+\fB\-\-skip\-named\-commands\fR
+to disable named commands\&. See
+the section called \(lqMARIADB COMMANDS\(rq\&. Disabled by default\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\h'-04'\(bu\h'+03'\c
+.\}
+.\" mariadb: net-buffer-length option
+.\" net-buffer-length option: mariadb
+\fB\-\-net\-buffer\-length=\fR\fB\fIsize\fR\fR
+.sp
+Set the buffer size for TCP/IP and socket communication\&. (Default value is 16KB\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: no-auto-rehash option
+.\" no-auto-rehash option: mariadb
+\fB\-\-no\-auto\-rehash\fR,
+\fB\-A\fR
+.sp
+This has the same effect as
+\fB\-\-skip\-auto\-rehash\fR\&. See the description for
+\fB\-\-auto\-rehash\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: no-beep option
+.\" no-beep option: mariadb
+\fB\-\-no\-beep\fR,
+\fB\-b\fR
+.sp
+Do not beep when errors occur\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: no-defaults option
+.\" no-defaults option: mariadb
+\fB\-\-no\-defaults\fR
+.sp
+Do not read default options from any option file\&. This must be given as the first argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: one-database option
+.\" one-database option: mariadb
+\fB\-\-one\-database\fR,
+\fB\-o\fR
+.sp
+Ignore statements except those those that occur while the default database is the one named on the command line\&. This filtering is limited, and based only on USE statements\&. This is useful for skipping updates to other databases in the binary log\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: pager option
+.\" pager option: mariadb
+\fB\-\-pager[=\fR\fB\fIcommand\fR\fR\fB]\fR
+.sp
+Use the given command for paging query output\&. If the command is omitted, the default pager is the value of your
+PAGER
+environment variable\&. Valid pagers are
+\fBless\fR,
+\fBmore\fR,
+\fBcat [> filename]\fR, and so forth\&. This option works only on Unix and only in interactive mode\&. To disable paging, use
+\fB\-\-skip\-pager\fR\&.
+the section called \(lqMARIADB COMMANDS\(rq, discusses output paging further\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: password option
+.\" password option: mariadb
+\fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
+\fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
+.sp
+The password to use when connecting to the server\&. If you use the short option form (\fB\-p\fR), you
+\fIcannot\fR
+have a space between the option and the password\&. If you omit the
+\fIpassword\fR
+value following the
+\fB\-\-password\fR
+or
+\fB\-p\fR
+option on the command line,
+\fBmariadb\fR
+prompts for one\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: pipe option
+.\" pipe option: mariadb
+\fB\-\-pipe\fR,
+\fB\-W\fR
+.sp
+On Windows, connect to the server via a named pipe\&. This option applies only if the server supports named\-pipe connections\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: plugin-dir option
+.\" plugin-dir option: mariadb
+\fB\-\-plugin\-dir=\fIdir_name\fR
+.sp
+Directory for client-side plugins\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: port option
+.\" port option: mariadb
+\fB\-\-port=\fR\fB\fIport_num\fR\fR,
+\fB\-P \fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use for the connection or 0 for default to, in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
+Forces --protocol=tcp when specified on the command line without other connection properties\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: print-defaults option
+.\" print-defaults option: mariadb
+\fB\-\-print\-defaults\fR
+.sp
+Print the program argument list and exit\&. This must be given as the first argument\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: progress-reports option
+.\" progress-reports option: mariadb
+\fB\-\-progress\-reports\fR
+.sp
+Get progress reports for long running commands (such as ALTER TABLE)\&. (Defaults to on; use \fB\-\-skip\-progress\-reports\fR to disable\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: prompt option
+.\" prompt option: mariadb
+\fB\-\-prompt=\fR\fB\fIformat_str\fR\fR
+.sp
+Set the prompt to the specified format\&. The special sequences that the prompt can contain are described in
+the section called \(lqMARIADB COMMANDS\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: protocol option
+.\" protocol option: mariadb
+\fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
+.sp
+The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: quick option
+.\" quick option: mariadb
+\fB\-\-quick\fR,
+\fB\-q\fR
+.sp
+Do not cache each query result, print each row as it is received\&. This may slow down the server if the output is suspended\&. With this option,
+\fBmariadb\fR
+does not use the history file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: raw option
+.\" raw option: mariadb
+\fB\-\-raw\fR,
+\fB\-r\fR
+.sp
+For tabular output, the
+\(lqboxing\(rq
+around columns enables one column value to be distinguished from another\&. For nontabular output (such as is produced in batch mode or when the
+\fB\-\-batch\fR
+or
+\fB\-\-silent\fR
+option is given), special characters are escaped in the output so they can be identified easily\&. Newline, tab,
+NUL, and backslash are written as
+\en,
+\et,
+\e0, and
+\e\e\&. The
+\fB\-\-raw\fR
+option disables this character escaping\&.
+.sp
+The following example demonstrates tabular versus nontabular output and the use of raw mode to disable escaping:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+% \fBmariadb\fR
+mariadb> SELECT CHAR(92);
++\-\-\-\-\-\-\-\-\-\-+
+| CHAR(92) |
++\-\-\-\-\-\-\-\-\-\-+
+| \e        |
++\-\-\-\-\-\-\-\-\-\-+
+% \fBmariadb \-s\fR
+mariadb> SELECT CHAR(92);
+CHAR(92)
+\e\e
+% \fBmariadb \-s \-r\fR
+mariadb> SELECT CHAR(92);
+CHAR(92)
+\e
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: reconnect option
+.\" reconnect option: mariadb
+\fB\-\-reconnect\fR
+.sp
+If the connection to the server is lost, automatically try to reconnect\&. A single reconnect attempt is made each time the connection is lost\&. Enabled by default, to disable use
+\fB\-\-skip\-reconnect\fR or \fB\-\-disable\-reconnect\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: safe-updates option
+.\" safe-updates option: mariadb
+.\" mariadb: i-am-a-dummy option
+.\" i-am-a-dummy option: mariadb
+\fB\-\-safe\-updates\fR,
+\fB\-\-i\-am\-a\-dummy\fR,
+\fB\-U\fR
+.sp
+Allow only those
+UPDATE
+and
+DELETE
+statements that specify which rows to modify by using key values\&. If you have set this option in an option file, you can override it by using
+\fB\-\-safe\-updates\fR
+on the command line\&. See
+the section called \(lqMARIADB TIPS\(rq, for more information about this option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: secure-auth option
+.\" secure-auth option: mariadb
+\fB\-\-secure\-auth\fR
+.sp
+Do not send passwords to the server in old (pre\-4\&.1\&.1) format\&. This prevents connections except for servers that use the newer password format\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: select-limit option
+.\" select-limit option: mariadb
+\fB\-\-select\-limit=\fR\fB\fIlimit\fR\fR
+.sp
+Set automatic limit for SELECT when using \fB\-\-safe\-updates\fR\&. (Default value is 1,000\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: server-arg option
+.\" server-arg option: mariadb
+\fB\-\-server\-arg=\fR\fB\fIname\fR\fR
+.sp
+Send \fB\fIname\fR\fR as a parameter to the embedded server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: show-warnings option
+.\" show-warnings option: mariadb
+\fB\-\-show\-warnings\fR
+.sp
+Cause warnings to be shown after each statement if there are any\&. This option applies to interactive and batch mode\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: sigint-ignore option
+.\" sigint-ignore option: mariadb
+\fB\-\-sigint\-ignore\fR
+.sp
+Ignore
+SIGINT
+signals (typically the result of typing Control\-C)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: silent option
+.\" silent option: mariadb
+\fB\-\-silent\fR,
+\fB\-s\fR
+.sp
+Silent mode\&. Produce less output\&. This option can be given multiple times to produce less and less output\&.
+.sp
+This option results in nontabular output format and escaping of special characters\&. Escaping may be disabled by using raw mode; see the description for the
+\fB\-\-raw\fR
+option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: skip-auto-rehash option
+.\" skip-auto-rehash option: mariadb
+\fB\-\-skip\-auto\-rehash\fR
+.sp
+Disable automatic rehashing\&. Synonym for \fB\-\-disable\-auto\-rehash\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: skip-column-names option
+.\" skip-column-names option: mariadb
+\fB\-\-skip\-column\-names\fR,
+\fB\-N\fR
+.sp
+Do not write column names in results\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: skip-line-numbers option
+.\" skip-line-numbers option: mariadb
+\fB\-\-skip\-line\-numbers\fR,
+\fB\-L\fR
+.sp
+Do not write line numbers for errors\&. Useful when you want to compare result files that include error messages\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: socket option
+.\" socket option: mariadb
+\fB\-\-socket=\fR\fB\fIpath\fR\fR,
+\fB\-S \fR\fB\fIpath\fR\fR
+.sp
+For connections to
+localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&.
+Forces --protocol=socket when specified on the command line without other connection properties; on Windows, forces --protocol=pipe\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL options
+.\" SSL options: mariadb
+\fB\-\-ssl\fR
+.sp
+Enable SSL for connection (automatically enabled with other flags). Disable with
+\fB\-\-skip-ssl\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL CA option
+.\" SSL CA option: mariadb
+\fB\-\-ssl\-ca=\fIname\fR
+.sp
+CA file in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL CA Path option
+.\" SSL CA Path option: mariadb
+\fB\-\-ssl\-capath=\fIname\fR
+.sp
+CA directory (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL Cert option
+.\" SSL Cert option: mariadb
+\fB\-\-ssl\-cert=\fIname\fR
+.sp
+X509 cert in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL Cipher option
+.\" SSL Cipher option: mariadb
+\fB\-\-ssl\-cipher=\fIname\fR
+.sp
+SSL cipher to use (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL Key option
+.\" SSL Key option: mariadb
+\fB\-\-ssl\-key=\fIname\fR
+.sp
+X509 key in PEM format (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL Crl option
+.\" SSL CRL option: mariadb
+\fB\-\-ssl\-crl=\fIname\fR
+.sp
+Certificate revocation list (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL Crlpath option
+.\" SSL Crlpath option: mariadb
+\fB\-\-ssl\-crlpath=\fIname\fR
+.sp
+Certificate revocation list path (check OpenSSL docs, implies
+\fB\-\-ssl\fR)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb
+\fB\-\-ssl\-verify\-server\-cert\fR
+.sp
+Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: table option
+.\" table option: mariadb
+\fB\-\-table\fR,
+\fB\-t\fR
+.sp
+Display output in table format\&. This is the default for interactive use, but can be used to produce table output in batch mode\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: tee option
+.\" tee option: mariadb
+\fB\-\-tee=\fR\fB\fIfile_name\fR\fR
+.sp
+Append a copy of output to the given file\&. This option works only in interactive mode\&.
+the section called \(lqMARIADB COMMANDS\(rq, discusses tee files further\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: unbuffered option
+.\" unbuffered option: mariadb
+\fB\-\-unbuffered\fR,
+\fB\-n\fR
+.sp
+Flush the buffer after each query\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: user option
+.\" user option: mariadb
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR,
+\fB\-u \fR\fB\fIuser_name\fR\fR
+.sp
+The MariaDB user name to use when connecting to the server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: verbose option
+.\" verbose option: mariadb
+\fB\-\-verbose\fR,
+\fB\-v\fR
+.sp
+Verbose mode\&. Produce more output about what the program does\&. This option can be given multiple times to produce more and more output\&. (For example,
+\fB\-v \-v \-v\fR
+produces table output format even in batch mode\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: version option
+.\" version option: mariadb
+\fB\-\-version\fR,
+\fB\-V\fR
+.sp
+Display version information and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: vertical option
+.\" vertical option: mariadb
+\fB\-\-vertical\fR,
+\fB\-E\fR
+.sp
+Print query output rows vertically (one line per column value)\&. Without this option, you can specify vertical output for individual statements by terminating them with
+\eG\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: wait option
+.\" wait option: mariadb
+\fB\-\-wait\fR,
+\fB\-w\fR
+.sp
+If the connection cannot be established, wait and retry instead of aborting\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: xml option
+.\" xml option: mariadb
+\fB\-\-xml\fR,
+\fB\-X\fR
+.sp
+Produce XML output\&.
+The output when
+\fB\-\-xml\fR
+is used with
+\fBmariadb\fR
+matches that of
+\fBmariadb-dump \fR\fB\fB\-\-xml\fR\fR\&. See
+\fBmariadb-dump\fR(1)
+for details\&.
+.sp
+The XML output also uses an XML namespace, as shown here:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \-\-xml \-uroot \-e "SHOW VARIABLES LIKE 'version%'"\fR
+<?xml version="1\&.0"?>
+<resultset statement="SHOW VARIABLES LIKE 'version%'" xmlns:xsi="http://www\&.w3\&.org/2001/XMLSchema\-instance">
+<row>
+<field name="Variable_name">version</field>
+<field name="Value">5\&.0\&.40\-debug</field>
+</row>
+<row>
+<field name="Variable_name">version_comment</field>
+<field name="Value">Source distribution</field>
+</row>
+<row>
+<field name="Variable_name">version_compile_machine</field>
+<field name="Value">i686</field>
+</row>
+<row>
+<field name="Variable_name">version_compile_os</field>
+<field name="Value">suse\-linux\-gnu</field>
+</row>
+</resultset>
+.fi
+.RE
+.PP
+You can also set the following variables by using
+\fB\-\-\fR\fB\fIvar_name\fR\fR\fB=\fR\fB\fIvalue\fR\fR\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" timeout: connect_timeout variable
+.\" connect_timeout variable
+connect_timeout
+.sp
+The number of seconds before connection timeout\&. (Default value is
+0\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" max_allowed_packet variable
+max_allowed_packet
+.sp
+The maximum packet length to send to or receive from the server\&. (Default value is 16MB\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" max_join_size variable
+max_join_size
+.sp
+The automatic limit for rows in a join when using
+\fB\-\-safe\-updates\fR\&. (Default value is 1,000,000\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" net_buffer_length variable
+net_buffer_length
+.sp
+The buffer size for TCP/IP and socket communication\&. (Default value is 16KB\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" select_limit variable
+select_limit
+.sp
+The automatic limit for
+SELECT
+statements when using
+\fB\-\-safe\-updates\fR\&. (Default value is 1,000\&.)
+.RE
+.\" MARIADB_HISTFILE environment variable
+.\" environment variable: MARIADB_HISTFILE
+.\" HOME environment variable
+.\" environment variable: HOME
+.\" mariadb history file
+.\" command-line history: mariadb
+.\" .mariadb_history file
+.PP
+On Unix, the
+\fBmariadb\fR
+client writes a record of executed statements to a history file\&. By default, this file is named
+\&.mariadb_history
+and is created in your home directory\&. For backwards compatibility \&.mariadb_history will be used if present and
+\&.mariadb_history is missing\&. To specify a different file, set the value of the
+MARIADB_HISTFILE
+environment variable\&. The environment variable MYSQL_HISTFILE will be used if MARIADB_HISTFILE isn't present\&.
+.PP
+The
+\&.mariadb_history
+should be protected with a restrictive access mode because sensitive information might be written to it, such as the text of SQL statements that contain passwords\&.
+.PP
+If you do not want to maintain a history file, first remove
+\&.mariadb_history
+if it exists, and then use either of the following techniques:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Set the
+MARIADB_HISTFILE
+variable to
+/dev/null\&. To cause this setting to take effect each time you log in, put the setting in one of your shell's startup files\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Create
+\&.mariadb_history
+as a symbolic link to
+/dev/null:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBln \-s /dev/null $HOME/\&.mariadb_history\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+You need do this only once\&.
+.RE
+.SH "MARIADB COMMANDS"
+.PP
+\fBmariadb\fR
+sends each SQL statement that you issue to the server to be executed\&. There is also a set of commands that
+\fBmariadb\fR
+itself interprets\&. For a list of these commands, type
+help
+or
+\eh
+at the
+mariadb>
+prompt:
+.\" mariadb commands: list of
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBhelp\fR
+List of all MariaDB commands:
+Note that all text commands must be first on line and end with ';'
+?         (\e?) Synonym for 'help'\&.
+clear     (\ec) Clear command\&.
+connect   (\er) Reconnect to the server\&. Optional arguments are db and host\&.
+delimiter (\ed) Set statement delimiter\&.
+edit      (\ee) Edit command with $EDITOR\&.
+ego       (\eG) Send command to mariadb server, display result vertically\&.
+exit      (\eq) Exit mariadb\&. Same as quit\&.
+go        (\eg) Send command to mariadb server\&.
+help      (\eh) Display this help\&.
+nopager   (\en) Disable pager, print to stdout\&.
+notee     (\et) Don't write into outfile\&.
+pager     (\eP) Set PAGER [to_pager]\&. Print the query results via PAGER\&.
+print     (\ep) Print current command\&.
+prompt    (\eR) Change your mariadb prompt\&.
+quit      (\eq) Quit mariadb\&.
+rehash    (\e#) Rebuild completion hash\&.
+source    (\e\&.) Execute an SQL script file\&. Takes a file name as an argument\&.
+status    (\es) Get status information from the server\&.
+system    (\e!) Execute a system shell command\&.
+tee       (\eT) Set outfile [to_outfile]\&. Append everything into given
+               outfile\&.
+use       (\eu) Use another database\&. Takes database name as argument\&.
+charset   (\eC) Switch to another charset\&. Might be needed for processing
+               binlog with multi\-byte charsets\&.
+warnings  (\eW) Show warnings after every statement\&.
+nowarning (\ew) Don't show warnings after every statement\&.
+For server side help, type 'help contents'
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Each command has both a long and short form\&. The long form is not case sensitive; the short form is\&. The long form can be followed by an optional semicolon terminator, but the short form should not\&.
+.PP
+The use of short\-form commands within multi\-line
+/* \&.\&.\&. */
+comments is not supported\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: help command
+.\" help command: mariadb
+\fBhelp [\fR\fB\fIarg\fR\fR\fB]\fR,
+\fB\eh [\fR\fB\fIarg\fR\fR\fB]\fR,
+\fB\e? [\fR\fB\fIarg\fR\fR\fB]\fR,
+\fB? [\fR\fB\fIarg\fR\fR\fB]\fR
+.sp
+Display a help message listing the available
+\fBmariadb\fR
+commands\&.
+.sp
+If you provide an argument to the
+help
+command,
+\fBmariadb\fR
+uses it as a search string to access server\-side help\&. For more information, see
+the section called \(lqMARIADB SERVER-SIDE HELP\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: charset command
+.\" charset command: mariadb
+\fBcharset \fR\fB\fIcharset_name\fR\fR,
+\fB\eC \fR\fB\fIcharset_name\fR\fR
+.sp
+Change the default character set and issue a
+SET NAMES
+statement\&. This enables the character set to remain synchronized on the client and server if
+\fBmariadb\fR
+is run with auto\-reconnect enabled (which is not recommended), because the specified character set is used for reconnects\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: clear command
+.\" clear command: mariadb
+\fBclear\fR,
+\fB\ec\fR
+.sp
+Clear the current input\&. Use this if you change your mind about executing the statement that you are entering\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: connect command
+.\" connect command: mariadb
+\fBconnect [\fR\fB\fIdb_name\fR\fR\fB \fR\fB\fIhost_name\fR\fR\fB]]\fR,
+\fB\er [\fR\fB\fIdb_name\fR\fR\fB \fR\fB\fIhost_name\fR\fR\fB]]\fR
+.sp
+Reconnect to the server\&. The optional database name and host name arguments may be given to specify the default database or the host where the server is running\&. If omitted, the current values are used\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: delimiter command
+.\" delimiter command: mariadb
+\fBdelimiter \fR\fB\fIstr\fR\fR,
+\fB\ed \fR\fB\fIstr\fR\fR
+.sp
+Change the string that
+\fBmariadb\fR
+interprets as the separator between SQL statements\&. The default is the semicolon character (\(lq;\(rq)\&.
+.sp
+The delimiter can be specified as an unquoted or quoted argument\&. Quoting can be done with either single quote (') or double quote (") characters\&. To include a quote within a quoted string, either quote the string with the other quote character or escape the quote with a backslash (\(lq\e\(rq) character\&. Backslash should be avoided outside of quoted strings because it is the escape character for MariaDB\&. For an unquoted argument, the delimiter is read up to the first space or end of line\&. For a quoted argument, the delimiter is read up to the matching quote on the line\&.
+.sp
+When the delimiter recognized by
+\fBmariadb\fR
+is set to something other than the default of
+\(lq;\(rq, instances of that character are sent to the server without interpretation\&. However, the server itself still interprets
+\(lq;\(rq
+as a statement delimiter and processes statements accordingly\&. This behavior on the server side comes into play for multiple\-statement execution, and for parsing the body of stored procedures and functions, triggers, and events\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: edit command
+.\" edit command: mariadb
+\fBedit\fR,
+\fB\ee\fR
+.sp
+Edit the current input statement\&.
+\fBmariadb\fR
+checks the values of the
+EDITOR
+and
+VISUAL
+environment variables to determine which editor to use\&. The default editor is
+\fBvi\fR
+if neither variable is set\&.
+.sp
+The
+\fBedit\fR
+command works only in Unix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: ego command
+.\" ego command: mariadb
+\fBego\fR,
+\fB\eG\fR
+.sp
+Send the current statement to the server to be executed and display the result using vertical format\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: exit command
+.\" exit command: mariadb
+\fBexit\fR,
+\fB\eq\fR
+.sp
+Exit
+\fBmariadb\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: go command
+.\" go command: mariadb
+\fBgo\fR,
+\fB\eg\fR
+.sp
+Send the current statement to the server to be executed\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: nopager command
+.\" nopager command: mariadb
+\fBnopager\fR,
+\fB\en\fR
+.sp
+Disable output paging\&. See the description for
+\fBpager\fR\&.
+.sp
+The
+\fBnopager\fR
+command works only in Unix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: notee command
+.\" notee command: mariadb
+\fBnotee\fR,
+\fB\et\fR
+.sp
+Disable output copying to the tee file\&. See the description for
+\fBtee\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: nowarning command
+.\" nowarning command: mariadb
+\fBnowarning\fR,
+\fB\ew\fR
+.sp
+Enable display of warnings after each statement\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: pager command
+.\" pager command: mariadb
+\fBpager [\fR\fB\fIcommand\fR\fR\fB]\fR,
+\fB\eP [\fR\fB\fIcommand\fR\fR\fB]\fR
+.sp
+Enable output paging\&. By using the
+\fB\-\-pager\fR
+option when you invoke
+\fBmariadb\fR, it is possible to browse or search query results in interactive mode with Unix programs such as
+\fBless\fR,
+\fBmore\fR, or any other similar program\&. If you specify no value for the option,
+\fBmariadb\fR
+checks the value of the
+PAGER
+environment variable and sets the pager to that\&. Pager functionality works only in interactive mode\&.
+.sp
+Output paging can be enabled interactively with the
+\fBpager\fR
+command and disabled with
+\fBnopager\fR\&. The command takes an optional argument; if given, the paging program is set to that\&. With no argument, the pager is set to the pager that was set on the command line, or
+stdout
+if no pager was specified\&.
+.sp
+Output paging works only in Unix because it uses the
+popen()
+function, which does not exist on Windows\&. For Windows, the
+\fBtee\fR
+option can be used instead to save query output, although it is not as convenient as
+\fBpager\fR
+for browsing output in some situations\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: print command
+.\" print command: mariadb
+\fBprint\fR,
+\fB\ep\fR
+.sp
+Print the current input statement without executing it\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: prompt command
+.\" prompt command: mariadb
+\fBprompt [\fR\fB\fIstr\fR\fR\fB]\fR,
+\fB\eR [\fR\fB\fIstr\fR\fR\fB]\fR
+.sp
+Reconfigure the
+\fBmariadb\fR
+prompt to the given string\&. The special character sequences that can be used in the prompt are described later in this section\&.
+.sp
+If you specify the
+prompt
+command with no argument,
+\fBmariadb\fR
+resets the prompt to the default of
+mariadb>\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: quit command
+.\" quit command: mariadb
+\fBquit\fR,
+\fB\eq\fR
+.sp
+Exit
+\fBmariadb\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: rehash command
+.\" rehash command: mariadb
+\fBrehash\fR,
+\fB\e#\fR
+.sp
+Rebuild the completion hash that enables database, table, and column name completion while you are entering statements\&. (See the description for the
+\fB\-\-auto\-rehash\fR
+option\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: source command
+.\" source command: mariadb
+\fBsource \fR\fB\fIfile_name\fR\fR,
+\fB\e\&. \fR\fB\fIfile_name\fR\fR
+.sp
+Read the named file and executes the statements contained therein\&. On Windows, you can specify path name separators as
+/
+or
+\e\e\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: status command
+.\" status command: mariadb
+\fBstatus\fR,
+\fB\es\fR
+.sp
+Provide status information about the connection and the server you are using\&. If you are running in
+\fB\-\-safe\-updates\fR
+mode,
+status
+also prints the values for the
+\fBmariadb\fR
+variables that affect your queries\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: system command
+.\" system command: mariadb
+\fBsystem \fR\fB\fIcommand\fR\fR,
+\fB\e! \fR\fB\fIcommand\fR\fR
+.sp
+Execute the given command using your default command interpreter\&.
+.sp
+The
+\fBsystem\fR
+command works only in Unix\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: tee command
+.\" tee command: mariadb
+\fBtee [\fR\fB\fIfile_name\fR\fR\fB]\fR,
+\fB\eT [\fR\fB\fIfile_name\fR\fR\fB]\fR
+.sp
+By using the
+\fB\-\-tee\fR
+option when you invoke
+\fBmariadb\fR, you can log statements and their output\&. All the data displayed on the screen is appended into a given file\&. This can be very useful for debugging purposes also\&.
+\fBmariadb\fR
+flushes results to the file after each statement, just before it prints its next prompt\&. Tee functionality works only in interactive mode\&.
+.sp
+You can enable this feature interactively with the
+\fBtee\fR
+command\&. Without a parameter, the previous file is used\&. The
+\fBtee\fR
+file can be disabled with the
+\fBnotee\fR
+command\&. Executing
+\fBtee\fR
+again re\-enables logging\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: use command
+.\" use command: mariadb
+\fBuse \fR\fB\fIdb_name\fR\fR,
+\fB\eu \fR\fB\fIdb_name\fR\fR
+.sp
+Use
+\fIdb_name\fR
+as the default database\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb: warnings command
+.\" warnings command: mariadb
+\fBwarnings\fR,
+\fB\eW\fR
+.sp
+Enable display of warnings after each statement (if there are any)\&.
+.RE
+.PP
+Here are a few tips about the
+\fBpager\fR
+command:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You can use it to write to a file and the results go only to the file:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBpager cat > /tmp/log\&.txt\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+You can also pass any options for the program that you want to use as your pager:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBpager less \-n \-i \-S\fR
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+In the preceding example, note the
+\fB\-S\fR
+option\&. You may find it very useful for browsing wide query results\&. Sometimes a very wide result set is difficult to read on the screen\&. The
+\fB\-S\fR
+option to
+\fBless\fR
+can make the result set much more readable because you can scroll it horizontally using the left\-arrow and right\-arrow keys\&. You can also use
+\fB\-S\fR
+interactively within
+\fBless\fR
+to switch the horizontal\-browse mode on and off\&. For more information, read the
+\fBless\fR
+manual page:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBman less\fR
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The
+\fB\-F\fR
+and
+\fB\-X\fR
+options may be used with
+\fBless\fR
+to cause it to exit if output fits on one screen, which is convenient when no scrolling is necessary:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBpager less \-n \-i \-S \-F \-X\fR
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You can specify very complex pager commands for handling query output:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBpager cat | tee /dr1/tmp/res\&.txt \e\fR
+          \fB| tee /dr2/tmp/res2\&.txt | less \-n \-i \-S\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+In this example, the command would send query results to two files in two different directories on two different file systems mounted on
+/dr1
+and
+/dr2, yet still display the results onscreen via
+\fBless\fR\&.
+.RE
+.PP
+You can also combine the
+\fBtee\fR
+and
+\fBpager\fR
+functions\&. Have a
+\fBtee\fR
+file enabled and
+\fBpager\fR
+set to
+\fBless\fR, and you are able to browse the results using the
+\fBless\fR
+program and still have everything appended into a file the same time\&. The difference between the Unix
+\fBtee\fR
+used with the
+\fBpager\fR
+command and the
+\fBmariadb\fR
+built\-in
+\fBtee\fR
+command is that the built\-in
+\fBtee\fR
+works even if you do not have the Unix
+\fBtee\fR
+available\&. The built\-in
+\fBtee\fR
+also logs everything that is printed on the screen, whereas the Unix
+\fBtee\fR
+used with
+\fBpager\fR
+does not log quite that much\&. Additionally,
+\fBtee\fR
+file logging can be turned on and off interactively from within
+\fBmariadb\fR\&. This is useful when you want to log some queries to a file, but not others\&.
+.\" mariadb prompt command
+.PP
+The
+\fBprompt\fR
+command reconfigures the default
+mariadb>
+prompt\&. The string for defining the prompt can contain the following special sequences\&.
+.TS
+allbox tab(:);
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l
+l l.
+T{
+\fBOption\fR
+T}:T{
+\fBDescription\fR
+T}
+T{
+\ec
+T}:T{
+A counter that increments for each statement you issue
+T}
+T{
+\eD
+T}:T{
+The full current date
+T}
+T{
+\ed
+T}:T{
+The default database
+T}
+T{
+\eh
+T}:T{
+The server host
+T}
+T{
+\el
+T}:T{
+The current delimiter (new in 5\&.1\&.12)
+T}
+T{
+\em
+T}:T{
+Minutes of the current time
+T}
+T{
+\en
+T}:T{
+A newline character
+T}
+T{
+\eO
+T}:T{
+The current month in three\-letter format (Jan, Feb, \&...)
+T}
+T{
+\eo
+T}:T{
+The current month in numeric format
+T}
+T{
+\eP
+T}:T{
+am/pm
+T}
+T{
+\ep
+T}:T{
+The current TCP/IP port or socket file
+T}
+T{
+\eR
+T}:T{
+The current time, in 24\-hour military time (0\(en23)
+T}
+T{
+\er
+T}:T{
+The current time, standard 12\-hour time (1\(en12)
+T}
+T{
+\eS
+T}:T{
+Semicolon
+T}
+T{
+\es
+T}:T{
+Seconds of the current time
+T}
+T{
+\et
+T}:T{
+A tab character
+T}
+T{
+\eU
+T}:T{
+.PP
+Your full
+\fIuser_name\fR@\fIhost_name\fR
+account name
+T}
+T{
+\eu
+T}:T{
+Your user name
+T}
+T{
+\ev
+T}:T{
+The server version
+T}
+T{
+\ew
+T}:T{
+The current day of the week in three\-letter format (Mon, Tue, \&...)
+T}
+T{
+\eY
+T}:T{
+The current year, four digits
+T}
+T{
+\ey
+T}:T{
+The current year, two digits
+T}
+T{
+\e_
+T}:T{
+A space
+T}
+T{
+\e\ \&
+T}:T{
+A space (a space follows the backslash)
+T}
+T{
+\e'
+T}:T{
+Single quote
+T}
+T{
+\e"
+T}:T{
+Double quote
+T}
+T{
+\e\e
+T}:T{
+A literal \(lq\e\(rq backslash character
+T}
+T{
+\e\fIx\fR
+T}:T{
+.PP
+\fIx\fR, for any
+\(lq\fIx\fR\(rq
+not listed above
+T}
+.TE
+.sp 1
+.PP
+You can set the prompt in several ways:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIUse an environment variable\&.\fR
+You can set the
+MYSQL_PS1
+environment variable to a prompt string\&. For example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBexport MYSQL_PS1="(\eu@\eh) [\ed]> "\fR
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIUse a command\-line option\&.\fR
+You can set the
+\fB\-\-prompt\fR
+option on the command line to
+\fBmariadb\fR\&. For example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \-\-prompt="(\eu@\eh) [\ed]> "\fR
+(user@host) [database]>
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fIUse an option file\&.\fR
+You can set the
+prompt
+option in the
+[mariadb]
+group of any MariaDB option file, such as
+/etc/my\&.cnf
+or the
+\&.my\&.cnf
+file in your home directory\&. For example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+[mariadb]
+prompt=(\e\eu@\e\eh) [\e\ed]>\e\e_
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+In this example, note that the backslashes are doubled\&. If you set the prompt using the
+prompt
+option in an option file, it is advisable to double the backslashes when using the special prompt options\&. There is some overlap in the set of allowable prompt options and the set of special escape sequences that are recognized in option files\&. The overlap may cause you problems if you use single backslashes\&. For example,
+\es
+is interpreted as a space rather than as the current seconds value\&. The following example shows how to define a prompt within an option file to include the current time in
+HH:MM:SS>
+format:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+[mariadb]
+prompt="\e\er:\e\em:\e\es> "
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fISet the prompt interactively\&.\fR
+You can change your prompt interactively by using the
+prompt
+(or
+\eR) command\&. For example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBprompt (\eu@\eh) [\ed]>\e_\fR
+PROMPT set to '(\eu@\eh) [\ed]>\e_'
+(\fIuser\fR@\fIhost\fR) [\fIdatabase\fR]>
+(\fIuser\fR@\fIhost\fR) [\fIdatabase\fR]> prompt
+Returning to default PROMPT of mariadb>
+mariadb>
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.SH "MARIADB SERVER-SIDE HELP"
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBhelp \fR\fB\fIsearch_string\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+If you provide an argument to the
+help
+command,
+\fBmariadb\fR
+uses it as a search string to access server\-side help\&. The proper operation of this command requires that the help tables in the
+mysql
+database be initialized with help topic information.
+.PP
+If there is no match for the search string, the search fails:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBhelp me\fR
+Nothing found
+Please try to run 'help contents' for a list of all accessible topics
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Use
+\fBhelp contents\fR
+to see a list of the help categories:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBhelp contents\fR
+You asked for help about help category: "Contents"
+For more information, type 'help <item>', where <item> is one of the
+following categories:
+   Account Management
+   Administration
+   Data Definition
+   Data Manipulation
+   Data Types
+   Functions
+   Functions and Modifiers for Use with GROUP BY
+   Geographic Features
+   Language Structure
+   Plugins
+   Storage Engines
+   Stored Routines
+   Table Maintenance
+   Transactions
+   Triggers
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+If the search string matches multiple items,
+\fBmariadb\fR
+shows a list of matching topics:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBhelp logs\fR
+Many help items for your request exist\&.
+To make a more specific request, please type 'help <item>',
+where <item> is one of the following topics:
+   SHOW
+   SHOW BINARY LOGS
+   SHOW ENGINE
+   SHOW LOGS
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Use a topic as the search string to see the help entry for that topic:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBhelp show binary logs\fR
+Name: 'SHOW BINARY LOGS'
+Description:
+Syntax:
+SHOW BINARY LOGS
+SHOW MASTER LOGS
+Lists the binary log files on the server\&. This statement is used as
+part of the procedure described in [purge\-binary\-logs], that shows how
+to determine which logs can be purged\&.
+mariadb> SHOW BINARY LOGS;
++\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+
+| Log_name      | File_size |
++\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+
+| binlog\&.000015 |    724935 |
+| binlog\&.000016 |    733481 |
++\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+
+.fi
+.if n \{\
+.RE
+.\}
+.SH "EXECUTING SQL STATEMENTS FROM A TEXT FILE"
+.\" executing SQL statements from text files
+.\" importing: data
+.\" data: importing
+.\" files: text
+.\" text files: importing
+.\" source (mariadb client command)
+.\" \. (mariadb client command)
+.\" mariadb source (command for reading from text files)
+.\" mariadb \. (command for reading from text files)
+.PP
+The
+\fBmariadb\fR
+client typically is used interactively, like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+However, it is also possible to put your SQL statements in a file and then tell
+\fBmariadb\fR
+to read its input from that file\&. To do so, create a text file
+\fItext_file\fR
+that contains the statements you wish to execute\&. Then invoke
+\fBmariadb\fR
+as shown here:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fItext_file\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+If you place a
+USE \fIdb_name\fR
+statement as the first statement in the file, it is unnecessary to specify the database name on the command line:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb < text_file\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+If you are already running
+\fBmariadb\fR, you can execute an SQL script file using the
+source
+command or
+\e\&.
+command:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBsource \fR\fB\fIfile_name\fR\fR
+mariadb> \fB\e\&. \fR\fB\fIfile_name\fR\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Sometimes you may want your script to display progress information to the user\&. For this you can insert statements like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+SELECT '<info_to_display>' AS ' ';
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The statement shown outputs
+<info_to_display>\&.
+.PP
+You can also invoke
+\fBmariadb\fR
+with the
+\fB\-\-verbose\fR
+option, which causes each statement to be displayed before the result that it produces\&.
+.PP
+\fBmariadb\fR
+ignores Unicode byte order mark (BOM) characters at the beginning of input files\&. Presence of a BOM does not cause
+\fBmariadb\fR
+to change its default character set\&. To do that, invoke
+\fBmariadb\fR
+with an option such as
+\fB\-\-default\-character\-set=utf8\fR\&.
+.PP
+.SH "MARIADB TIPS"
+.PP
+This section describes some techniques that can help you use
+\fBmariadb\fR
+more effectively\&.
+.SS "Displaying Query Results Vertically"
+.PP
+Some query results are much more readable when displayed vertically, instead of in the usual horizontal table format\&. Queries can be displayed vertically by terminating the query with \eG instead of a semicolon\&. For example, longer text values that include newlines often are much easier to read with vertical output:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBSELECT * FROM mails WHERE LENGTH(txt) < 300 LIMIT 300,1\eG\fR
+*************************** 1\&. row ***************************
+  msg_nro: 3068
+     date: 2000\-03\-01 23:29:50
+time_zone: +0200
+mail_from: Monty
+    reply: monty@no\&.spam\&.com
+  mail_to: "Thimble Smith" <tim@no\&.spam\&.com>
+      sbj: UTF\-8
+      txt: >>>>> "Thimble" == Thimble Smith writes:
+Thimble> Hi\&.  I think this is a good idea\&.  Is anyone familiar
+Thimble> with UTF\-8 or Unicode? Otherwise, I'll put this on my
+Thimble> TODO list and see what happens\&.
+Yes, please do that\&.
+Regards,
+Monty
+     file: inbox\-jani\-1
+     hash: 190402944
+1 row in set (0\&.09 sec)
+.fi
+.if n \{\
+.RE
+.\}
+.SS "Using the \-\-safe\-updates Option"
+.\" safe-updates option
+.PP
+For beginners, a useful startup option is
+\fB\-\-safe\-updates\fR
+(or
+\fB\-\-i\-am\-a\-dummy\fR, which has the same effect)\&. It is helpful for cases when you might have issued a
+DELETE FROM \fItbl_name\fR
+statement but forgotten the
+WHERE
+clause\&. Normally, such a statement deletes all rows from the table\&. With
+\fB\-\-safe\-updates\fR, you can delete rows only by specifying the key values that identify them\&. This helps prevent accidents\&.
+.PP
+When you use the
+\fB\-\-safe\-updates\fR
+option,
+\fBmariadb\fR
+issues the following statement when it connects to the MariaDB server:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+SET sql_safe_updates=1, sql_select_limit=1000, sql_max_join_size=1000000;
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The
+SET
+statement has the following effects:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You are not allowed to execute an
+UPDATE
+or
+DELETE
+statement unless you specify a key constraint in the
+WHERE
+clause or provide a
+LIMIT
+clause (or both)\&. For example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+UPDATE \fItbl_name\fR SET \fInot_key_column\fR=\fIval\fR WHERE \fIkey_column\fR=\fIval\fR;
+UPDATE \fItbl_name\fR SET \fInot_key_column\fR=\fIval\fR LIMIT 1;
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The server limits all large
+SELECT
+results to 1,000 rows unless the statement includes a
+LIMIT
+clause\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The server aborts multiple\-table
+SELECT
+statements that probably need to examine more than 1,000,000 row combinations\&.
+.RE
+.PP
+To specify limits different from 1,000 and 1,000,000, you can override the defaults by using the
+\fB\-\-select\-limit\fR
+and
+\fB\-\-max\-join\-size\fR
+options:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \-\-safe\-updates \-\-select\-limit=500 \-\-max\-join\-size=10000\fR
+.fi
+.if n \{\
+.RE
+.\}
+.SS "Disabling mariadb Auto\-Reconnect"
+.PP
+If the
+\fBmariadb\fR
+client loses its connection to the server while sending a statement, it immediately and automatically tries to reconnect once to the server and send the statement again\&. However, even if
+\fBmariadb\fR
+succeeds in reconnecting, your first connection has ended and all your previous session objects and settings are lost: temporary tables, the autocommit mode, and user\-defined and session variables\&. Also, any current transaction rolls back\&. This behavior may be dangerous for you, as in the following example where the server was shut down and restarted between the first and second statements without you knowing it:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mariadb> \fBSET @a=1;\fR
+Query OK, 0 rows affected (0\&.05 sec)
+mariadb> \fBINSERT INTO t VALUES(@a);\fR
+ERROR 2006: MariaDB server has gone away
+No connection\&. Trying to reconnect\&.\&.\&.
+Connection id:    1
+Current database: test
+Query OK, 1 row affected (1\&.30 sec)
+mariadb> \fBSELECT * FROM t;\fR
++\-\-\-\-\-\-+
+| a    |
++\-\-\-\-\-\-+
+| NULL |
++\-\-\-\-\-\-+
+1 row in set (0\&.05 sec)
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The
+@a
+user variable has been lost with the connection, and after the reconnection it is undefined\&. If it is important to have
+\fBmariadb\fR
+terminate with an error if the connection has been lost, you can start the
+\fBmariadb\fR
+client with the
+\fB\-\-skip\-reconnect\fR
+option\&.
+.PP
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "NOTES"
+.IP " 1." 4
+Bug#25946
+.RS 4
+\%http://bugs.mysql.com/bug.php?id=25946
+.RE
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

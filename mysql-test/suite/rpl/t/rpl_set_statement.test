@@ -34,7 +34,7 @@ CREATE TABLE t2 (a char(255) not null);
 --source suite/rpl/include/rpl_set_statement.inc
 
 --echo
---echo 3) sql_mode which is replicated correctly exept NO_DIR_IN_CREATE value;
+--echo 3) sql_mode which is replicated correctly except NO_DIR_IN_CREATE value;
 --echo
 --let $rpl_ssvt_var_name=sql_mode
 --let $rpl_ssvt_var_value='ERROR_FOR_DIVISION_BY_ZERO'

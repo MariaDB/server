@@ -308,7 +308,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 (SELECT 1 FROM t2 WHERE d = (SELECT d FROM t2 WHERE a >= 1) ORDER BY d);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	DEPENDENT SUBQUERY	t2	unique_subquery	PRIMARY,d	PRIMARY	1	func	1	Using where
+2	DEPENDENT SUBQUERY	t2	unique_subquery	PRIMARY,d	d	2	func	1	Using index; Using where
 3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
@@ -456,7 +456,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	index	NULL	PRIMARY	4	NULL	1	Using index; Using temporary
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	1	Using temporary
 2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 a
@@ -575,6 +575,25 @@ t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	
 2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	#	Using where; Using filesort
+select 
+(SELECT 
+concat(id, '-', key1, '-', col1)
+FROM t2
+WHERE t2.key1 = t1.a
+ORDER BY t2.key2 ASC LIMIT 1) as subq
+from 
+t1;
+subq
+100-0-123456
+101-1-123456
+102-2-123456
+103-3-123456
+104-4-123456
+105-5-123456
+106-6-123456
+107-7-123456
+108-8-123456
+109-9-123456
 drop table t1,t2;
 #
 # MDEV-12931: semi-join in ON expression of STRAIGHT_JOIN 
@@ -607,11 +626,10 @@ INNER JOIN
 ON ( 1 IN ( SELECT f4 FROM t4 ) ) )
 ON ( f1 >= f2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
-3	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t3`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` semi join (`test`.`t4`) join `test`.`t3` where `test`.`t4`.`f4` = 1 and `test`.`t1`.`f1` >= `test`.`t2`.`f2`
 DROP TABLE t1,t2,t3,t4;

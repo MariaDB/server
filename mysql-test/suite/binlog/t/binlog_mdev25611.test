@@ -1,0 +1,55 @@
+source include/have_innodb.inc;
+source include/have_debug.inc;
+source include/have_log_bin.inc;
+source include/have_binlog_format_mixed.inc;
+
+--echo *** MDEV-25611: RESET MASTER hangs waiting for InnoDB to flush its log
+# Error injection to minimize extra log flushing inside innodb.
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+# Couple other settings that reduce redo log flushing, thus potentially
+# triggering the hang.
+SET @old_flush= @@GLOBAL.innodb_flush_log_at_trx_commit;
+SET GLOBAL innodb_flush_log_at_trx_commit= 0;
+SET @old_flush_timeout= @@GLOBAL.innoDB_flush_log_at_timeout;
+SET GLOBAL innoDB_flush_log_at_timeout=2700;
+
+--connection default
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+
+connect (stop_purge,localhost,root,,);
+# This blocks purge due to old data being still visible.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+INSERT INTO t1 VALUES (4,2);
+DELETE FROM t1 WHERE a in (1,2,3);
+
+# Rotate the binlog and wait for everything to settle down and latest binlog
+# checkpoint to be done. The small sleep helps trigger the bug more reliably
+# before the fix.
+FLUSH BINARY LOGS;
+--sleep 0.1
+
+# Now unblock the purge, and wait for some purge records to be written
+# to the redo log so the LSN is incremented but will not be synced to
+# disk until something else happens.
+--connection stop_purge
+ROLLBACK;
+--connection default
+--disconnect stop_purge
+
+--sleep 0.1
+
+# Now see if RESET MASTER will request and wait for a binlog checkpoint that is never reported.
+RESET MASTER;
+
+# Clean up.
+--connection default
+DROP TABLE t1;
+SET GLOBAL debug_dbug= @old_dbug;
+SET GLOBAL innodb_flush_log_at_trx_commit= @old_flush;
+SET GLOBAL innoDB_flush_log_at_timeout= @old_flush_timeout;

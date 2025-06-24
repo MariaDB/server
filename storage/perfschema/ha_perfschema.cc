@@ -50,23 +50,16 @@ static handler* pfs_create_handler(handlerton *hton,
   return new (mem_root) ha_perfschema(hton, table);
 }
 
-static int compare_database_names(const char *name1, const char *name2)
-{
-  if (lower_case_table_names)
-    return strcasecmp(name1, name2);
-  return strcmp(name1, name2);
-}
-
 static const PFS_engine_table_share*
-find_table_share(const char *db, const char *name)
+find_table_share(const PFS_ident_db &db, const PFS_ident_table &name)
 {
   DBUG_ENTER("find_table_share");
 
-  if (compare_database_names(db, PERFORMANCE_SCHEMA_str.str) != 0)
+  if (!db.streq(PERFORMANCE_SCHEMA_str))
     DBUG_RETURN(NULL);
 
   const PFS_engine_table_share* result;
-  result= PFS_engine_table::find_engine_table_share(name);
+  result= PFS_engine_table::find_engine_table_share(name.str);
   DBUG_RETURN(result);
 }
 
@@ -74,7 +67,8 @@ static int pfs_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
   const PFS_engine_table_share *pfs_share;
 
-  if ((pfs_share= find_table_share(share->db.str, share->table_name.str)))
+  if ((pfs_share= find_table_share(PFS_ident_db(share->db),
+                                   PFS_ident_table(share->table_name))))
     return share->init_from_sql_statement_string(thd, false,
                                                  pfs_share->sql.str,
                                                  pfs_share->sql.length);
@@ -84,7 +78,9 @@ static int pfs_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 static int pfs_discover_table_existence(handlerton *hton, const char *db,
                                         const char *table_name)
 {
-  return MY_TEST(find_table_share(db, table_name));
+  return MY_TEST(find_table_share(
+                   PFS_ident_db(Lex_cstring_strlen(db)),
+                   PFS_ident_table(Lex_cstring_strlen(table_name))));
 }
 
 static int pfs_init_func(void *p)
@@ -246,8 +242,8 @@ int ha_perfschema::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_perfschema::open");
 
-  m_table_share= find_table_share(table_share->db.str,
-                                  table_share->table_name.str);
+  m_table_share= find_table_share(PFS_ident_db(table_share->db),
+                                  PFS_ident_table(table_share->table_name));
   if (! m_table_share)
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 
@@ -481,7 +477,8 @@ int ha_perfschema::delete_table(const char *name)
 
   db_name = ptr + 1;
 
-  share = find_table_share(db_name, table_name);
+  share = find_table_share(PFS_ident_db(Lex_cstring_strlen(db_name)),
+                           PFS_ident_table(Lex_cstring_strlen(table_name)));
   if (share != NULL) {
     if (share->m_optional) {
       /*

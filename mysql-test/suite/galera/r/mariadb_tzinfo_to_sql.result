@@ -20,6 +20,10 @@ SET @save_wsrep_mode=@@WSREP_MODE;
 
 # Apply on node_1
 
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 'binlog stationary as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
@@ -73,6 +77,10 @@ COUNT(*)
 
 connection node_1;
 SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 'binlog stationary as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
@@ -128,6 +136,10 @@ COUNT(*)
 # Apply on node_1
 
 connection node_1;
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 'binlog advanced as expected'
 SELECT @wsrep_is_on,  @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN
@@ -186,6 +198,10 @@ TRUNCATE TABLE time_zone_leap_second;
 
 connection node_1;
 SET GLOBAL WSREP_MODE='';
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
+Warnings:
+Warning	4200	The variable '@@alter_algorithm' is ignored. It only exists for compatibility with old installations and will be removed in a future release
 'binlog advanced as expected'
 SELECT @wsrep_is_on, @wsrep_cannot_replicate_tz, @save_wsrep_on, @save_sql_log_bin, @@WSREP_ON, @@SQL_LOG_BIN;
 @wsrep_is_on	@wsrep_cannot_replicate_tz	@save_wsrep_on	@save_sql_log_bin	@@WSREP_ON	@@SQL_LOG_BIN

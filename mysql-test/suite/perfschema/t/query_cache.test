@@ -20,7 +20,7 @@ SET GLOBAL query_cache_size=1355776;
 
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 
 --disable_ps2_protocol
 --disable_cursor_protocol
@@ -41,17 +41,12 @@ show global status like "Qcache_hits";
 
 select spins from performance_schema.events_waits_current order by event_name limit 1;
 
---replace_result CYCLE {CYCLE_OR_NANOSECOND} NANOSECOND {CYCLE_OR_NANOSECOND}
-select * from performance_schema.setup_timers where name='wait';
-
 show global status like "Qcache_queries_in_cache";
 show global status like "Qcache_inserts";
 show global status like "Qcache_hits";
 
 select spins from performance_schema.events_waits_current order by event_name limit 1;
 
---replace_result CYCLE {CYCLE_OR_NANOSECOND} NANOSECOND {CYCLE_OR_NANOSECOND}
-select * from performance_schema.setup_timers where name='wait';
 --enable_ps2_protocol
 
 show global status like "Qcache_queries_in_cache";
@@ -61,5 +56,5 @@ show global status like "Qcache_hits";
 SET GLOBAL query_cache_size=@save_query_cache_size;
 
 drop table t1;
-flush status;
+flush global status;
 

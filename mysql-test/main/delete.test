@@ -106,9 +106,9 @@ delete t1 from t1, t1 as t2 where t1.b = t2.b and t1.a > t2.a;
 select * from t1;
 drop table t1;
 
-#
-# IGNORE option
-#
+--echo #
+--echo # IGNORE option
+--echo #
 create table t11 (a int NOT NULL, b int, primary key (a));
 create table t12 (a int NOT NULL, b int, primary key (a));
 create table t2 (a int NOT NULL, b int, primary key (a));
@@ -122,6 +122,7 @@ select * from t2;
 delete t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 select * from t11;
 select * from t12;
+explain delete ignore t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 delete ignore t11.*, t12.* from t11,t12 where t11.a = t12.a and t11.b <> (select b from t2 where t11.a < t2.a);
 select * from t11;
 select * from t12;
@@ -625,3 +626,205 @@ update t1 set t1.a=t1.a+10
 drop table t1,t2,t3;
 
 --echo End of 10.4 tests
+
+--echo #
+--echo # MDEV-26459: Assertion `block_size <= 0xFFFFFFFFL' failed
+--echo # in calculate_block_sizes for 10.7 only
+--echo #
+
+SET @sort_buffer_size_save= @@sort_buffer_size;
+--disable_warnings
+SET sort_buffer_size=1125899906842624;
+--enable_warnings
+CREATE TABLE t1 (a INT,b CHAR,KEY(a,b));
+DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
+DROP TABLE t1;
+SET sort_buffer_size= @sort_buffer_size_save;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-29428: DELETE with ORDER BY without LIMIT clause
+--echo #
+
+create table t1 (c1 integer, c2 integer, c3 integer);
+
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+
+create temporary table t select * from t1;
+
+let $q1=
+delete from t1 order by c2;
+eval explain $q1;
+eval $q1;
+select *from t1;
+
+delete from t1;
+insert into t1 select * from t;
+
+let $q2=
+delete from t1
+  where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+eval explain $q2;
+eval $q2;
+select *from t1;
+
+delete from t1;
+insert into t1 select * from t;
+
+let $q3=
+delete from t1
+  where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
+    order by c2;
+eval explain $q3;
+eval $q3;
+select *from t1;
+
+drop table t1;
+
+--echo End of 11.1 tests
+
+--echo #
+--echo # MDEV-33988 DELETE to support table aliases
+--echo #
+# Test from MySQL Bug#27455809; DELETE FROM ...WHERE NOT EXISTS WITH TABLE ALIAS CREATES AN ERROR 1064 (42000
+
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT * FROM t1;
+
+DELETE FROM t1 AS a1 WHERE a1.c1 = 2;
+SELECT * FROM t1;
+
+CREATE TABLE t2 (c2 INT);
+INSERT INTO t2 VALUES (1), (2);
+SELECT * FROM t2;
+
+DELETE FROM t2 a2 WHERE NOT EXISTS (SELECT * FROM t1 WHERE t1.c1 = a2.c2);
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+--echo End of 11.6 tests
+
+--echo #
+--echo # MDEV-25008: Delete query gets stuck on mariadb, same query works
+--echo #             on MySQL 8.0.21
+--echo #
+
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+# original case
+CREATE TABLE t1 (
+  id int NOT NULL PRIMARY KEY,
+  item_id varchar(100),
+  seller_name varchar(400),
+  variant varchar(400),
+  FULLTEXT KEY t1_serial_IDX (item_id,seller_name,variant)
+)engine=innodb;
+
+insert into t1 select seq,seq,seq,seq from seq_1_to_10000;
+
+# Masking the `rows` column as the value might vary a bit
+--replace_column 9 #
+explain
+DELETE FROM t1 WHERE id NOT IN
+  (SELECT m FROM (SELECT max(id) m FROM t1 GROUP BY item_id, seller_name, variant) AS innertable);
+
+drop table t1;
+
+# example of not full table
+create table t1 (a int primary key, b int, c int, key(b));
+insert into t1 select seq, seq, seq from seq_1_to_20000;
+create table t2 as select * from t1;
+explain delete from t1  where    b <= 2 and a not in (select b from t2);
+explain delete from t1  where    b <= 3 and a not in (select b from t2);
+drop table t1, t2;
+
+--echo # End of 11.7 tests
+
+--echo #
+--echo # MDEV-30469: Add support of ORDER BY and LIMIT to multidelete query.
+--echo #
+
+--echo # Check that limits work with hints
+
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+select * from t2 ORDER BY (id);
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) DESC LIMIT 3;
+select * from t2;
+--echo # Check some useless syntax
+DELETE t2.* FROM t2 FORCE INDEX FOR GROUP BY (xid) ORDER BY (id) LIMIT 1;
+
+drop table t2;
+
+
+--echo # Check that hints work with limit
+
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+--echo # default primary index
+explain
+DELETE t2.* FROM t2 ORDER BY (id) LIMIT 2;
+--echo # make it use other undex
+explain
+DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+explain
+DELETE t2.* FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+--echo # prohibit primary index
+explain
+DELETE t2.* FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+
+drop table t2;
+
+--echo # Check that limits work with hints & PS protocol
+
+create table t2 (id int, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+prepare stmt from
+"DELETE t2.* FROM t2 use index(xid) ORDER BY (id) LIMIT ?";
+set @lim= 2;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+set @lim= 1;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+set @lim= 3;
+execute stmt using @lim;
+select * from t2 ORDER BY (id);
+
+drop table t2;
+
+--echo # Check that hints work with limit in normal DELETE syntax
+
+create table t2 (id int primary key, index xid(id));
+insert into t2 values (1),(10),(2),(9),(3),(8);
+
+--echo # default primary index
+explain
+DELETE FROM t2 ORDER BY (id) LIMIT 2;
+--echo # make it use other undex
+explain
+DELETE FROM t2 use index(xid) ORDER BY (id) LIMIT 2;
+explain
+DELETE FROM t2 force index(xid) ORDER BY (id) LIMIT 2;
+--echo # prohibit primary index
+explain
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2;
+
+--echo # should issue warnings because we can not switch it internally
+--echo # to multiupdate due to RETURNING
+DELETE FROM t2 ignore index(primary) ORDER BY (id) LIMIT 2 RETURNING id;
+
+drop table t2;
+
+--echo #
+--echo # End of 11.4 test
+--echo #

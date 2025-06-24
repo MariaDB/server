@@ -12,7 +12,6 @@ connect  con1,localhost,beep,,;
 show databases;
 Database
 information_schema
-test
 show create database db;
 ERROR 42000: Access denied for user 'beep'@'localhost' to database 'db'
 select table_schema, table_name from information_schema.tables
@@ -23,10 +22,9 @@ show databases;
 Database
 db
 information_schema
-test
 show create database db;
 Database	Create Database
-db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 select table_schema, table_name from information_schema.tables
 where table_schema = 'db' order by table_name;
 table_schema	table_name
@@ -41,7 +39,6 @@ connect  con2,localhost,beep2,,;
 show databases;
 Database
 information_schema
-test
 show create database db;
 ERROR 42000: Access denied for user 'beep2'@'localhost' to database 'db'
 select table_schema, table_name from information_schema.tables
@@ -52,10 +49,9 @@ show databases;
 Database
 db
 information_schema
-test
 show create database db;
 Database	Create Database
-db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
 select table_schema, table_name from information_schema.tables
 where table_schema = 'db' order by table_name;
 table_schema	table_name

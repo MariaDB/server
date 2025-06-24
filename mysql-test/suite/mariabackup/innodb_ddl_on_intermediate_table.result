@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS t1 ( col1 INT, col_text TEXT ) ENGINE = InnoDB;
+ALTER TABLE t1 ADD FULLTEXT KEY `ftidx1` ( col_text );
+# xtrabackup backup
+SET debug_sync='RESET';
+DROP TABLE t1;

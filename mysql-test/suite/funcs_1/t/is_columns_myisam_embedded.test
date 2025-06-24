@@ -11,6 +11,7 @@
 #
 
 --source include/is_embedded_no_privileges.inc
+--source include/test_db_charset_latin1.inc
 
 let $engine_type= MyISAM;
 --enable_prepare_warnings
@@ -22,3 +23,4 @@ let $my_where = WHERE table_schema LIKE 'test%';
 --source suite/funcs_1/datadict/columns.inc
 
 --source suite/funcs_1/include/cleanup.inc
+--source include/test_db_charset_restore.inc

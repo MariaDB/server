@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-SERVICE-CONVERT\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMARIADB-SERVICE-CONVERT\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -9,11 +9,11 @@
 .\" disable justification (adjust text to left margin only)
 .ad l
 .SH NAME
-mariadb-service-convert \- generate a mariadb.service file based on the current mysql/mariadb settings
+mariadb-service-convert \- generate a mariadb.service file based on the current mariadb settings
 .SH DESCRIPTION
-Use: Generate a mariadb.service file based on the current mysql/mariadb settings\.
+Use: Generate a mariadb.service file based on the current mariadb settings\.
 This is to assist distro maintainers in migrating to systemd service definations from 
-a user mysqld_safe settings in the my.cnf files\.
+a user mariadbd-safe settings in the my.cnf files\.
 .PP
 Redirect output to user directory like /etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
 .PP

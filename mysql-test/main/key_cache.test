@@ -5,6 +5,9 @@
 drop table if exists t1, t2, t3;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
+
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
@@ -300,7 +303,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 --disable_cursor_protocol
@@ -334,8 +337,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
-
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 select variable_value < @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
@@ -360,7 +362,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 select * from information_schema.session_status where variable_name like 'key_%' and variable_name != 'Key_blocks_unused';
 select variable_value = @key_blocks_unused from information_schema.session_status where variable_name = 'Key_blocks_unused';
@@ -372,7 +374,7 @@ delete from t2;
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 
-flush tables; flush status;
+flush tables; flush global status;
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
 
@@ -392,7 +394,7 @@ insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 select * from t1;
 select * from t2;
 update t1 set p=3 where p=1;
-update t2 set i=2 where i=1;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=2 where i=1;
 
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -425,9 +427,10 @@ select * from t2 where p between 1010 and 1020 ;
 --replace_column 6 # 7 # 10 #
 select * from information_schema.key_caches where segment_number is null;
 
-flush tables; flush status;
+analyze table t2;
+flush tables; flush global status;
 update t1 set a='zzzz' where a='qqqq';
-update t2 set i=1 where i=2;
+set statement optimizer_scan_setup_cost=0 for update t2 set i=1 where i=2;
 --replace_column 6 # 7 #
 select * from information_schema.key_caches where segment_number is null;
 
@@ -563,3 +566,5 @@ SET GLOBAL keycache1.key_buffer_size=0;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--source include/test_db_charset_restore.inc

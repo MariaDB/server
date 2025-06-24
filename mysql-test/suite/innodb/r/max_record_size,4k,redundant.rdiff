@@ -1,7 +1,7 @@
 --- max_record_size.result
-+++ max_record_size.reject
-@@ -1,47 +1,37 @@
- call mtr.add_suppression("Cannot add field `.*` in table `test`.`t1` because after adding it, the row size is");
++++ max_record_size,4k,redundant.reject
+@@ -2,48 +2,38 @@
+ ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
  CREATE TABLE t1 (
  c1 CHAR(255), c2 CHAR(255), c3 CHAR(255), c4 CHAR(255),
 -c5 CHAR(255), c6 CHAR(255), c7 CHAR(255), c8 CHAR(255),
@@ -60,3 +60,4 @@
  ) ENGINE=INNODB;
 -ERROR 42000: Row size too large (> 4027). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 +ERROR 42000: Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

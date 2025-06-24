@@ -91,7 +91,7 @@ set debug_sync= 'RESET';
 create table t1 (c1 int);
 
 --echo # 
---echo # A) First let us check compatibility rules between differend kinds of
+--echo # A) First let us check compatibility rules between different kinds of
 --echo #    type-of-operation aware metadata locks.
 --echo #    Of course, these rules are already covered by the tests scattered
 --echo #    across the test suite. But it still makes sense to have one place
@@ -113,7 +113,7 @@ insert into t1 values (1), (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail during copying the table and thus obtaining SNW metadata
@@ -190,7 +190,7 @@ insert into t1 values (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail during copying the table and thus obtaining SNW metadata
@@ -309,7 +309,7 @@ insert into t1 values (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail during copying the table and thus obtaining SNW metadata
@@ -418,7 +418,7 @@ insert into t1 values (1);
 --echo # Check that SU lock is compatible with it. To do this use ALTER TABLE
 --echo # which will fail when constructing .frm and thus obtaining SU metadata
 --echo # lock.
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 add index (not_exist);
 --echo # Check that SNW lock is not compatible with SW lock.
 --echo # Again we use ALTER TABLE which fails during copying
@@ -1196,14 +1196,14 @@ insert into t1 values (1);
 connection default;
 --echo # Add pending SNW lock.
 --echo # Sending:
---send alter table t1 add primary key (c1);
+--send alter table t1 add primary key (c1), lock=shared;
 --echo # 
 connection mdl_con1;
 --echo # Check that ALTER TABLE is waiting with pending SNW lock.
 let $wait_condition=
 select count(*) = 1 from information_schema.processlist
 where state = "Waiting for table metadata lock" and
-      info = "alter table t1 add primary key (c1)";
+      info = "alter table t1 add primary key (c1), lock=shared";
 --source include/wait_condition.inc
 --echo # Check that S, SH and SR locks are compatible with pending SNW
 handler t1 open t;
@@ -2431,7 +2431,7 @@ create table t1 (i int);
 --echo # Ensure that ALTER waits once it has acquired SNW lock.
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL parked1 WAIT_FOR go1';
 --echo # Sending:
---send alter table t1 add column j int
+--send alter table t1 add column j int, lock=shared
 
 --echo #
 connection deadlock_con1;
@@ -2450,7 +2450,7 @@ connection deadlock_con2;
 set debug_sync='now WAIT_FOR parked2';
 --echo # Resume ALTER execution. Eventually it will release its
 --echo # metadata lock and INSERT's request for SW lock will be
---echo # satisified.
+--echo # satisfied.
 set debug_sync='now SIGNAL go1';
 
 --echo #
@@ -2986,7 +2986,7 @@ select * from t1 where c2 = 3;
 --echo #
 connection con46273;
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL alter_table_locked WAIT_FOR alter_go';
---send alter table t1 add column e int, rename to t2;
+--send alter table t1 add column e int, rename to t2, lock=shared;
 
 --echo #
 connection default;
@@ -3115,12 +3115,6 @@ create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
 
-connect (con1, localhost, root);
-# disable innodb purge thread, otherwise it might start purging t2,
-# and will take an mdl, affecting metadata_lock_info output.
-start transaction with consistent snapshot;
-connection default;
-
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 --send update t1,t2 set t1.a=2,t2.a=3
 
@@ -3156,6 +3150,7 @@ FLUSH TABLES WITH READ LOCK;
 
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info;
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 unlock tables;
@@ -3166,14 +3161,13 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
-disconnect con1;
 
 --echo #
 --echo # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 --echo #           failed in open_ltable()
 --echo #
 
---echo # Supress warnings written to the log file
+--echo # Suppress warnings written to the log file
 call mtr.add_suppression("Wait on a lock was aborted due to a pending exclusive lock");
 
 connect (con1,localhost,root);
@@ -3341,7 +3335,7 @@ connection default;
 --echo # table lock and get blocked on sync point.
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL parked WAIT_FOR go';
 --echo # Sending:
---send alter table t1 add column j int
+--send alter table t1 add column j int, lock=shared
 
 connection con1;
 --echo # Wait until ALTER TABLE gets blocked on a sync point.

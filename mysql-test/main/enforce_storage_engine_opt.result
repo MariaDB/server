@@ -8,7 +8,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
   `c2` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 set session sql_mode='no_engine_substitution';
 create table t2 (c1 int primary key auto_increment, c2 varchar(10)) engine=memory;
 ERROR HY000: The MariaDB server is running with the NO_ENGINE_SUBSTITUTION option so it cannot execute this statement

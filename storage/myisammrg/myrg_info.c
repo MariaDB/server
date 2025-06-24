@@ -33,6 +33,8 @@ int myrg_status(MYRG_INFO *info,register MYMERGE_INFO *x,int flag)
   MYRG_TABLE *current_table;
   DBUG_ENTER("myrg_status");
 
+  x->errkey= 0;
+  x->dupp_key_pos= 0;
   if (!(current_table = info->current_table) &&
       info->open_tables != info->end_table)
     current_table = info->open_tables;
@@ -44,42 +46,40 @@ int myrg_status(MYRG_INFO *info,register MYMERGE_INFO *x,int flag)
     MYRG_TABLE *file;
 
     info->records=info->del=info->data_file_length=0;
-    for (file=info->open_tables ; file != info->end_table ; file++)
+    if (likely(info->children_attached))
     {
-      file->file_offset=info->data_file_length;
-      info->data_file_length+=file->table->s->state.state.data_file_length;
-      info->records+=file->table->s->state.state.records;
-      info->del+=file->table->s->state.state.del;
-      DBUG_PRINT("info2",("table: %s, offset: %lu",
-                  file->table->filename,(ulong) file->file_offset));
+      for (file=info->open_tables ; file != info->end_table ; file++)
+      {
+        file->file_offset=info->data_file_length;
+        info->data_file_length+=file->table->s->state.state.data_file_length;
+        info->records+=file->table->s->state.state.records;
+        info->del+=file->table->s->state.state.del;
+        DBUG_PRINT("info2",("table: %s, offset: %lu",
+                    file->table->filename,(ulong) file->file_offset));
+      }
+      if (current_table)
+      {
+        /*
+          errkey is set to the index number of the myisam tables. But
+          since the MERGE table can have less keys than the MyISAM
+          tables, errkey cannot be be used as an index into the key_info
+          on the server. This value will be overwritten with MAX_KEY by
+          the MERGE engine.
+        */
+        x->errkey= current_table->table->errkey;
+        /*
+          Calculate the position of the duplicate key to be the sum of the
+          offset of the myisam file and the offset into the file at which
+          the duplicate key is located.
+        */
+        x->dupp_key_pos= current_table->file_offset + current_table->table->dupp_key_pos;
+      }
     }
     x->records= info->records;
     x->deleted= info->del;
     x->data_file_length= info->data_file_length;
     x->reclength= info->reclength;
     x->options= info->options;
-    if (current_table)
-    {
-      /*
-        errkey is set to the index number of the myisam tables. But
-        since the MERGE table can have less keys than the MyISAM
-        tables, errkey cannot be be used as an index into the key_info
-        on the server. This value will be overwritten with MAX_KEY by
-        the MERGE engine.
-      */
-      x->errkey= current_table->table->errkey;
-      /*
-        Calculate the position of the duplicate key to be the sum of the
-        offset of the myisam file and the offset into the file at which
-        the duplicate key is located.
-      */
-      x->dupp_key_pos= current_table->file_offset + current_table->table->dupp_key_pos;
-    }
-    else
-    {
-      x->errkey= 0;
-      x->dupp_key_pos= 0;
-    }
     x->rec_per_key = info->rec_per_key_part;
   }
   DBUG_RETURN(0);

@@ -5,7 +5,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `c` int(11) DEFAULT NULL
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Warnings:
 Error	1429	Unable to connect to foreign data source: localhost
 Error	1429	Unable to connect to foreign data source: localhost

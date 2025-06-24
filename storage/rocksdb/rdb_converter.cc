@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include <my_global.h>
 
@@ -257,7 +257,7 @@ int Rdb_value_field_iterator<value_field_decoder>::next() {
     m_field_dec = m_field_iter->m_field_enc;
     bool decode = m_field_iter->m_decode;
     bool maybe_null = m_field_dec->maybe_null();
-    // This is_null value is bind to how stroage format store its value
+    // This is_null value is binded to how storage format stores its value
     m_is_null = maybe_null && ((m_null_bytes[m_field_dec->m_null_offset] &
                                 m_field_dec->m_null_mask) != 0);
 

@@ -160,7 +160,7 @@ public:
     Also how many rows in record_pointers, if used
   */
   ha_rows   return_rows;
-  ha_rows   examined_rows;	/* How many rows read */
+  ha_rows   m_examined_rows;    /* How many rows read. Already in thd */
   ha_rows   found_rows;         /* How many rows was accepted */
 
   /** Sort filesort_buffer */

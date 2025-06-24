@@ -5,6 +5,7 @@
 --echo *** Test that we check against incorrect table definition for mysql.gtid_slave_pos ***
 --connection master
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+call mtr.add_suppression("Incorrect definition of table mysql.gtid_slave_pos:.*");
 --sync_slave_with_master
 
 --connection slave
@@ -71,7 +72,7 @@ SELECT * FROM t1 ORDER BY a;
 # MDEV-34049: Parallel access to temptable in different domain_id in parallel replication
 #
 # Temporary tables must be prevented from being accessed from multiple threads
-# at the same time in parallel replication. Withon one domain_id, this is done
+# at the same time in parallel replication. Within one domain_id, this is done
 # by running wait_for_prior_commit() before accessing a temporary table. To
 # prevent the same temporary table from being accessed in parallel from two
 # domains in out-of-order parallel replication, an error must be raised on
@@ -94,15 +95,16 @@ SET SESSION gtid_domain_id= 202;
 DROP TEMPORARY TABLE t2;
 
 SET SESSION binlog_format= mixed;
+SET SESSION create_tmp_table_binlog_formats="mixed";
 SET SESSION gtid_domain_id= 0;
 CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1);
 SET SESSION gtid_domain_id= 0;
---error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+--error ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
 SET SESSION gtid_domain_id= 204;
 SET SESSION binlog_format=statement;
 INSERT INTO t2 VALUES (2);
---error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+--error ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
 SET SESSION gtid_domain_id= 205;
 DROP TEMPORARY TABLE t2;
 SET SESSION gtid_domain_id= @old_domain;

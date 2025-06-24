@@ -17,7 +17,7 @@ alter table user drop column max_statement_time;
 
 flush privileges;
 
---replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+--replace_regex /1\d\d\d\d\d/MYSQL_VERSION_ID/
 --error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
 create role test_role;
 --error ER_CANNOT_USER
@@ -30,13 +30,11 @@ after password_expired;
 create role test_role;
 create user test_user@localhost;
 grant test_role to test_user@localhost;
-#--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
-#--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
 set default role test_role for root@localhost;
 drop role test_role;
 drop user test_user@localhost;
 
-alter table user add column default_role char(80) binary default '' not null
+alter table user add column default_role char(80) default '' not null
                                                    COLLATE utf8_general_ci
 after is_role;
 alter table user add max_statement_time decimal(12,6) default 0 not null

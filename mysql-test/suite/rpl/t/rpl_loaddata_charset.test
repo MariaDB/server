@@ -8,17 +8,18 @@ source include/master-slave.inc;
 # (LOAD DATA INFILE need it)
 #
 connection master;
+set @@character_set_database=latin1;
 create table t1 (a varchar(10) character set utf8);
 load data infile '../../std_data/loaddata6.dat' into table t1;
 set @@character_set_database=koi8r;
 load data infile '../../std_data/loaddata6.dat' into table t1;
-set @@character_set_database=DEFAULT;
+set @@character_set_database=latin1;
 load data infile '../../std_data/loaddata6.dat' into table t1;
 load data infile '../../std_data/loaddata6.dat' into table t1;
 load data infile '../../std_data/loaddata6.dat' into table t1;
 set @@character_set_database=koi8r;
 load data infile '../../std_data/loaddata6.dat' into table t1;
-set @@character_set_database=DEFAULT;
+set @@character_set_database=latin1;
 load data infile '../../std_data/loaddata6.dat' into table t1 character set koi8r;
 
 select hex(a) from t1;

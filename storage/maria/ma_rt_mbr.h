@@ -17,8 +17,6 @@
 #ifndef _rt_mbr_h
 #define _rt_mbr_h
 
-#ifdef HAVE_RTREE_KEYS
-
 int maria_rtree_key_cmp(HA_KEYSEG *keyseg, const uchar *a, const uchar *b,
                         uint key_length, uint32 nextflag);
 int maria_rtree_combine_rect(const HA_KEYSEG *keyseg,
@@ -36,5 +34,4 @@ double maria_rtree_perimeter_increase(HA_KEYSEG *keyseg, uchar* a, uchar* b,
                                       uint key_length, double *ab_perim);
 int maria_rtree_page_mbr(const HA_KEYSEG *keyseg, MARIA_PAGE *page,
                          uchar *key, uint key_length);
-#endif /*HAVE_RTREE_KEYS*/
 #endif /* _rt_mbr_h */

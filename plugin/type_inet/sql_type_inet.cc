@@ -44,7 +44,7 @@ static const char HEX_DIGITS[]= "0123456789abcdef";
   IPv4-part differently on different platforms.
 */
 
-bool Inet4::ascii_to_ipv4(const char *str, size_t str_length)
+bool Inet4::ascii_to_fbt(const char *str, size_t str_length)
 {
   if (str_length < 7)
   {
@@ -259,8 +259,9 @@ bool Inet6::ascii_to_fbt(const char *str, size_t str_length)
         return true;
       }
 
-      Inet4_null tmp(group_start_ptr, (size_t) (str_end - group_start_ptr),
-                     &my_charset_latin1);
+      Type_handler_inet4::Fbt_null tmp(group_start_ptr,
+                                       (size_t) (str_end - group_start_ptr),
+                                       &my_charset_latin1);
       if (tmp.is_null())
       {
         DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
@@ -268,7 +269,13 @@ bool Inet6::ascii_to_fbt(const char *str, size_t str_length)
         return true;
       }
 
-      tmp.to_binary(dst, IN_ADDR_SIZE);
+      if (group_start_ptr == str)
+      {
+        dst[10]= dst[11]= (unsigned char) 0xff;
+        dst+= 12;
+      }
+
+      tmp.to_record(dst, IN_ADDR_SIZE);
       dst += IN_ADDR_SIZE;
       chars_in_group= 0;
 
@@ -483,7 +490,7 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
       // the string (dst). Now it's time to dump IPv4-part.
 
       return (size_t) (p - dst) +
-             Inet4_null((const char *) (ipv6_bytes + 12), 4).
+             Inet4((const char *) (ipv6_bytes + 12), 4).
                to_string(p, dstsize_available);
     }
     else
@@ -511,4 +518,42 @@ const Name &Inet6::default_value()
 {
   static Name def(STRING_WITH_LEN("::"));
   return def;
+}
+
+const Name &Inet4::default_value()
+{
+  static Name def(STRING_WITH_LEN("0.0.0.0"));
+  return def;
+}
+
+static const Type_handler *inet4()
+{ return Type_handler_inet4::singleton(); }
+
+static const Type_handler *inet6()
+{ return Type_handler_inet6::singleton(); }
+
+const Type_handler *Type_collection_inet::find_in_array(const Type_handler *a,
+                                                        const Type_handler *b,
+                                                        int start) const
+{
+  if (a == b) return a;
+  if (a != inet6() && b->type_collection() == this) // inet6 or inet4
+    std::swap(a, b);
+
+  /*
+    Search in the array for an element, equal to `b`.
+    If found - return `a`, if not found - return NULL.
+    Array is terminated by `a`.
+    Start the search from `start`
+  */
+  static const Type_handler *arr[]={ &type_handler_varchar,
+    &type_handler_string, &type_handler_tiny_blob, &type_handler_blob,
+    &type_handler_medium_blob, &type_handler_hex_hybrid,
+    // in aggregate_for_comparison() all types above cannot happen
+    &type_handler_null, &type_handler_long_blob, inet4(), inet6() };
+
+  for (int i= start; arr[i] != a; i++)
+    if (arr[i] == b)
+      return a;
+  return NULL;
 }

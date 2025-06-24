@@ -22,7 +22,9 @@ eval CREATE TABLE ts (
     c INT
 ) $MASTER_1_ENGINE COMMENT='table "t", srv "s_2_1"';
 
+--disable_ps_protocol
 SELECT 1 FROM ts WHERE ROW(c, c) NOT IN ((0,0),(1,1));
+--enable_ps_protocol
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;

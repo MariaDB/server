@@ -1,3 +1,5 @@
+SET @global_collation_database = @@global.collation_database;
+SET @session_collation_database = @@session.collation_database;
 SET @global_start_value = @@global.character_set_database;
 SET @@global.character_set_database=@@character_set_client;
 SELECT @@global.character_set_database;
@@ -6,15 +8,15 @@ latin1
 SET @session_start_value = @@character_set_database;
 SELECT @session_start_value;
 @session_start_value
-latin1
+utf8mb4
 SET @session_start_value = @@local.character_set_database;
 SELECT @session_start_value;
 @session_start_value
-latin1
+utf8mb4
 SET @session_start_value = @@session.character_set_database;
 SELECT @session_start_value;
 @session_start_value
-latin1
+utf8mb4
 '#--------------------FN_DYNVARS_012_01------------------#'
 SELECT character_set_database;
 ERROR 42S22: Unknown column 'character_set_database' in 'SELECT'
@@ -33,12 +35,12 @@ SET @@character_set_database = latin5;
 SET @@character_set_database = DEFAULT;
 SELECT @@character_set_database AS DEFAULT_VALUE;
 DEFAULT_VALUE
-latin1
+utf8mb4
 SET @@global.character_set_database = latin5;
 SET @@global.character_set_database = DEFAULT;
 SELECT @@global.character_set_database;
 @@global.character_set_database
-latin1
+utf8mb4
 '#--------------------FN_DYNVARS_012_03-------------------------#'
 SET @@session.character_set_database = utf8;
 SELECT @@session.character_set_database;
@@ -380,10 +382,9 @@ SET @@character_set_database = 1;
 SELECT @@character_set_database;
 @@character_set_database
 big5
+# latin2_czech_cs is not a default collation
 SET @@character_set_database = 2;
-SELECT @@character_set_database;
-@@character_set_database
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@character_set_database = 3;
 SELECT @@character_set_database;
 @@character_set_database
@@ -392,20 +393,19 @@ SET @@character_set_database = 36;
 SELECT @@character_set_database;
 @@character_set_database
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@character_set_database = 99;
-SELECT @@character_set_database;
-@@character_set_database
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@character_set_database = 100;
 ERROR 42000: Unknown character set: '100'
 SET @@global.character_set_database = 1;
 SELECT @@global.character_set_database;
 @@global.character_set_database
 big5
+# latin2_czech_cs is not a default collation
 SET @@global.character_set_database = 2;
-SELECT @@global.character_set_database;
-@@global.character_set_database
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@global.character_set_database = 3;
 SELECT @@global.character_set_database;
 @@global.character_set_database
@@ -414,10 +414,10 @@ SET @@global.character_set_database = 36;
 SELECT @@global.character_set_database;
 @@global.character_set_database
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@global.character_set_database = 99;
-SELECT @@global.character_set_database;
-@@global.character_set_database
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@global.character_set_database = 100;
 ERROR 42000: Unknown character set: '100'
 SET @total_charset = (SELECT count(*) FROM INFORMATION_SCHEMA.CHARACTER_SETS);
@@ -494,5 +494,5 @@ SELECT @@session.character_set_database =
 WHERE VARIABLE_NAME='character_set_database') AS res;
 res
 1
-SET @@global.character_set_database = @global_start_value;
-SET @@session.character_set_database = @session_start_value;
+SET @@global.collation_database = @global_collation_database;
+SET @@session.collation_database = @session_collation_database;

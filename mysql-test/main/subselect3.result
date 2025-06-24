@@ -62,7 +62,7 @@ a in (select max(ie) from t1 where oref=4 group by grp)
 0
 show status like 'Handler_read_rnd_next';
 Variable_name	Value
-Handler_read_rnd_next	11
+Handler_read_rnd_next	19
 select ' ^ This must show 11' Z;
 Z
  ^ This must show 11
@@ -96,10 +96,10 @@ explain extended
 select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
-2	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	8	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	3	100.00	Using where; Full scan on NULL key
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null) having trigcond(`test`.`t1`.`a` is null)))) AS `Z` from `test`.`t2`
+Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` having trigcond(`test`.`t1`.`a` is null))))) AS `Z` from `test`.`t2`
 flush status;
 select oref, a from t2 where a in (select a from t1 where oref=t2.oref);
 oref	a
@@ -193,7 +193,7 @@ t3.a in (select t1.a from t1, t2 where t1.b=t2.a and t2.b=t3.oref) Z
 from t3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-2	DEPENDENT SUBQUERY	t1	ref	a	a	4	func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t1	ref	a	a	4	func	1	100.00	Using where; Full scan on NULL key
 2	DEPENDENT SUBQUERY	t2	ref	a	a	4	test.t1.b	1	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t3.oref' of SELECT #2 was resolved in SELECT #1
@@ -278,7 +278,9 @@ a	b	oref	Z
 NULL	1	100	0
 NULL	2	100	NULL
 drop table t1,t2,t3,t4;
-create table t1 (oref char(4), grp int, ie1 int, ie2 int);
+# More tests for tricky multi-column cases, where some of pushed-down
+# equalities are used for index lookups and some are not.
+create table t1 (oref char(4), grp int, ie1 int, ie2 int) charset=latin1;
 insert into t1 (oref, grp, ie1, ie2) values
 ('aa', 10, 2, 1),
 ('aa', 10, 1, 1),
@@ -290,7 +292,7 @@ insert into t1 (oref, grp, ie1, ie2) values
 ('ee', 10, 1, 2),
 ('ff', 20, 2, 2),
 ('ff', 20, 1, 2);
-create table t2 (oref char(4), a int, b int);
+create table t2 (oref char(4), a int, b int) charset=latin1;
 insert into t2 values 
 ('ee', NULL, 1),
 ('bb', 2, 1),
@@ -317,7 +319,7 @@ Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`b`,`test`.`t2`.`oref`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on idx checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`ie1` or `test`.`t1`.`ie1` is null)) and trigcond(trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`ie2` or `test`.`t1`.`ie2` is null)) having trigcond(`test`.`t1`.`ie1` is null) and trigcond(`test`.`t1`.`ie2` is null))))) AS `Z` from `test`.`t2` where `test`.`t2`.`a` = 10 and `test`.`t2`.`b` = 10
 drop table t1, t2;
-create table t1 (oref char(4), grp int, ie int);
+create table t1 (oref char(4), grp int, ie int) charset=latin1;
 insert into t1 (oref, grp, ie) values
 ('aa', 10, 2),
 ('aa', 10, 1),
@@ -329,7 +331,7 @@ insert into t1 (oref, grp, ie) values
 ('ee', 10, NULL),
 ('ff', 20, 2),
 ('ff', 20, 1);
-create table t2 (oref char(4), a int);
+create table t2 (oref char(4), a int) charset=latin1;
 insert into t2 values 
 ('ee', NULL),
 ('bb', 2),
@@ -587,7 +589,7 @@ Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`b`,`test`.`t2`.`oref`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on idx checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`ie1` or `test`.`t1`.`ie1` is null)) and trigcond(trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`ie2` or `test`.`t1`.`ie2` is null)) having trigcond(`test`.`t1`.`ie1` is null) and trigcond(`test`.`t1`.`ie2` is null))))) AS `Z` from `test`.`t2`
 drop table t1,t2;
-create table t1 (oref char(4), grp int, ie int primary key);
+create table t1 (oref char(4), grp int, ie int primary key) charset=latin1;
 insert into t1 (oref, grp, ie) values
 ('aa', 10, 2),
 ('aa', 10, 1),
@@ -595,7 +597,7 @@ insert into t1 (oref, grp, ie) values
 ('cc', 10, 4),
 ('cc', 20, 5),
 ('cc', 10, 6);
-create table t2 (oref char(4), a int);
+create table t2 (oref char(4), a int) charset=latin1;
 insert into t2 values 
 ('ee', NULL),
 ('bb', 2),
@@ -617,10 +619,18 @@ cc	2	0
 cc	NULL	NULL
 aa	1	1
 bb	NULL	NULL
+explain select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	Using where
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using where
 select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
 oref	a
 cc	5
 aa	1
+explain select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	Using where
+2	DEPENDENT SUBQUERY	t1	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using where; Full scan on NULL key
 select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
 oref	a
 ee	NULL
@@ -1157,9 +1167,9 @@ set @@optimizer_switch='firstmatch=off,materialization=off';
 set @@max_heap_table_size= 16384;
 explain select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	E	ALL	NULL	NULL	NULL	NULL	5	Start temporary
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 1	PRIMARY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-1	PRIMARY	E	ALL	NULL	NULL	NULL	NULL	5	Start temporary; Using join buffer (flat, BNL join)
 1	PRIMARY	C	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	D	ALL	NULL	NULL	NULL	NULL	10	Using where; End temporary; Using join buffer (flat, BNL join)
 flush status;
@@ -1180,9 +1190,8 @@ create table t3 ( a int , filler char(100), key(a));
 insert into t3 select A.a + 10*B.a, 'filler' from t0 A, t0 B;
 explain select * from t3 where a in (select a from t2) and (a > 5 or a < 10);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary
+1	PRIMARY	t3	ref	a	a	5	test.t2.a	1	End temporary
 select * from t3 where a in (select a from t2);
 a	filler
 1	filler
@@ -1221,7 +1230,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 drop table t1;
 set @@optimizer_switch=@save_optimizer_switch;
-set @@optimizer_switch=@save_optimizer_switch;
 set @@optimizer_switch='materialization=off';
 create table t1 (a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -1255,6 +1263,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Y	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
 2	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+#
+# SJ-Materialization scan + first table being system const table
+#
 create table t0 (a int, b int);
 insert into t0 values(1,1);
 explain select * from t0, t3 where t3.a in (select a from t2) and (t3.a < 10 or t3.a >30);
@@ -1269,6 +1280,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary
 1	PRIMARY	t3	ref	a	a	5	test.t4.x	10	Using where; End temporary
 drop table t0,t1,t2,t3,t4;
+#
+# LooseScan with ref access
+#
+set @@optimizer_switch='join_cache_hashed=off';
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(100), key(a,b));
@@ -1305,6 +1320,9 @@ set @@optimizer_search_depth=@save_optimizer_search_depth;
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t0, t1, t2;
 set @@optimizer_switch='materialization=off';
+#
+# Primitive SJ-Materialization tests for DECIMAL and DATE
+#
 create table t0 (a decimal(4,2));
 insert into t0 values (10.24), (22.11);
 create table t1 as select * from t0;
@@ -1336,6 +1354,9 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 as select a as a, a as b, a as c from t0 where a < 3;
 create table t2 as select a as a, a as b from t0 where a < 3;
 insert into t2 select * from t2;
+select count(*) from t2;
+count(*)
+6
 explain select * from t1 where (a,b,c) in (select X.a, Y.a, Z.a from t2 X, t2 Y, t2 Z where X.b=33);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
@@ -1391,7 +1412,7 @@ drop table t0, t1;
 create table t1 (
 idIndividual int primary key
 );
-insert into t1 values (1),(2);
+insert into t1 values (1),(2),(1000);
 create table t2 (
 idContact int primary key,
 contactType int,
@@ -1402,8 +1423,8 @@ create table t3 (
 idAddress int primary key,
 idContact int,
 postalStripped varchar(100)
-);
-insert into t3 values (1,1, 'foo'), (2,2,'bar');
+) charset=latin1;
+insert into t3 values (1,1, 'foo'), (2,2,'T2H3B2');
 The following must be converted to a semi-join:
 set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='materialization=off';
@@ -1416,9 +1437,17 @@ WHERE cona.postalStripped='T2H3B2'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	cona	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
 1	PRIMARY	c	eq_ref	PRIMARY	PRIMARY	4	test.cona.idContact	1	100.00	Using where
-1	PRIMARY	a	eq_ref	PRIMARY	PRIMARY	4	test.c.idObj	1	100.00	Using index; End temporary
+1	PRIMARY	a	eq_ref	PRIMARY	PRIMARY	4	test.c.idObj	1	50.00	Using index; End temporary
 Warnings:
 Note	1003	select `test`.`a`.`idIndividual` AS `idIndividual` from `test`.`t1` `a` semi join (`test`.`t3` `cona` join `test`.`t2` `c`) where `test`.`cona`.`postalStripped` = 'T2H3B2' and `test`.`a`.`idIndividual` = `test`.`c`.`idObj` and `test`.`c`.`idContact` = `test`.`cona`.`idContact`
+SELECT a.idIndividual FROM t1 a 
+WHERE a.idIndividual IN 
+(	SELECT c.idObj FROM t3 cona 
+INNER JOIN t2 c ON c.idContact=cona.idContact 
+WHERE cona.postalStripped='T2H3B2'
+	);
+idIndividual
+2
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t1,t2,t3;
 #
@@ -1443,7 +1472,7 @@ CALL p1;
 f1
 ALTER TABLE t2 CHANGE COLUMN f1 my_column INT;
 CALL p1;
-ERROR 42S22: Unknown column 'f1' in 'WHERE'
+f1
 DROP PROCEDURE p1;
 DROP TABLE t1, t2;
 #

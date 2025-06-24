@@ -18,7 +18,7 @@ call mtr.add_suppression("Can't init tc log");
 call mtr.add_suppression("Found 1 prepared transactions!");
 call mtr.add_suppression("Aborting");
 
-# Now take a shapshot of the last time server options.
+# Now take a snapshot of the last time server options.
 #
 # The "restart" expect-file facility can't be engaged because the server
 #  having conflicting options may not succeed to boot up.

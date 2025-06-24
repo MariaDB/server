@@ -6,7 +6,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	8192
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Block size to be used for Aria index pages.
+VARIABLE_COMMENT	Block size to be used for Aria index pages
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	32768
 NUMERIC_BLOCK_SIZE	1024
@@ -18,7 +18,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	30
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing.
+VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -30,7 +30,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	1048576
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log.
+VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -54,7 +54,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature.
+VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	255
 NUMERIC_BLOCK_SIZE	1
@@ -126,7 +126,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	9223372036853727232
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Don't use the fast sort index method to created index if the temporary file would get bigger than this.
+VARIABLE_COMMENT	Don't use the fast sort index method to created index if the temporary file would get bigger than this
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	9223372036854775807
 NUMERIC_BLOCK_SIZE	1048576
@@ -138,7 +138,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	300
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	This characterizes the number of hits a hot block has to be untouched until it is considered aged enough to be downgraded to a warm block. This specifies the percentage ratio of that number of hits to the total number of blocks in the page cache.
+VARIABLE_COMMENT	This characterizes the number of hits a hot block has to be untouched until it is considered aged enough to be downgraded to a warm block. This specifies the percentage ratio of that number of hits to the total number of blocks in the page cache
 NUMERIC_MIN_VALUE	100
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	100
@@ -150,7 +150,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	134217728
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The size of the buffer used for index blocks for Aria tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford.
+VARIABLE_COMMENT	The size of the buffer used for index blocks for Aria tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford
 NUMERIC_MIN_VALUE	131072
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -174,7 +174,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	512
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files.
+VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files
 NUMERIC_MIN_VALUE	128
 NUMERIC_MAX_VALUE	16384
 NUMERIC_BLOCK_SIZE	1
@@ -210,7 +210,7 @@ SESSION_VALUE	1
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair.
+VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	128
 NUMERIC_BLOCK_SIZE	1
@@ -222,7 +222,7 @@ SESSION_VALUE	268434432
 DEFAULT_VALUE	268434432
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.
+VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE
 NUMERIC_MIN_VALUE	16352
 NUMERIC_MAX_VALUE	1152921504606846975
 NUMERIC_BLOCK_SIZE	1

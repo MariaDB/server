@@ -19,47 +19,51 @@
 
 #ifndef SHARED_LIBRARY
 
-const char *globerrs[GLOBERRS]=
+const char *globerrs[GLOBERRS+1]=
 {
-  "Can't create/write to file '%s' (Errcode: %M)",
-  "Error reading file '%s' (Errcode: %M)",
-  "Error writing file '%s' (Errcode: %M)",
-  "Error on close of '%s' (Errcode: %M)",
+  "Can't create/write to file '%s' (Errcode: %iE)",
+  "Error reading file '%s' (Errcode: %iE)",
+  "Error writing file '%s' (Errcode: %iE)",
+  "Error on close of '%s' (Errcode: %iE)",
   "Out of memory (Needed %u bytes)",
-  "Error on delete of '%s' (Errcode: %M)",
-  "Error on rename of '%s' to '%s' (Errcode: %M)",
+  "Error on delete of '%s' (Errcode: %iE)",
+  "Error on rename of '%s' to '%s' (Errcode: %iE)",
   "",
-  "Unexpected end-of-file found when reading file '%s' (Errcode: %M)",
-  "Can't lock file (Errcode: %M)",
-  "Can't unlock file (Errcode: %M)",
-  "Can't read dir of '%s' (Errcode: %M)",
-  "Can't get stat of '%s' (Errcode: %M)",
-  "Can't change size of file (Errcode: %M)",
-  "Can't open stream from handle (Errcode: %M)",
-  "Can't get working directory (Errcode: %M)",
-  "Can't change dir to '%s' (Errcode: %M)",
+  "Unexpected end-of-file found when reading file '%s' (Errcode: %iE)",
+  "Can't lock file (Errcode: %iE)",
+  "Can't unlock file (Errcode: %iE)",
+  "Can't read dir of '%s' (Errcode: %iE)",
+  "Can't get stat of '%s' (Errcode: %iE)",
+  "Can't change size of file (Errcode: %iE)",
+  "Can't open stream from handle (Errcode: %iE)",
+  "Can't get working directory (Errcode: %iE)",
+  "Can't change dir to '%s' (Errcode: %iE)",
   "Warning: '%s' had %d links",
   "Warning: %d files and %d streams is left open\n",
-  "Disk is full writing '%s' (Errcode: %M). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
-  "Can't create directory '%s' (Errcode: %M)",
+  "Disk is full writing '%s' (Errcode: %iE). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
+  "Can't create directory '%s' (Errcode: %iE)",
   "Character set '%s' is not a compiled character set and is not specified in the '%s' file",
-  "Out of resources when opening file '%s' (Errcode: %M)",
-  "Can't read value for symlink '%s' (Errcode: %M)",
-  "Can't create symlink '%s' pointing at '%s' (Errcode: %M)",
-  "Error on realpath() on '%s' (Errcode: %M)",
-  "Can't sync file '%s' to disk (Errcode: %M)",
+  "Out of resources when opening file '%s' (Errcode: %iE)",
+  "Can't read value for symlink '%s' (Errcode: %iE)",
+  "Can't create symlink '%s' pointing at '%s' (Errcode: %iE)",
+  "Error on realpath() on '%s' (Errcode: %iE)",
+  "Can't sync file '%s' to disk (Errcode: %iE)",
   "Collation '%s' is not a compiled collation and is not specified in the '%s' file",
-  "File '%s' not found (Errcode: %M)",
+  "File '%s' not found (Errcode: %iE)",
   "File '%s' (fileno: %d) was not closed",
-  "Can't change ownership of the file '%s' (Errcode: %M)",
-  "Can't change permissions of the file '%s' (Errcode: %M)",
-  "Can't seek in file '%s' (Errcode: %M)",
-  "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
-  "Warning: Can't copy ownership for file '%s' (Errcode: %M)",
-  "Failed to release memory pointer %p, %zu bytes (Errcode: %M)",
+  "Can't change ownership of the file '%s' (Errcode: %iE)",
+  "Can't change permissions of the file '%s' (Errcode: %iE)",
+  "Can't seek in file '%s' (Errcode: %iE)",
+  "Can't change mode for file '%s' to 0x%lx (Errcode: %iE)",
+  "Warning: Can't copy ownership for file '%s' (Errcode: %iE)",
+  "Failed to release memory pointer %p, %zu bytes (Errcode: %iE)",
   "Lock Pages in memory access rights required",
   "Memcntl %s cmd %s error",
   "Warning: Charset id '%d' csname '%s' trying to replace existing csname '%s'",
+  "Deprecated program name. It will be removed in a future release, use '%s' instead",
+  "Local temporary space limit reached",
+  "Global temporary space limit reached",
+  ""
 };
 
 void init_glob_errs(void)
@@ -71,44 +75,47 @@ void init_glob_errs(void)
 
 void init_glob_errs()
 {
-  EE(EE_CANTCREATEFILE) = "Can't create/write to file '%s' (Errcode: %M)";
-  EE(EE_READ)		= "Error reading file '%s' (Errcode: %M)";
-  EE(EE_WRITE)		= "Error writing file '%s' (Errcode: %M)";
-  EE(EE_BADCLOSE)	= "Error on close of '%'s (Errcode: %M)";
+  EE(EE_CANTCREATEFILE) = "Can't create/write to file '%s' (Errcode: %iE)";
+  EE(EE_READ)		= "Error reading file '%s' (Errcode: %iE)";
+  EE(EE_WRITE)		= "Error writing file '%s' (Errcode: %iE)";
+  EE(EE_BADCLOSE)	= "Error on close of '%'s (Errcode: %iE)";
   EE(EE_OUTOFMEMORY)	= "Out of memory (Needed %u bytes)";
-  EE(EE_DELETE)		= "Error on delete of '%s' (Errcode: %M)";
-  EE(EE_LINK)		= "Error on rename of '%s' to '%s' (Errcode: %M)";
-  EE(EE_EOFERR)		= "Unexpected eof found when reading file '%s' (Errcode: %M)";
-  EE(EE_CANTLOCK)	= "Can't lock file (Errcode: %M)";
-  EE(EE_CANTUNLOCK)	= "Can't unlock file (Errcode: %M)";
-  EE(EE_DIR)		= "Can't read dir of '%s' (Errcode: %M)";
-  EE(EE_STAT)		= "Can't get stat of '%s' (Errcode: %M)";
-  EE(EE_CANT_CHSIZE)	= "Can't change size of file (Errcode: %M)";
-  EE(EE_CANT_OPEN_STREAM)= "Can't open stream from handle (Errcode: %M)";
-  EE(EE_GETWD)		= "Can't get working directory (Errcode: %M)";
-  EE(EE_SETWD)		= "Can't change dir to '%s' (Errcode: %M)";
+  EE(EE_DELETE)		= "Error on delete of '%s' (Errcode: %iE)";
+  EE(EE_LINK)		= "Error on rename of '%s' to '%s' (Errcode: %iE)";
+  EE(EE_EOFERR)		= "Unexpected eof found when reading file '%s' (Errcode: %iE)";
+  EE(EE_CANTLOCK)	= "Can't lock file (Errcode: %iE)";
+  EE(EE_CANTUNLOCK)	= "Can't unlock file (Errcode: %iE)";
+  EE(EE_DIR)		= "Can't read dir of '%s' (Errcode: %iE)";
+  EE(EE_STAT)		= "Can't get stat of '%s' (Errcode: %iE)";
+  EE(EE_CANT_CHSIZE)	= "Can't change size of file (Errcode: %iE)";
+  EE(EE_CANT_OPEN_STREAM)= "Can't open stream from handle (Errcode: %iE)";
+  EE(EE_GETWD)		= "Can't get working directory (Errcode: %iE)";
+  EE(EE_SETWD)		= "Can't change dir to '%s' (Errcode: %iE)";
   EE(EE_LINK_WARNING)	= "Warning: '%s' had %d links";
   EE(EE_OPEN_WARNING)	= "Warning: %d files and %d streams is left open\n";
-  EE(EE_DISK_FULL)	= "Disk is full writing '%s' (Errcode: %M). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
-  EE(EE_CANT_MKDIR)	="Can't create directory '%s' (Errcode: %M)";
+  EE(EE_DISK_FULL)	= "Disk is full writing '%s' (Errcode: %iE). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
+  EE(EE_CANT_MKDIR)	="Can't create directory '%s' (Errcode: %iE)";
   EE(EE_UNKNOWN_CHARSET)= "Character set '%s' is not a compiled character set and is not specified in the %s file";
-  EE(EE_OUT_OF_FILERESOURCES)="Out of resources when opening file '%s' (Errcode: %M)";
-  EE(EE_CANT_READLINK)=	"Can't read value for symlink '%s' (Errcode: %M)";
-  EE(EE_CANT_SYMLINK)=	"Can't create symlink '%s' pointing at '%s' (Errcode: %M)";
-  EE(EE_REALPATH)=	"Error on realpath() on '%s' (Errcode: %M)";
-  EE(EE_SYNC)=		"Can't sync file '%s' to disk (Errcode: %M)";
+  EE(EE_OUT_OF_FILERESOURCES)="Out of resources when opening file '%s' (Errcode: %iE)";
+  EE(EE_CANT_READLINK)=	"Can't read value for symlink '%s' (Errcode: %iE)";
+  EE(EE_CANT_SYMLINK)=	"Can't create symlink '%s' pointing at '%s' (Errcode: %iE)";
+  EE(EE_REALPATH)=	"Error on realpath() on '%s' (Errcode: %iE)";
+  EE(EE_SYNC)=		"Can't sync file '%s' to disk (Errcode: %iE)";
   EE(EE_UNKNOWN_COLLATION)= "Collation '%s' is not a compiled collation and is not specified in the %s file";
-  EE(EE_FILENOTFOUND)	= "File '%s' not found (Errcode: %M)";
+  EE(EE_FILENOTFOUND)	= "File '%s' not found (Errcode: %iE)";
   EE(EE_FILE_NOT_CLOSED) = "File '%s' (fileno: %d) was not closed";
-  EE(EE_CHANGE_OWNERSHIP)   = "Can't change ownership of the file '%s' (Errcode: %M)";
-  EE(EE_CHANGE_PERMISSIONS) = "Can't change permissions of the file '%s' (Errcode: %M)";
-  EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %M)";
-  EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %M)";
-  EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %M)";
-  EE(EE_BADMEMORYRELEASE)= "Failed to release memory pointer %p, %zu bytes (Errcode: %M)";
+  EE(EE_CHANGE_OWNERSHIP)   = "Can't change ownership of the file '%s' (Errcode: %iE)";
+  EE(EE_CHANGE_PERMISSIONS) = "Can't change permissions of the file '%s' (Errcode: %iE)";
+  EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %iE)";
+  EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %iE)";
+  EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %iE)";
+  EE(EE_BADMEMORYRELEASE)= "Failed to release memory pointer %p, %zu bytes (Errcode: %iE)";
   EE(EE_PERM_LOCK_MEMORY)= "Lock Pages in memory access rights required";
   EE(EE_MEMCNTL)         = "Memcntl %s cmd %s error";
   EE(EE_DUPLICATE_CHARSET)= "Warning: Charset id %d trying to replace csname %s with %s";
+  EE(EE_NAME_DEPRECATED)  = "Notice: %s is deprecated and will be removed in a future release, use command '%s'";
+ EE(EE_LOCAL_TMP_SPACE_FULL) = "Local temporary space limit reached";
+ EE(EE_GLOBAL_TMP_SPACE_FULL) = "Global temporary space limit reached";
 }
 #endif
 

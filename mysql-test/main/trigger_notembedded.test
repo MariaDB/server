@@ -275,7 +275,7 @@ CREATE DEFINER='mysqltest_nonexs'@'localhost'
 
 # Check that trg2 will not be activated.
 
---error ER_NO_SUCH_USER
+--error ER_MALFORMED_DEFINER
 INSERT INTO t1 VALUES(6);
 
 #
@@ -383,11 +383,11 @@ CREATE DATABASE mysqltest_db1;
 
 use mysqltest_db1;
 
-# Tables for tesing table-level privileges:
+# Tables for testing table-level privileges:
 CREATE TABLE t1(col CHAR(20)); # table for "read-value" trigger
 CREATE TABLE t2(col CHAR(20)); # table for "write-value" trigger
 
-# Tables for tesing column-level privileges:
+# Tables for testing column-level privileges:
 CREATE TABLE t3(col CHAR(20)); # table for "read-value" trigger
 CREATE TABLE t4(col CHAR(20)); # table for "write-value" trigger
 
@@ -400,7 +400,7 @@ SET @mysqltest_var = NULL;
 --connect (bug15166_u1_con,localhost,mysqltest_u1,,mysqltest_db1)
 
 # parsing (CREATE TRIGGER) time:
-#   - check that nor SELECT either UPDATE is required to execute triggger w/o
+#   - check that nor SELECT either UPDATE is required to execute trigger w/o
 #     NEW/OLD variables.
 
 --connection default
@@ -631,7 +631,7 @@ INSERT INTO t4 VALUES('t4_line2');
 SELECT * FROM t4;
 
 # execution time:
-#   - check that nor SELECT either UPDATE is required to execute triggger w/o
+#   - check that nor SELECT either UPDATE is required to execute trigger w/o
 #     NEW/OLD variables.
 
 DELETE FROM t1;
@@ -995,3 +995,23 @@ DROP USER mysqltest_u1@localhost;
 USE test;
 
 --echo End of 5.1 tests.
+
+--echo #
+--echo # MDEV-34551: Column list in the trigger definition
+--echo #
+
+--echo # Check that a FOR UPDATE trigger with the `OF` clause is dumped correctly.
+CREATE TABLE t1 (a INT, b INT);
+CREATE TRIGGER t1_bu BEFORE UPDATE OF a ON t1 FOR EACH ROW SET @a = NEW.a;
+CREATE TRIGGER t1_au AFTER  UPDATE OF a ON t1 FOR EACH ROW SET @a = NEW.a;
+
+--echo # dump the table t1 and its triggers. The `OF` clause should be dumped out
+--echo # for triggers t1_bu, t1_au.
+--exec $MYSQL_DUMP --compact test t1
+
+--echo # Clean up
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

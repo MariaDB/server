@@ -101,13 +101,20 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 109,
-      "filtered": 5,
-      "attached_condition": "t1.a between 2 and 5"
-    }
+    "cost": 0.027083745,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 109,
+          "cost": 0.027083745,
+          "filtered": 3.669724703,
+          "attached_condition": "t1.a between 2 and 5"
+        }
+      }
+    ]
   }
 }
 explain format=json select * from t1 where a between 12 and 15;
@@ -115,13 +122,20 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 109,
-      "filtered": 33.59375,
-      "attached_condition": "t1.a between 12 and 15"
-    }
+    "cost": 0.027083745,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 109,
+          "cost": 0.027083745,
+          "filtered": 33.02752304,
+          "attached_condition": "t1.a between 12 and 15"
+        }
+      }
+    ]
   }
 }
 flush tables;
@@ -131,13 +145,20 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 109,
-      "filtered": 15.78947353,
-      "attached_condition": "t1.a between 2 and 5"
-    }
+    "cost": 0.027083745,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 109,
+          "cost": 0.027083745,
+          "filtered": 15.78947353,
+          "attached_condition": "t1.a between 2 and 5"
+        }
+      }
+    ]
   }
 }
 set @@optimizer_use_condition_selectivity=4;
@@ -146,13 +167,20 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 109,
-      "filtered": 5,
-      "attached_condition": "t1.a between 2 and 5"
-    }
+    "cost": 0.027083745,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 109,
+          "cost": 0.027083745,
+          "filtered": 3.669724703,
+          "attached_condition": "t1.a between 2 and 5"
+        }
+      }
+    ]
   }
 }
 drop table t1;

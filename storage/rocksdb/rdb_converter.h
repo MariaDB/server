@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #pragma once
 
@@ -76,7 +76,7 @@ class Rdb_convert_to_record_value_decoder {
 /**
   Class to iterator fields in RocksDB value slice
   A template class instantiation represent a way to decode the data.
-  The reason to use template class instead of normal class is to elimate
+  The reason to use template class instead of normal class is to eliminate
   virtual method call.
 */
 template <typename value_field_decoder>

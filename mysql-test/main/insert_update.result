@@ -416,7 +416,8 @@ drop table t1;
 # MDEV-31164 default current_timestamp() not working when used INSERT ON DUPLICATE KEY in some cases
 #
 set timestamp=unix_timestamp('2000-10-20 0:0:0');
-create table t1 (pk integer primary key, val varchar(20) not null, ts timestamp);
+create table t1 (pk integer primary key, val varchar(20) not null, ts timestamp
+default current_timestamp on update current_timestamp);
 insert t1 (pk, val) values(1, 'val1');
 select * from t1;
 pk	val	ts

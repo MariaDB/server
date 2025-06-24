@@ -38,6 +38,8 @@ id int NOT NULL,
 greeting VARCHAR(255),
 KEY k (greeting)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_a WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one";
@@ -48,6 +50,8 @@ id int NOT NULL,
 greeting VARCHAR(255),
 KEY k (greeting(5))
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_b VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_b WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one";
@@ -58,6 +62,8 @@ id int NOT NULL,
 greeting TEXT,
 KEY k (greeting(5))
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_c", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_c VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_c WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one";

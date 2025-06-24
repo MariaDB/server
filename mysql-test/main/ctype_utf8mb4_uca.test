@@ -121,6 +121,9 @@ SET NAMES utf8mb4;
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci /*Unicode-4.0 folding*/;
 --source include/ctype_casefolding.inc
 
+SET NAMES utf8mb4 COLLATE utf8mb4_turkish_ci /*Unicode-4.0 folding with Turkish mapping for I */;
+--source include/ctype_casefolding.inc
+
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_ci;
 --source include/ctype_casefolding.inc
 
@@ -136,4 +139,312 @@ SET NAMES utf8mb4 COLLATE utf8mb4_thai_520_w2;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # Collation IDs in the protocol
+--echo #
+
+SET NAMES utf8mb4;
+SET @charset=(SELECT @@character_set_client);
+--source include/ctype_uca1400_ids_using_set_names.inc
+
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # SET NAMES CHARACTER SET cs [COLLATE cl]
+--echo #
+
+#enable after fix MDEV-29554
+--disable_view_protocol
+
+SET GLOBAL character_set_client=latin1;
+
+CREATE VIEW vars AS
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE variable_name IN
+('character_set_client','character_set_connection','character_set_results',
+ 'collation_connection') ORDER BY variable_name;
+
+--echo ---
+SET NAMES DEFAULT COLLATE DEFAULT;
+SELECT * FROM vars;
+
+--echo ---
+--error ER_COLLATION_CHARSET_MISMATCH
+SET NAMES DEFAULT COLLATE `binary`;
+SELECT * FROM vars;
+
+--echo ---
+--error ER_COLLATION_CHARSET_MISMATCH
+SET NAMES DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SELECT * FROM vars;
+
+--echo ---
+--error ER_COLLATION_CHARSET_MISMATCH
+SET NAMES DEFAULT COLLATE uca1400_ai_ci;
+SELECT * FROM vars;
+
+--echo ---
+SET NAMES utf8mb4;
+SELECT * FROM vars;
+
+--echo ---
+--error ER_COLLATION_CHARSET_MISMATCH
+SET NAMES utf8mb4 COLLATE `binary`;
+SELECT * FROM vars;
+
+--echo ---
+SET NAMES utf8mb4 COLLATE DEFAULT;
+SELECT * FROM vars;
+
+--echo ---
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+SELECT * FROM vars;
+
+--echo ---
+SET NAMES utf8mb4 COLLATE uca1400_ai_ci;
+SELECT * FROM vars;
+
+DROP VIEW vars;
+
+SET GLOBAL character_set_client=DEFAULT;
+
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # ALTER TABLE t1 CONVERT TO CHARACTER SET cs [COLLATE cl]
+--echo #
+
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+USE db1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+--error ER_COLLATION_CHARSET_MISMATCH
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE latin1_bin;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+--error ER_COLLATION_CHARSET_MISMATCH
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE latin1_bin;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP DATABASE db1;
+USE test;
+
+
+--echo #
+--echo # MDEV-27743 Remove Lex::charset
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo #
+
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES ('A'),('a'),('Á'),('á');
+--error ER_PARSE_ERROR
+SELECT * FROM t1 ORDER BY c1 COLLATE DEFAULT;
+--error ER_COLLATION_CHARSET_MISMATCH
+SELECT * FROM t1 ORDER BY c1 COLLATE `binary`;
+SELECT * FROM t1 ORDER BY c1 COLLATE utf8mb4_uca1400_as_cs;
+EXPLAIN EXTENDED SELECT * FROM t1 ORDER BY c1 COLLATE utf8mb4_uca1400_as_cs;
+SELECT * FROM t1 ORDER BY c1 COLLATE uca1400_as_cs;
+EXPLAIN EXTENDED SELECT * FROM t1 ORDER BY c1 COLLATE uca1400_as_cs;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # CREATE DATABASE
+--echo #
+
+SET @@collation_server=utf8mb4_bin;
+
+CREATE DATABASE db1;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 COLLATE DEFAULT;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 COLLATE uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 CHARACTER SET DEFAULT;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE DEFAULT;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+SET @@collation_server=DEFAULT;
+
+SET @@collation_server=latin1_bin;
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE DATABASE db1 COLLATE uca1400_ai_ci;
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE DATABASE db1 CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+SET @@collation_server=DEFAULT;
+
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo # CREATE TABLE - table level character set and collation
+--echo #
+
+SELECT @@collation_database;
+CREATE DATABASE db1 CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+
+CREATE TABLE db1.t1 (a CHAR(1));
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE DEFAULT;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE DEFAULT;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+CREATE TABLE db1.t1 (a CHAR(1)) CHARACTER SET DEFAULT COLLATE utf8mb4_uca1400_ai_ci;
+SHOW CREATE TABLE db1.t1;
+DROP TABLE db1.t1;
+
+DROP DATABASE db1;
+
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo #
+
+SET NAMES utf8mb4;
+DELIMITER $$;
+CREATE PROCEDURE exec_verbose(query TEXT CHARACTER SET utf8mb4)
+BEGIN
+  SELECT query AS ``;
+  EXECUTE IMMEDIATE query;
+END;
+$$
+
+CREATE PROCEDURE test_styles(clname VARCHAR(64) CHARACTER SET utf8mb4,
+                             where_clause TEXT CHARACTER SET utf8mb4)
+BEGIN
+  DECLARE query TEXT CHARACTER SET utf8mb4 DEFAULT
+   'SELECT CONCAT(GROUP_CONCAT(a ORDER BY BINARY(a)),'','') '
+   'FROM t1 <WHERE> GROUP BY a COLLATE <CL>';
+  SET query=REPLACE(query, '<WHERE>', where_clause);
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_as_cs')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_as_cs')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_as_ci')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_as_ci')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_ai_cs')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_ai_cs')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_nopad_ai_ci')));
+  CALL exec_verbose(REPLACE(query, '<CL>', CONCAT(clname,'_ai_ci')));
+END;
+$$
+DELIMITER ;$$
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4);
+--source include/ctype_unicode_latin.inc
+INSERT INTO t1 VALUES('ẞ');
+INSERT INTO t1 SELECT CONCAT(a,' ') FROM t1;
+
+CALL test_styles('uca1400', '');
+CALL test_styles('uca1400', _utf8mb4"WHERE BINARY(LOWER(TRIM(a))) IN ('ss','s','ß','ẞ')");
+CALL test_styles('uca1400_danish', _utf8mb4"WHERE BINARY(LOWER(TRIM(a))) IN ('aa','å')");
+
+DROP TABLE t1;
+
+DROP PROCEDURE exec_verbose;
+DROP PROCEDURE test_styles;
+
+--echo #
+--echo # MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+--source include/ctype_casefolding.inc
+--source include/ctype_casefolding_supplementary.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci;
+--source include/ctype_casefolding.inc
+--source include/ctype_casefolding_supplementary.inc
+
+--echo #
+--echo # End of 10.10 tests
 --echo #

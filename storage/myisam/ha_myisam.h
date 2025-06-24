@@ -14,11 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 /* class for the the myisam handler */
 
 #include <myisam.h>
@@ -54,17 +49,17 @@ class ha_myisam final : public handler
   ha_myisam(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_myisam() = default;
   handler *clone(const char *name, MEM_ROOT *mem_root) override;
-  const char *index_type(uint key_number) override;
   ulonglong table_flags() const override { return int_table_flags; }
   int index_init(uint idx, bool sorted) override;
   int index_end() override;
   int rnd_end() override;
 
   ulong index_flags(uint inx, uint part, bool all_parts) const override;
-  uint max_supported_keys() const          override { return MI_MAX_KEY; }
-  uint max_supported_key_parts() const     override { return HA_MAX_KEY_SEG; }
-  uint max_supported_key_length() const    override { return HA_MAX_KEY_LENGTH; }
-  uint max_supported_key_part_length() const override { return HA_MAX_KEY_LENGTH; }
+  uint max_supported_keys()          const override { return MI_MAX_KEY; }
+  uint max_supported_key_parts()     const override { return HA_MAX_KEY_SEG; }
+  uint max_supported_key_length()    const override { return HA_MAX_KEY_LENGTH; }
+  uint max_supported_key_part_length() const override
+  { return HA_MAX_KEY_LENGTH; }
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share) override;
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override;
@@ -101,6 +96,7 @@ class ha_myisam final : public handler
   int remember_rnd_pos() override;
   int restart_rnd_next(uchar *buf) override;
   void position(const uchar *record) override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   int info(uint) override;
   int extra(enum ha_extra_function operation) override;
   int extra_opt(enum ha_extra_function operation, ulong cache_size) override;
@@ -140,20 +136,15 @@ class ha_myisam final : public handler
   int assign_to_keycache(THD* thd, HA_CHECK_OPT* check_opt) override;
   int preload_keys(THD* thd, HA_CHECK_OPT* check_opt) override;
   enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *new_table,
-                                            Alter_inplace_info *alter_info) override;
-  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes) override;
-#ifdef HAVE_QUERY_CACHE
+                                            Alter_inplace_info *alter_info)
+    override;
+  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes)
+    override;
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
                                      ulonglong *engine_data) override;
-#endif
-  MI_INFO *file_ptr(void)
-  {
-    return file;
-  }
-public:
   /**
    * Multi Range Read interface
    */
@@ -163,7 +154,8 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param, 
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost) override;
+                                      uint *flags, ha_rows limit,
+                                      Cost_estimate *cost) override;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz, 
                                 uint *flags, Cost_estimate *cost) override;
@@ -172,6 +164,13 @@ public:
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond) override;
   bool rowid_filter_push(Rowid_filter* rowid_filter) override;
+  void rowid_filter_changed() override;
+
+  /* Used by myisammrg */
+  MI_INFO *file_ptr(void)
+  {
+    return file;
+  }
 
 private:
   DsMrr_impl ds_mrr;

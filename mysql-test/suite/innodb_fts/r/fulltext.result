@@ -242,7 +242,7 @@ t2	CREATE TABLE `t2` (
   `inhalt` text DEFAULT NULL,
   KEY `tig` (`ticket`),
   FULLTEXT KEY `tix` (`inhalt`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2 where MATCH inhalt AGAINST (NULL);
 ticket	inhalt
 select * from t2 where  MATCH inhalt AGAINST ('foobar');
@@ -349,7 +349,7 @@ INSERT t1 VALUES ("Это мы - опилки"),("Отлезь, гнида!"),
 ("Не влезай, убьет!"),("и будет прав!");
 SELECT t, collation(t) FROM t1 WHERE MATCH t AGAINST ('ОПИЛКИ');
 t	collation(t)
-Это мы - опилки	utf8mb3_general_ci
+Это мы - опилки	utf8mb3_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (s varchar(255), FULLTEXT (s)) ENGINE = InnoDB DEFAULT CHARSET=utf8;
 insert into t1 (s) values ('pДra para para'),('para para para');
@@ -407,7 +407,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10000) DEFAULT NULL,
   FULLTEXT KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT, FULLTEXT KEY(a)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('test'),('test1'),('test');
@@ -537,6 +537,9 @@ CREATE TABLE t2 (a int, b2 char(10), FULLTEXT KEY b2 (b2)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (1,'Scargill');
 CREATE TABLE t3 (a int, b int) ENGINE = InnoDB;
 INSERT INTO t3 VALUES (1,1), (2,1);
+SELECT * FROM t2 where MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE);
+a	b2
+1	Scargill
 # t2 should use full text index
 EXPLAIN
 SELECT count(*) FROM t1 WHERE 
@@ -546,8 +549,8 @@ WHERE t3.a=t1.a AND MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE)
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	fulltext	b2	b2	0		1	Using where
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	fulltext	b2	b2	0		1	Using where
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
 # should return 0
 SELECT count(*) FROM t1 WHERE 
 not exists(
@@ -714,13 +717,15 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   FULLTEXT KEY `a` (`a`),
   FULLTEXT KEY `a_2` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-25257 SEGV in fts_get_next_doc_id upon some INSERT
 #
 SET @save = @@global.innodb_file_per_table;
 SET @@global.innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (
 col_int INTEGER, col_text TEXT,
 col_int_g INTEGER GENERATED ALWAYS AS (col_int)
@@ -730,6 +735,8 @@ ALTER TABLE t1 DROP KEY `ftidx` ;
 INSERT INTO t1 (col_int, col_text) VALUES ( 1255, NULL);
 DROP TABLE t1;
 SET @@global.innodb_file_per_table = @save;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 #
 # MDEV-20797  FULLTEXT search with apostrophe,
 #		and mandatory words
@@ -807,6 +814,6 @@ t1	CREATE TABLE `t1` (
   `book` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`ID`),
   FULLTEXT KEY `fidx_1` (`book`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 # End of 10.5 tests

@@ -12,7 +12,7 @@ y2 YEAR(2) ,
 pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	YES		NULL	

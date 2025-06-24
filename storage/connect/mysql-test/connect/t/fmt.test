@@ -49,7 +49,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 #
-# TODO: shoudn't a warning instead of error be returned on bad format?
+# TODO: shouldn't a warning instead of error be returned on bad format?
 #
 CREATE TABLE t1
 (

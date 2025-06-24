@@ -17,7 +17,7 @@ IF(WITHOUT_DYNAMIC_PLUGINS OR WITH_NONE OR ("${PLUGIN_CONNECT}" STREQUAL "NO"))
   RETURN()
 ENDIF()
 
-SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB server" PARENT_SCOPE)
+SET(CPACK_RPM_connect-engine_PACKAGE_SUMMARY "Connect storage engine for MariaDB Server" PARENT_SCOPE)
 SET(CPACK_RPM_connect-engine_PACKAGE_DESCRIPTION "Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
 connections to ODBC tables and remote MySQL tables, as well as a number of
 other interesting features." PARENT_SCOPE)
@@ -288,8 +288,7 @@ IF(CONNECT_WITH_JDBC)
     jmgfam.h jmgoconn.h mongo.h tabjmg.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
-    Mongo2Interface.java Mongo3Interface.java
-    mysql-test/connect/std_data/JavaWrappers.jar)
+    Mongo2Interface.java Mongo3Interface.java)
     add_definitions(-DJAVA_SUPPORT)
     ADD_FEATURE_INFO(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
     IF(CONNECT_WITH_MONGO)
@@ -407,20 +406,22 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARIES} ${XML_LIBRARY} ${ICONV_LIBRARY}
-    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
+    ${ODBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
 ENDIF()
 
-IF(MSVC AND (CMAKE_CXX_FLAGS MATCHES "/MP"))
+IF(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # domdoc.cpp uses compiler directive #import which is not compatible
   # with the /MP option, resulting in  compiler error C2813.
   # Remove /MP for this file.
+  GET_TARGET_PROPERTY(CURRENT_COMPILE_OPTIONS connect COMPILE_OPTIONS)
+  LIST(REMOVE_ITEM CURRENT_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:C,CXX>:/MP>")
+  SET_TARGET_PROPERTIES(connect PROPERTIES COMPILE_OPTIONS "${CURRENT_COMPILE_OPTIONS}")
   SET(src_list ${CONNECT_SOURCES})
   LIST(FIND src_list  domdoc.cpp idx)
   IF(idx GREATER -1)
-    STRING(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     LIST(REMOVE_AT src_list ${idx})
     SET_SOURCE_FILES_PROPERTIES(${src_list} PROPERTIES COMPILE_FLAGS "/MP")
   ENDIF()
@@ -443,14 +444,22 @@ ENDIF()
 
 
 IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
-  # TODO: Find how to compile and install the java wrapper classes
-  # Find required libraries and include directories
   SET (JAVA_SOURCES JdbcInterface.java)
-  add_jar(JdbcInterface ${JAVA_SOURCES})
+  add_jar(JdbcInterface ${JAVA_SOURCES} OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/connect_jars)
+  get_target_property(_jarFile JdbcInterface JAR_FILE)
   INSTALL(FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/JavaWrappers.jar
-    ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
-    DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine)
+    ${_jarFile} DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine-jdbc)
+  IF(CPACK_COMPONENTS_ALL)
+    SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} connect-engine-jdbc PARENT_SCOPE)
+  ENDIF()
+  SET(CPACK_RPM_connect-engine-jdbc_PACKAGE_REQUIRES "jre-headless >= 1.8 MariaDB-connect-engine" PARENT_SCOPE)
+  #how to make it meaningful? SUGGESTS? (mariadb-java-client or mysql-connector-java) ?
+  #SET(CPACK_RPM_connect-engine-jdbc_PACKAGE_RECOMMENDS "mariadb-java-client postgresql-jdbc mysql-connector-java" PARENT_SCOPE)
+  SET(CPACK_RPM_connect-engine-jdbc_PACKAGE_SUMMARY "Connect storage engine JDBC interface" PARENT_SCOPE)
+  SET(CPACK_RPM_connect-engine-jdbc_PACKAGE_DESCRIPTION "Connect storage engine JDBC interface
+used to interact with external DBMS via Java connector" PARENT_SCOPE)
+  # Add file to populate CPACK_RPM_BUILDREQUIRES
+  FIND_FILE(Libjni_h jni.h PATHS ${JAVA_INCLUDE_PATH})
   IF(CONNECT_WITH_MONGO)
     INSTALL(FILES
       ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo2.jar

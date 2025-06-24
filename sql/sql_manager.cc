@@ -75,6 +75,7 @@ pthread_handler_t handle_manager(void *arg __attribute__((unused)))
   struct timespec abstime;
   bool reset_flush_time = TRUE;
   my_thread_init();
+  my_thread_set_name("manager");
   DBUG_ENTER("handle_manager");
 
   pthread_detach_this_thread();
@@ -147,7 +148,7 @@ void start_handle_manager()
     if ((err= mysql_thread_create(key_thread_handle_manager, &hThread,
                                   &connection_attrib, handle_manager, 0)))
     {
-      sql_print_warning("Can't create handle_manager thread (errno: %M)", err);
+      sql_print_warning("Can't create handle_manager thread (errno: %iE)", err);
       DBUG_VOID_RETURN;
     }
 

@@ -1,0 +1,8 @@
+select engine,optimizer_disk_read_ratio from information_schema.optimizer_costs where engine in ("memory","aria","default");
+engine	optimizer_disk_read_ratio
+default	0.900000
+MEMORY	0.300000
+Aria	0.900000
+select @@memory.optimizer_row_lookup_cost;
+@@memory.optimizer_row_lookup_cost
+0.800000

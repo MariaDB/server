@@ -263,7 +263,7 @@ extern HA_KEYSEG *ha_find_null(HA_KEYSEG *keyseg, const uchar *a);
                  returned to the SQL layer.
   2=CHECK_OUT_OF_RANGE - the index tuple is outside of the range that we're
                  scanning. (Example: if we're scanning "t.key BETWEEN 10 AND
-                 20" and got a "t.key=21" tuple) Tthe engine should stop
+                 20" and got a "t.key=21" tuple, the engine should stop
                  scanning and return HA_ERR_END_OF_FILE right away).
   3=CHECK_ABORTED_BY_USER - the engine must stop scanning and should return
                             HA_ERR_ABORTED_BY_USER right away
@@ -281,6 +281,5 @@ typedef enum check_result {
 
 typedef check_result_t (*index_cond_func_t)(void *param);
 typedef check_result_t (*rowid_filter_func_t)(void *param);
-typedef int (*rowid_filter_is_active_func_t)(void *param);
 
 #endif /* _my_compare_h */

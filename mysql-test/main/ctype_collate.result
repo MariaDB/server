@@ -484,8 +484,8 @@ ERROR HY000: Unknown collation: 'koi8r'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `latin1_f` char(32) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `latin1_f` char(32) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW FIELDS FROM  t1;
 Field	Type	Null	Key	Default	Extra
 latin1_f	char(32)	NO		NULL	
@@ -495,7 +495,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `latin1_f` char(32) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW FIELDS FROM  t1;
 Field	Type	Null	Key	Default	Extra
 latin1_f	char(32)	YES		NULL	
@@ -508,13 +508,15 @@ t1	CREATE TABLE `t1` (
 SHOW FIELDS FROM  t1;
 Field	Type	Null	Key	Default	Extra
 latin1_f	char(32)	YES		NULL	
+SET @collation_database=@@collation_database;
+SET @@collation_database=latin1_swedish_ci;
 SET CHARACTER SET 'latin1';
 SHOW VARIABLES LIKE 'character_set_client';
 Variable_name	Value
 character_set_client	latin1
 SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
 charset('a')	collation('a')	coercibility('a')	'a'='A'
-latin1	latin1_swedish_ci	4	1
+latin1	latin1_swedish_ci	6	1
 explain extended SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -525,7 +527,8 @@ SHOW VARIABLES LIKE 'collation_client';
 Variable_name	Value
 SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
 charset('a')	collation('a')	coercibility('a')	'a'='A'
-latin1	latin1_swedish_ci	4	1
+latin1	latin1_swedish_ci	6	1
+SET @@collation_database=@collation_database;
 SET CHARACTER SET 'DEFAULT';
 ERROR 42000: Unknown character set: 'DEFAULT'
 DROP TABLE t1;
@@ -548,6 +551,7 @@ SELECT * FROM t1 WHERE s2 = s3;
 s1	s2	s3
 a	A	A
 DROP TABLE t1;
+set names latin1;
 create table t1 (a varchar(1) character set latin1 collate latin1_general_ci);
 insert into t1 values ('A'),('a'),('B'),('b'),('C'),('c');
 select * from t1 where a > 'B' collate latin1_bin;
@@ -658,7 +662,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` varchar(1) CHARACTER SET latin5 COLLATE latin5_turkish_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select case _latin1'a' when _latin2'b' then 1 when _latin5'c' collate
 latin5_turkish_ci then 2 else 3 end as exp;
@@ -683,7 +687,7 @@ RETURN "Testtext";
 END;//
 SELECT getText(), CHARSET(getText()), COLLATION(getText()), COERCIBILITY(getText());
 getText()	CHARSET(getText())	COLLATION(getText())	COERCIBILITY(getText())
-Testtext	latin1	latin1_swedish_ci	4
+Testtext	latin1	latin1_swedish_ci	6
 CREATE TABLE t1 AS SELECT ' - ' AS a UNION SELECT getText();
 ERROR HY000: Illegal mix of collations for operation 'UNION'
 DROP FUNCTION getText;
@@ -696,7 +700,7 @@ RETURN "Testtext";
 END;//
 SELECT getText(), CHARSET(getText()), COLLATION(getText()), COERCIBILITY(getText());
 getText()	CHARSET(getText())	COLLATION(getText())	COERCIBILITY(getText())
-Testtext	latin1	latin1_german2_ci	4
+Testtext	latin1	latin1_german2_ci	6
 CREATE TABLE t1 AS SELECT ' - ' AS a UNION SELECT getText();
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -714,7 +718,7 @@ RETURN "Testtext";
 END;//
 SELECT getText(), CHARSET(getText()), COLLATION(getText()), COERCIBILITY(getText());
 getText()	CHARSET(getText())	COLLATION(getText())	COERCIBILITY(getText())
-Testtext	latin1	latin1_german2_ci	4
+Testtext	latin1	latin1_german2_ci	6
 CREATE TABLE t1 AS SELECT ' - ' AS a UNION SELECT getText();
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -755,7 +759,7 @@ hex(b)
 explain
 select hex(b) from t1 where b<'zzz' order by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	4	Using where; Using filesort
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	34	NULL	4	Using where; Using filesort
 select hex(b) from t1 where b<'zzz' order by b;
 hex(b)
 00

@@ -16,11 +16,27 @@
 
 #include "mariadb.h"
 
-#ifdef HAVE_SPATIAL
-
 #include "sql_class.h"
 #include "sql_type_geom.h"
 #include "item_geofunc.h"
+
+
+class GeomTypeStr: public BinaryStringBuffer<64>
+{
+public:
+  GeomTypeStr(const Type_handler &th, const Type_geom_attributes &gattr)
+  {
+    append_char('`');
+    append(th.name().lex_cstring());
+    append_char(' ');
+    append(STRING_WITH_LEN("ref_system_id="));
+    append_ulonglong(gattr.get_srid());
+    append_char('`');
+    DBUG_ASSERT(str_length < Alloced_length);
+    Ptr[str_length]= '\0';
+  }
+};
+
 
 Named_type_handler<Type_handler_geometry> type_handler_geometry("geometry");
 Named_type_handler<Type_handler_point> type_handler_point("point");
@@ -256,7 +272,7 @@ Field *Type_handler_geometry::make_conversion_table_field(MEM_ROOT *root,
   const Field_geom *fg= static_cast<const Field_geom*>(target);
   return new (root)
          Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 4, fg->type_handler_geom(), fg->srid);
+                    table->s, 4, fg->type_handler_geom(), *fg);
 }
 
 
@@ -272,7 +288,8 @@ void Type_handler_geometry::
                                               Column_definition *def,
                                               const Field *field) const
 {
-  def->srid= ((Field_geom*) field)->srid;
+  DBUG_ASSERT(dynamic_cast<const Field_geom*>(field));
+  static_cast<const Field_geom*>(field)->Type_geom_attributes::store(def);
 }
 
 
@@ -280,8 +297,7 @@ bool Type_handler_geometry::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr) const
 {
@@ -487,13 +503,14 @@ Field *Type_handler_geometry::make_table_field(MEM_ROOT *root,
 {
   return new (root)
          Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, share, 4, this, 0);
+                    Field::NONE, name, share, 4, this,
+                    Type_geom_attributes(attr.type_extra_attributes()));
 }
 
 
 bool Type_handler_geometry::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const LEX_CSTRING &func_name,
+                                       const LEX_CSTRING &op_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -504,6 +521,24 @@ bool Type_handler_geometry::
   func->decimals= 0;
   func->max_length= (uint32) UINT_MAX32;
   func->set_type_maybe_null(true);
+  Type_extra_attributes *func_eattr= func->type_extra_attributes_addr();
+  if (func_eattr && nitems > 0)
+  {
+    Type_geom_attributes gattr(items[0]->type_extra_attributes());
+    for (uint32 i= 1; i < nitems; i++)
+    {
+      const Type_geom_attributes gattr1(items[i]->type_extra_attributes());
+      if (gattr.join(gattr1))
+      {
+        my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+                 GeomTypeStr(*items[i-1]->type_handler(), gattr).ptr(),
+                 GeomTypeStr(*items[i]->type_handler(), gattr1).ptr(),
+                 op_name.str);
+        return true;
+      }
+    }
+    gattr.store(func_eattr);
+  }
   return false;
 }
 
@@ -661,7 +696,8 @@ Field *Type_handler_geometry::
   return new (root)
     Field_geom(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                attr->unireg_check, name, share,
-               attr->pack_flag_to_pack_length(), this, attr->srid);
+               attr->pack_flag_to_pack_length(), this,
+               Type_geom_attributes(*attr));
 }
 
 
@@ -709,7 +745,7 @@ Type_handler_geometry::
     cbuf[5]= (uchar) def.decimals;
 
     cbuf[6]= FIELDGEOM_SRID;
-    int4store(cbuf + 7, ((uint32) def.srid));
+    int4store(cbuf + 7, Type_geom_attributes(def).get_srid());
 
     cbuf[11]= FIELDGEOM_END;
   }
@@ -776,11 +812,13 @@ bool Type_handler_geometry::
 {
   uint gis_opt_read, gis_length, gis_decimals;
   Field_geom::storage_type st_type;
+  uint32 srid= 0;
   attr->frm_unpack_basic(buffer);
   gis_opt_read= gis_field_options_read(gis_options->str,
                                        gis_options->length,
                                        &st_type, &gis_length,
-                                       &gis_decimals, &attr->srid);
+                                       &gis_decimals, &srid);
+  Type_geom_attributes(srid).store(attr);
   gis_options->str+= gis_opt_read;
   gis_options->length-= gis_opt_read;
   return false;
@@ -970,5 +1008,3 @@ Binlog_type_info Field_geom::binlog_type_info() const
   return Binlog_type_info(Field_geom::type(), pack_length_no_ptr(), 1,
                           field_charset(), type_handler_geom()->geometry_type());
 }
-
-#endif // HAVE_SPATIAL

@@ -1,0 +1,93 @@
+-- source include/have_geometry.inc
+
+if (!$HA_ARCHIVE_SO) {
+  skip Needs Archive plugin;
+}
+
+--echo #
+--echo # MDEV-19177: Geometry support for partition feature
+--echo # Test partition/geometry type cross-compatibility for the 4 storage engines that support
+--echo # geometries (Aria, MyISAM, InnoDB, Archive)
+--echo # Geometries to test - point, multipolygon, geometry collection 
+--echo # Note: Archive does not support additional indices.
+--echo #
+SET @point = Point(3,3);
+SET @poly = MultiPolygon(Polygon(LineString(Point(0, 3), Point(3, 3), Point(3, 0), Point(0, 3))));
+SET @collection = GeometryCollection(Point(1,1), Polygon(LineString(Point(0, 3), Point(3, 3), Point(3, 0), Point(0, 3))));
+
+--source include/have_partition.inc
+
+--echo #
+--echo # Aria engine
+--echo #
+CREATE TABLE t1 (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `geom` geometry NOT NULL,
+        PRIMARY KEY (id),
+        SPATIAL INDEX(geom)
+) Engine=Aria PARTITION BY HASH (id)
+PARTITIONS 10;
+
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MyISAM engine
+--echo #
+CREATE TABLE t1 (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `geom` geometry NOT NULL,
+        PRIMARY KEY (id),
+        SPATIAL INDEX(geom)
+) Engine=myisam PARTITION BY HASH (id)
+PARTITIONS 10;
+
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # InnoDB engine
+--echo #
+--source include/have_innodb.inc
+CREATE TABLE t1 (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `geom` geometry NOT NULL,
+        PRIMARY KEY (id),
+        SPATIAL INDEX(geom)
+) Engine=innodb PARTITION BY HASH (id)
+PARTITIONS 10;
+
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Archive engine
+--echo #
+
+INSTALL SONAME 'ha_archive';
+--error ER_TABLE_CANT_HANDLE_SPKEYS
+CREATE TABLE t1 (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `geom` geometry,
+        SPATIAL INDEX(geom)
+) Engine=archive PARTITION BY HASH (id)
+PARTITIONS 10;
+CREATE TABLE t1 (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `geom` geometry,
+        PRIMARY KEY (id)
+) Engine=archive PARTITION BY HASH (id)
+PARTITIONS 10;
+
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+UNINSTALL SONAME 'ha_archive';
+

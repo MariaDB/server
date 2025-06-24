@@ -2,11 +2,8 @@
 # Some simple test of load data
 #
 
--- source include/have_ucs2.inc
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
+--source include/have_ucs2.inc
+--source include/test_db_charset_latin1.inc
 
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
@@ -36,35 +33,25 @@ drop table t1;
 #
 # Bug #12053 LOAD DATA INFILE ignores NO_AUTO_VALUE_ON_ZERO setting
 #
---disable_ps2_protocol
 SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE=NO_AUTO_VALUE_ON_ZERO;
 create table t1(id integer not null auto_increment primary key);
 insert into t1 values(0);
-disable_query_log;
---disable_cursor_protocol
-eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' from t1;
---enable_cursor_protocol
+evalp SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' from t1;
 delete from t1;
-eval load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t1;
-enable_query_log;
+evalp load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t1;
 select * from t1;
 remove_file $MYSQLTEST_VARDIR/tmp/t1;
 
-disable_query_log;
---disable_cursor_protocol
-eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1'
+evalp SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1'
 FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n'
 FROM t1;
---enable_cursor_protocol
 delete from t1;
-eval load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t1
+evalp load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t1
 FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n';
-enable_query_log;
 select * from t1;
 remove_file $MYSQLTEST_VARDIR/tmp/t1;
 SET @@SQL_MODE=@OLD_SQL_MODE;
 drop table t1;
---enable_ps2_protocol
 
 #
 # Bug #11203: LOAD DATA does not accept same characters for ESCAPED and
@@ -98,11 +85,7 @@ INSERT INTO t1 (c1) VALUES
 SELECT * FROM t1;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' FIELDS ENCLOSED BY 'r' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 cat_file $MYSQLTEST_VARDIR/tmp/t1;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -189,15 +172,9 @@ drop table t1, t2;
 create table t1(f1 int);
 insert into t1 values(1),(null);
 create table t2(f2 int auto_increment primary key);
-disable_query_log;
---disable_cursor_protocol
---disable_ps2_protocol
-eval select * into outfile '$MYSQLTEST_VARDIR/tmp/t1' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
+evalp select * into outfile '$MYSQLTEST_VARDIR/tmp/t1' from t1;
 SET @OLD_SQL_MODE=@@SQL_MODE, @@SQL_MODE=NO_AUTO_VALUE_ON_ZERO;
-eval load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t2;
-enable_query_log;
+evalp load data infile '$MYSQLTEST_VARDIR/tmp/t1' into table t2;
 select * from t2;
 remove_file $MYSQLTEST_VARDIR/tmp/t1;
 SET @@SQL_MODE=@OLD_SQL_MODE;
@@ -210,28 +187,16 @@ drop table t1,t2;
 create table t1(f1 int, f2 timestamp not null default current_timestamp);
 create table t2(f1 int);
 insert into t2 values(1),(2);
-disable_query_log;
---disable_cursor_protocol
---disable_ps2_protocol
-eval select * into outfile '$MYSQLTEST_VARDIR/tmp/t2' from t2;
---enable_ps2_protocol
---enable_cursor_protocol
-eval load data infile '$MYSQLTEST_VARDIR/tmp/t2' ignore into table t1;
-enable_query_log;
+evalp select * into outfile '$MYSQLTEST_VARDIR/tmp/t2' from t2;
+evalp load data infile '$MYSQLTEST_VARDIR/tmp/t2' ignore into table t1;
 select f1 from t1 where f2 <> '0000-00-00 00:00:00' order by f1;
 remove_file $MYSQLTEST_VARDIR/tmp/t2;
 delete from t1;
-disable_query_log;
---disable_cursor_protocol
---disable_ps2_protocol
-eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t2'
+evalp SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t2'
 FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n'
 FROM t2;
---enable_ps2_protocol
---enable_cursor_protocol
-eval load data infile '$MYSQLTEST_VARDIR/tmp/t2' ignore into table t1
+evalp load data infile '$MYSQLTEST_VARDIR/tmp/t2' ignore into table t1
 FIELDS TERMINATED BY '' OPTIONALLY ENCLOSED BY '' LINES TERMINATED BY '\r\n';
-enable_query_log;
 select f1 from t1 where f2 <> '0000-00-00 00:00:00' order by f1;
 remove_file $MYSQLTEST_VARDIR/tmp/t2;
 drop table t1,t2;
@@ -247,11 +212,7 @@ INSERT INTO t1 (c1, c2, c3, c4) VALUES (10, '1970-02-01 01:02:03', 1.1E-100, 1.1
 SELECT * FROM t1;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' FIELDS ENCLOSED BY '-' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 cat_file $MYSQLTEST_VARDIR/tmp/t1;
 echo EOF;
 
@@ -388,12 +349,8 @@ SET @OLD_SQL_MODE=@@SESSION.SQL_MODE;
 
 SET sql_mode = '';
 
---disable_ps2_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
 --eval SELECT '1 \\\\aa\n' INTO DUMPFILE '$file'
---enable_ps2_protocol
---enable_cursor_protocol
 
 CREATE TABLE t1 (id INT, val1 CHAR(3)) ENGINE=MyISAM;
 
@@ -405,21 +362,13 @@ SELECT * FROM t1;
 
 # show we can write this with OUTFILE, forcing the parameters for now
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * INTO OUTFILE '$file2' FIELDS ESCAPED BY '' TERMINATED BY ' ' FROM t1
---enable_ps2_protocol
---enable_cursor_protocol
 --diff_files $file $file2
 --remove_file $file2
 
 # now show the OUTFILE defaults are correct with NO_BACKSLASH_ESCAPES
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * INTO OUTFILE '$file2' FIELDS               TERMINATED BY ' ' FROM t1
---enable_ps2_protocol
---enable_cursor_protocol
 --diff_files $file $file2
 --remove_file $file2
 
@@ -452,11 +401,7 @@ INSERT INTO t1 (id, val1) VALUES (3, '\tx');
 --echo 1.1 NO_BACKSLASH_ESCAPES, use defaults for ESCAPED BY
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS TERMINATED BY ' ' FROM t1 ORDER BY id
---enable_ps2_protocol
---enable_cursor_protocol
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 FIELDS TERMINATED BY ' '
@@ -473,11 +418,7 @@ eval SELECT LOAD_FILE("$file") as exp;
 --echo 1.2 NO_BACKSLASH_ESCAPES, override defaults for ESCAPED BY
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS ESCAPED BY '\' TERMINATED BY ' ' FROM t1 ORDER BY id
---enable_ps2_protocol
---enable_cursor_protocol
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 FIELDS ESCAPED BY '\' TERMINATED BY ' '
@@ -499,11 +440,7 @@ SET sql_mode = '';
 --echo 2.1 !NO_BACKSLASH_ESCAPES, use defaults for ESCAPED BY
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS TERMINATED BY ' ' FROM t1 ORDER BY id
---enable_ps2_protocol
---enable_cursor_protocol
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 FIELDS TERMINATED BY ' '
@@ -526,11 +463,7 @@ SET sql_mode = '';
 --echo 2.2 !NO_BACKSLASH_ESCAPES, override defaults for ESCAPED BY
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS ESCAPED BY '' TERMINATED BY ' ' FROM t1 ORDER BY id
---enable_ps2_protocol
---enable_cursor_protocol
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 FIELDS ESCAPED BY '' TERMINATED BY ' '
@@ -572,11 +505,7 @@ INSERT INTO t1 VALUES (1);
 SET NAMES latin1;
 SET character_set_filesystem=filename;
 select @@character_set_filesystem;
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT * INTO OUTFILE 't-1' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 DELETE FROM t1;
 LOAD DATA INFILE 't-1' INTO TABLE t1;
 SELECT * FROM t1;
@@ -598,11 +527,7 @@ select @@character_set_filesystem;
 --echo #
 
 CREATE TABLE t1(col0 LONGBLOB);
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT 'test' INTO OUTFILE 't1.txt';
---enable_ps2_protocol
---enable_cursor_protocol
 LOAD DATA INFILE 't1.txt' IGNORE INTO TABLE t1 SET col0=col0;
 SELECT * FROM t1;
 
@@ -620,7 +545,7 @@ connect (con1,localhost,root,,test);
 
 CREATE TABLE t1 (id INT NOT NULL);
 --send LOAD DATA LOCAL INFILE 'tb.txt' INTO TABLE t1
-# please keep this is a spearate test file : it's important to have no
+# please keep this is a separate test file : it's important to have no
 # commands after this one
 
 connection default;
@@ -632,7 +557,7 @@ connection default;
 disconnect con1;
 
 #############################################################################
-#           The below protion is moved to ctype_ucs.test                    #
+#           The below portion is moved to ctype_ucs.test                    #
 #############################################################################
 #--echo #
 #--echo # Bug #51876 : crash/memory underrun when loading data with ucs2 
@@ -671,11 +596,7 @@ disconnect con1;
 --echo #
 
 CREATE TABLE t1(f1 INT);
---disable_cursor_protocol
---disable_ps2_protocol
-EVAL SELECT 0xE1BB30 INTO OUTFILE 't1.dat';
---enable_ps2_protocol
---enable_cursor_protocol
+eval SELECT 0xE1BB30 INTO OUTFILE 't1.dat';
 --disable_warnings
 LOAD DATA INFILE 't1.dat' IGNORE INTO TABLE t1 CHARACTER SET utf8;
 --enable_warnings
@@ -689,19 +610,16 @@ remove_file $MYSQLD_DATADIR/test/t1.dat;
 --echo # WHEN ERROR OCCURS
 --echo #
 
---disable_ps2_protocol
 --let $file=$MYSQLTEST_VARDIR/tmp/bug11735141.txt
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---disable_cursor_protocol
 --eval SELECT '1\n' INTO DUMPFILE '$file'
---enable_cursor_protocol
---enable_ps2_protocol
 
 create table t1(a point);
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error ER_CANT_CREATE_GEOMETRY_OBJECT
 --eval LOAD DATA INFILE '$file' INTO TABLE t1
 drop table t1;
+--remove_file $file
 
 --echo End of 5.1 tests
 
@@ -781,17 +699,14 @@ CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (a), UNIQUE(b));
 INSERT INTO t1 VALUES (1,1);
 CREATE TABLE t2 (c INT);
 CREATE VIEW v AS SELECT t1.* FROM t1 JOIN t2;
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT a, b INTO OUTFILE '15645.data' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 --error ER_WRONG_USAGE
 LOAD DATA INFILE '15645.data' IGNORE INTO TABLE v (a,b);
 --error ER_WRONG_USAGE
 LOAD DATA INFILE '15645.data' REPLACE INTO TABLE v (a,b);
 drop table t1,t2;
 drop view v;
+--remove_file $MYSQLD_DATADIR/test/15645.data
 
 
 --echo #
@@ -843,12 +758,8 @@ CREATE OR REPLACE TABLE t1 (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'));
 
---disable_cursor_protocol
---disable_ps2_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 
 CREATE OR REPLACE TABLE t2 LIKE t1;
 
@@ -865,12 +776,8 @@ CREATE OR REPLACE TABLE t1 (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'),"їєі");
---disable_cursor_protocol
---disable_ps2_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
---enable_ps2_protocol
---enable_cursor_protocol
 
 CREATE OR REPLACE TABLE t2 LIKE t1;
 
@@ -894,3 +801,5 @@ select ST_AsText(p), chr from t2;
 drop table t1, t2;
 
 --echo # End of 10.5 tests
+
+--source include/test_db_charset_restore.inc

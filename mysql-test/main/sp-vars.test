@@ -19,6 +19,8 @@ DROP FUNCTION IF EXISTS sp_vars_div_zero;
 
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 ###########################################################################
 #
 # Some general tests for SP-vars functionality.
@@ -1223,13 +1225,13 @@ BEGIN
 END|
 delimiter ;|
 
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1((1, 2));
 
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1((SELECT * FROM t1 LIMIT 1));
 
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1((SELECT col1, col2 FROM t1 LIMIT 1));
 
 #
@@ -1371,7 +1373,7 @@ DROP PROCEDURE p1;
 
 #
 # Bug #27415 Text Variables in stored procedures
-# If the SP varible was also referenced on the right side
+# If the SP variable was also referenced on the right side
 # the result was corrupted.
 #
 DELIMITER |;
@@ -2198,3 +2200,5 @@ DELIMITER ;$$
 --echo #
 --echo # End of MDEV-14347 CREATE PROCEDURE returns no error when using an unknown variable
 --echo #
+
+--source include/test_db_charset_restore.inc

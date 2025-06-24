@@ -968,8 +968,8 @@ CREATE FUNCTION get_value()
   RETURNS TEXT
   DETERMINISTIC
 BEGIN
-  DECLARE col1, col2, col3, col4, col6 CHAR(255);
-  DECLARE default_val VARCHAR(65532);
+  DECLARE col1, col2, col3, col4, col6 CHAR(255) CHARACTER SET latin1;
+  DECLARE default_val VARCHAR(65532) CHARACTER SET latin1;
   DECLARE done INT DEFAULT 0;
   DECLARE cur1 CURSOR FOR SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT, EXTRA FROM INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='bug23037';
   DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' SET done = 1;
@@ -981,7 +981,7 @@ end|
 DELIMITER ;|
 
 let $body=`SELECT REPEAT('A', 65532)`;
-eval CREATE TABLE bug23037(fld1 VARCHAR(65532) CHARACTER SET latin1 DEFAULT "$body");
+eval CREATE TABLE bug23037(fld1 VARCHAR(65532) CHARACTER SET latin1 DEFAULT "$body") CHARACTER SET latin1;
 --enable_query_log
 
 SELECT COLUMN_NAME, MD5(COLUMN_DEFAULT), LENGTH(COLUMN_DEFAULT) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='bug23037';
@@ -2074,7 +2074,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
 --echo #
-create table t1 ( name varchar(64) character set utf8, len int);
+create table t1 ( name varchar(64) character set utf8 collate utf8_general_ci, len int);
 select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
 drop table t1;
 

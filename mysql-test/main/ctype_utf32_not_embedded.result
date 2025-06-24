@@ -8,7 +8,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(8) DEFAULT reverse('aha')
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 INSERT INTO t1 VALUES ();
 SELECT * FROM t1;
 a
@@ -18,7 +18,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` char(8) DEFAULT reverse('åäá')
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 INSERT INTO t2 VALUES ();
 SELECT * FROM t2;
 a
@@ -28,7 +28,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` char(8) DEFAULT reverse('😎😀')
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 INSERT INTO t3 VALUES ();
 SELECT * FROM t3;
 a
@@ -39,7 +39,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` char(8) DEFAULT NULL,
   `b` char(8) GENERATED ALWAYS AS (reverse('😎😀')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 INSERT INTO t4 (a) VALUES ('');
 SELECT * FROM t4;
 a	b
@@ -50,7 +50,7 @@ Table	Create Table
 t5	CREATE TABLE `t5` (
   `a` char(8) DEFAULT NULL,
   `b` char(8) DEFAULT NULL CHECK (`b` = cast(reverse('😎😀') as char charset binary))
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 INSERT INTO t5 VALUES ('','😎😀');
 ERROR 23000: CONSTRAINT `t5.b` failed for `test`.`t5`
 INSERT INTO t5 VALUES ('','😀😎');
@@ -64,7 +64,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(8) DEFAULT reverse('aha')
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 SELECT * FROM t1;
 a
 aha
@@ -72,7 +72,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` char(8) DEFAULT reverse('åäá')
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 SELECT * FROM t2;
 a
 áäå
@@ -80,7 +80,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` char(8) DEFAULT reverse('😎😀')
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 SELECT * FROM t3;
 a
 😀😎
@@ -89,7 +89,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` char(8) DEFAULT NULL,
   `b` char(8) GENERATED ALWAYS AS (reverse('😎😀')) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 SELECT * FROM t4;
 a	b
 	😀😎
@@ -98,7 +98,7 @@ Table	Create Table
 t5	CREATE TABLE `t5` (
   `a` char(8) DEFAULT NULL,
   `b` char(8) DEFAULT NULL CHECK (`b` = cast(reverse('😎😀') as char charset binary))
-) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_uca1400_ai_ci
 SELECT * FROM t5;
 a	b
 	😀😎

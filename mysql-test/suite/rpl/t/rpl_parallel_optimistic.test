@@ -275,7 +275,7 @@ eval SELECT IF($retry1=$retry2, "Ok, no retry",
 SET @old_format= @@GLOBAL.binlog_format;
 # Use MIXED format; we cannot binlog ROW events on slave in STATEMENT format.
 SET GLOBAL binlog_format= MIXED;
-SET @old_isolation= @@GLOBAL.tx_isolation;
+SET @old_isolation= @@GLOBAL.transaction_isolation;
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 # Reset the worker threads to make the new settings take effect.
 SET GLOBAL slave_parallel_threads=0;
@@ -320,7 +320,7 @@ SELECT * FROM t2 ORDER BY a;
 
 --source include/stop_slave.inc
 SET GLOBAL binlog_format= @old_format;
-SET GLOBAL tx_isolation= @old_isolation;
+SET GLOBAL transaction_isolation= @old_isolation;
 --source include/start_slave.inc
 
 
@@ -533,7 +533,7 @@ BEGIN;
 COMMIT;
 
 # First make sure DELETE raced indeed to get stuck at retrying stage
-# where it runs "realistically" now. There is nomore optimistic error
+# where it runs "realistically" now. There is no more optimistic error
 # in the errorlog, which is downgraded to the warning level (when
 # --log-warnings > 1), see above suppression.
 --connection server_2

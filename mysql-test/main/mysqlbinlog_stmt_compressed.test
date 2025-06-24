@@ -28,7 +28,7 @@ DELETE FROM t2;
 
 FLUSH BINARY LOGS;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /mapped to number \d*/mapped to number num/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/ /xid=\d*/xid=<xid>/ /table id \d+/table id <tblid>/ /end_log_pos \d+/end_log_pos <pos>/ /# at \d+/# at <pos>/
+--replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /mapped to number \d*/mapped to number num/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/ /xid=\d*/xid=<xid>/ /thread_id=\d*/thread_id=TID/ /end_log_pos [0-9]*/end_log_pos #/ /table id \d+/table id <tblid>/ /# at \d+/# at <pos>/
 --exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
 
 --echo

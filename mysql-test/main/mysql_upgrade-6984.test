@@ -1,9 +1,9 @@
-#
-# MDEV-6984 Can't migrate from MySQL 5.6.21 to MariaDB 10
-#
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
+--echo #
+--echo # MDEV-6984 Can't migrate from MySQL 5.6.21 to MariaDB 10
+--echo #
 #
 # When 'root' account is password protected and MYSQL_UPGRADE doesn't
 # know the password (meaning, MYSQL_UPGRADE is run automatically
@@ -14,15 +14,17 @@
 
 update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo')) where user='root';
 
---replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
+--replace_regex /[^ ]*mariadb_upgrade_info/...mariadb_upgrade_info/
 --exec $MYSQL_UPGRADE
 
 connect(con1,localhost,root,foo,,,);
 
 update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.authentication_string'))  where user='root';
 flush privileges;
-# Load event table
-set global event_scheduler=OFF;
 
 let MYSQLD_DATADIR= `select @@datadir`;
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+
+# --skip-grant-tables state may changed during the test. Need to restart the server
+# to restore the --skip-grant-tables state. Otherwise MTR's internal check will fail
+--source include/restart_mysqld.inc

@@ -149,6 +149,7 @@ DROP TABLE t2;
 
 CREATE TABLE t2 (i INT, key1 INT, key2 INT, INDEX (key1), INDEX (key2));
 INSERT INTO t2 (key1, key2) SELECT i, i FROM t1;
+INSERT INTO t2 (key1, key2) SELECT i+100, i+100 FROM t1;
 
 FLUSH STATUS;
 SELECT * FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -374,6 +375,7 @@ DROP TABLE t2;
 
 CREATE TABLE t2 (i INT, key1 INT, key2 INT, INDEX (key1), INDEX (key2));
 INSERT INTO t2 (key1, key2) SELECT i, i FROM t1;
+INSERT INTO t2 (key1, key2) SELECT i+100, i+100 FROM t1;
 
 FLUSH STATUS;
 SELECT * FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;

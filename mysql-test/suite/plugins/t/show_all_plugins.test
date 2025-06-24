@@ -5,7 +5,7 @@ if (!$LIBDAEMON_EXAMPLE_SO) { skip requires libdaemon_examples.so; }
 if (!$EXAMPLE_KEY_MANAGEMENT_SO) { skip requires example_key_management.so; }
 if (`SELECT VERSION() LIKE '%embedded%'`) { skip Disabled for embedded until MDEV-8664 is resolved; }
 
-flush status;
+flush global status;
 show status like '%libraries%';
 #--sorted_result
 #select * from information_schema.all_plugins;

@@ -1,0 +1,11 @@
+#
+# MDEV-32525 Server startup fails to validate invalid redirect_url
+#
+FOUND 1 /\[ERROR\].*Invalid redirect_url: mariadbaaa://test/ in mdev_32525.err
+# restart
+select @@redirect_url;
+@@redirect_url
+
+#
+# end of test mdev_32525
+#

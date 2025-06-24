@@ -23,8 +23,10 @@ create table t2 (a timestamp);
 
 --connection slave
 
-set global explicit_defaults_for_timestamp=1;
-reset slave;
+set global explicit_defaults_for_timestamp=0;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
+
 --source include/start_slave.inc
 --sync_with_master
 show create table t1;
@@ -34,8 +36,10 @@ select * from t1;
 drop table t1;
 --source include/stop_slave.inc
 
-set global explicit_defaults_for_timestamp=0;
-reset slave;
+set global explicit_defaults_for_timestamp=1;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
+
 --source include/start_slave.inc
 --sync_with_master
 show create table t1;

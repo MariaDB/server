@@ -20,8 +20,6 @@ else
 select '' as "SUCCESS";
 end if;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set @reprepare_count= 0;
 flush status;
 drop table if exists t1;

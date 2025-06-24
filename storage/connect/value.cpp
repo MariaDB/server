@@ -277,6 +277,7 @@ const char *GetFmt(int type, bool un)
     case TYPE_BIGINT: fmt = (un) ? "%llu" : "%lld"; break;
     case TYPE_DOUBLE: fmt = "%.*lf";                break;
     case TYPE_BIN:    fmt = "%*x";                  break;
+    case TYPE_DATE:   fmt = "%llu";                 break;
     default:          fmt = (un) ? "%u" : "%d";     break;
   } // endswitch Type
 
@@ -533,6 +534,7 @@ const char *VALUE::GetXfmt(void)
     case TYPE_BIGINT: fmt = (Unsigned) ? "%*llu" : "%*lld"; break;
     case TYPE_DOUBLE: fmt = "%*.*lf";                       break;
     case TYPE_BIN:    fmt = "%*x";                          break;
+    case TYPE_DATE:   fmt = "%*lld";                        break;
     default:          fmt = (Unsigned) ? "%*u" : "%*d";     break;
     } // endswitch Type
 
@@ -1773,7 +1775,7 @@ DECVAL::DECVAL(PGLOBAL g, PSZ s, int n, int prec, bool uns)
 } // end of DECVAL constructor
 
 /***********************************************************************/
-/*  DECIMAL: Check whether the numerica value is equal to 0.           */
+/*  DECIMAL: Check whether the numerical value is equal to 0.          */
 /***********************************************************************/
 bool DECVAL::IsZero(void)
 {
@@ -2353,7 +2355,7 @@ bool BINVAL::SetConstFormat(PGLOBAL, FORMAT& fmt)
 /*  DTVAL  public constructor for new void values.                     */
 /***********************************************************************/
 DTVAL::DTVAL(PGLOBAL g, int n, int prec, PCSZ fmt)
-     : TYPVAL<int>((int)0, TYPE_DATE)
+  : TYPVAL<dtval_timestamp_t>(0, TYPE_DATE)
 {
   if (!fmt) {
     Pdtp = NULL;
@@ -2369,7 +2371,7 @@ DTVAL::DTVAL(PGLOBAL g, int n, int prec, PCSZ fmt)
 /***********************************************************************/
 /*  DTVAL  public constructor from int.                                */
 /***********************************************************************/
-DTVAL::DTVAL(int n) : TYPVAL<int>(n, TYPE_DATE)
+DTVAL::DTVAL(int n) : TYPVAL<dtval_timestamp_t>(n, TYPE_DATE)
 {
   Pdtp = NULL;
   Len = 19;
@@ -2462,15 +2464,14 @@ struct tm *DTVAL::GetGmTime(struct tm *tm_buffer)
   time_t t = (time_t)Tval;
 
   if (Tval < 0) {
-    int    n;
-
+    longlong   n;
     for (n = 0; t < 0; n += 4)
       t += FOURYEARS;
 
     datm = gmtime_mysql(&t, tm_buffer);
 
     if (datm)
-      datm->tm_year -= n;
+      datm->tm_year -= (int) n;
 
   } else
     datm = gmtime_mysql(&t, tm_buffer);
@@ -2521,10 +2522,10 @@ bool DTVAL::MakeTime(struct tm *ptm)
 
   } // endif t
 
-  Tval= (int) t;
+  Tval= (dtval_timestamp_t) t;
 
   if (trace(2))
-    htrc("MakeTime Ival=%d\n", Tval);
+    htrc("MakeTime Ival=%lld\n", (longlong) Tval);
 
   return false;
 } // end of MakeTime
@@ -2646,7 +2647,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 				// Assuming that this timestamp is in milliseconds
 				SetValue((int)(valp->GetBigintValue() / 1000));
 			}	else
-        SetValue(valp->GetIntValue());
+        SetValue(valp->GetBigintValue());
 
     } else
       Reset();
@@ -2688,7 +2689,7 @@ bool DTVAL::SetValue_char(const char *p, int n)
 
     Null = (Nullable && ndv == 0);
   } else {
-    rc = TYPVAL<int>::SetValue_char(p, n);
+    rc = TYPVAL<dtval_timestamp_t>::SetValue_char(p, n);
     Null = (Nullable && Tval == 0);
   } // endif Pdtp
 
@@ -2711,11 +2712,11 @@ void DTVAL::SetValue_psz(PCSZ p)
     MakeDate(NULL, dval, ndv);
 
     if (trace(2))
-      htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
+      htrc(" setting date: '%s' -> %lld\n", Sdate, (longlong) Tval);
 
     Null = (Nullable && ndv == 0);
   } else {
-    TYPVAL<int>::SetValue_psz(p);
+    TYPVAL<dtval_timestamp_t>::SetValue_psz(p);
     Null = (Nullable && Tval == 0);
   } // endif Pdtp
 
@@ -2740,7 +2741,7 @@ void DTVAL::SetValue_pvblk(PVBLK blk, int n)
 /***********************************************************************/
 /*  DTVAL SetValue: get date as an integer.                            */
 /***********************************************************************/
-void DTVAL::SetValue(int n)
+void DTVAL::SetValue(dtval_timestamp_t n)
 {
   Tval = n;
 
@@ -2774,7 +2775,7 @@ char *DTVAL::GetCharString(char *p)
 
     return Sdate;
   } else
-    sprintf(p, "%d", Tval);
+    sprintf(p, "%lld", (longlong) Tval);
 
 //Null = false;                      ??????????????
   return p;
@@ -2806,7 +2807,7 @@ int DTVAL::ShowValue(char *buf, int len)
 			*buf = '\0';               // DEFAULT VALUE ???
 
   } else
-    rv = TYPVAL<int>::ShowValue(buf, len);
+    rv = TYPVAL<dtval_timestamp_t>::ShowValue(buf, len);
 
 	return rv;
 } // end of ShowValue
@@ -2887,5 +2888,36 @@ bool DTVAL::FormatValue(PVAL vp, PCSZ fmt)
     return true;
 
 } // end of FormatValue
+
+
+void DTVAL::SetBinValue(void* p)
+{
+#if defined(UNALIGNED_OK)
+	// x86 can cast non-aligned memory directly
+	Tval = *(int *)p;
+#else
+        int tmp;
+	memcpy(&tmp, p, sizeof(tmp));
+        Tval= tmp;
+#endif
+	Null = false;
+} // end of SetBinValue
+
+
+bool DTVAL::GetBinValue(void *buf, int buflen, bool go)
+{
+  if (go)
+#if defined(UNALIGNED_OK)
+    // x86 can cast non-aligned memory directly
+    *(int *)buf = (int) Tval;
+#else
+  {
+    int tmp= (int) Tval;
+    memcpy(buf, &tmp, sizeof(tmp));
+  }
+#endif
+  Null = false;
+  return false;
+} // end of GetBinValue
 
 /* -------------------------- End of Value --------------------------- */

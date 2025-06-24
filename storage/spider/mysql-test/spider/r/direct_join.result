@@ -48,11 +48,17 @@ c DATETIME DEFAULT '1999-10-10 10:10:10',
 PRIMARY KEY(a),
 KEY idx1(b)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_b (
 a INT DEFAULT 10,
 b CHAR(1) DEFAULT 'c',
 c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT5_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE tbl_c (
 a INT AUTO_INCREMENT,
 b INT DEFAULT 10,
@@ -61,6 +67,9 @@ PRIMARY KEY(a),
 KEY idx1(b),
 KEY idx2(c)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
 insert into tbl_c values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500);
@@ -106,6 +115,9 @@ region INT(11) NOT NULL,
 PRIMARY KEY (id, region) USING BTREE
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE_JOIN
 MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE_JOIN
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_person
 Table	Create Table
 tbl_person	CREATE TABLE `tbl_person` (
@@ -114,7 +126,7 @@ tbl_person	CREATE TABLE `tbl_person` (
   `region_code` varchar(50) DEFAULT NULL,
   `region` int(11) NOT NULL,
   PRIMARY KEY (`id`,`region`) USING BTREE
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci ROW_FORMAT=DYNAMIC COMMENT='table "tbl_ncd_cm_person"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci ROW_FORMAT=DYNAMIC COMMENT='table "tbl_ncd_cm_person"'
  PARTITION BY LIST  COLUMNS(`region`)
 (PARTITION `pt1` VALUES IN (510411) COMMENT = 'tbl "tbl_person", srv "s_2_1"' ENGINE = SPIDER)
 CREATE TABLE tbl_ncd_cm_person (
@@ -125,6 +137,8 @@ region INT(11) NOT NULL,
 PRIMARY KEY (id, region) USING BTREE
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE2_JOIN
 MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE2_JOIN
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SHOW CREATE TABLE tbl_ncd_cm_person
 Table	Create Table
 tbl_ncd_cm_person	CREATE TABLE `tbl_ncd_cm_person` (
@@ -133,7 +147,7 @@ tbl_ncd_cm_person	CREATE TABLE `tbl_ncd_cm_person` (
   `diseaseKind_id` varchar(50) DEFAULT NULL,
   `region` int(11) NOT NULL,
   PRIMARY KEY (`id`,`region`) USING BTREE
-) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci ROW_FORMAT=DYNAMIC
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci ROW_FORMAT=DYNAMIC
  PARTITION BY LIST  COLUMNS(`region`)
 (PARTITION `pt1` VALUES IN (510411) COMMENT = 'tbl "tbl_ncd_cm_person", srv "s_2_1"' ENGINE = SPIDER)
 INSERT INTO tbl_person VALUES ('24FC3F0A5119432BAE13DD65AABAA39C',

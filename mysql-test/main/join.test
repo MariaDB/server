@@ -253,7 +253,7 @@ CREATE TABLE t2 (
   PRIMARY KEY  (id)
 ) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1,'s1'),(2,'s2'),(3,'s3'),(4,'s4'),(5,'s5');
-select t1.*, t2.*  from t1, t2 where t2.id=t1.t2_id limit 2;
+select straight_join t1.*, t2.*  from t2, t1 where t2.id=t1.t2_id limit 2;
 drop table t1,t2;
 
 #
@@ -470,7 +470,7 @@ select * from (t1, t2) join (t3, t4) on (a < y and t2.b < t3.c);
 select * from (t1 natural join t2) join (t3 natural join t4) on a = y;
 select * from ((t3 join (t1 join t2 on c > a) on t3.b < t2.a) join t4 on y > t1.c) join t5 on z = t1.b + 3;
 
-# MySQL extension - refererence qualified coalesced columns
+# MySQL extension - reference qualified coalesced columns
 select * from t1 natural join t2 where t1.b > 0;
 select * from t1 natural join (t4 natural join t5) where t4.y > 7;
 select * from (t4 natural join t5) natural join t1 where t4.y > 7;
@@ -689,24 +689,25 @@ drop table t1, t2, t3;
 
 # BUG#14940 {Wrong query plan is chosen because of odd results of
 # prev_record_reads() function }
-create table t1 (a int); 
+create table t1 (a int) engine=myisam;
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 create table t2 (a int, b int, primary key(a));
 insert into t2 select @v:=A.a+10*B.a, @v  from t1 A, t1 B;
 
 explain select * from t1;
-show status like '%cost%';
+show status like 'Last_query_cost';
 select 'The cost of accessing t1 (dont care if it changes' '^';
 
 select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 
+select @@myisam.optimizer_disk_read_ratio;
+set global myisam.optimizer_disk_read_ratio=0;
 explain select * from t1, t2 A, t2 B where A.a = t1.a and B.a=A.b;
-show status like '%cost%';
-select '^^: The above should be ~= 20 + cost(select * from t1). Value less than 20 is an error' Z;
-
-
-
+show status like 'Last_query_cost';
+select '^^: The above should be ~= 40 + cost(select * from t1). Value less than 40 is an error' Z;
+set global myisam.optimizer_disk_read_ratio=default;
+select @@myisam.optimizer_disk_read_ratio;
 drop table t1, t2;
 
 #
@@ -962,6 +963,9 @@ INSERT INTO t1 VALUES (3,'b'),(4,NULL),(5,'c'),(6,'cc'),(7,'d'),
 INSERT INTO t2 VALUES (2,NULL);
 ANALYZE TABLE t1,t2;
 --disable_cursor_protocol
+# This will ensure that status tables are read now and not part of the later
+# Handler_read% counts
+explain SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
 FLUSH STATUS;
 --disable_ps2_protocol
 SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
@@ -1950,7 +1954,6 @@ create table t2 (
 );
 insert into t2 select seq from seq_1_to_10000;
 
-set optimizer_adjust_secondary_key_costs='fix_reuse_range_for_ref';
 --echo # This must use this good query plan:
 --echo #  t0 - ALL
 --echo #  t1 - ref, key=key1, not PRIMARY as pk1=1 is true for 20% of all rows
@@ -1960,19 +1963,8 @@ where
   t1.pk1=1 and t1.pk2=t2.col and t1.pk3=t0.dummy and
   t1.key1=t0.b;
 
-set optimizer_adjust_secondary_key_costs='';
---echo # Bad query:
---echo #  t0 - ALL
---echo #  t1 - ref, key=PRIMARY
---echo #  t2 - ALL
-explain select * from t0, t1, t2
-where
-  t1.pk1=1 and t1.pk2=t2.col and t1.pk3=t0.dummy and
-  t1.key1=t0.b;
-
 drop table t0,t1,t2;
 
-set @@optimizer_adjust_secondary_key_costs="fix_reuse_range_for_ref";
 CREATE OR REPLACE TABLE t1 (a INT NOT NULL, b INT NOT NULL, c INT, key(a,b,c)) ENGINE=Aria;
 INSERT INTO t1 select seq/10,mod(seq,2),seq from seq_1_to_1000;
 update t1 set a=10 WHERE c < 100;
@@ -1984,8 +1976,6 @@ explain select count(*) from t1, t2 as seq where a=10 and b=seq.seq;
 # This will execute code in ReuseRangeEstimateForRef-4
 explain select count(*) from t1, t2 as seq where a=11 and b=seq.seq;
 drop table t1,t2;
-
-set @@optimizer_adjust_secondary_key_costs=default;
 
 --echo #
 --echo # MDEV-35180: ref_to_range rewrite causes poor query plan
@@ -2015,3 +2005,44 @@ where
   t2.kp1=t1.a and t2.kp1<=100 and t2.kp2<=20;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-36592: If the join_condition is specified via USING (column_list), the query plan depends ...
+--echo #
+CREATE TABLE t1 (
+  id int(11),
+  f1 char(255),
+  PRIMARY KEY  (id)
+);
+INSERT INTO t1 (id) VALUES (1),(2),(3);
+UPDATE t1 SET f1=REPEAT('a',250);
+
+CREATE TABLE t2 (id  int(11), f2 INT NOT NULL);
+INSERT INTO t2 select seq, seq from seq_1_to_20;
+
+ANALYZE TABLE t1, t2;
+
+--echo # In both queries, t1 should use type=index, not type=ALL:
+EXPLAIN SELECT count(*) FROM t2 JOIN t1 USING (id);
+EXPLAIN SELECT count(*) FROM t1 JOIN t2 USING (id);
+
+DROP TABLE t1,t2;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-30256 Wrong result (missing rows) upon join with empty table
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c INT PRIMARY KEY);
+EXPLAIN SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON (t2.b >= t3.c) ON (t1.a < t2.b);
+SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON (t2.b >= t3.c) ON (t1.a < t2.b);
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -130,7 +130,6 @@ trx_sysf_get_n_rseg_slots()
 /** Initialize the transaction system when creating the database. */
 dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
 {
-  mtr->start();
   mtr->x_lock_space(fil_system.sys_space);
   static_assert(TRX_SYS_SPACE == 0, "compatibility");
 
@@ -139,11 +138,7 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   buf_block_t *block= fseg_create(fil_system.sys_space,
                                   TRX_SYS + TRX_SYS_FSEG_HEADER, mtr, &err);
   if (UNIV_UNLIKELY(!block))
-  {
-  error:
-    mtr->commit();
     return err;
-  }
   ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
   mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
@@ -163,9 +158,8 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   buf_block_t *r= trx_rseg_header_create(fil_system.sys_space, 0, 0,
                                          mtr, &err);
   if (UNIV_UNLIKELY(!r))
-    goto error;
+    return err;
   ut_a(r->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
-  mtr->commit();
 
   return trx_lists_init_at_db_start();
 }
@@ -254,7 +248,7 @@ bool trx_sys_t::find_same_or_older_low(trx_t *trx, trx_id_t id) noexcept
 @param space_id   system or undo tablespace id
 @return pointer to new rollback segment
 @retval nullptr  on failure */
-static trx_rseg_t *trx_rseg_create(ulint space_id)
+static trx_rseg_t *trx_rseg_create(uint32_t space_id)
 {
   trx_rseg_t *rseg= nullptr;
   mtr_t mtr;
@@ -317,11 +311,11 @@ bool trx_sys_create_rsegs()
 	in the system tablespace. */
 	ut_a(srv_available_undo_logs > 0);
 
-	for (ulint i = 0; srv_available_undo_logs < TRX_SYS_N_RSEGS;
+	for (uint32_t i = 0; srv_available_undo_logs < TRX_SYS_N_RSEGS;
 	     i++, srv_available_undo_logs++) {
 		/* Tablespace 0 is the system tablespace.
 		Dedicated undo log tablespaces start from 1. */
-		ulint space = srv_undo_tablespaces > 0
+		uint32_t space = srv_undo_tablespaces > 0
 			? (i % srv_undo_tablespaces)
 			+ srv_undo_space_id_start
 			: TRX_SYS_SPACE;
@@ -335,10 +329,9 @@ bool trx_sys_create_rsegs()
 		/* Increase the number of active undo
 		tablespace in case new rollback segment
 		assigned to new undo tablespace. */
-		if (space > srv_undo_tablespaces_active) {
+		if (space > (srv_undo_space_id_start
+			     + srv_undo_tablespaces_active - 1)) {
 			srv_undo_tablespaces_active++;
-
-			ut_ad(srv_undo_tablespaces_active == space);
 		}
 	}
 
@@ -409,3 +402,21 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
 
   return total_trx;
 }
+
+#ifndef EMBEDDED_LIBRARY
+/** @return true if any active (non-prepared) transactions is recovered */
+bool trx_sys_t::any_active_transaction_recovered()
+{
+  return trx_sys.trx_list.find_first([&](trx_t &trx)
+  {
+    if (trx.state != TRX_STATE_ACTIVE)
+      return false;
+
+    bool found= false;
+    trx.mutex_lock();
+    found= trx.is_recovered;
+    trx.mutex_unlock();
+    return found;
+  });
+}
+#endif

@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/innodb_row_format.inc
+--source include/test_db_charset_latin1.inc
 
 CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB;
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
@@ -79,3 +80,5 @@ ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=COPY;
 DROP TABLE t;
 TRUNCATE tt;
 SET GLOBAL innodb_compression_level=@save_level;
+
+--source include/test_db_charset_restore.inc

@@ -31,6 +31,7 @@ ENDIF()
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/sql
+  ${CMAKE_SOURCE_DIR}/storage/maria
   ${CMAKE_CURRENT_SOURCE_DIR}/quicklz
   ${CMAKE_CURRENT_SOURCE_DIR}
   )
@@ -48,6 +49,7 @@ ADD_DEFINITIONS(-UMYSQL_SERVER)
 
 ADD_DEFINITIONS(-DPCRE_STATIC=1)
 ADD_DEFINITIONS(${SSL_DEFINES})
+
 MYSQL_ADD_EXECUTABLE(mariadb-backup
   xtrabackup.cc
   innobackupex.cc
@@ -68,15 +70,20 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   backup_copy.cc
   encryption_plugin.cc
   ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
+  aria_backup_client.cc
+  thread_pool.cc
+  ddl_log.cc
+  common_engine.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
-  COMPONENT backup
+  COMPONENT Backup
   )
 
 # Export all symbols on Unix, for better crash callstacks
 SET_TARGET_PROPERTIES(mariadb-backup PROPERTIES ENABLE_EXPORTS TRUE)
 
-TARGET_LINK_LIBRARIES(mariadb-backup sql sql_builtins)
+TARGET_LINK_LIBRARIES(mariadb-backup  sql sql_builtins aria)
+
 IF(NOT HAVE_SYSTEM_REGEX)
   TARGET_LINK_LIBRARIES(mariadb-backup pcre2-posix)
 ENDIF()
@@ -93,7 +100,7 @@ MYSQL_ADD_EXECUTABLE(mbstream
   xbstream.cc
   xbstream_read.cc
   xbstream_write.cc
-  COMPONENT backup
+  COMPONENT Backup
   )
 
 

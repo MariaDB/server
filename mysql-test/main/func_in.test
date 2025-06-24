@@ -186,7 +186,7 @@ drop table t2;
 #
 # Repeat the test for CHAR(N)
 #
-create table t2 (a varchar(10), filler char(200), key(a));
+create table t2 (a varchar(10), filler char(200), key(a)) charset=latin1;
 
 insert into t2 select 'foo', 'no' from t1 A, t1 B;
 insert into t2 select 'barbar', 'no' from t1 A, t1 B;
@@ -387,7 +387,7 @@ DROP TABLE t1;
 #
 # Bug#18360: Type aggregation for IN and CASE may lead to a wrong result 
 #
-create table t1(f1 char(1));
+create table t1(f1 char(1)) charset=latin1;
 insert into t1 values ('a'),('b'),('1');
 select f1 from t1 where f1 in ('a',1);
 select f1, case f1 when 'a' then '+' when 1 then '-' end from t1;
@@ -478,7 +478,7 @@ CREATE TABLE t1 (
   c_char CHAR(10) NOT NULL,
   INDEX(c_int), INDEX(c_decimal), INDEX(c_float), INDEX(c_bit), INDEX(c_date),
   INDEX(c_datetime), INDEX(c_timestamp), INDEX(c_time), INDEX(c_year),
-  INDEX(c_char));
+  INDEX(c_char)) CHARSET=latin1;
 
 INSERT IGNORE INTO t1 (c_int) VALUES (1), (2), (3), (4), (5);
 INSERT IGNORE INTO t1 (c_int) SELECT 0 FROM t1;
@@ -570,7 +570,7 @@ SELECT 1 IN (YEAR(FROM_UNIXTIME(NULL)) ,1);
 --echo #
 
 CREATE TABLE t1 (a INT);
-PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
+PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @a:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
 EXECUTE s;
 
 DROP TABLE t1;
@@ -598,15 +598,6 @@ select * from t1 where a='2.1';
 select * from t1 where b='2.1'; 
 select * from t1 where IF(1,a,a)='2.1'; 
 drop table t1;
---echo #
---echo # LP bug#992380 Crash when creating PS for a query with
---echo # subquery in WHERE (see also mysql bug#13012483)
---echo #
-CREATE TABLE t1 (a INT);
-PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
-EXECUTE s;
-
-DROP TABLE t1;
 
 --echo #
 --echo # End of 5.3 tests
@@ -856,7 +847,7 @@ SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
 EXPLAIN SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
 --enable_warnings
 
-CREATE TABLE t2 (a INT, b VARCHAR(10), PRIMARY KEY(a,b));
+CREATE TABLE t2 (a INT, b VARCHAR(10), PRIMARY KEY(a,b)) CHARSET=latin1;
 INSERT INTO t2 VALUES (1,'abc'),(2,'def'),(3,'ghi');
 SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
 --echo # 'const' access due to conversion to equality

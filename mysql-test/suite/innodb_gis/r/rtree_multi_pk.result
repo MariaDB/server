@@ -11,11 +11,11 @@ test.t1	analyze	status	OK
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 explain select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	g	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	g	g	34	NULL	5	Using where
 select ST_astext(t1.g) from t1 where MBRWithin(t1.g, @g1);
 ST_astext(t1.g)
-POINT(1 1)
 POINT(1.5 1.5)
+POINT(1 1)
 set @g1 = ST_GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0))');
 delete from t1 where MBRWithin(t1.g, @g1);
 check table t1;
@@ -63,10 +63,10 @@ name	ST_AsText(square)
 small	POLYGON((0 0,0 1,1 1,1 0,0 0))
 SELECT name, ST_AsText(square) from t1 where MBRDisjoint(@p, square);
 name	ST_AsText(square)
-up3	POLYGON((0 3,0 5,2 5,2 3,0 3))
 down3	POLYGON((0 -3,0 -1,2 -1,2 -3,0 -3))
-right3	POLYGON((3 0,3 2,5 2,5 0,3 0))
 left3	POLYGON((-3 0,-3 2,-1 2,-1 0,-3 0))
+right3	POLYGON((3 0,3 2,5 2,5 0,3 0))
+up3	POLYGON((0 3,0 5,2 5,2 3,0 3))
 SELECT name, ST_AsText(square) from t1 where MBREquals(@p, square);
 name	ST_AsText(square)
 SELECT name, ST_AsText(square) from t1 where MBRIntersects(@p, square);
@@ -137,6 +137,6 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`i`),
   SPATIAL KEY `idx` (`g`),
   SPATIAL KEY `idx2` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop index idx on t1;
 drop table t1;

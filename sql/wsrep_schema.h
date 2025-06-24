@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2024 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -124,7 +124,7 @@ class Wsrep_schema
 
   /**
      Recover streaming transactions from SR table.
-     This method should be called after storage enignes are initialized.
+     This method should be called after storage engines are initialized.
      It will scan SR table and replay found streaming transactions.
 
      @param orig_thd The THD object of the calling thread.
@@ -143,6 +143,27 @@ class Wsrep_schema
   */
   int store_gtid_event(THD* thd, const Gtid_log_event *gtid);
 
+  /**
+     Delete all rows on bootstrap from `wsrep_allowlist` variable
+  */
+  void clear_allowlist();
+
+  /**
+     Store allowlist ip on bootstrap from `wsrep_allowlist` variable
+  */
+  void store_allowlist(std::vector<std::string>& ip_allowlist);
+
+  /**
+     Scan white list table against accepted connection. Allow if ip
+     is found in table or if table is empty.
+
+     @param key   Which allowlist column to compare
+     @param value Value to be checked against allowlist
+     
+     @return True if found or empty table, false on not found 
+  */
+  bool allowlist_check(Wsrep_allowlist_key key, const std::string& val);
+
  private:
   /* Non-copyable */
   Wsrep_schema(const Wsrep_schema&);
@@ -151,9 +172,9 @@ class Wsrep_schema
 
 extern Wsrep_schema* wsrep_schema;
 
-extern LEX_CSTRING WSREP_LEX_SCHEMA;
 extern LEX_CSTRING WSREP_LEX_STREAMING;
 extern LEX_CSTRING WSREP_LEX_CLUSTER;
 extern LEX_CSTRING WSREP_LEX_MEMBERS;
+extern LEX_CSTRING WSREP_LEX_ALLOWLIST;
 
 #endif /* !WSREP_SCHEMA_H */

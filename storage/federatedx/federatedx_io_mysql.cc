@@ -39,11 +39,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mysqld_error.h"
 #include "sql_servers.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
-
 #define SAVEPOINT_REALIZED  1
 #define SAVEPOINT_RESTRICT  2
 #define SAVEPOINT_EMITTED 4
@@ -75,7 +70,8 @@ public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
   ~federatedx_io_mysql() override;
 
-  int simple_query(const char *fmt, ...);
+  // 1st arg is the implicit `this`
+  int simple_query(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 2, 3);
   int query(const char *buffer, size_t length) override;
   FEDERATEDX_IO_RESULT *store_result() override;
 
@@ -212,7 +208,7 @@ ulong federatedx_io_mysql::last_savepoint() const
 ulong federatedx_io_mysql::actual_savepoint() const
 {
   SAVEPT *savept= NULL;
-  uint index= savepoints.elements;
+  size_t index= savepoints.elements;
   DBUG_ENTER("federatedx_io_mysql::last_savepoint");
 
   while (index)
@@ -286,7 +282,7 @@ ulong federatedx_io_mysql::savepoint_release(ulong sp)
 ulong federatedx_io_mysql::savepoint_rollback(ulong sp)
 {
   SAVEPT *savept;
-  uint index;
+  size_t index;
   DBUG_ENTER("federatedx_io_mysql::savepoint_release");
   DBUG_PRINT("info",("savepoint=%lu", sp));
   
@@ -321,7 +317,7 @@ ulong federatedx_io_mysql::savepoint_rollback(ulong sp)
 void federatedx_io_mysql::savepoint_restrict(ulong sp)
 {
   SAVEPT *savept;
-  uint index= savepoints.elements;
+  size_t index= savepoints.elements;
   DBUG_ENTER("federatedx_io_mysql::savepoint_restrict");
   
   while (index)
@@ -361,7 +357,7 @@ bool federatedx_io_mysql::test_all_restrict() const
 {
   bool result= FALSE;
   SAVEPT *savept;
-  uint index= savepoints.elements;
+  size_t index= savepoints.elements;
   DBUG_ENTER("federatedx_io_mysql::test_all_restrict");
   
   while (index)
@@ -429,6 +425,7 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
   if (!mysql.net.vio)
   {
     my_bool my_true= 1;
+    my_bool my_false= 0;
 
     if (!(mysql_init(&mysql)))
       DBUG_RETURN(-1);
@@ -440,15 +437,11 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
     */
     /* this sets the csname like 'set names utf8' */
     mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, get_charsetname());
-    mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                  (char*) &my_true);
+    mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+    mysql_options(&mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
-    if (!mysql_real_connect(&mysql,
-                            get_hostname(),
-                            get_username(),
-                            get_password(),
-                            get_database(),
-                            get_port(),
+    if (!mysql_real_connect(&mysql, get_hostname(), get_username(),
+                            get_password(), get_database(), get_port(),
                             get_socket(), 0))
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
 

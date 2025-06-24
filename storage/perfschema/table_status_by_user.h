@@ -93,7 +93,7 @@ class table_status_by_user_context : public PFS_table_context
 {
 public:
   table_status_by_user_context(ulonglong current_version, bool restore) :
-    PFS_table_context(current_version, global_user_container.get_row_count(), restore, THR_PFS_SBU) { }
+    PFS_table_context(current_version, global_user_container.get_row_count(), restore, &THR_PFS_SBU) { }
 };
 
 /** Table PERFORMANCE_SCHEMA.STATUS_BY_USER. */

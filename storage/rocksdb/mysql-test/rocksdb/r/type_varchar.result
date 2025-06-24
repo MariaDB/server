@@ -15,14 +15,14 @@ v1 VARCHAR(1) ,
 v64 VARCHAR(64) ,
 v65000 VARCHAR(65000) ,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -147,7 +147,7 @@ create table t1 (
 pk varchar(64) CHARACTER SET latin1 COLLATE latin1_bin,
 col1 varchar(64),
 primary key (pk)
-);
+) charset=latin1;
 insert into t1 values ('a','a');
 insert into t1 values ('a ', 'a-space');
 ERROR 23000: Duplicate entry 'a ' for key 'PRIMARY'
@@ -184,7 +184,7 @@ pk int not null primary key,
 col1 varchar(64) CHARACTER SET latin1 COLLATE latin1_bin,
 col2 varchar(64),
 key (col1)
-);
+) charset=latin1;
 insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
@@ -239,7 +239,7 @@ pk	col1	hex(col1)	length(col1)
 23	                  	202020202020202020202020202020202020	18
 14	                a	2020202020202020202020202020202061	17
 drop table t1;
-create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb;
+create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb charset=latin1;
 insert into t1 values (1, concat('a', repeat(' ', 300)));
 insert into t1 values (2, concat('b', repeat(' ', 300)));
 select pk,length(a) from t1 force index(a) where a < 'zz';
@@ -263,7 +263,7 @@ create table t1 (
 pk varchar(64) CHARACTER SET utf8 COLLATE utf8_bin,
 col1 varchar(64),
 primary key (pk)
-);
+) charset=latin1;
 insert into t1 values ('a','a');
 insert into t1 values ('a ', 'a-space');
 ERROR 23000: Duplicate entry 'a ' for key 'PRIMARY'
@@ -300,7 +300,7 @@ pk int not null primary key,
 col1 varchar(64) CHARACTER SET utf8 COLLATE utf8_bin,
 col2 varchar(64),
 key (col1)
-);
+) charset=latin1;
 insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
@@ -355,7 +355,7 @@ pk	col1	hex(col1)	length(col1)
 23	                  	202020202020202020202020202020202020	18
 14	                a	2020202020202020202020202020202061	17
 drop table t1;
-create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb;
+create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb charset=latin1;
 insert into t1 values (1, concat('a', repeat(' ', 300)));
 insert into t1 values (2, concat('b', repeat(' ', 300)));
 select pk,length(a) from t1 force index(a) where a < 'zz';
@@ -379,7 +379,7 @@ create table t1 (
 pk varchar(64) CHARACTER SET ucs2 COLLATE ucs2_bin,
 col1 varchar(64),
 primary key (pk)
-);
+) charset=latin1;
 insert into t1 values ('a','a');
 insert into t1 values ('a ', 'a-space');
 ERROR 23000: Duplicate entry 'a ' for key 'PRIMARY'
@@ -416,7 +416,7 @@ pk int not null primary key,
 col1 varchar(64) CHARACTER SET ucs2 COLLATE ucs2_bin,
 col2 varchar(64),
 key (col1)
-);
+) charset=latin1;
 insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
@@ -471,7 +471,7 @@ pk	col1	hex(col1)	length(col1)
 22	                 	00200020002000200020002000200020002000200020002000200020002000200020	34
 23	                  	002000200020002000200020002000200020002000200020002000200020002000200020	36
 drop table t1;
-create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb;
+create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb charset=latin1;
 insert into t1 values (1, concat('a', repeat(' ', 300)));
 insert into t1 values (2, concat('b', repeat(' ', 300)));
 select pk,length(a) from t1 force index(a) where a < 'zz';
@@ -495,7 +495,7 @@ create table t1 (
 pk varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
 col1 varchar(64),
 primary key (pk)
-);
+) charset=latin1;
 insert into t1 values ('a','a');
 insert into t1 values ('a ', 'a-space');
 ERROR 23000: Duplicate entry 'a ' for key 'PRIMARY'
@@ -532,7 +532,7 @@ pk int not null primary key,
 col1 varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
 col2 varchar(64),
 key (col1)
-);
+) charset=latin1;
 insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
@@ -587,7 +587,7 @@ pk	col1	hex(col1)	length(col1)
 22	                 	2020202020202020202020202020202020	17
 23	                  	202020202020202020202020202020202020	18
 drop table t1;
-create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb;
+create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb charset=latin1;
 insert into t1 values (1, concat('a', repeat(' ', 300)));
 insert into t1 values (2, concat('b', repeat(' ', 300)));
 select pk,length(a) from t1 force index(a) where a < 'zz';
@@ -611,7 +611,7 @@ create table t1 (
 pk varchar(64) CHARACTER SET utf16 COLLATE utf16_bin,
 col1 varchar(64),
 primary key (pk)
-);
+) charset=latin1;
 insert into t1 values ('a','a');
 insert into t1 values ('a ', 'a-space');
 ERROR 23000: Duplicate entry 'a ' for key 'PRIMARY'
@@ -648,7 +648,7 @@ pk int not null primary key,
 col1 varchar(64) CHARACTER SET utf16 COLLATE utf16_bin,
 col2 varchar(64),
 key (col1)
-);
+) charset=latin1;
 insert into t1 values (0, 'ab', 'a-b');
 insert into t1 values (1, 'a ', 'a-space');
 insert into t1 values (2, 'a',  'a');
@@ -703,7 +703,7 @@ pk	col1	hex(col1)	length(col1)
 22	                 	00200020002000200020002000200020002000200020002000200020002000200020	34
 23	                  	002000200020002000200020002000200020002000200020002000200020002000200020	36
 drop table t1;
-create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb;
+create table t1 (pk int primary key, a varchar(512), key(a)) engine=rocksdb charset=latin1;
 insert into t1 values (1, concat('a', repeat(' ', 300)));
 insert into t1 values (2, concat('b', repeat(' ', 300)));
 select pk,length(a) from t1 force index(a) where a < 'zz';

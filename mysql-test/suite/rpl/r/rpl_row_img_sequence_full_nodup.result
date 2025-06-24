@@ -1,0 +1,796 @@
+include/rpl_init.inc [topology=1->2->3]
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+#
+# binlog_row_image=FULL_NODUP should write all columns to the binary log
+#
+CON: 'server_1', IMG: 'FULL_NODUP', RESTART SLAVE: 'N'
+connection server_1;
+SET SESSION binlog_row_image= 'FULL_NODUP';
+SET GLOBAL binlog_row_image= 'FULL_NODUP';
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL_NODUP
+CON: 'server_2', IMG: 'FULL_NODUP', RESTART SLAVE: 'Y'
+connection server_2;
+SET SESSION binlog_row_image= 'FULL_NODUP';
+SET GLOBAL binlog_row_image= 'FULL_NODUP';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL_NODUP
+CON: 'server_3', IMG: 'FULL_NODUP', RESTART SLAVE: 'Y'
+connection server_3;
+SET SESSION binlog_row_image= 'FULL_NODUP';
+SET GLOBAL binlog_row_image= 'FULL_NODUP';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL_NODUP
+connection server_1;
+### engines: MyISAM, MyISAM, MyISAM
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: MyISAM, MyISAM, InnoDB
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: MyISAM, InnoDB, MyISAM
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: MyISAM, InnoDB, InnoDB
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: InnoDB, MyISAM, MyISAM
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: InnoDB, MyISAM, InnoDB
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: InnoDB, InnoDB, MyISAM
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+### engines: InnoDB, InnoDB, InnoDB
+# Create sequences with specific engines per server
+connection server_1;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/save_master_gtid.inc
+connection server_2;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+connection server_3;
+SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+include/sync_with_master_gtid.inc
+# Pt.1 Ensure SETVAL replicates and binlogs correctly
+connection server_1;
+SELECT SETVAL(s1, 10);
+SETVAL(s1, 10)
+10
+include/save_master_gtid.inc
+# Validate SETVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged SETVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged SETVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged SETVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Pt.2 Ensure NEXTVAL replicates and binlogs correctly
+connection server_1;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+11
+include/save_master_gtid.inc
+# Validate NEXTVAL replicated correctly to other servers
+connection server_3;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
+# Validate server_1 binlogged NEXTVAL with the correct columns
+connection server_1;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_2 binlogged NEXTVAL with the correct columns
+connection server_2;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Validate server_3 binlogged NEXTVAL with the correct columns
+connection server_3;
+FLUSH LOGS;
+include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
+# MYSQL_BINLOG mysqld_datadir/binlog_filename -vv > assert_file
+# Verifying all expected column ids appear in binlog event output..
+# ..success
+# Verifying only expected column ids appear in binlog event output..
+# ..success
+# Cleanup
+connection server_1;
+DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+CON: 'server_1', IMG: 'FULL', RESTART SLAVE: 'N'
+connection server_1;
+SET SESSION binlog_row_image= 'FULL';
+SET GLOBAL binlog_row_image= 'FULL';
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL
+CON: 'server_2', IMG: 'FULL', RESTART SLAVE: 'Y'
+connection server_2;
+SET SESSION binlog_row_image= 'FULL';
+SET GLOBAL binlog_row_image= 'FULL';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL
+CON: 'server_3', IMG: 'FULL', RESTART SLAVE: 'Y'
+connection server_3;
+SET SESSION binlog_row_image= 'FULL';
+SET GLOBAL binlog_row_image= 'FULL';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL
+connection server_3;
+include/rpl_end.inc
+# End of tests

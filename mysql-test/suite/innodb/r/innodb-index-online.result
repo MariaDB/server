@@ -1,8 +1,6 @@
 SET GLOBAL innodb_monitor_reset_all=all;
 SET GLOBAL innodb_monitor_reset_all=default;
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
 CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT, c3 TEXT)
 ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t1 VALUES (1,1,''), (2,2,''), (3,3,''), (4,4,''), (5,5,'');
@@ -56,7 +54,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   `c3` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
 connection con1;
@@ -209,7 +207,7 @@ CREATE INDEX c2d ON t1(c2);
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	c1	A	80	NULL	NULL		BTREE			NO
-t1	1	c2d	1	c2	A	10	NULL	NULL	YES	BTREE			NO
+t1	1	c2d	1	c2	A	5	NULL	NULL	YES	BTREE			NO
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE c2 > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	c2d	c2d	5	NULL	32	Using where; Using index
@@ -221,7 +219,7 @@ t1	CREATE TABLE `t1` (
   `c3` text DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `c2d` (`c2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=1
 connection default;
 SET @merge_encrypt_0=
 (SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
@@ -488,7 +486,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c1`),
   KEY `c2d` (`c22f`),
   KEY `c2f` (`c22f`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1 COMMENT='testing if c2e will be dropped'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=1 COMMENT='testing if c2e will be dropped'
 ALTER TABLE t1 DROP INDEX c2d, DROP INDEX c2f;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
@@ -568,6 +566,5 @@ f3	f5
 4	1
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

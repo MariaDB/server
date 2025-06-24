@@ -10,11 +10,13 @@
 # mysqlbinlog: compressed row event 
 # 
 #
+set pseudo_thread_id=5;
+reset master;
 
 SET GLOBAL log_bin_compress=on;
 SET GLOBAL log_bin_compress_min_len=10;
-CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
-CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1 COLLATE latin1_swedish_ci;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1)) CHARSET=latin1 COLLATE latin1_swedish_ci;
 INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
 INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
 INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
@@ -29,7 +31,7 @@ DELETE FROM t2;
 
 FLUSH BINARY LOGS;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /mapped to number \d*/mapped to number num/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/ /xid=\d*/xid=<xid>/ /table id \d+/table id <tblid>/ /end_log_pos \d+/end_log_pos <pos>/ /# at \d+/# at <pos>/
+--replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /mapped to number \d*/mapped to number num/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/ /xid=\d*/xid=<xid>/ /thread_id=\d*/thread_id=TID/ /end_log_pos [0-9]*/end_log_pos #/ /table id \d+/table id <tblid>/ /# at \d+/# at <pos>/
 --exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
 
 --echo
@@ -38,7 +40,7 @@ FLUSH BINARY LOGS;
 
 FLUSH BINARY LOGS;
 --let $binlog_file = query_get_value(SHOW MASTER STATUS, File, 1)
-CREATE TABLE t3 (a INT PRIMARY KEY, b INT, c VARCHAR(100));
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT, c VARCHAR(100)) CHARSET=latin1 COLLATE latin1_swedish_ci;
 INSERT INTO t3 VALUES (0, 10, "hello");
 BEGIN;
 INSERT INTO t3 VALUES (1, 10, "cat"), (2, 10, "mouse"), (3, 10, "dog");

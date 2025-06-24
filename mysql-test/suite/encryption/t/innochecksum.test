@@ -26,7 +26,6 @@ call mtr.add_suppression("InnoDB: Crash recovery is broken due to insufficient i
 --enable_query_log
 
 let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 

@@ -1,0 +1,12 @@
+--source include/have_gb2312.inc
+
+SET NAMES utf8mb4;
+
+--source strnxfrm_sp_create.inc
+
+CREATE TABLE t1 (str TEXT CHARACTER SET gb2312 COLLATE gb2312_chinese_ci);
+CALL populate_t1('gb2312');
+CALL test_strnxfrm(10,12);
+DROP TABLE t1;
+
+--source strnxfrm_sp_drop.inc

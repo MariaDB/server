@@ -1,5 +1,7 @@
 --source include/innodb_page_size_small.inc
 --source include/innodb_checksum_algorithm.inc
+--source include/test_db_charset_latin1.inc
+
 SET default_storage_engine=InnoDB;
 
 --disable_query_log
@@ -728,29 +730,6 @@ SHOW WARNINGS;
 ROLLBACK;
 DROP TABLE bug12547647;
 
-#
-# Bug #13336585 - INNODB: CHANGE BUFFERING WITH 4K PAGES CAN ASSERT
-#                 IF SECONDARY KEY IS NEAR MAX
-# If the secondary index tuple is close to half the page size,
-# ibuf_insert_low() could return DB_TOO_BIG_RECORD, which is not expected
-# in ibuf_insert().  In order to insure this does not happen, WL5756
-# imposes a maximum key length of 768 for 4k pages and 1536 for 8k pages.
-# The existing max key Size for 16k pages is 3072.
-#
-
-#-- disable_query_log
-# The flag innodb_change_buffering_debug is only available in debug builds.
-# It instructs InnoDB to try to evict pages from the buffer pool when
-# change buffering is possible, so that the change buffer will be used
-# whenever possible.
-# This flag is not used currently since it exposes valgrind error in ibuf
-# code with the following SQL
-#-- error 0,ER_UNKNOWN_SYSTEM_VARIABLE
-#SET @innodb_change_buffering_debug_orig = @@innodb_change_buffering_debug;
-#-- error 0,ER_UNKNOWN_SYSTEM_VARIABLE
-#SET GLOBAL innodb_change_buffering_debug = 1;
-#-- enable_query_log
-
 # make sure the largest possible key entry can be added to the insert buffer.
 # Make enough records so that the root page is not a leaf page.
 SET SESSION innodb_strict_mode = OFF;
@@ -822,11 +801,6 @@ INSERT INTO t1 VALUES(@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,
                       @r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r);
 DELETE from t1;
 DROP TABLE t1;
-
-#-- disable_query_log
-#-- error 0,ER_UNKNOWN_SYSTEM_VARIABLE
-#SET GLOBAL innodb_change_buffering_debug = 0;
-#-- enable_query_log
 
 # The following should fail in non-strict mode too.
 # (The fix of Bug #50945 only affects REDUNDANT and COMPACT tables.)
@@ -913,3 +887,5 @@ DROP TABLE u, t;
 SET GLOBAL innodb_compression_level=@save_compression_level;
 
 --echo # End of 10.6 tests
+
+--source include/test_db_charset_restore.inc

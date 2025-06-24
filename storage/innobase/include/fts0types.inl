@@ -47,6 +47,25 @@ fts_string_dup(
 }
 
 /******************************************************************//**
+Duplicate a string with lower case conversion */
+UNIV_INLINE
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,			/*!< in: the character set */
+	const fts_string_t&	src,		/*!< in: src string */
+	mem_heap_t*		heap)		/*!< in: heap to use */
+{
+	size_t dst_nbytes = src.f_len * cs->casedn_multiply() + 1;
+	fts_string_t dst;
+	dst.f_str = (byte*)mem_heap_alloc(heap, dst_nbytes);
+	dst.f_len = cs->casedn_z((const char *) src.f_str, src.f_len,
+				(char *) dst.f_str, dst_nbytes);
+	dst.f_n_char = src.f_n_char;
+	return dst;
+}
+
+/******************************************************************//**
 Get the first character's code position for FTS index partition */
 extern
 ulint

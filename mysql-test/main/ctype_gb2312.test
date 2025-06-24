@@ -26,6 +26,7 @@ SET collation_connection='gb2312_bin';
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 
 #
 # Bug#15377 Valid multibyte sequences are truncated on INSERT

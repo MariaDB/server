@@ -97,10 +97,8 @@ struct st_debug_sync_globals
 
   void clear_set()
   {
-    Hash_set<LEX_CSTRING>::Iterator it{ds_signal_set};
-    LEX_CSTRING *s;
-    while ((s= it++))
-      my_free(s);
+    for (LEX_CSTRING &s : ds_signal_set)
+      my_free(&s);
     ds_signal_set.clear();
   }
 
@@ -859,6 +857,13 @@ static st_debug_sync_action *debug_sync_get_action(THD *thd,
 }
 
 
+class Debug_token: public Lex_ident_ci
+{
+public:
+  using Lex_ident_ci::Lex_ident_ci;
+};
+
+
 /**
   Set a debug sync action.
 
@@ -910,22 +915,23 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
   }
   else
   {
-    const char *dsp_name= action->sync_point.c_ptr();
+    const Debug_token dsp_name(action->sync_point.to_lex_cstring());
 #ifdef DBUG_TRACE
     DBUG_EXECUTE("debug_sync", {
         /* Functions as DBUG_PRINT args can change keyword and line nr. */
         const char *sig_emit= action->signal.c_ptr();
         const char *sig_wait= action->wait_for.c_ptr();
         DBUG_PRINT("debug_sync",
-                   ("sync_point: '%s'  activation_count: %lu  hit_limit: %lu  "
+                   ("sync_point: '%.*s'  activation_count: %lu  hit_limit: %lu  "
                     "execute: %lu  timeout: %lu  signal: '%s'  wait_for: '%s'",
-                    dsp_name, action->activation_count,
+                    (int) dsp_name.length, dsp_name.str,
+                    action->activation_count,
                     action->hit_limit, action->execute, action->timeout,
                     sig_emit, sig_wait));});
 #endif
 
     /* Check this before sorting the array. action may move. */
-    is_dsp_now= !my_strcasecmp(system_charset_info, dsp_name, "now");
+    is_dsp_now= dsp_name.streq("now"_LEX_CSTRING);
 
     if (action->need_sort)
     {
@@ -985,8 +991,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
     and that ASCII NUL ('\0') is used as the string terminator.
 
     This function needs to return tokens that are terminated with ASCII
-    NUL ('\0'). The tokens are used in my_strcasecmp(). Unfortunately
-    there is no my_strncasecmp().
+    NUL ('\0'). The tokens are used in strtoul().
 
     To return the last token without copying it, we require the input
     string to be nul terminated.
@@ -1016,29 +1021,28 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
     to the string terminator ASCII NUL ('\0').
 */
 
-static char *debug_sync_token(char **token_p, uint *token_length_p,
+static char *debug_sync_token(Debug_token *to,
                               char *ptr, char *ptrend)
 {
-  DBUG_ASSERT(token_p);
-  DBUG_ASSERT(token_length_p);
+  DBUG_ASSERT(to);
   DBUG_ASSERT(ptr);
 
   /* Skip leading space */
   ptr+= system_charset_info->scan(ptr, ptrend, MY_SEQ_SPACES);
   if (!*ptr)
   {
-    ptr= NULL;
-    goto end;
+    // Keep "to" intact.
+    return NULL;
   }
 
   /* Get token start. */
-  *token_p= ptr;
+  to->str= ptr;
 
   /* Find token end. */
   ptr+= system_charset_info->scan(ptr, ptrend, MY_SEQ_NONSPACES);
 
   /* Get token length. */
-  *token_length_p= (uint)(ptr - *token_p);
+  to->length= (uint)(ptr - to->str);
 
   /* If necessary, terminate token. */
   if (*ptr)
@@ -1057,7 +1061,6 @@ static char *debug_sync_token(char **token_p, uint *token_length_p,
     ptr+= system_charset_info->scan(ptr, ptrend, MY_SEQ_SPACES);
   }
 
- end:
   return ptr;
 }
 
@@ -1089,16 +1092,15 @@ static char *debug_sync_number(ulong *number_p, char *actstrptr,
 {
   char                  *ptr;
   char                  *ept;
-  char                  *token;
-  uint                  token_length;
+  Debug_token           token;
   DBUG_ASSERT(number_p);
   DBUG_ASSERT(actstrptr);
 
   /* Get token from string. */
-  if (!(ptr= debug_sync_token(&token, &token_length, actstrptr, actstrend)))
+  if (!(ptr= debug_sync_token(&token, actstrptr, actstrend)))
     goto end;
 
-  *number_p= strtoul(token, &ept, 10);
+  *number_p= strtoul(token.str, &ept, 10);
   if (*ept)
     ptr= NULL;
 
@@ -1153,8 +1155,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   st_debug_sync_action  *action= NULL;
   const char            *errmsg;
   char                  *ptr;
-  char                  *token= nullptr;
-  uint                  token_length= 0;
+  Debug_token           token;
   DBUG_ENTER("debug_sync_eval_action");
   DBUG_ASSERT(thd);
   DBUG_ASSERT(action_str);
@@ -1163,7 +1164,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Get debug sync point name. Or a special command.
   */
-  if (!(ptr= debug_sync_token(&token, &token_length, action_str, action_end)))
+  if (!(ptr= debug_sync_token(&token, action_str, action_end)))
   {
     errmsg= "Missing synchronization point name";
     goto err;
@@ -1175,7 +1176,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   if (*ptr)
   {
     /* Get an action object to collect the requested action parameters. */
-    action= debug_sync_get_action(thd, token, token_length);
+    action= debug_sync_get_action(thd, token.str, (uint) token.length);
     if (!action)
     {
       /* Error message is sent. */
@@ -1186,14 +1187,14 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Get kind of action to be taken at sync point.
   */
-  if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+  if (!(ptr= debug_sync_token(&token, ptr, action_end)))
   {
     /* No action present. Try special commands. Token unchanged. */
 
     /*
       Try RESET.
     */
-    if (!my_strcasecmp(system_charset_info, token, "RESET"))
+    if (token.streq("RESET"_LEX_CSTRING))
     {
       /* It is RESET. Reset all actions and global signal. */
       debug_sync_reset(thd);
@@ -1214,7 +1215,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Try TEST.
   */
-  if (!my_strcasecmp(system_charset_info, token, "TEST"))
+  if (token.streq("TEST"_LEX_CSTRING))
   {
     /* It is TEST. Nothing must follow it. */
     if (*ptr)
@@ -1244,7 +1245,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Try CLEAR.
   */
-  if (!my_strcasecmp(system_charset_info, token, "CLEAR"))
+  if (token.streq("CLEAR"_LEX_CSTRING))
   {
     /* It is CLEAR. Nothing must follow it. */
     if (*ptr)
@@ -1264,15 +1265,15 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Try SIGNAL.
   */
-  if (!my_strcasecmp(system_charset_info, token, "SIGNAL"))
+  if (token.streq("SIGNAL"_LEX_CSTRING))
   {
     /* It is SIGNAL. Signal name must follow. */
-    if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+    if (!(ptr= debug_sync_token(&token, ptr, action_end)))
     {
       errmsg= "Missing signal name after action SIGNAL";
       goto err;
     }
-    if (action->signal.copy(token, token_length, system_charset_info))
+    if (action->signal.copy(token.str, token.length, system_charset_info))
     {
       /* Error is reported by my_malloc(). */
       /* purecov: begin tested */
@@ -1285,22 +1286,22 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
     action->execute= 1;
 
     /* Get next token. If none follows, set action. */
-    if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+    if (!(ptr= debug_sync_token(&token, ptr, action_end)))
       goto set_action;
   }
 
   /*
     Try WAIT_FOR.
   */
-  if (!my_strcasecmp(system_charset_info, token, "WAIT_FOR"))
+  if (token.streq("WAIT_FOR"_LEX_CSTRING))
   {
     /* It is WAIT_FOR. Wait_for signal name must follow. */
-    if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+    if (!(ptr= debug_sync_token(&token, ptr, action_end)))
     {
       errmsg= "Missing signal name after action WAIT_FOR";
       goto err;
     }
-    if (action->wait_for.copy(token, token_length, system_charset_info))
+    if (action->wait_for.copy(token.str, token.length, system_charset_info))
     {
       /* Error is reported by my_malloc(). */
       /* purecov: begin tested */
@@ -1315,13 +1316,13 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
     action->clear_event= true;
 
     /* Get next token. If none follows, set action. */
-    if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+    if (!(ptr= debug_sync_token(&token, ptr, action_end)))
       goto set_action;
 
     /*
       Try TIMEOUT.
     */
-    if (!my_strcasecmp(system_charset_info, token, "TIMEOUT"))
+    if (token.streq("TIMEOUT"_LEX_CSTRING))
     {
       /* It is TIMEOUT. Number must follow. */
       if (!(ptr= debug_sync_number(&action->timeout, ptr, action_end)))
@@ -1331,7 +1332,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
       }
 
       /* Get next token. If none follows, set action. */
-      if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+      if (!(ptr= debug_sync_token(&token, ptr, action_end)))
         goto set_action;
     }
   }
@@ -1339,7 +1340,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Try EXECUTE.
   */
-  if (!my_strcasecmp(system_charset_info, token, "EXECUTE"))
+  if (token.streq("EXECUTE"_LEX_CSTRING))
   {
     /*
       EXECUTE requires either SIGNAL and/or WAIT_FOR to be present.
@@ -1359,24 +1360,24 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
     }
 
     /* Get next token. If none follows, set action. */
-    if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+    if (!(ptr= debug_sync_token(&token, ptr, action_end)))
       goto set_action;
   }
 
   /*
     Try NO_CLEAR_EVENT.
   */
-  if (!my_strcasecmp(system_charset_info, token, "NO_CLEAR_EVENT"))
+  if (token.streq("NO_CLEAR_EVENT"_LEX_CSTRING))
   {
     action->clear_event= false;
     /* Get next token. If none follows, set action. */
-    if (!(ptr = debug_sync_token(&token, &token_length, ptr, action_end))) goto set_action;
+    if (!(ptr = debug_sync_token(&token, ptr, action_end))) goto set_action;
   }
 
   /*
     Try HIT_LIMIT.
   */
-  if (!my_strcasecmp(system_charset_info, token, "HIT_LIMIT"))
+  if (token.streq("HIT_LIMIT"_LEX_CSTRING))
   {
     /* Number must follow. */
     if (!(ptr= debug_sync_number(&action->hit_limit, ptr, action_end)))
@@ -1386,7 +1387,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
     }
 
     /* Get next token. If none follows, set action. */
-    if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
+    if (!(ptr= debug_sync_token(&token, ptr, action_end)))
       goto set_action;
   }
 
@@ -1400,8 +1401,8 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
       It can be NULL if an error message is already reported
       (e.g. by my_malloc()).
     */
-    set_if_smaller(token_length, 64); /* Limit error message length. */
-    my_printf_error(ER_PARSE_ERROR, errmsg, MYF(0), token_length, token);
+    set_if_smaller(token.length, 64); /* Limit error message length. */
+    my_printf_error(ER_PARSE_ERROR, errmsg, MYF(0), token.length, token.str);
   }
   if (action)
     debug_sync_remove_action(thd->debug_sync_control, action);

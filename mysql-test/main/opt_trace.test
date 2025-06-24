@@ -1,7 +1,5 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
-# View protocol changes some plans
---source include/no_view_protocol.inc
 
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 set optimizer_trace="enabled=on";
@@ -92,23 +90,7 @@ drop table t1,t2,t0;
 --echo # group_by min max optimization
 --echo #
 CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT NOT NULL, KEY(a));
---disable_query_log
-INSERT INTO t1(a) VALUES (1), (2), (3), (4);
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
-INSERT INTO t1(a) SELECT a FROM t1;
---enable_query_log
+insert into t1 select seq, mod(seq,4)+1 from seq_1_to_65536;
 
 analyze table t1;
 EXPLAIN SELECT DISTINCT a FROM t1;
@@ -125,6 +107,7 @@ INSERT INTO t1 VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3), (4,4,4,4), (1,0,1,1), (3,
 ANALYZE TABLE t1;
 EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
 --disable_view_protocol
+set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
 select * from information_schema.OPTIMIZER_TRACE;
 --enable_view_protocol
 DROP TABLE t1;
@@ -153,32 +136,29 @@ drop table t1;
 --echo # Late ORDER BY optimization
 --echo #
 
-create table ten(a int);
-insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table one_k(a int primary key);
-insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
 create table t1  (
   pk int not null,
   a int,
   b int,
   c int,
   filler char(100),
-  KEY a_a(c),
+  KEY c(c),
   KEY a_c(a,c),
   KEY a_b(a,b)
-);
+) charset=latin1;
  
-insert into t1
-select a, a,a,a, 'filler-dataaa' from test.one_k;
+insert into t1 select seq, seq,seq,seq, 'filler-dataaa' from seq_0_to_999;
 update t1 set a=1 where pk between 0 and 180;
 update t1 set b=2 where pk between 0 and 20;
 analyze table t1;
+explain  select * from t1 where a=1 and b=2 order by c limit 1;
+update t1 set b=2 where pk between 20 and 40;
 set optimizer_trace='enabled=on';
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
 --disable_view_protocol
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 --enable_view_protocol
-drop table t1,ten,one_k;
+drop table t1;
 
 --echo #
 --echo # TABLE ELIMINATION
@@ -221,38 +201,27 @@ select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t0, t1, t2, t3;
 
 --echo #
---echo # IN subquery to sem-join is traced
+--echo # IN subquery to semi-join is traced
 --echo #
 
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-
 create table t1(a int, b int);
-insert into t1 values (0,0),(1,1),(2,2);
-create table t2 as select * from t1;
+insert into t1 select seq,seq from seq_0_to_3;
 
-create table t11(a int, b int);
-
-create table t10 (pk int, a int);
-insert into t10 select a,a from t0;
-create table t12 like t10;
-insert into t12 select * from t10;
-
-analyze table t1,t10;
+create table t2 (p int, a int);
+insert into t2 select seq,seq from seq_1_to_10;
 
 set optimizer_trace='enabled=on';
-explain extended select * from t1 where a in (select pk from t10);
 --disable_view_protocol
+explain extended select * from t1 where a in (select p from t2);
+insert into t2 select seq,seq from seq_10_to_100;
+explain extended select * from t1 where a in (select p from t2);
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 --enable_view_protocol
-drop table t0,t1,t11,t10,t12,t2;
+drop table t1,t2;
 
 --echo #
 --echo # Selectivities for columns and indexes.
 --echo #
-
-create table t0 (a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 create table t1 (
 pk int,
@@ -261,7 +230,7 @@ b int,
 key pk(pk),
 key pk_a(pk,a),
 key pk_a_b(pk,a,b));
-insert into t1 select a,a,a from t0;
+insert into t1 select seq,seq,seq from seq_0_to_9;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a,b) INDEXES ();
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
@@ -275,7 +244,7 @@ select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 --enable_view_protocol
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set @@use_stat_tables= @save_use_stat_tables;
-drop table t0,t1;
+drop table t1;
 set optimizer_trace="enabled=off";
 
 --echo #
@@ -522,7 +491,7 @@ EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
 
-CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b));
+CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, NULL);
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
@@ -537,7 +506,7 @@ EXPLAIN SELECT * FROM t1 WHERE b= 'ab\n';
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t1;
 
-CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b));
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, 'ab\n');
 set optimizer_trace=1;
@@ -695,6 +664,7 @@ drop table t1;
 --echo #
 
 CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+insert t1 values (2,3);
 SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
 UPDATE t1 SET b=10 WHERE a=1;
 #Enable after fix MDEV-32034
@@ -1066,10 +1036,13 @@ where a=3
 group by b,b
 having a+b < 10;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # Check ON expression
 explain 
@@ -1079,10 +1052,13 @@ from t1 left join t2 on t2.a=t1.a and t2.a<3
 where 
   t1.b > 5555;
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 --echo # Check nested ON expression
 explain 
@@ -1092,6 +1068,7 @@ from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
 where 
   t1.b > 5555;
 
+#Check after fix MDEV-32034
 --disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
@@ -1101,10 +1078,13 @@ from
 
 --echo # The next query is test for:
 --echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.condition_processing'))
 from
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 drop table t1,t2,t3;
 
@@ -1112,12 +1092,12 @@ drop table t1,t2,t3;
 --echo #
 --echo # MDEV-24325: Optimizer trace doesn't cover LATERAL DERIVED
 --echo #
-create table t1 (a int, b int, index idx_b(b)) engine=myisam;
+create table t1 (a int, b int, index idx_b(b)) engine=myisam charset=latin1;
 insert into t1 values
 (8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
 (9,3), (8,1), (4,5), (2,3);
 
-create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam charset=latin1;
 insert into t2 values
   (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
   (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),
@@ -1144,6 +1124,7 @@ where t1.b < 3;
 # Just show that choose_best_splitting function has coverage in the 
 # optimizer trace and re-optmization of child select inside it is distinct 
 # from the rest of join optimization.
+#Check after fix MDEV-32034
 --disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
@@ -1167,8 +1148,12 @@ SELECT * FROM t1 WHERE id IN
          JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
 --enable_view_protocol
 
+#Enable after fix MDEV-32034
+--disable_view_protocol
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;
+--enable_view_protocol
+
 DROP TABLE t1;
 
 --echo #
@@ -1178,6 +1163,167 @@ set optimizer_trace=0;
 set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
 --echo # The trace must not be empty:
 select left(trace, 100) from information_schema.optimizer_trace;
+set optimizer_trace='enabled=off';
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-36461: Remove join_execution nodes and add range_check_for_each_record when appropriate
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1, 999),(999, 1),(987,987);
+create table t2 (a int, b int, index(a),index(b));
+insert into t2 select seq, seq from seq_1_to_1000;
+create table t3 (a int);
+insert into t3 select seq from seq_1_to_2;
+
+set optimizer_trace='enabled=on';
+
+analyze
+select 
+(
+  select count(*) 
+  from t1, t2 
+  where t2.a<t1.a and t2.b<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a 
+from t3;
+
+--echo # The trace must contain 6 objects with select_id 2 and
+--echo # loop varying from 1..2 for each of the 3 ranges from t1:
+set @trace=(select trace from information_schema.optimizer_trace);
+set @trace=(select json_extract(@trace, '$**.range-checked-for-each-record'));
+set @trace=json_replace(@trace, '$[0].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[1].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[2].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[3].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[4].rows_estimation[0].range_analysis','REPLACED');
+set @trace=json_replace(@trace, '$[5].rows_estimation[0].range_analysis','REPLACED');
+select json_detailed(@trace) as TRACE;
+
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+    from information_schema.optimizer_trace;
+
+select
+(
+  select count(*)
+  from t1, t2
+  where t2.a+1<t1.a and t2.b+1<t1.b and t2.b+t1.a>t3.a
+) as SUBQ, a
+from t3;
+
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+    from information_schema.optimizer_trace;
+--echo # The trace must be empty:
+select json_detailed(json_extract(trace, '$**.join_execution'))
+    from information_schema.optimizer_trace;
 set optimizer_trace='enabled=off';
+
+drop table t1,t2,t3;
+--echo # End of 10.11 tests
+
+--echo #
+--echo # Testing of records_out
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_histogram_size= @@histogram_size;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_switch='rowid_filter=on';
+set use_stat_tables='preferably';
+set histogram_size=127;
+create table t1 (a int, b int, c int, key(a),key(b));
+insert into t1 select seq, seq*2, seq/10 from seq_1_to_1000;
+analyze table t1;
+--optimizer_trace
+explain select * from t1 where a<10 and b between 10 and 50 and c < 10;
+drop table t1;
+
+create table three (a int);
+insert into three values (1),(2),(3);
+create table t1 (a int, b int, c int, key(a),key(b));
+insert into t1 select mod(seq,10), seq, seq from seq_1_to_10000;
+analyze table t1;
+
+set optimizer_use_condition_selectivity=2;
+explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000;
+set optimizer_use_condition_selectivity=4;
+--optimizer_trace
+explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and t1.c<1000;
+
+drop table three, t1;
+
+--echo #
+--echo # MDEV-21095: Index condition push down is not reflected in optimizer trace
+--echo #
+create table t10 (a int, b int, c int, key(a,b));
+insert into t10 select seq, seq, seq from seq_1_to_10000;
+explain format=json select * from t10 where a<3 and b!=5 and c<10;
+set optimizer_trace='enabled=on';
+select * from t10 where a<3 and b!=5 and c<10;
+select json_detailed(json_extract(trace, '$**.attaching_conditions_to_tables')) as out1 
+from information_schema.optimizer_trace;
+drop table t10;
+
+--echo #
+--echo # MDEV-21092: EXISTS to IN is not reflected in the optimizer trace
+--echo #
+# EXISTS-to-IN conversion is traced on PREPARE so won't be visible with a VIEW:
+--disable_view_protocol
+set optimizer_trace='enabled=on';
+
+create table t1 (cn_c int, cn_n char(10), cn_a int );
+create table t2 (ci_p int, ci_c int );
+create table t3 (ci_p int, ci_c int );
+
+--disable_ps2_protocol
+SELECT cn_n FROM t1 WHERE (EXISTS (select 1 from t2 where ci_p > 100000 and cn_c = ci_c)
+  OR (cn_n LIKE 'L%') )
+  AND cn_a > 1000000;
+--enable_ps2_protocol
+
+select 
+  json_detailed(
+    json_extract(trace, '$.steps[*].join_optimization[0].steps[0].transformation')
+  ) as out1 
+from information_schema.optimizer_trace;
+
+--enable_view_protocol
+drop table t1, t2, t3;
+
+--echo #
+--echo # MDEV-29997 Partition Pruning not included in optimizer tracing
+--echo #
+--source include/have_partition.inc
+create table t2 (a int, b int) partition by hash(a) partitions 10;
+create table t3 (a int, b int) partition by hash(a) partitions 10;
+INSERT INTO t2 SELECT seq, seq from seq_1_to_10;
+INSERT INTO t3 SELECT seq, seq from seq_1_to_10;
+
+set optimizer_trace='enabled=on';
+explain partitions select * from t2,t3 where t2.a in (2,3,4) and t3.a in (4,5);
+select json_detailed(json_extract(trace, '$**.prune_partitions')) as out1
+from information_schema.optimizer_trace;
+drop table t2,t3;
+
+create table t1 (
+  a int
+) partition by range (a)
+( partition p0 values less than(10),
+  partition p1 values less than (20),
+  partition p2 values less than (25)
+);
+insert into t1 values (5),(15),(22);
+
+explain select * from t1 where a = 28;
+select json_detailed(json_extract(trace, '$**.prune_partitions')) as out1 
+from information_schema.optimizer_trace;
+drop table t1;
+
+set  @@optimizer_switch= @save_optimizer_switch;
+set  @@use_stat_tables= @save_use_stat_tables;
+set  @@histogram_size= @save_histogram_size;
+set  @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;

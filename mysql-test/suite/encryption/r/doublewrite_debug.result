@@ -34,7 +34,7 @@ set global innodb_fil_make_page_dirty_debug = @t3_space_id;
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # restart
-FOUND 3 /InnoDB: Recovered page \[page id: space=[1-9]*, page number=3\]/ in mysqld.1.err
+FOUND 3 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\]/ in mysqld.1.err
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

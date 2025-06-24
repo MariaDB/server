@@ -45,8 +45,7 @@ Created 3/26/1996 Heikki Tuuri
 const dtuple_t trx_undo_metadata = {
 	/* This also works for REC_INFO_METADATA_ALTER, because the
 	delete-mark (REC_INFO_DELETED_FLAG) is ignored when searching. */
-	REC_INFO_METADATA_ADD, 0, 0,
-	NULL, 0, NULL
+	REC_INFO_METADATA_ADD, 0, 0, 0, nullptr, nullptr
 #ifdef UNIV_DEBUG
 	, DATA_TUPLE_MAGIC_N
 #endif /* UNIV_DEBUG */
@@ -594,7 +593,7 @@ trx_undo_rec_get_row_ref(
 {
 	ut_ad(index->is_primary());
 
-	const ulint ref_len = dict_index_get_n_unique(index);
+	const uint16_t ref_len = dict_index_get_n_unique(index);
 
 	dtuple_t* tuple = dtuple_create(heap, ref_len);
 	*ref = tuple;
@@ -1773,8 +1772,7 @@ TRANSACTIONAL_TARGET ATTRIBUTE_NOINLINE
 /** @return whether the transaction holds an exclusive lock on a table */
 static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
 {
-  if (table.is_temporary())
-    return true;
+  ut_ad(!table.is_temporary());
 
   uint32_t n;
 
@@ -1855,7 +1853,7 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
-	if (m.second && index->table->is_active_ddl()) {
+	if (m.second && index->table->is_native_online_ddl()) {
 		trx->apply_online_log= true;
 	}
 
@@ -1875,9 +1873,19 @@ trx_undo_report_row_operation(
 		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
 		ut_ad(trx->bulk_insert);
 		return DB_SUCCESS;
-	} else if (m.second && trx->bulk_insert
-		   && trx_has_lock_x(*trx, *index->table)) {
-		m.first->second.start_bulk_insert();
+	} else if (!m.second || !trx->bulk_insert) {
+		bulk = false;
+	} else if (index->table->is_temporary()) {
+	} else if (trx_has_lock_x(*trx, *index->table)
+		   && index->table->bulk_trx_id == trx->id) {
+		m.first->second.start_bulk_insert(
+			index->table,
+			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
+
+		if (dberr_t err = m.first->second.bulk_insert_buffered(
+			    *clust_entry, *index, trx)) {
+			return err;
+		}
 	} else {
 		bulk = false;
 	}

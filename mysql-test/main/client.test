@@ -44,3 +44,68 @@ drop table t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-23818: mysql option --script-dir
+--echo #
+
+--echo # test 1: can't find the file at all
+--mkdir $MYSQLTEST_VARDIR/dir1
+--error 1
+--exec echo "source file1;" | $MYSQL --script-dir=$MYSQLTEST_VARDIR/dir1/ 2>&1
+--rmdir $MYSQLTEST_VARDIR/dir1
+
+--echo # test 2: file in the current working directory
+--mkdir $MYSQLTEST_VARDIR/dir1
+--write_file $MYSQLTEST_VARDIR/file1.sql
+select 1;
+EOF
+--exec echo "source $MYSQLTEST_VARDIR/file1.sql;" | $MYSQL --script-dir=$MYSQLTEST_VARDIR/dir1/ 2>&1
+--remove_file $MYSQLTEST_VARDIR/file1.sql
+--rmdir $MYSQLTEST_VARDIR/dir1
+
+--echo # test 3: file is present in CWD and also in script-dir
+--mkdir $MYSQLTEST_VARDIR/dir1
+--write_file $MYSQLTEST_VARDIR/file1.sql
+select 'hello from file1'
+EOF
+--write_file $MYSQLTEST_VARDIR/dir1/file1.sql
+select 'hello from dir1/file1.sql';
+EOF
+--exec echo "source $MYSQLTEST_VARDIR/file1.sql;" | $MYSQL --script-dir=./dir1/ 2>&1
+--remove_file $MYSQLTEST_VARDIR/file1.sql
+--remove_file $MYSQLTEST_VARDIR/dir1/file1.sql
+--rmdir $MYSQLTEST_VARDIR/dir1
+
+--echo # test 4: file is only present in the script-dir
+--mkdir $MYSQLTEST_VARDIR/dir1
+--write_file $MYSQLTEST_VARDIR/dir1/file1.sql
+select 'hello from dir1/file1.sql';
+EOF
+--exec echo "source file1.sql;" | $MYSQL --script-dir=$MYSQLTEST_VARDIR/dir1/ 2>&1
+--remove_file $MYSQLTEST_VARDIR/dir1/file1.sql
+--rmdir $MYSQLTEST_VARDIR/dir1
+
+--echo # test 5: script-dir file has source command that references CWD
+--mkdir $MYSQLTEST_VARDIR/dir1
+--write_file $MYSQLTEST_VARDIR/dir1/file1.sql
+source file2.sql;
+EOF
+--exec echo "select 'hello from file2.sql'" > $MYSQLTEST_VARDIR/file2.sql
+--exec cd $MYSQLTEST_VARDIR && $MYSQL --script-dir=$MYSQLTEST_VARDIR/dir1/ -e "source file1.sql;" 2>&1
+--remove_file $MYSQLTEST_VARDIR/dir1/file1.sql
+--remove_file $MYSQLTEST_VARDIR/file2.sql
+--rmdir $MYSQLTEST_VARDIR/dir1
+
+--echo # test 6: script-dir file has source command that references script-dir
+--mkdir $MYSQLTEST_VARDIR/dir1
+--write_file $MYSQLTEST_VARDIR/dir1/file1.sql
+source file2.sql;
+EOF
+--write_file $MYSQLTEST_VARDIR/dir1/file2.sql
+select 'hello from file2.sql';
+EOF
+--exec echo "source file1.sql" | $MYSQL --script-dir=$MYSQLTEST_VARDIR/dir1/ 2>&1
+--remove_file $MYSQLTEST_VARDIR/dir1/file1.sql
+--remove_file $MYSQLTEST_VARDIR/dir1/file2.sql
+--rmdir $MYSQLTEST_VARDIR/dir1

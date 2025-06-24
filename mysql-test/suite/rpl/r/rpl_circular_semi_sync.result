@@ -32,7 +32,7 @@ include/sync_with_master_gtid.inc
 connection server_1;
 set @@global.gtid_strict_mode = true;
 set @@global.rpl_semi_sync_slave_enabled = 1;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=SLAVE_POS;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=SLAVE_POS;
 include/start_slave.inc
 ... is done.
 ## A. no out-of-order gtid error for own transaction made round trip

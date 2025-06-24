@@ -30,6 +30,7 @@ let $debug= 0;
 
 # The server must support partitioning.
 --source include/have_partition.inc
+--source include/test_db_charset_latin1.inc
 
 #------------------------------------------------------------------------------#
 # Engine specific settings and requirements
@@ -50,3 +51,5 @@ let $maxrows=65535;
 --source suite/parts/inc/partition_set.inc
 --source suite/parts/inc/partition_blob.inc
 --source suite/parts/inc/partition_text.inc
+
+--source include/test_db_charset_restore.inc

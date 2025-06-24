@@ -134,13 +134,13 @@ class Window_spec : public Sql_alloc
       order_list(ord_list), save_order_list(NULL),
       window_frame(win_frame), referenced_win_spec(NULL) {}
 
-  virtual const char *name() { return NULL; }
+  virtual const Lex_ident_window name() { return Lex_ident_window(); }
 
   bool check_window_names(List_iterator_fast<Window_spec> &it);
 
-  const char *window_reference()
+  const Lex_ident_window window_reference()
   {
-    return window_ref ? window_ref->str : NULL;
+    return window_ref ? Lex_ident_window(*window_ref) : Lex_ident_window();
   }
 
   void join_partition_and_order_lists()
@@ -173,7 +173,7 @@ class Window_def : public Window_spec
     : Window_spec(win_ref, part_list, ord_list, win_frame),
       window_name(win_name) {}
  
-  const char *name() override { return window_name->str; }
+  const Lex_ident_window name() override { return Lex_ident_window(*window_name); }
 
 };
 
@@ -190,7 +190,7 @@ class Frame_cursor;
 /*
   This handles computation of one window function.
 
-  Currently, we make a spearate filesort() call for each window function.
+  Currently, we make a separate filesort() call for each window function.
 */
 
 class Window_func_runner : public Sql_alloc
@@ -240,7 +240,7 @@ class Explain_aggr_window_funcs;
   This is a "window function computation phase": a single object of this class
   takes care of computing all window functions in a SELECT.
 
-  - JOIN optimizer is exected to call setup() during query optimization.
+  - JOIN optimizer is executed to call setup() during query optimization.
   - JOIN::exec() should call exec() once it has collected join output in a
     temporary table.
 */

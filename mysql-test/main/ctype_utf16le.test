@@ -648,7 +648,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing that maximim possible key length is 1000 bytes
+--echo # Testing that maximum possible key length is 1000 bytes
 --echo #
 CREATE TABLE t1 (a VARCHAR(250) CHARACTER SET utf16le PRIMARY KEY);
 SHOW CREATE TABLE t1;
@@ -809,14 +809,17 @@ SELECT CAST(CONVERT('1Ĳ3' USING utf16le) AS SIGNED);
 --echo #
 --echo # MDEV-9711 NO PAD Collatons
 --echo #
-SET character_set_connection=utf16le;
+SET collation_connection=utf16le_general_nopad_ci;
 let $coll='utf16le_general_nopad_ci';
 let $coll_pad='utf16le_general_ci';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
+SET collation_connection=utf16le_nopad_bin;
 let $coll='utf16le_nopad_bin';
 let $coll_pad='utf16le_bin';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
 --echo #
 --echo # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset

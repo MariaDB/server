@@ -1,12 +1,18 @@
 show variables like "system_time_zone";
 Variable_name	Value
 system_time_zone	CET
+#
+# Test unix timestamp
+#
 select @a:=FROM_UNIXTIME(1);
 @a:=FROM_UNIXTIME(1)
 1970-01-01 01:00:01
 select unix_timestamp(@a);
 unix_timestamp(@a)
 1
+#
+# Test of some values, including some with daylight saving time
+#
 CREATE TABLE t1 (ts int);
 INSERT INTO t1 (ts) VALUES (Unix_timestamp('2002-10-27 01:00'));
 INSERT INTO t1 (ts) VALUES (Unix_timestamp('2002-10-27 02:00'));
@@ -31,6 +37,9 @@ ts	from_unixtime(ts)
 1048989599	2003-03-30 03:59:59
 1048989601	2003-03-30 04:00:01
 DROP TABLE t1;
+#
+# Test of warning for spring time-gap values for system time zone
+#
 CREATE TABLE t1 (ts timestamp);
 INSERT INTO t1 (ts) VALUES ('2003-03-30 01:59:59'),
 ('2003-03-30 02:59:59'),
@@ -38,12 +47,40 @@ INSERT INTO t1 (ts) VALUES ('2003-03-30 01:59:59'),
 Warnings:
 Warning	1299	Invalid TIMESTAMP value in column 'ts' at row 2
 DROP TABLE t1;
+#
+# Test for fix for Bug#2523 Check that boundary dates are processed correctly.
+#
 select unix_timestamp('1970-01-01 01:00:00'), 
-unix_timestamp('1970-01-01 01:00:01'),
-unix_timestamp('2038-01-19 04:14:07'),
-unix_timestamp('2038-01-19 04:14:08');
-unix_timestamp('1970-01-01 01:00:00')	unix_timestamp('1970-01-01 01:00:01')	unix_timestamp('2038-01-19 04:14:07')	unix_timestamp('2038-01-19 04:14:08')
-0	1	2147483647	NULL
+unix_timestamp('1970-01-01 01:00:01');
+unix_timestamp('1970-01-01 01:00:00')	unix_timestamp('1970-01-01 01:00:01')
+NULL	1
 select unix_timestamp('1969-12-31 23:59:59'), unix_timestamp('1970-01-01 00:00:00'), unix_timestamp('1970-01-01 00:59:59');
 unix_timestamp('1969-12-31 23:59:59')	unix_timestamp('1970-01-01 00:00:00')	unix_timestamp('1970-01-01 00:59:59')
 NULL	NULL	NULL
+#
+# End of 4.1 tests
+#
+#
+# MDEV-27393 Timezone tables cannot have descending indexes
+#
+call mtr.add_suppression('mysql.time_zone_transition_type table is incorrectly defined or corrupted');
+alter table mysql.time_zone_transition_type drop primary key;
+alter table mysql.time_zone_transition_type add primary key (time_zone_id,transition_type_id desc);
+SET @@time_zone='Japan';
+ERROR HY000: Unknown or incorrect time zone: 'Japan'
+alter table mysql.time_zone_transition_type drop primary key;
+alter table mysql.time_zone_transition_type add primary key (time_zone_id,transition_type_id);
+#
+# End of 10.8 tests
+#
+#
+# MDEV-31684 Add timezone information to DATE_FORMAT
+#
+# using system time
+SET @@time_zone= default;
+SELECT DATE_FORMAT('2009-11-01 22:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0100 CET
+SELECT DATE_FORMAT('2008-06-04 02:23:00', '%z %Z') AS current_timezone;
+current_timezone
++0200 CEST

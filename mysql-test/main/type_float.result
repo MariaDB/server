@@ -95,7 +95,7 @@ t2	CREATE TABLE `t2` (
   `col2` double(22,5) DEFAULT NULL,
   `col3` double DEFAULT NULL,
   `col4` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 create table t1 (a float);
 insert into t1 values (1);
@@ -133,7 +133,7 @@ min(a)
 -0.010
 drop table t1;
 create table t1 (a float(200,100), b double(200,100));
-ERROR 42000: Too big scale 100 specified for 'a'. Maximum is 30
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
 create table t1 (c20 char);
 insert ignore into t1 values (5000.0);
 Warnings:
@@ -238,7 +238,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `d` double(18,9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2, t3;
 create table t1 select  105213674794682365.00 + 0.0 x;
 show warnings;
@@ -540,7 +540,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `double` = "`t1`.`a`" of type `datetime`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `double` = "'1999-01-01 00:00:00'" of type `datetime`
 DROP TABLE t1,t2;
 #
 # MDEV-6971 Bad results with joins comparing TIME and DOUBLE/DECIMAL columns
@@ -566,14 +565,13 @@ SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 a
 10:20:30.000000
 10:20:30.000000
-# t2 should NOT be elimitated
+# t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
 Warnings:
 Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `double` = "`t1`.`a`" of type `time`
-Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `double` = "'10:20:30.000000'" of type `time`
 DROP TABLE t1,t2;
 #
 # End of 10.0 tests
@@ -794,49 +792,49 @@ DROP TABLE t1,t2;
 #
 create or replace table t1 (a double(40,30));
 create or replace table t1 (a double(40,31));
-ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
 create or replace table t1 as select 1.01e1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1.01e1` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 30) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double(47,30) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 31) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 39) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 51) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 20)/2 as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double(41,24) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 28)/2 as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table if exists t1;
 #
 # MDEV-11586 UNION of FLOAT type results in erroneous precision
@@ -936,7 +934,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c1
 0.671437
@@ -946,16 +944,16 @@ CREATE TABLE t2 AS SELECT CONCAT(a) AS c1, CONCAT(CAST(a AS FLOAT)) AS c2 FROM t
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(12) DEFAULT NULL,
-  `c2` varchar(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(12) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(12) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a FLOAT DEFAULT CAST(0.671437 AS FLOAT));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` float DEFAULT (cast(0.671437 as float))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a FLOAT);
 INSERT INTO t1 VALUES (1, 0.671437),(2, 0.671437);
@@ -1417,7 +1415,7 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
@@ -1542,7 +1540,7 @@ INSERT INTO t2 VALUES (0x30),(0x31);
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
 DROP TABLE t2;
-CREATE TABLE t2 (not_indexed_col VARCHAR(32));
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
 INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
 SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
 indexed_col	not_indexed_col
@@ -1763,4 +1761,37 @@ DROP TABLE t1;
 DROP TABLE t0;
 #
 # End of 10.6 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27712 Reduce the size of Lex_length_and_dec_st from 16 to 8
+#
+CREATE TABLE t1 (a DOUBLE(1000,1000));
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
+CREATE TABLE t1 (a DOUBLE(1000,0));
+ERROR 42000: Display width out of range for 'a' (max = 255)
+CREATE TABLE t1 (a DOUBLE(0,1000));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'a')
+CREATE TABLE t1 (a DOUBLE(2147483647,2147483647));
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
+CREATE TABLE t1 (a DOUBLE(2147483647,0));
+ERROR 42000: Display width out of range for 'a' (max = 255)
+CREATE TABLE t1 (a DOUBLE(0,2147483647));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'a')
+CREATE TABLE t1 (a DOUBLE(2147483648,2147483648));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648,2147483648))' at line 1
+CREATE TABLE t1 (a DOUBLE(2147483648,0));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648,0))' at line 1
+CREATE TABLE t1 (a DOUBLE(0,2147483648));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648))' at line 1
+CREATE TABLE t1 (a DOUBLE(999999999999999999999999999999,999999999999999999999999999999));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999,999999999999999999999999999999))' at line 1
+CREATE TABLE t1 (a DOUBLE(999999999999999999999999999999,0));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999,0))' at line 1
+CREATE TABLE t1 (a DOUBLE(0,999999999999999999999999999999));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999))' at line 1
+#
+# End of 10.9 tests
 #

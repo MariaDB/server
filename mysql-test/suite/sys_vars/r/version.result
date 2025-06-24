@@ -10,7 +10,7 @@ GLOBAL_VALUE_ORIGIN	COMMAND-LINE
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Server version number. It may also include a suffix with configuration or build information. -debug indicates debugging support was enabled on the server, and -log indicates at least one of the binary log, general log or slow query log are enabled, for example 10.1.1-MariaDB-mariadb1precise-log.
+VARIABLE_COMMENT	Server version number. It may also include a suffix with configuration or build information. -debug indicates debugging support was enabled on the server, and -log indicates at least one of the binary log, general log or slow query log are enabled, for example 10.1.1-MariaDB-mariadb1precise-log
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

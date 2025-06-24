@@ -11,7 +11,7 @@
 
 # Setup
 
-flush status;
+flush global status;
 
 SET @saved_thread_cache_size = @@global.thread_cache_size;
 

@@ -14,3 +14,31 @@ UNINSTALL PLUGIN simple_parser;
 # Bug #69682 - mysqld crashes after uninstall of plugin with "first" status var
 #
 show status like 'a%status';
+
+--echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-35308 NO_KEY_OPTIONS SQL mode has no effect on engine key options
+--echo #
+install soname 'mypluglib';
+set sql_mode=ignore_bad_table_options;
+create table t1 (
+  f1 int foo=bar primary key auto_increment,
+  f2 int default 3 invisible,
+  f3 text,
+  vf1 int as (f2+2) invisible,
+  unique (f1) koo=12,
+  fulltext (f3) with parser simple_parser
+) too=yes;
+show create table t1;
+set sql_mode=no_table_options;
+show create table t1;
+set sql_mode=no_field_options;
+show create table t1;
+set sql_mode=no_key_options;
+show create table t1;
+drop table t1;
+set sql_mode=default;
+uninstall soname 'mypluglib';
+
+--echo # End of 11.7 tests

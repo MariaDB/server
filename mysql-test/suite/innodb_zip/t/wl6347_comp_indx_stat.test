@@ -20,7 +20,6 @@ let MYSQLD_DATADIR=`SELECT @@datadir`;
 let $innodb_compression_level = `SELECT @@global.innodb_compression_level`;
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=0;
 --disable_query_log
@@ -73,7 +72,6 @@ SET GLOBAL innodb_read_only_compressed=OFF;
 --enable_query_log
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_compression_level=0;
 
 --echo # fetch the compressed page and check the stats
@@ -135,7 +133,6 @@ SET @inl_val=2;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_compression_level=0;
 
 --echo # fetch the compressed page and check the stats
@@ -296,7 +293,6 @@ SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_compression_level=9;
 
 
@@ -345,7 +341,6 @@ SET @inl_val=2;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_compression_level=9;
 
 
@@ -413,7 +408,6 @@ SET @inl_val=2;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_compression_level=9;
 
 
@@ -801,7 +795,6 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 --echo # check the flags
 SELECT @@innodb_cmp_per_index_enabled;
 SELECT @@innodb_compression_failure_threshold_pct;
-SELECT @@innodb_file_per_table;
 SELECT @@innodb_compression_level;
 
 --echo #******************************************************************
@@ -848,8 +841,6 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 --echo # set the flags
 SET GLOBAL innodb_compression_failure_threshold_pct=0;
-SET GLOBAL innodb_file_per_table=on;
-
 
 --echo # fetch the compressed page and check the stats
 --echo # The stats figure may be different/same for each restart.
@@ -1053,7 +1044,6 @@ SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 --echo # set the flags
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
 SET GLOBAL innodb_compression_level=Default;
@@ -1062,7 +1052,6 @@ SET GLOBAL innodb_compression_level=Default;
 --echo # check the flags
 SELECT @@innodb_cmp_per_index_enabled;
 SELECT @@innodb_compression_failure_threshold_pct;
-SELECT @@innodb_file_per_table;
 SELECT @@innodb_compression_level;
 
 --echo #******************************************************************
@@ -1109,9 +1098,6 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 --echo # set the flags
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
-SET GLOBAL innodb_file_per_table=on;
-SET GLOBAL innodb_compression_failure_threshold_pct=10;
-
 
 --echo # fetch the compressed page and check the stats
 --echo # The stats figure may be different/same for each restart.
@@ -1312,7 +1298,6 @@ DROP TABLE tab5;
 SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
 
-SET GLOBAL innodb_file_per_table=ON;
 SET GLOBAL innodb_compression_level=default;
 SET GLOBAL innodb_compression_failure_threshold_pct=default;
 
@@ -1351,7 +1336,6 @@ DROP TABLE tab5, test.tab5;
 DROP DATABASE sb;
 
 --echo # reset the flags
-eval SET GLOBAL innodb_file_per_table=default;
 eval SET GLOBAL innodb_cmp_per_index_enabled=default;
 --disable_query_log
 eval SET GLOBAL innodb_compression_level=$innodb_compression_level;

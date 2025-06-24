@@ -1,7 +1,10 @@
+SELECT @@innodb_doublewrite;
+@@innodb_doublewrite
+OFF
+SET GLOBAL innodb_doublewrite=fast;
 #
 # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
 #
-SET GLOBAL innodb_file_per_table=1;
 SET GLOBAL innodb_stats_persistent=0;
 CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 connect  con1,localhost,root;
@@ -13,11 +16,14 @@ connection default;
 disconnect con1;
 # Corrupt FIL_PAGE_TYPE in bug16720368.ibd,
 # and recompute innodb_checksum_algorithm=crc32
-# restart
+# restart: --innodb-flush-method=O_DIRECT
+SELECT @@innodb_doublewrite;
+@@innodb_doublewrite
+OFF
 SELECT COUNT(*) FROM bug16720368;
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
+ERROR HY000: Table `test`.`bug16720368` is corrupted. Please drop the table and recreate.
 INSERT INTO bug16720368 VALUES(1);
-ERROR 42S02: Table 'test.bug16720368' doesn't exist in engine
+ERROR HY000: Table `test`.`bug16720368` is corrupted. Please drop the table and recreate.
 INSERT INTO bug16720368_1 VALUES(1);
 # Shut down the server to uncorrupt the data.
 # restart
@@ -30,7 +36,6 @@ DROP TABLE bug16720368, bug16720368_1;
 # Bug#16735660 ASSERT TABLE2 == NULL, ROLLBACK OF RESURRECTED TXNS,
 # DICT_TABLE_ADD_TO_CACHE
 #
-SET GLOBAL innodb_file_per_table=1;
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 VALUES(42);

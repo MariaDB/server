@@ -1,11 +1,6 @@
-# Initialise
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
-
-#
-# Testing of NULL in a lot of different places
-#
+--echo #
+--echo # Testing of NULL in a lot of different places
+--echo #
 
 #enable view protocol after fix MDEV-28535
 --disable_view_protocol
@@ -34,9 +29,9 @@ insert into t1 values (null);
 select * from t1 where x != 0;
 drop table t1;
 
-#
-# Test problem med index on NULL columns and testing with =NULL;
-#
+--echo #
+--echo # Test problem med index on NULL columns and testing with =NULL;
+--echo #
 
 CREATE TABLE t1 (
   indexed_field int default NULL,
@@ -48,9 +43,9 @@ SELECT * FROM t1 WHERE indexed_field IS NULL;
 SELECT * FROM t1 WHERE indexed_field<=>NULL;
 DROP TABLE t1;
 
-#
-# Testing of IFNULL
-#
+--echo #
+--echo # Testing of IFNULL
+--echo #
 create table t1 (a int, b int) engine=myisam;
 insert into t1 values(20,null);
 select t2.b, ifnull(t2.b,"this is null") from t1 as t2 left join t1 as t3 on
@@ -62,40 +57,40 @@ select t2.b, ifnull(t2.b,"this is null") from t1 as t2 left join t1 as t3 on
 t2.b=t3.a order by 1;
 drop table t1;
 
-#
-# Test inserting and updating with NULL
-#
+--echo #
+--echo # Test inserting and updating with NULL
+--echo #
 CREATE TABLE t1 (a varchar(16) NOT NULL default '', b smallint(6) NOT NULL default 0, c datetime NOT NULL default '0000-00-00 00:00:00', d smallint(6) NOT NULL default 0);
 INSERT IGNORE INTO t1 SET a = "", d= "2003-01-14 03:54:55";
 UPDATE IGNORE t1 SET d=1/NULL;
 UPDATE IGNORE t1 SET d=NULL;
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (a) values (null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (a) values (1/null);
 INSERT IGNORE INTO t1 (a) values (null),(null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (b) values (null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (b) values (1/null);
 INSERT IGNORE INTO t1 (b) values (null),(null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (c) values (null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (c) values (1/null);
 INSERT IGNORE INTO t1 (c) values (null),(null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (d) values (null);
---error 1048
+--error ER_BAD_NULL_ERROR
 INSERT INTO t1 (d) values (1/null);
 INSERT IGNORE INTO t1 (d) values (null),(null);
 select * from t1;
 drop table t1;
 
-#
-# Test to check elimination of IS NULL predicate for a non-nullable attribute
-# (bug #1990)  
-#
+--echo #
+--echo # Test to check elimination of IS NULL predicate for a non-nullable attribute
+--echo # (bug #1990)  
+--echo #
 create table t1 (a int not null, b int not null, index idx(a));
 insert into t1 values
   (1,1), (2,2), (3,3), (4,4), (5,5), (6,6),
@@ -105,10 +100,10 @@ explain select * from t1 where a between 2 and 3 or b is null;
 drop table t1;
 select cast(NULL as signed);
 
-#
-# IS NULL is unable to use index in range if column is declared not null
-# (Bug #4256)
-#
+--echo #
+--echo # IS NULL is unable to use index in range if column is declared not null
+--echo # (Bug #4256)
+--echo #
 create table t1(i int, key(i));
 insert into t1 values(1);
 insert into t1 select i*2 from t1;
@@ -129,11 +124,11 @@ explain select * from t1 where i=2 or i is null;
 select count(*) from t1 where i=2 or i is null;
 drop table t1;
 
-#
-# NULL has its own type BINARY(0) by default.
-# But NULL should be weaker than a constant
-# when mixing charsets/collations
-#
+--echo #
+--echo # NULL has its own type BINARY(0) by default.
+--echo # But NULL should be weaker than a constant
+--echo # when mixing charsets/collations
+--echo #
 set names latin2;
 # Check that result type is taken from a non-null string
 create table t1 select
@@ -179,11 +174,11 @@ create table t1 select
 show create table t1;
 drop table t1;
 
-#
-# Check that comparison is done according to
-# non-null string collation, i.e. case insensitively,
-# rather than according to NULL's collation, i.e. case sensitively
-#
+--echo #
+--echo # Check that comparison is done according to
+--echo # non-null string collation, i.e. case insensitively,
+--echo # rather than according to NULL's collation, i.e. case sensitively
+--echo #
 # in field
 select 
   case 'str' when 'STR' then 'str' when null then 'null' end as c01,
@@ -197,20 +192,20 @@ select
 # Restore charset to the default value.
 set names latin1;
 
-#
-# Bug#19145: mysqld crashes if you set the default value of an enum field to NULL
-#
-create table bug19145a (e enum('a','b','c')          default 'b' , s set('x', 'y', 'z')          default 'y' ) engine=MyISAM;
-create table bug19145b (e enum('a','b','c')          default null, s set('x', 'y', 'z')          default null) engine=MyISAM;
+--echo #
+--echo # Bug#19145: mysqld crashes if you set the default value of an enum field to NULL
+--echo #
+create table bug19145a (e enum('a','b','c') default 'b' , s set('x', 'y', 'z') default 'y' ) engine=MyISAM;
+create table bug19145b (e enum('a','b','c') default null, s set('x', 'y', 'z') default null) engine=MyISAM;
 
 create table bug19145c (e enum('a','b','c') not null default 'b' , s set('x', 'y', 'z') not null default 'y' ) engine=MyISAM;
 
 # Invalid default value for 's'
---error 1067
-create table bug19145setnotnulldefaultnull (e enum('a','b','c')          default null, s set('x', 'y', 'z') not null default null) engine=MyISAM;
+--error ER_INVALID_DEFAULT
+create table bug19145setnotnulldefaultnull (e enum('a','b','c') default null, s set('x', 'y', 'z') not null default null) engine=MyISAM;
 
 # Invalid default value for 'e'
---error 1067
+--error ER_INVALID_DEFAULT
 create table bug19145enumnotnulldefaultnull (e enum('a','b','c') not null default null, s set('x', 'y', 'z')          default null) engine=MyISAM;
 
 alter table bug19145a alter column e set default null;
@@ -222,11 +217,11 @@ alter table bug19145b alter column s set default null;
 alter table bug19145b add column (i int);
 
 # Invalid default value for 'e'
---error 1067
+--error ER_INVALID_DEFAULT
 alter table bug19145c alter column e set default null;
 
 # Invalid default value for 's'
---error 1067
+--error ER_INVALID_DEFAULT
 alter table bug19145c alter column s set default null;
 alter table bug19145c add column (i int);
 
@@ -238,7 +233,9 @@ drop table bug19145a;
 drop table bug19145b;
 drop table bug19145c;
 
+--echo #
 --echo # End of 4.1 tests
+--echo #
 
 --echo #
 --echo # Bug #31471: decimal_bin_size: Assertion `scale >= 0 &&
@@ -261,7 +258,9 @@ DESCRIBE t2;
 
 DROP TABLE t1, t2;
 
+--echo #
 --echo # End of 5.0 tests
+--echo #
 
 --echo #
 --echo # MDEV-4895 Valgrind warnings (Conditional jump or move depends on uninitialised value) in Field_datetime::get_date on GREATEST(..) IS NULL
@@ -292,8 +291,7 @@ SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 DROP TABLE t1;
 
 --echo #
---echo # Bug mdev-5132: crash when exeicuting a join query
---echo #                with IS NULL and IS NOT NULL in where
+--echo # MDEV-5132 crash when exeicuting a join query with IS NULL and IS NOT NULL in where
 --echo #
 
 CREATE TABLE t1 (a DATE, b INT, c INT, KEY(a), KEY(b), KEY(c)) ENGINE=MyISAM; 
@@ -302,10 +300,6 @@ CREATE TABLE t2 (d DATE) ENGINE=MyISAM;
 SELECT  * FROM t1,t2 WHERE  1 IS NOT NULL AND t1.b IS NULL;
 
 DROP TABLE t1,t2;
-
---echo #
---echo # Start of 10.0 tests
---echo #
 
 --echo #
 --echo # MDEV-7001 Bad result for NOT NOT STRCMP('a','b') and NOT NOT NULLIF(2,3) 
@@ -1193,7 +1187,6 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
 SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
 DROP TABLE t1;
-
 
 --echo #
 --echo # End of 10.1 tests

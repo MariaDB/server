@@ -45,7 +45,7 @@ set binlog_format=@tmp_binlog_format;
 --source include/sync_slave_sql_with_master.inc
 
 connection slave;
-let $old_debug = `select @@global.debug`;
+let $old_debug = `select @@global.debug_dbug`;
 set global debug_dbug= 'd,dbug.rocksdb.get_row_by_rowid';
 --source include/stop_slave.inc
 --source include/start_slave.inc

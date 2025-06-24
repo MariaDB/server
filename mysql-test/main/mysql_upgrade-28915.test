@@ -15,7 +15,7 @@ SHOW CREATE TABLE mysql.event;
 
 --exec $MYSQL_UPGRADE --force 2>&1
 
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 SHOW CREATE TABLE mysql.proc;
 SHOW CREATE TABLE mysql.event;
@@ -64,7 +64,7 @@ SELECT name, body_utf8, body FROM mysql.event;
 --echo # mysql_upgrade changes columns from utf8mb4 to utf8mb3
 
 --exec $MYSQL_UPGRADE --force 2>&1
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 --vertical_results
 

@@ -14,8 +14,8 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#define SPIDER_DETAIL_VERSION "3.3.15"
-#define SPIDER_HEX_VERSION 0x0303
+#define SPIDER_DETAIL_VERSION PACKAGE_VERSION
+#define SPIDER_HEX_VERSION (MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR)
 
 #define spider_my_free(A,B) my_free(A)
 #ifdef pthread_mutex_t
@@ -66,7 +66,6 @@
 #define pthread_cond_destroy mysql_cond_destroy
 #define my_sprintf(A,B) sprintf B
 
-
 #define spider_stmt_da_message(A) thd_get_error_message(A)
 #define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
@@ -86,9 +85,7 @@
 
 #define SPIDER_TEST(A) MY_TEST(A)
 
-#define SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
 #define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
-#define SPIDER_XID_USES_xid_cache_iterate
 
 #define SPIDER_Item_func_conv_charset_conv_charset collation.collation
 
@@ -98,7 +95,6 @@
 #define SPIDER_new_THD(A) (new THD(A))
 #define SPIDER_order_direction_is_asc(A) (A->direction == ORDER::ORDER_ASC)
 
-#define SPIDER_HAS_MY_CHARLEN
 #define SPIDER_open_temporary_table
 
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,E,F,G)
@@ -109,7 +105,6 @@
 
 #define SPIDER_read_record_read_record(A) read_record()
 #define SPIDER_has_Item_with_subquery
-#define SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 #define SPIDER_use_LEX_CSTRING_for_database_tablename_alias
 #define SPIDER_THD_db_str(A) (A)->db.str
 #define SPIDER_THD_db_length(A) (A)->db.length
@@ -151,9 +146,14 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 #define spider_bit_is_set(BITMAP, BIT) \
   (uint) ((BITMAP)[(BIT) / 8] & (1 << ((BIT) & 7)))
 
+/* Change status of the remote backend server link. */
+/* 0 Doesn't change status.  */
 #define SPIDER_LINK_STATUS_NO_CHANGE         0
+/* 1 Changes status to OK.  */
 #define SPIDER_LINK_STATUS_OK                1
+/* 2 Changes status to RECOVERY.  */
 #define SPIDER_LINK_STATUS_RECOVERY          2
+/* 3 Changes status to no more in group communication. */
 #define SPIDER_LINK_STATUS_NG                3
 
 #define SPIDER_LINK_MON_OK                   0
@@ -161,9 +161,9 @@ typedef start_new_trans *SPIDER_Open_tables_backup;
 #define SPIDER_LINK_MON_DRAW_FEW_MON         1
 #define SPIDER_LINK_MON_DRAW                 2
 
-#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     23
+#define SPIDER_TMP_SHARE_CHAR_PTR_COUNT     24
 #define SPIDER_TMP_SHARE_UINT_COUNT         SPIDER_TMP_SHARE_CHAR_PTR_COUNT
-#define SPIDER_TMP_SHARE_LONG_COUNT         20
+#define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
 #define SPIDER_MEM_CALC_LIST_NUM           SPD_MID_LAST
@@ -437,6 +437,7 @@ enum spider_malloc_id {
   SPD_MID_PING_TABLE_MON_FROM_TABLE_1,
   SPD_MID_RELEASE_PING_TABLE_MON_LIST_1,
   SPD_MID_TRX_ANOTHER_LOCK_TABLES_1,
+  SPD_MID_TRY_ODBC_CONNECTION_STRING_1,
   SPD_MID_UDF_COPY_TABLES_CREATE_TABLE_LIST_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_1,
   SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_2,
@@ -465,7 +466,6 @@ typedef struct st_spider_share SPIDER_SHARE;
 typedef struct st_spider_table_mon_list SPIDER_TABLE_MON_LIST;
 typedef struct st_spider_ip_port_conn SPIDER_IP_PORT_CONN;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 typedef struct st_spider_thread
 {
   uint                  thread_idx;
@@ -481,7 +481,6 @@ typedef struct st_spider_thread
   volatile SPIDER_SHARE *queue_first;
   volatile SPIDER_SHARE *queue_last;
 } SPIDER_THREAD;
-#endif
 
 typedef struct st_spider_link_for_hash
 {
@@ -672,6 +671,7 @@ typedef struct st_spider_conn
   char               *tgt_dsn;
   char               *tgt_filedsn;
   char               *tgt_driver;
+  char               *tgt_odbc_conn_str;
   long               tgt_port;
   long               tgt_ssl_vsc;
 
@@ -691,13 +691,11 @@ typedef struct st_spider_conn
   uint               tgt_dsn_length;
   uint               tgt_filedsn_length;
   uint               tgt_driver_length;
+  uint               tgt_odbc_conn_str_length;
   uint               dbton_id;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     void             *quick_target;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile bool      bg_init;
   volatile bool      bg_break;
   volatile bool      bg_kill;
@@ -728,10 +726,7 @@ typedef struct st_spider_conn
   const char         *bg_job_stack_file_name;
   ulong              bg_job_stack_line_no;
   uint               bg_job_stack_cur_pos;
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     int              *need_mon;
   int                *conn_need_mon;
 
@@ -810,7 +805,6 @@ typedef struct st_spider_lgtm_tblhnd_share
   ulonglong          auto_increment_value;
 } SPIDER_LGTM_TBLHND_SHARE;
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 typedef struct st_spider_patition_handler
 {
   bool               clone_bitmap_init;
@@ -820,7 +814,6 @@ typedef struct st_spider_patition_handler
   ha_spider          *owner;
   ha_spider          **handlers;
 } SPIDER_PARTITION_HANDLER;
-#endif
 
 typedef struct st_spider_wide_share
 {
@@ -873,9 +866,7 @@ typedef struct st_spider_wide_handler
   uchar              *rnd_write_bitmap;
   SPIDER_CONDITION   *condition;
   void               *owner;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
-#endif
   List<Item>         *direct_update_fields;
   List<Item>         *direct_update_values;
   TABLE_SHARE        *top_share;
@@ -926,7 +917,6 @@ typedef struct st_spider_transaction
   bool               updated_in_this_trx;
 
   THD                *thd;
-  my_hash_value_type thd_hash_value;
   XID                xid;
   HASH               trx_conn_hash;
   uint               trx_conn_hash_id;
@@ -1022,24 +1012,22 @@ typedef struct st_spider_share
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   my_hash_value_type table_name_hash_value;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   my_hash_value_type table_path_hash_value;
-#endif
 
+  /* Whether the share has been initialised */
   volatile bool      init;
+  /* Whether an error occurred in initialisation of this share */
   volatile bool      init_error;
+  /* The time of the initialisation error */
   volatile time_t    init_error_time;
   volatile bool      link_status_init;
   uchar              *table_mon_mutex_bitmap;
   volatile bool      sts_init;
   volatile time_t    sts_get_time;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile time_t    bg_sts_try_time;
   volatile double    bg_sts_interval;
   volatile int       bg_sts_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   volatile int       bg_sts_sync;
-#endif
   volatile bool      bg_sts_init;
   volatile bool      bg_sts_kill;
   volatile bool      bg_sts_thd_wait;
@@ -1048,15 +1036,11 @@ typedef struct st_spider_share
   pthread_cond_t     bg_sts_cond;
   pthread_cond_t     bg_sts_sync_cond;
   volatile bool      crd_init;
-#endif
   volatile time_t    crd_get_time;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile time_t    bg_crd_try_time;
   volatile double    bg_crd_interval;
   volatile int       bg_crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   volatile int       bg_crd_sync;
-#endif
   volatile bool      bg_crd_init;
   volatile bool      bg_crd_kill;
   volatile bool      bg_crd_thd_wait;
@@ -1064,8 +1048,6 @@ typedef struct st_spider_share
   pthread_t          bg_crd_thread;
   pthread_cond_t     bg_crd_cond;
   pthread_cond_t     bg_crd_sync_cond;
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile bool      bg_mon_init;
   volatile bool      bg_mon_kill;
   THD                **bg_mon_thds;
@@ -1073,8 +1055,6 @@ typedef struct st_spider_share
   pthread_mutex_t    *bg_mon_mutexes;
   pthread_cond_t     *bg_mon_conds;
   pthread_cond_t     *bg_mon_sleep_conds;
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   /* static bg thread for sts and crd */
   TABLE                 table;
   ha_spider             *sts_spider;
@@ -1091,7 +1071,6 @@ typedef struct st_spider_share
   volatile SPIDER_SHARE *sts_next;
   volatile SPIDER_SHARE *crd_prev;
   volatile SPIDER_SHARE *crd_next;
-#endif
 
   MEM_ROOT           mem_root;
 
@@ -1109,25 +1088,27 @@ typedef struct st_spider_share
   longlong           additional_table_flags;
   bool               have_recovery_link;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
+  /** See `mysql_sysvar_sts_bg_mode` */
   int                sts_bg_mode;
-#endif
+  /** See `mysql_sysvar_sts_interval` */
   double             sts_interval;
+  /** See `mysql_sysvar_sts_mode` */
   int                sts_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /** See `mysql_sysvar_sts_sync` */
   int                sts_sync;
-#endif
   int                store_last_sts;
+  /** See `mysql_sysvar_load_sts_at_startup` */
   int                load_sts_at_startup;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
+  /** See `mysql_sysvar_crd_bg_mode` */
   int                crd_bg_mode;
-#endif
+  /** See `mysql_sysvar_crd_interval` */
   double             crd_interval;
+  /** See `mysql_sysvar_crd_mode` */
   int                crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /** See `mysql_sysvar_crd_sync` */
   int                crd_sync;
-#endif
   int                store_last_crd;
+  /** See `mysql_sysvar_load_crd_at_startup` */
   int                load_crd_at_startup;
   int                crd_type;
   double             crd_weight;
@@ -1160,13 +1141,12 @@ typedef struct st_spider_share
   int                low_mem_read;
   int                table_count_mode;
   int                select_column_mode;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                bgs_mode;
   longlong           bgs_first_read;
   longlong           bgs_second_read;
-#endif
   longlong           first_read;
   longlong           second_read;
+  /** See `mysql_sysvar_auto_increment_mode` */
   int                auto_increment_mode;
   int                use_table_charset;
   int                use_pushdown_udf;
@@ -1177,6 +1157,8 @@ typedef struct st_spider_share
   int                read_only_mode;
   int                error_read_mode;
   int                error_write_mode;
+  /* Number of active remote servers, for use in load balancing read
+  connections */
   int                active_link_count;
 #ifdef HA_CAN_FORCE_BULK_UPDATE
   int                force_bulk_update;
@@ -1199,6 +1181,8 @@ typedef struct st_spider_share
   char               **tgt_usernames;
   char               **tgt_passwords;
   char               **tgt_sockets;
+  /** The wrapper of target servers, each element has the same
+  possible values as `SPIDER_DBTON::wrapper` */
   char               **tgt_wrappers;
   char               **tgt_ssl_cas;
   char               **tgt_ssl_capaths;
@@ -1210,29 +1194,27 @@ typedef struct st_spider_share
   char               **tgt_dsns;
   char               **tgt_filedsns;
   char               **tgt_drivers;
+  char               **tgt_odbc_conn_strs;
   char               **static_link_ids;
   char               **tgt_pk_names;
   char               **tgt_sequence_names;
   char               **conn_keys;
   long               *tgt_ports;
   long               *tgt_ssl_vscs;
+  /* See SPIDER_LINK_STATUS_* in spd_include.h */
   long               *link_statuses;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   long               *monitoring_bg_flag;
   long               *monitoring_bg_kind;
-#endif
   long               *monitoring_binlog_pos_at_failing;
   long               *monitoring_flag;
   long               *monitoring_kind;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   longlong           *monitoring_bg_interval;
-#endif
   longlong           *monitoring_limit;
   longlong           *monitoring_sid;
-  long               *use_handlers;
   long               *connect_timeouts;
   long               *net_read_timeouts;
   long               *net_write_timeouts;
+  /* Connection load balancing integer weight */
   long               *access_balances;
   long               *bka_table_name_types;
   long               *strict_group_bys;
@@ -1255,6 +1237,7 @@ typedef struct st_spider_share
   uint               *tgt_dsns_lengths;
   uint               *tgt_filedsns_lengths;
   uint               *tgt_drivers_lengths;
+  uint               *tgt_odbc_conn_strs_lengths;
   uint               *static_link_ids_lengths;
   uint               *tgt_pk_names_lengths;
   uint               *tgt_sequence_names_lengths;
@@ -1303,6 +1286,7 @@ typedef struct st_spider_share
   uint               tgt_dsns_length;
   uint               tgt_filedsns_length;
   uint               tgt_drivers_length;
+  uint               tgt_odbc_conn_strs_length;
   uint               static_link_ids_length;
   uint               tgt_pk_names_length;
   uint               tgt_sequence_names_length;
@@ -1310,19 +1294,14 @@ typedef struct st_spider_share
   uint               tgt_ports_length;
   uint               tgt_ssl_vscs_length;
   uint               link_statuses_length;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   uint               monitoring_bg_flag_length;
   uint               monitoring_bg_kind_length;
-#endif
   uint               monitoring_binlog_pos_at_failing_length;
   uint               monitoring_flag_length;
   uint               monitoring_kind_length;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   uint               monitoring_bg_interval_length;
-#endif
   uint               monitoring_limit_length;
   uint               monitoring_sid_length;
-  uint               use_handlers_length;
   uint               connect_timeouts_length;
   uint               net_read_timeouts_length;
   uint               net_write_timeouts_length;
@@ -1330,10 +1309,16 @@ typedef struct st_spider_share
   uint               bka_table_name_types_length;
   uint               strict_group_bys_length;
 
-  /* for dbton */
+  /*
+    For dbton. A `SPIDER_SHARE` uses all `SPIDER_DBTON`s with the same
+    wrappers as any its `tgt_wrappers`
+  */
+  /* Specifies which dbtons of the `spider_dbton` to use */
   uchar              dbton_bitmap[spider_bitmap_size(SPIDER_DBTON_SIZE)];
   spider_db_share    *dbton_share[SPIDER_DBTON_SIZE];
+  /* Number of `SPIDER_DBTON`s used */
   uint               use_dbton_count;
+  /* Index of each `SPIDER_DBTON` in `spider_dbton` to use */
   /* Actual size is `use_dbton_count'. Values are the indices of item
   in `spider_dbton'. */
   uint               use_dbton_ids[SPIDER_DBTON_SIZE];
@@ -1356,14 +1341,23 @@ typedef struct st_spider_link_pack
   int                        link_idx;
 } SPIDER_LINK_PACK;
 
+/** A struct storing the initialisation error of a table. All
+instances are in `spider_init_error_tables` */
 typedef struct st_spider_init_error_table
 {
+  /* The associated table name */
   char               *table_name;
+  /* Length of the associated table name */
   uint               table_name_length;
+  /* Hash value of the associated table name for lookup */
   my_hash_value_type table_name_hash_value;
+  /* Whether the error has a message */
   bool               init_error_with_message;
+  /* The error message */
   char               init_error_msg[MYSQL_ERRMSG_SIZE];
+  /* The error code */
   volatile int       init_error;
+  /* The error time */
   volatile time_t    init_error_time;
 } SPIDER_INIT_ERROR_TABLE;
 
@@ -1418,6 +1412,7 @@ typedef struct st_spider_direct_sql
   char                 *tgt_dsn;
   char                 *tgt_filedsn;
   char                 *tgt_driver;
+  char                 *tgt_odbc_conn_str;
   char                 *conn_key;
   long                 tgt_port;
   long                 tgt_ssl_vsc;
@@ -1439,6 +1434,7 @@ typedef struct st_spider_direct_sql
   uint                 tgt_dsn_length;
   uint                 tgt_filedsn_length;
   uint                 tgt_driver_length;
+  uint                 tgt_odbc_conn_str_length;
   uint                 conn_key_length;
   uint                 dbton_id;
   my_hash_value_type   conn_key_hash_value;
@@ -1517,9 +1513,7 @@ typedef struct st_spider_copy_table_conn
   spider_db_copy_table       *copy_table;
   ha_spider                  *spider;
   int                        need_mon;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                        bg_error_num;
-#endif
   st_spider_copy_table_conn  *next;
 } SPIDER_COPY_TABLE_CONN;
 
@@ -1544,9 +1538,7 @@ typedef struct st_spider_copy_tables
   longlong                   bulk_insert_rows;
   int                        use_table_charset;
   int                        use_transaction;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                        bg_mode;
-#endif
 
   char                       *database;
 
@@ -1618,10 +1610,8 @@ typedef struct st_spider_item_hld
 {
   uint               tgt_num;
   Item               *item;
-#ifdef SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
   bool               init_mem_root;
   MEM_ROOT           mem_root;
-#endif
   st_spider_item_hld *next;
 } SPIDER_ITEM_HLD;
 

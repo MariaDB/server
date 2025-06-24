@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -143,11 +143,6 @@ succeed, i.e., enough space available, NULL otherwise. The cursor stays at
 the same logical position, but the physical position may change if it is
 pointing to a compressed page that was reorganized.
 
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
 @return pointer to record if succeed, NULL otherwise */
 UNIV_INLINE
 rec_t*
@@ -185,6 +180,7 @@ page_cur_tuple_insert(
 		rec = page_cur_insert_rec_low(cursor, rec, *offsets, mtr);
 	}
 
-	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, *offsets));
+	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, cursor->index, *offsets));
 	return(rec);
 }
+

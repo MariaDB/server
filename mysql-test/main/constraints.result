@@ -3,7 +3,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL CHECK (`a` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1);
 insert into t1 values (0);
 ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`a` > `b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,0);
 insert into t1 values (0,1);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
@@ -27,7 +27,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `abc` CHECK (`a` > `b`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1,0);
 insert into t1 values (0,1);
 ERROR 23000: CONSTRAINT `abc` failed for `test`.`t1`
@@ -37,7 +37,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1),(NULL);
 drop table t1;
 create table t1 (a int null);
@@ -55,7 +55,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `constraint_1` (`a`),
   UNIQUE KEY `key_1` (`a`),
   UNIQUE KEY `key_2` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 drop table if exists t_illegal;
 create table t_illegal (a int, b int, check a>b);
@@ -108,14 +108,14 @@ long_enough_name	CREATE TABLE `long_enough_name` (
   KEY `idx3` (`f2`),
   KEY `idx4` (`f3`),
   CONSTRAINT `constr` CHECK (`f6` >= 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE long_enough_name;
 CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
 SHOW CREATE TABLE test.t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `t` int(11) DEFAULT NULL COMMENT 't_comment' CHECK (`t` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP table test.t;
 SET @OLD_SQL_MODE=@@SQL_MODE;
 SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
@@ -126,7 +126,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `f` int(11) DEFAULT NULL `foo`=bar CHECK (`f` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP table test.t;
 SET @@SQL_MODE=@OLD_SQL_MODE;
 #
@@ -146,7 +146,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 add column b int;
 CALL sp;
 show create table t1;
@@ -155,7 +155,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CALL sp;
 show create table t1;
 Table	Create Table
@@ -164,7 +164,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` > 0),
   CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT);
@@ -180,7 +180,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `CONSTRAINT_1` CHECK (`b` < 10),
   CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE sp;
 DROP TABLE t1;
 #
@@ -191,7 +191,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL CHECK (`a` > 10)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a text default(length(now())) check (length(a) > 1));
 insert into t1 values ();
@@ -212,7 +212,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `foo` CHECK (`b` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 call sp;
 Warnings:
 Note	1826	Duplicate CHECK constraint name 'foo'
@@ -222,7 +222,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `foo` CHECK (`b` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 call sp;
 Warnings:
 Note	1826	Duplicate CHECK constraint name 'foo'
@@ -232,7 +232,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   CONSTRAINT `foo` CHECK (`b` > 0)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop procedure sp;
 drop table t1;
 #

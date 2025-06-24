@@ -192,7 +192,7 @@ table2_rowid SMALLINT NOT NULL
 INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 LOCK TABLES t1 WRITE, t2 READ;
-# Sub-select should not try to aquire a write lock.
+# Sub-select should not try to acquire a write lock.
 DELETE FROM t1 
 WHERE EXISTS 
 ( 

@@ -1,4 +1,4 @@
 --innodb-sys-tablestats
---innodb_buffer_pool_size=5M
+--innodb_buffer_pool_size=6M
 --innodb_monitor_enable=module_buffer
 --skip-innodb-stats-persistent

@@ -19,8 +19,6 @@
 #include <my_sys.h>
 #include <m_string.h>
 
-#ifdef HAVE_SPATIAL
-
 #include "gcalc_slicescan.h"
 
 
@@ -172,7 +170,7 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
 
 
 Gcalc_dyn_list::Gcalc_dyn_list(size_t blk_size, size_t sizeof_item):
-  m_blk_size(blk_size - ALLOC_ROOT_MIN_BLOCK_SIZE),
+  m_blk_size(blk_size),
   m_sizeof_item(ALIGN_SIZE(sizeof_item)),
   m_points_per_blk((uint)((m_blk_size - PH_DATA_OFFSET) / m_sizeof_item)),
   m_blk_hook(&m_first_blk),
@@ -2010,6 +2008,3 @@ double Gcalc_scan_iterator::get_pure_double(const Gcalc_internal_coord *d,
     res*= -1.0;
   return res;
 }
-
-
-#endif /* HAVE_SPATIAL */

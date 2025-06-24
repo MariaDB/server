@@ -11,7 +11,7 @@ CREATE TABLE nt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = MyIsam;
 INSERT INTO tt_1(ddl_case) VALUES(0);
 INSERT INTO tt_2(ddl_case) VALUES(0);
 #########################################################################
-#                          CHECK IMPLICT COMMIT
+#                          CHECK IMPLICIT COMMIT
 #########################################################################
 SET AUTOCOMMIT= 0;
 INSERT INTO tt_1(ddl_case) VALUES (43);
@@ -276,7 +276,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `fc`() RETURNS varchar(64) CHARSET latin1 COLLATE latin1_swedish_ci
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `fc`() RETURNS varchar(64) CHARSET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 RETURN "fc"
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(ddl_case) VALUES (21)

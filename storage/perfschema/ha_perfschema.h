@@ -53,8 +53,6 @@ public:
 
   ~ha_perfschema();
 
-  const char *index_type(uint) override { return ""; }
-
   /** Capabilities of the performance schema tables. */
   ulonglong table_flags(void) const override
   {
@@ -104,8 +102,10 @@ public:
   ha_rows estimate_rows_upper_bound(void) override
   { return HA_POS_ERROR; }
 
-  double scan_time(void) override
-  { return 1.0; }
+  IO_AND_CPU_COST scan_time(void)  override
+  {
+    return {0.0, 1.0};
+  }
 
   /**
     Open a performance schema table.
@@ -222,7 +222,7 @@ private:
      - performing point in time recovery in 5.6 with old archived logs.
 
      This API detects when the code calling the performance schema storage
-     engine is a slave thread or whether the code calling isthe client thread
+     engine is a slave thread or whether the code calling is the client thread
      executing a BINLOG'.. statement.
 
      This API acts as a late filter for the above mentioned cases.

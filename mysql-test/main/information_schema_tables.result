@@ -37,7 +37,7 @@ DROP VIEW v;
 DROP VIEW v2;
 DROP FUNCTION f;
 # The third test version from the MDEV.
-# It failed reliably, and should be deterninistic.
+# It failed reliably, and should be deterministic.
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
 CREATE VIEW v01 AS SELECT f1();
 CREATE VIEW v02 AS SELECT f1();

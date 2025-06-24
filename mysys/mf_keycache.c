@@ -442,7 +442,7 @@ static inline uint next_power(uint value)
     init_simple_key_cache()
     keycache                pointer to the control block of a simple key cache 
     key_cache_block_size    size of blocks to keep cached data
-    use_mem                 memory to use for the key cache buferrs/structures
+    use_mem                 memory to use for the key cache buffers/structures
     division_limit          division limit (may be zero)
     age_threshold           age threshold (may be zero)
 
@@ -1525,7 +1525,7 @@ static void unlink_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 
   NOTE
     The first request unlinks the block from the LRU ring. This means
-    that it is protected against eveiction.
+    that it is protected against eviction.
 
   RETURN
     void
@@ -2028,7 +2028,7 @@ restart:
         everything can happen to the block but free or another completed
         eviction.
 
-        Note that we bahave like a secondary requestor here. We just
+        Note that we behave like a secondary requestor here. We just
         cannot return with PAGE_WAIT_TO_BE_READ. This would work for
         read requests and writes on dirty blocks that are not in flush
         only. Waiting here on COND_FOR_REQUESTED works in all
@@ -3702,7 +3702,7 @@ static void free_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
   /*
     Unregister the block request and link the block into the LRU ring.
     This enables eviction for the block. If the LRU ring was empty and
-    threads are waiting for a block, then the block wil be handed over
+    threads are waiting for a block, then the block will be handed over
     for eviction immediately. Otherwise we will unlink it from the LRU
     ring again, without releasing the lock in between. So decrementing
     the request counter and updating statistics are the only relevant
@@ -3762,10 +3762,11 @@ static void free_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 
 static int cmp_sec_link(const void *_a, const void *_b)
 {
-  BLOCK_LINK *const *a= _a;
-  BLOCK_LINK *const *b= _b;
-  return (((*a)->hash_link->diskpos < (*b)->hash_link->diskpos) ? -1 :
-      ((*a)->hash_link->diskpos > (*b)->hash_link->diskpos) ? 1 : 0);
+  const BLOCK_LINK *a= *(const BLOCK_LINK **)_a;
+  const BLOCK_LINK *b= *(const BLOCK_LINK **)_b;
+
+  return (a->hash_link->diskpos < b->hash_link->diskpos) ? -1 :
+      (a->hash_link->diskpos > b->hash_link->diskpos) ? 1 : 0;
 }
 
 
@@ -3787,7 +3788,7 @@ static int flush_cached_blocks(SIMPLE_KEY_CACHE_CB *keycache,
   keycache_pthread_mutex_unlock(&keycache->cache_lock);
   /*
      As all blocks referred in 'cache' are marked by BLOCK_IN_FLUSH
-     we are guarunteed no thread will change them
+     we are guaranteed no thread will change them
   */
   my_qsort((uchar*) cache, count, sizeof(*cache), (qsort_cmp) cmp_sec_link);
 
@@ -4112,7 +4113,7 @@ restart:
     {
       if ((error= flush_cached_blocks(keycache, file, cache, pos, type)))
       {
-        /* Do not loop inifnitely trying to flush in vain. */
+        /* Do not loop infinitely trying to flush in vain. */
         if ((last_errno == error) && (++last_errcnt > 5))
           goto err;
         last_errno= error;
@@ -6120,7 +6121,7 @@ int resize_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 
   DESCRIPTION
     The function sets new values of the division limit and the age threshold 
-    used when the key cache keycach employs midpoint insertion strategy.
+    used when the key cache keycache employs midpoint insertion strategy.
     The parameters division_limit and age_threshold provide these new values.
 
   RETURN VALUE

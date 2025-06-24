@@ -1,0 +1,163 @@
+#
+# MDEV-31474 KDF() function
+#
+select hex(kdf('foo', 'bar'));
+hex(kdf('foo', 'bar'))
+76BA6DEC5C3F6A60704D730A2A4BAA1C
+select hex(kdf('foo', 'bar'));
+hex(kdf('foo', 'bar'))
+76BA6DEC5C3F6A60704D730A2A4BAA1C
+select hex(kdf('faa', 'bar'));
+hex(kdf('faa', 'bar'))
+62A8C6FD3E6FDA7ECE6D37CF1C95E3CC
+select hex(kdf('foo', 'bor'));
+hex(kdf('foo', 'bor'))
+F0FE3B0884C9733A520EC8C2EE711137
+select hex(kdf('foo', 'bar', 10));
+hex(kdf('foo', 'bar', 10))
+1D25A9E01C2078FF10DECEC874B3F21E
+select hex(kdf('foo', 'bar', 11));
+hex(kdf('foo', 'bar', 11))
+48565B49B42FBF88537AFA1D4C0FA2C6
+select hex(kdf('foo', 'bar', 'info', 'hkdf'));
+hex(kdf('foo', 'bar', 'info', 'hkdf'))
+710583081D40A55F0B573A76E02D8975
+select hex(kdf('foo', 'bar', 'infa', 'hkdf'));
+hex(kdf('foo', 'bar', 'infa', 'hkdf'))
+612875F859CFB4EE0DFEFF9F2A18E836
+select hex(kdf('foo', 'bar', 'info', 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar', 'info', 'pbkdf2_hmac'))
+NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'info'
+Warning	3047	Invalid argument error: 0 in function kdf.
+select hex(kdf('foo', 'bar', -1, 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar', -1, 'pbkdf2_hmac'))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: -1 in function kdf.
+select hex(kdf('foo', 'bar',  0, 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar',  0, 'pbkdf2_hmac'))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 0 in function kdf.
+select hex(kdf('foo', 'bar',  1, 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar',  1, 'pbkdf2_hmac'))
+DB658012DC3E52AEC1F4933C280B6E10
+select hex(kdf('foo', 'bar', 10, 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar', 10, 'pbkdf2_hmac'))
+1D25A9E01C2078FF10DECEC874B3F21E
+select hex(kdf(NULL, 'bar'));
+hex(kdf(NULL, 'bar'))
+NULL
+select hex(kdf('foo', NULL));
+hex(kdf('foo', NULL))
+NULL
+select hex(kdf('foo', 'bar', NULL, 'hkdf'));
+hex(kdf('foo', 'bar', NULL, 'hkdf'))
+4AFD0088E56CAF7CB5C94F6C101D58D5
+select hex(kdf('foo', 'bar', NULL, 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar', NULL, 'pbkdf2_hmac'))
+NULL
+select hex(kdf('foo', 'bar', 2000, NULL));
+hex(kdf('foo', 'bar', 2000, NULL))
+NULL
+select hex(kdf('foo', 'bar', 2000, 'foo'));
+hex(kdf('foo', 'bar', 2000, 'foo'))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 'foo' in function kdf.
+select hex(kdf('foo', 'bar', 2000, '\n\n\n\0!!!'));
+hex(kdf('foo', 'bar', 2000, '\n\n\n\0!!!'))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: '
+
+
+\0000!!!' in function kdf.
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', NULL));
+hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', NULL))
+NULL
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', -8));
+hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', -8))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: -8 in function kdf.
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', 10));
+hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', 10))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 10 in function kdf.
+select hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', 16));
+hex(kdf('foo', 'bar', 1000, 'pbkdf2_hmac', 16))
+76BA
+set @@block_encryption_mode='aes-192-cbc';
+select hex(kdf('foo', 'bar', 'info', 'hkdf'));
+hex(kdf('foo', 'bar', 'info', 'hkdf'))
+710583081D40A55F0B573A76E02D8975AA11A4595954C0A1
+select hex(kdf('foo', 'bar', 'info', 'hkdf', 256));
+hex(kdf('foo', 'bar', 'info', 'hkdf', 256))
+710583081D40A55F0B573A76E02D8975AA11A4595954C0A1487D6D33ABAB93C3
+select hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac'));
+hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac'))
+430D4780B57254EF39EE13CE53DB381A552151AA62A9FA92
+select hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac', 256));
+hex(kdf('foo', 'bar', 2000, 'pbkdf2_hmac', 256))
+430D4780B57254EF39EE13CE53DB381A552151AA62A9FA922B9949DF270AE10C
+set @key=kdf('password', 'salt', 2048);
+select hex(aes_encrypt('secret', @key, '1234123412341234'));
+hex(aes_encrypt('secret', @key, '1234123412341234'))
+9EED553CDDEE426D5635EF559E015ECA
+select aes_decrypt(x'9EED553CDDEE426D5635EF559E015ECA', @key, '1234123412341234');
+aes_decrypt(x'9EED553CDDEE426D5635EF559E015ECA', @key, '1234123412341234')
+secret
+select length(kdf('foo', 'bar', 'info', 'hkdf', -1));
+length(kdf('foo', 'bar', 'info', 'hkdf', -1))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: -1 in function kdf.
+select length(kdf('foo', 'bar', 'info', 'hkdf', 0));
+length(kdf('foo', 'bar', 'info', 'hkdf', 0))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 0 in function kdf.
+select length(kdf('foo', 'bar', 'info', 'hkdf', 32768));
+length(kdf('foo', 'bar', 'info', 'hkdf', 32768))
+4096
+select length(kdf('foo', 'bar', 'info', 'hkdf', 65536));
+length(kdf('foo', 'bar', 'info', 'hkdf', 65536))
+8192
+select length(kdf('foo', 'bar', 'info', 'hkdf', 65537));
+length(kdf('foo', 'bar', 'info', 'hkdf', 65537))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 65537 in function kdf.
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', -1));
+length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', -1))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: -1 in function kdf.
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 0));
+length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 0))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 0 in function kdf.
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 32768));
+length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 32768))
+4096
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65536));
+length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65536))
+8192
+select length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65537));
+length(kdf('foo', 'bar', 100, 'pbkdf2_hmac', 65537))
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 65537 in function kdf.
+#
+# MDEV-33659 Test kdf() without parameters
+#
+select kdf();
+ERROR 42000: Incorrect parameter count in the call to native function 'kdf'
+#
+# End of 11.3 tests
+#

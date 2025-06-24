@@ -680,7 +680,7 @@ mariadb> select * from io_by_thread_by_latency;
 +---------------------+-------+---------------+-------------+-------------+-------------+-----------+----------------+
 | root@localhost      | 11580 | 18.01 s       | 429.78 ns   | 1.12 ms     | 181.07 ms   |        25 |              6 |
 | main                |  1358 | 1.31 s        | 475.02 ns   | 2.27 ms     | 350.70 ms   |         1 |           NULL |
-| page_cleaner_thread |   654 | 147.44 ms     | 588.12 ns   | 225.44 us   | 46.41 ms    |        18 |           NULL |
+| page_cleaner        |   654 | 147.44 ms     | 588.12 ns   | 225.44 us   | 46.41 ms    |        18 |           NULL |
 | io_write_thread     |   131 | 107.75 ms     | 8.60 us     | 822.55 us   | 27.69 ms    |         8 |           NULL |
 | io_write_thread     |    46 | 47.07 ms      | 10.64 us    | 1.02 ms     | 16.90 ms    |         9 |           NULL |
 | io_write_thread     |    71 | 46.99 ms      | 9.11 us     | 661.81 us   | 17.04 ms    |        11 |           NULL |
@@ -1291,7 +1291,7 @@ mariadb> DESC metrics;
 +----------------+--------------+------+-----+---------+-------+
 4 rows in set (0.00 sec)
 
-mysq> DESC metrics_56;
+mysql> DESC metrics_56;
 +----------------+--------------+------+-----+---------+-------+
 | Field          | Type         | Null | Key | Default | Extra |
 +----------------+--------------+------+-----+---------+-------+
@@ -1634,6 +1634,60 @@ mariadb> select * from schema_object_overview;
 +--------------------+---------------+-------+
 10 rows in set (1.58 sec)
 ```
+
+#### privileges_by_table_by_level
+
+##### Description
+
+-- Shows granted privileges broken down by table on which they allow access
+-- and level on which they were granted:
+-- - user_privileges
+-- - schema_privileges
+-- - table_privileges
+
+##### Structure
+
+```SQL
+MariaDB [test]> desc sys.privileges_by_table_by_level;
++--------------+--------------+------+-----+---------+-------+
+| Field        | Type         | Null | Key | Default | Extra |
++--------------+--------------+------+-----+---------+-------+
+| TABLE_SCHEMA | varchar(64)  | NO   |     | NULL    |       |
+| TABLE_NAME   | varchar(64)  | NO   |     | NULL    |       |
+| GRANTEE      | varchar(385) | NO   |     |         |       |
+| PRIVILEGE    | varchar(64)  | NO   |     |         |       |
+| LEVEL        | varchar(6)   | NO   |     |         |       |
++--------------+--------------+------+-----+---------+-------+
+5 rows in set (0.002 sec)
+```
+
+##### Example
+
+```SQL
+mysql> select * from sys.privileges_by_table_by_level;
++--------------+------------+--------------------+----------------+--------+
+| TABLE_SCHEMA | TABLE_NAME | GRANTEE            | PRIVILEGE_TYPE | LEVEL  |
++--------------+------------+--------------------+----------------+--------+
+| test         | v1         | 'oleg'@'localhost' | SELECT         | GLOBAL |
+| test         | t1         | 'oleg'@'localhost' | SELECT         | GLOBAL |
+| test         | v1         | 'oleg'@'localhost' | INSERT         | GLOBAL |
+| test         | t1         | 'oleg'@'localhost' | INSERT         | GLOBAL |
+| test         | v1         | 'oleg'@'localhost' | UPDATE         | GLOBAL |
+| test         | v1         | 'PUBLIC'@''        | SELECT         | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | SELECT         | SCHEMA |
+| test         | v1         | 'PUBLIC'@''        | INSERT         | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | INSERT         | SCHEMA |
+| test         | v1         | 'PUBLIC'@''        | UPDATE         | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | UPDATE         | SCHEMA |
+| test         | v1         | 'PUBLIC'@''        | DELETE HISTORY | SCHEMA |
+| test         | t1         | 'PUBLIC'@''        | DELETE HISTORY | SCHEMA |
+| test         | t1         | 'oleg'@'%'         | SELECT         | TABLE  |
+| test         | t1         | 'oleg'@'%'         | UPDATE         | TABLE  |
+| test         | v1         | 'oleg'@'%'         | SELECT         | TABLE  |
++--------------+------------+--------------------+----------------+--------+
+16 rows in set (1.58 sec)
+```
+
 
 #### schema_table_statistics / x$schema_table_statistics
 
@@ -3484,7 +3538,7 @@ TEXT
 
 ##### Example
 ```SQL
-mariadb> SELECT sys.format_bytes(2348723492723746) AS size;
+mariadb> SELECT format_bytes(2348723492723746) AS size;
 +----------+
 | size     |
 +----------+
@@ -3492,7 +3546,7 @@ mariadb> SELECT sys.format_bytes(2348723492723746) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mariadb> SELECT sys.format_bytes(2348723492723) AS size;
+mariadb> SELECT format_bytes(2348723492723) AS size;
 +----------+
 | size     |
 +----------+
@@ -3500,7 +3554,7 @@ mariadb> SELECT sys.format_bytes(2348723492723) AS size;
 +----------+
 1 row in set (0.00 sec)
 
-mariadb> SELECT sys.format_bytes(23487234) AS size;
+mariadb> SELECT format_bytes(23487234) AS size;
 +-----------+
 | size      |
 +-----------+
@@ -4842,7 +4896,7 @@ mariadb> CALL sys.ps_setup_show_enabled(TRUE, TRUE);
 | innodb/io_read_thread           | BACKGROUND  |
 | innodb/io_write_thread          | BACKGROUND  |
 | innodb/io_write_thread          | BACKGROUND  |
-| innodb/page_cleaner_thread      | BACKGROUND  |
+| innodb/page_cleaner             | BACKGROUND  |
 | innodb/srv_lock_timeout_thread  | BACKGROUND  |
 | innodb/srv_error_monitor_thread | BACKGROUND  |
 | innodb/srv_monitor_thread       | BACKGROUND  |
@@ -5315,8 +5369,8 @@ mariadb> CREATE OR REPLACE VIEW mydb.my_statements AS
     -> SELECT sys.format_statement(DIGEST_TEXT) AS query,
     ->        SCHEMA_NAME AS db,
     ->        COUNT_STAR AS exec_count,
-    ->        sys.format_time(SUM_TIMER_WAIT) AS total_latency,
-    ->        sys.format_time(AVG_TIMER_WAIT) AS avg_latency,
+    ->        format_pico_time(SUM_TIMER_WAIT) AS total_latency,
+    ->        format_pico_time(AVG_TIMER_WAIT) AS avg_latency,
     ->        ROUND(IFNULL(SUM_ROWS_SENT / NULLIF(COUNT_STAR, 0), 0)) AS rows_sent_avg,
     ->        ROUND(IFNULL(SUM_ROWS_EXAMINED / NULLIF(COUNT_STAR, 0), 0)) AS rows_examined_avg,
     ->        ROUND(IFNULL(SUM_ROWS_AFFECTED / NULLIF(COUNT_STAR, 0), 0)) AS rows_affected_avg,

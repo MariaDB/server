@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 #
 # Preparatory cleanup.
 #
@@ -39,7 +40,7 @@ FLUSH LOGS;
 # Show mysqlbinlog result without -B
 #
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 # at #
@@ -50,7 +51,7 @@ ROLLBACK/*!*/;
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
 # at #
-#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl thread_id=#
 /*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*M!100001 SET @@session.server_id=1*//*!*/;
@@ -60,7 +61,7 @@ ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -79,7 +80,7 @@ c08 TEXT
 ) ENGINE=InnoDB
 /*!*/;
 # at #
-#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 trans thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=2*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -105,7 +106,7 @@ START TRANSACTION
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -131,7 +132,7 @@ START TRANSACTION
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -157,7 +158,7 @@ START TRANSACTION
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -211,7 +212,7 @@ START TRANSACTION
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
 COMMIT/*!*/;
 # at #
-#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans thread_id=#
 /*M!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
@@ -267,7 +268,7 @@ ROLLBACK /* added by mysqlbinlog */;
 # Show mysqlbinlog result with -B
 #
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Start: binlog v 4, server v #.##.## created 010909  9:46:40 at startup
@@ -422,7 +423,7 @@ COMMIT
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=1, @@session.system_versioning_insert_history=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -567,7 +568,7 @@ DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE t2;
 # < CASE 5 >
-# REPLCAE Queries
+# REPLACE Queries
 #
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, UNIQUE uk(b)) ENGINE=InnoDB;
 BEGIN;
@@ -706,8 +707,63 @@ DROP TABLE t1;
 # MDEV-30698 Cover missing test cases for mariadb-binlog options
 #            --raw [and] --flashback
 #
+#
+# < CASE 8 >
+# Verify flashback works well for binlog_row_image full_nodup mode
+#
+CREATE TABLE t1 (
+c01 TINYINT PRIMARY KEY,
+c02 SMALLINT,
+c03 MEDIUMINT,
+c04 INT,
+c05 BIGINT,
+c06 CHAR(10),
+c07 VARCHAR(20),
+c08 TEXT,
+c09 ENUM('one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'),
+c10 SET('black', 'white', 'red', 'yellow'),
+c11 TIMESTAMP(3),
+c12 DATETIME(3)
+) ENGINE = InnoDB;
+INSERT INTO t1 VALUES (1, 1, 1, 1, 1, 'A', 'A', 'A', 'one', 'black',
+'2023-11-26 10:00:00.123', '2023-11-26 10:00:00');
+INSERT INTO t1 VALUES (2, 1, 1, 1, 1, 'A', 'A', 'A', 'one', 'black',
+'2023-11-26 10:00:00.123', '2023-11-26 10:00:00');
+INSERT INTO t1 VALUES (3, 1, NULL, 1, 1, 'A', 'A', 'A', 'one', 'black',
+'2023-11-26 10:00:00.123', NULL);
+INSERT INTO t1 VALUES (4, 1, NULL, 1, 1, 'A', 'A', 'A', 'one', 'black',
+'2023-11-26 10:00:00.123', NULL);
+FLUSH BINARY LOGS;
+# The update includes the cases that
+# Value -> Value
+# Value -> NULL
+# NULL  -> value
+# and the changed null bits in both first and second null byte
+UPDATE t1 SET c02 = NULL, c03 = 2, c09 = 'two',
+c10 = NULL, c12 = '2023-11-26 11:00:00';
+FLUSH BINARY LOGS;
+#
+# Data before flashback
+#
+SELECT * FROM t1;
+c01	c02	c03	c04	c05	c06	c07	c08	c09	c10	c11	c12
+1	NULL	2	1	1	A	A	A	two	NULL	2023-11-26 10:00:00.123	2023-11-26 11:00:00.000
+2	NULL	2	1	1	A	A	A	two	NULL	2023-11-26 10:00:00.123	2023-11-26 11:00:00.000
+3	NULL	2	1	1	A	A	A	two	NULL	2023-11-26 10:00:00.123	2023-11-26 11:00:00.000
+4	NULL	2	1	1	A	A	A	two	NULL	2023-11-26 10:00:00.123	2023-11-26 11:00:00.000
+#
+# Data after flashback
+#
+SELECT * FROM t1;
+c01	c02	c03	c04	c05	c06	c07	c08	c09	c10	c11	c12
+1	1	1	1	1	A	A	A	one	black	2023-11-26 10:00:00.123	2023-11-26 10:00:00.000
+2	1	1	1	1	A	A	A	one	black	2023-11-26 10:00:00.123	2023-11-26 10:00:00.000
+3	1	NULL	1	1	A	A	A	one	black	2023-11-26 10:00:00.123	NULL
+4	1	NULL	1	1	A	A	A	one	black	2023-11-26 10:00:00.123	NULL
+DROP TABLE t1;
 SET binlog_format=statement;
 Warnings:
 Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
 SET GLOBAL binlog_format=statement;
 ERROR HY000: Flashback does not support binlog_format STATEMENT
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

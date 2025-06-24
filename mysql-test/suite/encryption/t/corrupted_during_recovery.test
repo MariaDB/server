@@ -5,11 +5,12 @@
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
-call mtr.add_suppression("InnoDB: Failed to read page [123] from file '.*test.t1\\.ibd': Table is encrypted but decrypt failed");
+call mtr.add_suppression("InnoDB: Failed to read page [123] from file '.*test.t1\\.ibd': Table is compressed or encrypted but uncompress or decrypt failed");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=\\d+, page number=3\\] in file '.*test.t1\\.ibd' cannot be decrypted");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: Table in tablespace \\d+ encrypted. However key management plugin or used key_version \\d+ is not found or used encryption algorithm or method does not match. Can't continue opening the table.");
 call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page ");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -55,12 +56,12 @@ EOF
 SELECT * FROM t1;
 --disable_query_log
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[1].ibd looks corrupted; key_version=");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted. Please drop the table and recreate.");
+call mtr.add_suppression("Table .*t1.* is corrupted. Please drop the table and recreate.");
 --enable_query_log
 let $restart_parameters=--innodb_force_recovery=1 --skip-innodb-buffer-pool-load-at-startup;
 --source include/restart_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE,ER_TABLE_CORRUPT
+--error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 SELECT * FROM t2;
 CHECK TABLE t2;

@@ -4,7 +4,24 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
-# Create help tables
+select @@binlog_format, @@create_tmp_table_binlog_formats;
+
+# Copy create_tmp_table_binlog_formats from master to slave
+# This is done to get same results as with older versions of MariaDB.
+# The slave will work even if this is not done. However in mixed
+# format on slave temporary tables would not be logged to in the
+# slaves binary log
+let $format=`select @@create_tmp_table_binlog_formats`;
+connection server_2;
+--eval set @@global.create_tmp_table_binlog_formats='$format'
+# Ensure that the slave threads uses the new values.
+--source include/stop_slave.inc
+--source include/start_slave.inc
+connection server_1;
+
+--echo #
+--echo # Create help tables
+--echo #
 create table t2 (a int) engine=myisam;
 insert into t2 values (0),(1),(2),(2);
 create temporary table t3 (a_in_temporary int) engine=myisam;
@@ -230,5 +247,9 @@ create temporary table t9 (i int);
 
 # Clean up
 drop table t2;
+
+--connection server_2
+set @@global.create_tmp_table_binlog_formats=default;
+--connection server_1
 
 --source include/rpl_end.inc

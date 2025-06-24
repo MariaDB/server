@@ -149,13 +149,7 @@ if (!$VERSION_COMPILE_OS_WIN)
   }
 }
 
-let $SERVER_NAME=
-  `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(version(), '-', 2), '-', -1)`;
-if (`SELECT IF('$SERVER_NAME' REGEXP '^[0-9]+\$', 1, 0)`)
-{
-  let $SERVER_NAME=
-    `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(version(), '-', 3), '-', -1)`;
-}
+let $SERVER_NAME=MariaDB;
 let $SERVER_MAJOR_VERSION=
   `SELECT SUBSTRING_INDEX(version(), '.', 1)`;
 let $SERVER_MINOR_VERSION=

@@ -1,0 +1,39 @@
+--source include/not_valgrind.inc
+# We cannot use ps2 protocol as the test is counting number of executions
+--disable_ps2_protocol
+# View and cursor protocol disabled as they remove the tag from the SELECT query
+--disable_view_protocol
+--disable_cursor_protocol
+
+#
+# Test log_slow_always_query_time variable usage
+#
+
+--source include/log_slow_prepare.inc
+
+--let $log_slow_prefix=log_slow_always_query_time
+--let $log_file=$log_slow_prefix-1
+
+select @@session.log_slow_always_query_time;
+SET GLOBAL log_slow_always_query_time= 20.2;
+SET SESSION log_slow_always_query_time=20.2;
+select @@global.log_slow_always_query_time, @@session.log_slow_always_query_time;
+set GLOBAL log_slow_always_query_time= default;
+
+SET log_slow_query_time=0.5;
+SET log_slow_rate_limit=999;
+SET log_slow_always_query_time=1.5;
+SET log_slow_min_examined_row_limit= 100;
+
+--source include/log_slow_start.inc
+SELECT sleep(2) as 'this-should-be-logged';
+SELECT sleep(1) as 'this-should-not-be-logged';
+
+--let grep_pattern=this-should
+--let $log_expected_matches=1
+--source include/log_grep.inc
+
+--source include/log_slow_cleanup.inc
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol

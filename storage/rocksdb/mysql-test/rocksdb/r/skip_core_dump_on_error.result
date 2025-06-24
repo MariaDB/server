@@ -4,13 +4,13 @@ insert into mz values(1);
 affected rows: 1
 commit;
 affected rows: 0
-SET debug= '+d,abort_with_io_write_error';
+SET debug_dbug= '+d,abort_with_io_write_error';
 affected rows: 0
 set global binlog_error_action=1;
 affected rows: 0
-show session variables like 'debug';
+show session variables like 'debug_dbug';
 Variable_name	Value
-debug	d,abort_with_io_write_error
+debug_dbug	d,abort_with_io_write_error
 affected rows: 1
 show global variables like 'binlog_error_action';
 Variable_name	Value

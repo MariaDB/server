@@ -1,4 +1,3 @@
---innodb-change-buffering=all
 --innodb-encrypt-tables=on
 --innodb-tablespaces-encryption
 --innodb-encryption-threads=2

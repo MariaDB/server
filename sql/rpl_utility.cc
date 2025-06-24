@@ -176,8 +176,8 @@ PSI_memory_key key_memory_table_def_memory;
 table_def::table_def(unsigned char *types, ulong size,
                      uchar *field_metadata, int metadata_size,
                      uchar *null_bitmap, uint16 flags)
-  : m_size(size), m_type(0), m_field_metadata_size(metadata_size),
-    m_field_metadata(0), m_null_bits(0), m_flags(flags),
+  : m_type(0), m_size(size), m_field_metadata_size(metadata_size),
+    m_field_metadata(0), m_flags(flags), m_null_bits(0),
     m_memory(NULL)
 {
   m_memory= (uchar *)my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
@@ -291,12 +291,12 @@ table_def::~table_def()
 
    @notes
     event_buf will have same values on return. However during the process of
-    caluclating the checksum, it's temporary changed. Because of this the
+    calculating the checksum, it's temporary changed. Because of this the
     event_buf argument is not a pointer to const.
 
 */
 bool event_checksum_test(uchar *event_buf, ulong event_len,
-                         enum enum_binlog_checksum_alg alg)
+                         enum_binlog_checksum_alg alg)
 {
   bool res= FALSE;
   uint16 flags= 0; // to store in FD's buffer flags orig value
@@ -338,7 +338,7 @@ bool event_checksum_test(uchar *event_buf, ulong event_len,
       DBUG_ASSERT(event_buf[EVENT_TYPE_OFFSET] == FORMAT_DESCRIPTION_EVENT);
       event_buf[FLAGS_OFFSET]= (uchar) flags;
     }
-    res= DBUG_EVALUATE_IF("simulate_checksum_test_failure", TRUE, computed != incoming);
+    res= (DBUG_IF("simulate_checksum_test_failure") || computed != incoming);
   }
   return res;
 }

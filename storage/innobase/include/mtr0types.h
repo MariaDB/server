@@ -52,16 +52,16 @@ enum mtr_log_t {
 
 /*
 A mini-transaction is a stream of records that is always terminated by
-a NUL byte. The first byte of a mini-transaction record is never NUL,
-but NUL bytes can occur within mini-transaction records. The first
-bytes of each record will explicitly encode the length of the record.
-NUL bytes also acts as padding in log blocks, that is, there can be
-multiple sucessive NUL bytes between mini-transactions in a redo log
-block.
+a byte 0x00 or 0x01. The first byte of a mini-transaction record is
+never one of these bytes, but these bytes can occur within mini-transaction
+records.
 
 The first byte of the record would contain a record type, flags, and a
 part of length. The optional second byte of the record will contain
 more length. (Not needed for short records.)
+
+For example, because the length of an INIT_PAGE record is 3 to 11 bytes,
+the first byte will be 0x02 to 0x0a, indicating the number of subsequent bytes.
 
 Bit 7 of the first byte of a redo log record is the same_page flag.
 If same_page=1, the record is referring to the same page as the
@@ -187,8 +187,11 @@ A subsequent WRITE to the same page could be logged 0xb5 0x7f 0x23
 0x34 0x56 0x78, meaning "same page, type code 3 (WRITE), 5 bytes to
 follow", "byte offset 0x7f"+0x60+2, bytes 0x23,0x34,0x56,0x78.
 
-The end of the mini-transaction would be indicated by a NUL byte.
-*/
+The end of the mini-transaction would be indicated by the end byte
+0x00 or 0x01; @see log_sys.get_sequence_bit().
+If log_sys.is_encrypted(), that is followed by 8 bytes of nonce
+(part of initialization vector). That will be followed by 4 bytes
+of CRC-32C of the entire mini-transaction, excluding the end byte. */
 
 /** Redo log record types. These bit patterns (3 bits) will be written
 to the redo log file, so the existing codes or their interpretation on
@@ -305,14 +308,16 @@ enum mfile_type_t
   FILE_RENAME = 0xa0,
   /** Modify a file. Followed by tablespace ID and the file name. */
   FILE_MODIFY = 0xb0,
-  /** End-of-checkpoint marker. Followed by 2 dummy bytes of page identifier,
-  8 bytes of LSN, and padded with a NUL; @see SIZE_OF_FILE_CHECKPOINT. */
+  /** End-of-checkpoint marker, at the end of a mini-transaction.
+  Followed by 2 NUL bytes of page identifier and 8 bytes of LSN;
+  @see SIZE_OF_FILE_CHECKPOINT.
+  When all bytes are NUL, this is a dummy padding record. */
   FILE_CHECKPOINT = 0xf0
 };
 
 /** Size of a FILE_CHECKPOINT record, including the trailing byte to
-terminate the mini-transaction. */
-constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1;
+terminate the mini-transaction and the CRC-32C. */
+constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1 + 4;
 
 #ifndef UNIV_INNOCHECKSUM
 /** Types for the mlock objects to store in the mtr_t::m_memo */

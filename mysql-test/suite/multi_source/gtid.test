@@ -12,9 +12,9 @@
 
 --connection slave1
 --replace_result $SERVER_MYPORT_1 MYPORT_1 
-eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
+eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 set default_master_connection = 'slave1';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
@@ -25,7 +25,7 @@ set default_master_connection = '';
 
 --connection slave2
 --replace_result $SERVER_MYPORT_3 MYPORT_3 
-eval CHANGE MASTER TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root';
+eval CHANGE MASTER TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_ssl_verify_server_cert=0, master_user='root';
 start all slaves;
 --source include/wait_for_slave_to_start.inc
 
@@ -73,9 +73,9 @@ INSERT INTO t3 VALUES (202, "switch1 b");
 
 --connection slave2
 --replace_result $SERVER_MYPORT_1 MYPORT_1 
-eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_ssl_verify_server_cert=0, master_user='root';
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_ssl_verify_server_cert=0, master_user='root';
 SET default_master_connection = 'slave1';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
@@ -125,7 +125,7 @@ INSERT INTO t3 VALUES (204, "switch 3 b");
 
 --connection slave1
 --replace_result $SERVER_MYPORT_4 MYPORT_4 
-eval CHANGE MASTER TO master_port=$SERVER_MYPORT_4, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+eval CHANGE MASTER TO master_port=$SERVER_MYPORT_4, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 START SLAVE;
 --let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=3 AND (SELECT COUNT(*) FROM t2)=4 AND (SELECT COUNT(*) FROM t3)=7
 --source include/wait_condition.inc

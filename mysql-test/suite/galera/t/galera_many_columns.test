@@ -12,7 +12,7 @@ while ($count)
 }
 
 --let $create_var = `SELECT @create_var1`
---eval CREATE TABLE t1 ($create_var PRIMARY KEY (f1, f1017)) ENGINE=InnoDB;
+--eval CREATE TABLE t1 ($create_var PRIMARY KEY (f1, f1017)) ENGINE=InnoDB CHARSET=latin1;
 --enable_query_log
 
 INSERT INTO t1 (f1) VALUES (DEFAULT);

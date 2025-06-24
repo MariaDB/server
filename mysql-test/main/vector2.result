@@ -1,0 +1,456 @@
+#
+# MDEV-33410 VECTOR data type
+#
+create table t1 (a int, b vector);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+create table t1 (a int, b vector(0));
+ERROR 42000: Incorrect column specifier for column 'b'
+create table t1 (a int, b vector(10) collate utf8mb3_general_ci);
+ERROR 42000: Incorrect column specifier for column 'b'
+create table t1 (a int, b vector(10));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` vector(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert t1 values (1, 1);
+ERROR HY000: Cannot cast 'int' as 'vector' in assignment of `test`.`t1`.`b`
+insert t1 values (1, 1.1);
+ERROR HY000: Cannot cast 'decimal' as 'vector' in assignment of `test`.`t1`.`b`
+insert t1 values (1, 1e1);
+ERROR HY000: Cannot cast 'double' as 'vector' in assignment of `test`.`t1`.`b`
+insert t1 values (1, now());
+ERROR HY000: Cannot cast 'timestamp' as 'vector' in assignment of `test`.`t1`.`b`
+insert t1 values (1, repeat(x'56', 10));
+ERROR 22007: Incorrect vector value: 'VVVVVVVVVV' for column `test`.`t1`.`b` at row 1
+insert t1 values (1, repeat(x'66', 40));
+ERROR 22007: Incorrect vector value: 'ffffffffffffffffffffffffffffffffffffffff' for column `test`.`t1`.`b` at row 1
+insert t1 values (1, repeat(x'56', 40));
+select * from t1;
+a	b
+1	VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+select cast(b as char) from t1;
+ERROR HY000: Illegal parameter data type vector for operation 'cast_as_char'
+create table t2 as select b, cast(b as binary) from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `b` vector(10) DEFAULT NULL,
+  `cast(b as binary)` varbinary(40) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+create table t1 (a int, b vector(1) not null);
+insert into t1 values (1,x'00000000');
+alter table t1 modify b vector(2) not null;
+insert into t1 values (1,x'0000000000000000');
+select a, vec_totext(b) from t1;
+a	vec_totext(b)
+1	[0,0]
+1	[0,0]
+drop table t1;
+create table t1(v blob not null, vector index(v));
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+create table t1(v varbinary(100) not null, vector index(v));
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+create table t1(v binary not null, vector index(v));
+ERROR HY000: Incorrect arguments to VECTOR INDEX
+create table t1 (a int, b vector(1536) not null, vector index(b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` vector(1536) NOT NULL,
+  VECTOR KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+#
+# MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
+#
+create table t (a int, v vector(10) not null, vector index (v));
+analyze table t persistent for columns() indexes (v);
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	Table is already up to date
+drop table t;
+#
+# MDEV-35029 ASAN errors in Lex_ident<Compare_ident_ci>::is_valid_ident upon DDL on table with vector index
+#
+create table t (a int, v vector(10) not null, vector key (v) distance=euclidean);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(10) NOT NULL,
+  VECTOR KEY `v` (`v`) `distance`=euclidean
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set session mhnsw_default_m = @@mhnsw_default_m + 1;
+create table t2 like t;
+alter table t force;
+drop table t, t2;
+#
+# MDEV-35043 Unsuitable error upon an attempt to create MEMORY table with vector key
+#
+create table t (v vector(31) not null, vector index(v)) engine=memory;
+ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'VECTOR'
+#
+# MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
+#
+create table t (a int, v vector(10) not null, vector index(v)) engine=myisam;
+create table tm (a int, v vector(10) not null, vector index(v)) engine=merge union=(t);
+ERROR HY000: Table storage engine 'MERGE' does not support the create option 'VECTOR'
+drop table t;
+#
+# MDEV-35078 Server crash or ASAN errors in mhnsw_insert
+#
+set session mhnsw_default_m = 4;
+create table t (a int, v vector(1) not null);
+insert into t select seq, x'00000000' from seq_1_to_10;
+alter table t add vector(v);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`) `m`=4
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create table x like t;
+show create table x;
+Table	Create Table
+x	CREATE TABLE `x` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`) `m`=4
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t values (11,x'00000000');
+drop table t, x;
+set session mhnsw_default_m = default;
+#
+# MDEV-35092 Server crash, hang or ASAN errors in mysql_create_frm_image upon using non-default table options and system variables
+#
+set mhnsw_default_distance= cosine;
+create table t (a int, v vector(10) not null);
+prepare stmt from 'alter table t drop index if exists v, add vector (v) m=10';
+execute stmt;
+Warnings:
+Note	1091	Can't DROP INDEX `v`; check that it exists
+execute stmt;
+prepare stmt from 'alter table t drop index if exists v, add vector (v)';
+execute stmt;
+execute stmt;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(10) NOT NULL,
+  VECTOR KEY `v` (`v`) `distance`='cosine'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+set mhnsw_default_distance= default;
+#
+# MDEV-35105 Assertion `tab->join->order' fails upon vector search with DISTINCT
+#
+create table t (a int, v vector(1) not null, vector(v));
+insert into t values(1,x'00000000'),(2,x'00000000');
+select distinct a from t order by vec_distance_euclidean(v,vec_fromtext('[1]')) limit 1;
+a
+#
+drop table t;
+#
+# MDEV-35141 Server crashes in Field_vector::report_wrong_value upon statistic collection
+#
+create table t1 (v vector(64) not null);
+insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+drop table t1;
+#
+# MDEV-35177 Unexpected ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, diagnostics area assertion failures upon EITS collection with vector type
+#
+create table t (pk int primary key, v vector(1) not null);
+insert into t values (1,vec_fromtext('[-0.196]')),(2,vec_fromtext('[0.709]'));
+analyze table t persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	OK
+drop table t;
+#
+# MDEV-35147 Inconsistent NULL handling in vector type
+#
+create table t1 (a vector(1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values ();
+insert into t1 values (default);
+insert into t1 values (default(a));
+select * from t1;
+a
+NULL
+NULL
+NULL
+insert into t1 values (null);
+select * from t1;
+a
+NULL
+NULL
+NULL
+NULL
+drop table t1;
+#
+# MDEV-35150 Column containing non-vector tables can be modified to VECTOR type without warnings
+#
+create table t1 (a blob);
+insert t1 values (1);
+alter table t1 modify a vector(2);
+ERROR 22007: Incorrect vector value: '1' for column `test`.`t1`.`a` at row 1
+update t1 set a=x'5555555555555555';
+alter table t1 modify a vector(2);
+select hex(a) from t1;
+hex(a)
+5555555555555555
+select vec_totext(a) from t1;
+vec_totext(a)
+[1.46602e13,1.46602e13]
+drop table t1;
+#
+# MDEV-35158 Assertion `res->length() > 0 && res->length() % 4 == 0' fails upon increasing length of vector column
+#
+create table t1 (a int, v vector(1) not null, vector(v));
+insert t1 values (1, 0x00000000);
+alter table t1 modify v vector(64) not null;
+drop table t1;
+#
+# MDEV-35178 Assertion failure in Field_vector::store upon INSERT IGNORE with a wrong data
+#
+create table t (v vector(2) not null);
+insert ignore into t values (1);
+Warnings:
+Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
+Warning	1292	Incorrect vector value: '1' for column `test`.`t`.`v` at row 1
+select hex(v) from t;
+hex(v)
+0000000000000000
+drop table t;
+#
+# MDEV-35176 ASAN errors in Field_vector::store with optimizer_trace enabled
+#
+create table t (pk int primary key, v vector(2) not null, key(v(6)));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+#
+# MDEV-35191 Assertion failure in Create_tmp_table::finalize upon DISTINCT with vector type
+#
+create table t (v vector(1));
+insert into t values (0x55555555),(0x56565656);
+select distinct v from t;
+v
+UUUU
+VVVV
+drop table t;
+#
+# MDEV-35194 non-BNL join fails on assertion
+#
+create table t1 (pk int primary key, a vector(2) not null, vector(a));
+insert into t1 select seq, vec_fromtext(json_array(seq, -seq)) from seq_1_to_1000;
+create table t2 (f int);
+insert into t2 select seq from seq_1_to_1000;
+set join_cache_level= 0;
+select t2.f from t1 left join t2 on (t1.pk=t2.f) order by vec_distance_euclidean(t1.a,0x00000040) limit 5;
+f
+1
+2
+3
+4
+5
+drop table t1, t2;
+#
+# MDEV-35195 Assertion `tab->join->order' fails upon vector search with DISTINCT #2
+#
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x00000000),(0x00000040);
+select distinct vec_distance_euclidean(v,0x00000000) d from t order by d limit 1;
+d
+0
+drop table t;
+#
+# MDEV-35337 Server crash or assertion failure in join_read_first upon using vector distance in group by
+#
+create table t (a int, v vector(1) not null, primary key (a), vector(v));
+insert into t values (1,vec_fromtext('[-1]')),(2,vec_fromtext('[1]')),(3,vec_fromtext('[2]'));
+select vec_distance_euclidean(v,vec_fromtext('[0]')) d, count(*) from t group by d order by d limit 2;
+d	count(*)
+1	2
+2	1
+drop table t;
+#
+# MDEV-35219 Unexpected ER_DUP_KEY after OPTIMIZE on MyISAM table with vector key
+#
+create table t (v vector(1) not null default 0x30303030, vector(v)) engine=myisam;
+insert into t () values (),(),(),();
+delete from t limit 1;
+optimize table t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t	optimize	status	OK
+insert into t select * from t;
+drop table t;
+#
+# MDEV-35230 ASAN errors upon reading from joined temptable views with vector type
+#
+create table t (f vector(1));
+insert into t values (0x30303030),(0x31313131);
+create algorithm=temptable view v as select * from t;
+select v1.f from v v1 natural join v v2;
+f
+0000
+1111
+drop view v;
+drop table t;
+#
+# MDEV-35245 SHOW CREATE TABLE produces unusable statement for vector fields with constant default value
+#
+create table t1 (f vector(1) default 0x30313233, v vector(2) default x'4041424344454647');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` vector(1) DEFAULT x'30313233',
+  `v` vector(2) DEFAULT x'4041424344454647'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+#
+# MDEV-35246 Vector search skips a row in the table
+#
+set rand_seed1=1, rand_seed2=2;
+create or replace table t1 (a int, v vector(1) not null, vector(v) m=6);
+insert into t1 select seq, vec_fromtext(concat('[',seq,']')) from seq_1_to_200;
+update t1 set v = vec_fromtext(concat('[33]')) where a <= 15;
+select a, vec_totext(v) from t1 order by vec_distance_euclidean(v,vec_fromtext('[33]')) limit 25;
+a	vec_totext(v)
+1	[33]
+10	[33]
+11	[33]
+12	[33]
+13	[33]
+14	[33]
+15	[33]
+2	[33]
+28	[28]
+29	[29]
+3	[33]
+30	[30]
+31	[31]
+32	[32]
+33	[33]
+34	[34]
+35	[35]
+36	[36]
+37	[37]
+4	[33]
+5	[33]
+6	[33]
+7	[33]
+8	[33]
+9	[33]
+drop table t1;
+#
+# MDEV-35296 DESC does not work in ORDER BY with vector key
+#
+create table t (v vector(1) not null, vector(v));
+insert into t select vec_fromtext(concat('[',seq,']')) FROM seq_1_to_10;
+select vec_totext(v) from t order by vec_distance_euclidean(v,vec_fromtext('[0]')) desc limit 5;
+vec_totext(v)
+[10]
+[9]
+[8]
+[7]
+[6]
+drop table t;
+#
+# MDEV-35768 Vector key is not used upon selecting from views / subqueries
+#
+create table t (b vector(1) not null, vector(b));
+insert into t values (0x31313131),(0x32323232);
+create view v as select * from t;
+explain select * from t order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+explain select * from v order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+explain select * from (select * from t) sq order by vec_distance_euclidean(b,0x30303030) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	b	6	NULL	1	
+drop view v;
+drop table t;
+#
+# MDEV-35769 ER_SQL_DISCOVER_ERROR upon updating vector key column using incorrect value
+#
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x31313131);
+flush tables;
+update t set v = 1;
+ERROR HY000: Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
+drop table t;
+#
+# MDEV-35792 Adding a regular index on a vector column leads to invalid table structure
+#
+create table t (v vector(800), key(v));
+ERROR 42000: Specified key was too long; max key length is 1000 bytes
+create table t (v vector(8), key(v));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` vector(8) DEFAULT NULL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+#
+# MDEV-35146 Vector-related error messages worth improving when possible
+#
+create table t (a vector(64) not null default '');
+ERROR 42000: Invalid default value for 'a'
+show warnings;
+Level	Code	Message
+Warning	1292	Incorrect vector value: '' for column ``.``.`a` at row 0
+Error	1067	Invalid default value for 'a'
+create table t (a inet6 not null default '');
+ERROR 42000: Invalid default value for 'a'
+show warnings;
+Level	Code	Message
+Warning	1292	Incorrect inet6 value: '' for column ``.``.`a` at row 0
+Error	1067	Invalid default value for 'a'
+#
+# MDEV-35186 IGNORED attribute has no effect on vector keys
+#
+create table t (a vector(1) not null, vector(a) ignored);
+show index in t;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t	1	a	1	a	A	NULL	NULL	NULL		VECTOR			YES
+insert into t values (0x00000000),(0x00000000);
+explain select vec_totext(a) from t order by vec_distance_euclidean(a,0x00000000) limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+drop table t;
+# End of 11.7 tests
+#
+# MDEV-35309 - ALTER performs vector truncation without WARN_DATA_TRUNCATED or similar warnings/errors
+#
+create table t (v vector(2));
+insert into t values (0x3131313132323232);
+select * from t;
+v
+11112222
+alter table t modify v vector(1);
+ERROR 01000: Data truncated for column 'v' at row 1
+set statement sql_mode='' for alter table t modify v vector(1);
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+select * from t;
+v
+1111
+drop table t;
+# End of 11.8 tests

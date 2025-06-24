@@ -2,6 +2,7 @@ set @start_read_only= @@global.read_only;
 DROP TABLE IF EXISTS t1,t2,t3;
 create user test@localhost;
 grant CREATE, SELECT, DROP on *.* to test@localhost;
+grant ALL on test.* to test@localhost;
 connect  con1,localhost,test,,test;
 connection default;
 set global read_only=0;
@@ -17,31 +18,31 @@ drop table t3;
 connection con1;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 create table t3 (a int);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 insert into t1 values(1);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 drop trigger trg1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 update t1 set a=1 where 1=0;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 update t1,t2 set t1.a=t2.a+1 where t1.a=t2.a;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 delete t1,t2 from t1,t2 where t1.a=t2.a;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 create temporary table t3 (a int);
 create temporary table t4 (a int) select * from t3;
 insert into t3 values(1);
 insert into t4 select * from t3;
 create table t3 (a int);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 update t1,t3 set t3.a=t1.a+1 where t1.a=t3.a;
 update t4,t3 set t4.a=t3.a+1 where t4.a=t3.a;
 delete t1 from t1,t3 where t1.a=t3.a;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 delete t3 from t1,t3 where t1.a=t3.a;
 delete t4 from t3,t4 where t4.a=t3.a;
 create temporary table t1 (a int);
@@ -50,7 +51,7 @@ update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;
 delete t1 from t1,t3 where t1.a=t3.a;
 drop table t1;
 insert into t1 values(1);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 drop temporary table if exists t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -68,11 +69,11 @@ set global read_only=1;
 connection con1;
 select @@global.read_only;
 @@global.read_only
-0
+OFF
 unlock tables ;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 connection default;
 reap;
 connection default;
@@ -87,11 +88,11 @@ unlock tables ;
 set global read_only=1;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 connection con1;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 unlock tables ;
 connection default;
 connection default;
@@ -107,7 +108,7 @@ set global read_only=1;
 connection con1;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 ROLLBACK;
 connection default;
 set global read_only=0;
@@ -123,7 +124,7 @@ set global read_only=1;
 connection default;
 select @@global.read_only;
 @@global.read_only
-1
+ON
 unlock tables;
 disconnect root2;
 drop temporary table ttt;
@@ -151,15 +152,16 @@ create user `mysqltest_u1`@`%`;
 grant all on mysqltest_db2.* to `mysqltest_u1`@`%`;
 create database mysqltest_db1;
 grant all on mysqltest_db1.* to `mysqltest_u1`@`%`;
+grant select on test.* to `mysqltest_u1`@`%`;
 flush privileges;
 connect  con_bug27440,127.0.0.1,mysqltest_u1,,test,$MASTER_MYPORT,;
 connection con_bug27440;
 create database mysqltest_db2;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 show databases like '%mysqltest_db2%';
 Database (%mysqltest_db2%)
 drop database mysqltest_db1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 disconnect con_bug27440;
 connection default;
 delete from mysql.user where User like 'mysqltest_%';
@@ -176,8 +178,10 @@ CREATE USER user1@localhost;
 GRANT ALTER ON test1.* TO user1@localhost;
 CREATE DATABASE test1;
 SET GLOBAL read_only=1;
+change_user user1,,;
 ALTER DATABASE test1 CHARACTER SET utf8;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+change_user root,,;
 SET GLOBAL read_only=0;
 DROP DATABASE test1;
 DROP USER user1@localhost;
@@ -191,6 +195,7 @@ USE test;
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1), (2);
 CREATE USER user1;
+GRANT ALL on test.* to user1;
 connect  con1, localhost, user1;
 connection default;
 SET GLOBAL read_only= 1;
@@ -207,17 +212,17 @@ connection con1;
 START TRANSACTION;
 # Check that table updates are still disallowed.
 INSERT INTO t1 VALUES (3);
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 UPDATE t1 SET a= 1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 DELETE FROM t1;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 COMMIT;
 START TRANSACTION READ ONLY;
 COMMIT;
 # Explicit RW trans is not allowed without super privilege
 START TRANSACTION READ WRITE;
-ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
 COMMIT;
 disconnect con1;
 connection default;
@@ -225,3 +230,113 @@ DROP USER user1;
 SET GLOBAL read_only= 0;
 DROP TABLE t1;
 # End of 10.0 tests
+#
+# MDEV-36425 Extend read_only to also block share locks and super user
+#
+CREATE USER user1;
+GRANT ALL on test.* to user1;
+connect  con1, localhost, user1;
+connection default;
+CREATE TABLE t1 (a int primary key auto_increment);
+insert into t1 values (1),(2);
+show variables like "read_only";
+Variable_name	Value
+read_only	OFF
+SET GLOBAL read_only=1;
+show variables like "read_only";
+Variable_name	Value
+read_only	ON
+# admin
+insert into t1 values ();
+lock tables t1 read;
+unlock tables;
+lock tables t1 write;
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+count(*)
+3
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+count(*)
+9
+commit;
+# user
+connection con1;
+insert into t1 values ();
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+lock tables t1 read;
+unlock tables;
+lock tables t1 write;
+ERROR HY000: The MariaDB server is running with the --read-only=ON option so it cannot execute this statement
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+count(*)
+3
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+count(*)
+9
+commit;
+connection default;
+SET GLOBAL read_only=2;
+show variables like "read_only";
+Variable_name	Value
+read_only	NO_LOCK
+# admin
+insert into t1 values ();
+lock tables t1 read;
+unlock tables;
+lock tables t1 write;
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+count(*)
+4
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+count(*)
+16
+commit;
+#user
+connection con1;
+insert into t1 values ();
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+lock tables t1 read;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+unlock tables;
+lock tables t1 write;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK option so it cannot execute this statement
+commit;
+connection default;
+SET GLOBAL read_only=3;
+show variables like "read_only";
+Variable_name	Value
+read_only	NO_LOCK_NO_ADMIN
+# admin
+insert into t1 values ();
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
+lock tables t1 read;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
+unlock tables;
+lock tables t1 write;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
+unlock tables;
+begin;
+select count(*) from t1 LOCK IN SHARE MODE;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
+select count(*) from t1,(select a from t1 LOCK IN SHARE MODE) as t2;
+ERROR HY000: The MariaDB server is running with the --read-only=NO_LOCK_NO_ADMIN option so it cannot execute this statement
+commit;
+SET GLOBAL read_only=0;
+select count(*) from t1;
+count(*)
+4
+drop table t1;
+drop user user1;
+disconnect con1;
+# End of 11.8 tests

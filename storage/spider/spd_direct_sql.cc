@@ -18,6 +18,7 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "sql_priv.h"
+#include "create_options.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
@@ -212,7 +213,6 @@ int spider_udf_direct_sql_create_conn_key(
         MYF(0), direct_sql->tgt_wrapper);
       DBUG_RETURN(ER_SPIDER_SQL_WRAPPER_IS_INVALID_NUM);
   }
-
     tables_on_different_db_are_joinable =
       spider_dbton[direct_sql->dbton_id].db_util->
         tables_on_different_db_are_joinable();
@@ -236,7 +236,8 @@ int spider_udf_direct_sql_create_conn_key(
       + (direct_sql->tgt_default_group ? direct_sql->tgt_default_group_length + 2 : 0)
       + (direct_sql->tgt_dsn ? direct_sql->tgt_dsn_length + 2 : 0)
       + (direct_sql->tgt_filedsn ? direct_sql->tgt_filedsn_length + 2 : 0)
-      + (direct_sql->tgt_driver ? direct_sql->tgt_driver_length + 2 : 0);
+      + (direct_sql->tgt_driver ? direct_sql->tgt_driver_length + 2 : 0)
+      + (direct_sql->tgt_odbc_conn_str ? direct_sql->tgt_odbc_conn_str_length + 2 : 0);
   if (!(direct_sql->conn_key = (char *)
     spider_malloc(spider_current_trx, SPD_MID_UDF_DIRECT_SQL_CREATE_CONN_KEY_1, direct_sql->conn_key_length + 1,
       MYF(MY_WME | MY_ZEROFILL)))
@@ -277,6 +278,7 @@ int spider_udf_direct_sql_create_conn_key(
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_dsn);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_filedsn);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_driver);
+  spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_odbc_conn_str);
   tmp_name++;
   direct_sql->conn_key_hash_value = my_calc_hash(&spider_open_connections,
     (uchar*) direct_sql->conn_key, direct_sql->conn_key_length);
@@ -309,7 +311,7 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_name, *tmp_host, *tmp_username, *tmp_password, *tmp_socket;
   char *tmp_wrapper, *tmp_db, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
-  char *tmp_dsn, *tmp_filedsn, *tmp_driver;
+  char *tmp_dsn, *tmp_filedsn, *tmp_driver, *tmp_odbc_conn_str;
   int *need_mon;
   bool tables_on_different_db_are_joinable = TRUE;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
@@ -350,6 +352,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
           (uint) (direct_sql->tgt_filedsn_length + 1),
         &tmp_driver,
           (uint) (direct_sql->tgt_driver_length + 1),
+        &tmp_odbc_conn_str,
+          (uint) (direct_sql->tgt_odbc_conn_str_length + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -411,6 +415,9 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
     spider_maybe_memcpy_string(
       &conn->tgt_driver, direct_sql->tgt_driver, tmp_driver,
       &conn->tgt_driver_length, direct_sql->tgt_driver_length);
+    spider_maybe_memcpy_string(
+      &conn->tgt_odbc_conn_str, direct_sql->tgt_odbc_conn_str, tmp_odbc_conn_str,
+      &conn->tgt_odbc_conn_str_length, direct_sql->tgt_odbc_conn_str_length);
     conn->tgt_ssl_vsc = direct_sql->tgt_ssl_vsc;
   conn->dbton_id = direct_sql->dbton_id;
   conn->conn_need_mon = need_mon;
@@ -1145,7 +1152,6 @@ int spider_udf_set_direct_sql_param_default(
     }
   }
 
-
   if (port_has_default_value)
   {
       direct_sql->tgt_port = MYSQL_PORT;
@@ -1172,10 +1178,16 @@ int spider_udf_set_direct_sql_param_default(
     }
   }
 
+  if (direct_sql->table_loop_mode == -1)
+    direct_sql->table_loop_mode = 0;
   if (direct_sql->priority == -1)
     direct_sql->priority = 1000000;
+  if (direct_sql->bulk_insert_rows == -1)
+    direct_sql->bulk_insert_rows = 3000;
   if (direct_sql->connection_channel == -1)
     direct_sql->connection_channel = 0;
+  if (direct_sql->use_real_table == -1)
+    direct_sql->use_real_table = 0;
   if (direct_sql->error_rw_mode == -1)
     direct_sql->error_rw_mode = 0;
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
@@ -1192,7 +1204,6 @@ void spider_udf_free_direct_sql_alloc(
 ) {
   SPIDER_BG_DIRECT_SQL *bg_direct_sql;
   DBUG_ENTER("spider_udf_free_direct_sql_alloc");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     pthread_mutex_lock(direct_sql->bg_mutex);
@@ -1206,7 +1217,6 @@ void spider_udf_free_direct_sql_alloc(
     pthread_cond_signal(direct_sql->bg_cond);
     pthread_mutex_unlock(direct_sql->bg_mutex);
   }
-#endif
   if (direct_sql->real_table_used && direct_sql->open_tables_thd)
   {
     spider_sys_close_table(direct_sql->open_tables_thd,
@@ -1280,6 +1290,10 @@ void spider_udf_free_direct_sql_alloc(
   {
     spider_free(spider_current_trx, direct_sql->tgt_driver, MYF(0));
   }
+  if (direct_sql->tgt_odbc_conn_str)
+  {
+    spider_free(spider_current_trx, direct_sql->tgt_odbc_conn_str, MYF(0));
+  }
   if (direct_sql->conn_key)
   {
     spider_free(spider_current_trx, direct_sql->conn_key, MYF(0));
@@ -1321,7 +1335,6 @@ long long spider_direct_sql_body(
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     bg_direct_sql = (SPIDER_BG_DIRECT_SQL *) initid->ptr;
@@ -1339,7 +1352,6 @@ long long spider_direct_sql_body(
     direct_sql->parent = bg_direct_sql;
     bg_direct_sql->called_cnt++;
   }
-#endif
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
     if (error_num == HA_ERR_OUT_OF_MEM)
@@ -1392,10 +1404,9 @@ long long spider_direct_sql_body(
   }
     trx->updated_in_this_trx = TRUE;
     DBUG_PRINT("info",("spider trx->updated_in_this_trx=TRUE"));
-  use_real_table = spider_param_udf_ds_use_real_table(thd,
-    direct_sql->use_real_table);
-  for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
-  {
+    use_real_table= direct_sql->use_real_table;
+    for (roop_count= 0; roop_count < direct_sql->table_count; roop_count++)
+    {
 #ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
     LEX_CSTRING db_name =
@@ -1477,7 +1488,6 @@ long long spider_direct_sql_body(
     direct_sql->sql_length = 0;
   direct_sql->sql = sql;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     if ((error_num = spider_udf_bg_direct_sql(direct_sql)))
@@ -1487,7 +1497,6 @@ long long spider_direct_sql_body(
       goto error;
     }
   } else {
-#endif
     if (conn->bg_init)
       pthread_mutex_lock(&conn->bg_conn_mutex);
     if ((error_num = spider_db_udf_direct_sql(direct_sql)))
@@ -1504,15 +1513,11 @@ long long spider_direct_sql_body(
       pthread_mutex_unlock(&conn->bg_conn_mutex);
     if (direct_sql->modified_non_trans_table)
       thd->transaction->stmt.modified_non_trans_table = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   }
   if (!bg)
   {
-#endif
     spider_udf_free_direct_sql_alloc(direct_sql, FALSE);
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   }
-#endif
   DBUG_RETURN(1);
 
 error:
@@ -1558,7 +1563,6 @@ my_bool spider_direct_sql_init_body(
     strcpy(message, "spider_(bg)_direct_sql() requires string arguments");
     goto error;
   }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
     if (!(bg_direct_sql = (SPIDER_BG_DIRECT_SQL *)
@@ -1582,15 +1586,12 @@ my_bool spider_direct_sql_init_body(
     }
     initid->ptr = (char *) bg_direct_sql;
   }
-#endif
   DBUG_RETURN(FALSE);
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 error_cond_init:
   pthread_mutex_destroy(&bg_direct_sql->bg_mutex);
 error_mutex_init:
   spider_free(spider_current_trx, bg_direct_sql, MYF(0));
-#endif
 error:
   DBUG_RETURN(TRUE);
 }
@@ -1618,7 +1619,6 @@ void spider_direct_sql_deinit_body(
   DBUG_VOID_RETURN;
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 void spider_direct_sql_bg_start(
   UDF_INIT *initid
 ) {
@@ -1707,4 +1707,3 @@ int spider_udf_bg_direct_sql(
   }
   DBUG_RETURN(0);
 }
-#endif

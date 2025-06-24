@@ -48,7 +48,7 @@ wsrep_cluster	CREATE TABLE `wsrep_cluster` (
   `protocol_version` int(11) NOT NULL,
   `capabilities` int(11) NOT NULL,
   PRIMARY KEY (`cluster_uuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 SHOW CREATE TABLE wsrep_cluster_members;
 Table	Create Table
 wsrep_cluster_members	CREATE TABLE `wsrep_cluster_members` (
@@ -57,7 +57,7 @@ wsrep_cluster_members	CREATE TABLE `wsrep_cluster_members` (
   `node_name` char(32) NOT NULL,
   `node_incoming_address` varchar(256) NOT NULL,
   PRIMARY KEY (`node_uuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 SHOW CREATE TABLE wsrep_cluster_members_history;
 Table	Create Table
 wsrep_cluster_members_history	CREATE TABLE `wsrep_cluster_members_history` (
@@ -68,7 +68,7 @@ wsrep_cluster_members_history	CREATE TABLE `wsrep_cluster_members_history` (
   `node_name` char(32) NOT NULL,
   `node_incoming_address` varchar(256) NOT NULL,
   PRIMARY KEY (`node_uuid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 SHOW CREATE TABLE wsrep_streaming_log;
 Table	Create Table
 wsrep_streaming_log	CREATE TABLE `wsrep_streaming_log` (
@@ -78,7 +78,7 @@ wsrep_streaming_log	CREATE TABLE `wsrep_streaming_log` (
   `flags` int(11) NOT NULL,
   `frag` longblob NOT NULL,
   PRIMARY KEY (`node_uuid`,`trx_id`,`seqno`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=0
 SHOW CREATE TABLE mysql.wsrep_cluster;
 Table	Create Table
 wsrep_cluster	CREATE TABLE `wsrep_cluster` (

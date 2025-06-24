@@ -17,10 +17,6 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
-
 #include "sp_pcontext.h"
 #include "sp_head.h"
 
@@ -98,8 +94,8 @@ sp_pcontext::sp_pcontext()
   m_parent(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
-  m_scope(REGULAR_SCOPE)
+  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_children(PSI_INSTRUMENT_MEM), m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
 }
@@ -111,8 +107,8 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   m_parent(prev), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
-  m_scope(scope)
+  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_children(PSI_INSTRUMENT_MEM), m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
        prev->current_cursor_count(),
@@ -139,8 +135,7 @@ sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
 
 bool cmp_labels(sp_label *a, sp_label *b)
 {
-  return (lex_string_cmp(system_charset_info, &a->name, &b->name) == 0 &&
-          a->type == b->type);
+  return a->type == b->type && a->name.streq(b->name);
 }
 
 sp_pcontext *sp_pcontext::pop_context()
@@ -215,8 +210,7 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
   {
     sp_variable *p= m_vars.at(i);
 
-    if (system_charset_info->strnncoll(name->str, name->length,
-		                       p->name.str, p->name.length) == 0)
+    if (p->name.streq(*name))
     {
       return p;
     }
@@ -252,7 +246,7 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
   - p0 has frame offset 0 and run-time offset 1
   - p1 has frame offset 1 and run-time offset 2
 
-  Run-time offsets on a frame can have holes, but offsets monotonocally grow,
+  Run-time offsets on a frame can have holes, but offsets monotonically grow,
   so run-time offsets of all variables are not greater than the run-time offset
   of the very last variable in this frame.
 */
@@ -272,6 +266,23 @@ sp_variable *sp_pcontext::find_variable(uint offset) const
   return m_parent ?
          m_parent->find_variable(offset) :    // Some previous frame
          NULL;                                // Index out of bounds
+}
+
+
+uint sp_pcontext::default_context_var_count() const
+{
+  uint default_params= 0;
+  for (uint i= 0; i< context_var_count(); i++)
+  {
+    sp_variable *spvar= get_context_variable(i);
+    if (!spvar)
+      break;
+
+    if (spvar->default_value)
+      default_params++;
+  }
+
+  return default_params;
 }
 
 
@@ -310,7 +321,7 @@ sp_label *sp_pcontext::find_goto_label(const LEX_CSTRING *name, bool recusive)
 
   while ((lab= li++))
   {
-    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
+    if (lab->name.streq(*name))
       return lab;
   }
 
@@ -347,7 +358,7 @@ sp_label *sp_pcontext::find_label(const LEX_CSTRING *name)
 
   while ((lab= li++))
   {
-    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
+    if (lab->name.streq(*name))
       return lab;
   }
 
@@ -383,7 +394,7 @@ sp_label *sp_pcontext::find_label_current_loop_start()
 
 
 bool sp_pcontext::add_condition(THD *thd,
-                                const LEX_CSTRING *name,
+                                const Lex_ident_column &name,
                                 sp_condition_value *value)
 {
   sp_condition *p= new (thd->mem_root) sp_condition(name, value);
@@ -415,6 +426,40 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
     NULL;
 }
 
+
+bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
+                             Row_definition_list *field)
+{
+  sp_record *p= new (thd->mem_root) sp_record(name, field);
+
+  if (p == NULL)
+    return true;
+
+  return m_records.append(p);
+}
+
+
+sp_record *sp_pcontext::find_record(const LEX_CSTRING *name,
+                                    bool current_scope_only) const
+{
+  size_t i= m_records.elements();
+
+  while (i--)
+  {
+    sp_record *p= m_records.at(i);
+
+    if (p->eq_name(name))
+    {
+      return p;
+    }
+  }
+
+  return (!current_scope_only && m_parent) ?
+    m_parent->find_record(name, false) :
+    NULL;
+}
+
+
 sp_condition_value *
 sp_pcontext::find_declared_or_predefined_condition(THD *thd,
                                                    const LEX_CSTRING *name)
@@ -442,12 +487,12 @@ static sp_condition_value
 static sp_condition sp_predefined_conditions[]=
 {
   // Warnings
-  sp_condition(STRING_WITH_LEN("NO_DATA_FOUND"), &cond_no_data_found),
+  sp_condition("NO_DATA_FOUND"_Lex_ident_column, &cond_no_data_found),
   // Errors
-  sp_condition(STRING_WITH_LEN("INVALID_CURSOR"), &cond_invalid_cursor),
-  sp_condition(STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
-  sp_condition(STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index2),
-  sp_condition(STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)
+  sp_condition("INVALID_CURSOR"_Lex_ident_column, &cond_invalid_cursor),
+  sp_condition("DUP_VAL_ON_INDEX"_Lex_ident_column, &cond_dup_val_on_index),
+  sp_condition("DUP_VAL_ON_INDEX"_Lex_ident_column, &cond_dup_val_on_index2),
+  sp_condition("TOO_MANY_ROWS"_Lex_ident_column, &cond_too_many_rows)
 };
 
 
@@ -628,10 +673,7 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
 
   while (i--)
   {
-    LEX_CSTRING n= m_cursors.at(i);
-
-    if (system_charset_info->strnncoll(name->str, name->length,
-		                       n.str, n.length) == 0)
+    if (m_cursors.at(i).streq(*name))
     {
       *poff= m_cursor_offset + i;
       return &m_cursors.at(i);

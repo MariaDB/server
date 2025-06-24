@@ -11,11 +11,11 @@ create user mysqltest_3@localhost;
 create user mysqltest_3;
 select * from information_schema.SCHEMATA where schema_name > 'm';
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
-def	mtr	latin1	latin1_swedish_ci	NULL	
-def	mysql	latin1	latin1_swedish_ci	NULL	
+def	mtr	utf8mb4	utf8mb4_uca1400_ai_ci	NULL	
+def	mysql	utf8mb4	utf8mb4_uca1400_ai_ci	NULL	
 def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	sys	utf8mb3	utf8mb3_general_ci	NULL	
-def	test	latin1	latin1_swedish_ci	NULL	
+def	test	utf8mb4	utf8mb4_uca1400_ai_ci	NULL	
 select schema_name from information_schema.schemata;
 schema_name
 information_schema
@@ -71,9 +71,12 @@ INDEX_STATISTICS
 KEYWORDS
 KEY_CACHES
 KEY_COLUMN_USAGE
+KEY_PERIOD_USAGE
+OPTIMIZER_COSTS
 OPTIMIZER_TRACE
 PARAMETERS
 PARTITIONS
+PERIODS
 PLUGINS
 PROCESSLIST
 PROFILING
@@ -81,8 +84,10 @@ REFERENTIAL_CONSTRAINTS
 ROUTINES
 SCHEMATA
 SCHEMA_PRIVILEGES
+SEQUENCES
 SESSION_STATUS
 SESSION_VARIABLES
+SLAVE_STATUS
 SPATIAL_REF_SYS
 SQL_FUNCTIONS
 STATISTICS
@@ -93,6 +98,7 @@ TABLE_CONSTRAINTS
 TABLE_PRIVILEGES
 TABLE_STATISTICS
 TRIGGERS
+USERS
 USER_PRIVILEGES
 USER_STATISTICS
 VIEWS
@@ -218,9 +224,9 @@ t3
 t5
 show table status;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
-t3	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
-t5	MyISAM	10	Fixed	1	7	7	#	2048	0	11	#	#	NULL	latin1_swedish_ci	NULL			#	N
+t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			#	N
+t3	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			#	N
+t5	MyISAM	10	Fixed	1	7	7	#	2048	0	11	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			#	N
 v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	VIEW	#	NULL
 show full columns from t3 like "a%";
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
@@ -233,8 +239,8 @@ Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 c	varchar(64)	utf8mb3_general_ci	NO		NULL		select,insert,update,references	
 select * from information_schema.COLUMNS where table_name="t1"
 and column_name= "a";
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
-def	mysqltest	t1	a	1	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
+def	mysqltest	t1	a	1	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL	NO	NO
 show columns from mysqltest.t1 where field like "%a%";
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -275,54 +281,54 @@ Charset	Description	Default collation	Maxlen
 latin1	cp1252 West European	latin1_swedish_ci	1
 select * from information_schema.COLLATIONS
 where COLLATION_NAME like 'latin1%';
-COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
-latin1_german1_ci	latin1	5		#	1
-latin1_swedish_ci	latin1	8	Yes	#	1
-latin1_danish_ci	latin1	15		#	1
-latin1_german2_ci	latin1	31		#	2
-latin1_bin	latin1	47		#	1
-latin1_general_ci	latin1	48		#	1
-latin1_general_cs	latin1	49		#	1
-latin1_spanish_ci	latin1	94		#	1
-latin1_swedish_nopad_ci	latin1	1032		#	1
-latin1_nopad_bin	latin1	1071		#	1
+COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	PAD_ATTRIBUTE	COMMENT
+latin1_german1_ci	latin1	5		#	1	PAD SPACE	cp1252 West European
+latin1_swedish_ci	latin1	8	Yes	#	1	PAD SPACE	cp1252 West European
+latin1_danish_ci	latin1	15		#	1	PAD SPACE	cp1252 West European
+latin1_german2_ci	latin1	31		#	2	PAD SPACE	cp1252 West European
+latin1_bin	latin1	47		#	1	PAD SPACE	cp1252 West European
+latin1_general_ci	latin1	48		#	1	PAD SPACE	cp1252 West European
+latin1_general_cs	latin1	49		#	1	PAD SPACE	cp1252 West European
+latin1_spanish_ci	latin1	94		#	1	PAD SPACE	cp1252 West European
+latin1_swedish_nopad_ci	latin1	1032		#	1	NO PAD	
+latin1_nopad_bin	latin1	1071		#	1	NO PAD	
 SHOW COLLATION LIKE 'latin1%';
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_german1_ci	latin1	5		#	1
-latin1_swedish_ci	latin1	8	Yes	#	1
-latin1_danish_ci	latin1	15		#	1
-latin1_german2_ci	latin1	31		#	2
-latin1_bin	latin1	47		#	1
-latin1_general_ci	latin1	48		#	1
-latin1_general_cs	latin1	49		#	1
-latin1_spanish_ci	latin1	94		#	1
-latin1_swedish_nopad_ci	latin1	1032		#	1
-latin1_nopad_bin	latin1	1071		#	1
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_german1_ci	latin1	5		#	1	PAD SPACE
+latin1_swedish_ci	latin1	8	Yes	#	1	PAD SPACE
+latin1_danish_ci	latin1	15		#	1	PAD SPACE
+latin1_german2_ci	latin1	31		#	2	PAD SPACE
+latin1_bin	latin1	47		#	1	PAD SPACE
+latin1_general_ci	latin1	48		#	1	PAD SPACE
+latin1_general_cs	latin1	49		#	1	PAD SPACE
+latin1_spanish_ci	latin1	94		#	1	PAD SPACE
+latin1_swedish_nopad_ci	latin1	1032		#	1	NO PAD
+latin1_nopad_bin	latin1	1071		#	1	NO PAD
 SHOW COLLATION WHERE collation like 'latin1%';
-Collation	Charset	Id	Default	Compiled	Sortlen
-latin1_german1_ci	latin1	5		#	1
-latin1_swedish_ci	latin1	8	Yes	#	1
-latin1_danish_ci	latin1	15		#	1
-latin1_german2_ci	latin1	31		#	2
-latin1_bin	latin1	47		#	1
-latin1_general_ci	latin1	48		#	1
-latin1_general_cs	latin1	49		#	1
-latin1_spanish_ci	latin1	94		#	1
-latin1_swedish_nopad_ci	latin1	1032		#	1
-latin1_nopad_bin	latin1	1071		#	1
+Collation	Charset	Id	Default	Compiled	Sortlen	Pad_attribute
+latin1_german1_ci	latin1	5		#	1	PAD SPACE
+latin1_swedish_ci	latin1	8	Yes	#	1	PAD SPACE
+latin1_danish_ci	latin1	15		#	1	PAD SPACE
+latin1_german2_ci	latin1	31		#	2	PAD SPACE
+latin1_bin	latin1	47		#	1	PAD SPACE
+latin1_general_ci	latin1	48		#	1	PAD SPACE
+latin1_general_cs	latin1	49		#	1	PAD SPACE
+latin1_spanish_ci	latin1	94		#	1	PAD SPACE
+latin1_swedish_nopad_ci	latin1	1032		#	1	NO PAD
+latin1_nopad_bin	latin1	1071		#	1	NO PAD
 select * from information_schema.COLLATION_CHARACTER_SET_APPLICABILITY
 where COLLATION_NAME like 'latin1%';
-COLLATION_NAME	CHARACTER_SET_NAME
-latin1_german1_ci	latin1
-latin1_swedish_ci	latin1
-latin1_danish_ci	latin1
-latin1_german2_ci	latin1
-latin1_bin	latin1
-latin1_general_ci	latin1
-latin1_general_cs	latin1
-latin1_spanish_ci	latin1
-latin1_swedish_nopad_ci	latin1
-latin1_nopad_bin	latin1
+COLLATION_NAME	CHARACTER_SET_NAME	FULL_COLLATION_NAME	ID	IS_DEFAULT
+latin1_german1_ci	latin1	latin1_german1_ci	5	
+latin1_swedish_ci	latin1	latin1_swedish_ci	8	Yes
+latin1_danish_ci	latin1	latin1_danish_ci	15	
+latin1_german2_ci	latin1	latin1_german2_ci	31	
+latin1_bin	latin1	latin1_bin	47	
+latin1_general_ci	latin1	latin1_general_ci	48	
+latin1_general_cs	latin1	latin1_general_cs	49	
+latin1_spanish_ci	latin1	latin1_spanish_ci	94	
+latin1_swedish_nopad_ci	latin1	latin1_swedish_nopad_ci	1032	
+latin1_nopad_bin	latin1	latin1_nopad_bin	1071	
 drop procedure if exists sel2;
 drop function if exists sub1;
 drop function if exists sub2;
@@ -340,10 +346,10 @@ SQL	CONTAINS SQL	NULL
 SQL	CONTAINS SQL	int(11)
 show procedure status where db='test';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	sel2	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	sel2	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show function status where db='test';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	sub1	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	sub1	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select a.ROUTINE_NAME from information_schema.ROUTINES a,
 information_schema.SCHEMATA b where
 a.ROUTINE_SCHEMA = b.SCHEMA_NAME AND b.SCHEMA_NAME='test';
@@ -388,28 +394,39 @@ connect  user2,localhost,mysqltest_1,,;
 connection user2;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
-sel2	NULL
-sub1	NULL
+sel2	begin
+select * from t1;
+select * from t2;
+end
+sub1	return i+1
 create function sub2(i int) returns int
 return i+1;
 select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
-sel2	NULL
-sub1	NULL
+sel2	begin
+select * from t1;
+select * from t2;
+end
+sub1	return i+1
 sub2	return i+1
 show create procedure sel2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sel2		NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+sel2		CREATE DEFINER=`root`@`localhost` PROCEDURE `sel2`()
+begin
+select * from t1;
+select * from t2;
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show create function sub1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-sub1		NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+sub1		CREATE DEFINER=`root`@`localhost` FUNCTION `sub1`(i int) RETURNS int(11)
+return i+1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show create function sub2;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 sub2		CREATE DEFINER=`mysqltest_1`@`localhost` FUNCTION `sub2`(i int) RETURNS int(11)
-return i+1	latin1	latin1_swedish_ci	latin1_swedish_ci
+return i+1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 show function status like "sub2";
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
-test	sub2	FUNCTION	mysqltest_1@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	sub2	FUNCTION	mysqltest_1@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection default;
 disconnect user1;
 disconnect user3;
@@ -420,7 +437,7 @@ sel2		CREATE DEFINER=`root`@`localhost` PROCEDURE `sel2`()
 begin
 select * from t1;
 select * from t2;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 create view v0 (c) as select schema_name from information_schema.schemata;
 select * from v0;
 c
@@ -500,6 +517,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	EVENT	YES
 'mysqltest_1'@'localhost'	def	test	TRIGGER	YES
 'mysqltest_1'@'localhost'	def	test	DELETE HISTORY	YES
+'mysqltest_1'@'localhost'	def	test	SHOW CREATE ROUTINE	YES
 select * from information_schema.TABLE_PRIVILEGES where grantee like '%mysqltest_1%';
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	t1	SELECT	NO
@@ -533,7 +551,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `constraint_1` (`a`),
   UNIQUE KEY `key_1` (`a`),
   UNIQUE KEY `key_2` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from information_schema.TABLE_CONSTRAINTS where
 TABLE_SCHEMA= "test";
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
@@ -610,7 +628,7 @@ SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
 CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
+  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
@@ -619,7 +637,7 @@ SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
 CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
+  `DEFAULT_COLLATE_NAME` varchar(64) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
@@ -633,11 +651,11 @@ alter table t1 default character set utf8;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `CHARACTER_SET_NAME` varchar(32) NOT NULL,
-  `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
-  `DESCRIPTION` varchar(60) NOT NULL,
+  `CHARACTER_SET_NAME` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `DEFAULT_COLLATE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `DESCRIPTION` varchar(60) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table t1;
 create view v1 as select * from information_schema.TABLES;
 drop view v1;
@@ -679,8 +697,8 @@ proc	modified	timestamp
 proc	sql_mode	set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL')
 proc	comment	text
 proc	character_set_client	char(32)
-proc	collation_connection	char(32)
-proc	db_collation	char(32)
+proc	collation_connection	char(64)
+proc	db_collation	char(64)
 proc	body_utf8	longblob
 proc	aggregate	enum('NONE','GROUP')
 drop table t115;
@@ -828,7 +846,7 @@ where table_schema="information_schema" and table_name="COLUMNS" and
 (column_name="character_set_name" or column_name="collation_name");
 column_type
 varchar(32)
-varchar(32)
+varchar(64)
 select TABLE_ROWS from information_schema.tables where
 table_schema="information_schema" and table_name="COLUMNS";
 TABLE_ROWS
@@ -842,7 +860,7 @@ Database	Table	In_use	Name_locked
 mysql	user	0	0
 show status where variable_name like "%database%";
 Variable_name	Value
-Acl_database_grants	2
+Acl_database_grants	0
 Com_show_databases	3
 show variables where variable_name like "skip_show_databas";
 Variable_name	Value
@@ -896,6 +914,7 @@ sys	processlist	current_statement
 sys	processlist	last_statement
 sys	schema_auto_increment_columns	column_type
 sys	schema_table_lock_waits	waiting_query
+mysql	servers	Options
 sys	session	current_statement
 sys	session	last_statement
 sys	statement_analysis	query
@@ -943,10 +962,13 @@ PARTITIONS	UPDATE_TIME	datetime
 PARTITIONS	CHECK_TIME	datetime
 ROUTINES	CREATED	datetime
 ROUTINES	LAST_ALTERED	datetime
+SLAVE_STATUS	Master_last_event_time	datetime
+SLAVE_STATUS	Slave_last_event_time	datetime
 TABLES	CREATE_TIME	datetime
 TABLES	UPDATE_TIME	datetime
 TABLES	CHECK_TIME	datetime
 TRIGGERS	CREATED	datetime
+USERS	PASSWORD_EXPIRATION_TIME	datetime
 event	execute_at	datetime
 event	last_executed	datetime
 event	starts	datetime
@@ -995,7 +1017,9 @@ COLUMN_PRIVILEGES	TABLE_NAME	select
 FILES	TABLE_NAME	select
 INDEX_STATISTICS	TABLE_NAME	select
 KEY_COLUMN_USAGE	TABLE_NAME	select
+KEY_PERIOD_USAGE	TABLE_NAME	select
 PARTITIONS	TABLE_NAME	select
+PERIODS	TABLE_NAME	select
 REFERENTIAL_CONSTRAINTS	TABLE_NAME	select
 STATISTICS	TABLE_NAME	select
 TABLES	TABLE_NAME	select
@@ -1033,34 +1057,34 @@ trg1	INSERT	t1	begin
 if new.j > 10 then
 set new.j := 10;
 end if;
-end	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 trg2	UPDATE	t1	begin
 if old.i % 2 = 0 then
 set new.j := -1;
 end if;
-end	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 trg3	UPDATE	t1	begin
 if new.j = -1 then
 set @fired:= "Yes";
 end if;
-end	AFTER	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select * from information_schema.triggers where trigger_schema in ('mysql', 'information_schema', 'test', 'mysqltest');
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 def	test	trg1	INSERT	def	test	t1	1	NULL	begin
 if new.j > 10 then
 set new.j := 10;
 end if;
-end	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 def	test	trg2	UPDATE	def	test	t1	1	NULL	begin
 if old.i % 2 = 0 then
 set new.j := -1;
 end if;
-end	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 def	test	trg3	UPDATE	def	test	t1	1	NULL	begin
 if new.j = -1 then
 set @fired:= "Yes";
 end if;
-end	ROW	AFTER	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+end	ROW	AFTER	NULL	NULL	OLD	NEW	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop trigger trg1;
 drop trigger trg2;
 drop trigger trg3;
@@ -1217,8 +1241,8 @@ SHOW TABLE STATUS FROM test
 WHERE name IN ( SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='test' AND TABLE_TYPE='BASE TABLE');
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
-t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
+t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			#	N
+t2	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	utf8mb4_uca1400_ai_ci	NULL			#	N
 DROP TABLE t1,t2;
 create table t1(f1 int);
 create view v1 (c) as select f1 from t1;
@@ -1316,8 +1340,8 @@ table_schema='information_schema' and
  or column_type = 'varchar(27)')
 group by column_type order by num;
 column_type	group_concat(table_schema, '.', table_name)	num
-varchar(7)	information_schema.ROUTINES,information_schema.VIEWS	2
-varchar(20)	information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.FILES,information_schema.FILES,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PROFILING	9
+varchar(7)	information_schema.ROUTINES,information_schema.VIEWS,information_schema.SLAVE_STATUS	3
+varchar(20)	information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.FILES,information_schema.FILES,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PROFILING,information_schema.TRIGGERS	10
 create table t1(f1 char(1) not null, f2 char(9) not null)
 default character set utf8;
 select CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH from
@@ -1375,11 +1399,11 @@ p1	SET @a= 1
 SHOW CREATE PROCEDURE p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 p1		CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
-SET @a= 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SET @a= 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 f1		CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
-RETURN @a + 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+RETURN @a + 1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connect  conn1, localhost, mysql_bug20230,,;
 SELECT ROUTINE_NAME, ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test';
 ROUTINE_NAME	ROUTINE_DEFINITION
@@ -1387,10 +1411,10 @@ f1	NULL
 p1	NULL
 SHOW CREATE PROCEDURE p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1		NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+p1		NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1		NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+f1		NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL p1();
 SELECT f1();
 f1()
@@ -1434,7 +1458,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tables	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
 explain select * from (select table_name from information_schema.tables) as a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	100	
 2	DERIVED	tables	ALL	NULL	NULL	NULL	NULL	NULL	Skip_open_table; Scanned all databases
 set optimizer_switch=@tmp_optimizer_switch;
 drop view v1;
@@ -1476,6 +1500,7 @@ memory_by_user_by_current_bytes	NO
 memory_global_by_current_bytes	YES
 memory_global_total	NO
 metrics	NO
+privileges_by_table_by_level	NO
 processlist	NO
 ps_check_lost_instrumentation	YES
 schema_auto_increment_columns	NO
@@ -1576,7 +1601,7 @@ trigger_name
 t1_ai
 show triggers from mysqltest;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_ai	INSERT	t1	set @a = new.a + new.b + new.c	AFTER	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+t1_ai	INSERT	t1	set @a = new.a + new.b + new.c	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connect  con27629,localhost,mysqltest_1,,mysqltest;
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
@@ -1635,7 +1660,7 @@ SELECT *
 FROM tables ta
 JOIN collations co ON ( co.collation_name = ta.table_catalog )
 JOIN character_sets cs ON ( cs.character_set_name = ta.table_catalog );
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY	COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY	COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN	PAD_ATTRIBUTE	COMMENT	CHARACTER_SET_NAME	DEFAULT_COLLATE_NAME	DESCRIPTION	MAXLEN
 DROP TABLE test.t1;
 SET max_heap_table_size = DEFAULT;
 USE test;
@@ -1719,7 +1744,7 @@ CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_P
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA
 WHERE SCHEMA_NAME = 'test';
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
-def	test	latin1	latin1_swedish_ci	NULL	
+def	test	utf8mb4	utf8mb4_uca1400_ai_ci	NULL	
 select count(*) from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA='mysql' AND TABLE_NAME='nonexisting';
 count(*)
 0
@@ -1748,9 +1773,9 @@ WHERE TABLE_SCHEMA='mysql' and TABLE_NAME= 'db';
 TABLE_COLLATION
 utf8mb3_bin
 select * from information_schema.columns where table_schema = NULL;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
 select * from `information_schema`.`COLUMNS` where `TABLE_NAME` = NULL;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
 select * from `information_schema`.`KEY_COLUMN_USAGE` where `TABLE_SCHEMA` = NULL;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 select * from `information_schema`.`KEY_COLUMN_USAGE` where `TABLE_NAME` = NULL;
@@ -2091,7 +2116,7 @@ LEFT JOIN INFORMATION_SCHEMA.COLUMNS
 USING (TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME)
 WHERE COLUMNS.TABLE_SCHEMA = 'test'
 AND COLUMNS.TABLE_NAME = 't1';
-TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME	TABLE_CATALOG	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME	TABLE_CATALOG	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
 #
 # A test case for Bug#56540 "Exception (crash) in sql_show.cc
 # during rqg_info_schema test on Windows"
@@ -2302,6 +2327,9 @@ LOGFILE_GROUP_NAME, FILE_NAME, ENGINE
 ORDER BY 
 LOGFILE_GROUP_NAME;
 LOGFILE_GROUP_NAME	FILE_NAME	TOTAL_EXTENTS	INITIAL_SIZE	ENGINE	EXTRA
+Warnings:
+Warning	1287	'information_schema.FILES' is deprecated and will be removed in a future release
+Warning	1287	'information_schema.FILES' is deprecated and will be removed in a future release
 # This must have Opened_tables=3, not 6.
 show status like 'Opened_tables';
 Variable_name	Value
@@ -2358,7 +2386,7 @@ SCHEMA_NAME
 # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
 #
 SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION	IS_SYSTEM_TIME_PERIOD_START	IS_SYSTEM_TIME_PERIOD_END
 Warnings:
 Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 10. The query result may be incomplete
 #
@@ -2413,6 +2441,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2425,6 +2454,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2436,6 +2466,7 @@ NATURAL join information_schema.CHECK_CONSTRAINTS cc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2447,6 +2478,7 @@ NATURAL join information_schema.TABLE_CONSTRAINTS tc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	servers	Options	json_valid(`Options`)
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2461,6 +2493,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
 mysql	global_priv	Priv	json_valid(`Priv`)	def	mysql
+mysql	servers	Options	json_valid(`Options`)	def	mysql
 test	t	a	`i` > 0	def	test
 drop table t;
 #
@@ -2495,7 +2528,7 @@ DROP TABLE t1;
 #
 # MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
 #
-create table t1 ( name varchar(64) character set utf8, len int);
+create table t1 ( name varchar(64) character set utf8 collate utf8_general_ci, len int);
 select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
 name	len
 drop table t1;
@@ -2506,16 +2539,16 @@ SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
 CREATE OR REPLACE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
 SHOW returned: CREATE TABLE `t1` (
   `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE `t1` (
   `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET SQL_MODE=DEFAULT;
 SET SQL_MODE= 'EMPTY_STRING_IS_NULL';

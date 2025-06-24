@@ -28,15 +28,20 @@ CREATE TABLE t3 (file VARCHAR(255), pos INT) ENGINE=InnoDB;
 LOAD DATA LOCAL INFILE "BASEDIR/xtrabackup_binlog_pos_innodb"
      INTO TABLE t3 FIELDS ESCAPED BY '' (file, pos);
 CHANGE MASTER TO
+master_ssl_verify_server_cert=0,
 master_port=PORT, master_host='127.0.0.1', master_user='root',
 master_log_file= "MASTER_FILE",
 master_log_pos= MASTER_POS;
+Warnings:
+Note	4190	CHANGE MASTER TO is implicitly changing the value of 'Using_Gtid' from 'Slave_Pos' to 'No'
 START SLAVE;
 connection default;
 connection server2;
 connection server2;
 STOP SLAVE;
 RESET SLAVE ALL;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 DROP PROCEDURE gen_load;
 DROP TABLE t1, t2, t3;
 connection default;

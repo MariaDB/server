@@ -154,17 +154,17 @@ set optimizer_switch=@save_optimizer_switch;
 
 set @save_optimizer_switch=@@optimizer_switch;
 
-CREATE TABLE t1 (a1 char(1), b1 char(1), index idx(b1,a1));
+CREATE TABLE t1 (a1 char(1), b1 char(1), index idx(b1,a1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('f','c'),('d','m'),('g','y');
 INSERT INTO t1 VALUES ('f','c'),('d','m'),('g','y');
 
-CREATE TABLE t2 (a2 char(1), b2 char(1));
+CREATE TABLE t2 (a2 char(1), b2 char(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('y','y'),('y','y'),('w','w');
 
 CREATE TABLE t3 (a3 int);
 INSERT INTO t3 VALUES (8),(6);
 
-CREATE TABLE t4 (a4 char(1), b4 char(1));
+CREATE TABLE t4 (a4 char(1), b4 char(1)) CHARSET=latin1;
 INSERT INTO t4 VALUES ('y','y'),('y','y'),('w','w');
 
 set optimizer_switch='materialization=off';
@@ -194,18 +194,18 @@ set optimizer_switch=@save_optimizer_switch;
 
 set @save_optimizer_switch=@@optimizer_switch;
 
-CREATE TABLE t1 (a1 int, c1 varchar(1));
+CREATE TABLE t1 (a1 int, c1 varchar(1)) CHARSET=latin1;
 INSERT t1 VALUES (7,'v'), (3,'y');
 
-CREATE TABLE t2 (c2 varchar(1));
+CREATE TABLE t2 (c2 varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('y'), ('y');
 
-CREATE TABLE t3 (c3 varchar(1));
+CREATE TABLE t3 (c3 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES
   ('j'), ('v'), ('c'), ('m'), ('d'),
   ('d'), ('y'), ('t'), ('d'), ('s');
 
-CREATE TABLE t4 (a4 int, c4 varchar(1));
+CREATE TABLE t4 (a4 int, c4 varchar(1)) CHARSET=latin1;
 INSERT INTO t4 SELECT * FROM t1;
 
 set optimizer_switch='materialization=off';
@@ -230,7 +230,7 @@ set optimizer_switch=@save_optimizer_switch;
 
 --echo #
 --echo # mdev-4177: materialization of a subquery whose WHERE condition is OR
---echo # formula with two disjucts such that the second one is always false
+--echo # formula with two disjuncts such that the second one is always false
 --echo #
 
 set @save_optimizer_switch=@@optimizer_switch;
@@ -297,10 +297,11 @@ set optimizer_switch=@save_optimizer_switch;
 --echo # mdev-12855: materialization of a semi-join subquery + ORDER BY 
 --echo #
 
-CREATE TABLE t1 (f1 varchar(8), KEY(f1)) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 varchar(8), KEY(f1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES ('qux'),('foo');
-CREATE TABLE t2 (f2 varchar(8)) ENGINE=InnoDB;
-INSERT INTO t2 VALUES ('bar'),('foo'),('qux');
+CREATE TABLE t2 (f2 varchar(8)) ENGINE=InnoDB CHARSET=latin1;
+INSERT INTO t2 VALUES ('bar'),('foo'),('qux'),('qq1'),('qq2');
+analyze table t1,t2 persistent for all;
 
 let $q=
 SELECT f1 FROM t1 

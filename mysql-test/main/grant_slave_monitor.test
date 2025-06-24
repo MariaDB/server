@@ -7,14 +7,12 @@
 # ==== Implementation ====
 #
 # Step1: GRANT ALL privileges for a new user 'user1' and then REVOKE
-#        SLAVE MONITOR and SUPER privileges.
-# Step2: Execute SHOW SLAVE STAUTS/SHOW RELAYLOG EVENTS commands and expect
+#        SLAVE MONITOR privileges.
+# Step2: Execute SHOW SLAVE STATUS/SHOW RELAYLOG EVENTS commands and expect
 #        ER_SPECIFIC_ACCESS_DENIED_ERROR. This also verifies that REPLICATION
 #        SLAVE ADMIN privilege is not required for these two commands.
 # Step3: GRANT SLAVE MONITOR privilege and observe that both commands are
-#        allowd to execute.
-# Step4: GRANT SUPER privilege and observe that only SHOW SLAVE STATUS command
-#        is allowed.
+#        allowed to execute.
 #
 # ==== References ====
 #
@@ -27,7 +25,7 @@
 
 CREATE USER user1@localhost IDENTIFIED BY '';
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
-REVOKE SLAVE MONITOR, SUPER ON *.* FROM user1@localhost;
+REVOKE SLAVE MONITOR ON *.* FROM user1@localhost;
 FLUSH PRIVILEGES;
 
 --connect(con1,localhost,user1,,)
@@ -36,11 +34,12 @@ SHOW GRANTS;
 
 --echo #
 --echo # Verify that having REPLICATION SLAVE ADMIN doesn't allow SHOW SLAVE STATUS
---echo # Expected error: Access denied; you need (at least one of) the SUPER, SLAVE
---echo #                 MONITOR privilege(s) for this operation
+--echo # Expected error: Access denied; you need (at least one of) the SLAVE MONITOR privilege(s) for this operation
 --echo #
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 SHOW SLAVE STATUS;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * from information_schema.slave_status;
 
 --echo #
 --echo # Verify that having REPLICATION SLAVE ADMIN doesn't allow SHOW RELAYLOG EVENTS
@@ -71,30 +70,6 @@ SHOW SLAVE STATUS;
 SHOW RELAYLOG EVENTS;
 --enable_ps_protocol
 --enable_result_log
---disconnect con1
-
---connection default
-DROP USER user1@localhost;
-
---echo #
---echo # SHOW SLAVE STATUS command is allowed with SUPER privilege
---echo #
-CREATE USER user1@localhost IDENTIFIED BY '';
-GRANT SUPER ON *.* TO user1@localhost;
-
---connect(con1,localhost,user1,,)
---disable_result_log
-SHOW SLAVE STATUS;
---enable_result_log
-
---echo #
---echo # SHOW RELAYLOG EVENTS is not allowed with SUPER privilege, it requires SLAVE MONITOR
---echo #
-
---disable_ps_protocol
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-SHOW RELAYLOG EVENTS;
---enable_ps_protocol
 --disconnect con1
 
 --connection default

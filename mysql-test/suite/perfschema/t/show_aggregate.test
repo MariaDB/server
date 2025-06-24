@@ -25,7 +25,7 @@ SET @@session.sql_log_bin=OFF;
 connection default;
 USE test;
 
-flush status;
+flush global status;
 
 --echo #
 --echo # Create results table
@@ -277,10 +277,10 @@ FROM test.status_results
 ORDER BY variable_name;
 
 --echo # ================================================================================
---echo # TEST 8: FLUSH STATUS should clear account, host and user status
+--echo # TEST 8: FLUSH GLOBAL STATUS should clear account, host and user status
 --echo # ================================================================================
 --echo #
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --echo #
 SELECT * FROM status_by_account WHERE user IN ('user1', 'user2', 'user3') AND variable_name IN ('handler_delete');
 --echo #

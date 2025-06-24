@@ -2,6 +2,8 @@
 # Test of heap tables.
 #
 
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -277,6 +279,7 @@ explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  '
 --error ER_DUP_ENTRY
 alter table t1 add unique(v);
 select concat('*',v,'*',c,'*',t,'*') as qq from t1 where v='a' order by length(concat('*',v,'*',c,'*',t,'*'));
+flush tables;
 explain select * from t1 where v='a';
 
 # GROUP BY
@@ -626,3 +629,5 @@ HANDLER v READ t1=(2) limit 3;
 HANDLER v READ pk PREV;
 HANDLER v READ pk PREV;
 drop table v;
+
+--source include/test_db_charset_restore.inc

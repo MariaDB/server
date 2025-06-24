@@ -10,7 +10,7 @@
 --disable_query_log
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
-call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
+call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/\(t\|x@002e@002ed\) because it could not be opened");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing");
 call mtr.add_suppression("Could not find a valid tablespace file for");
@@ -21,7 +21,6 @@ call mtr.add_suppression("InnoDB: ALTER TABLE `test`.`t` DISCARD TABLESPACE fail
 --enable_query_log
 
 let $MYSQLD_DATADIR=`select @@datadir`;
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t(a SERIAL)ENGINE=InnoDB;
 CREATE TABLE `x..d` (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t1(a SERIAL)ENGINE=InnoDB;

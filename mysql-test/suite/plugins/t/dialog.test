@@ -14,6 +14,7 @@ if (!$DIALOG_EXAMPLES_SO) {
 --replace_result .dll .so
 eval install plugin three_attempts soname '$DIALOG_EXAMPLES_SO';
 create user test_dialog identified via three_attempts using 'SECRET';
+GRANT SELECT ON test.* TO test_dialog;
 
 --write_file $MYSQLTEST_VARDIR/tmp/dialog_good.txt
 foo
@@ -36,12 +37,12 @@ EOF
 
 --echo #
 --echo # without -p. up to three questions are asked on the stdin.
---echo # athentication is successful, the correct pasword is on the third line
+--echo # authentication is successful, the correct password is on the third line
 --echo #
 --exec $MYSQL_TEST -u test_dialog < $MYSQLTEST_VARDIR/tmp/dialog_good.txt
 
 --echo #
---echo # athentication is unsuccessful, first three lines are all wrong
+--echo # authentication is unsuccessful, first three lines are all wrong
 --echo #
 --error 1
 --exec $MYSQL_TEST -u test_dialog < $MYSQLTEST_VARDIR/tmp/dialog_bad.txt

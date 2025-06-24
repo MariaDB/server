@@ -703,11 +703,11 @@ pars_resolve_exp_columns(
 		for (i = 0; i < n_cols; i++) {
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, i);
-			const char*		col_name
+			const Lex_ident_column col_name
 				= dict_table_get_col_name(table, i);
 
-			if (sym_node->name_len == strlen(col_name)
-			    && !memcmp(sym_node->name, col_name,
+			if (sym_node->name_len == col_name.length
+			    && !memcmp(sym_node->name, col_name.str,
 				       sym_node->name_len)) {
 				/* Found */
 				sym_node->resolved = TRUE;
@@ -817,12 +817,12 @@ pars_select_all_columns(
 		table = table_node->table;
 
 		for (i = 0; i < dict_table_get_n_user_cols(table); i++) {
-			const char*	col_name = dict_table_get_col_name(
+			const Lex_ident_column col_name = dict_table_get_col_name(
 				table, i);
 
 			col_node = sym_tab_add_id(pars_sym_tab_global,
-						  (byte*) col_name,
-						  strlen(col_name));
+						  (byte*) col_name.str,
+						  col_name.length);
 
 			select_node->select_list = que_node_list_add_last(
 				select_node->select_list, col_node);

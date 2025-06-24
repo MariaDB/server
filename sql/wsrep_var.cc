@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
+#include "wsrep_plugin.h" /* wsrep_provider_plugin_is_enabled() */
 
 ulong   wsrep_reject_queries;
 
@@ -93,12 +94,17 @@ static bool refresh_provider_options()
   }
 }
 
+bool wsrep_refresh_provider_options()
+{
+  return refresh_provider_options();
+}
+
 void wsrep_set_wsrep_on(THD* thd)
 {
   if (thd)
     thd->wsrep_was_on= WSREP_ON_;
-  WSREP_PROVIDER_EXISTS_= wsrep_provider &&
-    strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN);
+  WSREP_PROVIDER_EXISTS_= wsrep_provider && *wsrep_provider &&
+    strcasecmp(wsrep_provider, WSREP_NONE);
   WSREP_ON_= global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_;
 }
 
@@ -108,10 +114,14 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   {
     my_bool saved_wsrep_on= global_system_variables.wsrep_on;
 
-    thd->variables.wsrep_on= global_system_variables.wsrep_on;
+    thd->variables.wsrep_on= saved_wsrep_on;
 
     // If wsrep has not been inited we need to do it now
-    if (global_system_variables.wsrep_on && wsrep_provider && !wsrep_inited)
+    if (!wsrep_inited &&
+        saved_wsrep_on &&
+        wsrep_provider &&
+        *wsrep_provider &&
+        strcasecmp(wsrep_provider, WSREP_NONE))
     {
       // wsrep_init() rewrites provide if it fails
       char* tmp= strdup(wsrep_provider);
@@ -194,36 +204,6 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
       wsrep_cleanup(thd);
     }
   }
-
-  return false;
-}
-
-bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
-{
-  if (thd->variables.wsrep_causal_reads) {
-    thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
-  } else {
-    thd->variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
-  }
-
-  // update global settings too.
-  if (global_system_variables.wsrep_causal_reads) {
-      global_system_variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
-  } else {
-      global_system_variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
-  }
-
-  return false;
-}
-
-bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
-{
-  thd->variables.wsrep_causal_reads= thd->variables.wsrep_sync_wait &
-          WSREP_SYNC_WAIT_BEFORE_READ;
-
-  // update global settings too
-  global_system_variables.wsrep_causal_reads= global_system_variables.wsrep_sync_wait &
-          WSREP_SYNC_WAIT_BEFORE_READ;
 
   return false;
 }
@@ -445,6 +425,12 @@ static int wsrep_provider_verify (const char* provider_str)
 
 bool wsrep_provider_check (sys_var *self, THD* thd, set_var* var)
 {
+  if (wsrep_provider_plugin_enabled())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->var->name.str, "read only");
+    return true;
+  }
+
   char wsrep_provider_buf[FN_REFLEN];
 
   if ((! var->save_result.string_value.str) ||
@@ -534,6 +520,11 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
   if (!WSREP_ON)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+  if (wsrep_provider_plugin_enabled())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->var->name.str, "read only");
     return true;
   }
   return false;
@@ -791,7 +782,7 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
     res= wsrep_create_appliers(wsrep_slave_count_change, true);
     mysql_mutex_unlock(&LOCK_global_system_variables);
     mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
-    // Thread creation and execution is asyncronous, therefore we need
+    // Thread creation and execution is asynchronous, therefore we need
     // wait them to be started or error produced
     while (wsrep_running_applier_threads != (ulong)wsrep_slave_threads &&
            !wsrep_thread_create_failed.load(std::memory_order_relaxed))
@@ -852,10 +843,11 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
       return true;
     }
   } else {
+    THD_STAGE_INFO(thd, stage_waiting_flow);
     ret= Wsrep_server_state::instance().provider().resync();
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET resync failed %d for schema: %s, query: %s", ret,
-                  thd->get_db(), thd->query());
+                  thd->get_db(), wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'resync'", thd->query());
       return true;
     }
@@ -1140,43 +1132,6 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   WSREP_DEBUG("wsrep_gtid_domain_id_update: %llu",
               wsrep_gtid_domain_id);
   wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
-  return false;
-}
-
-bool wsrep_strict_ddl_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_strict_ddl we set new
-  // option to wsrep_mode
-  if (wsrep_strict_ddl)
-    wsrep_mode|= WSREP_MODE_STRICT_REPLICATION;
-  else
-    wsrep_mode&= (~WSREP_MODE_STRICT_REPLICATION);
-  return false;
-}
-
-bool wsrep_replicate_myisam_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_replicate_myisam we set new
-  // option to wsrep_mode
-  if (wsrep_replicate_myisam)
-    wsrep_mode|= WSREP_MODE_REPLICATE_MYISAM;
-  else
-    wsrep_mode&= (~WSREP_MODE_REPLICATE_MYISAM);
-  return false;
-}
-
-bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
-{
-  bool new_replicate_myisam= (bool)var->save_result.ulonglong_value;
-
-  if (new_replicate_myisam &&
-      !(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
-        wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
-  {
-    my_message(ER_WRONG_ARGUMENTS, "wsrep_mode=REPLICATE_MYISAM can't be enabled "
-               "if wsrep_forced_binlog != [NONE|ROW]", MYF(0));
-    return true;
-  }
   return false;
 }
 

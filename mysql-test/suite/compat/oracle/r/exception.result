@@ -68,7 +68,7 @@ ERROR 42000: Undefined CONDITION: TOO_MANY_ROWS
 RAISE;
 ERROR 0K000: RESIGNAL when handler not active
 #
-# RAISE for an undefinite exception
+# RAISE for an undefined exception
 #
 CREATE PROCEDURE p1
 AS
@@ -106,7 +106,7 @@ RAISE dup_val_on_index;
 END;
 $$
 CALL p1();
-ERROR 23000: Duplicate entry '%-.192T' for key %d
+ERROR 23000: Duplicate entry '%-.192sT' for key %d
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1
 AS

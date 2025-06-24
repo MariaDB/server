@@ -1,0 +1,1451 @@
+SET NAMES utf8mb4;
+# Testing that index names in hints are accent sensitive case insensitive
+CREATE TABLE t1 (a INT, ä INT, INDEX idx_a(a), INDEX idx_ä(ä));
+INSERT INTO t1 VALUES (1,1),(2,2);
+SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+a
+1
+2
+SELECT /*+ NO_MRR(t1 idx_A) */ a FROM t1;
+a
+1
+2
+SELECT /*+ NO_MRR(t1 idx_å) */ a FROM t1;
+a
+1
+2
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
+SELECT /*+ NO_MRR(t1 idx_a, idx_å, idx_A) */ a FROM t1;
+a
+1
+2
+Warnings:
+Warning	4219	Hint NO_MRR(`t1` `idx_A`) is ignored as conflicting/duplicated
+Warning	4222	Unresolved index name `t1`@`select#1` `idx_å` for NO_MRR hint
+DROP TABLE t1;
+# Testing that query block names are accent sensitive case insensitive
+CREATE TABLE t1 (a INT);
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@A) */ * FROM t1;
+a
+Warnings:
+Warning	4219	Hint BKA(`t1`@`A`) is ignored as conflicting/duplicated
+SELECT /*+ QB_NAME(a) BKA(t1@a) BKA(t1@å) */ * FROM t1;
+a
+Warnings:
+Warning	4220	Query block name `å` is not found for BKA hint
+DROP TABLE t1;
+CREATE TABLE t1(f1 INT, f2 INT);
+INSERT INTO t1 VALUES
+(1,1),(2,2),(3,3);
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL, f3 CHAR(200), KEY(f1, f2));
+INSERT INTO t2 VALUES
+(1,1, 'qwerty'),(1,2, 'qwerty'),(1,3, 'qwerty'),
+(2,1, 'qwerty'),(2,2, 'qwerty'),(2,3, 'qwerty'), (2,4, 'qwerty'),(2,5, 'qwerty'),
+(3,1, 'qwerty'),(3,4, 'qwerty'),
+(4,1, 'qwerty'),(4,2, 'qwerty'),(4,3, 'qwerty'), (4,4, 'qwerty'),
+(1,1, 'qwerty'),(1,2, 'qwerty'),(1,3, 'qwerty'),
+(2,1, 'qwerty'),(2,2, 'qwerty'),(2,3, 'qwerty'), (2,4, 'qwerty'),(2,5, 'qwerty'),
+(3,1, 'qwerty'),(3,4, 'qwerty'),
+(4,1, 'qwerty'),(4,2, 'qwerty'),(4,3, 'qwerty'), (4,4, 'qwerty');
+CREATE TABLE t3 (f1 INT NOT NULL, f2 INT, f3 VARCHAR(32),
+PRIMARY KEY(f1), KEY f2_idx(f1), KEY f3_idx(f3));
+INSERT INTO t3 VALUES
+(1, 1, 'qwerty'), (2, 1, 'ytrewq'),
+(3, 2, 'uiop'), (4, 2, 'poiu'), (5, 2, 'lkjh'),
+(6, 2, 'uiop'), (7, 2, 'poiu'), (8, 2, 'lkjh'),
+(9, 2, 'uiop'), (10, 2, 'poiu'), (11, 2, 'lkjh'),
+(12, 2, 'uiop'), (13, 2, 'poiu'), (14, 2, 'lkjh');
+INSERT INTO t3 SELECT f1 + 20, f2, f3 FROM t3;
+INSERT INTO t3 SELECT f1 + 40, f2, f3 FROM t3;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+ANALYZE TABLE t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+# NO_RANGE_OPTIMIZATION hint testing
+set optimizer_switch=default;
+# Check statistics with no hint
+FLUSH STATUS;
+SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+f1
+31
+32
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+# Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+f1
+31
+32
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	56
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+EXPLAIN EXTENDED SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	range	PRIMARY,f2_idx	PRIMARY	4	NULL	2	100.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t3`.`f1` AS `f1` from `test`.`t3` where `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33
+# Turn off range access for PRIMARY key
+# Should use range access by f2_idx key
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) */ f1
+FROM t3 WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	range	PRIMARY,f2_idx	f2_idx	4	NULL	2	100.00	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t3` where `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33
+# Turn off range access for PRIMARY & f2_idx keys
+# Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1
+FROM t3 WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	index	PRIMARY,f2_idx	PRIMARY	4	NULL	56	4.11	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `f2_idx`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t3` where `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33
+# Turn off range access for all keys
+# Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3) */ f1
+FROM t3 WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	index	PRIMARY,f2_idx	PRIMARY	4	NULL	56	4.11	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`t3`@`select#1`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t3` where `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33
+# Turn off range access for PRIMARY & f2_idx keys
+# Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) NO_RANGE_OPTIMIZATION(t3 f2_idx) */ f1
+FROM t3 WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	index	PRIMARY,f2_idx	PRIMARY	4	NULL	56	4.11	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `f2_idx`) */ `test`.`t3`.`f1` AS `f1` from `test`.`t3` where `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33
+# Create a clone of t3 with cyrillic names
+CREATE TABLE таблица (f1 INT NOT NULL, поле2 INT, поле3 VARCHAR(32),
+PRIMARY KEY(f1), KEY f2_индекс(f1), KEY f3_индекс(поле3))
+AS SELECT * FROM t3;
+ANALYZE TABLE таблица;
+Table	Op	Msg_type	Msg_text
+test.таблица	analyze	status	Engine-independent statistics collected
+test.таблица	analyze	status	Table is already up to date
+# Turn off range access for PRIMARY key
+# Should use range access by f2_индекс key
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY) */ f1
+FROM таблица WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	таблица	range	PRIMARY,f2_индекс	f2_индекс	4	NULL	2	100.00	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`таблица`@`select#1` `PRIMARY`) */ `test`.`таблица`.`f1` AS `f1` from `test`.`таблица` where `test`.`таблица`.`f1` > 30 and `test`.`таблица`.`f1` < 33
+# Turn off range access for PRIMARY & f2_индекс keys
+# Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY, f2_индекс) */ f1
+FROM таблица WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	таблица	index	PRIMARY,f2_индекс	PRIMARY	4	NULL	56	4.11	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`таблица`@`select#1` `PRIMARY`) NO_RANGE_OPTIMIZATION(`таблица`@`select#1` `f2_индекс`) */ `test`.`таблица`.`f1` AS `f1` from `test`.`таблица` where `test`.`таблица`.`f1` > 30 and `test`.`таблица`.`f1` < 33
+# Turn off range access for all keys
+# Should use index access
+EXPLAIN EXTENDED SELECT /*+ NO_RANGE_OPTIMIZATION(таблица) */ f1
+FROM таблица WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	таблица	index	PRIMARY,f2_индекс	PRIMARY	4	NULL	56	4.11	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`таблица`@`select#1`) */ `test`.`таблица`.`f1` AS `f1` from `test`.`таблица` where `test`.`таблица`.`f1` > 30 and `test`.`таблица`.`f1` < 33
+# Turn off range access for PRIMARY & f2_индекс keys
+# Should use index access
+EXPLAIN EXTENDED
+SELECT /*+ NO_RANGE_OPTIMIZATION(таблица PRIMARY) NO_RANGE_OPTIMIZATION(таблица f2_индекс) */ f1
+FROM таблица WHERE f1 > 30 AND f1 < 33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	таблица	index	PRIMARY,f2_индекс	PRIMARY	4	NULL	56	4.11	Using where; Using index
+Warnings:
+Note	1003	select /*+ NO_RANGE_OPTIMIZATION(`таблица`@`select#1` `PRIMARY`) NO_RANGE_OPTIMIZATION(`таблица`@`select#1` `f2_индекс`) */ `test`.`таблица`.`f1` AS `f1` from `test`.`таблица` where `test`.`таблица`.`f1` > 30 and `test`.`таблица`.`f1` < 33
+DROP TABLE таблица;
+# NO_ICP hint testing
+set optimizer_switch='index_condition_pushdown=on';
+CREATE TABLE t4 (x INT, y INT, KEY x_idx(x), KEY y_idx(y));
+INSERT INTO t4 (x) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13);
+UPDATE t4 SET y=x;
+EXPLAIN EXTENDED SELECT * FROM
+(SELECT t4.x, t5.y FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+EXPLAIN EXTENDED SELECT * FROM
+(SELECT /*+ NO_ICP(t5 x_idx, y_idx) */ t4.x, t5.y FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_ICP(`t5`@`select#2` `x_idx`) NO_ICP(`t5`@`select#2` `y_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@qb1 x_idx) */ * FROM
+(SELECT /*+ QB_NAME(QB1) */ t4.x, t5.y FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_ICP(`t5`@`QB1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+# Cyrillic query block name
+EXPLAIN EXTENDED SELECT /*+ NO_ICP(t5@блок1 x_idx) */ * FROM
+(SELECT /*+ QB_NAME(блок1) */ t4.x, t5.y FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_ICP(`t5`@`блок1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+# Expected warning for z_idx key, unresolved name.
+EXPLAIN EXTENDED SELECT * FROM
+(SELECT /*+ NO_ICP(t5 y_idx, x_idx, z_idx) */ t4.x, t5.y FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4222	Unresolved index name `t5`@`select#2` `z_idx` for NO_ICP hint
+Note	1003	select /*+ NO_ICP(`t5`@`select#2` `y_idx`) NO_ICP(`t5`@`select#2` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+# ICP should still be used
+EXPLAIN EXTENDED SELECT * FROM
+(SELECT /*+ NO_ICP(t5 y_idx) */ t4.x, t5.y FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0) AS TD;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select /*+ NO_ICP(`t5`@`select#2` `y_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0)
+# BKA & NO_BKA hint testing
+set optimizer_switch = DEFAULT;
+set optimizer_switch = 'mrr=on,mrr_cost_based=off';
+set join_cache_level = 8;
+CREATE TABLE t10(a INT);
+INSERT INTO t10 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t11(a INT);
+INSERT INTO t11 SELECT A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+CREATE TABLE t12(a INT, b INT);
+INSERT INTO t12 SELECT a,a from t10;
+CREATE TABLE t13(a INT, b INT, c INT, filler CHAR(100), key (a,b));
+INSERT INTO t13 select a,a,a, 'filler-data' FROM t11;
+# Make sure BKA is expected to be used when there are no hints
+EXPLAIN
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+# Disable BKA
+set optimizer_switch='join_cache_bka=off';
+EXPLAIN EXTENDED
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+# Check statistics without hint
+FLUSH STATUS;
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+a	b	a	b	c	filler
+0	0	0	0	0	filler-data
+1	1	1	1	1	filler-data
+2	2	2	2	2	filler-data
+3	3	3	3	3	filler-data
+4	4	4	4	4	filler-data
+5	5	5	5	5	filler-data
+6	6	6	6	6	filler-data
+7	7	7	7	7	filler-data
+8	8	8	8	8	filler-data
+9	9	9	9	9	filler-data
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	1012
+# Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ BKA() */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+a	b	a	b	c	filler
+0	0	0	0	0	filler-data
+1	1	1	1	1	filler-data
+2	2	2	2	2	filler-data
+3	3	3	3	3	filler-data
+4	4	4	4	4	filler-data
+5	5	5	5	5	filler-data
+6	6	6	6	6	filler-data
+7	7	7	7	7	filler-data
+8	8	8	8	8	filler-data
+9	9	9	9	9	filler-data
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	10
+Handler_read_last	0
+Handler_read_next	10
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	10
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	11
+EXPLAIN EXTENDED SELECT /*+ BKA(t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ BKA() */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(`t12`@`select#1`) BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ BKA(t12) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select /*+ BKA(`t12`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13 
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ QB_NAME(`QB1`) BKA(`t13`@`QB1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+# Hint overrides both join_cache_level and optimizer switch
+set join_cache_level = 0;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(`t12`@`select#1`) BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+set join_cache_level = 2;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(`t12`@`select#1`) BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+set join_cache_level = 4;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(`t12`@`select#1`) BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+set join_cache_level = 8;
+# Enable BKA
+set optimizer_switch='join_cache_bka=on';
+EXPLAIN EXTENDED SELECT /*+ NO_BKA(t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select /*+ NO_BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ NO_BKA() */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select /*+ NO_BKA(@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ NO_BKA(t12, t13) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select /*+ NO_BKA(`t12`@`select#1`) NO_BKA(`t13`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ NO_BKA(t12) */ * FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ NO_BKA(`t12`@`select#1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) NO_BKA(t13@QB1) */ * FROM t12, t13 
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select /*+ QB_NAME(`QB1`) NO_BKA(`t13`@`QB1`) */ `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+# UPDATE|DELETE|INSERT|REPLACE hint testing
+EXPLAIN EXTENDED UPDATE t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+(SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	range	PRIMARY,f2_idx,f3_idx	PRIMARY	4	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.33	Using where
+1	PRIMARY	t2	ref	f1	f1	8	test.t3.f1,test.t3.f2	2	50.00	Using where; FirstMatch(t3)
+Warnings:
+Note	1003	update `test`.`t3` semi join (`test`.`t1` join `test`.`t2`) set `test`.`t3`.`f3` = 'mnbv' where `test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f2` = `test`.`t3`.`f2` and `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33 and `test`.`t3`.`f2` between `test`.`t3`.`f1` and `test`.`t1`.`f2` and `test`.`t3`.`f2` + 1 >= `test`.`t3`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+# Turn off range access for PRIMARY key.
+# Range access should be used for f2_idx key.
+EXPLAIN EXTENDED UPDATE /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY) */ t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+(SELECT /*+ BKA(t2) NO_BNL(t1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	range	PRIMARY,f2_idx,f3_idx	f2_idx	4	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.33	Using where
+1	PRIMARY	t2	ref	f1	f1	8	test.t3.f1,test.t3.f2	2	50.00	Using where; FirstMatch(t3)
+Warnings:
+Note	1003	update /*+ BKA(`t2`@`select#2`) NO_BNL(`t1`@`select#2`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) */ `test`.`t3` semi join (`test`.`t1` join `test`.`t2`) set `test`.`t3`.`f3` = 'mnbv' where `test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f2` = `test`.`t3`.`f2` and `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33 and `test`.`t3`.`f2` between `test`.`t3`.`f1` and `test`.`t1`.`f2` and `test`.`t3`.`f2` + 1 >= `test`.`t3`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+# Turn off range access for all keys.
+EXPLAIN EXTENDED UPDATE /*+ NO_RANGE_OPTIMIZATION(t3) */ t3
+SET f3 = 'mnbv' WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+(SELECT t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	range	f1	f1	4	NULL	1	100.00	Using index condition; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	11.11	Using where
+1	PRIMARY	t3	eq_ref	PRIMARY,f2_idx,f3_idx	PRIMARY	4	test.t2.f1	1	100.00	Using where; End temporary
+Warnings:
+Note	1003	update /*+ NO_RANGE_OPTIMIZATION(`t3`@`select#1`) */ `test`.`t3` semi join (`test`.`t1` join `test`.`t2`) set `test`.`t3`.`f3` = 'mnbv' where `test`.`t1`.`f1` = `test`.`t2`.`f1` and `test`.`t3`.`f1` = `test`.`t2`.`f1` and `test`.`t3`.`f2` = `test`.`t2`.`f2` and `test`.`t2`.`f1` > 30 and `test`.`t2`.`f1` < 33 and `test`.`t2`.`f2` between `test`.`t2`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t2`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+EXPLAIN EXTENDED DELETE FROM t3
+WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+(SELECT /*+ QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	range	PRIMARY,f2_idx,f3_idx	PRIMARY	4	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.33	Using where
+1	PRIMARY	t2	ref	f1	f1	8	test.t3.f1,test.t3.f2	2	50.00	Using where; FirstMatch(t3)
+Warnings:
+Note	1003	delete  from `test`.`t3` using (`test`.`t1` join `test`.`t2`) where `test`.`t1`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f1` = `test`.`t3`.`f1` and `test`.`t2`.`f2` = `test`.`t3`.`f2` and `test`.`t3`.`f1` > 30 and `test`.`t3`.`f1` < 33 and `test`.`t3`.`f2` between `test`.`t3`.`f1` and `test`.`t1`.`f2` and `test`.`t3`.`f2` + 1 >= `test`.`t3`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+# Turn off range access. Range access should not be used.
+EXPLAIN EXTENDED
+DELETE /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) NO_BNL(t1@QB1) */ FROM t3
+WHERE f1 > 30 AND f1 < 33 AND (t3.f1, t3.f2, t3.f3) IN
+(SELECT /*+ QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	range	f1	f1	4	NULL	1	100.00	Using index condition; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	11.11	Using where
+1	PRIMARY	t3	eq_ref	PRIMARY,f2_idx,f3_idx	PRIMARY	4	test.t2.f1	1	100.00	Using where; End temporary
+Warnings:
+Note	1003	delete /*+ NO_BNL(`t1`@`qb1`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `PRIMARY`) NO_RANGE_OPTIMIZATION(`t3`@`select#1` `f2_idx`) */  from `test`.`t3` using (`test`.`t1` join `test`.`t2`) where `test`.`t1`.`f1` = `test`.`t2`.`f1` and `test`.`t3`.`f1` = `test`.`t2`.`f1` and `test`.`t3`.`f2` = `test`.`t2`.`f2` and `test`.`t2`.`f1` > 30 and `test`.`t2`.`f1` < 33 and `test`.`t2`.`f2` between `test`.`t2`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t2`.`f1` + 1 and `test`.`t3`.`f3` = `test`.`t2`.`f3`
+# Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+(SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP for a particular table
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
+(SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Make sure ICP is expected to be used when there are no hints
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT t4.x, t5.y, 'filler' FROM t4, t4 t5 WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using index condition; Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP. ICP should not be used.
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5) */t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP for a particular table
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ QB_NAME(`qb1`) NO_ICP(`t5`@`qb1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Turn off ICP for a particular table and a key
+EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
+(SELECT /*+ NO_ICP(t5 x_idx) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
+WHERE t4.y = 8 AND t5.x BETWEEN 7 AND t4.y+0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
+1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+# Misc tests
+# Should issue warning
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	28	100.00	
+Warnings:
+Warning	4219	Hint QB_NAME(`qb1`) is ignored as conflicting/duplicated
+Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t2`
+# Should issue warning
+EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
+WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4220	Query block name `qb1` is not found for BKA hint
+Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
+# Should not crash
+PREPARE stmt1 FROM "SELECT /*+ BKA(t2) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
+WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1";
+EXECUTE stmt1;
+f1	f2	f3
+1	1	qwerty
+2	2	qwerty
+1	1	qwerty
+2	2	qwerty
+EXECUTE stmt1;
+f1	f2	f3
+1	1	qwerty
+2	2	qwerty
+1	1	qwerty
+2	2	qwerty
+DEALLOCATE PREPARE stmt1;
+# Check use of alias
+set optimizer_switch='join_cache_bka=off';
+EXPLAIN EXTENDED
+SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select `test`.`t12`.`a` AS `a`,`test`.`t12`.`b` AS `b`,`test`.`t13`.`a` AS `a`,`test`.`t13`.`b` AS `b`,`test`.`t13`.`c` AS `c`,`test`.`t13`.`filler` AS `filler` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+# Turn on BKA for multiple tables. BKA should be used for tbl13.
+EXPLAIN EXTENDED SELECT /*+ BKA(tbl12, tbl13) */ * FROM t12 tbl12, t13 tbl13 
+WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tbl12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	tbl13	ref	a	a	5	test.tbl12.a	1	100.00	Using index condition; Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ BKA(`tbl12`@`select#1`) BKA(`tbl13`@`select#1`) */ `test`.`tbl12`.`a` AS `a`,`test`.`tbl12`.`b` AS `b`,`test`.`tbl13`.`a` AS `a`,`test`.`tbl13`.`b` AS `b`,`test`.`tbl13`.`c` AS `c`,`test`.`tbl13`.`filler` AS `filler` from `test`.`t12` `tbl12` join `test`.`t13` `tbl13` where `test`.`tbl13`.`a` = `test`.`tbl12`.`a` and `test`.`tbl13`.`b` + 1 <= `test`.`tbl13`.`b` + 1
+# Print warnings for nonexistent names
+EXPLAIN EXTENDED
+SELECT /*+ BKA(t2) NO_BNL(t1) BKA(t3) NO_RANGE_OPTIMIZATION(t3 idx1) NO_RANGE_OPTIMIZATION(t3) */
+t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
+t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Warning	4221	Unresolved table name `t3`@`select#1` for BKA hint
+Warning	4221	Unresolved table name `t3`@`select#1` for NO_RANGE_OPTIMIZATION hint
+Warning	4222	Unresolved index name `t3`@`select#1` `idx1` for NO_RANGE_OPTIMIZATION hint
+Note	1003	select /*+ BKA(`t2`@`select#1`) NO_BNL(`t1`@`select#1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
+# Check illegal syntax
+EXPLAIN EXTENDED SELECT /*+ BKA(qb1 t3@qb1) */ f2 FROM
+(SELECT /*+ QB_NAME(qb1) */ f2, f3, f1 FROM t3 WHERE f1 > 2 AND f3 = 'poiu') AS TD
+WHERE TD.f1 > 2 AND TD.f3 = 'poiu';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	PRIMARY,f2_idx,f3_idx	NULL	NULL	NULL	56	27.55	Using where
+Warnings:
+Warning	1064	Optimizer hint syntax error near 't3@qb1) */ f2 FROM
+(SELECT /*+ QB_NAME(qb1) */ f2, f3, f1 FROM t3 WHERE f1 > ...' at line 1
+Note	1003	select `test`.`t3`.`f2` AS `f2` from `test`.`t3` where `test`.`t3`.`f1` > 2 and `test`.`t3`.`f3` = 'poiu' and `test`.`t3`.`f1` > 2
+# Check illegal syntax
+EXPLAIN EXTENDED SELECT * FROM
+(SELECT /*+ QB_NAME(qb1) BKA(@qb1 t1@qb1, t2@qb1, t3) */ t2.f1, t2.f2, t2.f3 FROM t1,t2,t3) tt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	28	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	index	NULL	PRIMARY	4	NULL	56	100.00	Using index; Using join buffer (incremental, BNL join)
+Warnings:
+Warning	1064	Optimizer hint syntax error near '@qb1, t2@qb1, t3) */ t2.f1, t2.f2, t2.f3 FROM t1,t2,t3) tt' at line 2
+Note	1003	select `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` join `test`.`t3`
+# Check '@qb_name table_name' syntax
+EXPLAIN EXTENDED SELECT /*+ BKA(@qb1 t13) */ * FROM (SELECT /*+ QB_NAME(QB1) */ t12.a, t13.b FROM t12, t13
+WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1)) AS s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	100.00	Using where; Using index
+Warnings:
+Note	1003	select /*+ BKA(`t13`@`QB1`) */ `test`.`t12`.`a` AS `a`,`test`.`t13`.`b` AS `b` from `test`.`t12` join `test`.`t13` where `test`.`t13`.`a` = `test`.`t12`.`a` and `test`.`t13`.`b` + 1 <= `test`.`t13`.`b` + 1
+# Check that original table name is not recognized if alias is used.
+EXPLAIN EXTENDED SELECT /*+ BKA(tbl2) */ * FROM t12 tbl12, t13 tbl13 
+WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tbl12	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	tbl13	hash_ALL	a	#hash#a	5	test.tbl12.a	1000	0.10	Using where; Using join buffer (flat, BNLH join)
+Warnings:
+Warning	4221	Unresolved table name `tbl2`@`select#1` for BKA hint
+Note	1003	select `test`.`tbl12`.`a` AS `a`,`test`.`tbl12`.`b` AS `b`,`test`.`tbl13`.`a` AS `a`,`test`.`tbl13`.`b` AS `b`,`test`.`tbl13`.`c` AS `c`,`test`.`tbl13`.`filler` AS `filler` from `test`.`t12` `tbl12` join `test`.`t13` `tbl13` where `test`.`tbl13`.`a` = `test`.`tbl12`.`a` and `test`.`tbl13`.`b` + 1 <= `test`.`tbl13`.`b` + 1
+# Check that PS and conventional statements give the same result.
+FLUSH STATUS;
+SELECT /*+ BKA(t13) */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+a	b	a	b	c	filler
+0	0	0	0	0	filler-data
+1	1	1	1	1	filler-data
+2	2	2	2	2	filler-data
+3	3	3	3	3	filler-data
+4	4	4	4	4	filler-data
+5	5	5	5	5	filler-data
+6	6	6	6	6	filler-data
+7	7	7	7	7	filler-data
+8	8	8	8	8	filler-data
+9	9	9	9	9	filler-data
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	10
+Handler_read_last	0
+Handler_read_next	10
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	10
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	11
+PREPARE stmt1 FROM "SELECT /*+ BKA(t13) */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1)";
+FLUSH STATUS;
+EXECUTE stmt1;
+a	b	a	b	c	filler
+0	0	0	0	0	filler-data
+1	1	1	1	1	filler-data
+2	2	2	2	2	filler-data
+3	3	3	3	3	filler-data
+4	4	4	4	4	filler-data
+5	5	5	5	5	filler-data
+6	6	6	6	6	filler-data
+7	7	7	7	7	filler-data
+8	8	8	8	8	filler-data
+9	9	9	9	9	filler-data
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	10
+Handler_read_last	0
+Handler_read_next	10
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	10
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	11
+FLUSH STATUS;
+EXECUTE stmt1;
+a	b	a	b	c	filler
+0	0	0	0	0	filler-data
+1	1	1	1	1	filler-data
+2	2	2	2	2	filler-data
+3	3	3	3	3	filler-data
+4	4	4	4	4	filler-data
+5	5	5	5	5	filler-data
+6	6	6	6	6	filler-data
+7	7	7	7	7	filler-data
+8	8	8	8	8	filler-data
+9	9	9	9	9	filler-data
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	10
+Handler_read_last	0
+Handler_read_next	10
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	10
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	11
+DEALLOCATE PREPARE stmt1;
+DROP TABLE t1, t2, t3, t4, t10, t11, t12, t13;
+# MRR & NO_MRR hint testing
+set optimizer_switch=default;
+set join_cache_level = 8;
+CREATE TABLE t1
+(
+f1 int NOT NULL DEFAULT '0',
+f2 int NOT NULL DEFAULT '0',
+f3 int NOT NULL DEFAULT '0',
+INDEX idx1(f2, f3), INDEX idx2(f3)
+);
+INSERT INTO t1(f1) VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+INSERT INTO t1(f2, f3) VALUES (3,4), (3,4);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set optimizer_switch='mrr=on,mrr_cost_based=off';
+# Check statistics without hint
+FLUSH STATUS;
+SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+f1	f2	f3
+0	3	4
+0	3	4
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	2
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+# Check statistics with hint
+FLUSH STATUS;
+SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+f1	f2	f3
+0	3	4
+0	3	4
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+# Make sure hints are preserved in a stored procedure body
+CREATE PROCEDURE p() SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+SHOW CREATE PROCEDURE p;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p`()
+SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3	utf8mb4	utf8mb4_uca1400_ai_ci	utf8mb4_uca1400_ai_ci
+FLUSH STATUS;
+CALL p();
+f1	f2	f3
+0	3	4
+0	3	4
+SHOW STATUS LIKE 'handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+DROP PROCEDURE p;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where; Rowid-ordered scan
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn off MRR. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ NO_MRR(`t1`@`select#1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn off MRR. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1 idx2) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ NO_MRR(`t1`@`select#1` `idx2`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn off MRR for unused key. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(t1 idx1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where; Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ NO_MRR(`t1`@`select#1` `idx1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+set optimizer_switch='mrr=off,mrr_cost_based=off';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where; Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ MRR(`t1`@`select#1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 IDX2) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where; Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ MRR(`t1`@`select#1` `IDX2`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn on MRR for unused key. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 idx1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ MRR(`t1`@`select#1` `idx1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+set optimizer_switch='mrr=off,mrr_cost_based=on';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where; Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ MRR(`t1`@`select#1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn on MRR. MRR should be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 idx2) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where; Rowid-ordered scan
+Warnings:
+Note	1003	select /*+ MRR(`t1`@`select#1` `idx2`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+# Turn on MRR for unused key. MRR should not be used.
+EXPLAIN EXTENDED SELECT /*+ MRR(t1 IDX1) */ * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	100.00	Using index condition; Using where
+Warnings:
+Note	1003	select /*+ MRR(`t1`@`select#1` `IDX1`) */ `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2`,`test`.`t1`.`f3` AS `f3` from `test`.`t1` where `test`.`t1`.`f2` <= 3 and 3 <= `test`.`t1`.`f3`
+DROP TABLE t1;
+set optimizer_switch=default;
+#
+# Duplicate hints
+#
+CREATE TABLE t1 (i INT PRIMARY KEY);
+SELECT /*+ BKA() BKA() */ 1;
+1
+1
+Warnings:
+Warning	4219	Hint BKA() is ignored as conflicting/duplicated
+SELECT /*+ BKA(t1) BKA(t1) */ * FROM t1;
+i
+Warnings:
+Warning	4219	Hint BKA(`t1`) is ignored as conflicting/duplicated
+SELECT /*+ QB_NAME(q1) BKA(t1@q1) BKA(t1@q1) */ * FROM t1;
+i
+Warnings:
+Warning	4219	Hint BKA(`t1`@`q1`) is ignored as conflicting/duplicated
+SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t1;
+i
+Warnings:
+Warning	4219	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated
+DROP TABLE t1;
+#
+# Hints inside views are not supported
+#
+CREATE TABLE t1 (a INT, INDEX idx_a(a));
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
+Warnings:
+Warning	4223	Optimizer hints are not supported inside view definitions
+SELECT * FROM v1;
+a
+1
+2
+# Make sure hints are not present inside the view definition:
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+EXPLAIN EXTENDED SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	idx_a	5	NULL	2	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1`
+CREATE OR REPLACE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) BKA(t1)*/ a FROM t1;
+Warnings:
+Warning	4223	Optimizer hints are not supported inside view definitions
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+ALTER VIEW v1 AS SELECT /*+ QB_NAME(q1)*/ a FROM t1;
+Warnings:
+Warning	4223	Optimizer hints are not supported inside view definitions
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+SELECT * FROM v1;
+a
+1
+2
+# Wrong place for the hint, must be simply ignored:
+CREATE OR REPLACE VIEW v1 AS SELECT a /*+ NO_ICP(t1 idx_a)*/ FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+# Incorrect hint does not prevent view creation, only a warning generated:
+CREATE VIEW v2 AS SELECT /*+ BAD HINT*/ a+10 FROM t1;
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'BAD HINT*/ a+10 FROM t1' at line 1
+SELECT * FROM v2;
+a+10
+11
+12
+EXPLAIN EXTENDED SELECT * FROM v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	idx_a	5	NULL	2	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` + 10 AS `a+10` from `test`.`t1`
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` + 10 AS `a+10` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+DROP VIEW v1, v2;
+DROP TABLE t1;
+#
+# Tests of parser for optimizer hints
+#
+CREATE TABLE t1 (i INT, j INT);
+CREATE INDEX i1 ON t1(i);
+CREATE INDEX i2 ON t1(j);
+
+# invalid hint sequences, must issue warnings:
+
+SELECT /*+*/ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '*/ 1' at line 1
+SELECT /*+ */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '*/ 1' at line 1
+SELECT /*+ * ** / // /* */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '* ** / // /* */ 1' at line 1
+SELECT /*+ @ */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '@ */ 1' at line 1
+SELECT /*+ @foo */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '@foo */ 1' at line 1
+SELECT /*+ foo@bar */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'foo@bar */ 1' at line 1
+SELECT /*+ foo @bar */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'foo @bar */ 1' at line 1
+SELECT /*+ `@` */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '`@` */ 1' at line 1
+SELECT /*+ `@foo` */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '`@foo` */ 1' at line 1
+SELECT /*+ `foo@bar` */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '`foo@bar` */ 1' at line 1
+SELECT /*+ `foo @bar` */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '`foo @bar` */ 1' at line 1
+SELECT /*+ BKA( @) */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT /*+ BKA( @) */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT /*+ BKA(t1 @) */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+
+# We don't support "*/" inside quoted identifiers (syntax error):
+
+SELECT /*+ BKA(`test*/`) */ 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`) */ 1' at line 1
+
+# invalid hint sequences, must issue warnings:
+
+SELECT  /*+ NO_ICP() */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT  /*+NO_ICP()*/ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ')*/ 1' at line 1
+SELECT  /*+ NO_ICP () */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT  /*+ NO_ICP (  ) */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT  /*+ NO_ICP() */ 1 UNION SELECT 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1 UNION SELECT 1' at line 1
+(SELECT /*+ NO_ICP() */ 1) UNION (SELECT 1);
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1) UNION (SELECT 1)' at line 1
+((SELECT  /* + NO_ICP() */ 1));
+1
+1
+UPDATE  /*+ NO_ICP() */ t1 SET i = 10;
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ t1 SET i = 10' at line 1
+INSERT  /*+ NO_ICP() */ INTO t1 VALUES ();
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ INTO t1 VALUES ()' at line 1
+DELETE  /*+ NO_ICP() */ FROM t1 WHERE 1;
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ FROM t1 WHERE 1' at line 1
+SELECT /*+ BKA(a b) */   1 FROM t1 a, t1 b;
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'b) */   1 FROM t1 a, t1 b' at line 1
+SELECT /*+ NO_ICP(i1) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `i1`@`select#1` for NO_ICP hint
+SELECT /*+ NO_ICP(i1 i2) */ 1 FROM t1;
+1
+Warnings:
+Warning	4222	Unresolved index name `i1`@`select#1` `i2` for NO_ICP hint
+SELECT /*+ NO_ICP(@qb ident) */ 1 FROM t1;
+1
+Warnings:
+Warning	4220	Query block name `qb` is not found for NO_ICP hint
+
+# valid hint sequences, no warnings expected:
+
+SELECT /*+ BKA(t1) */    1 FROM t1;
+1
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) */ 1 UNION SELECT /*+ QB_NAME(qb2) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select /*+ QB_NAME(`qb1`) */ 1 AS `1` union /* select#2 */ select /*+ QB_NAME(`qb2`) */ 1 AS `1`
+EXPLAIN EXTENDED (SELECT /*+ QB_NAME(qb1) */ 1) UNION (SELECT /*+ QB_NAME(qb2) */ 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select /*+ QB_NAME(`qb1`) */ 1 AS `1`) union (/* select#2 */ select /*+ QB_NAME(`qb2`) */ 1 AS `1`)
+#
+# test explainable statements for hint support:
+# they should warn with a hint syntax error near "test */"
+#
+EXPLAIN EXTENDED SELECT /*+ test */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'test */ 1' at line 1
+Note	1003	select 1 AS `1`
+EXPLAIN EXTENDED INSERT /*+ test */ INTO t1 VALUES (10, 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'test */ INTO t1 VALUES (10, 10)' at line 1
+Note	1003	insert into `test`.`t1` values (10,10)
+EXPLAIN EXTENDED UPDATE /*+ test */ t1 SET i = 10 WHERE j = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'test */ t1 SET i = 10 WHERE j = 10' at line 1
+Note	1003	update `test`.`t1` set `test`.`t1`.`i` = 10 where `test`.`t1`.`j` = 10
+EXPLAIN EXTENDED DELETE /*+ test */ FROM t1 WHERE i = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'test */ FROM t1 WHERE i = 10' at line 1
+Note	1003	delete  from `test`.`t1` using dual where `test`.`t1`.`i` = 10
+
+# non-alphabetic and non-ASCII identifiers, should warn:
+
+CREATE INDEX 3rd_index ON t1(i, j);
+SELECT /*+ NO_ICP(3rd_index) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `3rd_index`@`select#1` for NO_ICP hint
+CREATE INDEX $index ON t1(j, i);
+SELECT /*+ NO_ICP($index) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `$index`@`select#1` for NO_ICP hint
+CREATE TABLE ` quoted name test` (i INT);
+SELECT /*+ BKA(` quoted name test`) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name ` quoted name test`@`select#1` for BKA hint
+SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
+1
+Warnings:
+Warning	4220	Query block name `select#1` is not found for BKA hint
+DROP TABLE ` quoted name test`;
+SET SQL_MODE = 'ANSI_QUOTES';
+CREATE TABLE " quoted name test" (i INT);
+SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name " quoted name test"@"select#1" for BKA hint
+SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
+1
+Warnings:
+Warning	4220	Query block name "select#1" is not found for BKA hint
+CREATE TABLE `test1``test2``` (i INT);
+SELECT /*+ BKA(`test1``test2```) */ 1;
+1
+1
+Warnings:
+Warning	4221	Unresolved table name "test1`test2`"@"select#1" for BKA hint
+SELECT /*+ BKA("test1""test2""") */ 1;
+1
+1
+Warnings:
+Warning	4221	Unresolved table name "test1""test2"""@"select#1" for BKA hint
+SET SQL_MODE = '';
+# should warn:
+SELECT /*+ BKA(" quoted name test") */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name ` quoted name test`@`select#1` for BKA hint
+DROP TABLE ` quoted name test`;
+DROP TABLE `test1``test2```;
+# Valid hints, no warning:
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*`) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select /*+ QB_NAME(`*`) */ 1 AS `1`
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`a*`) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select /*+ QB_NAME(`a*`) */ 1 AS `1`
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`*b`) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select /*+ QB_NAME(`*b`) */ 1 AS `1`
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`a
+b`) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select /*+ QB_NAME(`a
+b`) */ 1 AS `1`
+# Identifiers starting with digits must be supported:
+CREATE OR REPLACE TABLE 0a (8a INT, KEY 6a(8a));
+EXPLAIN EXTENDED SELECT /*+ NO_MRR(0a 6a) BKA(0a)*/ 8a FROM 0a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	0a	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+Warnings:
+Note	1003	select /*+ BKA(`0a`@`select#1`) NO_MRR(`0a`@`select#1` `6a`) */ NULL AS `8a` from `test`.`0a`
+DROP TABLE 0a;
+# hint syntax error: empty quoted identifier
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(``) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Warning	1064	Optimizer hint syntax error near '``) */ 1' at line 1
+Note	1003	select 1 AS `1`
+SET NAMES utf8;
+EXPLAIN EXTENDED SELECT /*+ QB_NAME(`\BF``\BF`) */ 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select /*+ QB_NAME(`\BF``\BF`) */ 1 AS `1`
+CREATE TABLE tableТ (i INT);
+# invalid hints, should warn:
+SELECT /*+ BKA(tableТ) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `tableТ`@`select#1` for BKA hint
+SELECT /*+ BKA(test@tableТ) */ 1 FROM t1;
+1
+Warnings:
+Warning	4220	Query block name `tableТ` is not found for BKA hint
+DROP TABLE tableТ;
+CREATE TABLE таблица (i INT);
+SELECT /*+ BKA(`таблица`) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `таблица`@`select#1` for BKA hint
+SELECT /*+ BKA(таблица) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `таблица`@`select#1` for BKA hint
+SELECT /*+ BKA(test@таблица) */ 1 FROM t1;
+1
+Warnings:
+Warning	4220	Query block name `таблица` is not found for BKA hint
+SELECT /*+ NO_ICP(`\D1`) */ 1 FROM t1;
+1
+Warnings:
+Warning	4221	Unresolved table name `\D1`@`select#1` for NO_ICP hint
+DROP TABLE таблица;
+
+# derived tables and other subqueries:
+
+SELECT * FROM (SELECT /*+ DEBUG_HINT3 */ 1) a;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'DEBUG_HINT3 */ 1) a' at line 1
+SELECT (SELECT /*+ DEBUG_HINT3 */ 1);
+(SELECT /*+ DEBUG_HINT3 */ 1)
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'DEBUG_HINT3 */ 1)' at line 1
+SELECT 1 FROM DUAL WHERE 1 IN (SELECT /*+ DEBUG_HINT3 */ 1);
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'DEBUG_HINT3 */ 1)' at line 1
+
+# invalid hint sequences (should warn):
+
+SELECT /*+ 10 */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '10 */ 1' at line 1
+SELECT /*+ NO_ICP() */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT /*+ NO_ICP(10) */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '10) */ 1' at line 1
+SELECT /*+ NO_ICP( */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '*/ 1' at line 1
+SELECT /*+ NO_ICP) */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1' at line 1
+SELECT /*+ NO_ICP(t1 */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '*/ 1' at line 1
+SELECT /*+ NO_ICP(t1 ( */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '( */ 1' at line 1
+(SELECT 1) UNION (SELECT /*+ NO_ICP() */ 1);
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1)' at line 1
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+
+# wrong place for hint, so recognize that stuff as a regular commentary:
+
+SELECT 1 FROM /*+ regular commentary, not a hint! */ t1;
+1
+1
+1
+SELECT 1 FROM /*+ #1 */ t1 WHERE /*+ #2 */ 1 /*+ #3 */;
+1
+1
+1
+SELECT 1 FROM /*+ QB_NAME(q1) */ t1 /*+ NO_ICP() */WHERE /*+ NO_MRR(t1) */ 1 /*+ #3 */;
+1
+1
+1
+# Warnings expected:
+SELECT /*+ NO_ICP() */ 1
+FROM /*+ regular commentary, not a hint! */ t1;
+1
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near ') */ 1
+FROM /*+ regular commentary, not a hint! */ t1' at line 1
+SELECT /*+ NO_ICP(t1) bad_hint */ 1 FROM t1;
+1
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near 'bad_hint */ 1 FROM t1' at line 1
+SELECT /*+
+NO_ICP(@qb ident)
+*/ 1 FROM t1;
+1
+1
+1
+Warnings:
+Warning	4220	Query block name `qb` is not found for NO_ICP hint
+SELECT /*+
+? bad syntax
+*/ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '? bad syntax
+*/ 1' at line 2
+SELECT
+/*+ ? bad syntax */ 1;
+1
+1
+Warnings:
+Warning	1064	Optimizer hint syntax error near '? bad syntax */ 1' at line 2
+DROP TABLE t1;
+
+# MDEV-36486 Optimizer hints are resolved against the INSERT part of INSERT..SELECT
+
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE t2 (a INT, KEY(a));
+INSERT INTO t2 VALUES (1),(2),(3);
+# See that the range optimization is employed when there are no hints:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
+Warnings:
+Note	1003	insert into `test`.`t1`(a) select sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# No range optimization any more:
+EXPLAIN EXTENDED
+INSERT INTO t1 (a) SELECT /*+ no_range_optimization (t1 a)*/ a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	a	a	5	NULL	3	100.00	Using where; Using index; Using temporary
+Warnings:
+Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#2` `a`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# Hints at the INSERT part of a INSERT..SELECT are not supported:
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
+Warnings:
+Warning	4225	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
+Note	1003	insert into `test`.`t1`(a) select sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# If hints are present at both INSERT and SELECT parts,
+# those at the INSERT part are ignored
+EXPLAIN EXTENDED
+INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT /*+ mrr(t1)*/ a 
+FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
+Warnings:
+Warning	4225	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
+Note	1003	insert into `test`.`t1`(a) select /*+ MRR(`t1`@`select#2`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+# Table `t2` cannot be resolved since it is not present in the SELECT part
+# (a warning expected):
+EXPLAIN EXTENDED
+INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 AND a<=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index
+Warnings:
+Warning	4221	Unresolved table name `t2`@`select#2` for NO_RANGE_OPTIMIZATION hint
+Note	1003	insert into `test`.`t2`(a) select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+DROP TABLE t1, t2;
+set optimizer_switch = DEFAULT;
+set join_cache_level = DEFAULT;
+#
+# MDEV-36675 Optimizer hints parser catches irrelevant `thd->is_error()`
+#              set by multi-RENAME TABLE
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER t1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t1 VALUES (0);
+RENAME TABLE t1 TO t2, t3 TO t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+SHOW CREATE TRIGGER t1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t1` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
+RENAME TABLE t1 TO t2;
+SHOW CREATE TRIGGER t1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1		CREATE DEFINER=`root`@`localhost` TRIGGER t1 AFTER INSERT ON `t2` FOR EACH ROW INSERT INTO t1 VALUES (0)	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci	#
+DROP TABLE t2;
+#
+# End of 12.0 tests
+#

@@ -45,7 +45,7 @@ $$
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT' */ ;
 /*!50003 DROP PROCEDURE IF EXISTS `p1` */;
@@ -137,13 +137,13 @@ DELIMITER ;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
 <?xml version="1.0"?>
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="test">
 	<routines>
-		<routine Procedure="p1" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="latin1_swedish_ci">
+		<routine Procedure="p1" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="utf8mb4_uca1400_ai_ci">
 <![CDATA[
 CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
 AS
@@ -152,7 +152,7 @@ SELECT pkg1.f1(); -- a standalone routine calls a package routine
 END
 ]]>
 		</routine>
-		<routine Package="pkg1" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="latin1_swedish_ci">
+		<routine Package="pkg1" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="utf8mb4_uca1400_ai_ci">
 <![CDATA[
 CREATE DEFINER="root"@"localhost" PACKAGE "pkg1" AS
 PROCEDURE p1;
@@ -160,7 +160,7 @@ FUNCTION f1 RETURN INT;
 END
 ]]>
 		</routine>
-		<routine Package="pkg2" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="latin1_swedish_ci">
+		<routine Package="pkg2" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="utf8mb4_uca1400_ai_ci">
 <![CDATA[
 CREATE DEFINER="root"@"localhost" PACKAGE "pkg2" AS
 PROCEDURE p1;
@@ -168,7 +168,7 @@ FUNCTION f1 RETURN INT;
 END
 ]]>
 		</routine>
-		<routine Package_body="pkg1" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="latin1_swedish_ci">
+		<routine Package_body="pkg1" sql_mode="PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="utf8mb4_uca1400_ai_ci">
 <![CDATA[
 CREATE DEFINER="root"@"localhost" PACKAGE BODY "pkg1" AS
 PROCEDURE p1 AS
@@ -199,7 +199,7 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 Db	test
 Name	pkg2
 Type	PACKAGE
@@ -210,7 +210,7 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW PACKAGE BODY STATUS;
 Db	test
 Name	pkg1
@@ -222,19 +222,19 @@ Security_type	DEFINER
 Comment	
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
-Database Collation	latin1_swedish_ci
+Database Collation	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
 pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg1" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN INT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE pkg2;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
 pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg2" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN INT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg1;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
 pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE BODY "pkg1" AS
@@ -246,7 +246,7 @@ FUNCTION f1 RETURN INT AS
 BEGIN
 RETURN 10;
 END;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL p1;
 pkg1.f1()
 10

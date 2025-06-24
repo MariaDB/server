@@ -1,9 +1,9 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET default_storage_engine=InnoDB;
 #
 # A series of tests to make sure tables are opened after restart.
 # Bug#13357607 Compressed file-per-table tablespaces fail to open
 #
-set global innodb_file_per_table=on;
 #
 # Create and insert records into a REDUNDANT row formatted table.
 #
@@ -211,6 +211,9 @@ test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t1_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1_restart.ibd
 test/t2_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2_restart.ibd
 test/t3_restart	DEFAULT	2048	MYSQLD_DATADIR/test/t3_restart.ibd
@@ -265,9 +268,6 @@ t7_restart#p#p1#sp#s3.ibd
 # Start the server and show that tables are still visible and accessible.
 #
 # restart
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	ON
 SHOW CREATE TABLE t1_restart;
 Table	Create Table
 t1_restart	CREATE TABLE `t1_restart` (
@@ -397,6 +397,9 @@ test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t1_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1_restart.ibd
 test/t2_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2_restart.ibd
 test/t3_restart	DEFAULT	2048	MYSQLD_DATADIR/test/t3_restart.ibd
@@ -421,6 +424,9 @@ ALTER TABLE t6_restart TRUNCATE PARTITION p2;
 ALTER TABLE t7_restart TRUNCATE PARTITION p1;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
 test/t6_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
 test/t6_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
@@ -522,11 +528,11 @@ t7_restart#p#p1#sp#s3.ibd
 # Start the server and show the tablespaces.
 #
 # restart
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	ON
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 SELECT count(*) FROM t5_restart;
 count(*)
@@ -620,6 +626,9 @@ RENAME TABLE t6_restart TO t66_restart;
 RENAME TABLE t7_restart TO t77_restart;
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 test/t66_restart#p#p0	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
 test/t66_restart#p#p1	DEFAULT	2048	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
 test/t77_restart#p#p0#sp#s0	DEFAULT	DEFAULT	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
@@ -713,11 +722,11 @@ t77_restart#p#p1#sp#s3.ibd
 # Restart the server
 #
 # restart
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	ON
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
@@ -844,6 +853,9 @@ t77_restart#p#p1#sp#s3.ibd
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
@@ -974,6 +986,9 @@ t77_restart.par
 # restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
+innodb_undo001	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo001
+innodb_undo002	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo002
+innodb_undo003	DEFAULT	DEFAULT	MYSQLD_DATADIR//undo003
 innodb_temporary	DEFAULT	DEFAULT	MYSQLD_DATADIR/ibtmp1
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
@@ -1050,3 +1065,4 @@ DROP TABLE t4_restart;
 DROP TABLE t55_restart;
 DROP TABLE t66_restart;
 DROP TABLE t77_restart;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

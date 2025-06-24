@@ -70,13 +70,13 @@ explain extended select * from t1 where a in (select t10.pk from t10, t12 where 
 
 --echo subqueries within outer joins go into ON expr.
 # TODO: psergey: check if case conversions like those are ok (it broke on  windows)
---replace_result a A b B
+--replace_result a A b B explain explain table table possible possible
 explain extended
 select * from t1 left join (t2 A, t2 B) on ( A.a= t1.a and B.a in (select pk from t10));
 
 # TODO: psergey: check if case conversions like those are ok (it broke on  windows)
 --echo t2 should be wrapped into OJ-nest, so we have "t1 LJ (t2 J t10)"
---replace_result a A b B
+--replace_result a A b B explain explain table table possible possible
 explain extended
 select * from t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t10));
 
@@ -442,7 +442,7 @@ CREATE TABLE t0 (
   vnokey VARCHAR(1),
   PRIMARY KEY (pk),
   KEY vkey(vkey)
-);
+) CHARSET=latin1;
 
 INSERT INTO t0 
 VALUES (1,'g','g'), (2,'v','v'), (3,'t','t'), (4,'u','u'), (5,'n','n');
@@ -739,6 +739,7 @@ INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo','ffff','ffff','ffff','ffff','f
 
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii','iiii','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))')), (2,'f','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))'));
+insert into t2 (pk) values (-1),(0);
 
 # Test that materialization is skipped for semijoins where materialized
 # table would contain GEOMETRY or different kinds of BLOB/TEXT columns
@@ -779,7 +780,13 @@ eval $query;
 
 let $query=
 SELECT pk FROM t1 WHERE (b, i) IN (SELECT b, i FROM t2 WHERE pk > 0);
+#set optimizer_trace=1;
+#select @@optimizer_switch;
+#select @@join_cache_level;
+#select @@optimizer_use_condition_selectivity;
 eval EXPLAIN EXTENDED $query;
+#select * from information_schema.optimizer_trace;
+
 eval $query;
 
 let $query=
@@ -850,13 +857,13 @@ CREATE TABLE `t1` (
   `varchar_nokey` varchar(1) NOT NULL,
   PRIMARY KEY (`pk`),
   KEY `varchar_key` (`varchar_key`)
-);
+) CHARSET=latin1;
 
 INSERT INTO `t1` VALUES (11,'m','m'),(12,'j','j'),(13,'z','z'),(14,'a','a'),(15,'',''),(16,'e','e'),(17,'t','t'),(19,'b','b'),(20,'w','w'),(21,'m','m'),(23,'',''),(24,'w','w'),(26,'e','e'),(27,'e','e'),(28,'p','p');
 
 CREATE TABLE `t2` (
   `varchar_nokey` varchar(1) NOT NULL
-);
+) CHARSET=latin1;
 
 INSERT INTO `t2` VALUES ('v'),('u'),('n'),('l'),('h'),('u'),('n'),('j'),('k'),('e'),('i'),('u'),('n'),('b'),('x'),(''),('q'),('u');
 
@@ -935,9 +942,9 @@ drop table t1,t2,t3,t4;
 --echo # Bug#48623 Multiple subqueries are optimized incorrectly
 --echo # 
 
-CREATE TABLE t1(val VARCHAR(10));
-CREATE TABLE t2(val VARCHAR(10));
-CREATE TABLE t3(val VARCHAR(10));
+CREATE TABLE t1(val VARCHAR(10)) CHARSET=latin1;
+CREATE TABLE t2(val VARCHAR(10)) CHARSET=latin1;
+CREATE TABLE t3(val VARCHAR(10)) CHARSET=latin1;
 
 INSERT INTO t1  VALUES('aaa'), ('bbb'), ('eee'), ('mmm'), ('ppp');
 INSERT INTO t2 VALUES('aaa'), ('aaa'), ('bbb'), ('eee'), ('mmm'), ('ppp');
@@ -1425,7 +1432,7 @@ drop table t1,t2;
 --echo # BUG#787299: Valgrind complains on a join query with two IN subqueries
 --echo #
 create table t1 (a int);
-insert into t1 values (1), (2), (3);
+insert into t1 values (1), (2), (3),(1000),(2000);
 create table t2 as select * from t1;
 select * from t1 A, t1 B
  where A.a = B.a and A.a in (select a from t2 C) and B.a in (select a from t2 D);
@@ -1531,12 +1538,12 @@ drop table t1, t3;
 --echo #  Simplified testcase that uses DuplicateElimination
 --echo #
 create table t1 (a int);
-create table t2 (a int, b char(10));
+create table t2 (a int, b char(10)) charset=latin1;
 
 insert into t1 values (1),(2);
 insert into t2 values (1, 'one'), (3, 'three');
 
-create table t3 (b char(10));
+create table t3 (b char(10)) charset=latin1;
 insert into t3 values('three'),( 'four');
 insert into t3 values('three'),( 'four');
 insert into t3 values('three'),( 'four');
@@ -1739,7 +1746,7 @@ DROP TABLE t1,t2,t3;
 
 --echo #
 --echo # BUG#803457: Wrong result with semijoin + view + outer join in maria-5.3-subqueries-mwl90
---echo #   (Original testcase)
+--echo #   (Original, slightly modified testcase)
 --echo #
 
 CREATE TABLE t1 (f1 int, f2 int );
@@ -1753,15 +1760,13 @@ INSERT INTO t3 VALUES (2,0),(4,0),(0,NULL),(4,0),(8,0);
 
 CREATE TABLE t4 ( f2 int, KEY (f2) );
 INSERT INTO t4 VALUES (0),(NULL);
-
-CREATE VIEW v4 AS SELECT DISTINCT f2 FROM t4 ;
+INSERT INTO t4 VALUES (0),(NULL),(-1),(-2),(-3);
 
 --echo # The following must not have outer joins:
 explain extended
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4); 
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4); 
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL); 
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL);
 
-drop view v4;
 drop table t1, t2, t3, t4;
 
 --echo #
@@ -2159,10 +2164,10 @@ drop table t1,t2;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (9), (0), (8), (5);
 
-CREATE TABLE t2 (a int, b varchar(1), INDEX idx (b,a));
+CREATE TABLE t2 (a int, b varchar(1), INDEX idx (b,a)) CHARSET=latin1;
 INSERT INTO t2 VALUES (5,'r'), (5,'z');
 
-CREATE TABLE t3 (a int, b varchar(1), INDEX idx (b,a));
+CREATE TABLE t3 (a int, b varchar(1), INDEX idx (b,a)) CHARSET=latin1;
 INSERT INTO t3 VALUES (5,'r'), (5,'z');
 
 set @tmp_otimizer_switch= @@optimizer_switch;
@@ -2249,6 +2254,7 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 ( a INT, b INT, KEY(a)) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (3,20),(2,21),(3,22);
 
+--sorted_result
 SELECT *
 FROM t1 AS alias1, t1 AS alias2
 WHERE ( alias1.c, alias2.c )
@@ -2292,16 +2298,17 @@ INSERT INTO t1 VALUES
 
 CREATE TABLE t2 ( c INT, d INT, KEY(c) );
 INSERT INTO t2 VALUES
-  (1,2),(2,1),(3,3),(4,2),(5,5),(6,3),(7,1);
+  (1,2),(2,1),(3,3),(4,2),(5,5),(6,3),(7,1),(11,11);
 
 analyze table t1,t2;
 explain
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
-  ( SELECT b, d FROM t1, t2 WHERE b = c );
+  ( SELECT b, d FROM t1 as t3, t2 as t4 WHERE b = c );
+--sorted_result
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
-  ( SELECT b, d FROM t1, t2 WHERE b = c );
+  ( SELECT b, d FROM t1 as t3, t2 as t4 WHERE b = c );
 
 DROP TABLE t1, t2;
 
@@ -2449,6 +2456,7 @@ EXPLAIN
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
   WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 
+--sorted_result
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
   WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 
@@ -2580,7 +2588,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (pk),
   KEY col_int_key (col_int_key),
   KEY col_varchar_key (col_varchar_key, col_int_key)
-);
+) CHARSET=latin1;
 
 INSERT INTO t1 VALUES
 (10,8,'x','x'),

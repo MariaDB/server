@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 call mtr.add_suppression("Can't find record in '.*'");
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
@@ -6,8 +7,6 @@ set global default_storage_engine=aria;
 set session default_storage_engine=aria;
 set global aria_page_checksum=0;
 set global aria_log_file_size=4294959104;
-drop table if exists t1,t2;
-drop view if exists v1;
 SET SQL_WARNINGS=1;
 CREATE TABLE t1 (
 STRING_DATA char(255) default NULL,
@@ -611,7 +610,7 @@ t1c1	t2c1
 unlock tables;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (`a` int(11) NOT NULL default '0', `b` int(11) NOT NULL default '0', UNIQUE KEY `a` USING RTREE (`a`,`b`));
-Got one of the listed errors
+ERROR HY000: Incorrect arguments to RTREE INDEX
 create table t1 (a int, b varchar(200), c text not null) checksum=1;
 create table t2 (a int, b varchar(200), c text not null) checksum=0;
 insert t1 values (1, "aaa", "bbb"), (NULL, "", "ccccc"), (0, NULL, "");
@@ -1561,7 +1560,7 @@ create table t1 (v char(10) character set utf8);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=0
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
@@ -1613,7 +1612,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=0
 drop table t1;
 set statement sql_mode='' for
@@ -2232,7 +2231,7 @@ KEY (c2)
 Aria file:           MYSQLD_DATADIR/test/t1
 Record format:       Block
 Crashsafe:           yes
-Character set:       utf8mb3_general_ci (33)
+Character set:       utf8mb3_uca1400_ai_ci (2048)
 Data records:                       0  Deleted blocks:                      0
 Block_size:                      8192
 Recordlength:                      99
@@ -2832,13 +2831,12 @@ drop table t1;
 # MDEV-28269 Assertion `save_errno' in maria_write or ER_GET_ERRNO
 #
 connect  session1,localhost,root,,;
-SET big_tables= on;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET NAMES 'sjis';
+set statement tmp_memory_table_size=0 for
 SELECT 'למטה' AS a UNION SELECT 'Wetter' AS a;
 a
 למט�?
 Wetter
 connection default;
 disconnect session1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

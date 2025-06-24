@@ -23,7 +23,7 @@
       Installation parameters that can be passed via msiexec command line
       For "booleans" (like skip networking), just providing any value means property set to "yes".
     -->
-    <!-- instalation directory (default under program files)-->
+    <!-- installation directory (default under program files)-->
     <!--- (defined elsewhere) <Property Id="INSTALLDIR" Secure="yes" /> -->
 
     <!-- Database data directory (default under INSTALLDIR\data) -->
@@ -468,7 +468,7 @@
             Section="mysqld"
             Name="my.ini"
             Key="character-set-server"
-            Value="utf8" />
+            Value="utf8mb4" />
       </Component>
 
       <!-- Shortcuts in program menu (mysql client etc) -->

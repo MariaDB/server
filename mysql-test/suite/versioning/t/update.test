@@ -269,6 +269,7 @@ drop table t1;
 --echo # MDEV-21342 Assertion in set_ok_status() upon spatial field error on system-versioned table
 --echo #
 create or replace table t1 (f point, key(f)) with system versioning engine=myisam;
+insert t1 values (null);
 --error ER_CANT_CREATE_GEOMETRY_OBJECT
 update t1 set f = null where f = 'foo';
 

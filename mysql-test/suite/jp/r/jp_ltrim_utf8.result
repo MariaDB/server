@@ -7,6 +7,7 @@ drop table if exists `Ｔ６`;
 drop table if exists `Ｔ７`;
 drop table if exists `Ｔ８`;
 drop table if exists `Ｔ９`;
+SET character_set_collations='utf8mb3=utf8mb3_general_ci';
 SET NAMES utf8;
 SET character_set_database = utf8;
 CREATE TABLE `Ｔ１` (`Ｃ１` char(8), INDEX(`Ｃ１`)) DEFAULT CHARSET = utf8 engine = innodb;

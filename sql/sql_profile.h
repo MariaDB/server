@@ -65,7 +65,7 @@ class PROFILING;
   Implements a persistent FIFO using server List method names.  Not
   thread-safe.  Intended to be used on thread-local data only.  
 */
-template <class T> class Queue
+template <class T> class FIFO_Queue
 {
 private:
 
@@ -78,7 +78,7 @@ private:
   struct queue_item *first, *last;
 
 public:
-  Queue()
+  FIFO_Queue()
   {
     elements= 0;
     first= last= NULL;
@@ -95,7 +95,7 @@ public:
     elements= 0;
   }
 
-  ulong elements;                       /* The count of items in the Queue */
+  ulong elements;                       /* The count of items in the FIFO_Queue */
 
   void push_back(T *payload)
   {
@@ -129,7 +129,7 @@ public:
 
     if (first == NULL)
     {
-      DBUG_PRINT("warning", ("tried to pop nonexistent item from Queue"));
+      DBUG_PRINT("warning", ("tried to pop nonexistent item from FIFO_Queue"));
       return NULL;
     }
 
@@ -228,7 +228,7 @@ private:
   double m_start_time_usecs;
   double m_end_time_usecs;
   ulong m_seq_counter;
-  Queue<PROF_MEASUREMENT> entries;
+  FIFO_Queue<PROF_MEASUREMENT> entries;
 
 
   QUERY_PROFILE(PROFILING *profiling_arg, const char *status_arg);
@@ -268,7 +268,7 @@ private:
 
   QUERY_PROFILE *current;
   QUERY_PROFILE *last;
-  Queue<QUERY_PROFILE> history;
+  FIFO_Queue<QUERY_PROFILE> history;
  
   query_id_t next_profile_id() { return(profile_id_counter++); }
 
@@ -280,7 +280,7 @@ public:
     At a point in execution where we know the query source, save the text
     of it in the query profile.
 
-    This must be called exactly once per descrete statement.
+    This must be called exactly once per discrete statement.
   */
   void set_query_source(char *query_source_arg, size_t query_length_arg)
   {

@@ -11,14 +11,14 @@ INSERT INTO t1 VALUES(1);
 
 --echo # xtrabackup backup
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
 --enable_result_log
 --echo # Display undo log files from target directory
 list_files $basedir undo*;
 
 --echo # xtrabackup prepare
 exec $XTRABACKUP --prepare --target-dir=$basedir;
---echo # Display undo log files from targer directory
+--echo # Display undo log files from target directory
 list_files $basedir undo*;
 
 DROP TABLE t1;

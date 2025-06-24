@@ -8,6 +8,14 @@ FOUND 1 /should only be used with "--apply-log"/ in backup.log
 FOUND 1 /innodb_force_recovery = 1/ in backup.log
 # "innodb_force_recovery" should be limited to "SRV_FORCE_IGNORE_CORRUPT" (innobackupex)
 FOUND 1 /innodb_force_recovery = 1/ in backup.log
+#
+# This fragment was added for MDEV-31505 Deprecate mariabackup --innobackupex mode
+#
+NOT FOUND /Deprecated program name/ in backup.log
+FOUND 1 /[-][-]innobackupex.*is deprecated and will be removed in a future release/ in backup.log
+#
+# End of the MDEV-31505 fragment
+#
 # "innodb_force_recovery" should be read from "backup-my.cnf" (mariabackup)
 FOUND 1 /innodb_force_recovery = 1/ in backup.log
 # "innodb_force_recovery=1" should be read from "backup-my.cnf" (innobackupex)

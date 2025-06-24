@@ -7,9 +7,6 @@
 --source include/big_test.inc
 
 --disable_query_log
-# These values can change during the test
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
-
 # Create a 20MB blob that does not compress easily.
 # 1000 Random characters is enough to keep compression low.
 set @alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -26,8 +23,6 @@ while ($1 > 1)
 # The loop above is extremely slow compared to repeat().
 set @longblob=repeat(@blob,200000);
 --enable_query_log
-
-call mtr.add_suppression("InnoDB: Warning: a long semaphore wait");
 
 SET GLOBAL innodb_file_per_table = OFF;
 
@@ -123,7 +118,3 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES (1, '');
 UPDATE t1 SET c2=@longblob;
 DROP TABLE t1;
-
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
---enable_query_log

@@ -4,6 +4,7 @@
 #
 
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 set optimizer_switch=ifnull(@subselect_mat_test_optimizer_switch_value, 'semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on');
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
@@ -18,9 +19,9 @@ drop table if exists t1_16, t2_16, t3_16;
 drop view if exists v1, v2, v1m, v2m;
 --enable_warnings
 
-create table t1 (a1 char(8), a2 char(8));
-create table t2 (b1 char(8), b2 char(8));
-create table t3 (c1 char(8), c2 char(8));
+create table t1 (a1 char(8), a2 char(8)) charset=latin1;
+create table t2 (b1 char(8), b2 char(8)) charset=latin1;
+create table t3 (c1 char(8), c2 char(8)) charset=latin1;
 
 insert into t1 values ('1 - 00', '2 - 00');
 insert into t1 values ('1 - 01', '2 - 01');
@@ -38,9 +39,9 @@ insert into t3 values ('1 - 03', '2 - 03');
 insert into t3 values ('1 - 04', '2 - 04');
 
 # Indexed columns
-create table t1i (a1 char(8), a2 char(8));
-create table t2i (b1 char(8), b2 char(8));
-create table t3i (c1 char(8), c2 char(8));
+create table t1i (a1 char(8), a2 char(8)) charset=latin1;
+create table t2i (b1 char(8), b2 char(8)) charset=latin1;
+create table t3i (c1 char(8), c2 char(8)) charset=latin1;
 create index it1i1 on t1i (a1);
 create index it1i2 on t1i (a2);
 create index it1i3 on t1i (a1, a2);
@@ -885,7 +886,7 @@ drop table t1,t2;
 #
 # BUG#36752 "subquery materialization produces wrong results when comparing different types"
 #
-create table t1 (a char(2), b varchar(10));
+create table t1 (a char(2), b varchar(10)) charset=latin1;
 insert into t1 values ('a',  'aaa');
 insert into t1 values ('aa', 'aaaa');
 
@@ -1174,9 +1175,9 @@ set @@optimizer_switch= @local_optimizer_switch;
 
 DROP TABLE t1, t2;
 
-#
-# BUG#46548 IN-subqueries return 0 rows with materialization=on
-#
+--echo #
+--echo # BUG#46548 IN-subqueries return 0 rows with materialization=on
+--echo #
 CREATE TABLE t1 (
   pk int,
   a varchar(1),
@@ -1184,11 +1185,14 @@ CREATE TABLE t1 (
   c varchar(4),
   d varchar(4),
   PRIMARY KEY (pk)
-);
+) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo'),(2,'f','ffff','ffff','ffff');
+insert into t1 select seq,'x','xxxx','xxxx','xxxx' from seq_10_to_40;
 
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii'),(2,'f','ffff','ffff','ffff');
+insert into t2 select -seq,'a','aaaa','aaaa','aaaa' from seq_1_to_20;
+insert into t2 select seq,'b','bbbb','bbbb','bbbb' from seq_100_to_200;
 
 set @local_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch=@optimizer_switch_local_default;
@@ -1532,8 +1536,8 @@ DROP TABLE t1,t2;
 --echo #
 --echo # BUG#922254: Assertion `0' failed at item_cmpfunc.cc:5899: Item* Item_equal::get_first(JOIN_TAB*, Item*)
 --echo #
-CREATE TABLE t1 ( a VARCHAR(3) );
-CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c) );
+CREATE TABLE t1 ( a VARCHAR(3)) CHARSET=latin1;
+CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('USA','Abilene'),('USA','Akron');
 
 EXPLAIN
@@ -1553,6 +1557,7 @@ DROP TABLE t1,t2;
 --echo #
 create table t1 (a int, b int);
 insert into t1 values (7,5), (3,3), (5,4), (9,3);
+insert into t1 select seq,seq from seq_100_to_200;
 
 create table t2 (a int, b int, index i_a(a));
 
@@ -1630,7 +1635,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (7);
 
-CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c));
+CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c)) CHARSET=latin1;
 
 INSERT INTO t2 VALUES 
   (4,2,'v','v'), (6,1,'v','v'), (0,5,'x','x'), (7,1,'x','x'),
@@ -1835,7 +1840,7 @@ CREATE TABLE t1 (
   db varchar(254) NOT NULL DEFAULT '',
   PRIMARY KEY (id),
   UNIQUE KEY db (db)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 INSERT INTO t1 (db) VALUES ('mysqltest1'),('mysqltest2'),('mysqltest3'),('mysqltest4');
 
 --disable_warnings
@@ -1883,9 +1888,11 @@ drop table t1;
 CREATE TABLE t1 (
   pk INT, f1 INT NOT NULL, f2 VARCHAR(3), f3 INT NULL, PRIMARY KEY(pk)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1,1,'foo',8), (2,5,'bar',7);
+create table t2 like t1;
+insert into t2 select * from t1;
 
 SELECT sq1.f2    FROM t1 AS sq1
-  WHERE EXISTS ( SELECT * FROM t1 AS sq2
+  WHERE EXISTS ( SELECT * FROM t2 AS sq2
                    WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 
 set @local_optimizer_switch= @@optimizer_switch;
@@ -1899,12 +1906,12 @@ SELECT sq1.f2    FROM t1 AS sq1
 --echo # this checks the result set above
 set optimizer_switch= 'materialization=off,semijoin=off';
 SELECT sq1.f2    FROM t1 AS sq1
-  WHERE EXISTS ( SELECT * FROM t1 AS sq2
+  WHERE EXISTS ( SELECT * FROM t2 AS sq2
                    WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 
 set optimizer_switch= @local_optimizer_switch;
 
-DROP TABLE t1;
+DROP TABLE t1,t2;
 
 --echo #
 --echo # MDEV-12145: IN subquery used in WHERE of EXISTS subquery
@@ -1982,7 +1989,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (sys_id),
   KEY idx1 (dispatch_group),
   KEY idx2 (assignment_group)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 
 CREATE TABLE t2 (
   ugroup varchar(32),
@@ -1991,13 +1998,13 @@ CREATE TABLE t2 (
   PRIMARY KEY (sys_id),
   KEY idx3 (ugroup),
   KEY idx4 (user)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 
 CREATE TABLE t3 (
   type mediumtext,
   sys_id char(32),
   PRIMARY KEY (sys_id)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 
 --disable_query_log
 
@@ -2171,6 +2178,7 @@ eval $q;
 
 set optimizer_switch='materialization=on';
 eval explain $q;
+eval set statement optimizer_prune_level=1 for explain $q;
 eval $q;
 
 DROP TABLE t1,t2,t3;
@@ -2247,9 +2255,9 @@ set @@optimizer_switch= @local_optimizer_switch;
 drop table t1,t2,t3;
 
 CREATE TABLE t1 ( id int NOT NULL, key(id));
-INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO t1 select seq from seq_11_to_39;
 CREATE TABLE t2 (i1 int NOT NULL, i2 int NOT NULL);
-INSERT INTO t2 VALUES  (11,11),(12,12),(13,13);
+INSERT INTO t2 select seq,seq+1 from seq_11_to_50;
 CREATE VIEW v1 AS SELECT t2.i1 FROM t2 where t2.i1 = t2.i2;
 explain SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
 SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);

@@ -1,0 +1,59 @@
+--source include/not_embedded.inc
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_64bit_timestamp.inc
+
+# Test old row_end timestamps from MariaDB 11.3
+
+# The original tables where created as follows in 11.3
+
+# CREATE TABLE sv_basic (a int NOT NULL PRIMARY KEY) ENGINE=MyISAM
+# WITH SYSTEM VERSIONING;
+# INSERT INTO sv_basic values (1),(2),(3);
+# delete from sv_basic where a=2;
+# select a,row_start,row_end from sv_basic for system_time all;
+# 
+# CREATE TABLE sv_partition (a int NOT NULL PRIMARY KEY) engine=MyISAM
+# WITH SYSTEM VERSIONING
+# PARTITION BY SYSTEM_TIME
+# (PARTITION p_hist HISTORY, PARTITION p_cur CURRENT);
+# INSERT INTO sv_partition values (1),(2),(3);
+# delete from sv_partition where a=2;
+# select a,row_start,row_end from sv_partition for system_time all;
+# 
+# CREATE TABLE sv_explicit (a int,
+# row_foo_start timestamp(6) as row start,
+# row_foo_end timestamp(6) as row end,
+# period for system_time(row_foo_start,row_foo_end))
+# engine=myisam with system versioning;
+# INSERT INTO sv_explicit (a) values (1),(2),(3);
+# delete from sv_explicit where a=2;
+# select * from sv_explicit for system_time all;
+
+let $MARIADB_DATADIR= `select @@datadir`;
+
+--copy_file std_data/sv_basic.MYD $MARIADB_DATADIR/test/sv_basic.MYD
+--copy_file std_data/sv_basic.MYI $MARIADB_DATADIR/test/sv_basic.MYI
+--copy_file std_data/sv_basic.frm $MARIADB_DATADIR/test/sv_basic.frm
+--copy_file std_data/sv_explicit.MYD $MARIADB_DATADIR/test/sv_explicit.MYD
+--copy_file std_data/sv_explicit.MYI $MARIADB_DATADIR/test/sv_explicit.MYI
+--copy_file std_data/sv_explicit.frm $MARIADB_DATADIR/test/sv_explicit.frm
+--copy_file std_data/sv_partition#P#p_cur.MYD $MARIADB_DATADIR/test/sv_partition#P#p_cur.MYD
+--copy_file std_data/sv_partition#P#p_cur.MYI $MARIADB_DATADIR/test/sv_partition#P#p_cur.MYI
+--copy_file std_data/sv_partition#P#p_hist.MYD $MARIADB_DATADIR/test/sv_partition#P#p_hist.MYD
+--copy_file std_data/sv_partition#P#p_hist.MYI $MARIADB_DATADIR/test/sv_partition#P#p_hist.MYI
+--copy_file std_data/sv_partition.frm $MARIADB_DATADIR/test/sv_partition.frm
+--copy_file std_data/sv_partition.par $MARIADB_DATADIR/test/sv_partition.par
+
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --dump-history test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --dump-history --update-history test
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MARIADB_DATADIR/mariadb_upgrade_info
+
+set @@time_zone="+00:00";
+select a,row_end from sv_basic for system_time all;
+select a,row_end from sv_partition for system_time all;
+select a,row_foo_end from sv_explicit for system_time all;
+
+drop table sv_basic,sv_partition,sv_explicit;
+

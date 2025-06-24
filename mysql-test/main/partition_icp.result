@@ -1,0 +1,160 @@
+set @old_handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @old_handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+CREATE TABLE t1 (a int PRIMARY KEY, b BLOB, c varchar(16) DEFAULT 'Filler...',
+INDEX (b(4), a)) ENGINE = MyISAM PARTITION BY HASH (a) PARTITIONS 3;
+INSERT INTO t1 (a, b) VALUES (1, 0xdeadbeef), (2, "text filler"),
+(3, 'filler...'), (4, " more filler "), (5, "test text"), (6, "testing...");
+SELECT a, HEX(b) FROM t1 WHERE b >= 'te' and (a % 2);
+a	HEX(b)
+5	746573742074657874
+1	DEADBEEF
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+@old_handler_icp_attempts = @handler_icp_attempts
+1
+select @old_handler_icp_match = @handler_icp_match;
+@old_handler_icp_match = @handler_icp_match
+1
+CREATE TABLE t2 (a int PRIMARY KEY, b BLOB, c varchar(16) DEFAULT 'Filler...',
+INDEX (b(4), a)) ENGINE = innodb PARTITION BY HASH (a) PARTITIONS 3;
+INSERT INTO t2 (a, b) VALUES (1, 0xdeadbeef), (2, "text filler"),
+(3, 'filler...'), (4, " more filler "), (5, "test text"), (6, "testing...");
+set @@optimizer_switch='index_condition_pushdown=off';
+SELECT a, HEX(b) FROM t2 WHERE b >= 'te' and (a % 2);
+a	HEX(b)
+5	746573742074657874
+1	DEADBEEF
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+@old_handler_icp_attempts = @handler_icp_attempts
+1
+select @old_handler_icp_match = @handler_icp_match;
+@old_handler_icp_match = @handler_icp_match
+1
+set @@optimizer_switch='index_condition_pushdown=on';
+SELECT a, HEX(b) FROM t2 WHERE b >= 'te' and (a % 2);
+a	HEX(b)
+5	746573742074657874
+1	DEADBEEF
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts < @handler_icp_attempts;
+@old_handler_icp_attempts < @handler_icp_attempts
+1
+select @old_handler_icp_match < @handler_icp_match;
+@old_handler_icp_match < @handler_icp_match
+1
+CREATE TABLE t3 (
+pk INT PRIMARY KEY,
+a INT,
+b INT,
+c INT,
+filler varchar(100),
+key(a,b,c)
+) engine=innodb partition by hash(pk) partitions 4;
+INSERT INTO t3 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+set @@optimizer_switch='index_condition_pushdown=off';
+set @old_handler_icp_attempts = @handler_icp_attempts;
+set @old_handler_icp_match = @handler_icp_match;
+SELECT * from t3 where a < 10 AND (b+1>3);
+pk	a	b	c	filler
+3	3	3	3	hello
+4	4	4	4	hello
+5	5	5	5	hello
+6	6	6	6	hello
+7	7	7	7	hello
+8	8	8	8	hello
+9	9	9	9	hello
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+@old_handler_icp_attempts = @handler_icp_attempts
+1
+select @old_handler_icp_match = @handler_icp_match;
+@old_handler_icp_match = @handler_icp_match
+1
+set @@optimizer_switch='index_condition_pushdown=on';
+SELECT * from t3 where a < 10 AND (b+1>3);
+pk	a	b	c	filler
+3	3	3	3	hello
+4	4	4	4	hello
+5	5	5	5	hello
+6	6	6	6	hello
+7	7	7	7	hello
+8	8	8	8	hello
+9	9	9	9	hello
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts < @handler_icp_attempts;
+@old_handler_icp_attempts < @handler_icp_attempts
+1
+select @old_handler_icp_match < @handler_icp_match;
+@old_handler_icp_match < @handler_icp_match
+1
+CREATE TABLE t4 (
+pk INT PRIMARY KEY,
+a INT,
+b INT,
+c INT,
+filler varchar(100),
+key(a,b,c)
+) engine=myisam partition by hash(pk) partitions 4;
+INSERT INTO t4 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+set @@optimizer_switch='index_condition_pushdown=off';
+set @old_handler_icp_attempts = @handler_icp_attempts;
+set @old_handler_icp_match = @handler_icp_match;
+SELECT * from t4 where a < 10 AND (b+1>3);
+pk	a	b	c	filler
+3	3	3	3	hello
+4	4	4	4	hello
+5	5	5	5	hello
+6	6	6	6	hello
+7	7	7	7	hello
+8	8	8	8	hello
+9	9	9	9	hello
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts = @handler_icp_attempts;
+@old_handler_icp_attempts = @handler_icp_attempts
+1
+select @old_handler_icp_match = @handler_icp_match;
+@old_handler_icp_match = @handler_icp_match
+1
+set @@optimizer_switch='index_condition_pushdown=on';
+SELECT * from t4 where a < 10 AND (b+1>3);
+pk	a	b	c	filler
+3	3	3	3	hello
+4	4	4	4	hello
+5	5	5	5	hello
+6	6	6	6	hello
+7	7	7	7	hello
+8	8	8	8	hello
+9	9	9	9	hello
+set @handler_icp_attempts=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_attempts');
+set @handler_icp_match=(select cast(variable_value as int) from information_schema.session_status where variable_name='handler_icp_match');
+select @old_handler_icp_attempts < @handler_icp_attempts;
+@old_handler_icp_attempts < @handler_icp_attempts
+1
+select @old_handler_icp_match < @handler_icp_match;
+@old_handler_icp_match < @handler_icp_match
+1
+create table t5(pk int primary key, kp1 int, kp2 int, filler int, key(kp1, kp2)) partition by hash(pk) partitions 2;
+insert into t5 select seq, seq/40, seq, seq from seq_1_to_4000;
+select * from t5 where t5.kp1=10 and mod(t5.kp2,2)=1 and t5.kp2+1<401;
+pk	kp1	kp2	filler
+381	10	381	381
+383	10	383	383
+385	10	385	385
+387	10	387	387
+389	10	389	389
+391	10	391	391
+393	10	393	393
+395	10	395	395
+397	10	397	397
+399	10	399	399
+drop table t1, t2, t3, t4, t5;
+#
+# End of 11.4 tests
+#

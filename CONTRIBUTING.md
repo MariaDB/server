@@ -22,6 +22,7 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 -   Write code to fix bugs or develop new features (see  [Getting Started for Developers](https://mariadb.org/getting-started-for-developers)).See also [list of beginner friendly tasks](https://jira.mariadb.org/browse/MDEV-15736?jql=resolution%20%3D%20Unresolved%20AND%20labels%20%3D%20beginner-friendly%20ORDER%20BY%20updated%20DESC)
 -   Help with code quality control
 -   Participate in packaging for different Linux distributions
+-   Coding standards for the main source code can be found in [CODING_STANDARDS.md](CODING_STANDARDS.md).
 
 ### Sponsor or donate
 ---

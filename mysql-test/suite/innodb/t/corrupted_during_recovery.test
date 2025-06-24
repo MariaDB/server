@@ -5,13 +5,14 @@ call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page 3 in file .*test.t1\\.ibd");
-call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate\\.");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: A long wait .* was observed for dict_sys");
 call mtr.add_suppression("InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 1311768467463790320 is in the future!");
 call mtr.add_suppression("InnoDB: Your database may be corrupt");
 call mtr.add_suppression("InnoDB: MySQL-8\\.0 tablespace in .*test/t2\\.ibd");
 call mtr.add_suppression("InnoDB: Restart in MySQL for migration/recovery\\.");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;

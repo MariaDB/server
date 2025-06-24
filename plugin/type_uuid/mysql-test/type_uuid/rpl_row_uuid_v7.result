@@ -1,0 +1,42 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-32637 Implement native UUID7 function
+#
+connection master;
+CREATE TABLE test.t1 (a INT, blob_column LONGBLOB, vchar_column VARCHAR(100), PRIMARY KEY(a)) engine=myisam;
+INSERT INTO test.t1  VALUES(1,UUID_v7(),UUID_v7());
+create procedure test.p1()
+begin
+INSERT INTO test.t1  VALUES(2,UUID_v7(),UUID_v7());
+INSERT INTO test.t1  VALUES(3,UUID_v7(),UUID_v7());
+end|
+CALL test.p1();
+create function test.fn1(x int)
+returns int
+begin
+insert into t1 values (4+x,UUID_v7(),UUID_v7());
+insert into t1 values (5+x,UUID_v7(),UUID_v7());
+return 0;
+end|
+select fn1(0);
+fn1(0)
+0
+create table t2 (a int) engine=myisam;
+insert into t2 values(fn1(2));
+connection slave;
+SHOW CREATE TABLE test.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `blob_column` longblob DEFAULT NULL,
+  `vchar_column` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+connection master;
+DROP PROCEDURE test.p1;
+DROP FUNCTION test.fn1;
+DROP TABLE test.t1;
+DROP TABLE test.t2;
+# End of 11.7 tests
+include/rpl_end.inc

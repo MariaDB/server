@@ -276,7 +276,7 @@ drop table t_keyword;
 --echo # Test behaviour with a simple select.
 --echo #
 
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 insert into t1 values
   (1, 'Alice', 'Fowler', 5),
   (2, 'John', 'Doe', 6),
@@ -349,8 +349,15 @@ order by first_name, last_name
 offset 1 rows
 fetch first 3 rows with ties;
 
+--source include/analyze-format.inc
+analyze FORMAT=JSON
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
+offset 2 rows
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name, score
 offset 2 rows
 fetch first 3 rows only;
 
@@ -360,7 +367,7 @@ offset 2 rows
 fetch first 3 rows with ties;
 
 select * from t1
-order by first_name, last_name
+order by first_name, last_name, score
 offset 3 rows
 fetch first 3 rows only;
 
@@ -546,7 +553,7 @@ drop view v3;
 --echo #
 --echo # Test with ties when an index is used to provide the order by.
 --echo #
-create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double) charset=latin1;
 
 create index t1_name on t1 (first_name, last_name);
 
@@ -614,7 +621,12 @@ where first_name != 'John'
 order by first_name
 fetch first 2 rows with ties;
 
-
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
 
 select first_name, last_name
 from t1
@@ -769,6 +781,7 @@ fetch first 1 row with ties;
 --echo # Test union-like operator with multiple fetch first clauses.
 --echo #
 select * from t1 order by 1 fetch first 3 rows with ties;
+--replace_column 1 # 3 # 4 #
 select * from t1 order by first_name desc fetch first 3 rows with ties;
 
 --sorted_result

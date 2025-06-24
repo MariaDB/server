@@ -1,5 +1,6 @@
 --source include/have_stat_tables.inc
 --source include/default_optimizer_switch.inc
+--source include/test_db_charset_latin1.inc
 
 --echo #
 --echo #  Engine-agnostic tests for statistics-based selectivity calculations.
@@ -251,6 +252,28 @@ SELECT * FROM t1 AS a NATURAL JOIN t1 AS b;
 DROP TABLE t1,t2,t3;
 
 --echo #
+--echo # MDEV-30529: Assertion `rnd_records <= s->found_records' failed in best_access_path
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b VARCHAR(1), c INT, d VARCHAR(1), e VARCHAR(1), KEY(b), KEY(d), KEY(e)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('x',0,'-','-'),
+('x',0,'-','-'),('x',5,'-','-'),('x',0,'-','-'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'w','-'),('x',0,'-','-'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','u'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'-','t'),('x',0,'-','-'),('x',0,'-','-'),
+('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','p'),
+('x',0,'z','-'),('x',0,'-','-'),('x',0,'-','-'),('x',0,'-','v');
+
+set @tmp_jcl=@@join_cache_level;
+SET JOIN_CACHE_LEVEL= 3;
+SELECT * FROM t1 JOIN t2 ON t1.a = t2.c WHERE t2.b IN ('o') OR t2.e >= 'f' OR t2.d > 'p';
+set join_cache_level=@tmp_jcl;
+
+drop table t1,t2;
+
+--echo #
 --echo # MDEV-31199: Assertion `field->table->stats_is_read' fails with hash_join_cardinality=on
 --echo #
 CREATE TABLE t1 (a VARCHAR(255));
@@ -279,3 +302,4 @@ set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
+--source include/test_db_charset_restore.inc

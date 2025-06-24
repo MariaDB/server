@@ -32,7 +32,7 @@ CREATE TABLE t1
  b varchar(64),
  PRIMARY KEY (a),
  KEY (b))
-ENGINE = InnoDB
+ENGINE = InnoDB CHARSET=latin1
 PARTITION BY RANGE (a)
 SUBPARTITION BY HASH (a) SUBPARTITIONS 10
 (PARTITION pNeg VALUES LESS THAN (0),
@@ -75,7 +75,7 @@ CREATE TABLE t1
  c3 datetime not  NULL,
  PRIMARY KEY (c1,c3),
  KEY partidx(c3))
-ENGINE=InnoDB
+ENGINE=InnoDB CHARSET=latin1
 PARTITION BY RANGE (TO_DAYS(c3))
 (PARTITION p200912 VALUES LESS THAN (to_days('2010-01-01')),
  PARTITION p201103 VALUES LESS THAN (to_days('2011-04-01')),
@@ -322,7 +322,7 @@ PARTITION BY RANGE(id) (
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8),
                       (9,9), (10,10), (11,11);
 
-SET @old_tx_isolation := @@session.tx_isolation;
+SET @old_transaction_isolation := @@session.transaction_isolation;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 
 SET autocommit = 0;
@@ -345,7 +345,7 @@ UPDATE t1 SET data = data*2 WHERE data = 2;
 #--replace_regex /.*---TRANSACTION [0-9]+ [0-9]+, .*, OS thread id [0-9]+// /MariaDB thread id [0-9]+, query id [0-9]+ .*// /.*([0-9]+ lock struct\(s\)), heap size [0-9]+, ([0-9]+ row lock\(s\)).*/\1 \2/
 #SHOW ENGINE InnoDB STATUS;
 
-SET @@session.tx_isolation = @old_tx_isolation;
+SET @@session.transaction_isolation = @old_transaction_isolation;
 
 DROP TABLE t1;
 

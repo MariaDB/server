@@ -214,7 +214,7 @@ explain extended
 select * from t1 join (select * from t2 group by f2) tt on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	1	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11`,`tt`.`f2` AS `f2`,`tt`.`f22` AS `f22` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f22` AS `f22` from `test`.`t2` group by `test`.`t2`.`f2`) `tt` where `tt`.`f2` = `test`.`t1`.`f1`
@@ -228,7 +228,7 @@ flush status;
 explain select * from t1 join (select * from t2 group by f2) tt on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	1	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 show status like 'Handler_read%';
 Variable_name	Value
@@ -288,7 +288,7 @@ explain showing created indexes
 explain extended select * from t1 join v2 on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	1	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11`,`v2`.`f2` AS `f2`,`v2`.`f22` AS `f22` from `test`.`t1` join `test`.`v2` where `v2`.`f2` = `test`.`t1`.`f1`
@@ -339,7 +339,7 @@ flush status;
 explain select * from t1 join v2 on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	1	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 show status like 'Handler_read%';
 Variable_name	Value
@@ -372,7 +372,7 @@ Handler_read_rnd_next	36
 explain extended select * from v1 join v4 on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.f2	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.f2	1	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `v1`.`f1` AS `f1`,`v1`.`f11` AS `f11`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f22` AS `f22` from `test`.`v1` join `test`.`t2` where `v1`.`f1` = `test`.`t2`.`f2` and `test`.`t2`.`f2` in (2,3)
@@ -381,41 +381,59 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "t2.f2 in (2,3) and t2.f2 is not null"
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["test.t2.f2"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 in (2,3)"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.f2 in (2,3) and t2.f2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["test.t2.f2"],
+          "loops": 11,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 in (2,3)"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from v1 join v4 on f1=f2;
@@ -475,46 +493,67 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "tt.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "<derived3>",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "tt.f1 > 2",
-                "materialized": {
-                  "query_block": {
-                    "select_id": 3,
-                    "filesort": {
-                      "sort_key": "t1.f1",
-                      "temporary_table": {
-                        "table": {
-                          "table_name": "t1",
-                          "access_type": "ALL",
-                          "rows": 11,
-                          "filtered": 100,
-                          "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "tt.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "tt.f1 > 2",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "cost": "COST_REPLACED",
+                            "filesort": {
+                              "sort_key": "t1.f1",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 11,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100,
+                                      "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
                         }
                       }
                     }
-                  }
+                  ]
                 }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from (select * from 
@@ -530,7 +569,7 @@ join
 on x.f1 = z.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-1	PRIMARY	<derived5>	ref	key0	key0	5	tt.f1	2	100.00	
+1	PRIMARY	<derived5>	ref	key0	key0	5	tt.f1	1	100.00	
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
@@ -544,58 +583,83 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "tt.f1 > 2 and tt.f1 > 2 and tt.f1 is not null",
-      "materialized": {
-        "query_block": {
-          "select_id": 3,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "tt.f1 > 2 and tt.f1 > 2 and tt.f1 is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived5>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["tt.f1"],
+          "loops": 11,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 5,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    },
-    "table": {
-      "table_name": "<derived5>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["tt.f1"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 5,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7 and t1.f1 > 2 and t1.f1 > 2"
-              }
-            }
-          }
-        }
-      }
-    }
+    ]
   }
 }
 flush status;
@@ -653,7 +717,7 @@ join
 on x.f1 = z.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	x.f1	2	100.00	
+1	PRIMARY	<derived4>	ref	key0	key0	5	x.f1	1	100.00	
 4	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
@@ -671,92 +735,131 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "x.f1 is not null",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "filesort": {
-            "sort_key": "tt.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "<derived3>",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "tt.f1 > 2",
-                "materialized": {
-                  "query_block": {
-                    "select_id": 3,
-                    "filesort": {
-                      "sort_key": "t1.f1",
-                      "temporary_table": {
-                        "table": {
-                          "table_name": "t1",
-                          "access_type": "ALL",
-                          "rows": 11,
-                          "filtered": 100,
-                          "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "x.f1 is not null",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "tt.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived3>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "tt.f1 > 2",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 3,
+                            "cost": "COST_REPLACED",
+                            "filesort": {
+                              "sort_key": "t1.f1",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 11,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100,
+                                      "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
                         }
                       }
                     }
-                  }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived4>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["x.f1"],
+          "loops": 11,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 4,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "tt.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "<derived5>",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "tt.f1 > 2",
+                        "materialized": {
+                          "query_block": {
+                            "select_id": 5,
+                            "cost": "COST_REPLACED",
+                            "filesort": {
+                              "sort_key": "t1.f1",
+                              "temporary_table": {
+                                "nested_loop": [
+                                  {
+                                    "table": {
+                                      "table_name": "t1",
+                                      "access_type": "ALL",
+                                      "loops": 1,
+                                      "rows": 11,
+                                      "cost": "COST_REPLACED",
+                                      "filtered": 100,
+                                      "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
           }
         }
       }
-    },
-    "table": {
-      "table_name": "<derived4>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["x.f1"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 4,
-          "filesort": {
-            "sort_key": "tt.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "<derived5>",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "tt.f1 > 2",
-                "materialized": {
-                  "query_block": {
-                    "select_id": 5,
-                    "filesort": {
-                      "sort_key": "t1.f1",
-                      "temporary_table": {
-                        "table": {
-                          "table_name": "t1",
-                          "access_type": "ALL",
-                          "rows": 11,
-                          "filtered": 100,
-                          "attached_condition": "t1.f1 < 7 and t1.f1 > 2"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    ]
   }
 }
 select * from 
@@ -795,30 +898,44 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "<derived3>",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "v1.f1 < 7",
-      "materialized": {
-        "query_block": {
-          "select_id": 3,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "v1.f1 < 7",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from ( select * from v1 where f1 < 7) tt;
@@ -864,7 +981,7 @@ join of above two
 explain extended select * from v6 join v7 on f2=f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-1	PRIMARY	<derived5>	ref	key0	key0	5	test.t2.f2	2	100.00	
+1	PRIMARY	<derived5>	ref	key0	key0	5	test.t2.f2	1	100.00	
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f22` AS `f22`,`v1`.`f1` AS `f1`,`v1`.`f11` AS `f11` from `test`.`t2` join `test`.`v1` where `v1`.`f1` = `test`.`t2`.`f2` and `test`.`t2`.`f2` < 7 and `test`.`t2`.`f2` in (2,3)
@@ -873,41 +990,59 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 11,
-      "filtered": 100,
-      "attached_condition": "t2.f2 < 7 and t2.f2 in (2,3) and t2.f2 is not null"
-    },
-    "table": {
-      "table_name": "<derived5>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["f1"],
-      "ref": ["test.t2.f2"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 5,
-          "filesort": {
-            "sort_key": "t1.f1",
-            "temporary_table": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 11,
-                "filtered": 100,
-                "attached_condition": "t1.f1 < 7 and t1.f1 in (2,3)"
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 11,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t2.f2 < 7 and t2.f2 in (2,3) and t2.f2 is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived5>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["f1"],
+          "ref": ["test.t2.f2"],
+          "loops": 11,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 5,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.f1",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 11,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.f1 < 7 and t1.f1 in (2,3)"
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         }
       }
-    }
+    ]
   }
 }
 select * from v6 join v7 on f2=f1;
@@ -918,7 +1053,7 @@ test two keys
 explain select * from t1 join (select * from t2 group by f2) tt on t1.f1=tt.f2 join t1 xx on tt.f22=xx.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.f1	1	
 1	PRIMARY	xx	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 select * from t1 join (select * from t2 group by f2) tt on t1.f1=tt.f2 join t1 xx on tt.f22=xx.f1;
@@ -943,7 +1078,7 @@ EXPLAIN
 SELECT * FROM v1 JOIN t2 ON v1.f1 = t2.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	f1	f1	5	NULL	3	Using where; Using index
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.f1	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.f1	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	
 SELECT * FROM v1 JOIN t2 ON v1.f1 = t2.f1;
 f1	f1
@@ -1093,11 +1228,11 @@ DROP TABLE t1,t2,t3;
 #
 # LP bug #803410: materialized view/dt accessed by two-component key                       
 #                 
-CREATE TABLE t1 (a varchar(1));
+CREATE TABLE t1 (a varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c');
-CREATE TABLE t2 (a varchar(1) , KEY (a)) ;
+CREATE TABLE t2 (a varchar(1) , KEY (a)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('c'), (NULL), ('r');
-CREATE TABLE t3 (a varchar(1), b varchar(1));
+CREATE TABLE t3 (a varchar(1), b varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES
 ('e', 'c'), ('c', 'c'), ('c', 'r'), ('g', 'a'), ('b', 'x'), ('b', 'y'),
 ('h', 'w'), ('d', 'z'), ('k', 'v'), ('j', 's'), ('m', 'p'), ('l', 'q');
@@ -1140,7 +1275,7 @@ SELECT * FROM t3
 WHERE t3.a IN (SELECT v1.a FROM v1, t2 WHERE t2.a = v1.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ref	key1	key1	5	func	2	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	ref	key1	key1	5	func	1	100.00	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary; Using filesort
 Warnings:
@@ -1157,24 +1292,24 @@ DROP TABLE t1,t2,t3;
 #
 # LP bug #804515: materialized derived + ORDER BY                      
 #                 
-CREATE TABLE t1 (f1 varchar(1), f2 varchar(1), KEY (f2));
+CREATE TABLE t1 (f1 varchar(1), f2 varchar(1), KEY (f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('r','x'), ('x','d'), ('x','r'), ('r','f'), ('x','x');
-CREATE TABLE t2 (f1 varchar(1), f2 varchar(1));
+CREATE TABLE t2 (f1 varchar(1), f2 varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('s','x');
-CREATE TABLE t3 (f1 varchar(1), f2 varchar(1), KEY (f2));
+CREATE TABLE t3 (f1 varchar(1), f2 varchar(1), KEY (f2)) CHARSET=latin1;
 INSERT INTO t3 VALUES
 (NULL,'x'), (NULL,'f'), ('t','p'), (NULL,'j'), ('g','c');
-CREATE TABLE t4 (f1 int, f2 varchar(1), KEY (f2,f1)) ;
+CREATE TABLE t4 (f1 int, f2 varchar(1), KEY (f2,f1)) CHARSET=latin1;
 INSERT INTO t4 VALUES (1,'x'), (5,'r');
 EXPLAIN
 SELECT t.f1 AS f 
 FROM (SELECT DISTINCT t1.* FROM t1,t2 WHERE t2.f2 = t1.f2) t,t3,t4
 WHERE t4.f2 = t3.f2  AND t4.f2 = t.f1 ORDER BY f;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using filesort
-1	PRIMARY	t4	ref	f2	f2	4	t.f1	1	Using index
-1	PRIMARY	t3	ref	f2	f2	4	t.f1	2	Using index
+1	PRIMARY	t4	index	f2	f2	9	NULL	2	Using where; Using index; Using temporary; Using filesort
+1	PRIMARY	<derived2>	ref	key1	key1	4	test.t4.f2	1	
+1	PRIMARY	t3	ref	f2	f2	4	test.t4.f2	1	Using index
 2	DERIVED	t2	system	NULL	NULL	NULL	NULL	1	Using temporary
 2	DERIVED	t1	ref	f2	f2	4	const	2	Using where
 SELECT t.f1 AS f 
@@ -1200,7 +1335,7 @@ EXPLAIN
 SELECT * FROM t1 AS t JOIN v1 AS v WHERE t.a = v.b AND t.b = v.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
 SELECT * FROM t1 AS t JOIN v1 AS v WHERE t.a = v.b AND t.b = v.b;
 a	b	a	b
@@ -1372,13 +1507,13 @@ DROP TABLE t1,t2;
 #
 CREATE TABLE t1 (a int) ;
 INSERT INTO t1 VALUES (0);
-CREATE TABLE t2 (a  varchar(32), b int, KEY (a)) ;
+CREATE TABLE t2 (a  varchar(32), b int, KEY (a)) CHARSET=latin1;
 INSERT INTO t2 VALUES
 ('j',28), ('c',29), ('i',26), ('c',29), ('k',27),
 ('j',28), ('c',29), ('i',25), ('d',26), ('k',27),
 ('n',28), ('d',29), ('m',26), ('e',29), ('p',27),
 ('w',28), ('x',29), ('y',25), ('z',26), ('s',27);
-CREATE TABLE t3 (a varchar(32));
+CREATE TABLE t3 (a varchar(32)) CHARSET=latin1;
 INSERT INTO t3 VALUES ('j'), ('c');
 CREATE VIEW v1 AS SELECT DISTINCT t2.b FROM t1,t2,t3 WHERE t3.a = t2.a;
 SELECT DISTINCT t2.b FROM t1,t2,t3 WHERE t3.a = t2.a;
@@ -1506,7 +1641,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
+1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	1	FirstMatch(t1)
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
 SELECT * FROM v2;
 a	b
@@ -1526,7 +1661,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	1	FirstMatch(t1)
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	10	test.t1.a,test.t1.b	1	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	
 4	UNION	t3	ALL	NULL	NULL	NULL	NULL	4	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1805,14 +1940,14 @@ WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM t3 t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t	unique_subquery	PRIMARY,c	PRIMARY	4	func	1	Using where
+2	DEPENDENT SUBQUERY	t	index_subquery	PRIMARY,c	c	8	func,func	1	Using index; Using where
 EXPLAIN 
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM (SELECT * FROM t3) t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t3	unique_subquery	PRIMARY,c	PRIMARY	4	func	1	Using where
+2	DEPENDENT SUBQUERY	t3	index_subquery	PRIMARY,c	c	8	func,func	1	Using index; Using where
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM (SELECT * FROM t3) t);
 b	a
@@ -1824,11 +1959,11 @@ DROP TABLE t1,t2,t3;
 #
 # LP bug #874006: materialized view used in IN subquery
 #
-CREATE TABLE t3 (a int NOT NULL, b varchar(1), c varchar(1));
+CREATE TABLE t3 (a int NOT NULL, b varchar(1), c varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (19,NULL,NULL), (20,'r','r');
-CREATE TABLE t1 (a int, b varchar(1) , c varchar(1));
+CREATE TABLE t1 (a int, b varchar(1) , c varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,NULL,NULL), (5,'r','r'), (7,'y','y');
-CREATE TABLE t2 (a int NOT NULL , b int, c varchar(1));
+CREATE TABLE t2 (a int NOT NULL , b int, c varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES (4,3,'r');
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 SET @save_optimizer_switch=@@optimizer_switch;
@@ -1841,7 +1976,7 @@ WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; End temporary
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t3)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
@@ -1855,8 +1990,8 @@ WHERE t3.b IN (SELECT v1.b FROM  v1, t2
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived3>	ref	key1	key1	8	const,const	0	Start temporary
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived3>	ref	key1	key1	8	const,const	0	FirstMatch(t3)
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
@@ -1879,7 +2014,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.b,test.t1.a	2	FirstMatch(t1)
+1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.b,test.t1.a	1	FirstMatch(t1)
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 a	b
@@ -1919,9 +2054,9 @@ DROP TABLE t1,t2;
 #
 # LP bug #878199: join of two materialized views
 #
-CREATE TABLE t1 (a int, b varchar(1)) ;
+CREATE TABLE t1 (a int, b varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (7,'c'), (3,'h'), (7,'c');
-CREATE TABLE t2 (b varchar(1)) ;
+CREATE TABLE t2 (b varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('p'), ('c'), ('j'), ('c'), ('p');
 CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a,b;
 CREATE VIEW v2 AS SELECT * FROM t2 GROUP BY b;
@@ -1933,7 +2068,7 @@ EXPLAIN
 SELECT v1.a FROM v1,v2 WHERE v2.b = v1.b ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
-1	PRIMARY	<derived3>	ref	key0	key0	4	v1.b	2	
+1	PRIMARY	<derived3>	ref	key0	key0	4	v1.b	1	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 DROP VIEW v1,v2;
@@ -1941,16 +2076,16 @@ DROP TABLE t1,t2;
 #
 # Bug #743378: join over merged view employing BNL
 #
-CREATE TABLE t1 ( d varchar(1) NOT NULL) ;
+CREATE TABLE t1 ( d varchar(1) NOT NULL) CHARSET=latin1;
 INSERT INTO t1 VALUES ('j'),('v'),('c');
-CREATE TABLE t2 (h time NOT NULL, d varchar(1) NOT NULL) ;
+CREATE TABLE t2 (h time NOT NULL, d varchar(1) NOT NULL) CHARSET=latin1;
 INSERT INTO t2 VALUES ('05:03:03','w'),('02:59:24','d'),('00:01:58','e');
 CREATE TABLE t3 (
 b int NOT NULL, e varchar(1) NOT NULL, d varchar(1) NOT NULL, KEY (e,b)
-);
+) CHARSET=latin1;
 INSERT INTO t3 VALUES (4,'x','x'),(9,'w','w'),(4,'d','d'),(8,'e','e');
 INSERT INTO t3 VALUES (14,'a','a'),(19,'b','b'),(14,'c','c'),(18,'d','d');
-CREATE TABLE t4 (i int NOT NULL, m varchar(1) NOT NULL) ;
+CREATE TABLE t4 (i int NOT NULL, m varchar(1) NOT NULL) CHARSET=latin1;
 INSERT INTO t4 VALUES (8,'m'),(9,'d'),(2,'s'),(4,'r'),(8,'m');
 CREATE TABLE t5 (
 a int NOT NULL, c int NOT NULL, b int NOT NULL, f date NOT NULL,
@@ -2296,7 +2431,7 @@ GROUP BY TABLE_SCHEMA) AS UNIQUES
 ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	COLUMNS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ref	key0	key0	194	information_schema.COLUMNS.TABLE_SCHEMA	10	
 2	DERIVED	STATISTICS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
 SELECT COUNT(*) > 0
 FROM INFORMATION_SCHEMA.COLUMNS
@@ -2365,8 +2500,12 @@ CREATE TABLE t2 (a int, INDEX(a));
 INSERT INTO t2 VALUES (1), (2);
 INSERT INTO t1 SELECT a FROM (SELECT a FROM test.t1) AS s1 NATURAL JOIN
 t2 AS s2;
+INSERT INTO t1 SELECT a FROM (SELECT a FROM test.t1) AS s1 NATURAL JOIN
+t2 AS s2;
 SELECT * FROM t1;
 a
+1
+1
 1
 1
 DELETE FROM t1;
@@ -2524,7 +2663,7 @@ EXPLAIN EXTENDED
 SELECT v1.c1, v1.c2 FROM v1, t2 WHERE v1.c1=t2.c1 AND v1.c2=t2.c2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c2	2	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c2	1	100.00	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `v1`.`c1` AS `c1`,`v1`.`c2` AS `c2` from `test`.`v1` join `test`.`t2` where `v1`.`c1` = `test`.`t2`.`c1` and `v1`.`c2` = `test`.`t2`.`c2`
@@ -2537,7 +2676,7 @@ SELECT t2.c1, t2.c2 FROM (SELECT c1 g, MAX(c2) m FROM t1 GROUP BY c1) t, t2
 WHERE t.g=t2.c1 AND t.m=t2.c2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c2	2	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c2	1	100.00	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`c1` AS `c1`,`test`.`t2`.`c2` AS `c2` from (/* select#2 */ select `test`.`t1`.`c1` AS `g`,max(`test`.`t1`.`c2`) AS `m` from `test`.`t1` group by `test`.`t1`.`c1`) `t` join `test`.`t2` where `t`.`g` = `test`.`t2`.`c1` and `t`.`m` = `test`.`t2`.`c2`
@@ -2846,11 +2985,11 @@ create table t1 (
 mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 matintnum CHAR(6) NOT NULL,
 test MEDIUMINT UNSIGNED NULL
-);
+) CHARSET=latin1;
 create table t2 (
 mat_id MEDIUMINT UNSIGNED NOT NULL,
 pla_id MEDIUMINT UNSIGNED NOT NULL
-);
+) CHARSET=latin1;
 insert into t1 values
 (NULL, 'a', 1), (NULL, 'b', 2), (NULL, 'c', 3), (NULL, 'd', 4),
 (NULL, 'e', 5), (NULL, 'f', 6), (NULL, 'g', 7), (NULL, 'h', 8),
@@ -2868,7 +3007,7 @@ GROUP BY mp.pla_id) d
 ON d.matintnum=m2.matintnum;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	m2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ref	key0	key0	7	test.m2.matintnum	2	
+1	PRIMARY	<derived2>	ref	key0	key0	7	test.m2.matintnum	1	
 2	DERIVED	mp	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
 2	DERIVED	m1	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	
 prepare stmt1 from
@@ -3002,8 +3141,8 @@ EXPLAIN EXTENDED
 SELECT * FROM t1  LEFT JOIN v2  ON t1.id=v2.order_pk;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.id	2	100.00	
-2	DERIVED	t1	index	PRIMARY	PRIMARY	4	NULL	4	100.00	Using index; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.id	1	100.00	
+2	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	Using where; Using index
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`v2`.`order_pk` AS `order_pk` from `test`.`t1` left join `test`.`v2` on(`v2`.`order_pk` = `test`.`t1`.`id`) where 1
 SELECT * FROM t1  LEFT JOIN v3  ON t1.id=v3.order_pk;
@@ -3016,8 +3155,8 @@ EXPLAIN EXTENDED
 SELECT * FROM t1  LEFT JOIN v3  ON t1.id=v3.order_pk;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.id	2	100.00	
-2	DERIVED	t1	index	PRIMARY	PRIMARY	4	NULL	4	100.00	Using index; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.id	1	100.00	
+2	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	Using where; Using index
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`v3`.`order_pk` AS `order_pk` from `test`.`t1` left join `test`.`v3` on(`v3`.`order_pk` = `test`.`t1`.`id`) where 1
 DROP VIEW v1,v2,v3;
@@ -4294,15 +4433,10 @@ insert into t1 values (3), (7), (1);
 create table t2 (a int);
 insert into t2 values (2), (4);
 create view v as select a from t2 order by a;
-set big_tables= 1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+set statement tmp_memory_table_size=0 for
 select t1.id from v, t1 where rownum() = 1 group by t1.id;
 id
 1
-set big_tables=default;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 drop view v;
 drop table t1, t2;
 #

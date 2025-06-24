@@ -14,8 +14,10 @@ set global spider_same_server_link=1;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t (c BLOB) ENGINE=InnoDB;
 CREATE TABLE ts (c BLOB) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+--disable_ps_protocol
 SELECT TRIM(BOTH ' ' FROM c) FROM ts ORDER BY c;
 drop table t, ts;
+--enable_ps_protocol
 
 drop server srv;
 --disable_query_log

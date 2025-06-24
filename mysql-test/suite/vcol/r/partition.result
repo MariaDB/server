@@ -91,6 +91,8 @@ x	left(b, 10)	left(v, 10)
 44	zzzzzzzzzz	zzzzzzzzzz
 50	zzzzzzzzzz	zzzzzzzzzz
 56	zzzzzzzzzz	zzzzzzzzzz
+Warnings:
+Warning	4202	29 values were longer than max_sort_length. Sorting used only the first 1024 bytes
 update t1 set b= 'bar' where v > 'a' limit 20;
 drop table t1;
 # Cover return_top_record() in ha_partition::handle_ordered_index_scan()

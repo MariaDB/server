@@ -29,9 +29,9 @@
   A fake THD with enter_cond/exit_cond and some other members.
 */
 PSI_stage_info stage_show_explain;
-class THD 
+class THD
 {
-  mysql_mutex_t* thd_mutex; 
+  mysql_mutex_t* thd_mutex;
 public:
   bool killed;
 
@@ -81,7 +81,7 @@ int int_rand(int size)
   return (int) (0.5 + ((double)rand() / RAND_MAX) * size);
 }
 
-/* 
+/*
   APC target thread (the one that will serve the APC requests). We will have
   one target.
 */
@@ -118,7 +118,7 @@ void *test_apc_service_thread(void *ptr)
 class Apc_order : public Apc_target::Apc_call
 {
 public:
-  int value;   // The value 
+  int value;   // The value
   int *where_to;  // Where to write it
   Apc_order(int a, int *b) : value(a), where_to(b) {}
 
@@ -202,7 +202,7 @@ int main(int args, char **argv)
     my_sleep(1000);
   for (i = 0; i < N_THREADS; i++)
     pthread_create(&request_thr[i], NULL, test_apc_requestor_thread, (void*)NULL);
-  
+
   for (i = 0; i < 15; i++)
   {
     my_sleep(500*1000);
@@ -212,7 +212,7 @@ int main(int args, char **argv)
   requestors_should_exit= TRUE;
   for (i = 0; i < N_THREADS; i++)
     pthread_join(request_thr[i], NULL);
-  
+
   diag("Shutting down service");
   service_should_exit= TRUE;
   pthread_join(service_thr, NULL);
@@ -226,4 +226,3 @@ int main(int args, char **argv)
   ok1(!have_errors);
   return exit_status();
 }
-

@@ -40,7 +40,7 @@ create table t11 (
  b_value char(10),
  key(b)
 );
-insert into t11 select seq, seq from seq_1_to_100;
+insert into t11 select seq, seq from seq_1_to_150;
 
 set @tmp_os=@@optimizer_trace;
 set optimizer_trace=1;
@@ -229,6 +229,7 @@ order by
   t1.col1
 limit 10;
 drop table t1, t10, t11;
+set optimizer_join_limit_pref_ratio=default;
 
 --echo #
 --echo # MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
@@ -248,6 +249,17 @@ CREATE TABLE t1 (a INT KEY,b INT, KEY(b)) ;
 INSERT INTO t1 VALUES (2,NULL);
 INSERT INTO t1 VALUES (5,NULL);
 SELECT * FROM t1 NATURAL JOIN t1 AS t2 WHERE t1.b=NULL ORDER BY t1.a LIMIT 1;
+DROP TABLE t1;
+
+set optimizer_join_limit_pref_ratio=default;
+
+--echo #
+--echo # MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
+--echo #
+SET optimizer_join_limit_pref_ratio=1;
+CREATE TABLE t1 (c1 INT, INDEX(c1));
+INSERT INTO t1  VALUES (1),(2);
+SELECT * FROM t1  ORDER BY c1 LIMIT 1;
 DROP TABLE t1;
 
 set optimizer_join_limit_pref_ratio=default;

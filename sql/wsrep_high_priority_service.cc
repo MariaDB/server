@@ -30,6 +30,7 @@
 #define NUMBER_OF_FIELDS_TO_IDENTIFY_WORKER 2
 #include "slave.h"
 #include "rpl_mi.h"
+#include "rpl_constants.h"
 
 namespace
 {
@@ -70,7 +71,7 @@ static rpl_group_info* wsrep_relay_group_init(THD* thd, const char* log_fname)
   if (!rli->relay_log.description_event_for_exec)
   {
     rli->relay_log.description_event_for_exec=
-      new Format_description_log_event(4);
+      new Format_description_log_event(4, 0, BINLOG_CHECKSUM_ALG_OFF);
   }
 
   static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
@@ -114,7 +115,9 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
   else
     thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
 
-  if (wsrep_slave_FK_checks == FALSE)
+  if (wsrep_slave_FK_checks == FALSE ||
+      (wsrep_check_mode(WSREP_MODE_APPLIER_SKIP_FK_CHECKS_IN_IST) &&
+       !wsrep_ready_get()))
     thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
   else
     thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;

@@ -7,7 +7,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` int(11) DEFAULT NULL,
   KEY `my_d` (`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9);
 INSERT INTO t1 SELECT * FROM t1;
 INSERT INTO t1 SELECT * FROM t1;
@@ -40,5 +40,5 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `D` int(11) DEFAULT NULL,
   KEY `my_d` (`D`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;

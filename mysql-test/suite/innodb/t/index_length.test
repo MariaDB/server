@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 --connect (stop_purge,localhost,root)
 # Prevent the purge of history from acquiring a table handle.
@@ -29,3 +30,5 @@ CREATE TABLE t1(c CHAR(194) CHARACTER SET UTF32, KEY k1(c(193)))ENGINE=InnoDB;
 INSERT INTO t1 SET c='';
 DROP TABLE t1;
 --echo # End of 10.4 tests
+
+--source include/test_db_charset_restore.inc

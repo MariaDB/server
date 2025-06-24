@@ -202,9 +202,9 @@ create table t1(
   a4 real,
   a5 date,
   key k1(a2,a3),
-  key k2(a4 desc,a1),
+  key k2(a4 /*desc*/,a1),
   key k3(a5,a1)
-);
+) charset=latin1;
 create table t2(
   a1 char(3) primary key,
   a2 char(17),
@@ -212,7 +212,7 @@ create table t2(
   a4 char(3),
   key k1(a3, a2),
   key k2(a4)
-);
+) charset=latin1;
 
 # Populate table t1
 insert into t1 values('AME',0,'SEA',0.100,date'1942-02-19');
@@ -435,7 +435,7 @@ drop table t1;
 
 
 #
-# cleunup() of optimized away count(*) and max/min
+# cleanup() of optimized away count(*) and max/min
 #
 create table t1 (a int);
 insert into t1 values (1),(2);
@@ -1055,7 +1055,7 @@ FROM t1
 ORDER BY max;
 
 --echo
---echo # Only 11 is correct for collumn i in this result
+--echo # Only 11 is correct for column i in this result
 SELECT MAX(pk) as max, i
 FROM t1
 WHERE pk<2
@@ -1213,7 +1213,7 @@ DROP TABLE t1,t2,t3;
 --echo # Bug #884175: MIN/MAX for short varchar = long const  
 --echo #
 
-CREATE TABLE t1 (f1 varchar(1), f2 varchar(1), KEY (f2));
+CREATE TABLE t1 (f1 varchar(1), f2 varchar(1), KEY (f2)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('b', 'b'), ('a','a');
 
 EXPLAIN 
@@ -1257,7 +1257,7 @@ CREATE TABLE t1 (
   pk INT,
   v VARCHAR(1) DEFAULT NULL,
   PRIMARY KEY(pk)
-);
+) CHARSET=latin1;
 CREATE TABLE t2 LIKE t1;
 CREATE TABLE t3 LIKE t1;
 CREATE TABLE empty1 (a int);

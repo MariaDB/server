@@ -1,0 +1,265 @@
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+--echo # Check various condition types
+create table t1 (a int, vcol1 int as (a+1), index(vcol1));
+insert into t1 (a) select seq from seq_1_to_100;
+explain select * from t1 where a+1=2;
+--echo # Try renaming the table
+explain select * from t1 as TBL where TBL.a+1=2;
+explain select * from t1 where a+1<=2;
+explain select * from t1 where a+1<2;
+explain select * from t1 where a+1>100;
+explain select * from t1 where a+1>=100;
+explain select * from t1 where a+1 between 10 and 12;
+explain select * from t1 where (a+1) IS NULL;
+explain select * from t1 force index(vcol1) where (a+1) IS NOT NULL;
+explain select * from t1 where (a+1) in (1,2,3,4);
+
+--echo # Check UPDATE/DELETE:
+explain delete from t1 where a+1=2;
+explain update t1 set a=a+1 where a+1=2;
+
+--echo # Try merged VIEWs:
+create view v1 as select * from t1;
+explain select * from v1 where a+1=2;
+create view v2 as select a as A_COL from t1;
+explain select * from v2 where A_COL+1=2;
+drop view v1;
+drop view v2;
+
+set names utf8mb4;
+select @@collation_connection;
+--echo # Check VARCHAR
+create table t2 (
+  a varchar(32),
+  vcol1 varchar(32) as (concat('hello-',a)),
+  index(vcol1)
+);
+insert into t2 (a) select seq from seq_1_to_100;
+select collation('aaa'), collation(vcol1) from t2 limit 1;
+# Also check optimizer trace coverage
+set @tmp_trace=@@optimizer_trace;
+set optimizer_trace=1;
+--echo # This won't work:
+explain select * from t2 where concat('bye-', a)='hello-5';
+--echo # This will work:
+explain select * from t2 where concat('hello-', a)='hello-5';
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # Try also ON expressions
+explain
+select *
+from t1 left join t2 on concat('hello-', t2.a)='hello-5'
+where
+  t1.a+1=2;
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+create table t3 (a int);
+insert into t3 values (1),(2);
+explain
+select *
+from
+  t3 left join
+    (t1 join t2 on concat('hello-', t2.a)='hello-5' and t1.a+1=2)
+  on t3.a<3;
+--disable_view_protocol
+select
+  json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+  information_schema.optimizer_trace;
+--enable_view_protocol
+
+drop table t1,t2,t3;
+
+
+set optimizer_trace=@tmp_trace;
+
+--echo #
+--echo # Implicit type/charset conversions
+--echo #
+create table t3 (
+  a varchar(32) collate utf8mb4_general_ci,
+  vcol1 int as (concat('100',a)),
+  vcol2 varchar(32) collate utf8mb4_unicode_ci as (concat('hello-',a)),
+  index(vcol1),
+  index(vcol2)
+);
+insert into t3 (a) select seq from seq_1_to_100;
+
+--echo # Type conversion
+explain select * from t3 where concat('100', a)=10010;
+
+--echo # Character set change
+explain select * from t3 where concat('hello-', a)='abcd';
+drop table t3;
+
+--echo # Try JSON_EXTRACT
+create table t1 (a int, js1 blob);
+insert into t1
+select seq, concat('{"size":', seq, ', "color":"hue', seq ,'"}') from seq_1_to_100;
+select * from t1 limit 3;
+
+alter table t1 add size1 int as (cast(json_extract(js1, '$.size') as int));
+alter table t1 add index(size1);
+explain select * from t1 where cast(json_extract(js1,'$.size') as int)=5 ;
+
+#
+# JSON_UNQUOTE() returns utf8mb4_bin
+#
+# Without COLLATE clause, the default is utf8mb4_uca1400_ai_ci.
+#
+alter table t1 add
+  color varchar(100) COLLATE utf8mb4_bin
+    as (json_unquote(json_extract(js1, '$.color')));
+alter table t1 add index(color);
+
+select * from t1 limit 3;
+
+--echo # Index is used:
+explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
+explain select * from t1 where json_unquote(json_extract(js1, '$.color')) IS NULL;
+explain select * from t1 force index(color)
+where json_unquote(json_extract(js1, '$.color')) IS NOT NULL;
+
+alter table t1 drop column color;
+alter table t1 add
+  color2 varchar(100)
+    as (json_unquote(json_extract(js1, '$.color')));
+alter table t1 add index(color2);
+--echo # Index is not used due to collation mismatch:
+explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
+
+drop table t1;
+
+--echo #
+--echo # Tests with JSON_VALUE
+--echo #
+create table t1 (a int, js1 json);
+insert into t1
+select seq, concat('{"size":', seq, ', "color":"hue', seq ,'"}') from seq_1_to_100;
+select * from t1 limit 3;
+
+alter table t1
+  add size1 int as (cast(json_value(js1, '$.size') as int)),
+  add index(size1);
+
+explain
+select * from t1 where size1=10;
+
+--echo # The "JSON" datatype uses binary collation.
+--echo #  JSON_VALUE will produce output in binary collation, too:
+select collation(json_value(js1, '$.color')) from t1 limit 1;
+
+--echo # If one is fine with _bin comparisons, they can use index access:
+alter table t1
+  add color1 varchar(100) collate utf8mb4_bin as (json_value(js1, '$.color')),
+  add index(color1);
+explain select * from t1 where json_value(js1, '$.color')='hue10';
+alter table t1 drop column color1;
+
+--echo # Using different collation in column substitution prevents
+--echo # the optimization from working:
+alter table t1
+  add color2 varchar(100) collate utf8mb4_unicode_ci as (json_value(js1, '$.color')),
+  add index(color2);
+explain select * from t1 where json_value(js1, '$.color')='hue10';
+alter table t1 drop column color2;
+
+
+--echo # Explicitly specifying the collation helps:
+alter table t1
+  add color3 varchar(100) collate utf8mb4_unicode_ci as
+  (json_value(js1, '$.color') collate utf8mb4_unicode_ci),
+  add index(color3);
+explain select * from t1
+where
+  json_value(js1, '$.color') collate utf8mb4_unicode_ci='hue10';
+
+--echo #
+--echo # Alternatively, one can store JSON in a column with the same
+--echo # collation as default and then casts are not needed:
+--echo #
+create table t2(
+  js1 longtext COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL CHECK (json_valid(`js1`))
+);
+insert into t2 select js1 from t1;
+
+alter table t2
+  add color3 varchar(100) as (json_value(js1, '$.color')),
+  add index(color3);
+explain select * from t2
+where
+  json_value(js1, '$.color')='hue10';
+
+drop table t1,t2;
+
+--echo #
+--echo # Test interplay with sargable_casefold optimization:
+--echo #
+create table t1 (
+  a varchar(100) collate utf8mb3_general_ci,
+  vcol varchar(100) collate utf8mb3_general_ci as (UPPER(a)),
+  index(a),
+  index(vcol)
+);
+insert into t1 (a) select seq from seq_1_to_100;
+--echo # Note that possible_keys doesn't include 'vcol'.
+--echo #  Sargable_casefold is applied before vcol substitution:
+explain select * from t1 where UPPER(a)='abc';
+explain select * from t1 ignore index(vcol) where UPPER(a)='abc';
+explain select * from t1 ignore index(a) where UPPER(a)='abc';
+set optimizer_switch='sargable_casefold=off';
+explain select * from t1 ignore index(a) where UPPER(a)='abc';
+set optimizer_switch=default;
+drop table t1;
+
+--echo #
+--echo # Test interplay with Sargable YEAR/DATE optimization:
+--echo #
+create table t1 (
+  a date,
+  vcol int as (year(a)),
+  index(a),
+  index(vcol)
+);
+insert into t1 (a) select date_add('2024-01-01', interval (seq*365) day) from seq_1_to_100;
+--echo # Note that possible_keys doesn't include 'vcol'.
+--echo #  Sargable Year is applied before vcol substitution:
+explain format=json select * from t1 where year(a)=2025;
+
+--echo # Check that vcol would work if Sargable Year didn't disable it:
+alter table t1
+  add vcol2 int as (year(a)+1),
+  add index(vcol2);
+
+explain format=json select * from t1 where year(a)+1=2025;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-35833: Assertion `marked_for_read()' failed for query with vcols
+--echo #
+CREATE TABLE t1 (
+  id int,
+  v2 int AS (id),
+  v3 int AS (id+0),
+  a1 int AS (v2 + v3),
+  KEY a1 (a1)
+);
+insert t1(id) values (1),(2);
+
+explain format=json DELETE FROM t1 WHERE v2+v3 > 'a';
+
+drop table t1;
+

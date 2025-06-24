@@ -12,7 +12,11 @@ create table t2 (c2 int);
 insert into t1 values (1), (2);
 insert into t2 values (0), (1), (2);
 create table t1s (c1 int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 create table t2s (c2 int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 select c1 from t1s, (select c2 from t2s where c2 > 0) t where c1 + 1 = c2;
 c1
 1

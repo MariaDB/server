@@ -17,11 +17,13 @@ SET collation_connection='euckr_korean_ci';
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 SET collation_connection='euckr_bin';
 -- source include/ctype_filesort.inc
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 
 #
 # Bug#15377 Valid multibyte sequences are truncated on INSERT
@@ -101,8 +103,15 @@ ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER 
 --disable_warnings
 UPDATE IGNORE t2 SET u=a, a2=u;
 --enable_warnings
-SELECT s as unassigned_code FROM t2 WHERE u='?';
-DELETE FROM t2 WHERE u='?';
+#
+# _euckr 0xA3BF is "U+FF1F FULLWIDTH QUESTION MARK".
+# In utf8mb3_uca1400_ai_ci, which is the collation for t1.u,
+# it's equal to "U+003F QUESTION MARK".
+# Let's use the `binary` keyword in the comparison
+# to avoid 0xA3BF being displayed as unassigned character.
+#
+SELECT s as unassigned_code FROM t2 WHERE u=binary'?';
+DELETE FROM t2 WHERE u=binary'?';
 # Make sure there are no euckr->utf8->euckr roundtrip problems
 SELECT count(*) as roundtrip_problem_chars FROM t2 WHERE hex(a) <> hex(a2);
 SELECT s, hex(a), hex(u), hex(a2) FROM t2 ORDER BY s;

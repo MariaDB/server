@@ -68,7 +68,7 @@ t1	CREATE TABLE `t1` (
   `a4` time(4) /* mysql-5.6 */ DEFAULT NULL,
   `a5` time(5) /* mysql-5.6 */ DEFAULT NULL,
   `a6` time(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # CREATE..SELECT and SHOW
 Table	Create Table
@@ -87,7 +87,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` time(4) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a5)` time(5) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a6)` time(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
@@ -99,7 +99,7 @@ t1	CREATE TABLE `t1` (
   `a4` time(4) /* mysql-5.6 */ DEFAULT NULL,
   `a5` time(5) /* mysql-5.6 */ DEFAULT NULL,
   `a6` time(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # Setting @@global.mysql56_temporal_format=false
 
@@ -120,7 +120,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` time(4) /* mariadb-5.3 */ DEFAULT NULL,
   `COALESCE(a5)` time(5) /* mariadb-5.3 */ DEFAULT NULL,
   `COALESCE(a6)` time(6) /* mariadb-5.3 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
@@ -132,7 +132,7 @@ t1	CREATE TABLE `t1` (
   `a4` time(4) /* mariadb-5.3 */ DEFAULT NULL,
   `a5` time(5) /* mariadb-5.3 */ DEFAULT NULL,
   `a6` time(6) /* mariadb-5.3 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # Setting @@global.mysql56_temporal_format=true
 
@@ -153,7 +153,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` time(4) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a5)` time(5) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a6)` time(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
@@ -165,7 +165,7 @@ t1	CREATE TABLE `t1` (
   `a4` time(4) /* mysql-5.6 */ DEFAULT NULL,
   `a5` time(5) /* mysql-5.6 */ DEFAULT NULL,
   `a6` time(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 a0 DATETIME,
@@ -188,7 +188,7 @@ t1	CREATE TABLE `t1` (
   `a4` datetime(4) /* mysql-5.6 */ DEFAULT NULL,
   `a5` datetime(5) /* mysql-5.6 */ DEFAULT NULL,
   `a6` datetime(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # CREATE..SELECT and SHOW
 Table	Create Table
@@ -207,7 +207,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` datetime(4) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a5)` datetime(5) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a6)` datetime(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
@@ -219,7 +219,7 @@ t1	CREATE TABLE `t1` (
   `a4` datetime(4) /* mysql-5.6 */ DEFAULT NULL,
   `a5` datetime(5) /* mysql-5.6 */ DEFAULT NULL,
   `a6` datetime(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # Setting @@global.mysql56_temporal_format=false
 
@@ -240,7 +240,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` datetime(4) /* mariadb-5.3 */ DEFAULT NULL,
   `COALESCE(a5)` datetime(5) /* mariadb-5.3 */ DEFAULT NULL,
   `COALESCE(a6)` datetime(6) /* mariadb-5.3 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
@@ -252,7 +252,7 @@ t1	CREATE TABLE `t1` (
   `a4` datetime(4) /* mariadb-5.3 */ DEFAULT NULL,
   `a5` datetime(5) /* mariadb-5.3 */ DEFAULT NULL,
   `a6` datetime(6) /* mariadb-5.3 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # Setting @@global.mysql56_temporal_format=true
 
@@ -273,7 +273,7 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` datetime(4) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a5)` datetime(5) /* mysql-5.6 */ DEFAULT NULL,
   `COALESCE(a6)` datetime(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
@@ -285,7 +285,7 @@ t1	CREATE TABLE `t1` (
   `a4` datetime(4) /* mysql-5.6 */ DEFAULT NULL,
   `a5` datetime(5) /* mysql-5.6 */ DEFAULT NULL,
   `a6` datetime(6) /* mysql-5.6 */ DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 a0 TIMESTAMP,
@@ -301,25 +301,25 @@ CALL mdev16542;
 # Original table
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a0` timestamp /* mysql-5.6 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a0` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # CREATE..SELECT and SHOW
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a0` timestamp /* mysql-5.6 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `a0` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a0)` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a1)` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a2)` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
@@ -327,32 +327,32 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a5)` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a6)` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a0` timestamp /* mysql-5.6 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a0` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # Setting @@global.mysql56_temporal_format=false
 
 # CREATE..SELECT and SHOW
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a0` timestamp /* mariadb-5.3 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `a0` timestamp /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mariadb-5.3 */ NULL DEFAULT NULL,
   `COALESCE(a0)` timestamp /* mariadb-5.3 */ NULL DEFAULT NULL,
   `COALESCE(a1)` timestamp(1) /* mariadb-5.3 */ NULL DEFAULT NULL,
   `COALESCE(a2)` timestamp(2) /* mariadb-5.3 */ NULL DEFAULT NULL,
@@ -360,32 +360,32 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` timestamp(4) /* mariadb-5.3 */ NULL DEFAULT NULL,
   `COALESCE(a5)` timestamp(5) /* mariadb-5.3 */ NULL DEFAULT NULL,
   `COALESCE(a6)` timestamp(6) /* mariadb-5.3 */ NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a0` timestamp /* mariadb-5.3 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a0` timestamp /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mariadb-5.3 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mariadb-5.3 */ NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # Setting @@global.mysql56_temporal_format=true
 
 # CREATE..SELECT and SHOW
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a0` timestamp /* mysql-5.6 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `a0` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a0)` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a1)` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a2)` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
@@ -393,19 +393,19 @@ t2	CREATE TABLE `t2` (
   `COALESCE(a4)` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a5)` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
   `COALESCE(a6)` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # ALTER..FORCE and SHOW
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a0` timestamp /* mysql-5.6 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `a1` timestamp(1) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
-  `a2` timestamp(2) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
-  `a3` timestamp(3) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
-  `a4` timestamp(4) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
-  `a5` timestamp(5) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
-  `a6` timestamp(6) /* mysql-5.6 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a0` timestamp /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a1` timestamp(1) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a2` timestamp(2) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a3` timestamp(3) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a4` timestamp(4) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a5` timestamp(5) /* mysql-5.6 */ NULL DEFAULT NULL,
+  `a6` timestamp(6) /* mysql-5.6 */ NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET @@global.mysql56_temporal_format=DEFAULT;
 DROP PROCEDURE mdev16542;

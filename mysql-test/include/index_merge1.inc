@@ -512,7 +512,7 @@ DROP TABLE t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
 create table t2(a int, b int);
-insert into t2 values (1,1), (2, 1000);
+insert into t2 values (1,1), (2, 1000),(5000,5000);
 create table t3 (a int, b int, filler char(100), key(a), key(b));
 
 insert into t3 select 1000, 1000,'filler' from seq_1_to_1000;

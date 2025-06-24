@@ -51,7 +51,9 @@ eval CREATE TABLE tbl_a (
     PRIMARY KEY (id)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (id,node) VALUES (1,'DB-G0'),(2,'DB-G1');
+--enable_ps_protocol
 
 --echo
 --echo select test 1
@@ -64,6 +66,7 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 SELECT * FROM tbl_a;
+--sorted_result
 SELECT * FROM tbl_a WHERE id <0 || id >0;
 
 --connection child2_1

@@ -1,5 +1,5 @@
---- innodb-fts-ddl.result
-+++ innodb-fts-ddl.reject
+--- innodb-fts-ddl.result	2023-11-23 13:40:18.932463721 +0100
++++ innodb-fts-ddl,vers_trx.result	2024-04-09 11:45:57.097484346 +0200
 @@ -11,8 +11,10 @@
  ('MySQL vs. YourSQL','In the following database comparison ...'),
  ('MySQL Security','When configured properly, MySQL ...');
@@ -27,14 +27,14 @@
 @@ -76,8 +80,10 @@
  ('MySQL vs. YourSQL','In the following database comparison ...'),
  ('MySQL Security','When configured properly, MySQL ...');
- CREATE FULLTEXT INDEX idx on fts_test (title, body) LOCK=NONE;
+ ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY, LOCK=NONE;
 -ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 -ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
-+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned operations. Try LOCK=SHARED
++ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: Not implemented for system-versioned operations. Try ALGORITHM=COPY
 +ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body);
 +affected rows: 6
 +info: Records: 6  Duplicates: 0  Warnings: 0
- ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, LOCK=NONE;
+ ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
  ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
  ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
 @@ -162,7 +168,7 @@

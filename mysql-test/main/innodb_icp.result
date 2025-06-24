@@ -204,7 +204,7 @@ CREATE TABLE t3 (
 c1 TINYTEXT NOT NULL,
 i1 INT NOT NULL,
 KEY (c1(6),i1)
-);
+) CHARSET=latin1;
 INSERT INTO t3 SELECT CONCAT('c-',1000+t2.a,'=w'), 1 FROM t2;
 EXPLAIN
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w';
@@ -443,7 +443,7 @@ WHERE pk IN (SELECT it.pk FROM t2 JOIN t2 AS it ON it.i=it.i WHERE it.pk-t1.i<10
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
 2	DEPENDENT SUBQUERY	it	eq_ref	PRIMARY	PRIMARY	4	func	#	Using where
-2	DEPENDENT SUBQUERY	t2	index	NULL	PRIMARY	4	NULL	#	Using index; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE pk IN (SELECT it.pk FROM t2 JOIN t2 AS it ON it.i=it.i WHERE it.pk-t1.i<10);
 pk	i
@@ -461,9 +461,10 @@ c1 INT NOT NULL,
 PRIMARY KEY (pk)
 );
 INSERT INTO t1 VALUES (1,9),(2,7),(3,6),(4,3),(5,1);
+insert into t1 select seq,seq from seq_100_to_110;
 EXPLAIN SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	15	Using where
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 pk	c1
@@ -471,6 +472,17 @@ pk	c1
 2	7
 4	3
 5	1
+100	100
+101	101
+102	102
+103	103
+104	104
+105	105
+106	106
+107	107
+108	108
+109	109
+110	110
 DROP TABLE t1;
 set optimizer_switch= @save_optimizer_switch;
 #
@@ -654,7 +666,7 @@ set optimizer_switch= @tmp_778434;
 #
 # Bug#885168: ICP for one index + potential ORDER BY for another
 #
-CREATE TABLE t1 (a varchar(64), b varchar(10), INDEX(a), INDEX(b)) ;
+CREATE TABLE t1 (a varchar(64), b varchar(10), INDEX(a), INDEX(b)) CHARSET=latin1;
 INSERT INTO t1 VALUES 
 ('Ohio','Iowa'), ('k','d'), ('bdkpj','mbdkpjdanp'), ('d','xdmbdkpjda'),
 ('fkxdmbdkpjdanpje','o'), ('f','Pennsylvan'), ('Virginia','ei');
@@ -686,10 +698,9 @@ DROP TABLE t1;
 #
 # Bug#886145: join with ICP + ORDER BY  
 #
-CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
+CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,4,'Ill');
-insert into t1 select seq+100,5,seq from seq_1_to_100;
-CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
+CREATE TABLE t2 (a varchar(1024), KEY (a(512))) CHARSET=latin1;
 INSERT INTO t2 VALUES
 ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
 insert into t2 select seq from seq_1_to_100;
@@ -828,6 +839,8 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SET @save_optimize_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on';
+set @save_optimizer_where_cost=@@optimizer_where_cost;
+set @@optimizer_where_cost=1;
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS t, t2
 WHERE c = g
@@ -851,6 +864,7 @@ OR a = 0 AND h < 'z' );
 COUNT(*)
 1478
 SET optimizer_switch=@save_optimizer_switch;
+set @@optimizer_where_cost=@save_optimizer_where_cost;
 DROP TABLE t1,t2;
 # check "Handler_pushed" status varuiables
 CREATE TABLE t1 (
@@ -903,7 +917,7 @@ c1 TEXT       ,
 c2 VARCHAR(2) ,
 INDEX idx1 (c2,c1(2)),
 INDEX idx2 (c2,c1(1))
-);
+) CHARSET=latin1;
 INSERT INTO t1 (c1,c2) VALUES ('aa','x'), ('a' ,'y');
 SELECT * FROM t1 IGNORE INDEX(idx1,idx2) WHERE (c1='aa' AND c2='x') OR (c1='a'  AND c2='y');
 c1	c2

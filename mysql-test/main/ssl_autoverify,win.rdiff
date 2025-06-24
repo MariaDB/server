@@ -1,0 +1,31 @@
+--- ssl_autoverify.result	2024-02-08 23:55:13.779166100 +0100
++++ ssl_autoverify,win.reject	2024-02-08 23:55:46.988212400 +0100
+@@ -22,9 +22,9 @@
+ WARNING: option --ssl-verify-server-cert is disabled, because of an insecure passwordless login.
+ test.have_ssl()
+ yes
+-# mysql --protocol socket -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
++# mysql --protocol pipe -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+ test.have_ssl()
+-yes
++no
+ # mysql --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select test.have_ssl()"
+ test.have_ssl()
+ yes
+@@ -45,16 +45,6 @@
+ # mysql -umulti -ppw2 --ssl-verify-server-cert -e "select test.have_ssl()"
+ test.have_ssl()
+ yes
+->> MitM active <<
+-# mysql -uroot --disable-ssl-verify-server-cert -e "select 'Detecting MitM' as MitM, test.have_ssl()"
+-MitM	test.have_ssl()
+-No MitM found!	yes
+->> MitM active <<
+-# mysql -unative -pfoo --ssl-verify-server-cert -e "select 'Detecting MitM', test.have_ssl()"
+-ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+->> MitM active <<
+-# mysql -ued -pbar --ssl-verify-server-cert -e "select 'Detecting MitM', test.have_ssl()"
+-ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+ drop function have_ssl;
+ drop user native@'%';
+ drop user ed@'%';

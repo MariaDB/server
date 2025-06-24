@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, 2022, MariaDB Corporation.
+Copyright (c) 2018, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,771 +32,916 @@ Created 10/4/1994 Heikki Tuuri
 #include "log0recv.h"
 #include "rem0cmp.h"
 #include "gis0rtree.h"
+#ifdef UNIV_DEBUG
+# include "trx0roll.h"
+#endif
 
-#include <algorithm>
+/** Get the pad character code point for a type.
+@param type
+@return pad character code point
+@retval ULINT_UNDEFINED if no padding is specified */
+static ulint cmp_get_pad_char(const dtype_t &type) noexcept
+{
+  switch (type.mtype) {
+  default:
+    break;
+  case DATA_FIXBINARY:
+  case DATA_BINARY:
+    if (dtype_get_charset_coll(type.prtype) ==
+        DATA_MYSQL_BINARY_CHARSET_COLL)
+      /* Starting from 5.0.18, we do not pad VARBINARY or BINARY columns. */
+      break;
+    /* Fall through */
+  case DATA_CHAR:
+  case DATA_VARCHAR:
+  case DATA_MYSQL:
+  case DATA_VARMYSQL:
+    /* Space is the padding character for all char and binary
+    strings, and starting from 5.0.3, also for TEXT strings. */
+    return 0x20;
+  case DATA_BLOB:
+    if (!(type.prtype & DATA_BINARY_TYPE))
+      return 0x20;
+  }
 
-#ifdef BTR_CUR_HASH_ADAPT
-# ifdef UNIV_SEARCH_PERF_STAT
-static ulint	page_cur_short_succ;
-# endif /* UNIV_SEARCH_PERF_STAT */
+  /* No padding specified */
+  return ULINT_UNDEFINED;
+}
+
+/** Compare a data tuple to a physical record.
+@param rec    B-tree index record
+@param index  index B-tree
+@param tuple  search key
+@param match  matched fields << 16 | bytes
+@param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+@return the comparison result of dtuple and rec
+@retval 0 if dtuple is equal to rec
+@retval negative if dtuple is less than rec
+@retval positive if dtuple is greater than rec */
+static int cmp_dtuple_rec_bytes(const rec_t *rec,
+                                const dict_index_t &index,
+                                const dtuple_t &tuple, int *match, ulint comp)
+  noexcept
+{
+  ut_ad(dtuple_check_typed(&tuple));
+  ut_ad(page_rec_is_leaf(rec));
+  ut_ad(!(REC_INFO_MIN_REC_FLAG & dtuple_get_info_bits(&tuple)));
+  ut_ad(!!comp == index.table->not_redundant());
+
+  if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG & rec_get_info_bits(rec, comp)))
+  {
+    ut_d(const page_t *page= page_align(rec));
+    ut_ad(page_rec_is_first(rec, page));
+    ut_ad(!page_has_prev(page));
+    ut_ad(rec_is_metadata(rec, index));
+    *match= 0;
+    return 1;
+  }
+
+  ulint cur_field= *match >> 16;
+  ulint cur_bytes= uint16_t(*match);
+  ulint n_cmp= dtuple_get_n_fields_cmp(&tuple);
+  int ret= 0;
+
+  ut_ad(n_cmp <= dtuple_get_n_fields(&tuple));
+  ut_ad(cur_field <= n_cmp);
+  ut_ad(cur_field + !!cur_bytes <=
+        (index.is_primary() ? index.db_roll_ptr() : index.n_core_fields));
+
+  if (UNIV_LIKELY(comp != 0))
+  {
+    const byte *nulls= rec - REC_N_NEW_EXTRA_BYTES;
+    const byte *lens;
+    if (rec_get_status(rec) == REC_STATUS_INSTANT)
+    {
+      ulint n_fields= index.n_core_fields + rec_get_n_add_field(nulls) + 1;
+      ut_ad(n_fields <= index.n_fields);
+      const ulint n_nullable= index.get_n_nullable(n_fields);
+      ut_ad(n_nullable <= index.n_nullable);
+      lens= --nulls - UT_BITS_IN_BYTES(n_nullable);
+    }
+    else
+      lens= --nulls - index.n_core_null_bytes;
+    byte null_mask= 1;
+
+    size_t i= 0;
+    const dict_field_t *field= index.fields;
+    const dict_field_t *const end= field + tuple.n_fields_cmp;
+    const byte *f= rec;
+    do
+    {
+      const dict_col_t *col= field->col;
+      if (col->is_nullable())
+      {
+        const int is_null{*nulls & null_mask};
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
+        null_mask<<= 1;
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
+        if (UNIV_UNLIKELY(!null_mask))
+          null_mask= 1, nulls--;
+        if (is_null)
+        {
+          if (i < cur_field || tuple.fields[i].len == UNIV_SQL_NULL)
+            continue;
+          cur_bytes= 0;
+          ret= field->descending ? -1 : 1;
+          break;
+        }
+      }
+
+      size_t len= field->fixed_len;
+
+      if (!len)
+      {
+        len= *lens--;
+        if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col))
+        {
+          len<<= 8;
+          len|= *lens--;
+          ut_ad(!(len & 0x4000));
+          len&= 0x3fff;
+        }
+      }
+
+      if (i >= cur_field)
+      {
+        const dfield_t *const df= dtuple_get_nth_field(&tuple, i);
+        ut_ad(!dfield_is_ext(df));
+        if (df->len == UNIV_SQL_NULL)
+        {
+          ut_ad(cur_bytes == 0);
+        less:
+          ret= field->descending ? 1 : -1;
+          goto non_redundant_order_resolved;
+        }
+
+        switch (df->type.mtype) {
+        case DATA_FIXBINARY:
+        case DATA_BINARY:
+        case DATA_INT:
+        case DATA_SYS_CHILD:
+        case DATA_SYS:
+          break;
+        case DATA_BLOB:
+          if (df->type.prtype & DATA_BINARY_TYPE)
+            break;
+          /* fall through */
+        default:
+          cur_bytes= 0;
+          ret= cmp_data(df->type.mtype, df->type.prtype, field->descending,
+                        static_cast<const byte*>(df->data), df->len, f, len);
+          if (ret)
+            goto non_redundant_order_resolved;
+          goto next_field;
+        }
+
+        /* Set the pointers at the current byte */
+        const byte *rec_b_ptr= f + cur_bytes;
+        const byte *dtuple_b_ptr=
+          static_cast<const byte*>(df->data) + cur_bytes;
+        /* Compare then the fields */
+        for (const ulint pad= cmp_get_pad_char(df->type);; cur_bytes++)
+        {
+          const bool eod= df->len <= cur_bytes;
+          ulint rec_byte= pad, dtuple_byte= pad;
+
+          if (len > cur_bytes)
+            rec_byte= *rec_b_ptr++;
+          else if (eod)
+            break;
+          else if (rec_byte == ULINT_UNDEFINED)
+          {
+          greater:
+            ret= field->descending ? -1 : 1;
+            goto non_redundant_order_resolved;
+          }
+
+          if (!eod)
+            dtuple_byte= *dtuple_b_ptr++;
+          else if (dtuple_byte == ULINT_UNDEFINED)
+            goto less;
+
+          if (dtuple_byte == rec_byte);
+          else if (dtuple_byte < rec_byte)
+            goto less;
+          else
+            goto greater;
+        }
+
+        cur_bytes= 0;
+      }
+
+    next_field:
+      f+= len;
+    }
+    while (i++, ++field < end);
+
+    ut_ad(cur_bytes == 0);
+  non_redundant_order_resolved:
+    ut_ad(i >= cur_field);
+    cur_field= i;
+  }
+  else
+  {
+    for (; cur_field < n_cmp; cur_field++)
+    {
+      const dfield_t *df= dtuple_get_nth_field(&tuple, cur_field);
+      ut_ad(!dfield_is_ext(df));
+      size_t len;
+      const byte *rec_b_ptr= rec_get_nth_field_old(rec, cur_field, &len);
+      /* If we have matched yet 0 bytes, it may be that one or
+      both the fields are SQL null, or the record or dtuple may be
+      the predefined minimum record. */
+      if (df->len == UNIV_SQL_NULL)
+      {
+        ut_ad(cur_bytes == 0);
+        if (len == UNIV_SQL_NULL)
+          continue;
+      redundant_less:
+        ret= index.fields[cur_field].descending ? 1 : -1;
+        goto order_resolved;
+      }
+      else if (len == UNIV_SQL_NULL)
+      {
+        ut_ad(cur_bytes == 0);
+        /* We define the SQL null to be the smallest possible value */
+      redundant_greater:
+        ret= index.fields[cur_field].descending ? -1 : 1;
+        goto order_resolved;
+      }
+
+      switch (df->type.mtype) {
+      case DATA_FIXBINARY:
+      case DATA_BINARY:
+      case DATA_INT:
+      case DATA_SYS_CHILD:
+      case DATA_SYS:
+        break;
+      case DATA_BLOB:
+        if (df->type.prtype & DATA_BINARY_TYPE)
+          break;
+        /* fall through */
+      default:
+        ret= cmp_data(df->type.mtype, df->type.prtype,
+                      index.fields[cur_field].descending,
+                      static_cast<const byte*>(df->data), df->len,
+                      rec_b_ptr, len);
+        cur_bytes= 0;
+        if (!ret)
+          continue;
+        goto order_resolved;
+      }
+
+      /* Set the pointers at the current byte */
+      rec_b_ptr+= cur_bytes;
+      const byte *dtuple_b_ptr= static_cast<const byte*>(df->data) +
+        cur_bytes;
+      /* Compare then the fields */
+      for (const ulint pad= cmp_get_pad_char(df->type);; cur_bytes++)
+      {
+        const bool eod= df->len <= cur_bytes;
+        ulint rec_byte= pad, dtuple_byte= pad;
+
+        if (len > cur_bytes)
+          rec_byte= *rec_b_ptr++;
+        else if (eod)
+          break;
+        else if (rec_byte == ULINT_UNDEFINED)
+          goto redundant_greater;
+
+        if (!eod)
+          dtuple_byte= *dtuple_b_ptr++;
+        else if (dtuple_byte == ULINT_UNDEFINED)
+          goto redundant_less;
+
+        if (dtuple_byte == rec_byte);
+        else if (dtuple_byte < rec_byte)
+          goto redundant_less;
+        else if (dtuple_byte > rec_byte)
+          goto redundant_greater;
+      }
+
+      cur_bytes= 0;
+    }
+
+    ut_ad(cur_bytes == 0);
+  }
+
+order_resolved:
+  *match= int(cur_field << 16 | cur_bytes);
+  return ret;
+}
 
 /** Try a search shortcut based on the last insert.
-@param[in]	block			index page
-@param[in]	index			index tree
-@param[in]	tuple			search key
-@param[in,out]	iup_matched_fields	already matched fields in the
-upper limit record
-@param[in,out]	ilow_matched_fields	already matched fields in the
-lower limit record
-@param[out]	cursor			page cursor
+@param page        B-tree index leaf page
+@param rec         PAGE_LAST_INSERT record
+@param index       index B-tree
+@param tuple       search key
+@param iup_fields  matched fields in the upper limit record
+@param ilow_fields matched fields in the low limit record
+@param iup_bytes   matched bytes after iup_fields
+@param ilow_bytes  matched bytes after ilow_fields
 @return true on success */
-UNIV_INLINE
-bool
-page_cur_try_search_shortcut(
-	const buf_block_t*	block,
-	const dict_index_t*	index,
-	const dtuple_t*		tuple,
-	ulint*			iup_matched_fields,
-	ulint*			ilow_matched_fields,
-	page_cur_t*		cursor)
+static bool page_cur_try_search_shortcut_bytes(const page_t *page,
+                                               const rec_t *rec,
+                                               const dict_index_t &index,
+                                               const dtuple_t &tuple,
+                                               uint16_t *iup_fields,
+                                               uint16_t *ilow_fields,
+                                               uint16_t *iup_bytes,
+                                               uint16_t *ilow_bytes) noexcept
 {
-	const rec_t*	rec;
-	const rec_t*	next_rec;
-	ulint		low_match;
-	ulint		up_match;
-	ibool		success		= FALSE;
-	const page_t*	page		= buf_block_get_frame(block);
-	mem_heap_t*	heap		= NULL;
-	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	offsets		= offsets_;
-	rec_offs_init(offsets_);
+  ut_ad(page_rec_is_user_rec(rec));
+  int low= int(*ilow_fields << 16 | *ilow_bytes);
+  int up= int(*iup_fields << 16 | *iup_bytes);
+  up= low= std::min(low, up);
+  const auto comp= page_is_comp(page);
+  if (cmp_dtuple_rec_bytes(rec, index, tuple, &low, comp) < 0)
+    return false;
+  const rec_t *next;
+  if (UNIV_LIKELY(comp != 0))
+  {
+    if (!(next= page_rec_next_get<true>(page, rec)))
+      return false;
+    if (next != page + PAGE_NEW_SUPREMUM)
+    {
+    cmp_up:
+      if (cmp_dtuple_rec_bytes(rec, index, tuple, &up, comp) >= 0)
+        return false;
+      *iup_fields= uint16_t(up >> 16);
+      *iup_bytes= uint16_t(up);
+    }
+  }
+  else
+  {
+    if (!(next= page_rec_next_get<false>(page, rec)))
+      return false;
+    if (next != page + PAGE_OLD_SUPREMUM)
+      goto cmp_up;
+  }
 
-	ut_ad(dtuple_check_typed(tuple));
-	ut_ad(page_is_leaf(page));
-
-	rec = page_header_get_ptr(page, PAGE_LAST_INSERT);
-	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
-				  dtuple_get_n_fields(tuple), &heap);
-
-	ut_ad(rec);
-	ut_ad(page_rec_is_user_rec(rec));
-
-	low_match = up_match = std::min(*ilow_matched_fields,
-					*iup_matched_fields);
-
-	if (cmp_dtuple_rec_with_match(tuple, rec, offsets, &low_match) < 0) {
-		goto exit_func;
-	}
-
-	if (!(next_rec = page_rec_get_next_const(rec))) {
-		goto exit_func;
-	}
-
-	if (!page_rec_is_supremum(next_rec)) {
-		offsets = rec_get_offsets(next_rec, index, offsets,
-					  index->n_core_fields,
-					  dtuple_get_n_fields(tuple), &heap);
-
-		if (cmp_dtuple_rec_with_match(tuple, next_rec, offsets,
-					      &up_match) >= 0) {
-			goto exit_func;
-		}
-
-		*iup_matched_fields = up_match;
-	}
-
-	page_cur_position(rec, block, cursor);
-
-	*ilow_matched_fields = low_match;
-
-#ifdef UNIV_SEARCH_PERF_STAT
-	page_cur_short_succ++;
-#endif
-	success = TRUE;
-exit_func:
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-	return(success);
+  *ilow_fields= uint16_t(low >> 16);
+  *ilow_bytes= uint16_t(low);
+  return true;
 }
+
+bool page_cur_search_with_match_bytes(const dtuple_t &tuple,
+                                      page_cur_mode_t mode,
+                                      uint16_t *iup_fields,
+                                      uint16_t *ilow_fields,
+                                      page_cur_t *cursor,
+                                      uint16_t *iup_bytes,
+                                      uint16_t *ilow_bytes) noexcept
+{
+  ut_ad(dtuple_validate(&tuple));
+  ut_ad(!(tuple.info_bits & REC_INFO_MIN_REC_FLAG));
+  ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
+        mode == PAGE_CUR_G || mode == PAGE_CUR_GE);
+  const dict_index_t &index= *cursor->index;
+  const buf_block_t *const block= cursor->block;
+  const page_t *const page= block->page.frame;
+  ut_ad(page_is_leaf(page));
+  ut_d(page_check_dir(page));
+#ifdef UNIV_ZIP_DEBUG
+  if (const page_zip_des_t *page_zip= buf_block_get_page_zip(block))
+    ut_a(page_zip_validate(page_zip, page, &index));
+#endif /* UNIV_ZIP_DEBUG */
+  const auto comp= page_is_comp(page);
+
+  if (mode != PAGE_CUR_LE || page_get_direction(page) != PAGE_RIGHT);
+  else if (uint16_t last= page_header_get_offs(page, PAGE_LAST_INSERT))
+  {
+    const rec_t *rec= page + last;
+    if (page_header_get_field(page, PAGE_N_DIRECTION) > 2 &&
+        page_cur_try_search_shortcut_bytes(page, rec, index, tuple,
+                                           iup_fields, ilow_fields,
+                                           iup_bytes, ilow_bytes))
+    {
+      page_cur_position(rec, block, cursor);
+      return false;
+    }
+  }
+
+  /* If mode PAGE_CUR_G is specified, we are trying to position the
+  cursor to answer a query of the form "tuple < X", where tuple is the
+  input parameter, and X denotes an arbitrary physical record on the
+  page.  We want to position the cursor on the first X which satisfies
+  the condition. */
+  int up_cmp= int(*iup_fields << 16 | *iup_bytes);
+  int low_cmp= int(*ilow_fields << 16 | *ilow_bytes);
+
+  /* Perform binary search. First the search is done through the page
+  directory, after that as a linear search in the list of records
+  owned by the upper limit directory slot. */
+  size_t low= 0, up= ulint{page_dir_get_n_slots(page)} - 1;
+  const rec_t *mid_rec;
+
+  /* Perform binary search until the lower and upper limit directory
+  slots come to the distance 1 of each other */
+  while (up - low > 1)
+  {
+    const size_t mid= (low + up) / 2;
+    mid_rec= page_dir_slot_get_rec_validate(page,
+                                            page_dir_get_nth_slot(page, mid));
+    if (UNIV_UNLIKELY(!mid_rec))
+      return true;
+    int cur= std::min(low_cmp, up_cmp);
+    int cmp= cmp_dtuple_rec_bytes(mid_rec, index, tuple, &cur, comp);
+    if (cmp > 0)
+    low_slot_match:
+      low= mid, low_cmp= cur;
+    else if (cmp)
+    up_slot_match:
+      up= mid, up_cmp= cur;
+    else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE)
+      goto low_slot_match;
+    else
+      goto up_slot_match;
+  }
+
+  const rec_t *up_rec=
+    page_dir_slot_get_rec_validate(page, page_dir_get_nth_slot(page, up));
+  const rec_t *low_rec=
+    page_dir_slot_get_rec_validate(page, page_dir_get_nth_slot(page, low));
+  if (UNIV_UNLIKELY(!low_rec || !up_rec))
+    return true;
+
+  /* Perform linear search until the upper and lower records come to
+  distance 1 of each other. */
+
+  for (;;)
+  {
+    mid_rec= comp
+      ? page_rec_next_get<true>(page, low_rec)
+      : page_rec_next_get<false>(page, low_rec);
+    if (!mid_rec)
+      return true;
+    if (mid_rec == up_rec)
+      break;
+
+    int cur= std::min(low_cmp, up_cmp);
+    int cmp;
+
+    if (UNIV_UNLIKELY(rec_get_info_bits(mid_rec, comp) &
+                      REC_INFO_MIN_REC_FLAG))
+    {
+      ut_ad(!page_has_prev(page));
+      ut_ad(rec_is_metadata(mid_rec, index));
+      goto low_rec_match;
+    }
+
+    cmp= cmp_dtuple_rec_bytes(mid_rec, index, tuple, &cur, comp);
+
+    if (cmp > 0)
+    low_rec_match:
+      low_rec= mid_rec, low_cmp= cur;
+    else if (cmp)
+    up_rec_match:
+      up_rec= mid_rec, up_cmp= cur;
+    else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE)
+      goto low_rec_match;
+    else
+      goto up_rec_match;
+  }
+
+  page_cur_position(mode <= PAGE_CUR_GE ? up_rec : low_rec, block, cursor);
+  *iup_fields= uint16_t(up_cmp >> 16), *iup_bytes= uint16_t(up_cmp);
+  *ilow_fields= uint16_t(low_cmp >> 16), *ilow_bytes= uint16_t(low_cmp);
+  return false;
+}
+
+/** Compare a data tuple to a physical record.
+@tparam leaf  whether this must be a leaf page
+@param page   B-tree index page
+@param rec    B-tree index record
+@param index  index B-tree
+@param tuple  search key
+@param match  matched fields << 16 | bytes
+@param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+@return the comparison result of dtuple and rec
+@retval 0 if dtuple is equal to rec
+@retval negative if dtuple is less than rec
+@retval positive if dtuple is greater than rec */
+template<bool leaf= true>
+static int page_cur_dtuple_cmp(const dtuple_t &dtuple, const rec_t *rec,
+                               const dict_index_t &index,
+                               uint16_t *matched_fields, ulint comp) noexcept
+{
+  ut_ad(dtuple_check_typed(&dtuple));
+  ut_ad(!!comp == index.table->not_redundant());
+  ulint cur_field= *matched_fields;
+  ut_ad(dtuple.n_fields_cmp > 0);
+  ut_ad(dtuple.n_fields_cmp <= index.n_core_fields);
+  ut_ad(cur_field <= dtuple.n_fields_cmp);
+  ut_ad(leaf == page_rec_is_leaf(rec));
+  ut_ad(!leaf || !(rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG) ||
+        index.is_instant() ||
+        (index.is_primary() && trx_roll_crash_recv_trx &&
+         !trx_rollback_is_active));
+  ut_ad(!leaf || !(dtuple.info_bits & REC_INFO_MIN_REC_FLAG) ||
+        index.is_instant() ||
+        (index.is_primary() && trx_roll_crash_recv_trx &&
+         !trx_rollback_is_active));
+  ut_ad(leaf || !index.is_spatial() ||
+        dtuple.n_fields_cmp == DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1);
+  int ret= 0;
+
+  if (dtuple.info_bits & REC_INFO_MIN_REC_FLAG)
+  {
+    *matched_fields= 0;
+    return -!(rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG);
+  }
+  else if (rec_get_info_bits(rec, comp) & REC_INFO_MIN_REC_FLAG)
+  {
+    *matched_fields= 0;
+    return 1;
+  }
+
+  if (UNIV_LIKELY(comp != 0))
+  {
+    const byte *nulls= rec - REC_N_NEW_EXTRA_BYTES;
+    const byte *lens;
+    if (rec_get_status(rec) == REC_STATUS_INSTANT)
+    {
+      ulint n_fields= index.n_core_fields + rec_get_n_add_field(nulls) + 1;
+      ut_ad(n_fields <= index.n_fields);
+      const ulint n_nullable= index.get_n_nullable(n_fields);
+      ut_ad(n_nullable <= index.n_nullable);
+      lens= --nulls - UT_BITS_IN_BYTES(n_nullable);
+    }
+    else
+      lens= --nulls - index.n_core_null_bytes;
+    byte null_mask= 1;
+
+    size_t i= 0;
+    const dict_field_t *field= index.fields;
+    const dict_field_t *const end= field + dtuple.n_fields_cmp;
+    const byte *f= rec;
+    do
+    {
+      const dict_col_t *col= field->col;
+      if (col->is_nullable())
+      {
+        const int is_null{*nulls & null_mask};
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
+        null_mask<<= 1;
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
+        if (UNIV_UNLIKELY(!null_mask))
+          null_mask= 1, nulls--;
+        if (is_null)
+        {
+          if (i < cur_field || dtuple.fields[i].len == UNIV_SQL_NULL)
+            continue;
+          ret= field->descending ? -1 : 1;
+          break;
+        }
+      }
+
+      size_t len= field->fixed_len;
+
+      if (!len)
+      {
+        len= *lens--;
+        if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col))
+        {
+          len<<= 8;
+          len|= *lens--;
+          ut_ad(!(len & 0x4000));
+          len&= 0x3fff;
+        }
+      }
+
+      if (i >= cur_field)
+      {
+        const dfield_t *df= dtuple_get_nth_field(&dtuple, i);
+        ut_ad(!dfield_is_ext(df));
+        if (!leaf && i == DICT_INDEX_SPATIAL_NODEPTR_SIZE &&
+            index.is_spatial())
+        {
+          /* SPATIAL INDEX non-leaf records comprise
+          MBR (minimum bounding rectangle) and the child page number.
+          The function rtr_cur_restore_position() includes the
+          child page number in the search key, because the MBR alone
+          would not be unique. */
+          ut_ad(dtuple.fields[DICT_INDEX_SPATIAL_NODEPTR_SIZE].len == 4);
+          len= 4;
+        }
+        ret= cmp_data(df->type.mtype, df->type.prtype, field->descending,
+                      static_cast<const byte*>(df->data), df->len, f, len);
+        if (ret)
+          break;
+      }
+
+      f+= len;
+    }
+    while (i++, ++field < end);
+    ut_ad(i >= cur_field);
+    *matched_fields= uint16_t(i);
+  }
+  else
+  {
+    for (; cur_field < dtuple.n_fields_cmp; cur_field++)
+    {
+      const dfield_t *df= dtuple_get_nth_field(&dtuple, cur_field);
+      ut_ad(!dfield_is_ext(df));
+      size_t len;
+      const byte *f= rec_get_nth_field_old(rec, cur_field, &len);
+      ret= cmp_data(df->type.mtype, df->type.prtype,
+                    index.fields[cur_field].descending,
+                    static_cast<const byte*>(df->data), df->len, f, len);
+      if (ret)
+        break;
+    }
+    *matched_fields= uint16_t(cur_field);
+  }
+  return ret;
+}
+
+static int page_cur_dtuple_cmp(const dtuple_t &dtuple, const rec_t *rec,
+                               const dict_index_t &index,
+                               uint16_t *matched_fields, ulint comp, bool leaf)
+  noexcept
+{
+  return leaf
+    ? page_cur_dtuple_cmp<true>(dtuple, rec, index, matched_fields, comp)
+    : page_cur_dtuple_cmp<false>(dtuple, rec, index, matched_fields, comp);
+}
+
+#ifdef BTR_CUR_HASH_ADAPT
+bool btr_cur_t::check_mismatch(const dtuple_t &tuple, bool ge, ulint comp)
+  noexcept
+{
+  ut_ad(page_is_leaf(page_cur.block->page.frame));
+  ut_ad(page_rec_is_user_rec(page_cur.rec));
+
+  const rec_t *rec= page_cur.rec;
+  uint16_t match= 0;
+  int cmp= page_cur_dtuple_cmp(tuple, rec, *index(), &match, comp);
+  const auto uniq= dict_index_get_n_unique_in_tree(index());
+  ut_ad(match <= uniq);
+  ut_ad(match <= tuple.n_fields_cmp);
+  ut_ad(match < uniq || !cmp);
+
+  const page_t *const page= page_cur.block->page.frame;
+
+  if (UNIV_LIKELY(!ge))
+  {
+    if (cmp < 0)
+      return true;
+    low_match= match;
+    up_match= 0;
+    if (UNIV_LIKELY(comp != 0))
+    {
+      rec= page_rec_next_get<true>(page, rec);
+      if (!rec)
+        return true;
+      if (uintptr_t(rec - page) == PAGE_NEW_SUPREMUM)
+      le_supremum:
+        /* If we matched the full key at the end of a page (but not the index),
+        the adaptive hash index was successful. */
+        return page_has_next(page) && match < uniq;
+      switch (rec_get_status(rec)) {
+      case REC_STATUS_INSTANT:
+      case REC_STATUS_ORDINARY:
+        break;
+      default:
+        return true;
+      }
+    }
+    else
+    {
+      rec= page_rec_next_get<false>(page, rec);
+      if (!rec)
+        return true;
+      if (uintptr_t(rec - page) == PAGE_OLD_SUPREMUM)
+        goto le_supremum;
+    }
+    return page_cur_dtuple_cmp(tuple, rec, *index(), &up_match, comp) >= 0;
+  }
+  else
+  {
+    if (cmp > 0)
+      return true;
+    up_match= match;
+    if (match >= uniq)
+      return false;
+    match= 0;
+    if (!(rec= page_rec_get_prev_const(rec)))
+      return true;
+    if (uintptr_t(rec - page) == (comp ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM))
+      return page_has_prev(page);
+    if (UNIV_LIKELY(comp != 0))
+      switch (rec_get_status(rec)) {
+      case REC_STATUS_INSTANT:
+      case REC_STATUS_ORDINARY:
+        break;
+      default:
+        return true;
+      }
+    return page_cur_dtuple_cmp(tuple, rec, *index(), &match, comp) <= 0;
+  }
+}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Try a search shortcut based on the last insert.
-@param[in]	block			index page
-@param[in]	index			index tree
-@param[in]	tuple			search key
-@param[in,out]	iup_matched_fields	already matched fields in the
-upper limit record
-@param[in,out]	iup_matched_bytes	already matched bytes in the
-first partially matched field in the upper limit record
-@param[in,out]	ilow_matched_fields	already matched fields in the
-lower limit record
-@param[in,out]	ilow_matched_bytes	already matched bytes in the
-first partially matched field in the lower limit record
-@param[out]	cursor			page cursor
-@return true on success */
-UNIV_INLINE
-bool
-page_cur_try_search_shortcut_bytes(
-	const buf_block_t*	block,
-	const dict_index_t*	index,
-	const dtuple_t*		tuple,
-	ulint*			iup_matched_fields,
-	ulint*			iup_matched_bytes,
-	ulint*			ilow_matched_fields,
-	ulint*			ilow_matched_bytes,
-	page_cur_t*		cursor)
+@param page   index page
+@param rec    PAGE_LAST_INSERT record
+@param index  index tree
+@param tuple  search key
+@param iup    matched fields in the upper limit record
+@param ilow   matched fields in the lower limit record
+@param comp   nonzero if ROW_FORMAT=REDUNDANT is not being used
+@return record
+@return nullptr if the tuple was not found */
+static bool page_cur_try_search_shortcut(const page_t *page, const rec_t *rec,
+                                         const dict_index_t &index,
+                                         const dtuple_t &tuple,
+                                         uint16_t *iup, uint16_t *ilow,
+                                         ulint comp) noexcept
 {
-	const rec_t*	rec;
-	const rec_t*	next_rec;
-	ulint		low_match;
-	ulint		low_bytes;
-	ulint		up_match;
-	ulint		up_bytes;
-	ibool		success		= FALSE;
-	const page_t*	page		= buf_block_get_frame(block);
-	mem_heap_t*	heap		= NULL;
-	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	offsets		= offsets_;
-	rec_offs_init(offsets_);
+  ut_ad(dtuple_check_typed(&tuple));
+  ut_ad(page_rec_is_user_rec(rec));
 
-	ut_ad(dtuple_check_typed(tuple));
-	ut_ad(page_is_leaf(page));
+  uint16_t low= std::min(*ilow, *iup), up= low;
 
-	rec = page_header_get_ptr(page, PAGE_LAST_INSERT);
-	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
-				  dtuple_get_n_fields(tuple), &heap);
+  if (page_cur_dtuple_cmp(tuple, rec, index, &low, comp) < 0)
+    return false;
 
-	ut_ad(rec);
-	ut_ad(page_rec_is_user_rec(rec));
-	if (ut_pair_cmp(*ilow_matched_fields, *ilow_matched_bytes,
-			*iup_matched_fields, *iup_matched_bytes) < 0) {
-		up_match = low_match = *ilow_matched_fields;
-		up_bytes = low_bytes = *ilow_matched_bytes;
-	} else {
-		up_match = low_match = *iup_matched_fields;
-		up_bytes = low_bytes = *iup_matched_bytes;
-	}
+  if (comp)
+  {
+    rec= page_rec_next_get<true>(page, rec);
+    if (!rec)
+      return false;
+    if (rec != page + PAGE_NEW_SUPREMUM)
+    {
+    compare_next:
+      if (page_cur_dtuple_cmp(tuple, rec, index, &up, comp) >= 0)
+        return false;
+      *iup= up;
+    }
+  }
+  else
+  {
+    rec= page_rec_next_get<false>(page, rec);
+    if (!rec)
+      return false;
+    if (rec != page + PAGE_OLD_SUPREMUM)
+      goto compare_next;
+  }
 
-	if (cmp_dtuple_rec_with_match_bytes(
-		    tuple, rec, index, offsets, &low_match, &low_bytes) < 0) {
-		goto exit_func;
-	}
-
-	if (!(next_rec = page_rec_get_next_const(rec))) {
-		goto exit_func;
-	}
-
-	if (!page_rec_is_supremum(next_rec)) {
-		offsets = rec_get_offsets(next_rec, index, offsets,
-					  index->n_core_fields,
-					  dtuple_get_n_fields(tuple), &heap);
-
-		if (cmp_dtuple_rec_with_match_bytes(
-			    tuple, next_rec, index, offsets,
-			    &up_match, &up_bytes)
-		    >= 0) {
-			goto exit_func;
-		}
-
-		*iup_matched_fields = up_match;
-		*iup_matched_bytes = up_bytes;
-	}
-
-	page_cur_position(rec, block, cursor);
-
-	*ilow_matched_fields = low_match;
-	*ilow_matched_bytes = low_bytes;
-
-#ifdef UNIV_SEARCH_PERF_STAT
-	page_cur_short_succ++;
-#endif
-	success = TRUE;
-exit_func:
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-	return(success);
-}
-#endif /* BTR_CUR_HASH_ADAPT */
-
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-/****************************************************************//**
-Checks if the nth field in a record is a character type field which extends
-the nth field in tuple, i.e., the field is longer or equal in length and has
-common first characters.
-@return TRUE if rec field extends tuple field */
-static
-ibool
-page_cur_rec_field_extends(
-/*=======================*/
-	const dtuple_t*	tuple,	/*!< in: data tuple */
-	const rec_t*	rec,	/*!< in: record */
-	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: compare nth field */
-{
-	const dtype_t*	type;
-	const dfield_t*	dfield;
-	const byte*	rec_f;
-	ulint		rec_f_len;
-
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
-	dfield = dtuple_get_nth_field(tuple, n);
-
-	type = dfield_get_type(dfield);
-
-	rec_f = rec_get_nth_field(rec, offsets, n, &rec_f_len);
-
-	if (type->mtype == DATA_VARCHAR
-	    || type->mtype == DATA_CHAR
-	    || type->mtype == DATA_FIXBINARY
-	    || type->mtype == DATA_BINARY
-	    || type->mtype == DATA_BLOB
-	    || DATA_GEOMETRY_MTYPE(type->mtype)
-	    || type->mtype == DATA_VARMYSQL
-	    || type->mtype == DATA_MYSQL) {
-
-		if (dfield_get_len(dfield) != UNIV_SQL_NULL
-		    && rec_f_len != UNIV_SQL_NULL
-		    && rec_f_len >= dfield_get_len(dfield)
-		    && !cmp_data_data(type->mtype, type->prtype,
-				      dfield_get_data(dfield),
-				      dfield_get_len(dfield),
-				      rec_f, dfield_get_len(dfield))) {
-
-			return(TRUE);
-		}
-	}
-
-	return(FALSE);
-}
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-
-/****************************************************************//**
-Searches the right position for a page cursor. */
-bool
-page_cur_search_with_match(
-/*=======================*/
-	const dtuple_t*		tuple,	/*!< in: data tuple */
-	page_cur_mode_t		mode,	/*!< in: PAGE_CUR_L,
-					PAGE_CUR_LE, PAGE_CUR_G, or
-					PAGE_CUR_GE */
-	ulint*			iup_matched_fields,
-					/*!< in/out: already matched
-					fields in upper limit record */
-	ulint*			ilow_matched_fields,
-					/*!< in/out: already matched
-					fields in lower limit record */
-	page_cur_t*		cursor,	/*!< out: page cursor */
-	rtr_info_t*		rtr_info)/*!< in/out: rtree search stack */
-{
-	ulint		up;
-	ulint		low;
-	ulint		mid;
-	const page_t*	page;
-	const rec_t*	up_rec;
-	const rec_t*	low_rec;
-	const rec_t*	mid_rec;
-	ulint		up_matched_fields;
-	ulint		low_matched_fields;
-	ulint		cur_matched_fields;
-	int		cmp;
-	const dict_index_t* const index = cursor->index;
-	const buf_block_t* const block = cursor->block;
-#ifdef UNIV_ZIP_DEBUG
-	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
-#endif /* UNIV_ZIP_DEBUG */
-	mem_heap_t*	heap		= NULL;
-	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	offsets		= offsets_;
-	rec_offs_init(offsets_);
-
-	ut_ad(dtuple_validate(tuple));
-#ifdef UNIV_DEBUG
-# ifdef PAGE_CUR_DBG
-	if (mode != PAGE_CUR_DBG)
-# endif /* PAGE_CUR_DBG */
-# ifdef PAGE_CUR_LE_OR_EXTENDS
-		if (mode != PAGE_CUR_LE_OR_EXTENDS)
-# endif /* PAGE_CUR_LE_OR_EXTENDS */
-			ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE
-			      || mode == PAGE_CUR_G || mode == PAGE_CUR_GE
-			      || dict_index_is_spatial(index));
-#endif /* UNIV_DEBUG */
-	page = buf_block_get_frame(block);
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
-
-	ut_d(page_check_dir(page));
-	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
-
-#ifdef BTR_CUR_HASH_ADAPT
-	if (n_core
-	    && page_get_direction(page) == PAGE_RIGHT
-	    && page_header_get_offs(page, PAGE_LAST_INSERT)
-	    && mode == PAGE_CUR_LE
-	    && !index->is_spatial()
-	    && page_header_get_field(page, PAGE_N_DIRECTION) > 3
-	    && page_cur_try_search_shortcut(
-		    block, index, tuple,
-		    iup_matched_fields, ilow_matched_fields, cursor)) {
-		return false;
-	}
-# ifdef PAGE_CUR_DBG
-	if (mode == PAGE_CUR_DBG) {
-		mode = PAGE_CUR_LE;
-	}
-# endif
-#endif /* BTR_CUR_HASH_ADAPT */
-
-	/* If the mode is for R-tree indexes, use the special MBR
-	related compare functions */
-	if (index->is_spatial() && mode > PAGE_CUR_LE) {
-		/* For leaf level insert, we still use the traditional
-		compare function for now */
-		if (mode == PAGE_CUR_RTREE_INSERT && n_core) {
-			mode = PAGE_CUR_LE;
-		} else {
-			return rtr_cur_search_with_match(
-				block, (dict_index_t*)index, tuple, mode,
-				cursor, rtr_info);
-		}
-	}
-
-	/* The following flag does not work for non-latin1 char sets because
-	cmp_full_field does not tell how many bytes matched */
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-	ut_a(mode != PAGE_CUR_LE_OR_EXTENDS);
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-
-	/* If mode PAGE_CUR_G is specified, we are trying to position the
-	cursor to answer a query of the form "tuple < X", where tuple is
-	the input parameter, and X denotes an arbitrary physical record on
-	the page. We want to position the cursor on the first X which
-	satisfies the condition. */
-
-	up_matched_fields  = *iup_matched_fields;
-	low_matched_fields = *ilow_matched_fields;
-
-	/* Perform binary search. First the search is done through the page
-	directory, after that as a linear search in the list of records
-	owned by the upper limit directory slot. */
-
-	low = 0;
-	up = ulint(page_dir_get_n_slots(page)) - 1;
-
-	/* Perform binary search until the lower and upper limit directory
-	slots come to the distance 1 of each other */
-
-	while (up - low > 1) {
-		mid = (low + up) / 2;
-		const page_dir_slot_t* slot = page_dir_get_nth_slot(page, mid);
-		if (UNIV_UNLIKELY(!(mid_rec
-				    = page_dir_slot_get_rec_validate(slot)))) {
-			goto corrupted;
-		}
-		cur_matched_fields = std::min(low_matched_fields,
-					      up_matched_fields);
-
-		offsets = offsets_;
-		offsets = rec_get_offsets(
-			mid_rec, index, offsets, n_core,
-			dtuple_get_n_fields_cmp(tuple), &heap);
-
-		cmp = cmp_dtuple_rec_with_match(
-			tuple, mid_rec, offsets, &cur_matched_fields);
-
-		if (cmp > 0) {
-low_slot_match:
-			low = mid;
-			low_matched_fields = cur_matched_fields;
-
-		} else if (cmp) {
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			if (mode == PAGE_CUR_LE_OR_EXTENDS
-			    && page_cur_rec_field_extends(
-				    tuple, mid_rec, offsets,
-				    cur_matched_fields)) {
-
-				goto low_slot_match;
-			}
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-up_slot_match:
-			up = mid;
-			up_matched_fields = cur_matched_fields;
-
-		} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			   || mode == PAGE_CUR_LE_OR_EXTENDS
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-			   ) {
-			goto low_slot_match;
-		} else {
-
-			goto up_slot_match;
-		}
-	}
-
-	low_rec = page_dir_slot_get_rec_validate(
-		page_dir_get_nth_slot(page, low));
-	up_rec = page_dir_slot_get_rec_validate(
-		page_dir_get_nth_slot(page, up));
-	if (UNIV_UNLIKELY(!low_rec || !up_rec)) {
-corrupted:
-		if (UNIV_LIKELY_NULL(heap)) {
-			mem_heap_free(heap);
-		}
-		return true;
-	}
-
-	/* Perform linear search until the upper and lower records come to
-	distance 1 of each other. */
-
-	for (;;) {
-		if (const rec_t* next = page_rec_get_next_const(low_rec)) {
-			if (next == up_rec) {
-				break;
-			}
-			mid_rec = next;
-		} else {
-			goto corrupted;
-		}
-		cur_matched_fields = std::min(low_matched_fields,
-					      up_matched_fields);
-
-		offsets = offsets_;
-		offsets = rec_get_offsets(
-			mid_rec, index, offsets, n_core,
-			dtuple_get_n_fields_cmp(tuple), &heap);
-
-		cmp = cmp_dtuple_rec_with_match(
-			tuple, mid_rec, offsets, &cur_matched_fields);
-
-		if (cmp > 0) {
-low_rec_match:
-			low_rec = mid_rec;
-			low_matched_fields = cur_matched_fields;
-
-		} else if (cmp) {
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			if (mode == PAGE_CUR_LE_OR_EXTENDS
-			    && page_cur_rec_field_extends(
-				    tuple, mid_rec, offsets,
-				    cur_matched_fields)) {
-
-				goto low_rec_match;
-			}
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-up_rec_match:
-			up_rec = mid_rec;
-			up_matched_fields = cur_matched_fields;
-		} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			   || mode == PAGE_CUR_LE_OR_EXTENDS
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-			   ) {
-			if (!cmp && !cur_matched_fields) {
-#ifdef UNIV_DEBUG
-				mtr_t	mtr;
-				mtr_start(&mtr);
-
-				/* We got a match, but cur_matched_fields is
-				0, it must have REC_INFO_MIN_REC_FLAG */
-				ulint   rec_info = rec_get_info_bits(mid_rec,
-                                                     rec_offs_comp(offsets));
-				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
-				ut_ad(!page_has_prev(page));
-				mtr_commit(&mtr);
-#endif
-
-				cur_matched_fields = dtuple_get_n_fields_cmp(tuple);
-			}
-
-			goto low_rec_match;
-		} else {
-
-			goto up_rec_match;
-		}
-	}
-
-	if (mode <= PAGE_CUR_GE) {
-		page_cur_position(up_rec, block, cursor);
-	} else {
-		page_cur_position(low_rec, block, cursor);
-	}
-
-	*iup_matched_fields  = up_matched_fields;
-	*ilow_matched_fields = low_matched_fields;
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-
-	return false;
+  *ilow= low;
+  return true;
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
-/** Search the right position for a page cursor.
-@param[in]	block			buffer block
-@param[in]	index			index tree
-@param[in]	tuple			key to be searched for
-@param[in]	mode			search mode
-@param[in,out]	iup_matched_fields	already matched fields in the
-upper limit record
-@param[in,out]	iup_matched_bytes	already matched bytes in the
-first partially matched field in the upper limit record
-@param[in,out]	ilow_matched_fields	already matched fields in the
-lower limit record
-@param[in,out]	ilow_matched_bytes	already matched bytes in the
-first partially matched field in the lower limit record
-@param[out]	cursor			page cursor */
-bool
-page_cur_search_with_match_bytes(
-	const dtuple_t*		tuple,
-	page_cur_mode_t		mode,
-	ulint*			iup_matched_fields,
-	ulint*			iup_matched_bytes,
-	ulint*			ilow_matched_fields,
-	ulint*			ilow_matched_bytes,
-	page_cur_t*		cursor)
+bool page_cur_search_with_match(const dtuple_t *tuple, page_cur_mode_t mode,
+                                uint16_t *iup_fields, uint16_t *ilow_fields,
+                                page_cur_t *cursor, rtr_info_t *rtr_info)
+  noexcept
 {
-	ulint		up;
-	ulint		low;
-	const page_t*	page;
-	const rec_t*	up_rec;
-	const rec_t*	low_rec;
-	const rec_t*	mid_rec;
-	ulint		up_matched_fields;
-	ulint		up_matched_bytes;
-	ulint		low_matched_fields;
-	ulint		low_matched_bytes;
-	ulint		cur_matched_fields;
-	ulint		cur_matched_bytes;
-	int		cmp;
-	const dict_index_t* const index = cursor->index;
-	const buf_block_t* const block = cursor->block;
+  ut_ad(dtuple_validate(tuple));
+  ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
+        mode == PAGE_CUR_G || mode == PAGE_CUR_GE ||
+        cursor->index->is_spatial());
+  const dict_index_t &index= *cursor->index;
+  const buf_block_t *const block= cursor->block;
+  const page_t *const page= block->page.frame;
+  ut_d(page_check_dir(page));
 #ifdef UNIV_ZIP_DEBUG
-	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
+  if (const page_zip_des_t *page_zip= buf_block_get_page_zip(block))
+    ut_a(page_zip_validate(page_zip, page, &index));
 #endif /* UNIV_ZIP_DEBUG */
-	mem_heap_t*	heap		= NULL;
-	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	offsets		= offsets_;
-	rec_offs_init(offsets_);
+  const auto comp= page_is_comp(page);
+  const bool leaf{page_is_leaf(page)};
 
-	ut_ad(dtuple_validate(tuple));
-	ut_ad(!(tuple->info_bits & REC_INFO_MIN_REC_FLAG));
-#ifdef UNIV_DEBUG
-# ifdef PAGE_CUR_DBG
-	if (mode != PAGE_CUR_DBG)
-# endif /* PAGE_CUR_DBG */
-# ifdef PAGE_CUR_LE_OR_EXTENDS
-		if (mode != PAGE_CUR_LE_OR_EXTENDS)
-# endif /* PAGE_CUR_LE_OR_EXTENDS */
-			ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_LE
-			      || mode == PAGE_CUR_G || mode == PAGE_CUR_GE);
-#endif /* UNIV_DEBUG */
-	page = buf_block_get_frame(block);
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
+  /* If the mode is for R-tree indexes, use the special MBR
+  related compare functions */
+  if (mode == PAGE_CUR_RTREE_INSERT && leaf)
+  {
+    /* Leaf level insert uses the traditional compare function */
+    mode= PAGE_CUR_LE;
+    goto check_last_insert;
+  }
+  else if (mode > PAGE_CUR_LE)
+    return rtr_cur_search_with_match(block,
+                                     const_cast<dict_index_t*>(&index),
+                                     tuple, mode, cursor, rtr_info);
+  else if (mode == PAGE_CUR_LE && leaf)
+  {
+  check_last_insert:
+    if (page_get_direction(page) != PAGE_RIGHT ||
+        (tuple->info_bits & REC_INFO_MIN_REC_FLAG));
+    else if (uint16_t last= page_header_get_offs(page, PAGE_LAST_INSERT))
+    {
+      const rec_t *rec= page + last;
+      if (page_header_get_field(page, PAGE_N_DIRECTION) > 2 &&
+          page_cur_try_search_shortcut(page, rec, index, *tuple,
+                                       iup_fields, ilow_fields, comp))
+      {
+        page_cur_position(rec, block, cursor);
+        return false;
+      }
+    }
+  }
 
-	ut_d(page_check_dir(page));
+  /* If mode PAGE_CUR_G is specified, we are trying to position the
+  cursor to answer a query of the form "tuple < X", where tuple is the
+  input parameter, and X denotes an arbitrary physical record on the
+  page.  We want to position the cursor on the first X which satisfies
+  the condition. */
+  uint16_t up_fields= *iup_fields, low_fields= *ilow_fields;
 
-#ifdef BTR_CUR_HASH_ADAPT
-	if (page_is_leaf(page)
-	    && page_get_direction(page) == PAGE_RIGHT
-	    && page_header_get_offs(page, PAGE_LAST_INSERT)
-	    && mode == PAGE_CUR_LE
-	    && page_header_get_field(page, PAGE_N_DIRECTION) > 3
-	    && page_cur_try_search_shortcut_bytes(
-		    block, index, tuple,
-		    iup_matched_fields, iup_matched_bytes,
-		    ilow_matched_fields, ilow_matched_bytes,
-		    cursor)) {
-		return false;
-	}
-# ifdef PAGE_CUR_DBG
-	if (mode == PAGE_CUR_DBG) {
-		mode = PAGE_CUR_LE;
-	}
-# endif
-#endif /* BTR_CUR_HASH_ADAPT */
+  /* Perform binary search. First the search is done through the page
+  directory, after that as a linear search in the list of records
+  owned by the upper limit directory slot. */
+  size_t low= 0, up= ulint{page_dir_get_n_slots(page)} - 1;
+  const rec_t *mid_rec;
 
-	/* The following flag does not work for non-latin1 char sets because
-	cmp_full_field does not tell how many bytes matched */
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-	ut_a(mode != PAGE_CUR_LE_OR_EXTENDS);
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
+  /* Perform binary search until the lower and upper limit directory
+  slots come to the distance 1 of each other */
+  while (up - low > 1)
+  {
+    const size_t mid= (low + up) / 2;
+    mid_rec=
+      page_dir_slot_get_rec_validate(page, page_dir_get_nth_slot(page, mid));
+    if (UNIV_UNLIKELY(!mid_rec))
+      return true;
+    uint16_t cur= std::min(low_fields, up_fields);
+    int cmp= page_cur_dtuple_cmp(*tuple, mid_rec, index, &cur, comp, leaf);
+    if (cmp > 0)
+    low_slot_match:
+      low= mid, low_fields= cur;
+    else if (cmp)
+    up_slot_match:
+      up= mid, up_fields= cur;
+    else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE)
+      goto low_slot_match;
+    else
+      goto up_slot_match;
+  }
 
-	/* If mode PAGE_CUR_G is specified, we are trying to position the
-	cursor to answer a query of the form "tuple < X", where tuple is
-	the input parameter, and X denotes an arbitrary physical record on
-	the page. We want to position the cursor on the first X which
-	satisfies the condition. */
+  const rec_t *up_rec=
+    page_dir_slot_get_rec_validate(page, page_dir_get_nth_slot(page, up));;
+  const rec_t *low_rec=
+    page_dir_slot_get_rec_validate(page, page_dir_get_nth_slot(page, low));
+  if (UNIV_UNLIKELY(!low_rec || !up_rec))
+    return true;
 
-	up_matched_fields  = *iup_matched_fields;
-	up_matched_bytes  = *iup_matched_bytes;
-	low_matched_fields = *ilow_matched_fields;
-	low_matched_bytes  = *ilow_matched_bytes;
+  /* Perform linear search until the upper and lower records come to
+  distance 1 of each other. */
 
-	/* Perform binary search. First the search is done through the page
-	directory, after that as a linear search in the list of records
-	owned by the upper limit directory slot. */
+  for (;;)
+  {
+    mid_rec= comp
+      ? page_rec_next_get<true>(page, low_rec)
+      : page_rec_next_get<false>(page, low_rec);
+    if (!mid_rec)
+      return true;
+    if (mid_rec == up_rec)
+      break;
 
-	low = 0;
-	up = ulint(page_dir_get_n_slots(page)) - 1;
+    uint16_t cur= std::min(low_fields, up_fields);
+    int cmp= page_cur_dtuple_cmp(*tuple, mid_rec, index, &cur, comp, leaf);
+    if (cmp > 0)
+    low_rec_match:
+      low_rec= mid_rec, low_fields= cur;
+    else if (cmp)
+    up_rec_match:
+      up_rec= mid_rec, up_fields= cur;
+    else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE)
+    {
+      if (cur == 0)
+      {
+        /* A match on 0 fields must be due to REC_INFO_MIN_REC_FLAG */
+        ut_ad(rec_get_info_bits(mid_rec, comp) & REC_INFO_MIN_REC_FLAG);
+        ut_ad(!page_has_prev(page));
+        ut_ad(!leaf || rec_is_metadata(mid_rec, index));
+        cur= tuple->n_fields_cmp;
+      }
+      goto low_rec_match;
+    }
+    else
+      goto up_rec_match;
+  }
 
-	/* Perform binary search until the lower and upper limit directory
-	slots come to the distance 1 of each other */
-	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
-
-	while (up - low > 1) {
-		const ulint mid = (low + up) / 2;
-		mid_rec = page_dir_slot_get_rec_validate(
-			page_dir_get_nth_slot(page, mid));
-		if (UNIV_UNLIKELY(!mid_rec)) {
-			goto corrupted;
-		}
-
-		ut_pair_min(&cur_matched_fields, &cur_matched_bytes,
-			    low_matched_fields, low_matched_bytes,
-			    up_matched_fields, up_matched_bytes);
-
-		offsets = rec_get_offsets(
-			mid_rec, index, offsets_, n_core,
-			dtuple_get_n_fields_cmp(tuple), &heap);
-
-		cmp = cmp_dtuple_rec_with_match_bytes(
-			tuple, mid_rec, index, offsets,
-			&cur_matched_fields, &cur_matched_bytes);
-
-		if (cmp > 0) {
-low_slot_match:
-			low = mid;
-			low_matched_fields = cur_matched_fields;
-			low_matched_bytes = cur_matched_bytes;
-
-		} else if (cmp) {
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			if (mode == PAGE_CUR_LE_OR_EXTENDS
-			    && page_cur_rec_field_extends(
-				    tuple, mid_rec, offsets,
-				    cur_matched_fields)) {
-
-				goto low_slot_match;
-			}
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-up_slot_match:
-			up = mid;
-			up_matched_fields = cur_matched_fields;
-			up_matched_bytes = cur_matched_bytes;
-
-		} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			   || mode == PAGE_CUR_LE_OR_EXTENDS
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-			   ) {
-			goto low_slot_match;
-		} else {
-
-			goto up_slot_match;
-		}
-	}
-
-	low_rec = page_dir_slot_get_rec_validate(
-		page_dir_get_nth_slot(page, low));
-	up_rec = page_dir_slot_get_rec_validate(
-		page_dir_get_nth_slot(page, up));
-	if (UNIV_UNLIKELY(!low_rec || !up_rec)) {
-corrupted:
-		if (UNIV_LIKELY_NULL(heap)) {
-			mem_heap_free(heap);
-		}
-		return true;
-	}
-
-	/* Perform linear search until the upper and lower records come to
-	distance 1 of each other. */
-
-	for (;;) {
-		if (const rec_t* next = page_rec_get_next_const(low_rec)) {
-			if (next == up_rec) {
-				break;
-			}
-			mid_rec = next;
-		} else {
-			goto corrupted;
-		}
-		ut_pair_min(&cur_matched_fields, &cur_matched_bytes,
-			    low_matched_fields, low_matched_bytes,
-			    up_matched_fields, up_matched_bytes);
-
-		if (UNIV_UNLIKELY(rec_get_info_bits(
-					  mid_rec,
-					  dict_table_is_comp(index->table))
-				  & REC_INFO_MIN_REC_FLAG)) {
-			ut_ad(!page_has_prev(page_align(mid_rec)));
-			ut_ad(!page_rec_is_leaf(mid_rec)
-			      || rec_is_metadata(mid_rec, *index));
-			cmp = 1;
-			goto low_rec_match;
-		}
-
-		offsets = rec_get_offsets(
-			mid_rec, index, offsets_, n_core,
-			dtuple_get_n_fields_cmp(tuple), &heap);
-
-		cmp = cmp_dtuple_rec_with_match_bytes(
-			tuple, mid_rec, index, offsets,
-			&cur_matched_fields, &cur_matched_bytes);
-
-		if (cmp > 0) {
-low_rec_match:
-			low_rec = mid_rec;
-			low_matched_fields = cur_matched_fields;
-			low_matched_bytes = cur_matched_bytes;
-
-		} else if (cmp) {
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			if (mode == PAGE_CUR_LE_OR_EXTENDS
-			    && page_cur_rec_field_extends(
-				    tuple, mid_rec, offsets,
-				    cur_matched_fields)) {
-
-				goto low_rec_match;
-			}
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-up_rec_match:
-			up_rec = mid_rec;
-			up_matched_fields = cur_matched_fields;
-			up_matched_bytes = cur_matched_bytes;
-		} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_LE
-#ifdef PAGE_CUR_LE_OR_EXTENDS
-			   || mode == PAGE_CUR_LE_OR_EXTENDS
-#endif /* PAGE_CUR_LE_OR_EXTENDS */
-			   ) {
-			goto low_rec_match;
-		} else {
-
-			goto up_rec_match;
-		}
-	}
-
-	if (mode <= PAGE_CUR_GE) {
-		page_cur_position(up_rec, block, cursor);
-	} else {
-		page_cur_position(low_rec, block, cursor);
-	}
-
-	*iup_matched_fields  = up_matched_fields;
-	*iup_matched_bytes   = up_matched_bytes;
-	*ilow_matched_fields = low_matched_fields;
-	*ilow_matched_bytes  = low_matched_bytes;
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-	return false;
+  page_cur_position(mode <= PAGE_CUR_GE ? up_rec : low_rec, block, cursor);
+  *iup_fields= up_fields;
+  *ilow_fields= low_fields;
+  return false;
 }
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
@@ -839,7 +984,8 @@ static bool page_dir_split_slot(const buf_block_t &block,
                 PAGE_DIR_SLOT_MIN_N_OWNED, "compatibility");
 
   /* Find a record approximately in the middle. */
-  const rec_t *rec= page_dir_slot_get_rec_validate(slot + PAGE_DIR_SLOT_SIZE);
+  const rec_t *rec= page_dir_slot_get_rec_validate(block.page.frame,
+                                                   slot + PAGE_DIR_SLOT_SIZE);
 
   for (ulint i= n_owned / 2; i--; )
   {
@@ -872,8 +1018,10 @@ static bool page_dir_split_slot(const buf_block_t &block,
 
   mach_write_to_2(slot, rec - block.page.frame);
   const bool comp= page_is_comp(block.page.frame) != 0;
-  page_rec_set_n_owned(page_dir_slot_get_rec(slot), half_owned, comp);
-  page_rec_set_n_owned(page_dir_slot_get_rec(slot - PAGE_DIR_SLOT_SIZE),
+  page_rec_set_n_owned(page_dir_slot_get_rec(block.page.frame, slot),
+                       half_owned, comp);
+  page_rec_set_n_owned(page_dir_slot_get_rec(block.page.frame,
+                                             slot - PAGE_DIR_SLOT_SIZE),
                        n_owned - half_owned, comp);
   return false;
 }
@@ -899,7 +1047,8 @@ static void page_zip_dir_split_slot(buf_block_t *block, ulint s, mtr_t* mtr)
   /* 1. We loop to find a record approximately in the middle of the
   records owned by the slot. */
 
-  const rec_t *rec= page_dir_slot_get_rec(slot + PAGE_DIR_SLOT_SIZE);
+  const rec_t *rec= page_dir_slot_get_rec(block->page.frame,
+                                          slot + PAGE_DIR_SLOT_SIZE);
 
   /* We do not try to prevent crash on corruption here.
   For ROW_FORMAT=COMPRESSED pages, the next-record links should
@@ -926,10 +1075,13 @@ static void page_zip_dir_split_slot(buf_block_t *block, ulint s, mtr_t* mtr)
   /* Log changes to the compressed page header and the dense page directory. */
   memcpy_aligned<2>(&block->page.zip.data[n_slots_f], n_slots_p, 2);
   mach_write_to_2(slot, rec - block->page.frame);
-  page_rec_set_n_owned<true>(block, page_dir_slot_get_rec(slot), half_owned,
+  page_rec_set_n_owned<true>(block,
+                             page_dir_slot_get_rec(block->page.frame, slot),
+                             half_owned,
                              true, mtr);
   page_rec_set_n_owned<true>(block,
-                             page_dir_slot_get_rec(slot - PAGE_DIR_SLOT_SIZE),
+                             page_dir_slot_get_rec(block->page.frame,
+                                                   slot - PAGE_DIR_SLOT_SIZE),
                              n_owned - half_owned, true, mtr);
 }
 
@@ -957,12 +1109,15 @@ static void page_zip_dir_balance_slot(buf_block_t *block, ulint s, mtr_t *mtr)
 
 	page_dir_slot_t* slot = page_dir_get_nth_slot(block->page.frame, s);
 	rec_t* const up_rec = const_cast<rec_t*>
-		(page_dir_slot_get_rec(slot - PAGE_DIR_SLOT_SIZE));
+		(page_dir_slot_get_rec(block->page.frame,
+                                       slot - PAGE_DIR_SLOT_SIZE));
 	rec_t* const slot_rec = const_cast<rec_t*>
-		(page_dir_slot_get_rec(slot));
+		(page_dir_slot_get_rec(block->page.frame,
+                                       slot));
 	const ulint up_n_owned = rec_get_n_owned_new(up_rec);
 
-	ut_ad(rec_get_n_owned_new(page_dir_slot_get_rec(slot))
+	ut_ad(rec_get_n_owned_new(page_dir_slot_get_rec(block->page.frame,
+                                                        slot))
 	      == PAGE_DIR_SLOT_MIN_N_OWNED - 1);
 
 	if (up_n_owned <= PAGE_DIR_SLOT_MIN_N_OWNED) {
@@ -1026,9 +1181,10 @@ static void page_dir_balance_slot(const buf_block_t &block, ulint s)
 
 	page_dir_slot_t* slot = page_dir_get_nth_slot(block.page.frame, s);
 	rec_t* const up_rec = const_cast<rec_t*>
-		(page_dir_slot_get_rec(slot - PAGE_DIR_SLOT_SIZE));
+		(page_dir_slot_get_rec(block.page.frame,
+				       slot - PAGE_DIR_SLOT_SIZE));
 	rec_t* const slot_rec = const_cast<rec_t*>
-		(page_dir_slot_get_rec(slot));
+		(page_dir_slot_get_rec(block.page.frame, slot));
 	const ulint up_n_owned = comp
 		? rec_get_n_owned_new(up_rec)
 		: rec_get_n_owned_old(up_rec);
@@ -1371,8 +1527,7 @@ page_cur_insert_rec_low(
   ut_ad(!!page_is_comp(block->page.frame) == !!rec_offs_comp(offsets));
   ut_ad(fil_page_index_page_check(block->page.frame));
   ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + block->page.frame) ==
-        index->id ||
-        mtr->is_inside_ibuf());
+        index->id || index->is_dummy);
   ut_ad(page_dir_get_n_slots(block->page.frame) >= 2);
 
   ut_ad(!page_rec_is_supremum(cur->rec));
@@ -1772,11 +1927,6 @@ static inline void page_zip_dir_add_slot(buf_block_t *block,
 Inserts a record next to page cursor on a compressed and uncompressed
 page.
 
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
 @return pointer to inserted record
 @return nullptr on failure */
 rec_t*
@@ -1800,8 +1950,8 @@ page_cur_insert_rec_zip(
   ut_ad(rec_offs_comp(offsets));
   ut_ad(fil_page_get_type(page) == FIL_PAGE_INDEX ||
         fil_page_get_type(page) == FIL_PAGE_RTREE);
-  ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + page) ==
-        index->id || mtr->is_inside_ibuf());
+  ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + page) == index->id ||
+        index->is_dummy);
   ut_ad(!page_get_instant(page));
   ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
@@ -2269,8 +2419,7 @@ page_cur_delete_rec(
 	      == index->table->not_redundant());
 	ut_ad(fil_page_index_page_check(block->page.frame));
 	ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + block->page.frame)
-	      == index->id
-	      || mtr->is_inside_ibuf());
+	      == index->id || index->is_dummy);
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	/* The record must not be the supremum or infimum record. */
@@ -2314,7 +2463,8 @@ page_cur_delete_rec(
 	left at the next record. */
 
 	rec = const_cast<rec_t*>
-		(page_dir_slot_get_rec(cur_dir_slot + PAGE_DIR_SLOT_SIZE));
+		(page_dir_slot_get_rec(block->page.frame,
+				       cur_dir_slot + PAGE_DIR_SLOT_SIZE));
 
 	/* rec now points to the record of the previous directory slot. Look
 	for the immediate predecessor of current_rec in a loop. */
@@ -2343,7 +2493,8 @@ page_cur_delete_rec(
 	ut_ad(cur_n_owned > 1);
 
 	rec_t* slot_rec = const_cast<rec_t*>
-		(page_dir_slot_get_rec(cur_dir_slot));
+		(page_dir_slot_get_rec(block->page.frame,
+				       cur_dir_slot));
 
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 		ut_ad(page_is_comp(block->page.frame));

@@ -525,7 +525,7 @@ bool is_proxy_protocol_allowed(const sockaddr *addr)
 
   /*
    Non-TCP addresses (unix domain socket, windows pipe and shared memory
-   gets tranlated to TCP4 localhost address.
+   gets translated to TCP4 localhost address.
 
    Note, that vio remote addresses are initialized with binary zeros
    for these protocols (which is AF_UNSPEC everywhere).

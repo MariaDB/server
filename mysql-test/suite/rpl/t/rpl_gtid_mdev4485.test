@@ -13,7 +13,7 @@ create table t2 (i int);
 
 set default_master_connection = 'm2';
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
-eval change master to master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_use_gtid=slave_pos;
+eval change master to master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
 --connection server_2

@@ -342,11 +342,8 @@ public:
   );
   longlong num_rows() override;
   uint num_fields() override;
-  void move_to_pos(
-    longlong pos
-  ) override;
+  void move_to_pos(longlong pos) override;
   int get_errno() override;
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   int fetch_columns_for_discover_table_structure(
     spider_string *str,
     CHARSET_INFO *access_charset
@@ -360,7 +357,6 @@ public:
     SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
   ) override;
-#endif
 };
 
 class spider_db_mysql_result: public spider_db_mbase_result
@@ -394,12 +390,6 @@ public:
   const char     *lock_table_hash_func_name;
   const char     *lock_table_hash_file_name;
   ulong          lock_table_hash_line_no;
-  DYNAMIC_ARRAY  handler_open_array;
-  bool           handler_open_array_inited;
-  uint           handler_open_array_id;
-  const char     *handler_open_array_func_name;
-  const char     *handler_open_array_file_name;
-  ulong          handler_open_array_line_no;
   spider_db_mbase(
     SPIDER_CONN *conn,
     spider_db_mbase_util *spider_db_mbase_utility
@@ -517,6 +507,10 @@ public:
     int wait_timeout,
     int *need_mon
   ) override;
+
+  /** Reset the global lock wait time out */
+  int reset_lock_wait_timeout();
+
   bool set_sql_mode_in_bulk_sql() override;
   int set_sql_mode(
     sql_mode_t sql_mode,
@@ -569,13 +563,9 @@ public:
   int append_lock_tables(
     spider_string *str
   ) override;
-  int append_unlock_tables(
-    spider_string *str
-  ) override;
+  int append_unlock_tables(spider_string *str) override;
   uint get_lock_table_hash_count() override;
   void reset_lock_table_hash() override;
-  uint get_opened_handler_count() override;
-  void reset_opened_handler() override;
   void set_dup_key_idx(
     ha_spider *spider,
     int link_idx
@@ -662,13 +652,11 @@ public:
     int *table_name_pos
   );
   bool need_change_db_table_name() override;
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   int discover_table_structure(
     SPIDER_TRX *trx,
     SPIDER_SHARE *spider_share,
     spider_string *str
   ) override;
-#endif
   bool checksum_support() override;
 protected:
   int create_table_names_str();
@@ -1084,9 +1072,7 @@ public:
   void set_order_pos(
     ulong sql_type
   ) override;
-  void set_order_to_pos(
-    ulong sql_type
-  ) override;
+  void set_order_to_pos(ulong sql_type) override;
   int append_group_by_part(
     const char *alias,
     uint alias_length,
@@ -1188,26 +1174,6 @@ public:
   int append_multi_range_cnt_with_name(
     spider_string *str,
     uint multi_range_cnt
-  );
-  int append_open_handler_part(
-    ulong sql_type,
-    uint handler_id,
-    SPIDER_CONN *conn,
-    int link_idx
-  ) override;
-  int append_open_handler(
-    spider_string *str,
-    uint handler_id,
-    SPIDER_CONN *conn,
-    int link_idx
-  );
-  int append_close_handler_part(
-    ulong sql_type,
-    int link_idx
-  ) override;
-  int append_close_handler(
-    spider_string *str,
-    int link_idx
   );
   int append_insert_terminator_part(
     ulong sql_type
@@ -1350,9 +1316,7 @@ public:
   int realloc_sql(
     ulong *realloced
   ) override;
-  int reset_sql(
-    ulong sql_type
-  ) override;
+  int reset_sql(ulong sql_type) override;
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
@@ -1381,27 +1345,15 @@ public:
     int sts_mode,
     uint flag
   ) override;
-  int crd_mode_exchange(
-    int crd_mode
-  ) override;
-  int show_index(
-    int link_idx,
-    int crd_mode
-  ) override;
+  int crd_mode_exchange(int crd_mode) override;
+  int show_index(int link_idx, int crd_mode) override;
   int simple_action(
     uint simple_action,
     int link_idx
   );
-  int show_records(
-    int link_idx
-  ) override;
-  int checksum_table(
-    int link_idx
-  ) override;
-  int show_last_insert_id(
-    int link_idx,
-    ulonglong &last_insert_id
-  ) override;
+  int show_records(int link_idx) override;
+  int checksum_table(int link_idx) override;
+  int show_last_insert_id(int link_idx, ulonglong &last_insert_id) override;
   ha_rows explain_select(
     const key_range *start_key,
     const key_range *end_key,
@@ -1448,19 +1400,8 @@ public:
     SPIDER_CONN *conn,
     int link_idx
   ) override;
-  int insert_opened_handler(
-    SPIDER_CONN *conn,
-    int link_idx
-  ) override;
-  int delete_opened_handler(
-    SPIDER_CONN *conn,
-    int link_idx
-  ) override;
   int sync_from_clone_source(
     spider_db_handler *dbton_hdl
-  ) override;
-  bool support_use_handler(
-    int use_handler
   ) override;
   void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(

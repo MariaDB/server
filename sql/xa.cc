@@ -43,7 +43,7 @@ class XID_cache_element
 {
   /*
     m_state is used to prevent elements from being deleted while XA RECOVER
-    iterates xid cache and to prevent recovered elments from being acquired by
+    iterates xid cache and to prevent recovered elements from being acquired by
     multiple threads.
 
     bits 1..29 are reference counter
@@ -78,7 +78,7 @@ public:
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
   enum xa_states xa_state;
-  XID xid;
+  XA_data xid;
   bool is_set(int32_t flag)
   { return m_state.load(std::memory_order_relaxed) & flag; }
   void set(int32_t flag)
@@ -141,6 +141,7 @@ public:
   {
     XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
     element->m_state= 0;
+    new(&element->xid) XA_data();
   }
   static void lf_alloc_destructor(uchar *ptr)
   {
@@ -178,6 +179,12 @@ void XID_STATE::set_error(uint error)
 {
   if (is_explicit_XA())
     xid_cache_element->rm_error= error;
+}
+
+void XID_STATE::set_online_alter_cache(Online_alter_cache_list *cache)
+{
+  if (is_explicit_XA())
+    xid_cache_element->xid.online_alter_cache= cache;
 }
 
 void XID_STATE::set_rollback_only()
@@ -408,7 +415,7 @@ bool xa_trans_force_rollback(THD *thd)
     rc= true;
   }
   thd->variables.option_bits&=
-    ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_GTID_BEGIN);
+    ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX | OPTION_GTID_BEGIN);
   thd->transaction->all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -568,11 +575,9 @@ bool trans_xa_prepare(THD *thd)
         ha_prepare(thd))
     {
       if (!mdl_request.ticket)
-      {
         /* Failed to get the backup lock */
         ha_rollback_trans(thd, TRUE);
-      }
-      thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+      thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
       thd->transaction->all.reset();
       thd->server_status&=
         ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -657,9 +662,8 @@ bool trans_xa_commit(THD *thd)
       MDL_request mdl_request;
       bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
-      if (rw_trans && thd->is_read_only_ctx())
+      if (rw_trans && thd->check_read_only_with_error())
       {
-        my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
         res= 1;
         goto _end_external_xid;
       }
@@ -679,8 +683,7 @@ bool trans_xa_commit(THD *thd)
       DBUG_ASSERT(!xid_state.xid_cache_element);
 
       xid_state.xid_cache_element= xs;
-      ha_commit_or_rollback_by_xid(thd->lex->xid, !res);
-
+      ha_commit_or_rollback_by_xid(&xs->xid, !res);
       if (!res && thd->is_error())
       {
         // hton completion error retains xs/xid in the cache,
@@ -703,11 +706,10 @@ bool trans_xa_commit(THD *thd)
     DBUG_RETURN(res);
   }
 
-  if (thd->transaction->all.is_trx_read_write() && thd->is_read_only_ctx())
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+  if (thd->transaction->all.is_trx_read_write() && thd->check_read_only_with_error())
     DBUG_RETURN(TRUE);
-  } else if (xa_trans_rolled_back(xid_state.xid_cache_element))
+
+  if (xa_trans_rolled_back(xid_state.xid_cache_element))
   {
     xa_trans_force_rollback(thd);
     DBUG_RETURN(thd->is_error());
@@ -765,7 +767,7 @@ bool trans_xa_commit(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
@@ -818,9 +820,8 @@ bool trans_xa_rollback(THD *thd)
       bool xid_deleted= false;
       bool rw_trans= (xs->rm_error != ER_XA_RBROLLBACK);
 
-      if (rw_trans && thd->is_read_only_ctx())
+      if (rw_trans && thd->check_read_only_with_error())
       {
-        my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
         res= 1;
         goto _end_external_xid;
       }
@@ -840,7 +841,7 @@ bool trans_xa_rollback(THD *thd)
       DBUG_ASSERT(!xid_state.xid_cache_element);
 
       xid_state.xid_cache_element= xs;
-      ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
+      ha_commit_or_rollback_by_xid(&xs->xid, 0);
       if (!res && thd->is_error())
       {
         goto _end_external_xid;
@@ -859,11 +860,10 @@ bool trans_xa_rollback(THD *thd)
     DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
 
-  if (thd->transaction->all.is_trx_read_write() && thd->is_read_only_ctx())
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+  if (thd->transaction->all.is_trx_read_write() && thd->check_read_only_with_error())
     DBUG_RETURN(TRUE);
-  } else if (xid_state.xid_cache_element->xa_state == XA_ACTIVE)
+
+  if (xid_state.xid_cache_element->xa_state == XA_ACTIVE)
   {
     xid_state.er_xaer_rmfail();
     DBUG_RETURN(TRUE);
@@ -1146,7 +1146,7 @@ bool mysql_xa_recover(THD *thd)
 
 static bool slave_applier_reset_xa_trans(THD *thd)
 {
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -1177,5 +1177,10 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   thd->has_waiter= false;
   MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi); // TODO/Fixme: commit?
   thd->m_transaction_psi= NULL;
+  if (thd->variables.pseudo_slave_mode && thd->variables.pseudo_thread_id == 0)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		 ER_PSEUDO_THREAD_ID_OVERWRITE,
+		 ER_THD(thd, ER_PSEUDO_THREAD_ID_OVERWRITE));
+  thd->variables.pseudo_thread_id= 0;
   return thd->is_error();
 }

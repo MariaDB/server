@@ -548,3 +548,305 @@ SELECT SETVAL (v,0);
 ERROR 42S02: 'test.v' is not a SEQUENCE
 UNLOCK TABLES;
 DROP VIEW v;
+#
+# MDEV-28152 Features for sequence
+#
+create or replace sequence t1 as tinyint unsigned minvalue 1 maxvalue 2;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` as tinyint unsigned start with 1 minvalue 1 maxvalue 2 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_not_cached_value` tinyint(5) unsigned NOT NULL,
+  `minimum_value` tinyint(5) unsigned NOT NULL,
+  `maximum_value` tinyint(5) unsigned NOT NULL,
+  `start_value` tinyint(5) unsigned NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	2	1	1	1000	0	0
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+next value for t1
+2
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+create or replace sequence t1 as tinyint unsigned minvalue 1 maxvalue 2 cycle;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` as tinyint unsigned start with 1 minvalue 1 maxvalue 2 increment by 1 cache 1000 cycle ENGINE=MyISAM
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_not_cached_value` tinyint(5) unsigned NOT NULL,
+  `minimum_value` tinyint(5) unsigned NOT NULL,
+  `maximum_value` tinyint(5) unsigned NOT NULL,
+  `start_value` tinyint(5) unsigned NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	2	1	1	1000	1	0
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+next value for t1
+2
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 minvalue -23 maxvalue 99999 as tinyint;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` as tinyint start with -23 minvalue -23 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_not_cached_value` tinyint(5) NOT NULL,
+  `minimum_value` tinyint(5) NOT NULL,
+  `maximum_value` tinyint(5) NOT NULL,
+  `start_value` tinyint(5) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+-23	-23	126	-23	1	1000	0	0
+select next value for t1;
+next value for t1
+-23
+select next value for t1;
+next value for t1
+-22
+select next value for t1;
+next value for t1
+-21
+create or replace sequence t1 as bigint unsigned start with 18446744073709551614;
+select previous value for t1;
+previous value for t1
+NULL
+select next value for t1;
+next value for t1
+18446744073709551614
+select previous value for t1;
+previous value for t1
+18446744073709551614
+create or replace sequence t1 as tinyint start with 126;
+select next value for t1;
+next value for t1
+126
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as tinyint unsigned start with 254;
+select next value for t1;
+next value for t1
+254
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as smallint start with 32766;
+select next value for t1;
+next value for t1
+32766
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as smallint unsigned start with 65534;
+select next value for t1;
+next value for t1
+65534
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as mediumint start with 8388606;
+select next value for t1;
+next value for t1
+8388606
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as mediumint unsigned start with 16777214;
+select next value for t1;
+next value for t1
+16777214
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as int start with 2147483646;
+select next value for t1;
+next value for t1
+2147483646
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as int unsigned start with 4294967294;
+select next value for t1;
+next value for t1
+4294967294
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as bigint start with 9223372036854775806;
+select next value for t1;
+next value for t1
+9223372036854775806
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as bigint unsigned start with 18446744073709551614;
+select next value for t1;
+next value for t1
+18446744073709551614
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+1
+create or replace sequence t1 as tinyint start with -127 increment -1;
+select next value for t1;
+next value for t1
+-127
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+-1
+create or replace sequence t1 as tinyint unsigned start with 1 increment -1;
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+254
+create or replace sequence t1 as smallint start with -32767 increment -1;
+select next value for t1;
+next value for t1
+-32767
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+-1
+create or replace sequence t1 as smallint unsigned start with 1 increment -1;
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+65534
+create or replace sequence t1 as mediumint start with -8388607 increment -1;
+select next value for t1;
+next value for t1
+-8388607
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+-1
+create or replace sequence t1 as mediumint unsigned start with 1 increment -1;
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+16777214
+create or replace sequence t1 as int start with -2147483647 increment -1;
+select next value for t1;
+next value for t1
+-2147483647
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+-1
+create or replace sequence t1 as int unsigned start with 1 increment -1;
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+4294967294
+create or replace sequence t1 as bigint start with -9223372036854775807 increment -1;
+select next value for t1;
+next value for t1
+-9223372036854775807
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+-1
+create or replace sequence t1 as bigint unsigned start with 1 increment -1;
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+alter sequence t1 cycle;
+select next value for t1;
+next value for t1
+18446744073709551614
+drop sequence t1;
+#
+# End of 11.5 tests
+#

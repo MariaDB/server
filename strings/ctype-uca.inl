@@ -36,6 +36,7 @@
 #error MY_UCA_COLL_INIT is not defined
 #endif
 
+
 #include "ctype-uca-scanner_next.inl"
 #define SCANNER_NEXT_NCHARS
 #include "ctype-uca-scanner_next.inl"
@@ -92,16 +93,27 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
+  my_uca_scanner_param param;
   int s_res;
   int t_res;
-  
-  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
-  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+
+#if MY_UCA_ASCII_OPTIMIZE
+{
+  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
+                                                          s, slen, t, tlen);
+  s+= prefix, slen-= prefix;
+  t+= prefix, tlen-= prefix;
+}
+#endif
+
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
   
   do
   {
-    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner);
-    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner);
+    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner, &param);
+    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
   } while ( s_res == t_res && s_res >0);
   
   return  (t_is_prefix && t_res < 0) ? 0 : (s_res - t_res);
@@ -131,12 +143,15 @@ MY_FUNCTION_NAME(strnncoll_multilevel)(CHARSET_INFO *cs,
                                        const uchar *t, size_t tlen,
                                        my_bool t_is_prefix)
 {
-  uint i, num_level= cs->levels_for_order;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags= cs->levels_for_order;
+  for (i= 0; level_flags; i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[i],
-                                                  s, slen, t, tlen,
-                                                  t_is_prefix);
+    int ret;
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[i],
+                                              s, slen, t, tlen,
+                                              t_is_prefix);
     if (ret)
        return ret;
   }
@@ -198,15 +213,26 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
                                        const uchar *t, size_t tlen)
 {
   my_uca_scanner sscanner, tscanner;
+  my_uca_scanner_param param;
   int s_res, t_res;
 
-  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
-  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+#if MY_UCA_ASCII_OPTIMIZE
+{
+  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
+                                                          s, slen, t, tlen);
+  s+= prefix, slen-= prefix;
+  t+= prefix, tlen-= prefix;
+}
+#endif
+
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
 
   do
   {
-    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner);
-    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner);
+    s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner, &param);
+    t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
   } while ( s_res == t_res && s_res >0);
 
   if (s_res > 0 && t_res < 0)
@@ -219,7 +245,7 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
     {
       if (s_res != t_res)
         return (s_res - t_res);
-      s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner);
+      s_res= MY_FUNCTION_NAME(scanner_next)(&sscanner, &param);
     } while (s_res > 0);
     return 0;
   }
@@ -234,7 +260,7 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
     {
       if (s_res != t_res)
         return (s_res - t_res);
-      t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner);
+      t_res= MY_FUNCTION_NAME(scanner_next)(&tscanner, &param);
     } while (t_res > 0);
     return 0;
   }
@@ -277,12 +303,14 @@ MY_FUNCTION_NAME(strnncollsp_multilevel)(CHARSET_INFO *cs,
                                          const uchar *s, size_t slen,
                                          const uchar *t, size_t tlen)
 {
-
-  uint i, num_level= cs->levels_for_order;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags= cs->levels_for_order;
+  for (i= 0; level_flags; i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncollsp_onelevel)(cs, &cs->uca->level[i],
-                                                    s, slen, t, tlen);
+    int ret;
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncollsp_onelevel)(cs, &cs->uca->level[i],
+                                                s, slen, t, tlen);
     if (ret)
       return ret;
   }
@@ -298,12 +326,63 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
                                                const uchar *s, size_t slen,
                                                const uchar *t, size_t tlen)
 {
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags;
+  int ret;
+
+  /* Compare only the primary level using NO PAD */
+  if ((ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[0],
+                                                 s, slen, t, tlen, FALSE)))
+    return ret;
+
+  /*
+    Compare the other levels using PAD SPACE.
+    These are Unicode-14.0.0 DUCTET weights:
+
+0020  ; [*0209.0020.0002] # SPACE
+
+0035  ; [.2070.0020.0002] # DIGIT FIVE
+248C  ; [.2070.0020.0004][*0281.0020.0004] # DIGIT FIVE FULL STOP
+
+0041  ; [.2075.0020.0008] # LATIN CAPITAL LETTER A
+0061  ; [.2075.0020.0002] # LATIN SMALL LETTER A
+00C1  ; [.2075.0020.0008][.0000.0024.0002] # LATIN CAPITAL LETTER A WITH ACUTE
+00E1  ; [.2075.0020.0002][.0000.0024.0002] # LATIN SMALL LETTER A WITH ACUTE
+
+    Examples demonstrating that it's important to use PAD SPACE
+    on the tertiary level:
+
+    The third level weights for "SMALL LETTER A"
+    - U+0061 produces one weight 0002
+    - U+00E1 produces two weights 0002+0002
+      For _ai_cs collations these two letters must be equal.
+      Therefore, the difference in trailing 0002 should be ignored.
+
+    The third level weights for "CAPITAL LETTER A"
+    - U+0041 produces one weight 0008
+    - U+00C1 produces two weights 0008+0002
+      For _ai_cs collations these two letters must be equal.
+      Therefore, the difference in trailing 0002 should be ignored.
+
+    Examples demonstrating that it's important to use PAD SPACE
+    on the secondary level:
+
+    When we implement variable shifted alternative weighting collations,
+    U+0035 will be equal to U+248C on the primary level in these collations.
+    The second level weights for "DIGIT FIVE" are:
+    - U+0035 produces one weight 0020
+    - U+248C produces two weights 0020+0020.
+    The difference for these two characters must be found only
+    on the tertiary level. Therefore, the trailing 0020 should be ignored.
+  */
+
+  for (i= 1, level_flags= cs->levels_for_order >> 1;
+       level_flags;
+       i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncoll_onelevel)(cs, &cs->uca->level[i],
-                                                  s, slen, t, tlen, FALSE);
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncollsp_onelevel)(cs, &cs->uca->level[i],
+                                                s, slen, t, tlen);
     if (ret)
        return ret;
   }
@@ -317,6 +396,7 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
 */
 static inline weight_and_nchars_t
 MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
+                                        my_uca_scanner_param *param,
                                         size_t nchars,
                                         uint flags,
                                         uint *generated)
@@ -325,7 +405,7 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
   if (nchars > 0 ||
       scanner->wbeg[0] /* Some weights from a previous expansion left */)
   {
-    if ((res= MY_FUNCTION_NAME(scanner_next_with_nchars)(scanner,
+    if ((res= MY_FUNCTION_NAME(scanner_next_with_nchars)(scanner, param,
                                                          nchars)).weight < 0)
     {
       /*
@@ -334,7 +414,7 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
       */
       res.weight=
         flags & MY_STRNNCOLLSP_NCHARS_EMULATE_TRIMMED_TRAILING_SPACES ?
-        my_space_weight(scanner->level) : 0;
+        my_space_weight(param->level) : 0;
 
       (*generated)++;
       res.nchars++; /* Count all ignorable characters and the padded space */
@@ -346,7 +426,7 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
           does not fit. This is possible with CONCAT('a', x'00') with
           nchars=2 on the second iteration when we scan the x'00'.
         */
-        if (scanner->cs->state & MY_CS_NOPAD)
+        if (param->cs->state & MY_CS_NOPAD)
           res.weight= 0;
         res.nchars= (uint) nchars;
       }
@@ -361,8 +441,8 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
           e.g. CONCAT(x'00','a') with nchars=1.
         Perform trimming.
       */
-      res.weight= scanner->cs->state & MY_CS_NOPAD ?
-                  0 : my_space_weight(scanner->level);
+      res.weight= param->cs->state & MY_CS_NOPAD ?
+                  0 : my_space_weight(param->level);
       res.nchars= (uint) nchars;
       (*generated)++;
     }
@@ -370,8 +450,8 @@ MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
   else
   {
     /* The caller wants nchars==0. Perform trimming. */
-    res.weight= scanner->cs->state & MY_CS_NOPAD ?
-                0 : my_space_weight(scanner->level);
+    res.weight= param->cs->state & MY_CS_NOPAD ?
+                0 : my_space_weight(param->level);
     res.nchars= 0;
     (*generated)++;
   }
@@ -389,11 +469,25 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
 {
   my_uca_scanner sscanner;
   my_uca_scanner tscanner;
+  my_uca_scanner_param param;
   size_t s_nchars_left= nchars;
   size_t t_nchars_left= nchars;
 
-  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
-  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+/*
+TODO: strnncollsp_nchars_onelevel
+#if MY_UCA_ASCII_OPTIMIZE
+{
+  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
+                                                          s, slen, t, tlen);
+  s+= prefix, slen-= prefix;
+  t+= prefix, tlen-= prefix;
+}
+#endif
+*/
+
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&sscanner, s, slen);
+  my_uca_scanner_init_any(&tscanner, t, tlen);
 
   for ( ; ; )
   {
@@ -402,11 +496,12 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
     uint generated= 0;
     int diff;
 
-    s_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&sscanner, s_nchars_left,
+    s_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&sscanner, &param,
+                                                   s_nchars_left,
                                                    flags, &generated);
-    t_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&tscanner, t_nchars_left,
+    t_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&tscanner, &param,
+                                                   t_nchars_left,
                                                    flags, &generated);
-
     if ((diff= (s_res.weight - t_res.weight)))
       return diff;
 
@@ -484,15 +579,17 @@ MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
                                                 size_t nchars,
                                                 uint flags)
 {
-  uint num_level= cs->levels_for_order;
-  uint i;
-  for (i= 0; i != num_level; i++)
+  uint i, level_flags= cs->levels_for_order;
+  for (i= 0; level_flags; i++, level_flags>>= 1)
   {
-    int ret= MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs,
-                                                           &cs->uca->level[i],
-                                                           s, slen,
-                                                           t, tlen,
-                                                           nchars, flags);
+    int ret;
+    if (!(level_flags & 1))
+      continue;
+    ret= MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs,
+                                                       &cs->uca->level[i],
+                                                       s, slen,
+                                                       t, tlen,
+                                                       nchars, flags);
     if (ret)
        return ret;
   }
@@ -536,13 +633,15 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
 {
   int   s_res;
   my_uca_scanner scanner;
+  my_uca_scanner_param param;
   int space_weight= my_space_weight(&cs->uca->level[0]);
   register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
-  my_uca_scanner_init_any(&scanner, cs, &cs->uca->level[0], s, slen);
+  my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
+  my_uca_scanner_init_any(&scanner, s, slen);
 
-  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) >0)
+  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) >0)
   {
     if (s_res == space_weight)
     {
@@ -551,7 +650,7 @@ MY_FUNCTION_NAME(hash_sort)(CHARSET_INFO *cs,
       do
       {
         count++;
-        if ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) <= 0)
+        if ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) <= 0)
         {
           /* Skip strings at end of string */
           goto end;
@@ -591,12 +690,14 @@ MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
 {
   int   s_res;
   my_uca_scanner scanner;
+  my_uca_scanner_param param;
   register ulong m1= *nr1, m2= *nr2;
   DBUG_ASSERT(s); /* Avoid UBSAN nullptr-with-offset */
 
-  my_uca_scanner_init_any(&scanner, cs, &cs->uca->level[0], s, slen);
+  my_uca_scanner_param_init(&param, cs, &cs->uca->level[0]);
+  my_uca_scanner_init_any(&scanner, s, slen);
 
-  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) >0)
+  while ((s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) >0)
   {
     /* See comment above why we can't use MY_HASH_ADD_16() */
     MY_HASH_ADD(m1, m2, s_res >> 8);
@@ -639,7 +740,7 @@ MY_FUNCTION_NAME(hash_sort_nopad)(CHARSET_INFO *cs,
     Number of bytes that have been written into the binary image.
 */
 
-static uchar *
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
                                              MY_UCA_WEIGHT_LEVEL *level,
                                              uchar *dst, uchar *de,
@@ -647,7 +748,11 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
                                              const uchar *src, size_t srclen)
 {
   my_uca_scanner scanner;
+  my_uca_scanner_param param;
   int s_res;
+  const uchar *src0= src;
+  const uchar *dst0= dst;
+  const uchar *de2= de - 1; /* Last position where 2 bytes fit */
 
   DBUG_ASSERT(src || !srclen);
 
@@ -656,14 +761,13 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
     Fast path for the ASCII range with no contractions.
   */
   {
-    const uchar *de2= de - 1; /* Last position where 2 bytes fit */
     const uint16 *weights0= level->weights[0];
     uint lengths0= level->lengths[0];
     for ( ; ; src++, srclen--)
     {
       const uint16 *weight;
-      if (!srclen || !*nweights)
-        return dst;         /* Done */
+      if (!srclen)
+        return my_strnxfrm_ret_construct(dst - dst0, src - src0, 0);
       if (*src > 0x7F)
         break;              /* Non-ASCII */
 
@@ -673,6 +777,9 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
       if (weight[1])        /* Expansion (e.g. in a user defined collation */
         break;
 
+      if (!*nweights)
+        return my_strnxfrm_ret_construct(dst - dst0, src - src0,
+                                      MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR);
       /* Here we have a character with extactly one 2-byte UCA weight */
       if (dst < de2)        /* Most typical case is when both bytes fit */
       {
@@ -682,74 +789,100 @@ MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(CHARSET_INFO *cs,
         continue;
       }
       if (dst >= de)        /* No space left in "dst" */
-        return dst;
+        return my_strnxfrm_ret_construct(dst - dst0, src - src0,
+                                       MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR);
       *dst++= s_res >> 8;   /* There is space only for one byte */
       (*nweights)--;
-      return dst;
+      return my_strnxfrm_ret_construct(dst - dst0, src + 1 - src0,
+                                       MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR);
     }
   }
 #endif
 
-  my_uca_scanner_init_any(&scanner, cs, level, src, srclen);
-  for (; dst < de && *nweights &&
-         (s_res= MY_FUNCTION_NAME(scanner_next)(&scanner)) > 0 ; (*nweights)--)
+  my_uca_scanner_param_init(&param, cs, level);
+  my_uca_scanner_init_any(&scanner, src, srclen);
+
+  for (; (s_res= MY_FUNCTION_NAME(scanner_next)(&scanner, &param)) > 0 ;
+       (*nweights)--)
   {
-    *dst++= s_res >> 8;
-    if (dst < de)
+    if (!*nweights)
+      return my_strnxfrm_ret_construct(dst - dst0, scanner.sbeg - src0,
+                                 MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR);
+    if (dst < de2)
+    {
+      *dst++= s_res >> 8;
       *dst++= s_res & 0xFF;
+    }
+    else
+    {
+      if (dst < de)
+        *dst++= s_res >> 8;
+      return my_strnxfrm_ret_construct(dst - dst0, scanner.sbeg - src0,
+                                 MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR);
+    }
   }
-  return dst;
+  return my_strnxfrm_ret_construct(dst - dst0, scanner.sbeg - src0,
+                         my_uca_scanner_next_expansion_weight(&scanner) > 0 ?
+                         MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR : 0);
 }
 
 
-static uchar *
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_onelevel)(CHARSET_INFO *cs,
                                     MY_UCA_WEIGHT_LEVEL *level,
                                     uchar *dst, uchar *de, uint nweights,
                                     const uchar *src, size_t srclen, uint flags)
 {
-  uchar *d0= dst;
-  dst= MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(cs, level,
-                                                    dst, de, &nweights,
-                                                    src, srclen);
-  DBUG_ASSERT(dst <= de);
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst= my_strnxfrm_uca_padn(dst, de, nweights, my_space_weight(level));
-  DBUG_ASSERT(dst <= de);
-  my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
-  return dst;
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(cs, level,
+                                                            dst, de, &nweights,
+                                                            src, srclen);
+  DBUG_ASSERT(dst + rc.m_result_length <= de);
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    my_strnxfrm_pad_ret_t rcpad= my_strnxfrm_uca_padn(dst + rc.m_result_length,
+                                                      de, nweights,
+                                                      my_space_weight(level));
+    my_strnxfrm_ret_join_pad(&rc, &rcpad);
+    DBUG_ASSERT(dst + rc.m_result_length <= de);
+  }
+  my_strxfrm_desc_and_reverse(dst, dst + rc.m_result_length, flags, 0);
+  return rc;
 }
 
 
-
-static uchar *
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_nopad_onelevel)(CHARSET_INFO *cs,
                                           MY_UCA_WEIGHT_LEVEL *level,
                                           uchar *dst, uchar *de, uint nweights,
                                           const uchar *src, size_t srclen,
                                           uint flags)
 {
-  uchar *d0= dst;
-  dst= MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(cs, level,
-                                                    dst, de, &nweights,
-                                                    src, srclen);
-  DBUG_ASSERT(dst <= de);
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_onelevel_internal)(cs, level,
+                                                           dst, de, &nweights,
+                                                           src, srclen);
+  DBUG_ASSERT(dst + rc.m_result_length <= de);
   /*  Pad with the minimum possible weight on this level */
-  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst= my_strnxfrm_uca_padn(dst, de, nweights, min_weight_on_level(level));
-  DBUG_ASSERT(dst <= de);
-  my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
-  return dst;
+  if (nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    my_strnxfrm_pad_ret_t rcpad= my_strnxfrm_uca_padn(dst + rc.m_result_length,
+                                                  de, nweights,
+                                                  min_weight_on_level(level));
+    my_strnxfrm_ret_join_pad(&rc, &rcpad);
+    DBUG_ASSERT(dst + rc.m_result_length <= de);
+  }
+  my_strxfrm_desc_and_reverse(dst, dst + rc.m_result_length, flags, 0);
+  return rc;
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
                            uchar *dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags)
 {
   uchar *d0= dst;
   uchar *de= dst + dstlen;
+  my_strnxfrm_ret_t rc;
 
   /*
     There are two ways to handle trailing spaces for PAD SPACE collations:
@@ -764,20 +897,22 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 
   if (flags & MY_STRXFRM_PAD_WITH_SPACE)
     srclen= my_ci_lengthsp(cs, (const char*) src, srclen);
-  dst= MY_FUNCTION_NAME(strnxfrm_onelevel)(cs, &cs->uca->level[0],
-                                           dst, de, nweights,
-                                           src, srclen, flags);
+  rc= MY_FUNCTION_NAME(strnxfrm_onelevel)(cs, &cs->uca->level[0],
+                                          dst, de, nweights,
+                                          src, srclen, flags);
+  dst+= rc.m_result_length;
   /*
     This can probably be changed to memset(dst, 0, de - dst),
     like my_strnxfrm_uca_multilevel() does.
   */
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
     dst= my_strnxfrm_uca_pad(dst, de, my_space_weight(&cs->uca->level[0]));
-  return dst - d0;
+  rc.m_result_length= dst - d0;
+  return rc;
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
                                  uchar *dst, size_t dstlen,
                                  uint nweights,
@@ -786,44 +921,71 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
 {
   uchar *d0= dst;
   uchar *de= dst + dstlen;
-
-  dst= MY_FUNCTION_NAME(strnxfrm_nopad_onelevel)(cs, &cs->uca->level[0],
-                                                 dst, de, nweights,
-                                                 src, srclen, flags);
+  my_strnxfrm_ret_t rc= MY_FUNCTION_NAME(strnxfrm_nopad_onelevel)(cs,
+                                                          &cs->uca->level[0],
+                                                          dst, de, nweights,
+                                                          src, srclen, flags);
+  dst+= rc.m_result_length;
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
   {
     memset(dst, 0, de - dst);
     dst= de;
   }
-  return dst - d0;
+  rc.m_result_length= dst - d0;
+  return rc;
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 MY_FUNCTION_NAME(strnxfrm_multilevel)(CHARSET_INFO *cs, 
                                       uchar *dst, size_t dstlen,
                                       uint nweights,
                                       const uchar *src, size_t srclen,
                                       uint flags)
 {
-  uint num_level= cs->levels_for_order;
+  uint level_flags= cs->levels_for_order;
   uchar *d0= dst;
   uchar *de= dst + dstlen;
+  uchar *de_for_levels= dst + dstlen;
   uint current_level;
+  my_strnxfrm_ret_t rc= my_strnxfrm_ret_construct(0, 0, 0);
 
-  for (current_level= 0; current_level != num_level; current_level++)
+  for (current_level= 0; level_flags; current_level++, level_flags>>= 1)
   {
+    if (!(level_flags & 1))
+      continue;
     if (!(flags & MY_STRXFRM_LEVEL_ALL) ||
         (flags & (MY_STRXFRM_LEVEL1 << current_level)))
-      dst= cs->state & MY_CS_NOPAD ?
+    {
+      const my_strnxfrm_ret_t rc1= cs->state & MY_CS_NOPAD ?
            MY_FUNCTION_NAME(strnxfrm_nopad_onelevel)(cs,
                                           &cs->uca->level[current_level],
-                                          dst, de, nweights,
+                                          dst, de_for_levels, nweights,
                                           src, srclen, flags) :
            MY_FUNCTION_NAME(strnxfrm_onelevel)(cs,
                                     &cs->uca->level[current_level],
-                                    dst, de, nweights,
+                                    dst, de_for_levels, nweights,
                                     src, srclen, flags);
+      rc.m_source_length_used+= rc1.m_source_length_used;
+      rc.m_warnings|= rc1.m_warnings;
+      dst+= rc1.m_result_length;
+      DBUG_ASSERT(dst <= de);
+      if (rc1.m_warnings)
+      {
+        if (rc1.m_warnings & MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR)
+           break;
+        /*
+          A weight for a padding space did not fit on the current level.
+          Characters may be ignorable on this level, but non-ignorable
+          on the next level. Let's continue with the next levels
+          only to find non-ignorable characters and set
+          MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR if found.
+          But let's set ds_for_levels to dst to prevent putting
+          any weights into the destination buffer on the the next.
+        */
+        de_for_levels= dst;
+      }
+    }
   }
 
   if (dst < de && (flags & MY_STRXFRM_PAD_TO_MAXLEN))
@@ -832,7 +994,8 @@ MY_FUNCTION_NAME(strnxfrm_multilevel)(CHARSET_INFO *cs,
     dst= de;
   }
 
-  return dst - d0;
+  rc.m_result_length= dst - d0;
+  return rc;
 }
 
 
@@ -849,12 +1012,14 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
   my_strnxfrmlen_any_uca,
   MY_LIKE_RANGE,
   my_wildcmp_uca,
-  NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort),
   my_propagate_complex,
   my_min_str_mb_simple,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 
@@ -873,12 +1038,14 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
   my_strnxfrmlen_any_uca,
   MY_LIKE_RANGE,    /* my_like_range_mb or my_like_range_generic */
   my_wildcmp_uca,
-  NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort_nopad),
   my_propagate_complex,
   my_min_str_mb_simple_nopad,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 
@@ -895,12 +1062,14 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
   my_strnxfrmlen_any_uca_multilevel,
   MY_LIKE_RANGE,
   my_wildcmp_uca,
-  NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort),
   my_propagate_complex,
   my_min_str_mb_simple,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 
@@ -917,12 +1086,14 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
   my_strnxfrmlen_any_uca_multilevel,
   MY_LIKE_RANGE,
   my_wildcmp_uca,
-  NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort),
   my_propagate_complex,
   my_min_str_mb_simple_nopad,
-  my_max_str_mb_simple
+  my_max_str_mb_simple,
+  my_ci_get_id_uca,
+  my_ci_get_collation_name_uca,
+  my_ci_eq_collation_uca
 };
 
 

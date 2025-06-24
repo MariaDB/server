@@ -11,15 +11,15 @@ if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
 
 CREATE TABLE t(a INT);
 
-delimiter ^;
+--delimiter |
 CREATE PROCEDURE test_f(t INT)
 BEGIN
   SET SESSION query_response_time_exec_time_debug=t;
   INSERT INTO t VALUES(1);
   SET SESSION query_response_time_exec_time_debug=100000;
   DELETE FROM t;
-END^
-delimiter ;^
+END|
+--delimiter ;
 
 --let base=1
 --source query_response_time-stored.inc

@@ -72,7 +72,7 @@ drop table t1;
 # Handle that openssl gives different error messages from YaSSL.
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -81,7 +81,7 @@ drop table t1;
 #
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -90,7 +90,7 @@ drop table t1;
 #
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -167,17 +167,17 @@ CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (1), (2);
 
 # Run mysqldump
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test t1
+--exec $MYSQL_DUMP --no-autocommit=0 --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test t1
 
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test
+--exec $MYSQL_DUMP --no-autocommit=0 --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test
 
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test
+--exec $MYSQL_DUMP --no-autocommit=0 --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test
 
 # With wrong parameters
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQL_DUMP mariadb-dump .\exe ''
 --replace_regex /TLS\/SSL error.*/TLS\/SSL error: xxxx/
 --error 2
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test 2>&1
+--exec $MYSQL_DUMP --no-autocommit=0 --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test 2>&1
 --echo
 DROP TABLE t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/test.sql
@@ -203,7 +203,7 @@ set global sql_mode=default;
 
 --replace_regex /TLS\/SSL error:.*/TLS\/SSL error/
 --error 1
---exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
+--exec $MYSQL_BINLOG --read-from-remote-server --ssl-verify-server-cert --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

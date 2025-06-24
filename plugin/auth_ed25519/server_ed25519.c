@@ -64,7 +64,7 @@ static int compute_password_digest(const char *pw, size_t pwlen,
                                    char *d, size_t *dlen)
 {
   unsigned char pk[CRYPTO_PUBLICKEYBYTES];
-  if (*dlen < PASSWORD_LEN || pwlen == 0)
+  if (*dlen < PASSWORD_LEN)
     return 1;
   *dlen= PASSWORD_LEN;
   crypto_sign_keypair(pk, (unsigned char*)pw, pwlen);

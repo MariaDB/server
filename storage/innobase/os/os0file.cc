@@ -33,7 +33,6 @@ The interface to the operating system file i/o primitives
 Created 10/21/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef UNIV_INNOCHECKSUM
 #include "os0file.h"
 #include "sql_const.h"
 #include "log.h"
@@ -41,6 +40,7 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef __linux__
 # include <sys/types.h>
 # include <sys/stat.h>
+# include <sys/sysmacros.h>
 #endif
 
 #include "srv0mon.h"
@@ -61,15 +61,10 @@ Created 10/21/1995 Heikki Tuuri
 # include <linux/falloc.h>
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
 
-#if defined(__linux__) && defined(HAVE_SYS_IOCTL_H)
-# include <sys/ioctl.h>
-# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
-#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
-# endif
-#endif
-
 #ifdef _WIN32
 # include <winioctl.h>
+#elif !defined O_DSYNC
+# define O_DSYNC O_SYNC
 #else
 # include <unistd.h>
 #endif
@@ -84,13 +79,12 @@ Created 10/21/1995 Heikki Tuuri
 class io_slots
 {
 private:
-	tpool::cache<tpool::aiocb> m_cache;
+	tpool::cache<tpool::aiocb, true> m_cache;
 	tpool::task_group m_group;
 	int m_max_aio;
 public:
 	io_slots(int max_submitted_io, int max_callback_concurrency) :
-		m_cache(max_submitted_io),
-		m_group(max_callback_concurrency),
+		m_cache(max_submitted_io), m_group(max_callback_concurrency, false),
 		m_max_aio(max_submitted_io)
 	{
 	}
@@ -111,6 +105,11 @@ public:
 	}
 
 	/* Wait for completions of all AIO operations */
+	void wait(std::unique_lock<std::mutex> &lk)
+	{
+		m_cache.wait(lk);
+	}
+
 	void wait()
 	{
 		m_cache.wait();
@@ -119,6 +118,11 @@ public:
 	size_t pending_io_count()
 	{
 		return m_cache.pos();
+	}
+
+	std::chrono::duration<double> wait_time()
+	{
+		return m_cache.wait_time();
 	}
 
 	tpool::task_group* get_task_group()
@@ -131,14 +135,40 @@ public:
 		wait();
 	}
 
-	mysql_mutex_t& mutex()
+	std::mutex &mutex()
 	{
 		return m_cache.mutex();
+	}
+
+	void resize(int max_submitted_io, int max_callback_concurrency)
+	{
+		m_cache.resize(max_submitted_io);
+		m_group.set_max_tasks(max_callback_concurrency);
+		m_max_aio = max_submitted_io;
+	}
+
+	tpool::task_group& task_group()
+	{
+		return m_group;
 	}
 };
 
 static io_slots *read_slots;
 static io_slots *write_slots;
+
+/**
+  Statistics for asynchronous I/O
+  @param op operation type (aio_opcode::AIO_PREAD or aio_opcode::AIO_PWRITE)
+  @param stats pointer to the structure to fill
+*/
+void innodb_io_slots_stats(tpool::aio_opcode op, innodb_async_io_stats_t *stats)
+{
+   io_slots *slots= op == tpool::aio_opcode::AIO_PREAD? read_slots : write_slots;
+
+   stats->pending_ops = slots->pending_io_count();
+   stats->slot_wait_time_sec= slots->wait_time().count();
+   slots->task_group().get_stats(&stats->completion_stats);
+}
 
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
@@ -160,7 +190,6 @@ extern uint page_zip_level;
 #ifdef UNIV_PFS_IO
 /* Keys to register InnoDB I/O with performance schema */
 mysql_pfs_key_t  innodb_data_file_key;
-mysql_pfs_key_t  innodb_log_file_key;
 mysql_pfs_key_t  innodb_temp_file_key;
 #endif
 
@@ -179,17 +208,10 @@ os_file_handle_error_cond_exit(
 	bool		on_error_silent) noexcept;
 
 /** Does error handling when a file operation fails.
-@param[in]	name		name of a file or NULL
-@param[in]	operation	operation name that failed
-@return true if we should retry the operation */
-static
-bool
-os_file_handle_error(
-	const char*	name,
-	const char*	operation)
+@param operation   name of operation that failed */
+static void os_file_handle_error(const char *operation)
 {
-	/* Exit in case of unknown error */
-	return(os_file_handle_error_cond_exit(name, operation, true, false));
+  os_file_handle_error_cond_exit(nullptr, operation, true, false);
 }
 
 /** Does error handling when a file operation fails.
@@ -306,6 +328,12 @@ private:
   ssize_t m_n;
   /** Offset from where to read/write */
   os_offset_t m_offset;
+
+  /** Do the read/write
+  @param request The IO context and type
+  @param n       Number of bytes to read/write
+  @return the number of bytes read/written or negative value on error */
+  ssize_t execute_low(const IORequest& request, ssize_t n);
 };
 
 #ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
@@ -630,28 +658,46 @@ dberr_t os_file_create_subdirs_if_needed(const char *path) noexcept
 
 /** Do the read/write
 @param[in]	request	The IO context and type
+@param[in]      n       Number of bytes to read/write
+@return the number of bytes read/written or negative value on error */
+ssize_t
+SyncFileIO::execute_low(const IORequest& request, ssize_t n)
+{
+  ut_ad(n > 0);
+  ut_ad(size_t(n) <= os_file_request_size_max);
+
+  if (request.is_read())
+    return IF_WIN(tpool::pread(m_fh, m_buf, n, m_offset), pread(m_fh, m_buf, n, m_offset));
+  return IF_WIN(tpool::pwrite(m_fh, m_buf, n, m_offset), pwrite(m_fh, m_buf, n, m_offset));
+}
+
+/** Do the read/write
+@param[in]	request	The IO context and type
 @return the number of bytes read/written or negative value on error */
 ssize_t
 SyncFileIO::execute(const IORequest& request)
 {
-	ssize_t	n_bytes;
+  ssize_t n_bytes= 0;
+  ut_ad(m_n > 0);
 
-	if (request.is_read()) {
-#ifdef _WIN32
-		n_bytes = tpool::pread(m_fh, m_buf, m_n, m_offset);
-#else
-		n_bytes = pread(m_fh, m_buf, m_n, m_offset);
-#endif
-	} else {
-		ut_ad(request.is_write());
-#ifdef _WIN32
-		n_bytes = tpool::pwrite(m_fh, m_buf, m_n, m_offset);
-#else
-		n_bytes = pwrite(m_fh, m_buf, m_n, m_offset);
-#endif
-	}
+  while (size_t(m_n) > os_file_request_size_max)
+  {
+    ssize_t n_partial_bytes= execute_low(request, os_file_request_size_max);
+    if (n_partial_bytes < 0)
+      return n_partial_bytes;
+    n_bytes+= n_partial_bytes;
+    if (n_partial_bytes != os_file_request_size_max)
+      return n_bytes;
+    advance(os_file_request_size_max);
+  }
 
-	return(n_bytes);
+  if (ssize_t n= execute_low(request, m_n))
+  {
+    if (n < 0)
+      return n;
+    n_bytes += n;
+  }
+  return n_bytes;
 }
 
 #ifndef _WIN32
@@ -717,18 +763,15 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 	}
 
 	if (report_all_errors
-	    || (err != ENOSPC && err != EEXIST && !on_error_silent)) {
+	    || (err != ENOSPC && err != EEXIST && err != ENOENT
+		&& !on_error_silent)) {
 
 		ib::error()
 			<< "Operating system error number "
 			<< err
 			<< " in a file operation.";
 
-		if (err == ENOENT) {
-			ib::error()
-				<< "The error means the system"
-				" cannot find the path specified.";
-		} else if (err == EACCES) {
+		if (err == EACCES) {
 
 			ib::error()
 				<< "The error means mariadbd does not have"
@@ -871,6 +914,8 @@ os_file_status_posix(
 
 bool os_file_flush_func(os_file_t file) noexcept
 {
+	if (UNIV_UNLIKELY(my_disable_sync)) return true;
+
 	int	ret;
 
 	ret = os_file_sync_posix(file);
@@ -889,7 +934,7 @@ bool os_file_flush_func(os_file_t file) noexcept
 
 	ib::error() << "The OS said file flush did not succeed";
 
-	os_file_handle_error(NULL, "flush");
+	os_file_handle_error("flush");
 
 	/* It is a fatal error if a file flush does not succeed, because then
 	the database can get corrupt on disk */
@@ -912,7 +957,7 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success) noexcept
@@ -921,93 +966,48 @@ os_file_create_simple_func(
 
 	*success = false;
 
-	int		create_flag;
-	const char*	mode_str __attribute__((unused));
+	int create_flag = O_RDONLY | O_CLOEXEC;
 
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
-
-	if (create_mode == OS_FILE_OPEN) {
-		mode_str = "OPEN";
-
-		if (access_type == OS_FILE_READ_ONLY) {
-
-			create_flag = O_RDONLY;
-
-		} else if (read_only) {
-
-			create_flag = O_RDONLY;
-
-		} else {
-			create_flag = O_RDWR;
-		}
-
-	} else if (read_only) {
-
-		mode_str = "OPEN";
-		create_flag = O_RDONLY;
-
+	if (read_only) {
 	} else if (create_mode == OS_FILE_CREATE) {
-
-		mode_str = "CREATE";
-		create_flag = O_RDWR | O_CREAT | O_EXCL;
-
-	} else if (create_mode == OS_FILE_CREATE_PATH) {
-
-		mode_str = "CREATE PATH";
-		/* Create subdirs along the path if needed. */
-
-		*success = os_file_create_subdirs_if_needed(name);
-
-		if (!*success) {
-
-			ib::error()
-				<< "Unable to create subdirectories '"
-				<< name << "'";
-
-			return(OS_FILE_CLOSED);
-		}
-
-		create_flag = O_RDWR | O_CREAT | O_EXCL;
-		create_mode = OS_FILE_CREATE;
+		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else {
-
-		ib::error()
-			<< "Unknown file create mode ("
-			<< create_mode
-			<< " for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
-	}
-
-	bool	retry;
-
-	do {
-		file = open(name, create_flag | O_CLOEXEC, my_umask);
-
-		if (file == -1) {
-			*success = false;
-			retry = os_file_handle_error(
-				name,
-				create_mode == OS_FILE_OPEN
-				? "open" : "create");
-		} else {
-			*success = true;
-			retry = false;
+		ut_ad(create_mode == OS_FILE_OPEN);
+		if (access_type != OS_FILE_READ_ONLY) {
+			create_flag = O_RDWR | O_CLOEXEC;
 		}
-
-	} while (retry);
-
-#ifdef HAVE_FCNTL_DIRECT
-	/* This function is always called for data files, we should disable
-	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
-	we open the same file in the same mode, see man page of open(2). */
-	if (!srv_read_only_mode && *success) {
-		os_file_set_nocache(file, name, mode_str);
 	}
+
+	if (fil_system.is_write_through()) create_flag |= O_DSYNC;
+#ifdef O_DIRECT
+	int direct_flag = fil_system.is_buffered() ? 0 : O_DIRECT;
+#else
+	constexpr int direct_flag = 0;
 #endif
 
-#ifndef _WIN32
+	for (;;) {
+		file = open(name, create_flag | direct_flag, my_umask);
+
+		if (file == -1) {
+#ifdef O_DIRECT
+			if (direct_flag && errno == EINVAL) {
+				direct_flag = 0;
+				continue;
+			}
+#endif
+
+			if (!os_file_handle_error_no_exit(
+				    name,
+				    create_mode == OS_FILE_CREATE
+				    ? "create" : "open", false)) {
+				break;
+			}
+		} else {
+			*success = true;
+			break;
+		}
+	}
+
 	if (!read_only
 	    && *success
 	    && access_type == OS_FILE_READ_WRITE
@@ -1018,7 +1018,6 @@ os_file_create_simple_func(
 		close(file);
 		file = -1;
 	}
-#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -1040,6 +1039,56 @@ bool os_file_create_directory(const char *pathname, bool fail_if_exists)
 	return(true);
 }
 
+#ifdef O_DIRECT
+# ifdef __linux__
+/** Note that the log file uses buffered I/O. */
+static ATTRIBUTE_COLD void os_file_log_buffered()
+{
+  log_sys.log_maybe_unbuffered= false;
+  log_sys.log_buffered= true;
+}
+
+/** @return whether the log file may work with unbuffered I/O. */
+static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
+{
+  MSAN_STAT_WORKAROUND(&st);
+  char b[20 + sizeof "/sys/dev/block/" ":" "/../queue/physical_block_size"];
+  if (snprintf(b, sizeof b, "/sys/dev/block/%u:%u/queue/physical_block_size",
+               major(st.st_dev), minor(st.st_dev)) >=
+      static_cast<int>(sizeof b))
+    return false;
+  int f= open(b, O_RDONLY);
+  if (f == -1)
+  {
+    if (snprintf(b, sizeof b, "/sys/dev/block/%u:%u/../queue/"
+                 "physical_block_size",
+                 major(st.st_dev), minor(st.st_dev)) >=
+        static_cast<int>(sizeof b))
+      return false;
+    f= open(b, O_RDONLY);
+  }
+  unsigned long s= 0;
+  if (f != -1)
+  {
+    ssize_t l= read(f, b, sizeof b);
+    if (l > 0 && size_t(l) < sizeof b && b[l - 1] == '\n')
+    {
+      char *end= b;
+      s= strtoul(b, &end, 10);
+      if (b == end || *end != '\n')
+        s = 0;
+    }
+    close(f);
+  }
+  if (s > 4096 || s < 64 || !ut_is_2pow(s))
+    return false;
+  log_sys.set_block_size(uint32_t(s));
+
+  return !(st.st_size & (s - 1));
+}
+# endif /* __linux__ */
+#endif /* O_DIRECT */
+
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
 Opens an existing file or creates a new.
@@ -1054,133 +1103,138 @@ Opens an existing file or creates a new.
 pfs_os_file_t
 os_file_create_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		type,
 	bool		read_only,
 	bool*		success) noexcept
 {
-	bool		on_error_no_exit;
-	bool		on_error_silent;
-
 	*success = false;
 
 	DBUG_EXECUTE_IF(
 		"ib_create_table_fail_disk_full",
-		*success = false;
 		errno = ENOSPC;
 		return(OS_FILE_CLOSED);
 	);
 
-	int		create_flag;
-	const char*	mode_str __attribute__((unused));
+	int create_flag;
 
-	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
-		? true : false;
-	on_error_silent = create_mode & OS_FILE_ON_ERROR_SILENT
-		? true : false;
-
-	create_mode &= ulint(~(OS_FILE_ON_ERROR_NO_EXIT
-			       | OS_FILE_ON_ERROR_SILENT));
-
-	if (create_mode == OS_FILE_OPEN
-	    || create_mode == OS_FILE_OPEN_RAW
-	    || create_mode == OS_FILE_OPEN_RETRY) {
-
-		mode_str = "OPEN";
-
-		create_flag = read_only ? O_RDONLY : O_RDWR;
-
-	} else if (read_only) {
-
-		mode_str = "OPEN";
-
-		create_flag = O_RDONLY;
-
-	} else if (create_mode == OS_FILE_CREATE) {
-
-		mode_str = "CREATE";
-		create_flag = O_RDWR | O_CREAT | O_EXCL;
-
-	} else if (create_mode == OS_FILE_OVERWRITE) {
-
-		mode_str = "OVERWRITE";
-		create_flag = O_RDWR | O_CREAT | O_TRUNC;
-
+	if (read_only) {
+		create_flag = O_RDONLY | O_CLOEXEC;
+	} else if (create_mode == OS_FILE_CREATE
+		   || create_mode == OS_FILE_CREATE_SILENT) {
+		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else {
-		ib::error()
-			<< "Unknown file create mode (" << create_mode << ")"
-			<< " for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
+		ut_ad(create_mode == OS_FILE_OPEN
+		      || create_mode == OS_FILE_OPEN_SILENT
+		      || create_mode == OS_FILE_OPEN_RETRY
+		      || create_mode == OS_FILE_OPEN_RETRY_SILENT
+		      || create_mode == OS_FILE_OPEN_RAW);
+		create_flag = O_RDWR | O_CLOEXEC;
 	}
 
-#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
+#ifdef O_DIRECT
+# ifdef __linux__
+	struct stat st;
+# endif
 	ut_a(type == OS_LOG_FILE
-	     || type == OS_DATA_FILE
-	     || type == OS_DATA_FILE_NO_O_DIRECT);
+	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT);
+	int direct_flag = 0;
+
+	if (type == OS_DATA_FILE) {
+		if (!fil_system.is_buffered()) {
+			direct_flag = O_DIRECT;
+		}
+# ifdef __linux__
+	} else if (type == OS_LOG_FILE && create_mode != OS_FILE_CREATE
+		   && create_mode != OS_FILE_CREATE_SILENT
+		   && !log_sys.is_opened()) {
+		if (stat(name, &st)) {
+			if (errno == ENOENT) {
+				goto not_found;
+			}
+			log_sys.set_block_size(512);
+			goto skip_o_direct;
+		} else if (!os_file_log_maybe_unbuffered(st)
+                           || log_sys.log_buffered) {
+skip_o_direct:
+			os_file_log_buffered();
+		} else {
+			direct_flag = O_DIRECT;
+			log_sys.log_maybe_unbuffered = true;
+		}
+# endif
+	}
 #else
 	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
+	constexpr int direct_flag = 0;
 #endif
 
-
-	/* We let O_DSYNC only affect log files */
-
-	if (!read_only
-	    && type == OS_LOG_FILE
-	    && srv_file_flush_method == SRV_O_DSYNC) {
-#ifdef O_DSYNC
+	if (read_only) {
+	} else if (type == OS_LOG_FILE
+		   ? log_sys.log_write_through
+		   : fil_system.is_write_through()) {
 		create_flag |= O_DSYNC;
-#else
-		create_flag |= O_SYNC;
-#endif
 	}
 
 	os_file_t	file;
-	bool		retry;
 
-	do {
-		file = open(name, create_flag | O_CLOEXEC, my_umask);
+	for (;;) {
+		file = open(name, create_flag | direct_flag, my_umask);
 
 		if (file == -1) {
-			const char*	operation;
-
-			operation = (create_mode == OS_FILE_CREATE
-				     && !read_only) ? "create" : "open";
-
-			*success = false;
-
-			if (on_error_no_exit) {
-				retry = os_file_handle_error_no_exit(
-					name, operation, on_error_silent);
-			} else {
-				retry = os_file_handle_error(name, operation);
+#ifdef O_DIRECT
+			if (direct_flag && errno == EINVAL) {
+				direct_flag = 0;
+# ifdef __linux__
+				if (type == OS_LOG_FILE) {
+					os_file_log_buffered();
+				}
+# endif
+				if (create_mode == OS_FILE_CREATE
+				    || create_mode == OS_FILE_CREATE_SILENT) {
+					/* Linux may create the file
+					before rejecting the O_DIRECT. */
+					unlink(name);
+				}
+				continue;
 			}
+# ifdef __linux__
+not_found:
+# endif
+#endif
+			if (os_file_handle_error_no_exit(
+				    name, (create_flag & O_CREAT)
+				    ? "create" : "open",
+				    create_mode & OS_FILE_ON_ERROR_SILENT)) {
+				continue;
+			}
+
+			return OS_FILE_CLOSED;
 		} else {
 			*success = true;
-			retry = false;
+			break;
 		}
+	}
 
-	} while (retry);
-
-#ifdef HAVE_FCNTL_DIRECT
-	/* We disable OS caching (O_DIRECT) only on data files */
-	if (!read_only
-	    && *success
-	    && type != OS_LOG_FILE
-	    && type != OS_DATA_FILE_NO_O_DIRECT) {
-		os_file_set_nocache(file, name, mode_str);
+#ifdef __linux__
+	if ((create_flag & O_CREAT) && type == OS_LOG_FILE) {
+		if (fstat(file, &st) || !os_file_log_maybe_unbuffered(st)) {
+			os_file_log_buffered();
+		} else {
+			close(file);
+			return os_file_create_func(name, OS_FILE_OPEN,
+						   type, false, success);
+		}
 	}
 #endif
 
-#ifndef _WIN32
 	if (!read_only
-	    && *success
 	    && create_mode != OS_FILE_OPEN_RAW
 	    && !my_disable_locking
 	    && os_file_lock(file, name)) {
 
-		if (create_mode == OS_FILE_OPEN_RETRY) {
-
+		if (create_mode == OS_FILE_OPEN_RETRY
+		    || create_mode == OS_FILE_OPEN_RETRY_SILENT) {
 			ib::info()
 				<< "Retrying to lock the first data file";
 
@@ -1202,7 +1256,6 @@ os_file_create_func(
 		close(file);
 		file = -1;
 	}
-#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -1212,7 +1265,7 @@ os_file_create_simple_no_error_handling(), not directly this function!
 A simple function to open or create a file.
 @param[in]	name		name of the file or path as a null-terminated
 				string
-@param[in]	create_mode	create mode
+@param[in]	create_mode	OS_FILE_CREATE or OS_FILE_OPEN
 @param[in]	access_type	OS_FILE_READ_ONLY, OS_FILE_READ_WRITE, or
 				OS_FILE_READ_ALLOW_DELETE; the last option
 				is used by a backup program reading the file
@@ -1223,59 +1276,33 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success) noexcept
 {
 	os_file_t	file;
-	int		create_flag;
-
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
+	int		create_flag = O_RDONLY | O_CLOEXEC;
 
 	*success = false;
 
-	if (create_mode == OS_FILE_OPEN) {
-
-		if (access_type == OS_FILE_READ_ONLY) {
-
-			create_flag = O_RDONLY;
-
-		} else if (read_only) {
-
-			create_flag = O_RDONLY;
-
-		} else {
-
+	if (read_only) {
+	} else if (create_mode == OS_FILE_CREATE) {
+		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
+	} else {
+		ut_ad(create_mode == OS_FILE_OPEN);
+		if (access_type != OS_FILE_READ_ONLY) {
 			ut_a(access_type == OS_FILE_READ_WRITE
 			     || access_type == OS_FILE_READ_ALLOW_DELETE);
 
 			create_flag = O_RDWR;
 		}
-
-	} else if (read_only) {
-
-		create_flag = O_RDONLY;
-
-	} else if (create_mode == OS_FILE_CREATE) {
-
-		create_flag = O_RDWR | O_CREAT | O_EXCL;
-
-	} else {
-
-		ib::error()
-			<< "Unknown file create mode "
-			<< create_mode << " for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
 	}
 
-	file = open(name, create_flag | O_CLOEXEC, my_umask);
+	file = open(name, create_flag, my_umask);
 
 	*success = (file != -1);
 
-#ifndef _WIN32
 	if (!read_only
 	    && *success
 	    && access_type == OS_FILE_READ_WRITE
@@ -1287,7 +1314,6 @@ os_file_create_simple_no_error_handling_func(
 		file = -1;
 
 	}
-#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -1393,7 +1419,7 @@ bool os_file_close_func(os_file_t file)
   if (!ret)
     return true;
 
-  os_file_handle_error(NULL, "close");
+  os_file_handle_error("close");
   return false;
 }
 
@@ -1727,6 +1753,9 @@ Flushes the write buffers of a given file to the disk.
 @return true if success */
 bool os_file_flush_func(os_file_t file) noexcept
 {
+  if (UNIV_UNLIKELY(my_disable_sync))
+    return true;
+
   ++os_n_fsyncs;
   static bool disable_datasync;
 
@@ -1753,7 +1782,7 @@ bool os_file_flush_func(os_file_t file) noexcept
   if (srv_start_raw_disk_in_use && GetLastError() == ERROR_INVALID_FUNCTION)
     return true;
 
-  os_file_handle_error(nullptr, "flush");
+  os_file_handle_error("flush");
 
   /* It is a fatal error if a file flush does not succeed, because then
   the database can get corrupt on disk */
@@ -1783,29 +1812,26 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 	if (report_all_errors
 	    || (!on_error_silent
 		&& err != ERROR_DISK_FULL
+		&& err != ERROR_FILE_NOT_FOUND
 		&& err != ERROR_FILE_EXISTS)) {
 
 		ib::error()
 			<< "Operating system error number " << err
 			<< " in a file operation.";
 
-		if (err == ERROR_PATH_NOT_FOUND) {
-			ib::error()
-				<< "The error means the system"
-				" cannot find the path specified.";
-
-		} else if (err == ERROR_ACCESS_DENIED) {
-
+		switch (err) {
+		case ERROR_PATH_NOT_FOUND:
+			break;
+		case ERROR_ACCESS_DENIED:
 			ib::error()
 				<< "The error means mariadbd does not have"
 				" the access rights to"
 				" the directory. It may also be"
 				" you have created a subdirectory"
 				" of the same name as a data file.";
-
-		} else if (err == ERROR_SHARING_VIOLATION
-			   || err == ERROR_LOCK_VIOLATION) {
-
+			break;
+		case ERROR_SHARING_VIOLATION:
+		case ERROR_LOCK_VIOLATION:
 			ib::error()
 				<< "The error means that another program"
 				" is using InnoDB's files."
@@ -1813,29 +1839,23 @@ ulint os_file_get_last_error(bool report_all_errors, bool on_error_silent)
 				" software or another instance"
 				" of MariaDB."
 				" Please close it to get rid of this error.";
-
-		} else if (err == ERROR_WORKING_SET_QUOTA
-			   || err == ERROR_NO_SYSTEM_RESOURCES) {
-
+			break;
+		case ERROR_WORKING_SET_QUOTA:
+		case ERROR_NO_SYSTEM_RESOURCES:
 			ib::error()
 				<< "The error means that there are no"
 				" sufficient system resources or quota to"
 				" complete the operation.";
-
-		} else if (err == ERROR_OPERATION_ABORTED) {
-
+			break;
+		case ERROR_OPERATION_ABORTED:
 			ib::error()
 				<< "The error means that the I/O"
 				" operation has been aborted"
 				" because of either a thread exit"
 				" or an application request."
 				" Retry attempt is made.";
-		} else if (err == ERROR_PATH_NOT_FOUND) {
-			ib::error()
-				<< "This error means that directory did not exist"
-				" during file creation.";
-		} else {
-
+			break;
+		default:
 			ib::info() << OPERATING_SYSTEM_ERROR_MSG;
 		}
 	}
@@ -1876,7 +1896,7 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success) noexcept
@@ -1885,82 +1905,36 @@ os_file_create_simple_func(
 
 	*success = false;
 
-	DWORD		access;
+	DWORD		access = GENERIC_READ;
 	DWORD		create_flag;
 	DWORD		attributes = 0;
 
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL);
 
-	if (create_mode == OS_FILE_OPEN) {
-
+	if (read_only || create_mode == OS_FILE_OPEN) {
 		create_flag = OPEN_EXISTING;
-
-	} else if (read_only) {
-
-		create_flag = OPEN_EXISTING;
-
-	} else if (create_mode == OS_FILE_CREATE) {
-
-		create_flag = CREATE_NEW;
-
-	} else if (create_mode == OS_FILE_CREATE_PATH) {
-
-		/* Create subdirs along the path if needed. */
-		*success = os_file_create_subdirs_if_needed(name);
-
-		if (!*success) {
-
-			ib::error()
-				<< "Unable to create subdirectories '"
-				<< name << "'";
-
-			return(OS_FILE_CLOSED);
-		}
-
-		create_flag = CREATE_NEW;
-		create_mode = OS_FILE_CREATE;
-
 	} else {
-
-		ib::error()
-			<< "Unknown file create mode ("
-			<< create_mode << ") for file '"
-			<< name << "'";
-
-		return(OS_FILE_CLOSED);
+		ut_ad(create_mode == OS_FILE_CREATE);
+		create_flag = CREATE_NEW;
 	}
 
 	if (access_type == OS_FILE_READ_ONLY) {
-
-		access = GENERIC_READ;
-
 	} else if (read_only) {
-
 		ib::info()
 			<< "Read only mode set. Unable to"
 			" open file '" << name << "' in RW mode, "
 			<< "trying RO mode";
-
-		access = GENERIC_READ;
-
-	} else if (access_type == OS_FILE_READ_WRITE) {
-
-		access = GENERIC_READ | GENERIC_WRITE;
-
 	} else {
-
-		ib::error()
-			<< "Unknown file access type (" << access_type << ") "
-			"for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
+		ut_ad(access_type == OS_FILE_READ_WRITE);
+		access = GENERIC_READ | GENERIC_WRITE;
 	}
 
-	bool	retry;
+	if (fil_system.is_write_through())
+		attributes |= FILE_FLAG_WRITE_THROUGH;
+	if (!fil_system.is_buffered())
+		attributes |= FILE_FLAG_NO_BUFFERING;
 
-	do {
+	for (;;) {
 		/* Use default security attributes and no template file. */
 
 		file = CreateFile(
@@ -1968,22 +1942,18 @@ os_file_create_simple_func(
 			FILE_SHARE_READ | FILE_SHARE_DELETE,
 			my_win_file_secattr(), create_flag, attributes, NULL);
 
-		if (file == INVALID_HANDLE_VALUE) {
-
-			*success = false;
-
-			retry = os_file_handle_error(
-				name, create_mode == OS_FILE_OPEN ?
-				"open" : "create");
-
-		} else {
-
-			retry = false;
-
+		if (file != INVALID_HANDLE_VALUE) {
 			*success = true;
+			break;
 		}
 
-	} while (retry);
+		if (!os_file_handle_error_no_exit(name,
+						  create_flag == CREATE_NEW
+						  ? "create" : "open",
+						  false)) {
+			break;
+		}
+	}
 
 	return(file);
 }
@@ -2007,31 +1977,19 @@ bool os_file_create_directory(const char *pathname, bool fail_if_exists)
 	return(true);
 }
 
-/** Check that IO of specific size is possible for the file
-opened with FILE_FLAG_NO_BUFFERING.
-
-The requirement is that IO is multiple of the disk sector size.
-
-@param[in]	file      file handle
-@param[in]	io_size   expected io size
-@return true - unbuffered io of requested size is possible, false otherwise.
-
-@note: this function only works correctly with Windows 8 or later,
-(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
-It will return true on earlier Windows version.
- */
-static bool unbuffered_io_possible(HANDLE file, size_t io_size)
+/** Get disk sector size for a file. */
+static size_t get_sector_size(HANDLE file)
 {
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(
-		file, FileStorageInfo, &info, sizeof(info))) {
-			ULONG sector_size = info.LogicalBytesPerSector;
-			if (sector_size)
-				return io_size % sector_size == 0;
-	}
-	return true;
+  FILE_STORAGE_INFO fsi;
+  ULONG s= 4096;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &fsi, sizeof fsi))
+  {
+    s= fsi.PhysicalBytesPerSectorForPerformance;
+    if (s > 4096 || s < 64 || !ut_is_2pow(s))
+      return 4096;
+  }
+  return s;
 }
-
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -2046,15 +2004,12 @@ Opens an existing file or creates a new.
 pfs_os_file_t
 os_file_create_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		type,
 	bool		read_only,
 	bool*		success) noexcept
 {
 	os_file_t	file;
-	bool		retry;
-	bool		on_error_no_exit;
-	bool		on_error_silent;
 
 	*success = false;
 
@@ -2065,116 +2020,48 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	);
 
-	DWORD		create_flag;
+	DWORD		create_flag = OPEN_EXISTING;
 	DWORD		share_mode = read_only
 		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
 		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 
-	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
-		? true : false;
-
-	on_error_silent = create_mode & OS_FILE_ON_ERROR_SILENT
-		? true : false;
-
-	create_mode &= ~(OS_FILE_ON_ERROR_NO_EXIT | OS_FILE_ON_ERROR_SILENT);
-
-	if (create_mode == OS_FILE_OPEN_RAW) {
-
+	switch (create_mode) {
+	case OS_FILE_OPEN_RAW:
 		ut_a(!read_only);
-
 		/* On Windows Physical devices require admin privileges and
 		have to have the write-share mode set. See the remarks
 		section for the CreateFile() function documentation in MSDN. */
 
 		share_mode |= FILE_SHARE_WRITE;
-
-		create_flag = OPEN_EXISTING;
-
-	} else if (create_mode == OS_FILE_OPEN
-		   || create_mode == OS_FILE_OPEN_RETRY) {
-
-		create_flag = OPEN_EXISTING;
-
-	} else if (read_only) {
-
-		create_flag = OPEN_EXISTING;
-
-	} else if (create_mode == OS_FILE_CREATE) {
-
+		break;
+	case OS_FILE_CREATE_SILENT:
+	case OS_FILE_CREATE:
 		create_flag = CREATE_NEW;
-
-	} else if (create_mode == OS_FILE_OVERWRITE) {
-
-		create_flag = CREATE_ALWAYS;
-
-	} else {
-		ib::error()
-			<< "Unknown file create mode (" << create_mode << ") "
-			<< " for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
+		break;
+	default:
+		ut_ad(create_mode == OS_FILE_OPEN
+		      || create_mode == OS_FILE_OPEN_SILENT
+		      || create_mode == OS_FILE_OPEN_RETRY_SILENT
+		      || create_mode == OS_FILE_OPEN_RETRY);
+		break;
 	}
 
 	DWORD attributes= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
-		/* There is not reason to use buffered write to logs.*/
-		attributes |= FILE_FLAG_NO_BUFFERING;
-	}
-
-	switch (srv_file_flush_method)
-	{
-	case SRV_O_DSYNC:
-		if (type == OS_LOG_FILE) {
-			/* Map O_DSYNC to FILE_WRITE_THROUGH */
-			attributes |= FILE_FLAG_WRITE_THROUGH;
+		if (!log_sys.is_opened() && !log_sys.log_buffered) {
+			attributes|= FILE_FLAG_NO_BUFFERING;
 		}
-		break;
-
-#if defined _WIN32 || defined HAVE_FCNTL_DIRECT
-	case SRV_O_DIRECT_NO_FSYNC:
-	case SRV_O_DIRECT:
-		if (type != OS_DATA_FILE) {
-			break;
-		}
-		/* fall through */
-#endif
-	case SRV_ALL_O_DIRECT_FSYNC:
-		/*Traditional Windows behavior, no buffering for any files.*/
-		if (type != OS_DATA_FILE_NO_O_DIRECT) {
-			attributes |= FILE_FLAG_NO_BUFFERING;
-		}
-		break;
-
-	case SRV_FSYNC:
-	case SRV_LITTLESYNC:
-		break;
-
-	case SRV_NOSYNC:
-		/* Let Windows cache manager handle all writes.*/
-		attributes &= ~(FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING);
-		break;
-
-	default:
-		ut_a(false); /* unknown flush mode.*/
+		if (log_sys.log_write_through)
+			attributes|= FILE_FLAG_WRITE_THROUGH;
+	} else {
+		if (type == OS_DATA_FILE && !fil_system.is_buffered())
+			attributes|= FILE_FLAG_NO_BUFFERING;
+		if (fil_system.is_write_through())
+			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
 
-
-	// TODO: Create a bug, this looks wrong. The flush log
-	// parameter is dynamic.
-	if (type == OS_LOG_FILE && srv_flush_log_at_trx_commit == 2) {
-		/* Do not use unbuffered i/o for the log files because
-		value 2 denotes that we do not flush the log at every
-		commit, but only once per second */
-		attributes &= ~(FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING);
-	}
-
-
-	DWORD	access = GENERIC_READ;
-
-	if (!read_only) {
-		access |= GENERIC_WRITE;
-	}
+	DWORD access = read_only ? GENERIC_READ : GENERIC_READ | GENERIC_WRITE;
 
 	for (;;) {
 		const  char *operation;
@@ -2184,35 +2071,31 @@ os_file_create_func(
 			name, access, share_mode, my_win_file_secattr(),
 			create_flag, attributes, NULL);
 
-		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
-		for expected IO sizes. Reopen without the unbuffered flag, if it is won't work*/
-		if ((file != INVALID_HANDLE_VALUE)
-			&& (attributes & FILE_FLAG_NO_BUFFERING)
-			&& (type == OS_LOG_FILE)
-			&& !unbuffered_io_possible(file, OS_FILE_LOG_BLOCK_SIZE)) {
-				ut_a(CloseHandle(file));
-				attributes &= ~FILE_FLAG_NO_BUFFERING;
-				create_flag = OPEN_ALWAYS;
-				continue;
+		*success = file != INVALID_HANDLE_VALUE;
+
+		if (*success && type == OS_LOG_FILE) {
+			uint32_t s = uint32_t(get_sector_size(file));
+			log_sys.set_block_size(s);
+			if (attributes & FILE_FLAG_NO_BUFFERING) {
+				if (os_file_get_size(file) % s) {
+					attributes &= ~FILE_FLAG_NO_BUFFERING;
+					create_flag = OPEN_ALWAYS;
+					CloseHandle(file);
+					continue;
+				}
+				log_sys.log_buffered = false;
+			}
 		}
 
-		*success = (file != INVALID_HANDLE_VALUE);
 		if (*success) {
 			break;
 		}
 
-		operation = (create_mode == OS_FILE_CREATE && !read_only) ?
-			"create" : "open";
+		operation = create_flag == CREATE_NEW ? "create" : "open";
 
-		if (on_error_no_exit) {
-			retry = os_file_handle_error_no_exit(
-				name, operation, on_error_silent);
-		}
-		else {
-			retry = os_file_handle_error(name, operation);
-		}
-
-		if (!retry) {
+		if (!os_file_handle_error_no_exit(name, operation,
+						  create_mode
+						  & OS_FILE_ON_ERROR_SILENT)) {
 			break;
 		}
 	}
@@ -2239,79 +2122,42 @@ A simple function to open or create a file.
 pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
-	ulint		create_mode,
+	os_file_create_t create_mode,
 	ulint		access_type,
 	bool		read_only,
 	bool*		success) noexcept
 {
 	os_file_t	file;
 
-	*success = false;
-
-	DWORD		access;
-	DWORD		create_flag;
+	DWORD		access = GENERIC_READ;
+	DWORD		create_flag = OPEN_EXISTING;
 	DWORD		attributes	= 0;
-	DWORD		share_mode = read_only
-		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
-		: FILE_SHARE_READ | FILE_SHARE_DELETE;
+	DWORD		share_mode = FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	ut_a(name);
 
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
-	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
-
-	if (create_mode == OS_FILE_OPEN) {
-
-		create_flag = OPEN_EXISTING;
-
-	} else if (read_only) {
-
-		create_flag = OPEN_EXISTING;
-
-	} else if (create_mode == OS_FILE_CREATE) {
-
-		create_flag = CREATE_NEW;
-
+	if (read_only) {
+		share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE
+			| FILE_SHARE_DELETE;
 	} else {
+		if (create_mode == OS_FILE_CREATE) {
+			create_flag = CREATE_NEW;
+		} else {
+			ut_ad(create_mode == OS_FILE_OPEN);
+		}
 
-		ib::error()
-			<< "Unknown file create mode (" << create_mode << ") "
-			<< " for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
-	}
-
-	if (access_type == OS_FILE_READ_ONLY) {
-
-		access = GENERIC_READ;
-
-	} else if (read_only) {
-
-		access = GENERIC_READ;
-
-	} else if (access_type == OS_FILE_READ_WRITE) {
-
-		access = GENERIC_READ | GENERIC_WRITE;
-
-	} else if (access_type == OS_FILE_READ_ALLOW_DELETE) {
-
-		ut_a(!read_only);
-
-		access = GENERIC_READ;
-
-		/*!< A backup program has to give mysqld the maximum
-		freedom to do what it likes with the file */
-
-		share_mode |= FILE_SHARE_DELETE | FILE_SHARE_WRITE
-			| FILE_SHARE_READ;
-
-	} else {
-
-		ib::error()
-			<< "Unknown file access type (" << access_type << ") "
-			<< "for file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
+		switch (access_type) {
+		case OS_FILE_READ_ONLY: break;
+		case OS_FILE_READ_WRITE:
+			access = GENERIC_READ | GENERIC_WRITE;
+			break;
+		default:
+			ut_ad(access_type == OS_FILE_READ_ALLOW_DELETE);
+			/* A backup program has to give mariadbd the maximum
+			freedom to do what it likes with the file */
+			share_mode |= FILE_SHARE_DELETE | FILE_SHARE_WRITE
+				| FILE_SHARE_READ;
+		}
 	}
 
 	file = CreateFile((LPCTSTR) name,
@@ -2353,16 +2199,15 @@ os_file_delete_if_exists_func(
 			return(true);
 		}
 
-		DWORD	lasterr = GetLastError();
-
-		if (lasterr == ERROR_FILE_NOT_FOUND
-		    || lasterr == ERROR_PATH_NOT_FOUND) {
-
+		switch (GetLastError()) {
+		case ERROR_FILE_NOT_FOUND:
+		case ERROR_PATH_NOT_FOUND:
 			/* the file does not exist, this not an error */
 			if (exist != NULL) {
 				*exist = false;
 			}
-
+			/* fall through */
+		case ERROR_ACCESS_DENIED:
 			return(true);
 		}
 
@@ -2461,8 +2306,20 @@ os_file_rename_func(
 	ut_ad(exists);
 #endif /* UNIV_DEBUG */
 
-	if (MoveFileEx(oldpath, newpath, MOVEFILE_REPLACE_EXISTING)) {
-		return(true);
+	for (int retry= 50;; retry--){
+		if (MoveFileEx(oldpath, newpath, MOVEFILE_REPLACE_EXISTING))
+			return true;
+
+		if (!retry)
+			break;
+
+		if (GetLastError() != ERROR_SHARING_VIOLATION)
+			break;
+
+		// oldpath was opened by someone else (antivirus?)
+		//without FILE_SHARE_DELETE flag. Retry operation
+
+		Sleep(10);
 	}
 
 	os_file_handle_rename_error(oldpath, newpath);
@@ -2480,7 +2337,7 @@ bool os_file_close_func(os_file_t file)
   ut_ad(file);
   if (!CloseHandle(file))
   {
-    os_file_handle_error(NULL, "close");
+    os_file_handle_error("close");
     return false;
   }
 
@@ -2491,10 +2348,10 @@ bool os_file_close_func(os_file_t file)
 
 os_offset_t os_file_get_size(os_file_t file) noexcept
 {
-  DWORD high, low= GetFileSize(file, &high);
-  if (low == 0xFFFFFFFF && GetLastError() != NO_ERROR)
-    return os_offset_t(-1);
-  return os_offset_t{low} | os_offset_t{high} << 32;
+  LARGE_INTEGER li;
+  if (GetFileSizeEx(file, &li))
+    return li.QuadPart;
+  return ((os_offset_t) -1);
 }
 
 os_file_size_t os_file_get_size(const char *filename) noexcept
@@ -2885,8 +2742,8 @@ os_file_read_func(
   if (ulint(n_bytes) == n || err != DB_SUCCESS)
     return err;
 
-  os_file_handle_error_cond_exit(type.node ? type.node->name : nullptr, "read",
-                                 false, false);
+  os_file_handle_error_no_exit(type.node ? type.node->name : nullptr, "read",
+                               false);
   sql_print_error("InnoDB: Tried to read %zu bytes at offset %" PRIu64
                   " of file %s, but was only able to read %zd",
                   n, offset, type.node ? type.node->name : "(unknown)",
@@ -2947,8 +2804,13 @@ os_file_handle_error_cond_exit(
 	case OS_FILE_PATH_ERROR:
 	case OS_FILE_ALREADY_EXISTS:
 	case OS_FILE_ACCESS_VIOLATION:
-
 		return(false);
+
+        case OS_FILE_NOT_FOUND:
+		if (!on_error_silent) {
+			sql_print_error("InnoDB: File %s was not found", name);
+		}
+		return false;
 
 	case OS_FILE_SHARING_VIOLATION:
 
@@ -2983,46 +2845,6 @@ os_file_handle_error_cond_exit(
 
 	return(false);
 }
-
-#ifdef HAVE_FCNTL_DIRECT
-/** Tries to disable OS caching on an opened file descriptor.
-@param[in]	fd		file descriptor to alter
-@param[in]	file_name	file name, used in the diagnostic message
-@param[in]	name		"open" or "create"; used in the diagnostic
-				message */
-void
-os_file_set_nocache(int fd, const char *file_name, const char *operation_name)
-  noexcept
-{
-	const auto innodb_flush_method = srv_file_flush_method;
-	switch (innodb_flush_method) {
-	case SRV_O_DIRECT:
-	case SRV_O_DIRECT_NO_FSYNC:
-		break;
-	default:
-		return;
-	}
-
-	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
-		int		errno_save = errno;
-		static bool	warning_message_printed = false;
-		if (errno_save == EINVAL) {
-			if (!warning_message_printed) {
-				warning_message_printed = true;
-				ib::info()
-					<< "Setting O_DIRECT on file "
-					<< file_name << " failed";
-			}
-		} else {
-			ib::warn()
-				<< "Failed to set O_DIRECT on file "
-				<< file_name << "; " << operation_name
-				<< " : " << strerror(errno_save)
-				<< ", continuing anyway.";
-		}
-	}
-}
-#endif /* HAVE_FCNTL_DIRECT */
 
 /** Check if the file system supports sparse files.
 @param fh	file handle
@@ -3426,6 +3248,60 @@ disable:
 }
 
 
+/**
+Change reader or writer thread parameter on a running server.
+This includes resizing  the io slots, as we calculate
+number of outstanding IOs based on the these variables.
+
+It is trickier with when Linux AIO is involved (io_context
+needs to be recreated to account for different number of
+max_events). With Linux AIO, depending on fs-max-aio number
+and user and system wide max-aio limitation, this can fail.
+
+Otherwise, we just resize the slots, and allow for
+more concurrent threads via thread_group setting.
+
+@param[in] n_reader_threads - max number of concurrently
+  executing read callbacks
+@param[in] n_writer_thread - max number of concurrently
+  executing write callbacks
+@return 0 for success, !=0 for error.
+*/
+int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads) noexcept
+{
+  /* Lock the slots, and wait until all current IOs finish.*/
+  std::unique_lock<std::mutex> lk_read(read_slots->mutex()),
+    lk_write(write_slots->mutex());
+
+  read_slots->wait(lk_read);
+  write_slots->wait(lk_write);
+
+  /* Now, all IOs have finished and no new ones can start, due to locks. */
+  int max_read_events= int(n_reader_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int max_write_events= int(n_writer_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int events= max_read_events + max_write_events;
+
+  /** Do the Linux AIO dance (this will try to create a new
+  io context with changed max_events ,etc*/
+
+  int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events);
+
+  if (ret)
+  {
+    /** Do the best effort. We can't change the parallel io number,
+    but we still can adjust the number of concurrent completion handlers.*/
+    read_slots->task_group().set_max_tasks(static_cast<int>(n_reader_threads));
+    write_slots->task_group().set_max_tasks(static_cast<int>(n_writer_threads));
+  }
+  else
+  {
+    /* Allocation succeeded, resize the slots*/
+    read_slots->resize(max_read_events, static_cast<int>(n_reader_threads));
+    write_slots->resize(max_write_events, static_cast<int>(n_writer_threads));
+  }
+  return ret;
+}
+
 void os_aio_free() noexcept
 {
   delete read_slots;
@@ -3460,10 +3336,8 @@ void os_aio_wait_until_no_pending_writes(bool declare) noexcept
 /** @return number of pending reads */
 size_t os_aio_pending_reads() noexcept
 {
-  mysql_mutex_lock(&read_slots->mutex());
-  size_t pending= read_slots->pending_io_count();
-  mysql_mutex_unlock(&read_slots->mutex());
-  return pending;
+  std::lock_guard<std::mutex> lock(read_slots->mutex());
+  return read_slots->pending_io_count();
 }
 
 /** @return approximate number of pending reads */
@@ -3475,10 +3349,8 @@ size_t os_aio_pending_reads_approx() noexcept
 /** @return number of pending writes */
 size_t os_aio_pending_writes() noexcept
 {
-  mysql_mutex_lock(&write_slots->mutex());
-  size_t pending= write_slots->pending_io_count();
-  mysql_mutex_unlock(&write_slots->mutex());
-  return pending;
+  std::lock_guard<std::mutex> lock(write_slots->mutex());
+  return write_slots->pending_io_count();
 }
 
 /** @return approximate number of pending writes */
@@ -3535,8 +3407,9 @@ dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
   noexcept
 {
 	ut_ad(n > 0);
-	ut_ad((n % OS_FILE_LOG_BLOCK_SIZE) == 0);
-	ut_ad((offset % OS_FILE_LOG_BLOCK_SIZE) == 0);
+	ut_ad(!(n & 511)); /* payload of page_compressed tables */
+	ut_ad((offset % UNIV_ZIP_SIZE_MIN) == 0);
+	ut_ad((reinterpret_cast<size_t>(buf) % UNIV_ZIP_SIZE_MIN) == 0);
 	ut_ad(type.is_read() || type.is_write());
 	ut_ad(type.node);
 	ut_ad(type.node->is_open());
@@ -3597,15 +3470,11 @@ func_exit:
 	cb->m_opcode = opcode;
 	new (cb->m_userdata) IORequest{type};
 
-	ut_a(reinterpret_cast<size_t>(cb->m_buffer) % OS_FILE_LOG_BLOCK_SIZE
-	     == 0);
-	ut_a(cb->m_len % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_a(cb->m_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
-
 	if (srv_thread_pool->submit_io(cb)) {
 		slots->release(cb);
-		os_file_handle_error(type.node->name, type.is_read()
-				     ? "aio read" : "aio write");
+		os_file_handle_error_no_exit(type.node->name, type.is_read()
+					     ? "aio read" : "aio write",
+					     false);
 		err = DB_IO_ERROR;
 		type.node->space->release();
 	}
@@ -3622,10 +3491,8 @@ void os_aio_print(FILE *file) noexcept
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
-		"Pending flushes (fsync) log: " ULINTPF
-		"; buffer pool: " ULINTPF "\n"
+		"Pending flushes (fsync): " ULINTPF "\n"
 		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
-		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
 		static_cast<size_t>(os_n_file_writes),
@@ -3925,7 +3792,7 @@ bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
        FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
       ? ULINT_UNDEFINED
       : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
-    ulint flags= fsp_header_get_flags(page);
+    uint32_t flags= fsp_header_get_flags(page);
     const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
     if (!space_id && !flags && !size && dpage)
     {
@@ -3939,11 +3806,11 @@ bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
 
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
-      ulint cflags= fsp_flags_convert_from_101(flags);
-      if (cflags != ULINT_UNDEFINED)
+      uint32_t cflags= fsp_flags_convert_from_101(flags);
+      if (cflags != UINT32_MAX)
       {
-        ulint cf= cflags & ~FSP_FLAGS_MEM_MASK;
-        ulint sf= space->flags & ~FSP_FLAGS_MEM_MASK;
+        uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
+        uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
 
         if (fil_space_t::is_flags_equal(cf, sf) ||
             fil_space_t::is_flags_equal(sf, cf))
@@ -3964,7 +3831,8 @@ bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
     invalid:
       if (dpage)
         goto retry_dpage;
-      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+      sql_print_error("InnoDB: Expected tablespace flags 0x%" PRIx32
+                      " but found 0x%" PRIx32
                       " in the file %s", space->flags, flags, name);
       goto err_exit;
     }
@@ -4018,5 +3886,3 @@ bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
   space->set_sizes(this->size);
   return true;
 }
-
-#endif /* !UNIV_INNOCHECKSUM */

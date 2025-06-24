@@ -48,7 +48,7 @@
   /usr/lib/mysql/plugin/ r,
   /usr/lib/mysql/plugin/*.so* mr,
   /usr/sbin/mariadbd mr,
-  /usr/share/mysql/** r,
+  /usr/share/mariadb/** r,
   /var/lib/mysql/ r,
   /var/lib/mysql/** rwk,
   /var/log/mysql.err rw,

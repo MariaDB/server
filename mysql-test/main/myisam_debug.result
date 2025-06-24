@@ -23,8 +23,6 @@ SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE STATE = 'wait_in_enable_indexes' AND 
 INFO = "INSERT INTO t1(id) SELECT id  FROM t2" 
 INTO @thread_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 KILL QUERY @thread_id;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

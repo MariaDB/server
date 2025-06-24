@@ -1,25 +1,25 @@
 CREATE ROLE IF NOT EXISTS role1 WITH ADMIN user1;
 Warnings:
-Note	1449	The user specified as a definer ('user1'@'%') does not exist
+Note	1446	The user specified as a definer ('user1'@'%') does not exist
 SELECT * FROM mysql.roles_mapping;
 Host	User	Role	Admin_option
 %	user1	role1	Y
 DROP ROLE role1;
 CREATE OR REPLACE ROLE role1 WITH ADMIN user2;
 Warnings:
-Note	1449	The user specified as a definer ('user2'@'%') does not exist
+Note	1446	The user specified as a definer ('user2'@'%') does not exist
 SELECT * FROM mysql.roles_mapping WHERE Role='role1';
 Host	User	Role	Admin_option
 %	user2	role1	Y
 CREATE OR REPLACE ROLE role1 WITH ADMIN user3;
 Warnings:
-Note	1449	The user specified as a definer ('user3'@'%') does not exist
+Note	1446	The user specified as a definer ('user3'@'%') does not exist
 SELECT * FROM mysql.roles_mapping WHERE Role='role1';
 Host	User	Role	Admin_option
 %	user3	role1	Y
 CREATE ROLE IF NOT EXISTS role1 WITH ADMIN user4;
 Warnings:
-Note	1449	The user specified as a definer ('user4'@'%') does not exist
+Note	1446	The user specified as a definer ('user4'@'%') does not exist
 Note	1975	Can't create role 'role1'; it already exists
 SELECT * FROM mysql.roles_mapping WHERE Role='role1';
 Host	User	Role	Admin_option
@@ -51,7 +51,6 @@ u1@localhost
 SHOW DATABASES;
 Database
 information_schema
-test
 SELECT CURRENT_ROLE;
 CURRENT_ROLE
 NULL

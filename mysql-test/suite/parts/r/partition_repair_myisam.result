@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 # REPAIR USE_FRM is not implemented for partitioned tables.
 # Test what happens if we exchange a crashed partition with a table
 SHOW VARIABLES LIKE 'myisam_recover_options';
@@ -527,3 +528,4 @@ ALTER TABLE t1_will_crash CHECK PARTITION all EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	status	OK
 DROP TABLE t1_will_crash;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

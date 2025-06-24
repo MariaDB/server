@@ -74,15 +74,7 @@ TABLE *spider_open_sys_table(
   int table_name_length,
   bool write,
   SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock,
   int *error_num
-);
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock
 );
 
 bool spider_sys_open_and_lock_tables(
@@ -413,13 +405,6 @@ int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
 
 int spider_get_sys_tables_link_status(
   TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
-  MEM_ROOT *mem_root
-);
-
-int spider_get_sys_tables_link_status(
-  TABLE *table,
   long *link_status,
   MEM_ROOT *mem_root
 );
@@ -442,24 +427,21 @@ int spider_sys_update_tables_link_status(
   char *name,
   uint name_length,
   int link_idx,
-  long link_status,
-  bool need_lock
+  long link_status
 );
 
 int spider_sys_log_tables_link_failed(
   THD *thd,
   char *name,
   uint name_length,
-  int link_idx,
-  bool need_lock
+  int link_idx
 );
 
 int spider_sys_log_xa_failed(
   THD *thd,
   XID *xid,
   SPIDER_CONN *conn,
-  const char *status,
-  bool need_lock
+  const char *status
 );
 
 int spider_get_sys_link_mon_key(
@@ -492,7 +474,6 @@ int spider_sys_replace(
   bool *modified_non_trans_table
 );
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(
   THD *thd,
   TABLE *table,
@@ -500,15 +481,6 @@ TABLE *spider_mk_sys_tmp_table(
   const LEX_CSTRING *field_name,
   CHARSET_INFO *cs
 );
-#else
-TABLE *spider_mk_sys_tmp_table(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name,
-  CHARSET_INFO *cs
-);
-#endif
 
 void spider_rm_sys_tmp_table(
   THD *thd,
@@ -516,7 +488,6 @@ void spider_rm_sys_tmp_table(
   TMP_TABLE_PARAM *tmp_tbl_prm
 );
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table_for_result(
   THD *thd,
   TABLE *table,
@@ -526,17 +497,6 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   const LEX_CSTRING *field_name3,
   CHARSET_INFO *cs
 );
-#else
-TABLE *spider_mk_sys_tmp_table_for_result(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name1,
-  const char *field_name2,
-  const char *field_name3,
-  CHARSET_INFO *cs
-);
-#endif
 
 void spider_rm_sys_tmp_table_for_result(
   THD *thd,

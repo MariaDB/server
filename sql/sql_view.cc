@@ -67,8 +67,8 @@ static void make_unique_view_field_name(THD *thd, Item *target,
                                         List<Item> &item_list,
                                         Item *last_element)
 {
-  const char *name= (target->orig_name ?
-                     target->orig_name :
+  const char *name= (target->orig_name.str ?
+                     target->orig_name.str :
                      target->name.str);
   size_t name_len;
   uint attempt;
@@ -89,7 +89,7 @@ static void make_unique_view_field_name(THD *thd, Item *target,
     {
       check= itc++;
       if (check != target &&
-          my_strcasecmp(system_charset_info, buff, check->name.str) == 0)
+          check->name.streq(Lex_cstring(buff, name_len)))
       {
         ok= FALSE;
         break;
@@ -100,8 +100,8 @@ static void make_unique_view_field_name(THD *thd, Item *target,
     itc.rewind();
   }
 
-  if (!target->orig_name)
-    target->orig_name= target->name.str;
+  if (!target->orig_name.str)
+    target->orig_name= target->name;
   target->set_name(thd, buff, name_len, system_charset_info);
 }
 
@@ -145,7 +145,7 @@ bool check_duplicate_names(THD *thd, List<Item> &item_list, bool gen_unique_view
     itc.rewind();
     while ((check= itc++) && check != item)
     {
-      if (lex_string_cmp(system_charset_info, &item->name, &check->name) == 0)
+      if (item->name.streq(check->name))
       {
         if (!gen_unique_view_name)
           goto err;
@@ -183,10 +183,10 @@ void make_valid_column_names(THD *thd, List<Item> &item_list)
 
   for (uint column_no= 1; (item= it++); column_no++)
   {
-    if (item->is_explicit_name() || !check_column_name(item->name.str))
+    if (item->is_explicit_name() || !check_column_name(item->name))
       continue;
     name_len= my_snprintf(buff, NAME_LEN, "Name_exp_%u", column_no);
-    item->orig_name= item->name.str;
+    item->orig_name= item->name;
     item->set_name(thd, buff, name_len, system_charset_info);
   }
 
@@ -600,6 +600,26 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
+  // Disallow non-deterministic data types such as SYS_REFCURSOR
+  if (thd->stmt_arena->with_complex_data_types())
+  {
+    /*
+      There are some complex data types.
+      Let's find which exactly and raise an error.
+    */
+    if (thd->stmt_arena->check_free_list_no_complex_data_types("CREATE VIEW"))
+    {
+      res= true;
+      goto err;
+    }
+    /*
+      Perhaps some item tree transformation happened.
+      All items with complex data types return false in const_item(),
+      so no transformation should happen.
+    */
+    DBUG_ASSERT(0);
+  }
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /*
     Compare/check grants on view with grants of underlying tables
@@ -633,13 +653,13 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
         Item_field *fld= item->field_for_view_update();
         privilege_t priv(get_column_grant(thd, &view->grant, view->db.str,
                                           view->table_name.str,
-                                          item->name.str) &
+                                          item->name) &
                     VIEW_ANY_ACL);
 
         if (!fld)
           continue;
         TABLE_SHARE *s= fld->field->table->s;
-        const Lex_ident field_name= fld->field->field_name;
+        const Lex_ident_column field_name= fld->field->field_name;
         if (s->tmp_table ||
             (s->versioned &&
              (field_name.streq(s->vers_start_field()->field_name) ||
@@ -666,6 +686,19 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     }
   }
 #endif
+
+  /*
+    Reset item list names within derived tables so that when reparsed in the
+    view, references elsewhere within this select_lex can be correctly resolved
+  */
+  for (SELECT_LEX *sl= lex->all_selects_list; sl; sl= sl->next_select_in_list())
+  {
+    for (TABLE_LIST *tl= sl->get_table_list(); tl && !res; tl= tl->next_local)
+    {
+      if (tl->original_names_source)
+        tl->original_names_source->set_item_list_names(tl->original_names);
+    }
+  }
 
   res= mysql_register_view(thd, &ddl_log_state, view, mode, backup_file_name);
 
@@ -731,7 +764,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     if (backup_file_name[0])
     {
       LEX_CSTRING cpath= {backup_file_name, strlen(backup_file_name) };
-      ddl_log_delete_tmp_file(thd, &ddl_log_state_tmp_file, &cpath,
+      ddl_log_delete_tmp_file(&ddl_log_state_tmp_file, &cpath,
                               &ddl_log_state);
     }
     debug_crash_here("ddl_log_create_before_binlog");
@@ -909,7 +942,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   {
     if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= (char *)thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
+       if ((view->md5.str= thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
@@ -924,7 +957,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
                     view->db.str, view->table_name.str);
     DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
   }
-  sql_print_information("View %`s.%`s: the version is set to %llu%s%s",
+  sql_print_information("View %sQ.%sQ: the version is set to %llu%s%s",
                         view->db.str, view->table_name.str,
                         view->mariadb_version,
                         (wrong_checksum ? ", checksum corrected" : ""),
@@ -1208,7 +1241,7 @@ loop_out:
     goto err;
   }
 
-  ddl_log_create_view(thd, ddl_log_state, &path, old_view_exists ?
+  ddl_log_create_view(ddl_log_state, &path, old_view_exists ?
                       DDL_CREATE_VIEW_PHASE_DELETE_VIEW_COPY :
                       DDL_CREATE_VIEW_PHASE_NO_OLD_VIEW);
 
@@ -1354,12 +1387,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
        precedent;
        precedent= precedent->referencing_view)
   {
-    if (precedent->view_name.length == table->table_name.length &&
-        precedent->view_db.length == table->db.length &&
-        my_strcasecmp(system_charset_info,
-                      precedent->view_name.str, table->table_name.str) == 0 &&
-        my_strcasecmp(system_charset_info,
-                      precedent->view_db.str, table->db.str) == 0)
+    if (precedent->view_name.streq(table->table_name) &&
+        precedent->view_db.streq(table->db))
     {
       my_error(ER_VIEW_RECURSIVE, MYF(0),
                top_view->view_db.str, top_view->view_name.str);
@@ -1731,8 +1760,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         For suid views prepare a security context for checking underlying
         objects of the view.
       */
-      if (!(table->view_sctx= (Security_context *)
-            thd->active_stmt_arena_to_use()->calloc(sizeof(Security_context))))
+      if (!(table->view_sctx=
+            thd->active_stmt_arena_to_use()->calloc<Security_context>(1)))
         goto err;
       security_ctx= table->view_sctx;
     }
@@ -1941,12 +1970,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 
   for (view= views; view; view= view->next_local)
   {
-    LEX_CSTRING cpath;
     bool not_exist;
-    size_t length;
-    length= build_table_filename(path, sizeof(path) - 1,
-                                 view->db.str, view->table_name.str, reg_ext, 0);
-    lex_string_set3(&cpath, path, length);
+    size_t length= build_table_filename(path, sizeof(path) - 1, view->db.str,
+                                        view->table_name.str, reg_ext, 0);
+    LEX_CSTRING cpath= { path, length };
 
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
@@ -1969,10 +1996,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     }
     if (!view_count++)
     {
-      if (ddl_log_drop_view_init(thd, &ddl_log_state, &thd->db))
+      if (ddl_log_drop_view_init(&ddl_log_state, &thd->db))
         DBUG_RETURN(TRUE);
     }
-    if (ddl_log_drop_view(thd, &ddl_log_state, &cpath, &view->db,
+    if (ddl_log_drop_view(&ddl_log_state, &cpath, &view->db,
                           &view->table_name))
       DBUG_RETURN(TRUE);
     debug_crash_here("ddl_log_drop_before_delete_view");
@@ -2193,10 +2220,9 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
     if ((fld= entry->item->field_for_view_update()))
     {
       TABLE_SHARE *s= fld->context->table_list->table->s;
-      Lex_ident field_name= fld->field_name;
       if (s->versioned &&
-          (field_name.streq(s->vers_start_field()->field_name) ||
-           field_name.streq(s->vers_end_field()->field_name)))
+          (fld->field_name.streq(s->vers_start_field()->field_name) ||
+           fld->field_name.streq(s->vers_end_field()->field_name)))
         continue;
       list->push_back(fld, thd->mem_root);
     }
@@ -2214,10 +2240,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 
   SINOPSYS
     view_checksum()
-    thd     threar handler
+    thd     thread handler
     view    view for check
 
-  RETUIRN
+  RETURN
     HA_ADMIN_OK               OK
     HA_ADMIN_NOT_IMPLEMENTED  it is not VIEW
     HA_ADMIN_WRONG_CHECKSUM   check sum is wrong
@@ -2244,6 +2270,7 @@ int view_checksum(THD *thd, TABLE_LIST *view)
   @retval HA_ADMIN_OK               OK
   @retval HA_ADMIN_NOT_IMPLEMENTED  it is not VIEW
   @retval HA_ADMIN_WRONG_CHECKSUM   check sum is wrong
+  @retval HA_ADMIN_NEEDS_UPGRADE    We need to recreate the view
 */
 int view_check(THD *thd, TABLE_LIST *view, HA_CHECK_OPT *check_opt)
 {

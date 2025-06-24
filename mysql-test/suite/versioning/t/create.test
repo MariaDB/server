@@ -1,11 +1,9 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 --enable_prepare_warnings
+
+select * from information_schema.periods;
 
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE NULL ''
 eval create table t1 (
@@ -17,6 +15,10 @@ eval create table t1 (
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE
 show create table t1;
 
+select * from information_schema.periods where table_name = 't1';
+select column_name, is_system_time_period_start, is_system_time_period_end
+    from information_schema.columns where table_name = 't1';
+
 --query_vertical select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1'
 --query_vertical select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,character_maximum_length,character_octet_length,character_set_name,collation_name,column_key,extra,column_comment,is_generated,generation_expression from information_schema.columns where table_name='t1'
 
@@ -26,6 +28,10 @@ create or replace table t1 (
 ) with system versioning;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
+
+select * from information_schema.periods where table_name = 't1';
+select column_name, is_system_time_period_start, is_system_time_period_end
+  from information_schema.columns where table_name = 't1';
 
 --replace_result $default_engine DEFAULT_ENGINE
 --error ER_VERS_PERIOD_COLUMNS
@@ -420,11 +426,11 @@ drop tables t0, t1, t2, t3;
 --echo #
 --echo # MDEV-23968 CREATE TEMPORARY TABLE .. LIKE (system versioned table) returns error if unique index is defined in the table
 --echo #
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int primary key, index(row_start)) with system versioning;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int primary key, index(row_end)) with system versioning;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (id int, primary key(id, row_end, row_end)) with system versioning;
 create table t1 (id int primary key) with system versioning;
 create temporary table t2 like t1;

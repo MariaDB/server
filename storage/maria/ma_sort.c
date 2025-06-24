@@ -48,7 +48,7 @@ extern void print_error(const char *fmt,...);
 
 static ha_rows find_all_keys(MARIA_SORT_PARAM *info, ha_keys keys,
                              uchar **sort_keys,
-                             DYNAMIC_ARRAY *buffpek,uint *maxbuffer,
+                             DYNAMIC_ARRAY *buffpek,size_t *maxbuffer,
                              IO_CACHE *tempfile,
                              IO_CACHE *tempfile_for_exceptions);
 static int write_keys(MARIA_SORT_PARAM *info,uchar **sort_keys,
@@ -59,7 +59,7 @@ static int write_index(MARIA_SORT_PARAM *info, uchar **sort_keys,
                       ha_keys count);
 static int merge_many_buff(MARIA_SORT_PARAM *info, ha_keys keys,
                            uchar **sort_keys,
-                           BUFFPEK *buffpek, uint *maxbuffer,
+                           BUFFPEK *buffpek, size_t *maxbuffer,
                            IO_CACHE *t_file);
 static my_off_t read_to_buffer(IO_CACHE *fromfile,BUFFPEK *buffpek,
                                uint sort_length);
@@ -67,7 +67,7 @@ static int merge_buffers(MARIA_SORT_PARAM *info, ha_keys keys,
                          IO_CACHE *from_file, IO_CACHE *to_file,
                          uchar **sort_keys, BUFFPEK *lastbuff,
                          BUFFPEK *Fb, BUFFPEK *Tb);
-static int merge_index(MARIA_SORT_PARAM *,ha_keys,uchar **,BUFFPEK *, uint,
+static int merge_index(MARIA_SORT_PARAM *,ha_keys,uchar **,BUFFPEK *, size_t,
                        IO_CACHE *);
 static int flush_maria_ft_buf(MARIA_SORT_PARAM *info);
 
@@ -124,8 +124,8 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
                              size_t sortbuff_size)
 {
   int error;
-  uint sort_length, maxbuffer;
-  size_t memavl, old_memavl;
+  uint sort_length;
+  size_t memavl, old_memavl, maxbuffer;
   DYNAMIC_ARRAY buffpek;
   ha_rows records, UNINIT_VAR(keys);
   uchar **sort_keys;
@@ -163,7 +163,7 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
         will be allocated when needed.
       */
       keys= memavl / (sort_length+sizeof(char*));
-      maxbuffer= (uint) MY_MIN((ulonglong) 1000, (records / keys)+1);
+      maxbuffer= (size_t) MY_MIN((ulonglong) 1000, (records / keys)+1);
     }
     else
     {
@@ -171,7 +171,7 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
         All keys can't fit in memory.
         Calculate how many keys + buffers we can keep in memory
       */
-      uint maxbuffer_org;
+      size_t maxbuffer_org;
       do
       {
 	maxbuffer_org= maxbuffer;
@@ -196,7 +196,7 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
           break;
         }
       }
-      while ((maxbuffer= (uint) (records/(keys-1)+1)) != maxbuffer_org);
+      while ((maxbuffer= (size_t) (records/(keys-1)+1)) != maxbuffer_org);
     }
 
     if ((sort_keys= ((uchar**)
@@ -281,7 +281,12 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
       printf("  - Last merge and dumping keys\n"); /* purecov: tested */
     if (merge_index(info,keys,sort_keys,dynamic_element(&buffpek,0,BUFFPEK *),
                     maxbuffer,&tempfile))
+    {
+      const char *format= "Got error %iE when merging index";
+      _ma_check_print_error(info->sort_info->param,
+                            format, (int) my_errno);
       goto err;					/* purecov: inspected */
+    }
   }
 
   if (flush_maria_ft_buf(info) || _ma_flush_pending_blocks(info))
@@ -330,7 +335,7 @@ err:
 
 static ha_rows find_all_keys(MARIA_SORT_PARAM *info, ha_rows keys,
                              uchar **sort_keys, DYNAMIC_ARRAY *buffpek,
-                             uint *maxbuffer, IO_CACHE *tempfile,
+                             size_t *maxbuffer, IO_CACHE *tempfile,
                              IO_CACHE *tempfile_for_exceptions)
 {
   int error;
@@ -391,7 +396,7 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
   longlong sortbuff_size;
   ha_keys UNINIT_VAR(keys), idx;
   uint sort_length;
-  uint maxbuffer;
+  size_t maxbuffer;
   uchar **sort_keys= NULL;
   DBUG_ENTER("_ma_thr_find_all_keys_exec");
   DBUG_PRINT("enter", ("master: %d", sort_param->master));
@@ -426,11 +431,11 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
         will be allocated when needed.
       */
       keys= memavl / (sort_length+sizeof(char*));
-      maxbuffer= (uint) MY_MIN((ulonglong) 1000, (idx / keys)+1);
+      maxbuffer= (size_t) MY_MIN((ulonglong) 1000, (idx / keys)+1);
     }
     else
     {
-      uint maxbuffer_org;
+      size_t maxbuffer_org;
       do
       {
         maxbuffer_org= maxbuffer;
@@ -449,7 +454,7 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
     }
     if ((sort_keys= (uchar **)
          my_malloc(PSI_INSTRUMENT_ME, (size_t)(keys*(sort_length+sizeof(char*))+
-                   ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
+                   (sort_param->keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
       if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek, sizeof(BUFFPEK),
@@ -543,8 +548,16 @@ pthread_handler_t _ma_thr_find_all_keys(void *arg)
   MARIA_SORT_PARAM *sort_param= (MARIA_SORT_PARAM*) arg;
   my_bool error= FALSE;
   /* If my_thread_init fails */
-  if (my_thread_init() || _ma_thr_find_all_keys_exec(sort_param))
+  if (my_thread_init())
     error= TRUE;
+  else
+  {
+    HA_CHECK *check= sort_param->check_param;
+    if (check->init_repair_thread)
+      check->init_repair_thread(check->init_repair_thread_arg);
+    if (_ma_thr_find_all_keys_exec(sort_param))
+      error= TRUE;
+  }
 
   /*
      Thread must clean up after itself.
@@ -642,7 +655,7 @@ int _ma_thr_write_keys(MARIA_SORT_PARAM *sort_param)
 
     if (sinfo->buffpek.elements)
     {
-      uint maxbuffer=sinfo->buffpek.elements-1;
+      size_t maxbuffer=sinfo->buffpek.elements-1;
       if (!mergebuf)
       {
         length=(size_t)param->sort_buffer_length;
@@ -858,9 +871,9 @@ static int write_index(MARIA_SORT_PARAM *info, register uchar **sort_keys,
 
 static int merge_many_buff(MARIA_SORT_PARAM *info, ha_keys keys,
                            uchar **sort_keys, BUFFPEK *buffpek,
-                           uint *maxbuffer, IO_CACHE *t_file)
+                           size_t *maxbuffer, IO_CACHE *t_file)
 {
-  uint tmp, merges, max_merges;
+  size_t tmp, merges, max_merges;
   IO_CACHE t_file2, *from_file, *to_file, *temp;
   BUFFPEK *lastbuff;
   DBUG_ENTER("merge_many_buff");
@@ -886,7 +899,7 @@ static int merge_many_buff(MARIA_SORT_PARAM *info, ha_keys keys,
   from_file= t_file ; to_file= &t_file2;
   while (*maxbuffer >= MERGEBUFF2)
   {
-    uint i;
+    size_t i;
     reinit_io_cache(from_file,READ_CACHE,0L,0,0);
     reinit_io_cache(to_file,WRITE_CACHE,0L,0,0);
     lastbuff=buffpek;
@@ -904,7 +917,7 @@ static int merge_many_buff(MARIA_SORT_PARAM *info, ha_keys keys,
     if (flush_io_cache(to_file))
       break;                                    /* purecov: inspected */
     temp=from_file; from_file=to_file; to_file=temp;
-    *maxbuffer= (uint) (lastbuff-buffpek)-1;
+    *maxbuffer= (size_t) (lastbuff-buffpek)-1;
     if (info->sort_info->param->max_stage != 1) /* If not parallel */
       _ma_report_progress(info->sort_info->param, merges++, max_merges);
   }
@@ -929,7 +942,7 @@ cleanup:
     buffpek		Where to read from
     sort_length		max length to read
   RESULT
-    > 0	Ammount of bytes read
+    > 0	Amount of bytes read
     -1	Error
 */
 
@@ -1160,7 +1173,7 @@ err:
 
 static int
 merge_index(MARIA_SORT_PARAM *info, ha_keys keys, uchar **sort_keys,
-            BUFFPEK *buffpek, uint maxbuffer, IO_CACHE *tempfile)
+            BUFFPEK *buffpek, size_t maxbuffer, IO_CACHE *tempfile)
 {
   DBUG_ENTER("merge_index");
   if (merge_buffers(info,keys,tempfile,(IO_CACHE*) 0,sort_keys,buffpek,buffpek,

@@ -55,7 +55,7 @@ SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_S
 --echo # Cleanup
 remove_file $ssl_cert;
 remove_file $ssl_key;
-# restart with usuall SSL
+# restart with usual SSL
 let $restart_parameters=;
 --source include/kill_mysqld.inc
 --source include/start_mysqld.inc

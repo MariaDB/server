@@ -11,6 +11,10 @@ set sql_mode=no_engine_substitution;
 eval set default_storage_engine = $engine_type;
 set autocommit=1;
 
+# The tests of number of commits assumes that temporary tables will be
+# logged to binary log.
+set @@create_tmp_table_binlog_formats="mixed";
+
 --disable_warnings
 drop table if exists t1;
 drop table if exists t2;
@@ -258,10 +262,8 @@ select * from t2;
 insert into t2 (a) values (1025);
 
 --replace_result $MYSQLTEST_VARDIR ..
---disable_cursor_protocol
 --error ER_DUP_ENTRY
 eval select f2(25) into outfile "$MYSQLTEST_VARDIR/tmp/dml.out" from t1;
---enable_cursor_protocol
 select * from t2;
 rollback;
 select * from t2;
@@ -281,10 +283,8 @@ select * from t2;
 --echo =======================================================================
 
 insert into t2 (a) values (1027);
---disable_cursor_protocol
 --error ER_DUP_ENTRY
 select f2(27) into @foo;
---enable_cursor_protocol
 select * from t2;
 rollback;
 select * from t2;

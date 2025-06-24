@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET NAMES utf8mb4;
 CREATE TABLE t1 (
 c1 INT PRIMARY KEY, c2 INT DEFAULT 1, ct TEXT,
@@ -438,28 +439,28 @@ tt	CREATE TABLE `tt` (
   PRIMARY KEY (`pk`),
   FULLTEXT KEY `ct` (`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 CREATE TABLE tu (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
-ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 DROP TABLE tu;
 CREATE TABLE tv (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
 UNIQUE INDEX FTS_DOC_ID_INDEX(FTS_DOC_ID),
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
-ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 DROP TABLE tv;
 ALTER TABLE t1o CHANGE c1 dB_row_Id INT, ALGORITHM=COPY;
 ERROR 42000: Incorrect column name 'dB_row_Id'
@@ -518,6 +519,8 @@ ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
 CREATE TABLE t1n LIKE t1o;
 ALTER TABLE t1n ADD FULLTEXT INDEX(ct);
+Warnings:
+Note	1831	Duplicate index `ct_2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1n CHANGE c1 Fts_DOC_ID INT, ALGORITHM=INPLACE;
 ERROR 42000: Incorrect column name 'FTS_DOC_ID'
 ALTER TABLE t1n CHANGE c1 Fts_DOC_ID INT, ALGORITHM=COPY;
@@ -973,7 +976,7 @@ CREATE TABLE `t1` (
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `index2` (`name`,`age`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 ALTER TABLE dest_db.t1 DISCARD TABLESPACE;
 ALTER TABLE dest_db.t1 IMPORT TABLESPACE;
 CHECK TABLE dest_db.t1;
@@ -987,7 +990,7 @@ t1	CREATE TABLE `t1` (
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `index2` (`name`,`age`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM dest_db.t1;
 id	age	name
 DROP TABLE dest_db.t1;
@@ -1000,7 +1003,7 @@ CREATE TABLE `t1` (
   `age` int(11) DEFAULT NULL,
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 ALTER TABLE dest_db.t1 DISCARD TABLESPACE;
 ALTER TABLE dest_db.t1 IMPORT TABLESPACE;
 CHECK TABLE dest_db.t1;
@@ -1013,7 +1016,7 @@ t1	CREATE TABLE `t1` (
   `age` int(11) DEFAULT NULL,
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM dest_db.t1;
 id	age	name
 DROP TABLE dest_db.t1;
@@ -1068,7 +1071,7 @@ ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'b' at row 1
+Note	1265	Data truncated for column 'b' at row 0
 SELECT * FROM t1;
 a	b
 10	10:20:30
@@ -1146,3 +1149,4 @@ SELECT * FROM test.t1;
 c1	c2	c3
 Test Data -1	Test Data -2	Test Data -3
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

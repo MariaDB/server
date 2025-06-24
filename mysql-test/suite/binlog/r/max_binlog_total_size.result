@@ -1,0 +1,123 @@
+select @@global.max_binlog_total_size;
+@@global.max_binlog_total_size
+1500
+select @@global.max_binlog_size;
+@@global.max_binlog_size
+4096
+#
+# MDEV-31404 Implement binlog_space_limit
+#
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+binary.000001	#
+binary.000002	#
+binary.000003	#
+binary.000004	#
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	1552
+set @@global.slave_connections_needed_for_purge= 0;
+# binary.000001 should be deleted now
+show binary logs;
+Log_name	File_size
+binary.000002	#
+binary.000003	#
+binary.000004	#
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	1183
+CREATE TABLE `t1` (
+`v1` int(11) DEFAULT NULL,
+`v2` varchar(8000) DEFAULT NULL,
+KEY `v1` (`v1`)
+)  engine=myisam;
+INSERT INTO t1 VALUES (0,repeat("a",3000));
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	3863
+# First binary should be binary.000004
+show binary logs;
+Log_name	File_size
+binary.000004	#
+INSERT INTO t1 VALUES (2,repeat("b",10));
+# First binary should be binary.000004
+show binary logs;
+Log_name	File_size
+binary.000004	#
+binary.000005	#
+FLUSH LOGS;
+# First binary should be binary.000005
+show binary logs;
+Log_name	File_size
+binary.000005	#
+binary.000006	#
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+binary.000008	#
+binary.000009	#
+binary.000010	#
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	1225
+PURGE BINARY LOGS TO 'binary.000009';
+# First binary should be binary.000009
+show binary logs;
+Log_name	File_size
+binary.000009	#
+binary.000010	#
+INSERT INTO t1 VALUES (3,repeat("c",4000));
+# First binary should be binary.000010
+show binary logs;
+Log_name	File_size
+binary.000010	#
+binary.000011	#
+INSERT INTO t1 VALUES (4,repeat("d",3000));
+# First binary should be binary.000011
+show binary logs;
+Log_name	File_size
+binary.000011	#
+RESET MASTER;
+show binary logs;
+Log_name	File_size
+binary.000001	#
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	325
+INSERT INTO t1 VALUES (5,"e");
+FLUSH LOGS;
+INSERT INTO t1 VALUES (6,repeat("f",3000));
+show binary logs;
+Log_name	File_size
+binary.000002	#
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	3647
+INSERT INTO t1 VALUES (7,repeat("g",3000));
+# binary.000001 should be deleted now
+show binary logs;
+Log_name	File_size
+binary.000002	#
+binary.000003	#
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	7338
+FLUSH LOGS;
+FLUSH LOGS;
+# binary.000002 should be deleted now
+show binary logs;
+Log_name	File_size
+binary.000003	423
+binary.000004	423
+binary.000005	379
+show status like "binlog_disk_use";
+Variable_name	Value
+Binlog_disk_use	1225
+DROP TABLE IF EXISTS t1;
+set @@global.slave_connections_needed_for_purge= default;

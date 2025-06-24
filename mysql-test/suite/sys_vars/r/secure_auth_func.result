@@ -14,7 +14,7 @@ CREATE USER 'testUser'@'localhost' IDENTIFIED BY 'newpass';
 connect  con_user1,localhost,testUser,newpass,;
 connection default;
 SET PASSWORD FOR 'testUser'@'localhost' = OLD_PASSWORD('newpass');
-connect  con_user2,localhost,testUser,newpass,;
+connect  con_user2,localhost,testUser,newpass,,,,auth=mysql_old_password:mysql_native_password;
 connection default;
 '#--------------------FN_DYNVARS_144_03-------------------------#'
 SET GLOBAL secure_auth = ON;

@@ -91,7 +91,9 @@ PFS_engine_table* table_socket_summary_by_instance::create(void)
 table_socket_summary_by_instance::table_socket_summary_by_instance()
   : PFS_engine_table(&m_share, &m_pos),
   m_row_exists(false), m_pos(0), m_next_pos(0)
-{}
+{
+  m_normalizer = time_normalizer::get_wait();
+}
 
 int table_socket_summary_by_instance::delete_all_rows(void)
 {
@@ -161,10 +163,8 @@ void table_socket_summary_by_instance::make_row(PFS_socket *pfs)
   m_row.m_event_name.make_row(safe_class);
   m_row.m_identity= pfs->m_identity;
 
-  time_normalizer *normalizer= time_normalizer::get(wait_timer);
-
   /* Collect timer and byte count stats */
-  m_row.m_io_stat.set(normalizer, &pfs->m_socket_stat.m_io_stat);
+  m_row.m_io_stat.set(m_normalizer, &pfs->m_socket_stat.m_io_stat);
 
   if (!pfs->m_lock.end_optimistic_lock(&lock))
     return;

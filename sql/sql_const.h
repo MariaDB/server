@@ -29,7 +29,7 @@
 /* extra 4+4 bytes for slave tmp tables */
 #define MAX_DBKEY_LENGTH (NAME_LEN*2+1+1+4+4)
 #define MAX_ALIAS_NAME 256
-#define MAX_FIELD_NAME (NAME_LEN+1)             /* Max colum name length +1 */
+#define MAX_FIELD_NAME (NAME_LEN+1)             /* Max column name length +1 */
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
@@ -119,8 +119,13 @@
 #define CREATE_MODE	0			/* Default mode on new files */
 #define NAMES_SEP_CHAR	255			/* Char to sep. names */
 
-#define READ_RECORD_BUFFER	(uint) (IO_SIZE*8) /* Pointer_buffer_size */
-#define DISK_BUFFER_SIZE	(uint) (IO_SIZE*16) /* Size of diskbuffer */
+/*
+   This is used when reading large blocks, sequential read.
+   We assume that reading this much will be roughly the same cost as 1
+   seek / fetching one row from the storage engine.
+   Cost of one read of DISK_CHUNK_SIZE is DISK_SEEK_BASE_COST (ms).
+*/
+#define DISK_CHUNK_SIZE	(uint) (65536) /* Size of diskbuffer for tmpfiles */
 
 #define FRM_VER_TRUE_VARCHAR (FRM_VER+4) /* 10 */
 #define FRM_VER_EXPRESSSIONS (FRM_VER+5) /* 11 */
@@ -204,62 +209,18 @@
 #define MIN_ROWS_TO_USE_TABLE_CACHE	 100
 #define MIN_ROWS_TO_USE_BULK_INSERT	 100
 
-/**
-  The following is used to decide if MySQL should use table scanning
-  instead of reading with keys.  The number says how many evaluation of the
-  WHERE clause is comparable to reading one extra row from a table.
-*/
-#define TIME_FOR_COMPARE         5.0	//  5 WHERE compares == one read
-#define TIME_FOR_COMPARE_IDX    20.0
-
-#define IDX_BLOCK_COPY_COST  ((double) 1 / TIME_FOR_COMPARE)
-#define IDX_LOOKUP_COST      ((double) 1 / 8)
-#define MULTI_RANGE_READ_SETUP_COST (IDX_BLOCK_COPY_COST/10)
-
-/**
-  Number of comparisons of table rowids equivalent to reading one row from a 
-  table.
-*/
-#define TIME_FOR_COMPARE_ROWID  (TIME_FOR_COMPARE*100)
-
-/* cost1 is better that cost2 only if cost1 + COST_EPS < cost2 */
-#define COST_EPS  0.001
-
 /*
-  For sequential disk seeks the cost formula is:
-    DISK_SEEK_BASE_COST + DISK_SEEK_PROP_COST * #blocks_to_skip  
-  
-  The cost of average seek 
-    DISK_SEEK_BASE_COST + DISK_SEEK_PROP_COST*BLOCKS_IN_AVG_SEEK =1.0.
+  The lower bound of accepted rows when using filter.
+  This is used to ensure that filters are not too aggressive.
 */
-#define DISK_SEEK_BASE_COST ((double)0.9)
-
-#define BLOCKS_IN_AVG_SEEK  128
-
-#define DISK_SEEK_PROP_COST ((double)0.1/BLOCKS_IN_AVG_SEEK)
-
+#define MIN_ROWS_AFTER_FILTERING 1.0
 
 /**
-  Number of rows in a reference table when refereed through a not unique key.
+  Number of rows in a reference table when referred through a not unique key.
   This value is only used when we don't know anything about the key
   distribution.
 */
 #define MATCHING_ROWS_IN_OTHER_TABLE 10
-
-/*
-  Subquery materialization-related constants
-*/
-#define HEAP_TEMPTABLE_LOOKUP_COST 0.05
-#define DISK_TEMPTABLE_LOOKUP_COST 1.0
-#define SORT_INDEX_CMP_COST 0.02
-
-
-#define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
-
-#define COST_ADD(c,d) (COST_MAX - (d) > (c) ? (c) + (d) : COST_MAX)
-
-#define COST_MULT(c,f) (COST_MAX / (f) > (c) ? (c) * (f) : COST_MAX)
-
 
 #define MY_CHARSET_BIN_MB_MAXLEN 1
 
@@ -302,6 +263,6 @@
 */
 #define MAX_TIME_ZONE_NAME_LENGTH       (NAME_LEN + 1)
 
-#define SP_PSI_STATEMENT_INFO_COUNT 19
+#define SP_PSI_STATEMENT_INFO_COUNT 23
 
 #endif /* SQL_CONST_INCLUDED */

@@ -4,14 +4,16 @@ call mtr.add_suppression("InnoDB: Recovery cannot access file");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error\\.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page ");
 call mtr.add_suppression("InnoDB: Cannot apply log to \\[page id: space=[1-9][0-9]*, page number=0\\] of corrupted file '.*test.t[1-5]\\.ibd'");
 call mtr.add_suppression("InnoDB: Failed to read page .* from file '.*'");
 call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch");
+call mtr.add_suppression("InnoDB: Missing FILE_CHECKPOINT");
+call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption");
 call mtr.add_suppression("InnoDB: Encryption key is not found for");
 # restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
-SET GLOBAL innodb_file_per_table = ON;
 create table t1(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=20;
 create table t2(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
 create table t3(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb encrypted=yes encryption_key_id=20;

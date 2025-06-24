@@ -168,9 +168,20 @@ static int get_date_time_separator(uint *number_of_fields,
   if (s >= end)
     return 0;
 
+  /*
+    According to ISO_8601 - 2016
+    "
+    The character [T] shall be used as time designator to indicate the start of the	 
+    representation of the time of day  component in these expressions.
+    "
+  
+    That means that after T there *must* be a time component.
+  */
   if (*s == 'T')
   {
     (*str)++;
+    if (s + 1 >= end)
+      return 1;
     return 0;
   }
 
@@ -1005,7 +1016,7 @@ fractional:
   else
     date[4]= 0;
 
-  /* Check for exponent part: E<gigit> | E<sign><digit> */
+  /* Check for exponent part: E<digit> | E<sign><digit> */
   /* (may occur as result of %g formatting of time value) */
   if ((end - str) > 1 &&
       (*str == 'e' || *str == 'E') &&
@@ -1251,7 +1262,8 @@ my_time_t
 my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
 {
   uint loop;
-  time_t tmp= 0;
+  longlong tmp= 0;
+  time_t temporary_time;
   int shift= 0;
   MYSQL_TIME tmp_time;
   MYSQL_TIME *t= &tmp_time;
@@ -1319,9 +1331,9 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     relevant to QNX.
 
     We are safe with shifts close to MAX_INT32, as there are no known
-    time switches on Jan 2038 yet :)
+    time switches on Febrary 2106 yet :)
   */
-  if ((t->year == TIMESTAMP_MAX_YEAR) && (t->month == 1) && (t->day > 4))
+  if ((t->year == TIMESTAMP_MAX_YEAR) && (t->month == 2) && (t->day > 17))
   {
     /*
       Below we will pass (uint) (t->day - shift) to calc_daynr.
@@ -1331,7 +1343,6 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     t->day-= 2;
     shift= 2;
   }
-#ifdef TIME_T_UNSIGNED
   else
   {
     /*
@@ -1343,6 +1354,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
       Note: the order of below if-statements is significant.
     */
 
+    /* 1970 */
     if ((t->year == TIMESTAMP_MIN_YEAR + 1) && (t->month == 1)
         && (t->day <= 10))
     {
@@ -1350,6 +1362,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
       shift= -2;
     }
 
+    /* 1969 */
     if ((t->year == TIMESTAMP_MIN_YEAR) && (t->month == 12)
         && (t->day == 31))
     {
@@ -1359,17 +1372,18 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
       shift= -2;
     }
   }
-#endif
 
-  tmp= (time_t) (((calc_daynr((uint) t->year, (uint) t->month, (uint) t->day) -
-                   (long) days_at_timestart) * SECONDS_IN_24H +
-                   (long) t->hour*3600L +
-                  (long) (t->minute*60 + t->second)) + (time_t) my_time_zone -
-                 3600);
+  tmp= (((longlong) (calc_daynr((uint) t->year, (uint) t->month,
+                                (uint) t->day) -
+                     days_at_timestart) * SECONDS_IN_24H +
+         (long) t->hour*3600L +
+         (long) (t->minute*60 + t->second)) +
+        my_time_zone - 3600);
 
   current_timezone= my_time_zone;
-  localtime_r(&tmp,&tm_tmp);
-  l_time=&tm_tmp;
+  temporary_time= (time_t) tmp;
+  localtime_r(&temporary_time, &tm_tmp);
+  l_time= &tm_tmp;
   for (loop=0;
        loop < 2 &&
 	 (t->hour != (uint) l_time->tm_hour ||
@@ -1387,10 +1401,11 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
           (long) (60*((int) t->minute - (int) l_time->tm_min)) +
           (long) ((int) t->second - (int) l_time->tm_sec));
     current_timezone+= diff+3600;		/* Compensate for -3600 above */
-    tmp+= (time_t) diff;
-    localtime_r(&tmp,&tm_tmp);
-    l_time=&tm_tmp;
+    tmp+= (longlong) diff;
+    temporary_time= (time_t) tmp;
+    localtime_r(&temporary_time, &tm_tmp);
   }
+
   /*
     Fix that if we are in the non existing daylight saving time hour
     we move the start of the next real hour.
@@ -1434,7 +1449,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
     with unsigned time_t tmp+= shift*86400L might result in a number,
     larger than TIMESTAMP_MAX_VALUE, so another check will work.
   */
-  if (!IS_TIME_T_VALID_FOR_TIMESTAMP(tmp))
+  if (tmp < 0 || (ulonglong) tmp > TIMESTAMP_MAX_VALUE)
   {
     tmp= 0;
     *error_code= ER_WARN_DATA_OUT_OF_RANGE;
@@ -1757,7 +1772,7 @@ int my_TIME_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
   @param      dec Precision, in the range 0..6.
   @return         The length of the result string.
 */
-int my_timeval_to_str(const struct timeval *tm, char *to, uint dec)
+int my_timeval_to_str(const struct my_timeval *tm, char *to, uint dec)
 {
   char *pos= longlong10_to_str((longlong) tm->tv_sec, to, 10);
   if (dec)

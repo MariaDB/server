@@ -60,7 +60,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	binary(1)	YES		NULL	
 c1	binary(1)	YES		NULL	
-c2	binary(1)	YES		0	
+c2	binary(1)	YES		x'30'	
 pk	int(11)	NO	PRI	NULL	auto_increment
 INSERT INTO t1 (c,c1,c2) VALUES (NULL,NULL,NULL);
 INSERT INTO t1 (c,c1,c2) VALUES (0,0,0);
@@ -183,7 +183,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	varbinary(64)	YES		NULL	
 c1	varbinary(64)	YES		NULL	
-c2	varbinary(64)	YES		test	
+c2	varbinary(64)	YES		x'74657374'	
 pk	int(11)	NO	PRI	NULL	auto_increment
 INSERT INTO t1 (c,c1,c2) VALUES (NULL,NULL,NULL);
 INSERT INTO t1 (c,c1,c2) VALUES ('test','test','test');
@@ -564,7 +564,7 @@ c1 CHAR(1) NULL,
 c20 CHAR(20) NULL,
 c255 CHAR(255) NULL,
 PRIMARY KEY (c255)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARACTER SET latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	char(1)	YES		NULL	
@@ -651,14 +651,14 @@ v1 VARCHAR(1) NULL,
 v64 VARCHAR(64) NULL,
 v65000 VARCHAR(65000) NULL,
 PRIMARY KEY (v64)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
 v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
-CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
+CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
 v	varchar(65532)	NO	PRI	NULL	
@@ -818,7 +818,7 @@ y2 YEAR(2) NULL,
 pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	YES		NULL	
@@ -1003,9 +1003,9 @@ c2 YEAR(2) NULL DEFAULT '12',
 pk INT AUTO_INCREMENT PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	year(2)	YES		NULL	
@@ -1232,11 +1232,11 @@ d	d0	d1_1	d10_2	d60_10	n	n0_0	n1	n20_4	n65_4
 9999999999	9999999999	0.9	99999999.99	99999999999999999999999999999999999999999999999999.9999999999	9999999999	9999999999	9	9999999999999999.9999	9999999999999999999999999999999999999999999999999999999999999.9999
 9999999999	9999999999	0.9	99999999.99	99999999999999999999999999999999999999999999999999.9999999999	9999999999	9999999999	9	9999999999999999.9999	9999999999999999999999999999999999999999999999999999999999999.9999
 ALTER TABLE t1 ADD COLUMN n66 NUMERIC(66) NULL;
-ERROR 42000: Too big precision 66 specified for 'n66'. Maximum is 65
+ERROR 42000: Too big precision specified for 'n66'. Maximum is 65
 ALTER TABLE t1 ADD COLUMN n66_6 DECIMAL(66,6) NULL;
-ERROR 42000: Too big precision 66 specified for 'n66_6'. Maximum is 65
+ERROR 42000: Too big precision specified for 'n66_6'. Maximum is 65
 ALTER TABLE t1 ADD COLUMN n66_66 DECIMAL(66,66) NULL;
-ERROR 42000: Too big scale 66 specified for 'n66_66'. Maximum is 38
+ERROR 42000: Too big scale specified for 'n66_66'. Maximum is 38
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
@@ -1246,7 +1246,7 @@ c2 DECIMAL NULL DEFAULT 1.1,
 pk INT AUTO_INCREMENT PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Note	1265	Data truncated for column 'c2' at row 1
+Note	1265	Data truncated for column 'c2' at row 0
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	decimal(10,0)	YES		NULL	
@@ -1612,7 +1612,7 @@ r1_1	0.9
 r1_1	0.9
 ALTER TABLE t1 ADD COLUMN d0_0 DOUBLE(0,0) NULL;
 ALTER TABLE t1 ADD COLUMN n66_6 DECIMAL(256,1) NULL;
-ERROR 42000: Too big precision 256 specified for 'n66_6'. Maximum is 65
+ERROR 42000: Too big precision specified for 'n66_6'. Maximum is 65
 ALTER TABLE t1 ADD COLUMN n66_66 DECIMAL(40,35) NULL;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
@@ -2114,7 +2114,7 @@ t17m TEXT(17000000) NULL,
 tt TINYTEXT NULL,
 m MEDIUMTEXT NULL,
 l LONGTEXT NULL
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

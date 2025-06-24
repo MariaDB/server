@@ -1,4 +1,8 @@
 '#--------------------FN_DYNVARS_008_01-------------------------#'
+SET @global_collation_database = @@global.collation_database;
+SET @global_collation_server = @@global.collation_server;
+SET @session_collation_database = @@session.collation_database;
+SET @session_collation_server = @@session.collation_server;
 SET @global_character_set_database = @@global.character_set_database;
 SET @session_character_set_database = @@session.character_set_database;
 SET @session_character_set_server = @@session.character_set_server;
@@ -11,7 +15,7 @@ SELECT @@global.character_set_database;
 utf8mb3
 SELECT @@session.character_set_database;
 @@session.character_set_database
-latin1
+utf8mb4
 disconnect con1;
 '#--------------------FN_DYNVARS_008_02-------------------------#'
 connection default;
@@ -20,7 +24,7 @@ DROP TABLE IF EXISTS t1;
 SET @@session.character_set_server = utf8;
 SELECT @@session.character_set_database;
 @@session.character_set_database
-latin1
+utf8mb4
 SET @@session.character_set_database = latin5;
 SELECT @@session.character_set_database;
 @@session.character_set_database
@@ -82,7 +86,7 @@ SELECT @@character_set_database;
 latin5
 connection default;
 disconnect con2;
-SET @@global.character_set_database = @global_character_set_database;
-SET @@session.character_set_database = @session_character_set_database;
-SET @@session.character_set_server = @session_character_set_server;
-SET @@global.character_set_server = @global_character_set_server;
+SET @@global.collation_database = @global_collation_database;
+SET @@session.collation_database = @session_collation_database;
+SET @@session.collation_server = @session_collation_server;
+SET @@global.collation_server = @global_collation_server;

@@ -1,6 +1,8 @@
 #
 # Test of unions
 #
+--source include/have_sequence.inc
+
 
 CREATE TABLE t1 (a int not null, b char (10) not null);
 insert into t1 values(1,'a'),(2,'b'),(3,'c'),(3,'c');
@@ -1113,11 +1115,9 @@ DROP TABLE t1;
 -- echo # Bug#32858: Error: "Incorrect usage of UNION and INTO" does not take 
 -- echo # subselects into account
 -- echo #
---disable_ps2_protocol
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 
---disable_cursor_protocol
 -- echo # Tests fix in parser rule select_derived_union.
 SELECT a INTO @v FROM (
   SELECT a FROM t1
@@ -1159,11 +1159,9 @@ SELECT a INTO DUMPFILE 'union.out.file8' FROM t1 UNION SELECT a FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO @v FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO OUTFILE  'union.out.file3' FROM t1;
 SELECT ( SELECT a UNION SELECT a ) INTO DUMPFILE 'union.out.file4' FROM t1;
---enable_cursor_protocol
 
 DROP TABLE t1;
 remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.1/data/test union.out.fil*;
---enable_ps2_protocol
 
 --echo # 
 --echo # Bug #49734: Crash on EXPLAIN EXTENDED UNION ... ORDER BY 
@@ -1930,7 +1928,7 @@ set @save_default_storage_engine=@@default_storage_engine;
 SET @@default_storage_engine=MEMORY;
 
 CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 ALTER TABLE t1 ADD INDEX (`PRIMARY`);
 
 CREATE TABLE t2 SELECT NULL;
@@ -2030,3 +2028,21 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo
+--echo # check union all & union distinct
+--echo
+
+select 1 as res union select 2 union select 1 union select 2;
+select 1 as res union distinct select 2 union distinct select 1 union distinct select 2;
+select 1 as res union all select 2 union all select 1 union all select 2;
+
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union select 2;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union distinct select 2;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2;
+
+select 1 as res union all select 2 union distinct select 1 union all select 2;
+select 1 as res union select 2 union all select 1 union distinct select 3;
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2;
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2 union distinct select 5;
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2 union all select 1 union distinct select 3 union all select 2;

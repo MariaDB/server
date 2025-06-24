@@ -3,7 +3,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values (1);
 show tables;
 Tables_in_test
@@ -65,6 +65,7 @@ flush tables;
 rename table t2 to t0;
 db.opt
 t0.ARZ
+t0.frm
 t1.ARZ
 t1.frm
 #
@@ -75,7 +76,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 #
 # discover on drop
 #
@@ -83,6 +84,7 @@ flush tables;
 drop table t1;
 db.opt
 t0.ARZ
+t0.frm
 #
 # discover of table non-existence on drop
 #
@@ -93,7 +95,7 @@ drop table t0;
 db.opt
 show status like 'Handler_discover';
 Variable_name	Value
-Handler_discover	6
+Handler_discover	7
 #
 # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
 #
@@ -102,7 +104,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (1);
 optimize table t1;
 Table	Op	Msg_type	Msg_text
@@ -117,7 +119,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # BUG#58205 - Valgrind failure in fn_format when called from

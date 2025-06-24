@@ -152,10 +152,10 @@ grp	group_concat(c)
 4	
 5	NULL
 Warnings:
-Warning	1260	Row 4 was cut by GROUP_CONCAT()
+Warning	1260	Row 4 was cut by group_concat()
 show warnings;
 Level	Code	Message
-Warning	1260	Row 4 was cut by GROUP_CONCAT()
+Warning	1260	Row 4 was cut by group_concat()
 set group_concat_max_len = 1024;
 select group_concat(sum(c)) from t1 group by grp;
 ERROR HY000: Invalid use of group function
@@ -379,29 +379,29 @@ group_concat(b)
 bb,c
 BB,C
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 4 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
 select group_concat(distinct b) from t1 group by a;
 group_concat(distinct b)
 a,bb
 A,BB
 Warnings:
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
-Warning	1260	Row 6 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
 select group_concat(b order by b) from t1 group by a;
 group_concat(b order by b)
 a,bb
 A,BB
 Warnings:
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
-Warning	1260	Row 6 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
 select group_concat(distinct b order by b) from t1 group by a;
 group_concat(distinct b order by b)
 a,bb
 A,BB
 Warnings:
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
-Warning	1260	Row 6 was cut by GROUP_CONCAT()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	1260	Row 6 was cut by group_concat()
 insert into t1 values (1, concat(repeat('1', 300), '2')), 
 (1, concat(repeat('1', 300), '2')), (1, concat(repeat('0', 300), '1')), 
 (2, concat(repeat('1', 300), '2')), (2, concat(repeat('1', 300), '2')), 
@@ -429,29 +429,29 @@ group_concat(b)
 bb,ccc,a,bb,ccc,1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111112,1111111111111111111111111111111111111111111111111111111111111111111111111111111111
 BB,CCC,A,BB,CCC,1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111112,1111111111111111111111111111111111111111111111111111111111111111111111111111111111
 Warnings:
-Warning	1260	Row 7 was cut by GROUP_CONCAT()
-Warning	1260	Row 14 was cut by GROUP_CONCAT()
+Warning	1260	Row 7 was cut by group_concat()
+Warning	1260	Row 14 was cut by group_concat()
 select group_concat(distinct b) from t1 group by a;
 group_concat(distinct b)
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 4 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
 select group_concat(b order by b) from t1 group by a;
 group_concat(b order by b)
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 4 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
 select group_concat(distinct b order by b) from t1 group by a;
 group_concat(distinct b order by b)
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 4 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 4 was cut by group_concat()
 drop table t1;
 create table t1 (a varchar(255) character set cp1250 collate cp1250_general_ci,
 b varchar(255) character set koi8r);
@@ -467,7 +467,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(400) CHARACTER SET cp1250 COLLATE cp1250_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select collation(group_concat(a,_koi8r'test')) from t1;
 collation(group_concat(a,_koi8r'test'))
 cp1250_general_ci
@@ -637,17 +637,17 @@ create table t3 (select group_concat(a) as a from t1 where a = 'a') union
 (select group_concat(b) as a from t1 where a = 'b');
 select charset(a) from t2;
 charset(a)
-latin1
+utf8mb4
 select charset(a) from t3;
 charset(a)
-latin1
-latin1
+utf8mb4
+utf8mb4
 drop table t1, t2, t3;
 set names default;
 create table t1 (c1 varchar(10), c2 int);
 select charset(group_concat(c1 order by c2)) from t1;
 charset(group_concat(c1 order by c2))
-latin1
+utf8mb4
 drop table t1;
 CREATE TABLE t1 (a INT(10), b LONGTEXT, PRIMARY KEY (a));
 SET GROUP_CONCAT_MAX_LEN = 20000000;
@@ -758,22 +758,22 @@ SELECT GROUP_CONCAT( a ) FROM t1;
 GROUP_CONCAT( a )
 aaaaaaaaaa,bbbbbbbbb
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
 SELECT GROUP_CONCAT( DISTINCT a ) FROM t1;
 GROUP_CONCAT( DISTINCT a )
 aaaaaaaaaa,bbbbbbbbb
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
 SELECT GROUP_CONCAT( a ORDER BY b ) FROM t1;
 GROUP_CONCAT( a ORDER BY b )
 aaaaaaaaaa,bbbbbbbbb
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
 SELECT GROUP_CONCAT( DISTINCT a ORDER BY b ) FROM t1;
 GROUP_CONCAT( DISTINCT a ORDER BY b )
 aaaaaaaaaa,bbbbbbbbb
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
 SET group_concat_max_len = DEFAULT;
 DROP TABLE t1;
 SET group_concat_max_len= 65535;
@@ -990,8 +990,8 @@ INSERT INTO t1 VALUES (),();
 EXPLAIN EXTENDED SELECT 1 FROM
 (SELECT DISTINCT GROUP_CONCAT(td.f1) FROM t1,t1 AS td GROUP BY td.f1) AS d,t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	td	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -1012,7 +1012,7 @@ EXPLAIN EXTENDED SELECT 1 FROM
 (SELECT GROUP_CONCAT(t1.a ORDER BY t1.a ASC) FROM 
 t1 t2, t1 GROUP BY t1.a) AS d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -1073,15 +1073,15 @@ GROUP_CONCAT(a)	b
 22222	2
 33333	3
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
 INSERT INTO t2 SELECT GROUP_CONCAT(a), b FROM t1 GROUP BY b;
-ERROR HY000: Row 1 was cut by GROUP_CONCAT()
+ERROR HY000: Row 1 was cut by group_concat()
 UPDATE t1 SET a = '11111' WHERE b = 1;
 UPDATE t1 SET a = '22222' WHERE b = 2;
 INSERT INTO t2 SELECT GROUP_CONCAT(a), b FROM t1 GROUP BY b;
-ERROR HY000: Row 3 was cut by GROUP_CONCAT()
+ERROR HY000: Row 3 was cut by group_concat()
 SET group_concat_max_len = DEFAULT;
 SET @@sql_mode = @old_sql_mode;
 DROP TABLE t1, t2;
@@ -1153,37 +1153,37 @@ CREATE TABLE t2 SELECT GROUP_CONCAT(f1 order by f2) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `GROUP_CONCAT(f1 order by f2)` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `GROUP_CONCAT(f1 order by f2)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 CREATE TABLE t2 SELECT GROUP_CONCAT(UPPER(f1) ORDER BY f2) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `GROUP_CONCAT(UPPER(f1) ORDER BY f2)` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `GROUP_CONCAT(UPPER(f1) ORDER BY f2)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 SET group_concat_max_len= 1024;
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 1024
 Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 2 was cut by group_concat()
 SET group_concat_max_len= 499999;
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 WHERE f2 = 0;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 499999
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 GROUP BY f2;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 499999
 499999
 499999
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
 INSERT INTO t1 VALUES (REPEAT('a', 499999), 3), (REPEAT('b', 500000), 4);
 SELECT LENGTH(GROUP_CONCAT(f1 ORDER BY f2)) FROM t1 GROUP BY f2;
 LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
@@ -1193,10 +1193,10 @@ LENGTH(GROUP_CONCAT(f1 ORDER BY f2))
 499999
 499999
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
-Warning	1260	Row 3 was cut by GROUP_CONCAT()
-Warning	1260	Row 5 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
+Warning	1260	Row 3 was cut by group_concat()
+Warning	1260	Row 5 was cut by group_concat()
 DROP TABLE t1;
 SET group_concat_max_len= DEFAULT;
 set session group_concat_max_len=1024;
@@ -1206,7 +1206,7 @@ FROM seq_1_to_200000;
 c
 0.90910.90910.90910.90910.90910.90910.90910.9091,1.81821.81821.81821.81821.81821.81821.81821.8182,10.000010.000010.000010.000010.000010.000010.000010.0000,10.909110.909110.909110.909110.909110.909110.909110.9091,100.0000100.0000100.0000100.0000100.0000100.0000100.0000100.0000,100.9091100.9091100.9091100.9091100.9091100.9091100.9091100.9091,1000.00001000.00001000.00001000.00001000.00001000.00001000.00001000.0000,1000.90911000.90911000.90911000.90911000.90911000.90911000.90911000.9091,10000.000010000.000010000.000010000.000010000.000010000.000010000.000010000.0000,10000.909110000.909110000.909110000.909110000.909110000.909110000.909110000.9091,100000.0000100000.0000100000.0000100000.0000100000.0000100000.0000100000.0000100000.0000,100000.9091100000.9091100000.9091100000.9091100000.9091100000.9091100000.9091100000.9091,100001.8182100001.8182100001.8182100001.8182100001.8182100001.8182100001.8182100001.8182,100002.7273100002.7273100002.7273100002.7273100002.7273100002.7273100002.7273100002.7273,100003.6364100003.
 Warnings:
-Warning	1260	Row 15 was cut by GROUP_CONCAT()
+Warning	1260	Row 15 was cut by group_concat()
 set max_session_mem_used=default;
 set session group_concat_max_len=default;
 SET group_concat_max_len= 8;
@@ -1225,7 +1225,7 @@ GROUP BY f;
 f	gc
 2	2019-12-
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
 DROP TABLE t1, t2, t3, t4;
 SET group_concat_max_len= default;
 #
@@ -1459,8 +1459,8 @@ count(*)	group_concat(t1.b,t2.c)
 2	aaaaa
 2	bbbbb
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
 explain select count(*), group_concat(t1.b,t2.c)
 from t1 join t2 on t1.a=t2.a group by t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1473,15 +1473,15 @@ count(*)	group_concat(t1.b,t2.c)
 2	aaaaa
 2	bbbbb
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
 execute stmt;
 count(*)	group_concat(t1.b,t2.c)
 2	aaaaa
 2	bbbbb
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
 deallocate prepare stmt;
 set join_cache_level=0;
 select count(*), group_concat(t1.b,t2.c)
@@ -1490,8 +1490,8 @@ count(*)	group_concat(t1.b,t2.c)
 2	aaaaa
 2	bbbbb
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
 explain select count(*), group_concat(t1.b,t2.c)
 from t1 join t2 on t1.a=t2.a group by t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1504,15 +1504,15 @@ count(*)	group_concat(t1.b,t2.c)
 2	aaaaa
 2	bbbbb
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
 execute stmt;
 count(*)	group_concat(t1.b,t2.c)
 2	aaaaa
 2	bbbbb
 Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+Warning	1260	Row 1 was cut by group_concat()
+Warning	1260	Row 2 was cut by group_concat()
 deallocate prepare stmt;
 set join_cache_level=default;
 set group_concat_max_len=default;

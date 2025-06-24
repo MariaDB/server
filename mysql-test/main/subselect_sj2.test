@@ -2,13 +2,15 @@
 # DuplicateElimination strategy test
 #
 
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
       @@innodb_stats_persistent_sample_pages;
 
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
---source include/have_innodb.inc
 
 set @subselect_sj2_tmp= @@optimizer_switch;
 set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
@@ -48,7 +50,7 @@ create table t2 (
 insert into t2 select a, a/2 from t0;
 insert into t2 select a+10, a+10/2 from t0;
 
-select * from t1;
+insert into t1 values (1030,30),(1031,31),(1032,32),(1033,33);
 select * from t2;
 explain select * from t2 where b in (select a from t1);
 select * from t2 where b in (select a from t1);
@@ -87,6 +89,7 @@ insert into t3 select
   A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a 
 from t0 A, t0 B where B.a <5;
 
+analyze table t3 persistent for all;
 --replace_column 9 #
 explain select * from t3 where b in (select a from t0);
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
@@ -96,15 +99,15 @@ set max_heap_table_size= @save_max_heap_table_size;
 
 # O2I join orders, with shortcutting: 
 explain select * from t1 where a in (select b from t2);
-select * from t1;
 select * from t1 where a in (select b from t2);
 
 drop table t1, t2, t3;
 # (no need for anything in range/index_merge/DS-MRR) 
 
-#
-# Test join buffering
-#
+--echo #
+--echo # Test join buffering
+--echo #
+
 set @save_join_buffer_size = @@join_buffer_size;
 set join_buffer_size= 8192;
 
@@ -121,7 +124,7 @@ insert into t1 values (18, 'duplicate ok', 'duplicate ok');
 insert into t2 values (3, 'duplicate ok', 'duplicate ok');
 insert into t2 values (19, 'duplicate ok', 'duplicate ok');
 
-explain select 
+explain select
  a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
 select 
@@ -183,7 +186,7 @@ CREATE TABLE t1 (
   PRIMARY KEY  (ID),
   INDEX (Population),
   INDEX (Country) 
-);
+) CHARSET=latin1;
 CREATE TABLE t2 (
   Code char(3) NOT NULL default '',
   Name char(52) NOT NULL default '',
@@ -193,14 +196,14 @@ CREATE TABLE t2 (
   PRIMARY KEY  (Code),
   UNIQUE INDEX (Name),
   INDEX (Population)
-);
+) CHARSET=latin1;
 CREATE TABLE t3 (
   Country char(3) NOT NULL default '',
   Language char(30) NOT NULL default '',
   Percentage float(3,1) NOT NULL default '0.0',
   PRIMARY KEY  (Country, Language),
   INDEX (Percentage)
-);
+) CHARSET=latin1;
 
 --disable_query_log
 INSERT INTO t1 VALUES
@@ -255,6 +258,7 @@ INSERT INTO t3 VALUES
 # Disable materialization to avoid races between query plans
 set @bug35674_save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='materialization=off';
+
 EXPLAIN
 SELECT Name FROM t2 
   WHERE t2.Code IN (SELECT Country FROM t1 WHERE Population > 5000000)
@@ -284,7 +288,7 @@ CREATE TABLE t1 (
   Capital int(11) DEFAULT NULL,
   Code2 char(2) NOT NULL DEFAULT '',
   PRIMARY KEY (Code)
-);
+) CHARSET=latin1;
 
 CREATE TABLE t2 (
   ID int(11) NOT NULL AUTO_INCREMENT,
@@ -294,7 +298,7 @@ CREATE TABLE t2 (
   Population int(11) NOT NULL DEFAULT '0',
   PRIMARY KEY (ID),
   KEY CountryCode (CountryCode)
-);
+) CHARSET=latin1;
 
 --echo Fill the table with test data
 --disable_query_log
@@ -602,6 +606,9 @@ insert into t2 select * from t1;
 # Table t2 should be pulled out because t2.a=t0.a equality
 --echo Table t2, unlike table t1, should be displayed as pulled out
 explain extended select * from t0
+where t0.a in ( select t1.a from t1,t2 where t2.a=t0.a and
+t1.b=t2.b);
+select * from t0
 where t0.a in ( select t1.a from t1,t2 where t2.a=t0.a and
 t1.b=t2.b);
 
@@ -934,6 +941,9 @@ create table t2 (c1 tinytext,c2 text,c6 timestamp) engine=innodb;
 explain select 1 from t2 where 
   c2 in (select 1 from t3, t2) and
   c1 in (select convert(c6,char(1)) from t2);
+select 1 from t2 where 
+  c2 in (select 1 from t3, t2) and
+  c1 in (select convert(c6,char(1)) from t2);
 drop table t2, t3;
 
 
@@ -985,13 +995,13 @@ DROP TABLE t1, t2;
 --echo #
 --echo # BUG#858732: Wrong result with semijoin + loosescan + comma join
 --echo #
-CREATE TABLE t1 (f13 int(11) NOT NULL , PRIMARY KEY (f13)) ENGINE=InnoDB;
+CREATE TABLE t1 (f13 int(11) NOT NULL , PRIMARY KEY (f13)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES (16),(24);
 
-CREATE TABLE t2 (f14 int(11) NOT NULL, f12 varchar(1) NOT NULL, KEY (f12,f14)) ENGINE=InnoDB;
+CREATE TABLE t2 (f14 int(11) NOT NULL, f12 varchar(1) NOT NULL, KEY (f12,f14)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES (6,'y');
 
-CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
 
 analyze table t1,t2,t3 persistent for all;
@@ -1063,15 +1073,15 @@ set optimizer_switch= @tmp869001_os;
 --echo #              with empty materialized derived inner table
 --echo #
 
-CREATE TABLE t1 (b varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t1 (b varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 
-CREATE TABLE t2 (a varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t2 (a varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES ('a');
 
-CREATE TABLE t3 (a varchar(1), b varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t3 (a varchar(1), b varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t3 VALUES ('c','c');
 
-CREATE TABLE t4 (b varchar(1)) ENGINE=InnoDB;
+CREATE TABLE t4 (b varchar(1)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t4 VALUES ('c'), ('b');
 
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
@@ -1106,7 +1116,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (
   a INT, b VARCHAR(1), c INT,
   KEY(a), KEY(b)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t1 VALUES
 (1,'v',9),(2,'v',8),(3,'c',7),(4,'m',6),(5,'x',5),
@@ -1115,26 +1125,35 @@ INSERT INTO t1 VALUES
 (16,'n',3),(17,'r',2),(18,'v',1),(19,'p',0);
 
 CREATE TABLE t2 (
-  pk INT, d VARCHAR(1), e INT,
+  pk INT, d VARCHAR(1), e INT, f int,
   PRIMARY KEY(pk), KEY(d,e)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
-INSERT INTO t2 VALUES
+INSERT INTO t2 (pk,d,e) VALUES
 (1,'x',1),(2,'d',2),(3,'r',3),(4,'f',4),(5,'y',5),
 (6,'u',6),(7,'m',7),(8,'k',8),(9,'o',9),(10,'w',1),
 (11,'m',2),(12,'q',3),(13,'m',4),(14,'d',5),
 (15,'g',6),(16,'x',7),(17,'f',8);
+update t2 set f=pk/2;
 
 analyze table t1,t2;
 
+--echo # Original query, changed because of new optimizations
 explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
   WHERE a = d AND ( pk < 2 OR d = 'z' )
 );
+
+explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
-  WHERE a = d AND ( pk < 2 OR d = 'z' )
+  WHERE a = d AND ( pk < 2 OR d = 'z' ) and f > 0
+);
+
+SELECT * FROM t1 WHERE b IN (
+  SELECT d FROM t2, t1
+  WHERE a = d AND ( pk < 2 OR d = 'z' ) and f > 0
 );
 
 DROP TABLE t1, t2;
@@ -1146,7 +1165,7 @@ CREATE TABLE t1 (
   a VARCHAR(1),
   b VARCHAR(1) NOT NULL,
   KEY(a)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('j','j'),('v','v'),('c','c'),('m','m'),('d','d'),
 ('y','y'),('t','t'),('d','d'),('s','s'),('r','r'),
@@ -1168,7 +1187,7 @@ WHERE ( a, a ) IN (
 );
 
 --echo # Another testcase, without the VIEW:
-CREATE TABLE t2 (a VARCHAR(1), b VARCHAR(1) NOT NULL, KEY(a)) ENGINE=InnoDB;
+CREATE TABLE t2 (a VARCHAR(1), b VARCHAR(1) NOT NULL, KEY(a)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 SELECT * FROM t1;
 INSERT INTO t2 SELECT * FROM t1;
 
@@ -1217,7 +1236,7 @@ CREATE TABLE t2 (
   c VARCHAR(1),
   d VARCHAR(1),
   KEY(c)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t2 VALUES
   (1,'j','j'),(2,'v','v'),(3,'c','c'),(4,'m','m'),
@@ -1229,6 +1248,7 @@ INSERT INTO t2 VALUES
 analyze table t1 persistent for all;
 analyze table t2 persistent for all;
 --replace_column 9 #
+
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
@@ -1305,8 +1325,6 @@ SELECT * FROM t1 WHERE 9 IN ( SELECT b FROM t2 WHERE 1 IN ( SELECT MIN(c) FROM t
 
 DROP TABLE t1,t2,t3;
 
---source include/have_innodb.inc
-
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4;
 --enable_warnings
@@ -1314,13 +1332,13 @@ DROP TABLE IF EXISTS t1,t2,t3,t4;
 --echo #
 --echo # MDEV-4782: Valgrind warnings (Conditional jump or move depends on uninitialised value) with InnoDB, semijoin
 --echo #
-CREATE TABLE t1 ( t1_pk1 varchar(3), t1_pk2 varchar(52), PRIMARY KEY (t1_pk1,t1_pk2)) ENGINE=InnoDB;
+CREATE TABLE t1 ( t1_pk1 varchar(3), t1_pk2 varchar(52), PRIMARY KEY (t1_pk1,t1_pk2)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES ('CHN','Chinese'),('USA','English');
 
-CREATE TABLE t2 ( t2_i int(11), t2_c varchar(52)) ENGINE=InnoDB;
+CREATE TABLE t2 ( t2_i int(11), t2_c varchar(52)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES (86,'English');
 
-CREATE TABLE t3 ( t3_i int(11), t3_c varchar(35)) ENGINE=InnoDB;
+CREATE TABLE t3 ( t3_i int(11), t3_c varchar(35)) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t3 VALUES (3989,'Abilene'),(3873,'Akron');
 
 create table t4 like t1;

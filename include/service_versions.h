@@ -26,13 +26,13 @@
 #define VERSION_base64                  0x0100
 #define VERSION_encryption              0x0300
 #define VERSION_encryption_scheme       0x0100
-#define VERSION_logger                  0x0100
-#define VERSION_my_crypt                0x0100
+#define VERSION_logger                  0x0200
+#define VERSION_my_crypt                0x0101
 #define VERSION_my_md5                  0x0100
-#define VERSION_my_print_error          0x0100
+#define VERSION_my_print_error          0x0200
 #define VERSION_my_sha1                 0x0101
 #define VERSION_my_sha2                 0x0100
-#define VERSION_my_snprintf             0x0100
+#define VERSION_my_snprintf             0x0200
 #define VERSION_progress_report         0x0100
 #define VERSION_thd_alloc               0x0200
 #define VERSION_thd_autoinc             0x0100
@@ -46,3 +46,9 @@
 #define VERSION_sql_service             0x0102
 #define VERSION_thd_mdl                 0x0100
 #define VERSION_print_check_msg         0x0100
+
+#define VERSION_provider_bzip2          0x0100
+#define VERSION_provider_lz4            0x0100
+#define VERSION_provider_lzma           0x0100
+#define VERSION_provider_lzo            0x0100
+#define VERSION_provider_snappy         0x0100

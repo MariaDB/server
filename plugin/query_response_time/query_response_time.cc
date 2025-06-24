@@ -136,44 +136,76 @@ private:
   ulonglong m_bound[OVERALL_POWER_COUNT];
 };
 
-static
-void print_time(char* buffer, std::size_t buffer_size, const char* format,
-                uint64 value)
+ATTRIBUTE_FORMAT(printf, 3, 0) static
+size_t print_time(char* buffer, std::size_t buffer_size, const char* format,
+                  uint64 value)
 {
   ulonglong second=      (value / MILLION);
   ulonglong microsecond= (value % MILLION);
-  my_snprintf(buffer, buffer_size, format, second, microsecond);
+  return my_snprintf(buffer, buffer_size, format, second, microsecond);
 }
 
 class time_collector
 {
   utility *m_utility;
-  Atomic_counter<uint32_t> m_count[OVERALL_POWER_COUNT + 1];
-  Atomic_counter<uint64_t> m_total[OVERALL_POWER_COUNT + 1];
+  /*
+    Counters for each query type. See QUERY_TYPE
+  */
+  Atomic_counter<uint32_t> m_count[QUERY_TYPES][OVERALL_POWER_COUNT + 1];
+  Atomic_counter<uint64_t> m_total[QUERY_TYPES][OVERALL_POWER_COUNT + 1];
 
 public:
-  time_collector(utility& u): m_utility(&u) { flush(); }
+  time_collector(utility& u): m_utility(&u) { flush_all(); }
   ~time_collector() = default;
-  uint32_t count(uint index) { return m_count[index]; }
-  uint64_t total(uint index) { return m_total[index]; }
-  void flush()
+  uint32_t count(QUERY_TYPE type, uint index) { return m_count[type][index]; }
+  uint64_t total(QUERY_TYPE type, uint index) { return m_total[type][index]; }
+  void flush(QUERY_TYPE type)
   {
-    for (auto i= 0; i < OVERALL_POWER_COUNT + 1; i++)
-    {
-      m_count[i]= 0;
-      m_total[i]= 0;
+    switch (type) {
+    case ANY: flush_all(); break;
+    case READ: flush_read(); break;
+    case WRITE: flush_write(); break;
     }
   }
-  void collect(uint64_t time)
+  void flush_all()
   {
+    memset((void*)&m_count,0,sizeof(m_count));
+    memset((void*)&m_total,0,sizeof(m_total));
+  }
+  void flush_read()
+  {
+    memset((void*)&m_count[READ],0,sizeof(m_count[READ]));
+    memset((void*)&m_total[READ],0,sizeof(m_total[READ]));
+    update_total();
+  }
+  void flush_write()
+  {
+    memset((void*)&m_count[WRITE],0,sizeof(m_count[WRITE]));
+    memset((void*)&m_total[WRITE],0,sizeof(m_total[WRITE]));
+    update_total();
+  }
+  void update_total()
+  {
+    int count, i;
+    for (i=0, count= m_utility->bound_count(); i < count; ++i)
+    {
+      m_count[0][i]= m_count[1][i]+m_count[2][i];
+      m_total[0][i]= m_total[1][i]+m_total[2][i];
+    }
+  }
+  void collect(QUERY_TYPE type, uint64_t time)
+  {
+    DBUG_ASSERT(type != ANY);
     int i= 0;
     for(int count= m_utility->bound_count(); count > i; ++i)
     {
-      if(m_utility->bound(i) > time)
+      if (m_utility->bound(i) > time)
       {
-        m_count[i]++;
-        m_total[i]+= time;
-        break;
+        m_count[0][i]++;
+        m_total[0][i]+= time;
+        m_count[type][i]++;
+        m_total[type][i]+= time;
+        return;
       }
     }
   }
@@ -185,14 +217,21 @@ public:
   collector() : m_time(m_utility)
   {
     m_utility.setup(DEFAULT_BASE);
+    m_time.flush_all();
   }
 public:
-  void flush()
+  void flush(QUERY_TYPE type)
   {
-    m_utility.setup(opt_query_response_time_range_base);
-    m_time.flush();
+    if (opt_query_response_time_range_base != m_utility.base())
+    {
+      /* We have to flush everything if base changes */
+      type= ANY;
+      m_utility.setup(opt_query_response_time_range_base);
+    }
+    m_time.flush(type);
   }
-  int fill(THD* thd, TABLE_LIST *tables, COND *cond)
+  int fill(QUERY_TYPE type, THD* thd, TABLE_LIST *tables, COND *cond,
+           bool extra_fields)
   {
     DBUG_ENTER("fill_schema_query_response_time");
     TABLE        *table= static_cast<TABLE*>(tables->table);
@@ -201,21 +240,32 @@ public:
     {
       char time[TIME_STRING_BUFFER_LENGTH];
       char total[TOTAL_STRING_BUFFER_LENGTH];
+      size_t time_length, total_length;
       if(i == bound_count())
       {
         assert(sizeof(TIME_OVERFLOW) <= TIME_STRING_BUFFER_LENGTH);
         assert(sizeof(TIME_OVERFLOW) <= TOTAL_STRING_BUFFER_LENGTH);
         memcpy(time,TIME_OVERFLOW,sizeof(TIME_OVERFLOW));
         memcpy(total,TIME_OVERFLOW,sizeof(TIME_OVERFLOW));
+        time_length= total_length= sizeof(TIME_OVERFLOW)-1;
       }
       else
       {
-        print_time(time, sizeof(time), TIME_STRING_FORMAT, this->bound(i));
-        print_time(total, sizeof(total), TOTAL_STRING_FORMAT, this->total(i));
+        time_length= print_time(time, sizeof(time), TIME_STRING_FORMAT,
+                               this->bound(i));
+        total_length= print_time(total, sizeof(total), TOTAL_STRING_FORMAT,
+                                 this->total(type, i));
       }
-      fields[0]->store(time,strlen(time),system_charset_info);
-      fields[1]->store((longlong)this->count(i),true);
-      fields[2]->store(total,strlen(total),system_charset_info);
+      fields[0]->store(time, time_length, system_charset_info);
+      fields[1]->store((longlong) this->count(type, i), true);
+      fields[2]->store(total, total_length, system_charset_info);
+      if (extra_fields)
+      {
+        fields[3]->store((longlong) this->count(WRITE, i), true);
+        total_length= print_time(total, sizeof(total), TOTAL_STRING_FORMAT,
+                                 this->total(WRITE, i));
+        fields[4]->store(total, total_length, system_charset_info);
+      }
       if (schema_table_store_record(thd, table))
       {
 	DBUG_RETURN(1);
@@ -223,9 +273,9 @@ public:
     }
     DBUG_RETURN(0);
   }
-  void collect(ulonglong time)
+  void collect(QUERY_TYPE type, ulonglong time)
   {
-    m_time.collect(time);
+    m_time.collect(type, time);
   }
   uint bound_count() const
   {
@@ -235,13 +285,13 @@ public:
   {
     return m_utility.bound(index);
   }
-  ulonglong count(uint index)
+  ulonglong count(QUERY_TYPE type, uint index)
   {
-    return m_time.count(index);
+    return m_time.count(type, index);
   }
-  ulonglong total(uint index)
+  ulonglong total(QUERY_TYPE type, uint index)
   {
-    return m_time.total(index);
+    return m_time.total(type, index);
   }
 private:
   utility          m_utility;
@@ -254,25 +304,56 @@ static collector g_collector;
 
 void query_response_time_init()
 {
+  query_response_time_flush_all();
 }
 
 void query_response_time_free()
 {
-  query_response_time::g_collector.flush();
+  query_response_time::g_collector.flush(ANY);
 }
 
-int query_response_time_flush()
+int query_response_time_flush_all()
 {
-  query_response_time::g_collector.flush();
+  query_response_time::g_collector.flush(ANY);
   return 0;
 }
-void query_response_time_collect(ulonglong query_time)
+
+int query_response_time_flush_read()
 {
-  query_response_time::g_collector.collect(query_time);
+  query_response_time::g_collector.flush(READ);
+  return 0;
 }
 
-int query_response_time_fill(THD* thd, TABLE_LIST *tables, COND *cond)
+int query_response_time_flush_write()
 {
-  return query_response_time::g_collector.fill(thd,tables,cond);
+  query_response_time::g_collector.flush(WRITE);
+  return 0;
+}
+
+void query_response_time_collect(QUERY_TYPE type, ulonglong query_time)
+{
+  query_response_time::g_collector.collect(type, query_time);
+}
+
+int query_response_time_fill(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  return query_response_time::g_collector.fill(ANY, thd,tables, cond, 0);
+}
+
+int query_response_time_fill_read(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  return query_response_time::g_collector.fill(READ, thd, tables, cond, 0);
+}
+
+int query_response_time_fill_write(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  return query_response_time::g_collector.fill(WRITE, thd, tables, cond, 0);
+}
+
+int query_response_time_fill_read_write(THD *thd, TABLE_LIST *tables,
+                                        COND *cond)
+{
+  /* write will also be filled as extra fields is 1 */
+  return query_response_time::g_collector.fill(READ, thd, tables, cond, 1);
 }
 #endif // HAVE_RESPONSE_TIME_DISTRIBUTION

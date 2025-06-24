@@ -2,6 +2,9 @@
 -- source include/have_log_bin.inc
 
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.'); 
+
+--source include/test_db_charset_latin1.inc
+
 #
 # SQL Syntax for Prepared Statements test
 #
@@ -238,7 +241,7 @@ drop table t1;
 #
 # Bug#5034 "prepared "select 1 into @arg15", second execute crashes
 # server".
-# Check that descendands of select_result can be reused in prepared 
+# Check that descendants of select_result can be reused in prepared
 # statements or are correctly created and deleted on each execute
 #
 
@@ -766,13 +769,13 @@ prepare stmt from "select @@time_zone";
 execute stmt;
 set @@time_zone:='Japan';
 execute stmt;
-prepare stmt from "select @@tx_isolation";
+prepare stmt from "select @@transaction_isolation";
 execute stmt;
 set transaction isolation level read committed;
 execute stmt;
 set transaction isolation level serializable;
 execute stmt;
-set @@tx_isolation=default;
+set @@transaction_isolation=default;
 execute stmt;
 deallocate prepare stmt;
 
@@ -5447,3 +5450,31 @@ DROP VIEW t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-25008 Delete query gets stuck on mariadb , same query works on MySQL 8.0.21
+--echo #
+
+create table t1 (a int, b int, primary key (a), key (b));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+CREATE TABLE t2 ( id INT(10) );
+insert into t2 values (1),(2);
+
+# calls select_lex->optimize_unflattened_subqueries(false) in the err label
+set @@optimizer_switch="index_merge=off";
+set sql_safe_updates=1;
+set @var1=1;
+set @var2=2;
+prepare stmt from 'update t1 set b=(SELECT 1 FROM t2 WHERE id = t1.a) where 1=? or b=2';
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+execute stmt using @var1;
+execute stmt using @var2;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1 where a=1 or b=2;
+drop table t1, t2;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

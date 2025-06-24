@@ -10,21 +10,21 @@
 
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` (has an unreadable root page|is corrupted)");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` has an unreadable root page");
+call mtr.add_suppression("Table .*t[12].* is corrupted");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[12]\\.ibd' cannot be decrypted; key_version=1");
 call mtr.add_suppression("InnoDB: Failed to read page [1-9][0-9]* from file '.*test/t[12]\\.ibd'");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: File '.*test/t[12]\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
+call mtr.add_suppression("Table `test`\\.`t[12]` is corrupted");
 call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");
+call mtr.add_suppression("File '.*mariadb-test.std_data.keysbad3\\.txt' not found");
 # for innodb_checksum_algorithm=full_crc32 only
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
-
-SET GLOBAL innodb_file_per_table = ON;
 
 CREATE TABLE t1 (c VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=2;
 INSERT INTO t1 VALUES ('foobar');
@@ -44,7 +44,7 @@ SELECT * FROM t1;
 -- source include/restart_mysqld.inc
 
 --disable_warnings
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t1;
 --enable_warnings
 
@@ -73,35 +73,35 @@ INSERT INTO t2 VALUES ('foobar',1,2);
 -- source include/restart_mysqld.inc
 
 --disable_warnings
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t2;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t2 where id = 1;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 SELECT * FROM t2 where b = 1;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 INSERT INTO t2 VALUES ('tmp',3,3);
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 DELETE FROM t2 where b = 3;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 DELETE FROM t2 where id = 3;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 UPDATE t2 set b = b +1;
 
 OPTIMIZE TABLE t2;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 ALTER TABLE t2 ADD COLUMN d INT;
 
 ANALYZE TABLE t2;
 
---error ER_NO_SUCH_TABLE_IN_ENGINE
+--error ER_TABLE_CORRUPT
 TRUNCATE TABLE t2;
 
 DROP TABLE t2;

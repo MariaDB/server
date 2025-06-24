@@ -26,12 +26,11 @@
 */
 
 struct TABLE;
-struct JOIN_TAB;
 class Json_writer;
 
 
 /* Several fake objects */
-class Opt_trace 
+class Opt_trace
 {
 public:
   void enable_tracing_if_required() {}
@@ -39,11 +38,15 @@ public:
   Json_writer *get_current_json() { return nullptr; }
 };
 
-class THD 
+class THD
 {
 public:
   Opt_trace opt_trace;
 };
+
+constexpr uint FAKE_SELECT_LEX_ID= UINT_MAX;
+
+#define sql_print_error printf
 
 #define JSON_WRITER_UNIT_TEST
 #include "../sql/my_json_writer.h"
@@ -59,7 +62,7 @@ int main(int args, char **argv)
   {
     Json_writer w;
     w.start_object();
-    w.add_member("foo"); 
+    w.add_member("foo");
     w.end_object();
     ok(w.invalid_json, "Started a name but didn't add a value");
   }
@@ -121,11 +124,25 @@ int main(int args, char **argv)
     ok(w.invalid_json, "JSON array end of object");
   }
 
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("name").add_ll(1);
+    w.add_member("name").add_ll(2);
+    w.end_object();
+    ok(w.invalid_json, "JSON object member name collision");
+  }
 
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("name").start_object();
+    w.add_member("name").add_ll(2);
+    ok(!w.invalid_json, "Valid JSON: nested object member name is the same");
+  }
 
   diag("Done");
 
   my_end(MY_CHECK_ERROR);
   return exit_status();
 }
-

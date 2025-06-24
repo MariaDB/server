@@ -1,9 +1,0 @@
-[strict_crc32]
---innodb-checksum-algorithm=strict_crc32
---innodb-page-size=4k
---innodb-force-recovery=2
-
-[strict_full_crc32]
---innodb-checksum-algorithm=strict_full_crc32
---innodb-page-size=4k
---innodb-force-recovery=2

@@ -30,7 +30,7 @@ SET SQL_MODE="";
 #
 # Show prerequisites for this test.
 #
-SELECT @@global.tx_isolation;
+SELECT @@global.transaction_isolation;
 #
 # With the transaction isolation level REPEATABLE READ (the default)
 # or SERIALIZEBLE, InnoDB takes "next-key locks"/"gap locks". This means it
@@ -43,13 +43,13 @@ SELECT @@global.tx_isolation;
 # We use the variable $keep_locks to set the expectations for
 # lock wait timeouts accordingly.
 #
-let $keep_locks= `SELECT @@global.tx_isolation IN ('REPEATABLE-READ','SERIALIZABLE')`;
+let $keep_locks= `SELECT @@global.transaction_isolation IN ('REPEATABLE-READ','SERIALIZABLE')`;
 --echo # keep_locks == $keep_locks
 
 #
 # Set up privileges and remove user level locks, if exist.
 #
-GRANT USAGE ON test.* TO mysqltest@localhost;
+GRANT ALL ON test.* TO mysqltest@localhost;
 
 --echo
 --echo **
@@ -454,7 +454,7 @@ drop table t1;
       --echo ** Table will be unchanged and the select command will not be
       --echo ** blocked:
       select * from t1;
-      --echo ** Commit transacton on thread 2.
+      --echo ** Commit transaction on thread 2.
       commit;
 
   connection thread1;
@@ -500,7 +500,7 @@ drop table t1;
       send delete from t1 where tipo=2;
 # The sleep has not been replaced as all tried wait conditions leaded to sporadically
 # succeding update in the following thread. Also the used status variables '%lock%' and
-# 'innodb_deleted_rows' and infos in processlist where not sucessful.
+# 'innodb_deleted_rows' and infos in processlist were not successful.
       sleep 1;
 
   connection thread1;
@@ -555,7 +555,7 @@ drop table t1;
       send delete from t1 where tipo=2;
 # The sleep has not been replaced as all tried wait conditions leaded to sporadically
 # succeding update in the following thread. Also the used status variables '%lock%' and
-# 'innodb_deleted_rows' and infos in processlist where not sucessful.
+# 'innodb_deleted_rows' and infos in processlist were not successful.
       sleep 1;
  --disable_view_protocol
   connection thread1;

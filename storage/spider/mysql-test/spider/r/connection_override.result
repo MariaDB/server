@@ -7,6 +7,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'invalid',user 'root');
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", database "test"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values (1), (2), (3);
 select * from t1;
 c
@@ -20,6 +22,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'invalid',user 'root');
 create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 CONNECTION='WRAPPER "mysql", srv "srv",TABLE "t2", database "test"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values (1), (2), (3);
 select * from t1;
 c
@@ -32,6 +36,9 @@ create table t2 (c int);
 create table t1 (c int) ENGINE=Spider
 CONNECTION='user "root", database "invalid"'
 COMMENT='WRAPPER "mysql", SOCKET "$MASTER_1_MYSOCK",TABLE "t2", database "test"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values (1), (2), (3);
 select * from t1;
 c

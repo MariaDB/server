@@ -1,0 +1,172 @@
+--source include/not_embedded.inc
+--source suite/versioning/common.inc
+
+--echo #
+--echo # MDEV-16355 Add option for mysqldump to read data as of specific timestamp from system-versioned tables
+--echo #
+create or replace table t1 (x int) with system versioning;
+set timestamp=unix_timestamp('1990-01-01 00:00');
+insert t1 (x) values (1),(2),(3);
+set timestamp=unix_timestamp('1990-08-03 00:00');
+delete from t1 where x=1;
+set timestamp=unix_timestamp('1991-01-02 00:00');
+delete from t1 where x=2;
+set timestamp=default;
+
+--echo #MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact test
+--echo #MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-01-02 00:00" test
+--echo #MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-08-02 00:00" --databases test
+--echo #MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-08-04 00:00" test t1
+## Forged query protection
+--echo #MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --no-autocommit=0 --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+
+drop tables t1;
+
+--echo #
+--echo # MDEV-16029 mysqldump: dump and restore historical data
+--echo #
+create or replace table t1 (x int) with system versioning;
+set timestamp=unix_timestamp('2010-10-10 10:10:10.101010');
+insert into t1 values (1), (2);
+set timestamp=unix_timestamp('2011-11-11 11:11:11.111111');
+delete from t1 where x = 1;
+set timestamp=default;
+--disable_cursor_protocol
+select row_start, row_end into @s1, @e1 from t1 for system_time all where x = 1;
+select row_start, row_end into @s2, @e2 from t1 for system_time all where x = 2;
+--enable_cursor_protocol
+
+create or replace table t2 (
+  x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6)  as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+
+eval
+create or replace function check_fields(x int, row_start timestamp(6), row_end timestamp(6))
+    returns char(50) deterministic
+    return if (x = 1,
+              if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
+              if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
+
+set @@system_versioning_insert_history= 1;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+set @@system_versioning_insert_history= 0;
+--echo # t2 has the same data as t1
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+
+--let TMP= $MYSQLTEST_VARDIR/tmp
+
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --databases test > $TMP/dump_history.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --databases test > $TMP/dump_no_history.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --compact test 2>&1 > $TMP/dump_history_compact.sql
+--replace_result $sys_time_max_replace MAX_TIME
+--cat_file $TMP/dump_history_compact.sql
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --as-of="1990-01-02 00:00" test 2>&1
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --replace test 2>&1
+--replace_result mariadb-dump.exe mariadb-dump
+--error 1
+--exec $MYSQL_DUMP --dump-history --xml test 2>&1
+
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history --tab=$TMP test
+
+--echo # SQL dump with/without history
+--echo ## With history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/dump_history.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+--echo ## Without history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/dump_no_history.sql
+select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
+select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
+
+--echo ## History and --no-create-info --skip-comments
+create or replace table t1 (x int) with system versioning;
+delete from t2; delete history from t2;
+--exec $MYSQL test < $TMP/dump_only_data.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+
+--echo ## compact
+--exec $MYSQL test < $TMP/dump_history.sql
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+
+create or replace table t1 (x int) with system versioning;
+
+# TODO: MDEV-16766 mysqldump: dump history in XML
+if (0)
+{
+--echo # XML with history
+drop table t1;
+create or replace table t1 (x int) with system versioning;
+delete from t2;
+delete history from t2;
+set @@system_versioning_insert_history= 1;
+--replace_result $TMP TMP
+eval load xml infile '$TMP/dump_history.xml' into table t1;
+--exec cp $TMP/dump_history.xml /tmp
+set @@system_versioning_insert_history= 0;
+--echo ## History is now loaded as current data (TODO)
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+# TODO: check mysqlimport
+# --exec $MYSQL_IMPORT test $TMP/dump_history.xml
+}
+
+--echo # --tab with history
+drop tables t1, t2;
+--exec $MYSQL test < $TMP/t1.sql
+--exec $MYSQL test < $TMP/t2.sql
+show create table t1;
+show create table t2;
+set @@system_versioning_insert_history= 1;
+--replace_result $TMP tmp
+eval load data infile '$TMP/t1.txt' into table t1 (x, row_start, row_end);
+--replace_result $TMP tmp
+eval load data infile '$TMP/t2.txt' into table t2 (x, row_start, row_end);
+set @@system_versioning_insert_history= 0;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+select *, check_row_ts(row_start, row_end) from t2 for system_time all;
+
+# Cleanup
+--remove_files_wildcard $TMP *.sql
+--remove_files_wildcard $TMP *.txt
+--remove_files_wildcard $TMP *.xml
+drop tables t1, t2;
+drop function check_fields;
+
+--echo #
+--echo # MDEV-29730 mysqldump --dump-history creates broken dump if there are precision-versioned tables
+--echo #
+create table t1 (x int,
+  rs BIGINT unsigned as row start, re BiGiNt unsigned as row end,
+  period for system_time (rs,re)) with system versioning engine=innodb;
+insert t1 (x) values (1);
+insert t1 (x) values (2);
+delete from t1 where x=1;
+
+--replace_result mariadb-dump.exe mariadb-dump
+--error 6
+--exec $MYSQL_DUMP --no-autocommit=0 --dump-history test 2>&1 >/dev/null
+--replace_regex /2,\d+,/2,XXX,/ /mariadb-dump\.exe/mariadb-dump/
+--error 6
+--exec $MYSQL_DUMP --no-autocommit=0 --force --dump-history --compact test 2>&1
+
+drop table t1;
+
+--source suite/versioning/common_finish.inc

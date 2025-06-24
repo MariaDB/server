@@ -1,5 +1,5 @@
-mariadb-10.6 (1:10.6.0) unstable; urgency=medium
+mariadb (1:12.1.0) unstable; urgency=medium
 
   * Initial Release
 
- -- Otto Kekäläinen <otto@debian.org>  Thu, 14 May 2020 18:00:57 +0300
+ -- Sergei Golubchik <serg@mariadb.org> Mon Apr 28 10:19:29 CEST 2025

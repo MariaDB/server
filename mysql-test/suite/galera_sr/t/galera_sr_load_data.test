@@ -24,9 +24,6 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_1
 --disable_query_log
---disable_warnings
-set global wsrep_load_data_splitting=ON;
---enable_warnings
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/galera_sr_load_data.csv' INTO TABLE t1;
 --enable_query_log
 
@@ -40,10 +37,5 @@ SELECT COUNT(*) = 20000 FROM t1;
 --enable_query_log
 
 --connection node_1
---disable_query_log
---disable_warnings
-set global wsrep_load_data_splitting=OFF;
---enable_warnings
---enable_query_log
 
 DROP TABLE t1;

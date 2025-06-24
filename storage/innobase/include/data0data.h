@@ -193,7 +193,7 @@ dtuple_set_info_bits(
 Gets number of fields used in record comparisons.
 @return number of fields used in comparisons in rem0cmp.* */
 UNIV_INLINE
-ulint
+uint16_t
 dtuple_get_n_fields_cmp(
 /*====================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
@@ -270,13 +270,14 @@ dtuple_create_with_vcol(
 /*********************************************************************//**
 Sets number of fields used in a tuple. Normally this is set in
 dtuple_create, but if you want later to set it smaller, you can use this. */
+inline
 void
 dtuple_set_n_fields(
 /*================*/
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		n_fields)	/*!< in: number of fields */
 	MY_ATTRIBUTE((nonnull));
-/** Copies a data tuple's virtaul fields to another. This is a shallow copy;
+/** Copies a data tuple's virtual fields to another. This is a shallow copy;
 @param[in,out]	d_tuple		destination tuple
 @param[in]	s_tuple		source tuple */
 UNIV_INLINE
@@ -316,30 +317,6 @@ dtuple_get_n_ext(
 /*=============*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 	MY_ATTRIBUTE((nonnull));
-/** Compare two data tuples.
-@param[in] tuple1 first data tuple
-@param[in] tuple2 second data tuple
-@return positive, 0, negative if tuple1 is greater, equal, less, than tuple2,
-respectively */
-int
-dtuple_coll_cmp(
-	const dtuple_t*	tuple1,
-	const dtuple_t*	tuple2)
-	MY_ATTRIBUTE((warn_unused_result));
-/** Fold a prefix given as the number of fields of a tuple.
-@param[in]	tuple		index record
-@param[in]	n_fields	number of complete fields to fold
-@param[in]	n_bytes		number of bytes to fold in the last field
-@param[in]	index_id	index tree ID
-@return the folded value */
-UNIV_INLINE
-ulint
-dtuple_fold(
-	const dtuple_t*	tuple,
-	ulint		n_fields,
-	ulint		n_bytes,
-	index_id_t	tree_id)
-	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************************//**
 Sets types of fields binary in a tuple. */
 UNIV_INLINE
@@ -496,7 +473,7 @@ struct dfield_t{
 		ut_ad(type.vers_sys_end());
 		if (type.mtype == DATA_FIXBINARY) {
 			ut_ad(len == sizeof timestamp_max_bytes);
-			return 0 != memcmp(data, timestamp_max_bytes, len);
+			return !IS_MAX_TIMESTAMP(data);
 		} else {
 			ut_ad(type.mtype == DATA_INT);
 			ut_ad(len == sizeof trx_id_max_bytes);
@@ -509,20 +486,20 @@ struct dfield_t{
 
 /** Structure for an SQL data tuple of fields (logical record) */
 struct dtuple_t {
-	ulint		info_bits;	/*!< info bits of an index record:
+	byte		info_bits;	/*!< info bits of an index record:
 					the default is 0; this field is used
 					if an index record is built from
 					a data tuple */
-	ulint		n_fields;	/*!< number of fields in dtuple */
-	ulint		n_fields_cmp;	/*!< number of fields which should
+	uint16_t	n_fields;	/*!< number of fields in dtuple */
+	uint16_t	n_fields_cmp;	/*!< number of fields which should
 					be used in comparison services
 					of rem0cmp.*; the index search
 					is performed by comparing only these
 					fields, others are ignored; the
 					default value in dtuple creation is
 					the same value as n_fields */
+	uint16_t	n_v_fields;	/*!< number of virtual fields */
 	dfield_t*	fields;		/*!< fields */
-	ulint		n_v_fields;	/*!< number of virtual fields */
 	dfield_t*	v_fields;	/*!< fields on virtual column */
 #ifdef UNIV_DEBUG
 	ulint		magic_n;	/*!< magic number, used in
@@ -584,7 +561,7 @@ struct dtuple_t {
 	inline void copy_field_types(const dict_index_t &index);
 };
 
-inline ulint dtuple_get_n_fields(const dtuple_t* tuple)
+inline uint16_t dtuple_get_n_fields(const dtuple_t* tuple)
 { return tuple->n_fields; }
 inline dtype_t* dfield_get_type(dfield_t* field) { return &field->type; }
 inline const dtype_t* dfield_get_type(const dfield_t* field)
@@ -618,7 +595,7 @@ inline void dfield_set_ext(dfield_t* field) { field->ext = 1; }
 /** Gets number of virtual fields in a data tuple.
 @param[in]	tuple	dtuple to check
 @return number of fields */
-inline ulint
+inline uint16_t
 dtuple_get_n_v_fields(const dtuple_t* tuple) { return tuple->n_v_fields; }
 
 inline const dfield_t* dtuple_get_nth_field(const dtuple_t* tuple, ulint n)

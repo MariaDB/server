@@ -334,17 +334,18 @@ create view v1 as select a from t2;
 create trigger t1_ai after insert on t1 for each row
   insert into v1 (a) values (new.a);
 
---echo # Demonstrate that the same bug is present
---echo # without prepared statements
+--echo # Demonstrate that this bug is fixed by MDEV-5816
+--echo # both for regular and prepared statements
 insert into t1 (a) values (5);
 select * from t2;
 select * from t3;
 drop view v1;
 create view v1 as select a from t3;
---error ER_NO_SUCH_TABLE
+# Before MDEV-5816 the following statement would fail
+# with the error ER_NO_SUCH_TABLE
 insert into t1 (a) values (6);
 flush table t1;
-insert into t1 (a) values (6);
+insert into t1 (a) values (60);
 select * from t2;
 select * from t3;
 
@@ -365,12 +366,13 @@ set @var=8;
 --echo # but repreparation of the main statement doesn't cause repreparation
 --echo # of trigger statements.
 --echo #
---echo # The following EXECUTE results in ER_NO_SUCH_TABLE (t3) error, because
---echo # pre-locking list of the prepared statement has been changed
+--echo # Prior MDEV-5816, the following EXECUTE resulted in
+--echo # ER_NO_SUCH_TABLE (t3) error, because pre-locking list of the prepared
+--echo # statement has been changed
 --echo # (the prepared statement has noticed the meta-data change),
 --echo # but the trigger still tries to deal with 't3', which is not opened.
 --echo # That's why '8' is not inserted neither into 't2', nor into 't3'.
---error ER_NO_SUCH_TABLE
+--echo # After the task MDEV-5816 be implemented this issue does't exist.
 execute stmt using @var;
 call p_verify_reprepare_count(1);
 select * from t2;
@@ -2250,7 +2252,7 @@ EXECUTE stmt1;
 --echo # Create temporary table which will shadow t1.
 CREATE TEMPORARY TABLE t1 (b int);
 --echo # The below execution of statement should not fail with ER_CANT_REOPEN
---echo # error. Instead stmt1 should be auto-matically reprepared and succeed.
+--echo # error. Instead stmt1 should be automatically reprepared and executed successfully.
 EXECUTE stmt1;
 DEALLOCATE PREPARE stmt1;
 DROP TEMPORARY TABLE t1;

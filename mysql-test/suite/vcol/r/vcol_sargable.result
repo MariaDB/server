@@ -1,0 +1,401 @@
+# Check various condition types
+create table t1 (a int, vcol1 int as (a+1), index(vcol1));
+insert into t1 (a) select seq from seq_1_to_100;
+explain select * from t1 where a+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vcol1	vcol1	5	const	1	
+# Try renaming the table
+explain select * from t1 as TBL where TBL.a+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	TBL	ref	vcol1	vcol1	5	const	1	
+explain select * from t1 where a+1<=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	1	Using index condition
+explain select * from t1 where a+1<2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	1	Using index condition
+explain select * from t1 where a+1>100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	6	Using index condition
+explain select * from t1 where a+1>=100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	13	Using index condition
+explain select * from t1 where a+1 between 10 and 12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	2	Using index condition
+explain select * from t1 where (a+1) IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vcol1	vcol1	5	const	1	Using index condition
+explain select * from t1 force index(vcol1) where (a+1) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	100	Using index condition
+explain select * from t1 where (a+1) in (1,2,3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	4	Using index condition
+# Check UPDATE/DELETE:
+explain delete from t1 where a+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	1	Using where
+explain update t1 set a=a+1 where a+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vcol1	vcol1	5	NULL	1	Using where; Using buffer
+# Try merged VIEWs:
+create view v1 as select * from t1;
+explain select * from v1 where a+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vcol1	vcol1	5	const	1	
+create view v2 as select a as A_COL from t1;
+explain select * from v2 where A_COL+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vcol1	vcol1	5	const	1	
+drop view v1;
+drop view v2;
+set names utf8mb4;
+select @@collation_connection;
+@@collation_connection
+utf8mb4_uca1400_ai_ci
+# Check VARCHAR
+create table t2 (
+a varchar(32),
+vcol1 varchar(32) as (concat('hello-',a)),
+index(vcol1)
+);
+insert into t2 (a) select seq from seq_1_to_100;
+select collation('aaa'), collation(vcol1) from t2 limit 1;
+collation('aaa')	collation(vcol1)
+utf8mb4_uca1400_ai_ci	utf8mb4_uca1400_ai_ci
+set @tmp_trace=@@optimizer_trace;
+set optimizer_trace=1;
+# This won't work:
+explain select * from t2 where concat('bye-', a)='hello-5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+# This will work:
+explain select * from t2 where concat('hello-', a)='hello-5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	vcol1	vcol1	131	const	1	Using index condition
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "condition": "WHERE",
+        "resulting_condition": "t2.vcol1 = 'hello-5'"
+    }
+]
+# Try also ON expressions
+explain
+select *
+from t1 left join t2 on concat('hello-', t2.a)='hello-5'
+where
+t1.a+1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vcol1	vcol1	5	const	1	
+1	SIMPLE	t2	ref	vcol1	vcol1	131	const	1	Using where
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "condition": "WHERE",
+        "resulting_condition": "t1.vcol1 = 2"
+    },
+    {
+        "condition": "ON expression",
+        "resulting_condition": "t2.vcol1 = 'hello-5'"
+    }
+]
+create table t3 (a int);
+insert into t3 values (1),(2);
+explain
+select *
+from
+t3 left join
+(t1 join t2 on concat('hello-', t2.a)='hello-5' and t1.a+1=2)
+on t3.a<3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ref	vcol1	vcol1	5	const	1	Using where
+1	SIMPLE	t2	ref	vcol1	vcol1	131	const	1	Using where
+select
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.virtual_column_substitution'))
+[
+    {
+        "condition": "ON expression",
+        "resulting_condition": "t3.a < 3 and t2.vcol1 = 'hello-5' and t1.vcol1 = 2"
+    }
+]
+drop table t1,t2,t3;
+set optimizer_trace=@tmp_trace;
+#
+# Implicit type/charset conversions
+#
+create table t3 (
+a varchar(32) collate utf8mb4_general_ci,
+vcol1 int as (concat('100',a)),
+vcol2 varchar(32) collate utf8mb4_unicode_ci as (concat('hello-',a)),
+index(vcol1),
+index(vcol2)
+);
+insert into t3 (a) select seq from seq_1_to_100;
+# Type conversion
+explain select * from t3 where concat('100', a)=10010;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('100',`t3`.`a`) -> vcol1 due to type mismatch
+# Character set change
+explain select * from t3 where concat('hello-', a)='abcd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('hello-',`t3`.`a`) -> vcol2 due to collation mismatch
+drop table t3;
+# Try JSON_EXTRACT
+create table t1 (a int, js1 blob);
+insert into t1
+select seq, concat('{"size":', seq, ', "color":"hue', seq ,'"}') from seq_1_to_100;
+select * from t1 limit 3;
+a	js1
+1	{"size":1, "color":"hue1"}
+2	{"size":2, "color":"hue2"}
+3	{"size":3, "color":"hue3"}
+alter table t1 add size1 int as (cast(json_extract(js1, '$.size') as int));
+alter table t1 add index(size1);
+explain select * from t1 where cast(json_extract(js1,'$.size') as int)=5 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	size1	size1	5	const	1	
+alter table t1 add
+color varchar(100) COLLATE utf8mb4_bin
+as (json_unquote(json_extract(js1, '$.color')));
+alter table t1 add index(color);
+select * from t1 limit 3;
+a	js1	size1	color
+1	{"size":1, "color":"hue1"}	1	hue1
+2	{"size":2, "color":"hue2"}	2	hue2
+3	{"size":3, "color":"hue3"}	3	hue3
+# Index is used:
+explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	color	color	403	const	1	Using index condition
+explain select * from t1 where json_unquote(json_extract(js1, '$.color')) IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	color	color	403	const	1	Using index condition
+explain select * from t1 force index(color)
+where json_unquote(json_extract(js1, '$.color')) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	color	color	403	NULL	100	Using index condition
+alter table t1 drop column color;
+alter table t1 add
+color2 varchar(100)
+as (json_unquote(json_extract(js1, '$.color')));
+alter table t1 add index(color2);
+# Index is not used due to collation mismatch:
+explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression json_unquote(json_extract(`t1`.`js1`,'$.color')) -> color2 due to collation mismatch
+drop table t1;
+#
+# Tests with JSON_VALUE
+#
+create table t1 (a int, js1 json);
+insert into t1
+select seq, concat('{"size":', seq, ', "color":"hue', seq ,'"}') from seq_1_to_100;
+select * from t1 limit 3;
+a	js1
+1	{"size":1, "color":"hue1"}
+2	{"size":2, "color":"hue2"}
+3	{"size":3, "color":"hue3"}
+alter table t1
+add size1 int as (cast(json_value(js1, '$.size') as int)),
+add index(size1);
+explain
+select * from t1 where size1=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	size1	size1	5	const	1	
+# The "JSON" datatype uses binary collation.
+#  JSON_VALUE will produce output in binary collation, too:
+select collation(json_value(js1, '$.color')) from t1 limit 1;
+collation(json_value(js1, '$.color'))
+utf8mb4_bin
+# If one is fine with _bin comparisons, they can use index access:
+alter table t1
+add color1 varchar(100) collate utf8mb4_bin as (json_value(js1, '$.color')),
+add index(color1);
+explain select * from t1 where json_value(js1, '$.color')='hue10';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	color1	color1	403	const	1	Using index condition
+alter table t1 drop column color1;
+# Using different collation in column substitution prevents
+# the optimization from working:
+alter table t1
+add color2 varchar(100) collate utf8mb4_unicode_ci as (json_value(js1, '$.color')),
+add index(color2);
+explain select * from t1 where json_value(js1, '$.color')='hue10';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression json_value(`t1`.`js1`,'$.color') -> color2 due to collation mismatch
+alter table t1 drop column color2;
+# Explicitly specifying the collation helps:
+alter table t1
+add color3 varchar(100) collate utf8mb4_unicode_ci as
+(json_value(js1, '$.color') collate utf8mb4_unicode_ci),
+add index(color3);
+explain select * from t1
+where
+json_value(js1, '$.color') collate utf8mb4_unicode_ci='hue10';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	color3	color3	403	const	1	Using index condition
+#
+# Alternatively, one can store JSON in a column with the same
+# collation as default and then casts are not needed:
+#
+create table t2(
+js1 longtext COLLATE utf8mb4_uca1400_ai_ci DEFAULT NULL CHECK (json_valid(`js1`))
+);
+insert into t2 select js1 from t1;
+alter table t2
+add color3 varchar(100) as (json_value(js1, '$.color')),
+add index(color3);
+explain select * from t2
+where
+json_value(js1, '$.color')='hue10';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	color3	color3	403	const	1	Using index condition
+drop table t1,t2;
+#
+# Test interplay with sargable_casefold optimization:
+#
+create table t1 (
+a varchar(100) collate utf8mb3_general_ci,
+vcol varchar(100) collate utf8mb3_general_ci as (UPPER(a)),
+index(a),
+index(vcol)
+);
+insert into t1 (a) select seq from seq_1_to_100;
+# Note that possible_keys doesn't include 'vcol'.
+#  Sargable_casefold is applied before vcol substitution:
+explain select * from t1 where UPPER(a)='abc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	303	const	1	Using index condition
+explain select * from t1 ignore index(vcol) where UPPER(a)='abc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	303	const	1	Using index condition
+explain select * from t1 ignore index(a) where UPPER(a)='abc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+set optimizer_switch='sargable_casefold=off';
+explain select * from t1 ignore index(a) where UPPER(a)='abc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vcol	vcol	303	const	1	Using index condition
+set optimizer_switch=default;
+drop table t1;
+#
+# Test interplay with Sargable YEAR/DATE optimization:
+#
+create table t1 (
+a date,
+vcol int as (year(a)),
+index(a),
+index(vcol)
+);
+insert into t1 (a) select date_add('2024-01-01', interval (seq*365) day) from seq_1_to_100;
+# Note that possible_keys doesn't include 'vcol'.
+#  Sargable Year is applied before vcol substitution:
+explain format=json select * from t1 where year(a)=2025;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002574553,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002574553,
+          "filtered": 100,
+          "index_condition": "t1.a between '2025-01-01' and '2025-12-31'"
+        }
+      }
+    ]
+  }
+}
+# Check that vcol would work if Sargable Year didn't disable it:
+alter table t1
+add vcol2 int as (year(a)+1),
+add index(vcol2);
+explain format=json select * from t1 where year(a)+1=2025;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.002024411,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["vcol2"],
+          "key": "vcol2",
+          "key_length": "5",
+          "used_key_parts": ["vcol2"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": 0.002024411,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+drop table t1;
+#
+# MDEV-35833: Assertion `marked_for_read()' failed for query with vcols
+#
+CREATE TABLE t1 (
+id int,
+v2 int AS (id),
+v3 int AS (id+0),
+a1 int AS (v2 + v3),
+KEY a1 (a1)
+);
+insert t1(id) values (1),(2);
+explain format=json DELETE FROM t1 WHERE v2+v3 > 'a';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a1"],
+      "key": "a1",
+      "key_length": "5",
+      "used_key_parts": ["a1"],
+      "rows": 2,
+      "attached_condition": "t1.a1 > 'a'"
+    }
+  }
+}
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+drop table t1;

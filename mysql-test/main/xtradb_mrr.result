@@ -8,7 +8,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2(a int);
 insert into t2 select A.a + 10*(B.a + 10*C.a) from t1 A, t1 B, t1 C;
@@ -172,7 +172,7 @@ c-1022=w	filler
 c-1023=w	filler
 drop table if exists t4;
 create table t4 (a varchar(10), b int, c char(10), filler char(200),
-key idx1 (a, b, c));
+key idx1 (a, b, c)) charset=latin1;
 insert into t4 (filler) select concat('NULL-', 15-a) from t2 order by a limit 15;
 insert into t4 (a,b,c,filler) 
 select 'b-1',NULL,'c-1', concat('NULL-', 15-a) from t2 order by a limit 15;
@@ -303,7 +303,7 @@ Warnings:
 Warning	1292	Truncated incorrect mrr_buffer_size value: '64'
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t2(a char(8), b char(8), c char(8), filler char(100), key(a,b,c) ) engine=InnoDB;
+create table t2(a char(8), b char(8), c char(8), filler char(100), key(a,b,c) ) engine=InnoDB charset=latin1;
 insert into t2 select 
 concat('a-', 1000 + A.a, '-a'),
 concat('b-', 1000 + B.a, '-b'),
@@ -431,22 +431,28 @@ INSERT INTO `t1` VALUES (97,7,0,'z','z');
 INSERT INTO `t1` VALUES (98,1,1,'j','j');
 INSERT INTO `t1` VALUES (99,7,8,'c','c');
 INSERT INTO `t1` VALUES (100,2,5,'f','f');
+EXPLAIN SELECT table1 .`col_varchar_key`
+FROM t1 table1 STRAIGHT_JOIN ( t1 table3 JOIN t1 table4 ON table4 .`pk` = table3 .`col_int_nokey` ) ON table4 .`col_varchar_nokey` ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	table1	index	NULL	col_varchar_key	9	NULL	#	Using index
+1	SIMPLE	table3	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	table4	eq_ref	PRIMARY	PRIMARY	4	test.table3.col_int_nokey	#	Using where
 SELECT table1 .`col_varchar_key`
 FROM t1 table1 STRAIGHT_JOIN ( t1 table3 JOIN t1 table4 ON table4 .`pk` = table3 .`col_int_nokey` ) ON table4 .`col_varchar_nokey` ;
 col_varchar_key
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
-Warning	1292	Truncated incorrect DECIMAL value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
+Warning	1292	Truncated incorrect BOOLEAN value: 'c'
 DROP TABLE t1;
 set join_cache_level=@save_join_cache_level;
 set optimizer_switch=@save_optimizer_switch;
@@ -753,7 +759,7 @@ set optimizer_switch='mrr=off';
 explain select * from t1 where b > 1000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx	idx	5	NULL	1	Using index condition
-# The following two must produce indentical results:
+# The following two must produce identical results:
 select * from t1 where pk < 2 or pk between 3 and 4;
 pk	b	c
 3	30	0

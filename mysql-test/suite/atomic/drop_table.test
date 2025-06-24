@@ -18,8 +18,8 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 let $engine_count=5;
 let $engines='myisam','aria','aria_notrans','innodb','csv';
 
-let $crash_count=7;
-let $crash_points='ddl_log_drop_before_delete_table', 'ddl_log_drop_after_delete_table', 'ddl_log_drop_before_drop_trigger', 'ddl_log_drop_before_drop_trigger2', 'ddl_log_drop_after_drop_trigger', 'ddl_log_drop_before_binlog', 'ddl_log_drop_after_binlog';
+let $crash_count=8;
+let $crash_points='ddl_log_drop_before_delete_hlindex', 'ddl_log_drop_before_delete_table', 'ddl_log_drop_after_delete_table', 'ddl_log_drop_before_drop_trigger', 'ddl_log_drop_before_drop_trigger2', 'ddl_log_drop_after_drop_trigger', 'ddl_log_drop_before_binlog', 'ddl_log_drop_after_binlog';
 
 # Number of drops in the tested statement
 let $drops=2;
@@ -37,6 +37,7 @@ while ($e < $engine_count)
   let $engine=`select ELT($e, $engines)`;
   let $default_engine=$engine;
   let $extra_option=;
+  let $vector=, v vector(5) not null default x'e360d63ebe554f3fcdbc523f4522193f5236083d', vector index(v);
 
   if ($engine == "aria")
   {
@@ -46,6 +47,10 @@ while ($e < $engine_count)
   {
     let $default_engine="aria";
     let $extra_option=transactional=0;
+  }
+  if ($engine == "csv")
+  {
+    let $vector=;
   }
 
   let $c=0;
@@ -59,9 +64,9 @@ while ($e < $engine_count)
       inc $r;
        --eval set @@default_storage_engine=$default_engine
        --eval create table t1 (a int not null) $extra_option;
-       --eval create table t2 (b int not null) $extra_option;
+       --eval create table t2 (b int not null $vector) $extra_option;
       insert into t1 values(1);
-      insert into t2 values(2);
+      insert into t2 (b) values(2);
       flush tables;
 
       delimiter |;

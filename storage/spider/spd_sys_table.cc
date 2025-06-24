@@ -234,12 +234,12 @@ TABLE *spider_open_sys_table(
   int table_name_length,
   bool write,
   SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock,
   int *error_num
 ) {
   TABLE *table;
   TABLE_LIST tables;
   DBUG_ENTER("spider_open_sys_table");
+
 
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
   LEX_CSTRING db_name =
@@ -258,7 +258,6 @@ TABLE *spider_open_sys_table(
     "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
     (write ? TL_WRITE : TL_READ));
 #endif
-
     if (!(table = spider_sys_open_table(thd, &tables, open_tables_backup)))
     {
       my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
@@ -276,7 +275,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_XA"));
         if (table->s->fields != SPIDER_SYS_XA_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -295,7 +294,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_TABLES"));
         if (table->s->fields != SPIDER_SYS_TABLES_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -314,7 +313,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_XA_MEMBER"));
         if (table->s->fields != SPIDER_SYS_XA_MEMBER_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -333,7 +332,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_XA_FAILED"));
         if (table->s->fields != SPIDER_SYS_XA_FAILED_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -352,7 +351,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_LINK_FAILED"));
         if (table->s->fields != SPIDER_SYS_LINK_FAILED_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -371,7 +370,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_LINK_MON"));
         if (table->s->fields != SPIDER_SYS_LINK_MON_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -390,7 +389,7 @@ TABLE *spider_open_sys_table(
         DBUG_PRINT("info",("spider checking for SYS_POS_FOR_RECOVERY"));
         if (table->s->fields != SPIDER_SYS_POS_FOR_RECOVERY_TABLE_COL_CNT)
         {
-          spider_close_sys_table(thd, table, open_tables_backup, need_lock);
+          spider_sys_close_table(thd, open_tables_backup);
           table = NULL;
           my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
             ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -407,20 +406,8 @@ TABLE *spider_open_sys_table(
       break;
   }
   DBUG_RETURN(table);
-
 error_col_num_chk:
   DBUG_RETURN(NULL);
-}
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  SPIDER_Open_tables_backup *open_tables_backup,
-  bool need_lock
-) {
-  DBUG_ENTER("spider_close_sys_table");
-  spider_sys_close_table(thd, open_tables_backup);
-  DBUG_VOID_RETURN;
 }
 
 bool spider_sys_open_and_lock_tables(
@@ -876,9 +863,15 @@ void spider_store_xa_member_info(
   DBUG_VOID_RETURN;
 }
 
-/*
-  Store db and table names from `name' to `table's corresponding
-  fields
+/**
+  Stores the DB and table names in a table
+
+  If `name` starts with "./", separates out db and table names from
+  `name`. Otherwise stores empty strings as names
+
+  @param table        The table to store the info
+  @param name         The name of the table
+  @param name_length  The length of the name
 */
 void spider_store_tables_name(
   TABLE *table,
@@ -2440,36 +2433,22 @@ int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
   DBUG_RETURN(error_num);
 }
 
-/*
-  Read the link status from mysql.spider_tables into a `SPIDER_SHARE'
-  with default value 1 (`SPIDER_LINK_STATUS_OK')
-*/
-int spider_get_sys_tables_link_status(
-  TABLE *table,                        /* The mysql.spider_tables table */
-  SPIDER_SHARE *share,                 /* The share to read link
-                                       status into */
-  int link_idx,
-  MEM_ROOT *mem_root
-) {
-  char *ptr;
-  int error_num = 0;
-  DBUG_ENTER("spider_get_sys_tables_link_status");
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_LINK_STATUS_POS])))
-  {
-    share->link_statuses[link_idx] =
-      (long) my_strtoll10(ptr, (char**) NULL, &error_num);
-  } else
-    share->link_statuses[link_idx] = 1;
-  DBUG_PRINT("info",("spider link_statuses[%d]=%ld",
-    link_idx, share->link_statuses[link_idx]));
-  DBUG_RETURN(error_num);
-}
+/**
+  Reads a table field and updates a link_status of a spider share
 
+  @param table     The system table (`spider_tables` table) to read the
+                   field from
+  @param share     The share to update its link status with
+  @param link_idx  Which link status to update
+  @param mem_root  MEM_ROOT for allocating
+  @reval 0 for success, or error num
+*/
 int spider_get_sys_tables_link_status(
   TABLE *table,
   long *link_status,
   MEM_ROOT *mem_root
-) {
+)
+{
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_link_status");
@@ -2477,7 +2456,6 @@ int spider_get_sys_tables_link_status(
     *link_status = (long) my_strtoll10(ptr, (char**) NULL, &error_num);
   else
     *link_status = 1;
-  DBUG_PRINT("info",("spider link_statuses=%ld", *link_status));
   DBUG_RETURN(error_num);
 }
 
@@ -2524,8 +2502,7 @@ int spider_sys_update_tables_link_status(
   char *name,
   uint name_length,
   int link_idx,
-  long link_status,
-  bool need_lock
+  long link_status
 ) {
   int error_num;
   TABLE *table_tables = NULL;
@@ -2534,7 +2511,7 @@ int spider_sys_update_tables_link_status(
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-      SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup, need_lock,
+      SPIDER_SYS_TABLES_TABLE_NAME_LEN, TRUE, &open_tables_backup,
       &error_num))
   ) {
     goto error;
@@ -2542,15 +2519,13 @@ int spider_sys_update_tables_link_status(
   if ((error_num = spider_update_tables_link_status(table_tables,
     name, name_length, link_idx, link_status)))
     goto error;
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -2558,8 +2533,7 @@ int spider_sys_log_tables_link_failed(
   THD *thd,
   char *name,
   uint name_length,
-  int link_idx,
-  bool need_lock
+  int link_idx
 ) {
   int error_num;
   TABLE *table_tables = NULL;
@@ -2569,7 +2543,7 @@ int spider_sys_log_tables_link_failed(
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_LINK_FAILED_TABLE_NAME_STR,
       SPIDER_SYS_LINK_FAILED_TABLE_NAME_LEN, TRUE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     goto error;
   }
@@ -2577,15 +2551,13 @@ int spider_sys_log_tables_link_failed(
   if ((error_num = spider_log_tables_link_failed(table_tables,
     name, name_length, link_idx)))
     goto error;
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -2593,8 +2565,7 @@ int spider_sys_log_xa_failed(
   THD *thd,
   XID *xid,
   SPIDER_CONN *conn,
-  const char *status,
-  bool need_lock
+  const char *status
 ) {
   int error_num;
   TABLE *table_tables = NULL;
@@ -2604,20 +2575,20 @@ int spider_sys_log_xa_failed(
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_XA_FAILED_TABLE_NAME_STR,
       SPIDER_SYS_XA_FAILED_TABLE_NAME_LEN, TRUE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     goto error;
   }
   empty_record(table_tables);
   if ((error_num = spider_log_xa_failed(thd, table_tables, xid, conn, status)))
     goto error;
-  spider_close_sys_table(thd, table_tables, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
   DBUG_RETURN(0);
 
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables, &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(error_num);
 }
 
@@ -2938,6 +2909,15 @@ int spider_get_sys_link_mon_connect_info(
   DBUG_RETURN(error_num);
 }
 
+/**
+  Reads link statuses from the spider_tables system table into a
+  spider share
+
+  @param table     The table to read from
+  @param share     The spider share
+  @param mem_root  MEM_ROOT for allocating
+  @reval 0 for success, or error code
+*/
 int spider_get_link_statuses(
   TABLE *table,
   SPIDER_SHARE *share,
@@ -2956,11 +2936,10 @@ int spider_get_link_statuses(
     {
       if (
         (error_num == HA_ERR_KEY_NOT_FOUND || error_num == HA_ERR_END_OF_FILE)
-      ) {
+      )
         DBUG_RETURN(error_num);
-      }
-    } else if ((error_num =
-      spider_get_sys_tables_link_status(table, share, roop_count, mem_root)))
+    } else if ((error_num = spider_get_sys_tables_link_status(
+                  table, &share->link_statuses[roop_count], mem_root)))
     {
       table->file->print_error(error_num, MYF(0));
       DBUG_RETURN(error_num);
@@ -3037,7 +3016,6 @@ error:
   DBUG_RETURN(error_num);
 }
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(
   THD *thd,
   TABLE *table,
@@ -3045,15 +3023,6 @@ TABLE *spider_mk_sys_tmp_table(
   const LEX_CSTRING *field_name,
   CHARSET_INFO *cs
 )
-#else
-TABLE *spider_mk_sys_tmp_table(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name,
-  CHARSET_INFO *cs
-)
-#endif
 {
   Field_blob *field;
   Item_field *i_field;
@@ -3061,24 +3030,13 @@ TABLE *spider_mk_sys_tmp_table(
   TABLE *tmp_table;
   DBUG_ENTER("spider_mk_sys_tmp_table");
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name, cs, TRUE)))
     goto error_alloc_field;
-#else
-  if (!(field = new Field_blob(
-    4294967295U, FALSE, field_name, cs, TRUE)))
-    goto error_alloc_field;
-#endif
   field->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field = new (thd->mem_root) Item_field(thd, (Field *) field)))
     goto error_alloc_item_field;
-#else
-  if (!(i_field = new Item_field((Field *) field)))
-    goto error_alloc_item_field;
-#endif
 
   if (i_list.push_back(i_field))
     goto error_push_item;
@@ -3111,7 +3069,6 @@ void spider_rm_sys_tmp_table(
   DBUG_VOID_RETURN;
 }
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table_for_result(
   THD *thd,
   TABLE *table,
@@ -3121,17 +3078,6 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   const LEX_CSTRING *field_name3,
   CHARSET_INFO *cs
 )
-#else
-TABLE *spider_mk_sys_tmp_table_for_result(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name1,
-  const char *field_name2,
-  const char *field_name3,
-  CHARSET_INFO *cs
-)
-#endif
 {
   Field_blob *field1, *field2, *field3;
   Item_field *i_field1, *i_field2, *i_field3;
@@ -3139,68 +3085,35 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   TABLE *tmp_table;
   DBUG_ENTER("spider_mk_sys_tmp_table_for_result");
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field1 = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name1, cs, TRUE)))
     goto error_alloc_field1;
-#else
-  if (!(field1 = new Field_blob(
-    4294967295U, FALSE, field_name1, cs, TRUE)))
-    goto error_alloc_field1;
-#endif
   field1->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field1 = new (thd->mem_root) Item_field(thd, (Field *) field1)))
     goto error_alloc_item_field1;
-#else
-  if (!(i_field1 = new Item_field((Field *) field1)))
-    goto error_alloc_item_field1;
-#endif
 
   if (i_list.push_back(i_field1))
     goto error_push_item1;
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field2 = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name2, cs, TRUE)))
     goto error_alloc_field2;
-#else
-  if (!(field2 = new Field_blob(
-    4294967295U, FALSE, field_name2, cs, TRUE)))
-    goto error_alloc_field2;
-#endif
   field2->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field2 = new (thd->mem_root) Item_field(thd, (Field *) field2)))
     goto error_alloc_item_field2;
-#else
-  if (!(i_field2 = new Item_field((Field *) field2)))
-    goto error_alloc_item_field2;
-#endif
 
   if (i_list.push_back(i_field2))
     goto error_push_item2;
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field3 = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name3, cs, TRUE)))
     goto error_alloc_field3;
-#else
-  if (!(field3 = new Field_blob(
-    4294967295U, FALSE, field_name3, cs, TRUE)))
-    goto error_alloc_field3;
-#endif
   field3->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field3 = new (thd->mem_root) Item_field(thd, (Field *) field3)))
     goto error_alloc_item_field3;
-#else
-  if (!(i_field3 = new Item_field((Field *) field3)))
-    goto error_alloc_item_field3;
-#endif
 
   if (i_list.push_back(i_field3))
     goto error_push_item3;

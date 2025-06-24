@@ -86,7 +86,7 @@ JS
                 "avg_frequency": 3.9216
             }
         ],
-        "rows": 3.9216
+        "rows": 0.568632
     }
 ]
 # Despite available selectivity:
@@ -98,7 +98,7 @@ JS
             "column_name": "a",
             "ranges": 
             ["NULL < a < 30"],
-            "selectivity_from_histogram": 0.1484375
+            "selectivity_from_histogram": 0.145
         }
     ]
 ]

@@ -23,10 +23,16 @@ CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1;
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `t1` VALUES (1,1),(2,2),(3,3),(4,4);
+set autocommit=0;
+INSERT INTO `t1` VALUES
+(1,1),
+(2,2),
+(3,3),
+(4,4);
 ALTER TABLE `t1` ENGINE=S3;
+commit;
 #####
 # mysqldump with --copy-s3-tables=1 XML
 ###
@@ -37,7 +43,7 @@ ALTER TABLE `t1` ENGINE=S3;
 		<field Field="pk" Type="int(11)" Null="NO" Key="PRI" Extra="" Comment="" />
 		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="pk" Collation="A" Cardinality="4" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
-		<options Name="t1" Engine="Aria" Version="10" Row_format="Page" Rows="4" Avg_row_length="4096" Data_length="16384" Max_data_length="17592186011648" Index_length="16384" Data_free="0" Create_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" Max_index_length="9007199254732800" Temporary="N" />
+		<options Name="t1" Engine="Aria" Version="10" Row_format="Page" Rows="4" Avg_row_length="4096" Data_length="16384" Max_data_length="17592186011648" Index_length="16384" Data_free="0" Create_time="--TIME--" Collation="utf8mb4_uca1400_ai_ci" Create_options="" Comment="" Max_index_length="9007199254732800" Temporary="N" />
 	</table_structure>
 	<table_data name="t1">
 	<row>

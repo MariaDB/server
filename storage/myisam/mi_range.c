@@ -65,7 +65,6 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
     mysql_rwlock_rdlock(&info->s->key_root_lock[inx]);
 
   switch(info->s->keyinfo[inx].key_alg){
-#ifdef HAVE_RTREE_KEYS
   case HA_KEY_ALG_RTREE:
   {
     uchar * key_buff;
@@ -95,7 +94,6 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
     res= res ? res : 1;                       /* Don't return 0 */
     break;
   }
-#endif
   case HA_KEY_ALG_BTREE:
   default:
     start_pos= (min_key ?_mi_record_pos(info, min_key->key,
@@ -294,7 +292,7 @@ err:
 }
 
 
-	/* Get keynummer of current key and max number of keys in nod */
+	/* Get keynumber of current key and max number of keys in nod */
 
 static uint _mi_keynr(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
                       uchar *keypos, uint *ret_max_key)

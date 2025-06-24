@@ -27,4 +27,12 @@
   "Copyright (c) " first_year ", " COPYRIGHT_NOTICE_CURRENT_YEAR \
    ", Oracle, MariaDB Corporation Ab and others.\n"
 
+#ifdef VER
+static inline void print_version()
+{
+  /* NOTE mysql.cc is not using this function! */
+  printf("%s from %s, client %s for %s (%s)\n",
+         my_progname, MYSQL_SERVER_VERSION, VER, SYSTEM_TYPE, MACHINE_TYPE);
+}
+#endif
 #endif /* _welcome_copyright_notice_h_ */

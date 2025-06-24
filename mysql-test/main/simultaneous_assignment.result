@@ -227,8 +227,8 @@ DROP TABLE ft2;
 CREATE TABLE t (s geometry, t text);
 INSERT INTO t () VALUES ();
 UPDATE t SET t = '', s = 0;
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t`.`s`
 UPDATE t SET t = '', s = 0;
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t`.`s`
 ALTER TABLE t force;
 DROP TABLE t;

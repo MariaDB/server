@@ -50,6 +50,7 @@ explain select * from t1 force index (mb3) where t1.mb3='😊';
 --echo #
 --echo # Check ref access on mb3_field=mb4_field
 --echo #
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10,t1 where t10.mb4=t1.mb3;
 
@@ -57,11 +58,13 @@ select * from t10,t1 where t10.mb4=t1.mb3;
 
 select * from t10,t1 use index() where t10.mb4=t1.mb3;
 
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10,t1 where t10.mb4<=>t1.mb3;
 
 select * from t10,t1 where t10.mb4<=>t1.mb3;
 
+--source include/explain-no-costs.inc
 set statement optimizer_switch='cset_narrowing=off', join_cache_level=0 for
 explain format=json
 select * from t10,t1 where t10.mb4=t1.mb3;
@@ -69,6 +72,7 @@ select * from t10,t1 where t10.mb4=t1.mb3;
 --echo #
 --echo # Check ref access on mb3_field=mb4_expr
 --echo #
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10,t1 where t1.mb3=concat('',t10.mb4);
 
@@ -90,6 +94,7 @@ select * from t10, t1 where t10.mb4=t1.mb3 and t10.pk=3;
 
 #Enable after fix MDEV-32034
 --disable_view_protocol
+--source include/explain-no-costs.inc
 select
   json_detailed(json_extract(trace, '$**.range_scan_alternatives')) as JS
 from
@@ -102,9 +107,11 @@ select * from t10, t1 where t10.mb4=t1.mb3 and t10.pk=3;
 --echo # Will range optimizer handle t1.mb3>t10.mb4? No...
 --echo #
 
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10, t1 where (t1.mb3=t10.mb4 or t1.mb3='hello') and t10.pk=3;
 
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10, t1 where t1.mb3>t10.mb4 and t10.pk=3;
 
@@ -115,6 +122,7 @@ create table t2 (
   key(mb4)
 );
 insert into t2 select * from t1;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10, t2 where t2.mb4>t10.mb4 and t10.pk=3;
 
@@ -122,10 +130,11 @@ select * from t10, t2 where t2.mb4>t10.mb4 and t10.pk=3;
 --echo # Check multiple equalities
 --echo #
 
---echo # - ref acccess lookup keys do use equality substitution,
+--echo # - ref access lookup keys do use equality substitution,
 --echo # - concat() arguments don't
 #Enable after fix MDEV-32034
 --disable_view_protocol
+--source include/explain-no-costs.inc
 explain format=json
 select straight_join * from t10,t1 force index(mb3),t2
 where
@@ -140,6 +149,7 @@ where
 
 --echo # Equality substitution doesn't happen for constants, for both narrowing
 --echo #  and non-narrowing comparisons:
+--source include/explain-no-costs.inc
 explain format=json
 select * from t10,t1,t2
 where

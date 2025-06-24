@@ -193,7 +193,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(j mysql_json);
 ERROR HY000: 'MYSQL_JSON' is not allowed in this context

@@ -17,14 +17,42 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_type.h"
 
-#ifdef HAVE_SPATIAL
+class Type_geom_attributes
+{
+protected:
+  uint32 m_srid;
+public:
+  Type_geom_attributes()
+   :m_srid(0)
+  { }
+  explicit Type_geom_attributes(const Type_extra_attributes &eattr)
+   :m_srid(eattr.get_attr_uint32(0))
+  { }
+  explicit Type_geom_attributes(uint32 srid)
+   :m_srid(srid)
+  { }
+  void store(Type_extra_attributes *to) const
+  {
+    to->set_attr_uint32(0, m_srid);
+  }
+  void set_srid(uint32 srid)
+  {
+    m_srid= srid;
+  }
+  uint32 get_srid() const
+  {
+    return m_srid;
+  }
+  bool join(const Type_geom_attributes &rhs)
+  {
+    return m_srid != rhs.m_srid;
+  }
+};
+
+
 class Type_handler_geometry: public Type_handler_string_result
 {
 public:
@@ -115,8 +143,7 @@ public:
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const override;
@@ -151,7 +178,7 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
-
+  bool can_return_bool() const override { return true; }
   bool can_return_int() const override { return false; }
   bool can_return_decimal() const override { return false; }
   bool can_return_real() const override { return false; }
@@ -327,11 +354,11 @@ Type_collection_geometry_handler_by_name(const LEX_CSTRING &name);
 
 #include "field.h"
 
-class Field_geom :public Field_blob
+class Field_geom :public Field_blob,
+                  public Type_geom_attributes
 {
   const Type_handler_geometry *m_type_handler;
 public:
-  uint srid;
   uint precision;
   enum storage_type { GEOM_STORAGE_WKB= 0, GEOM_STORAGE_BINARY= 1};
   enum storage_type storage;
@@ -340,11 +367,12 @@ public:
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     TABLE_SHARE *share, uint blob_pack_length,
 	     const Type_handler_geometry *gth,
-	     uint field_srid)
+	     const Type_geom_attributes &geom_attr)
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                  field_name_arg, share, blob_pack_length, &my_charset_bin),
+      Type_geom_attributes(geom_attr),
       m_type_handler(gth)
-  { srid= field_srid; }
+  { }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
@@ -363,6 +391,12 @@ public:
   void set_type_handler(const Type_handler_geometry *th)
   {
     m_type_handler= th;
+  }
+  const Type_extra_attributes type_extra_attributes() const override
+  {
+    Type_extra_attributes eattr;
+    Type_geom_attributes::store(&eattr);
+    return eattr;
   }
   enum_field_types type() const override
   {
@@ -429,14 +463,11 @@ public:
   bool load_data_set_null(THD *thd) override;
   bool load_data_set_no_data(THD *thd, bool fixed_format) override;
 
-  uint get_srid() const { return srid; }
   void print_key_value(String *out, uint32 length) override
   {
     out->append(STRING_WITH_LEN("unprintable_geometry_value"));
   }
   Binlog_type_info binlog_type_info() const override;
 };
-
-#endif // HAVE_SPATIAL
 
 #endif // SQL_TYPE_GEOM_H_INCLUDED

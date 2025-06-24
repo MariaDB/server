@@ -134,6 +134,20 @@ static void get_datadir_from_ini(const char *ini, char *service_name, char *data
 }
 
 
+static int fix_and_check_datadir(mysqld_service_properties *props)
+{
+  normalize_path(props->datadir, MAX_PATH);
+  /* Check if datadir really exists */
+  if (GetFileAttributes(props->datadir) != INVALID_FILE_ATTRIBUTES)
+    return 0;
+  /*
+    It is possible, that datadir contains some unconvertable character.
+    We just pretend not to know what's the data directory
+  */
+  props->datadir[0]= 0;
+  return 0;
+}
+
 /*
   Retrieve some properties from windows mysqld service binary path.
   We're interested in ini file location and datadir, and also in version of
@@ -142,7 +156,7 @@ static void get_datadir_from_ini(const char *ini, char *service_name, char *data
   Note that this function carefully avoids using mysql libraries (e.g dbug),
   since it is  used in unusual environments (windows installer, MFC), where we
   do not have much control over how threads are created and destroyed, so we
-  cannot assume MySQL thread initilization here.
+  cannot assume MySQL thread initialization here.
 */
 int get_mysql_service_properties(const wchar_t *bin_path,
   mysqld_service_properties *props)
@@ -284,33 +298,26 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     }
   }
 
-  if (props->datadir[0])
+  if (props->datadir[0] == 0 || fix_and_check_datadir(props))
   {
-    normalize_path(props->datadir, MAX_PATH);
-    /* Check if datadir really exists */
-    if (GetFileAttributes(props->datadir) == INVALID_FILE_ATTRIBUTES)
-      goto end;
-  }
-  else
-  {
-    /* There is no datadir in ini file,  bail out.*/
+    /* There is no datadir in ini file, or non-existing dir, bail out.*/
     goto end;
   }
 
   /*
-    If version could not be determined so far, try mysql_upgrade_info in
+    If version could not be determined so far, try mariadb_upgrade_info in
     database directory.
   */
   if(props->version_major == 0)
   {
     char buf[MAX_PATH];
-    FILE *mysql_upgrade_info;
+    FILE *mariadb_upgrade_info;
 
-    sprintf_s(buf, MAX_PATH, "%s\\mysql_upgrade_info", props->datadir);
-    mysql_upgrade_info= fopen(buf, "r");
-    if(mysql_upgrade_info)
+    sprintf_s(buf, MAX_PATH, "%s\\mariadb_upgrade_info", props->datadir);
+    mariadb_upgrade_info= fopen(buf, "r");
+    if(mariadb_upgrade_info)
     {
-      if (fgets(buf, MAX_PATH, mysql_upgrade_info))
+      if (fgets(buf, MAX_PATH, mariadb_upgrade_info))
       {
         int major,minor,patch;
         if (sscanf(buf, "%d.%d.%d", &major, &minor, &patch) == 3)

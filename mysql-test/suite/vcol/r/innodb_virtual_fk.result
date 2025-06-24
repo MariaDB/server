@@ -94,7 +94,7 @@ t	CREATE TABLE `t` (
   KEY `c` (`c`),
   KEY `a` (`a`),
   CONSTRAINT `t_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 #
 # End of 10.5 tests

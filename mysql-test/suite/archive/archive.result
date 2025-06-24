@@ -1,6 +1,5 @@
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
-DROP TABLE if exists t1,t2,t3,t4,t5,t6;
 SET default_storage_engine=ARCHIVE;
 CREATE TABLE t1 (
 Period smallint(4) unsigned zerofill DEFAULT '0000' NOT NULL,
@@ -11141,7 +11140,7 @@ t2	CREATE TABLE `t2` (
   `fld3` char(30) NOT NULL DEFAULT '',
   `fld4` char(35) NOT NULL DEFAULT '',
   `fld5` char(35) NOT NULL DEFAULT ''
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2 WHERE auto != 100000;
 auto	fld1	companynr	fld3	fld4	fld5
 1	000001	00	Omaha	teethe	neat
@@ -12489,6 +12488,10 @@ SELECT b FROM t5 WHERE a =3;
 b
 in order to form a more pefect union
 foo this is mine to think about
+explain
+SELECT b FROM t5 WHERE a IN (32, 23, 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	ALL	a	NULL	NULL	NULL	11	Using where
 SELECT b FROM t5 WHERE a IN (32, 23, 5);
 b
 foo grok 
@@ -12871,7 +12874,7 @@ DROP TABLE t1, t2;
 #
 # BUG#917689 Using wrong archive table causes crash
 #
-create table t1 (a int, b char(50)) engine=archive;
+create table t1 (a int, b char(50)) engine=archive charset=latin1;
 select * from t1;
 a	b
 flush tables;
@@ -12881,6 +12884,9 @@ show warnings;
 Level	Code	Message
 Error	1194	Table 't1' is marked as crashed and should be repaired
 drop table t1;
+#
+# temporary archive
+#
 create temporary table t1 (a int) engine=archive;
 insert t1 values (1),(2),(3);
 select * from t1;
@@ -12892,7 +12898,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 alter table t1 add column b varchar(10);
 select * from t1;
 a	b
@@ -12904,5 +12910,16 @@ Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL
-) ENGINE=ARCHIVE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-27396 DESC index attribute remains in Archive table definition, despite being apparently ignored
+#
+create table t (t int auto_increment, key (t desc)) engine=archive;
+ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
+#
+# End of 10.8 tests
+#

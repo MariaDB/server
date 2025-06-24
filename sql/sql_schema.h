@@ -24,13 +24,13 @@ class Create_func;
 
 class Schema
 {
-  LEX_CSTRING m_name;
+  const Lex_ident_db m_name;
 public:
   Schema(const LEX_CSTRING &name)
    :m_name(name)
   { }
   virtual ~Schema() = default;
-  const LEX_CSTRING &name() const { return m_name; }
+  const Lex_ident_db &name() const { return m_name; }
   virtual const Type_handler *map_data_type(THD *thd, const Type_handler *src)
                                             const
   {
@@ -42,7 +42,7 @@ public:
     build an Item otherwise.
   */
   Item *make_item_func_call_native(THD *thd,
-                                   const Lex_ident_sys &name,
+                                   const Lex_ident_routine &name,
                                    List<Item> *args) const;
 
   /**
@@ -79,8 +79,7 @@ public:
   */
   bool eq_name(const LEX_CSTRING &name) const
   {
-    return !table_alias_charset->strnncoll(m_name.str, m_name.length,
-                                           name.str, name.length);
+    return m_name.streq(name);
   }
   static Schema *find_by_name(const LEX_CSTRING &name);
   static Schema *find_implied(THD *thd);

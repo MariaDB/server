@@ -25,7 +25,7 @@ set @@global.binlog_cache_size=32768;
 --echo **** Preparing the enviroment to check commit and its effect on status variables.
 --echo **** Expected: binlog_cache_use = 0, binlog_cache_disk_use = 0.
 --echo **** Expected: binlog_stmt_cache_use = 0, binlog_stmt_cache_disk_use = 0.
-flush status;
+flush global status;
 let $exp_cache= 0;
 let $got_cache= query_get_value(show status like "binlog_cache_use", Value, 1);
 let $exp_disk= 0;
@@ -142,7 +142,7 @@ if (`SELECT $got_cache <> $exp_cache || $got_disk <> $exp_disk || $got_stmt_cach
 --echo **** Preparing the enviroment to check abort and its effect on the status variables.
 --echo **** Expected: binlog_cache_use = 0, binlog_cache_disk_use = 0.
 --echo **** Expected: binlog_stmt_cache_use = 0, binlog_stmt_cache_disk_use = 0.
-flush status;
+flush global status;
 let $exp_cache= 0;
 let $got_cache= query_get_value(show status like "binlog_cache_use", Value, 1);
 let $exp_disk= 0;

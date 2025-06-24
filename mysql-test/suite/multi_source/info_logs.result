@@ -10,7 +10,8 @@ multi-master.info
 change master 'master1' to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0,
+master_use_gtid=no;
 start slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
@@ -28,7 +29,8 @@ master1
 change master 'MASTER 2.2' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0,
+master_use_gtid=no;
 start slave 'MASTER 2.2';
 set default_master_connection = 'MASTER 2.2';
 include/wait_for_slave_to_start.inc
@@ -53,6 +55,8 @@ stop slave 'master1';
 set default_master_connection = 'master1';
 include/wait_for_slave_to_stop.inc
 reset slave 'master1' all;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 #
 # List of files matching '*info*' pattern
 #  after 'master1' was completely reset, 'MASTER 2.2' still running
@@ -69,7 +73,8 @@ set default_master_connection = '';
 change master to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root', master_ssl_verify_server_cert=0,
+master_use_gtid=no;
 start slave;
 include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
@@ -89,17 +94,17 @@ MASTER 2.2
 # EOF
 #
 show all slaves status;
-Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos
-	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	<read_master_log_pos>	relay.000002	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space1>	None		0	No						0	No	0		0			1			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0	0	1073741824	7	0	60.000	
-MASTER 2.2	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	<read_master_log_pos>	relay-master@00202@002e2.000002	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space2>	None		0	No						0	No	0		0			2			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0	0	1073741824	7	0	60.000	
+Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Replicate_Rewrite_DB	Connects_Tried	Master_Retry_Count	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos	Master_last_event_time	Slave_last_event_time	Master_Slave_time_diff
+	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	<read_master_log_pos>	relay.000002	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space1>	None		0	Yes						0	No	0		0			1			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0		1	100000	0	1073741824	7	0	60.000		NULL	NULL	NULL
+MASTER 2.2	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	<read_master_log_pos>	relay-master@00202@002e2.000002	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space2>	None		0	Yes						0	No	0		0			2			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0		1	100000	0	1073741824	7	0	60.000		NULL	NULL	NULL
 include/wait_for_slave_to_start.inc
 set default_master_connection = 'MASTER 2.2';
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 show all slaves status;
-Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos
-	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	<read_master_log_pos>	relay.000004	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space1>	None		0	No						0	No	0		0			1			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0	0	1073741824	6	0	60.000	
-MASTER 2.2	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	<read_master_log_pos>	relay-master@00202@002e2.000004	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space2>	None		0	No						0	No	0		0			2			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0	0	1073741824	6	0	60.000	
+Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Replicate_Rewrite_DB	Connects_Tried	Master_Retry_Count	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos	Master_last_event_time	Slave_last_event_time	Master_Slave_time_diff
+	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	<read_master_log_pos>	relay.000004	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space1>	None		0	Yes						0	No	0		0			1			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0		1	100000	0	1073741824	6	0	60.000		NULL	NULL	NULL
+MASTER 2.2	Slave has read all relay log; waiting for more updates	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	<read_master_log_pos>	relay-master@00202@002e2.000004	<relay_log_pos>	master-bin.000001	Yes	Yes							0		0	<read_master_log_pos>	<relay_log_space2>	None		0	Yes						0	No	0		0			2			No				optimistic	0	NULL	Slave has read all relay log; waiting for more updates	0	0	0		1	100000	0	1073741824	6	0	60.000		NULL	NULL	NULL
 #
 # List of files matching '*info*' pattern
 #   after slave server restart

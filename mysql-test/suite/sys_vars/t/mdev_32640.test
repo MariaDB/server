@@ -1,0 +1,18 @@
+--source include/not_embedded.inc
+
+PREPARE s_1 FROM 'SHOW RELAYLOG EVENTS';
+/* 1 */ SET default_master_connection='MASTER';
+--error WARN_NO_MASTER_INFO
+/* 1 */ EXECUTE s_1;
+/* 2 */ SET default_master_connection='MASTER';
+--error WARN_NO_MASTER_INFO
+/* 2 */ EXECUTE s_1;
+
+create procedure p() SHOW RELAYLOG EVENTS;
+/* 1 */ SET default_master_connection='MASTER';
+--error WARN_NO_MASTER_INFO
+/* 1 */ call p;
+/* 2 */ SET default_master_connection='MASTER';
+--error WARN_NO_MASTER_INFO
+/* 2 */ call p;
+drop procedure p;

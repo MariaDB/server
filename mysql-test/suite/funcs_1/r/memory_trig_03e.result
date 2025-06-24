@@ -25,7 +25,8 @@ show grants for test_noprivs@localhost;
 Grants for test_noprivs@localhost
 GRANT USAGE ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, INSERT ON `priv_db`.* TO `test_noprivs`@`localhost`
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
 
 no trigger privilege on db level for create:
 --------------------------------------------
@@ -33,8 +34,8 @@ use priv_db;
 create trigger trg1_1 before INSERT on t1 for each row
 set new.f1 = 'trig 1_1-no';
 ERROR 42000: TRIGGER command denied to user 'test_yesprivs'@'localhost' for table `priv_db`.`t1`
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-use priv_db;
+connect  no_privs,localhost,test_noprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection no_privs;
 insert into t1 (f1) values ('insert-yes');
 select f1 from t1 order by f1;
 f1
@@ -272,8 +273,10 @@ revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
 create User test_noprivs@localhost;
 set password for test_noprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_noprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
+connect  no_privs,localhost,test_noprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection no_privs;
 
 no trigger privilege on table level for create:
 -----------------------------------------------
@@ -487,8 +490,8 @@ create trigger trg1_4 before UPDATE  on t1 for each row
 set new.f1 = 'trig 1_4-yes';
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1_3	INSERT	t1	set new.f1 = 'trig 1_3-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-trg1_4	UPDATE	t1	set new.f1 = 'trig 1_4-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1_3	INSERT	t1	set new.f1 = 'trig 1_3-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+trg1_4	UPDATE	t1	set new.f1 = 'trig 1_4-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection no_privs;
 select current_user;
 current_user
@@ -604,7 +607,7 @@ trig 1_1-yes
 revoke TRIGGER on *.* from test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR, SHOW CREATE ROUTINE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 disconnect yes_privs;
 connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 select current_user;
@@ -657,7 +660,7 @@ root@localhost
 grant TRIGGER on priv_db.* to test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, SHUTDOWN, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, SUPER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, BINLOG MONITOR, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, CREATE TABLESPACE, DELETE HISTORY, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR, SHOW CREATE ROUTINE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT TRIGGER ON `priv_db`.* TO `test_yesprivs`@`localhost`
 
 trigger privilege on db level for create:
@@ -825,10 +828,8 @@ Grants for test_noprivs@localhost
 GRANT USAGE ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, INSERT, UPDATE ON `priv1_db`.* TO `test_noprivs`@`localhost`
 GRANT SELECT, INSERT ON `priv2_db`.* TO `test_noprivs`@`localhost`
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-use priv1_db;
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-use priv1_db;
+connect  yes_privs,localhost,test_yesprivs,PWD,priv1_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  no_privs,localhost,test_noprivs,PWD,priv1_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 
 trigger privilege on one db1 db level, not on db2
 -------------------------------------------------
@@ -930,7 +931,7 @@ grant TRIGGER on priv1_db.t1 to test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
 GRANT USAGE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, DELETE HISTORY ON `priv1_db`.* TO `test_yesprivs`@`localhost`
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, DELETE HISTORY, SHOW CREATE ROUTINE ON `priv1_db`.* TO `test_yesprivs`@`localhost`
 GRANT SELECT, UPDATE ON `priv2_db`.* TO `test_yesprivs`@`localhost`
 GRANT TRIGGER ON `priv1_db`.`t1` TO `test_yesprivs`@`localhost`
 
@@ -1056,7 +1057,8 @@ create User test_useprivs@localhost;
 set password for test_useprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_useprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
 connection default;
 select current_user;
 current_user
@@ -1086,11 +1088,11 @@ select f1 from t1 order by f1;
 f1
 trig 1_1-yes
 prepare ins1 from 'insert into t1 (f1) values (''insert2-no'')';
-connect  use_privs,localhost,test_useprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  use_privs,localhost,test_useprivs,PWD,priv_db,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection use_privs;
 select current_user;
 current_user
 test_useprivs@localhost
-use priv_db;
 prepare ins1 from 'insert into t1 (f1) values (''insert3-no'')';
 execute ins1;
 select f1 from t1 order by f1;
@@ -1302,7 +1304,8 @@ create table t1 (f1 char(20)) engine= memory;
 create User test_yesprivs@localhost;
 set password for test_yesprivs@localhost = password('PWD');
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
 connection default;
 select current_user;
 current_user
@@ -1311,7 +1314,7 @@ create definer=not_ex_user@localhost trigger trg1_0
 before INSERT on t1 for each row
 set new.f1 = 'trig 1_0-yes';
 Warnings:
-Note	1449	The user specified as a definer ('not_ex_user'@'localhost') does not exist
+Note	1446	The user specified as a definer ('not_ex_user'@'localhost') does not exist
 drop trigger trg1_0;
 create definer=test_yesprivs@localhost trigger trg1_0
 before INSERT on t1 for each row
@@ -1351,7 +1354,7 @@ drop trigger trg1_0;
 create definer=not_ex_user@localhost trigger trg1_0
 before INSERT on t1 for each row
 set new.f1 = 'trig 1_0-yes';
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 create definer=current_user trigger trg1_1
 before INSERT on t1 for each row
 set new.f1 = 'trig 1_1-yes';
@@ -1386,7 +1389,7 @@ GRANT SELECT, INSERT, UPDATE, TRIGGER ON `priv_db`.`t1` TO `test_yesprivs`@`loca
 create definer=not_ex_user@localhost trigger trg1_3
 after UPDATE on t1 for each row
 set @var1 = 'trig 1_3-yes';
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 connection default;
 select current_user;
 current_user
@@ -1423,8 +1426,10 @@ show grants for test_noprivs@localhost;
 Grants for test_noprivs@localhost
 GRANT USAGE ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT SELECT, UPDATE ON `priv_db`.* TO `test_noprivs`@`localhost`
-connect  yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
-connect  no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection yes_privs;
+connect  no_privs,localhost,test_noprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
+connection no_privs;
 
 update only on column:
 ----------------------

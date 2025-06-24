@@ -1,0 +1,15 @@
+install soname 'CLIENT_PLUGIN';
+Got one of the listed errors
+create user rpluser@'%' identified via PLUGIN using PASSWORD('rpl_pass');
+grant replication slave on *.* to rpluser@'%';
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+change master to master_user='rpluser', master_password='rpl_pass';
+include/start_slave.inc
+include/stop_slave.inc
+change master to master_user='root', master_password='';
+include/start_slave.inc
+include/rpl_end.inc
+drop user rpluser@'%';

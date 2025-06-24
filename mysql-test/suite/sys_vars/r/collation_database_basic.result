@@ -2,19 +2,19 @@ SET @global_start_value = @@global.collation_database;
 SET @@global.collation_database=@@collation_server;
 SELECT @@global.collation_database;
 @@global.collation_database
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 SET @session_start_value = @@collation_database;
 SELECT @session_start_value;
 @session_start_value
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 SET @session_start_value = @@local.collation_database;
 SELECT @session_start_value;
 @session_start_value
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 SET @session_start_value = @@session.collation_database;
 SELECT @session_start_value;
 @session_start_value
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 '#--------------------FN_DYNVARS_016_01------------------#'
 SELECT collation_database;
 ERROR 42S22: Unknown column 'collation_database' in 'SELECT'
@@ -34,7 +34,7 @@ SET @@collation_database = latin1_bin;
 SET @@collation_database = DEFAULT;
 SELECT DEFAULT_COLLATION_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=DATABASE();
 DEFAULT_COLLATION_NAME
-latin1_swedish_ci
+utf8mb4_uca1400_ai_ci
 SELECT @@collation_database = @@global.collation_database;
 @@collation_database = @@global.collation_database
 1

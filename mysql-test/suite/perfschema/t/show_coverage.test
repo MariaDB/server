@@ -93,7 +93,7 @@ SELECT variable_value FROM status_by_thread
   WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
 --echo #
 --echo # Reset status counters
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --echo #
 --echo # Record bytes_received after reset
 SELECT variable_value FROM status_by_thread
@@ -170,7 +170,7 @@ SET long_query_time = @@global.long_query_time;
 --source include/assert.inc
 
 --echo #
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 --echo #
 
 ## Global value requested from the default session after FLUSH must remain the same

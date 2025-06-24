@@ -1,0 +1,71 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-32637 Implement native UUID7 function
+--echo #
+
+connection master;
+
+# Start the actual test
+
+CREATE TABLE test.t1 (a INT, blob_column LONGBLOB, vchar_column VARCHAR(100), PRIMARY KEY(a)) engine=myisam;
+INSERT INTO test.t1  VALUES(1,UUID_v7(),UUID_v7());
+delimiter |;
+create procedure test.p1()
+begin
+  INSERT INTO test.t1  VALUES(2,UUID_v7(),UUID_v7());
+  INSERT INTO test.t1  VALUES(3,UUID_v7(),UUID_v7());
+end|
+delimiter ;|
+
+CALL test.p1();
+
+delimiter |;
+create function test.fn1(x int)
+       returns int
+begin
+       insert into t1 values (4+x,UUID_v7(),UUID_v7());
+       insert into t1 values (5+x,UUID_v7(),UUID_v7());
+       return 0;
+end|
+
+delimiter ;|
+# test both in SELECT and in INSERT
+--disable_ps2_protocol
+select fn1(0);
+--enable_ps2_protocol
+create table t2 (a int) engine=myisam;
+insert into t2 values(fn1(2));
+
+sync_slave_with_master;
+SHOW CREATE TABLE test.t1;
+
+# Dump the databases and so we can see if they match
+# Another method would be to use SELECT INTO OUTFILE on master,
+# then LOAD DATA INFILE in slave, and use a query to compare.
+# This would have the advantage that it would not assume
+# the system has a 'diff'
+--exec $MYSQL_DUMP --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_master.sql
+--exec $MYSQL_DUMP_SLAVE --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_slave.sql
+
+connection master;
+
+DROP PROCEDURE test.p1;
+DROP FUNCTION test.fn1;
+DROP TABLE test.t1;
+DROP TABLE test.t2;
+
+# Let's compare. Note: If they match test will pass, if they do not match
+# the test will show that the diff statement failed and not reject file
+# will be created. You will need to go to the mysql-test dir and diff
+# the files your self to see what is not matching :-)
+
+diff_files $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_master.sql $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_slave.sql;
+
+remove_file $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_master.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_slave.sql;
+
+--echo # End of 11.7 tests
+
+--source include/rpl_end.inc

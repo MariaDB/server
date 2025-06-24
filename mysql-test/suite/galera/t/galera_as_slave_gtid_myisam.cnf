@@ -4,4 +4,4 @@
 log-bin=mysqld-bin
 log-slave-updates
 binlog-format=ROW
-wsrep-replicate-myisam=ON
+wsrep_mode=REPLICATE_MYISAM

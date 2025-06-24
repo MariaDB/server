@@ -1,2 +1,3 @@
 !include include/default_mysqld.cnf
+!include include/default_client.cnf
 !include ../my_1_1.cnf

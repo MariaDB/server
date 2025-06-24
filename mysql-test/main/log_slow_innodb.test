@@ -65,19 +65,49 @@ SELECT 1;
 --let log_slow_verbosity_innodb_expected_matches= 0
 --source include/log_slow_grep.inc
 
-#
-# Test 'query_plan'
-#
+--echo #
+--echo # Test 'query_plan'
+--echo #
 
 SET SESSION log_slow_verbosity='query_plan';
-let log_file=$log_slow_prefix-verbosity_3
+--let log_file=$log_slow_prefix-verbosity_3
 
 --source include/log_slow_start.inc
-INSERT INTO t1 VALUE(1000);
+INSERT INTO t1 VALUE(1001,1001);
 --source include/log_slow_stop.inc
 
 --let log_slow_verbosity_innodb_expected_matches= 0
 --source include/log_slow_grep.inc
 
 DROP TABLE t1;
+
+--echo #
+--echo # Test max_tmp_disk_space_used
+--echo #
+
+CREATE TABLE t1(a INT primary key, c varchar(1024)) ENGINE=InnoDB;
+insert into t1 select seq, concat(repeat(char(65+mod(seq,61)),32),repeat(char(65+mod(seq,59)),32)) from seq_1_to_1000;
+
+SET SESSION log_slow_verbosity='query_plan';
+SET SESSION sort_buffer_size=16384;
+SET SESSION long_query_time=0;
+--let log_file=$log_slow_prefix-verbosity_4
+
+--disable_ps_protocol
+--source include/log_slow_start.inc
+SELECT c, count(*) from t1 group by c order by 2 limit 700,10;
+--source include/log_slow_stop.inc
+--enable_ps_protocol
+
+--let grep_pattern = ^# Max_tmp_disk_space_used.*
+
+--let log_expected_matches= 1
+--source include/log_grep.inc
+
+drop table t1;
+
+--echo #
+--echo # Cleanup
+--echo #
+
 --source include/log_slow_cleanup.inc

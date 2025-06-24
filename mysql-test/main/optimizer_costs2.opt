@@ -1,0 +1,1 @@
+--optimizer_disk_read_ratio=0.9 --MEMORY.optimizer_disk_read_ratio=0.1 --memory.optimizer_disk_read_ratio=0.3 --memory.optimizer_row_lookup_cost=0.8

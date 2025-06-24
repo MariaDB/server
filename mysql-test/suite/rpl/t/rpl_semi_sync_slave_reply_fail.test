@@ -40,7 +40,7 @@ create table t1 (i int);
 --connection slave
 set global rpl_semi_sync_slave_enabled = ON;
 CALL mtr.add_suppression("Semi-sync slave net_flush*");
-SET @save_debug= @@global.debug;
+SET @save_debug= @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,semislave_failed_net_flush";
 --source include/start_slave.inc
 

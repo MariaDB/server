@@ -648,7 +648,7 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
 l_end:
   {
     char buf[256];
-    octet2hex(buf, (const char*) packet,
+    octet2hex(buf, (const unsigned char*) packet,
               MY_MIN(sizeof(buf)-1, (size_t) packet_len));
     sql_print_information("First bytes of the packet from semisync slave "
                           "server-id %d: %s", server_id, buf);
@@ -693,7 +693,7 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
     /* If the requested position is behind the sending binlog position,
      * would not adjust sending binlog position.
      * We based on the assumption that there are multiple semi-sync slave,
-     * and at least one of them shou/ld be up to date.
+     * and at least one of them should be up to date.
      * If all semi-sync slaves are behind, at least initially, the primary
      * can find the situation after the waiting timeout.  After that, some
      * slaves should catch up quickly.
@@ -1453,6 +1453,22 @@ void Repl_semi_sync_master::set_export_stats()
   unlock();
 }
 
+void Repl_semi_sync_master::reset_stats()
+{
+  lock();
+  rpl_semi_sync_master_yes_transactions = 0;
+  rpl_semi_sync_master_no_transactions = 0;
+  rpl_semi_sync_master_off_times = 0;
+  rpl_semi_sync_master_timefunc_fails = 0;
+  rpl_semi_sync_master_wait_sessions = 0;
+  rpl_semi_sync_master_wait_pos_backtraverse = 0;
+  rpl_semi_sync_master_trx_wait_num = 0;
+  rpl_semi_sync_master_trx_wait_time = 0;
+  rpl_semi_sync_master_net_wait_num = 0;
+  rpl_semi_sync_master_net_wait_time = 0;
+  unlock();
+}
+
 void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
 {
   struct timespec timeout;
@@ -1488,7 +1504,7 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
 /* Get the waiting time given the wait's staring time.
  *
  * Return:
- *  >= 0: the waiting time in microsecons(us)
+ *  >= 0: the waiting time in microseconds(us)
  *   < 0: error in get time or time back traverse
  */
 static int get_wait_time(const struct timespec& start_ts)

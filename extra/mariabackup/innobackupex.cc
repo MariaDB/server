@@ -44,8 +44,8 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <string.h>
 #include <mysql.h>
 #include <my_dir.h>
-#include <ut0mem.h>
 #include <os0file.h>
+#include "buf0buf.h"
 #include <srv0start.h>
 #include <algorithm>
 #include <mysqld.h>
@@ -78,10 +78,8 @@ my_bool opt_ibx_galera_info = FALSE;
 my_bool opt_ibx_slave_info = FALSE;
 my_bool opt_ibx_no_lock = FALSE;
 my_bool opt_ibx_safe_slave_backup = FALSE;
-my_bool opt_ibx_rsync = FALSE;
 my_bool opt_ibx_force_non_empty_dirs = FALSE;
 my_bool opt_ibx_noversioncheck = FALSE;
-my_bool opt_ibx_no_backup_locks = FALSE;
 my_bool opt_ibx_decompress = FALSE;
 
 char *opt_ibx_incremental_history_name = NULL;
@@ -190,7 +188,7 @@ enum innobackupex_options
 	OPT_DATABASES,
 	OPT_DECOMPRESS,
 
-	/* options wich are passed directly to xtrabackup */
+	/* options which are passed directly to xtrabackup */
 	OPT_CLOSE_FILES,
 	OPT_COMPACT,
 	OPT_COMPRESS,
@@ -242,7 +240,7 @@ static struct my_option ibx_long_options[] =
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"galera-info", OPT_GALERA_INFO, "This options creates the "
-	 "xtrabackup_galera_info file which contains the local node state at "
+	 MB_GALERA_INFO " file which contains the local node state at "
 	 "the time of the backup. Option should be used when performing the "
 	 "backup of MariaDB Galera Cluster. Has no effect when backup locks "
 	 "are used to create the backup.",
@@ -252,10 +250,10 @@ static struct my_option ibx_long_options[] =
 	{"slave-info", OPT_SLAVE_INFO, "This option is useful when backing "
 	 "up a replication slave server. It prints the binary log position "
 	 "and name of the master server. It also writes this information to "
-	 "the \"xtrabackup_slave_info\" file as a \"CHANGE MASTER\" command. "
+	 "the \"" MB_SLAVE_INFO "\" file as a \"CHANGE MASTER\" command. "
 	 "A new slave for this master can be set up by starting a slave server "
 	 "on this backup and issuing a \"CHANGE MASTER\" command with the "
-	 "binary log position saved in the \"xtrabackup_slave_info\" file.",
+	 "binary log position saved in the \"" MB_SLAVE_INFO "\" file.",
 	 (uchar *) &opt_ibx_slave_info, (uchar *) &opt_ibx_slave_info, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
@@ -268,8 +266,10 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_incremental, (uchar *) &opt_ibx_incremental, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"no-lock", OPT_NO_LOCK, "Use this option to disable table lock "
-	 "with \"FLUSH TABLES WITH READ LOCK\". Use it only if ALL your "
+	{"no-lock", OPT_NO_LOCK, "This option should not be used as "
+         "mariadb-backup now is using BACKUP LOCKS, which minimizes the "
+         "lock time. ALTER TABLE can run in parallel with BACKUP LOCKS."
+         "Use the --no-lock option it only if ALL your "
 	 "tables are InnoDB and you DO NOT CARE about the binary log "
 	 "position of the backup. This option shouldn't be used if there "
 	 "are any DDL statements being executed or if any updates are "
@@ -297,15 +297,6 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_safe_slave_backup,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"rsync", OPT_RSYNC, "Uses the rsync utility to optimize local file "
-	 "transfers. When this option is specified, innobackupex uses rsync "
-	 "to copy all non-InnoDB files instead of spawning a separate cp for "
-	 "each file, which can be much faster for servers with a large number "
-	 "of databases or tables.  This option cannot be used together with "
-	 "--stream.",
-	 (uchar *) &opt_ibx_rsync, (uchar *) &opt_ibx_rsync,
-	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
 	{"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS, "This "
 	 "option, when specified, makes --copy-back or --move-back transfer "
 	 "files to non-empty directories. Note that no existing files will be "
@@ -330,13 +321,9 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_noversioncheck,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"no-backup-locks", OPT_NO_BACKUP_LOCKS, "This option controls if "
-	 "backup locks should be used instead of FLUSH TABLES WITH READ LOCK "
-	 "on the backup stage. The option has no effect when backup locks are "
-	 "not supported by the server. This option is enabled by default, "
-	 "disable with --no-backup-locks.",
-	 (uchar *) &opt_ibx_no_backup_locks,
-	 (uchar *) &opt_ibx_no_backup_locks,
+	{"no-backup-locks", OPT_NO_BACKUP_LOCKS,
+         "Old disabled option which has no effect anymore.",
+	 (uchar *) 0, (uchar*) 0,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"decompress", OPT_DECOMPRESS, "Decompresses all files with the .qp "
@@ -377,7 +364,7 @@ static struct my_option ibx_long_options[] =
 
 	{"incremental-history-name", OPT_INCREMENTAL_HISTORY_NAME,
 	 "This option specifies the name of the backup series stored in the "
-	 "PERCONA_SCHEMA.xtrabackup_history history record to base an "
+	 XB_HISTORY_TABLE " history record to base an "
 	 "incremental backup on. Backup will search the history table "
 	 "looking for the most recent (highest innodb_to_lsn), successful "
 	 "backup in the series and take the to_lsn value to use as the "
@@ -392,7 +379,7 @@ static struct my_option ibx_long_options[] =
 
 	{"incremental-history-uuid", OPT_INCREMENTAL_HISTORY_UUID,
 	 "This option specifies the UUID of the specific history record "
-	 "stored in the PERCONA_SCHEMA.xtrabackup_history to base an "
+	 "stored in the " XB_HISTORY_TABLE " table to base an "
 	 "incremental backup on. --incremental-history-name, "
 	 "--incremental-basedir and --incremental-lsn. If no valid lsn can be "
 	 "found (no success record with that uuid), an error will be returned."
@@ -402,11 +389,10 @@ static struct my_option ibx_long_options[] =
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
-	 "This option specifies which types of queries are allowed to complete "
-	 "before innobackupex will issue the global lock. Default is all.",
-	 (uchar*) &opt_ibx_lock_wait_query_type,
-	 (uchar*) &opt_ibx_lock_wait_query_type, &query_type_typelib,
-	 GET_ENUM, REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0, 0},
+         "Old disabled option which has no effect anymore (not needed "
+         "with BACKUP LOCKS)",
+	 (uchar*) 0, (uchar*) 0, &query_type_typelib, GET_ENUM,
+         REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0, 0},
 
 	{"kill-long-query-type", OPT_KILL_LONG_QUERY_TYPE,
 	 "This option specifies which types of queries should be killed to "
@@ -417,7 +403,7 @@ static struct my_option ibx_long_options[] =
 
 	{"history", OPT_HISTORY,
 	 "This option enables the tracking of backup history in the "
-	 "PERCONA_SCHEMA.xtrabackup_history table. An optional history "
+	 XB_HISTORY_TABLE " table. An optional history "
 	 "series name may be specified that will be placed with the history "
 	 "record for the current backup being taken.",
 	 NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -447,32 +433,32 @@ static struct my_option ibx_long_options[] =
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"kill-long-queries-timeout", OPT_KILL_LONG_QUERIES_TIMEOUT,
-	 "This option specifies the number of seconds innobackupex waits "
-	 "between starting FLUSH TABLES WITH READ LOCK and killing those "
-	 "queries that block it. Default is 0 seconds, which means "
-	 "innobackupex will not attempt to kill any queries.",
-	 (uchar*) &opt_ibx_kill_long_queries_timeout,
-	 (uchar*) &opt_ibx_kill_long_queries_timeout, 0, GET_UINT,
+         "Old disabled option which has no effect anymore (not needed "
+         "with BACKUP LOCKS)",
+	 (uchar*) 0, (uchar*) 0,  0, GET_UINT,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"ftwrl-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
-	 "This option specifies time in seconds that innobackupex should wait "
-	 "for queries that would block FTWRL before running it. If there are "
-	 "still such queries when the timeout expires, innobackupex terminates "
-	 "with an error. Default is 0, in which case innobackupex does not "
-	 "wait for queries to complete and starts FTWRL immediately.",
-	 (uchar*) &opt_ibx_lock_wait_timeout,
-	 (uchar*) &opt_ibx_lock_wait_timeout, 0, GET_UINT,
+         "Alias for startup-wait-timeout",
+         (uchar*) &opt_ibx_lock_wait_timeout,
+         (uchar*) &opt_ibx_lock_wait_timeout, 0, GET_UINT,
+	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+
+	{"startup-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
+         "This option specifies time in seconds that mariadb-backup should wait for "
+         "BACKUP STAGE START to complete. BACKUP STAGE START has to wait until all "
+         "currently running queries using explicite LOCK TABLES has ended. "
+         "If there are still such queries when the timeout expires, mariadb-backup "
+         "terminates with an error. Default is 0, in which case mariadb-backup waits "
+         "indefinitely for BACKUP STAGE START to finish",
+         (uchar*) &opt_ibx_lock_wait_timeout,
+         (uchar*) &opt_ibx_lock_wait_timeout, 0, GET_UINT,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"ftwrl-wait-threshold", OPT_LOCK_WAIT_THRESHOLD,
-	 "This option specifies the query run time threshold which is used by "
-	 "innobackupex to detect long-running queries with a non-zero value "
-	 "of --ftwrl-wait-timeout. FTWRL is not started until such "
-	 "long-running queries exist. This option has no effect if "
-	 "--ftwrl-wait-timeout is 0. Default value is 60 seconds.",
-	 (uchar*) &opt_ibx_lock_wait_threshold,
-	 (uchar*) &opt_ibx_lock_wait_threshold, 0, GET_UINT,
+         "Old disabled option which has no effect anymore (not needed "
+         "with BACKUP LOCKS)",
+	 (uchar*) 0, (uchar*) 0,  0, GET_UINT,
 	 REQUIRED_ARG, 60, 0, 0, 0, 0, 0},
 
 	{"safe-slave-backup-timeout", OPT_SAFE_SLAVE_BACKUP_TIMEOUT,
@@ -518,7 +504,7 @@ static struct my_option ibx_long_options[] =
 
 	{"extra-lsndir", OPT_EXTRA_LSNDIR, "This option specifies the "
 	 "directory in which to save an extra copy of the "
-	 "\"xtrabackup_checkpoints\" file. The option accepts a string "
+	 "\"" MB_METADATA_FILENAME "\" file. The option accepts a string "
 	 "argument.",
 	 (uchar*) &ibx_xtrabackup_extra_lsndir,
 	 (uchar*) &ibx_xtrabackup_extra_lsndir,
@@ -608,8 +594,9 @@ static struct my_option ibx_long_options[] =
 	 "--apply-log.",
 	 (uchar*) &ibx_xtrabackup_use_memory,
 	 (uchar*) &ibx_xtrabackup_use_memory,
-	 0, GET_LL, REQUIRED_ARG, 100*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
-	 1024*1024L, 0},
+	 0, GET_LL, REQUIRED_ARG, 96 << 20,
+	 innodb_buffer_pool_extent_size, SIZE_T_MAX, 0,
+	 innodb_buffer_pool_extent_size, 0},
 
 	{"innodb-force-recovery", OPT_INNODB_FORCE_RECOVERY,
 	 "This option starts up the embedded InnoDB instance in crash "
@@ -864,10 +851,8 @@ ibx_init()
 	opt_slave_info = opt_ibx_slave_info;
 	opt_no_lock = opt_ibx_no_lock;
 	opt_safe_slave_backup = opt_ibx_safe_slave_backup;
-	opt_rsync = opt_ibx_rsync;
 	opt_force_non_empty_dirs = opt_ibx_force_non_empty_dirs;
 	opt_noversioncheck = opt_ibx_noversioncheck;
-	opt_no_backup_locks = opt_ibx_no_backup_locks;
 	opt_decompress = opt_ibx_decompress;
 
 	opt_incremental_history_name = opt_ibx_incremental_history_name;

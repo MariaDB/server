@@ -7,17 +7,24 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["col1"],
-      "key": "col1",
-      "key_length": "21",
-      "used_key_parts": ["col1"],
-      "rows": 2,
-      "filtered": 100,
-      "index_condition": "t1.col1 >= 'a'"
-    }
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["col1"],
+          "key": "col1",
+          "key_length": "21",
+          "used_key_parts": ["col1"],
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.col1 >= 'a'"
+        }
+      }
+    ]
   }
 }
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -34,7 +41,7 @@ JS
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2,
-                "cost": 2.547733708,
+                "cost": 0.003808422,
                 "chosen": true
             }
         ],

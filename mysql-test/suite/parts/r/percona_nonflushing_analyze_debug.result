@@ -4,7 +4,7 @@ PARTITION p0 VALUES LESS THAN (3),
 PARTITION p1 VALUES LESS THAN (10));
 INSERT INTO t1 VALUES (1), (2), (3), (4);
 connect con1,localhost,root;
-SET DEBUG_SYNC="handler_ha_index_next_end SIGNAL idx_scan_in_progress WAIT_FOR finish_scan";
+SET DEBUG_SYNC="handler_rnd_next_end SIGNAL idx_scan_in_progress WAIT_FOR finish_scan";
 SELECT * FROM t1;
 connection default;
 SET DEBUG_SYNC="now WAIT_FOR idx_scan_in_progress";
@@ -39,7 +39,7 @@ PARTITION p0 VALUES LESS THAN (3),
 PARTITION p1 VALUES LESS THAN (10));
 INSERT INTO t2 VALUES (1), (2), (3), (4);
 connect con1,localhost,root;
-SET DEBUG_SYNC="handler_ha_index_next_end SIGNAL idx_scan_in_progress WAIT_FOR finish_scan";
+SET DEBUG_SYNC="handler_rnd_next_end SIGNAL idx_scan_in_progress WAIT_FOR finish_scan";
 SELECT * FROM t2;
 connection default;
 SET DEBUG_SYNC="now WAIT_FOR idx_scan_in_progress";
@@ -51,17 +51,17 @@ test.t2	analyze	status	OK
 set use_stat_tables=@tmp;
 SELECT * FROM t2;
 a
-1
 2
-3
+1
 4
+3
 SET DEBUG_SYNC="now SIGNAL finish_scan";
 connection con1;
 a
-1
 2
-3
+1
 4
+3
 disconnect con1;
 connection default;
 SET DEBUG_SYNC='reset';

@@ -101,10 +101,19 @@ tfk	CREATE TABLE `tfk` (
   `c2` int(11) DEFAULT NULL,
   KEY `sid` (`c1`),
   CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `tpk` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE tfk ADD CONSTRAINT sid CHECK (c2>15);
 ERROR HY000: Duplicate CHECK constraint name 'sid'
 ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
 ERROR 42000: Duplicate key name 'sid'
 DROP TABLE tfk;
 DROP TABLE tpk;
+#
+# MDEV-33223 Assertion `dst_size > 4' failed in size_t Identifier_chain2::make_sep_name_opt_casedn(char*, size_t, int, bool) const
+#
+CREATE DATABASE x;
+USE x;
+CREATE TABLE t (i INT, j INT, CONSTRAINT fk2 FOREIGN KEY(i) REFERENCES p (i)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `x`.`t` (errno: 150 "Foreign key constraint is incorrectly formed")
+DROP DATABASE x;
+USE test;

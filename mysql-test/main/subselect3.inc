@@ -252,9 +252,10 @@ from t2;
 
 drop table t1,t2,t3,t4;
 
-# More tests for tricky multi-column cases, where some of pushed-down
-# equalities are used for index lookups and some arent.
-create table t1 (oref char(4), grp int, ie1 int, ie2 int);
+--echo # More tests for tricky multi-column cases, where some of pushed-down
+--echo # equalities are used for index lookups and some are not.
+
+create table t1 (oref char(4), grp int, ie1 int, ie2 int) charset=latin1;
 insert into t1 (oref, grp, ie1, ie2) values
  ('aa', 10, 2, 1),
  ('aa', 10, 1, 1),
@@ -268,7 +269,7 @@ insert into t1 (oref, grp, ie1, ie2) values
  
  ('ff', 20, 2, 2),
  ('ff', 20, 1, 2);
-create table t2 (oref char(4), a int, b int);
+create table t2 (oref char(4), a int, b int) charset=latin1;
 insert into t2 values 
   ('ee', NULL, 1),
   ('bb', 2, 1),
@@ -290,7 +291,7 @@ select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t
 drop table t1, t2;
 
 # Now test different column types:
-create table t1 (oref char(4), grp int, ie int);
+create table t1 (oref char(4), grp int, ie int) charset=latin1;
 insert into t1 (oref, grp, ie) values
  ('aa', 10, 2),
  ('aa', 10, 1),
@@ -307,7 +308,7 @@ insert into t1 (oref, grp, ie) values
  ('ff', 20, 2),
  ('ff', 20, 1);
 
-create table t2 (oref char(4), a int);
+create table t2 (oref char(4), a int) charset=latin1;
 insert into t2 values 
   ('ee', NULL),
   ('bb', 2),
@@ -455,7 +456,7 @@ select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t
 
 drop table t1,t2;
 
-create table t1 (oref char(4), grp int, ie int primary key);
+create table t1 (oref char(4), grp int, ie int primary key) charset=latin1;
 insert into t1 (oref, grp, ie) values
  ('aa', 10, 2),
  ('aa', 10, 1),
@@ -466,7 +467,7 @@ insert into t1 (oref, grp, ie) values
  ('cc', 20, 5),
  ('cc', 10, 6);
  
-create table t2 (oref char(4), a int);
+create table t2 (oref char(4), a int) charset=latin1;
 insert into t2 values 
   ('ee', NULL),
   ('bb', 2),
@@ -480,8 +481,11 @@ explain select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 
 select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 
+explain select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+
 select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
 
+explain select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
 select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
 
 explain 
@@ -647,11 +651,7 @@ DROP TABLE t1, t2;
 
 create table t1 (a int, b decimal(13, 3)); 
 insert into t1 values (1, 0.123);
---disable_cursor_protocol
---disable_ps2_protocol
 select a, (select max(b) from t1) into outfile "../../tmp/subselect.out.file.1" from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 delete from t1;
 load data infile "../../tmp/subselect.out.file.1" into table t1;
 select * from t1;
@@ -1039,7 +1039,6 @@ explain select * from t1 where a in (select a from t1);
 drop table t1;
 set @@optimizer_switch=@save_optimizer_switch;
 
-set @@optimizer_switch=@save_optimizer_switch;
 set @@optimizer_switch='materialization=off';
 
 #
@@ -1061,9 +1060,9 @@ explain select * from t2 where a in (select straight_join A.a from t1 A, t1 B);
 explain select straight_join * from t2 X, t2 Y 
 where X.a in (select straight_join A.a from t1 A, t1 B);
 
-#
-# SJ-Materialization scan + first table being system const table
-#
+--echo #
+--echo # SJ-Materialization scan + first table being system const table
+--echo #
 create table t0 (a int, b int);
 insert into t0 values(1,1);
 explain select * from t0, t3 where t3.a in (select a from t2) and (t3.a < 10 or t3.a >30);
@@ -1071,9 +1070,12 @@ create table t4 as select a as x, a as y from t1;
 explain select * from t0, t3 where (t3.a, t3.b) in (select x,y from t4) and (t3.a < 10 or t3.a >30);
 drop table t0,t1,t2,t3,t4;
 
-#
-# LooseScan with ref access
-#
+--echo #
+--echo # LooseScan with ref access
+--echo #
+
+set @@optimizer_switch='join_cache_hashed=off';
+
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(100), key(a,b));
@@ -1109,9 +1111,9 @@ drop table t0, t1, t2;
 
 set @@optimizer_switch='materialization=off';
 
-#
-# Primitive SJ-Materialization tests for DECIMAL and DATE
-#
+--echo #
+--echo # Primitive SJ-Materialization tests for DECIMAL and DATE
+--echo #
 create table t0 (a decimal(4,2));
 insert into t0 values (10.24), (22.11);
 create table t1 as select * from t0;
@@ -1137,6 +1139,7 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 as select a as a, a as b, a as c from t0 where a < 3;
 create table t2 as select a as a, a as b from t0 where a < 3;
 insert into t2 select * from t2;
+select count(*) from t2;
 
 explain select * from t1 where (a,b,c) in (select X.a, Y.a, Z.a from t2 X, t2 Y, t2 Z where X.b=33);
 
@@ -1147,6 +1150,7 @@ set @@optimizer_switch=@save_optimizer_switch;
 --echo
 --echo BUG#37842: Assertion in DsMrr_impl::dsmrr_init, at handler.cc:4307
 --echo
+
 CREATE TABLE t1 (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
   `int_key` int(11) DEFAULT NULL,
@@ -1182,7 +1186,7 @@ drop table t0, t1;
 create table t1 (
   idIndividual int primary key
 );
-insert into t1 values (1),(2);
+insert into t1 values (1),(2),(1000);
 
 create table t2 (
   idContact int primary key,
@@ -1195,14 +1199,20 @@ create table t3 (
   idAddress int primary key,
   idContact int,
   postalStripped varchar(100)
-);
+) charset=latin1;
 
-insert into t3 values (1,1, 'foo'), (2,2,'bar');
+insert into t3 values (1,1, 'foo'), (2,2,'T2H3B2');
 
 --echo The following must be converted to a semi-join:
 set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='materialization=off';
 explain extended SELECT a.idIndividual FROM t1 a 
+WHERE a.idIndividual IN 
+	(	SELECT c.idObj FROM t3 cona 
+		INNER JOIN t2 c ON c.idContact=cona.idContact 
+		WHERE cona.postalStripped='T2H3B2'
+	);
+SELECT a.idIndividual FROM t1 a 
 WHERE a.idIndividual IN 
 	(	SELECT c.idObj FROM t3 cona 
 		INNER JOIN t2 c ON c.idContact=cona.idContact 
@@ -1235,7 +1245,6 @@ CREATE PROCEDURE p1 () BEGIN SELECT f1 FROM t1 WHERE f1 IN (SELECT f1 FROM t2); 
 delimiter ;|
 CALL p1;
 ALTER TABLE t2 CHANGE COLUMN f1 my_column INT;
---error ER_BAD_FIELD_ERROR
 CALL p1;
 DROP PROCEDURE p1;
 DROP TABLE t1, t2;

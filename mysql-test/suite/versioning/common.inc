@@ -3,9 +3,11 @@ if (!$TEST_VERSIONING_SO)
   --skip needs test_versioning plugin
 }
 source include/have_innodb.inc;
+source sys_time.inc;
 --disable_query_log
 
 set @@session.time_zone='+00:00';
+set @@global.time_zone='+00:00';
 --disable_cursor_protocol
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
 --enable_cursor_protocol
@@ -46,7 +48,6 @@ let $default_engine= `select @@default_storage_engine`;
 let $non_default_engine= `select if(@@default_storage_engine = 'InnoDB', 'MyISAM', 'InnoDB')`;
 let $sys_datatype_expl= timestamp(6);
 let $sys_datatype_expl_uc= TIMESTAMP(6);
-let $sys_datatype_max= TIMESTAMP'2038-01-19 03:14:07.999999';
 
 if ($MTR_COMBINATION_MYISAM)
 {
@@ -75,7 +76,7 @@ deterministic
 eval create or replace function current_row_ts(sys_trx_end timestamp(6))
 returns int
 deterministic
-  return convert_tz(sys_trx_end, '+00:00', @@time_zone) = TIMESTAMP'2038-01-19 03:14:07.999999';
+  return convert_tz(sys_trx_end, '+00:00', @@time_zone) = $sys_time_max;
 
 delimiter ~~;
 eval create or replace function check_row(row_start $sys_datatype_expl, row_end $sys_datatype_expl)

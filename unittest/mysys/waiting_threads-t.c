@@ -283,4 +283,3 @@ void do_tests()
   pthread_cond_destroy(&thread_sync);
   DBUG_VOID_RETURN;
 }
-

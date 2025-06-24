@@ -1,0 +1,12 @@
+usr/bin/mysql_install_db
+usr/bin/mysql_upgrade
+usr/bin/mysqld_multi
+usr/bin/mysqld_safe
+usr/bin/mysqld_safe_helper
+usr/sbin/mysqld
+usr/share/man/man1/mysql_install_db.1
+usr/share/man/man1/mysql_upgrade.1
+usr/share/man/man1/mysqld_multi.1
+usr/share/man/man1/mysqld_safe.1
+usr/share/man/man1/mysqld_safe_helper.1
+usr/share/man/man8/mysqld.8

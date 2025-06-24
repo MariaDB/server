@@ -14,6 +14,8 @@
 drop table if exists t1, t2;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 --echo #
 --echo # Bug#11765667: bug#58655: ASSERTION FAILED,
 --echo #                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
@@ -2046,7 +2048,7 @@ select c1 from t1 group by (select c0 from t1 limit 1);
 drop table t1;
 
 # Bug #30495: optimize table t1,t2,t3 extended errors
-# (added more maintenace commands for Bug#20129
+# (added more maintenance commands for Bug#20129
 CREATE TABLE t1(a int)
 PARTITION BY RANGE (a) (
   PARTITION p1 VALUES LESS THAN (10),
@@ -3100,3 +3102,42 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-31494 Server crashes in ha_partition::index_blocks /
+--echo # get_key_scans_params
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT, c INT, KEY(c)) PARTITION BY LIST (b) (PARTITION p0 VALUES IN (1,2), PARTITION p1 VALUES IN (3,4));
+
+INSERT INTO t2 VALUES (1,1),(2,2);
+explain SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-31445 Server crashes in ha_partition::index_blocks /
+--echo # cost_for_index_read
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT, d INT, KEY(d)) PARTITION BY KEY (c) PARTITIONS 2;
+CREATE TABLE t4 (e INT);
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t3 VALUES (1,1),(2,2);
+INSERT INTO t4 VALUES (1),(2);
+
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+
+drop table t1,t2,t3,t4;
+
+--echo # End of 11.0 tests
+
+--source include/test_db_charset_restore.inc

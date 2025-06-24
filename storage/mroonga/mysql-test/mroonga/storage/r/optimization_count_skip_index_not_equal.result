@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS users;
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 CREATE TABLE users (
 age INT,
 INDEX (age)
@@ -9,6 +9,9 @@ INSERT INTO users (age) VALUES (28);
 INSERT INTO users (age) VALUES (29);
 INSERT INTO users (age) VALUES (29);
 INSERT INTO users (age) VALUES (29);
+explain SELECT COUNT(*) FROM users WHERE age <> 29;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	users	range	age	age	5	NULL	4	Using where; Using index
 SELECT COUNT(*) FROM users WHERE age <> 29;
 COUNT(*)
 2

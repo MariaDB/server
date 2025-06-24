@@ -308,7 +308,7 @@ Handler_read_rnd_next	0
 #                when extended_keys=on
 #
 create table t0 (a int);
-insert into t0 values (1), (2), (3), (4), (5);
+insert into t0 select seq from seq_1_to_5;
 create index i_p_size on part(p_size);
 explain
 select straight_join * from t0, part ignore index (primary)
@@ -339,8 +339,8 @@ a	b
 EXPLAIN
 SELECT * FROM t1 WHERE 2 IN (SELECT MAX(s1.a) FROM t1 AS s1, t1 AS s2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	<subquery2>	const	distinct_key	distinct_key	4	const	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 2	MATERIALIZED	s1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	s2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 DROP TABLE t1;
@@ -348,7 +348,7 @@ set optimizer_switch=@save_optimizer_switch;
 #
 # LP Bug #915291: query using a materialized view
 #                 + extended_keys = on
-# (valgrinf complains fixed by the patch for bug #914560)
+# (valgrind complains fixed by the patch for bug #914560)
 #
 SET optimizer_switch = 'derived_with_keys=on';
 CREATE TABLE t1 (a varchar(1)) ENGINE=MyISAM;
@@ -370,7 +370,7 @@ set optimizer_switch=@save_optimizer_switch;
 #
 CREATE TABLE t1 (
 a int NOT NULL, b varchar(1) NOT NULL, KEY(a), KEY(b,a)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 VALUES
 (0,'j'), (8,'v'), (1,'c'), (8,'m'), (9,'d'), 
 (24,'d'), (6,'y'), (1,'t'), (6,'d'), (2,'s');
@@ -381,17 +381,18 @@ INSERT INTO t2 VALUES
 (10), (11), (12), (13), (14), 
 (15), (16), (17), (18), (19), (24);
 EXPLAIN
-SELECT a FROM t1 AS t, t2 
-WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	index	a,b	b	7	NULL	10	Using index
-1	PRIMARY	t1	ref	b	b	3	test.t.b	2	Using index; Start temporary
+1	PRIMARY	t1	index	b	b	7	NULL	10	Using index; Start temporary
+1	PRIMARY	t	ref	a,b	b	3	test.t1.b	2	Using index
 1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	11	Using index; End temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
-SELECT a FROM t1 AS t, t2 
-WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+1	PRIMARY	t2_out	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
+SELECT a FROM t1 AS t, t2 as t2_out 
+WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 a
 24
+Last_query_cost	0.120558
 DROP TABLE t1,t2;
 #
 # LP Bug #923236: hash join + extended_keys = on 
@@ -645,7 +646,7 @@ a
 2
 explain select a from t2 where b is null order by a desc limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	b	b	9	NULL	3	Using where; Using filesort
+1	SIMPLE	t2	index	b	PRIMARY	8	NULL	2	Using where
 select a from t2 where b is null order by a desc limit 2;
 a
 3
@@ -758,24 +759,31 @@ PRIMARY KEY (pk1,pk2),
 KEY(f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+explain format=json
 select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["f2"],
-      "key": "f2",
-      "key_length": "3070",
-      "used_key_parts": ["f2", "pk1"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
-      "attached_condition": "t1.f1 <= '3'"
-    }
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["f2"],
+          "key": "f2",
+          "key_length": "3070",
+          "used_key_parts": ["f2", "pk1"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
+          "attached_condition": "t1.f1 <= '3'"
+        }
+      }
+    ]
   }
 }
 drop table t1;
@@ -788,24 +796,31 @@ PRIMARY KEY (pk1,pk2),
 KEY k1(pk1,f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+explain format=json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["k1"],
-      "key": "k1",
-      "key_length": "3011",
-      "used_key_parts": ["pk1", "f2", "pk2"],
-      "rows": 1,
-      "filtered": 100,
-      "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
-      "attached_condition": "t1.f1 <= '3'"
-    }
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["k1"],
+          "key": "k1",
+          "key_length": "3011",
+          "used_key_parts": ["pk1", "f2", "pk2"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
+          "attached_condition": "t1.f1 <= '3'"
+        }
+      }
+    ]
   }
 }
 drop table t1;
@@ -820,7 +835,7 @@ pk VARCHAR(50),
 a VARCHAR(20),
 KEY k1(a),
 PRIMARY KEY(pk)
-)ENGINE=INNODB;
+)ENGINE=INNODB CHARSET=latin1;
 INSERT INTO t2 SELECT a,a FROM t1;
 EXPLAIN SELECT pk FROM t2 FORCE INDEX(k1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

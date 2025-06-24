@@ -171,7 +171,7 @@ select * from t1 order by b;
 drop table t1;
 
 #
-# Test of behavior of ALTER TABLE when coulmn containing NULL or zeroes is
+# Test of behavior of ALTER TABLE when column containing NULL or zeroes is
 # converted to AUTO_INCREMENT column
 #
 create table t1 (a bigint);
@@ -223,7 +223,7 @@ DROP TABLE IF EXISTS t1;
 # BUG #19025:
 
 CREATE TABLE `t1` (
-    t1_name VARCHAR(255) DEFAULT NULL,
+    t1_name VARCHAR(250) DEFAULT NULL,
     t1_id INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
     KEY (t1_name),
     PRIMARY KEY (t1_id)

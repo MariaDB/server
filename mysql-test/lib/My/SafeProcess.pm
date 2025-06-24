@@ -138,6 +138,7 @@ sub new {
   my $error    = delete($opts{'error'});
   my $verbose  = delete($opts{'verbose'}) || $::opt_verbose;
   my $nocore   = delete($opts{'nocore'});
+  my $open_files_limit = delete($opts{'open_files_limit'});
   my $host     = delete($opts{'host'});
   my $shutdown = delete($opts{'shutdown'});
   my $user_data= delete($opts{'user_data'});
@@ -160,6 +161,8 @@ sub new {
 
   push(@safe_args, "--verbose") if $verbose > 0;
   push(@safe_args, "--nocore") if $nocore;
+
+  push(@safe_args, "--open-files-limit=$open_files_limit") if $open_files_limit;
 
   # Point the safe_process at the right parent if running on cygwin
   push(@safe_args, "--parent-pid=".Cygwin::pid_to_winpid($$)) if IS_CYGWIN;
@@ -196,7 +199,7 @@ sub new {
   my $proc= bless
     ({
       SAFE_PID  => $pid,
-      SAFE_WINPID  => $pid, # Inidicates this is always a real process
+      SAFE_WINPID  => $pid, # Indicates this is always a real process
       SAFE_NAME => $name,
       SAFE_SHUTDOWN => $shutdown,
       PARENT => $$,
@@ -539,7 +542,7 @@ sub wait_any_timeout {
 
   do {
     ::mtr_milli_sleep($millis);
-    # Slowly increse interval up to max. 1 second
+    # Slowly increase interval up to max. 1 second
     $millis++ if $millis < 1000;
     # Return a "fake" process for timeout
     if (::has_expired($timeout)) {

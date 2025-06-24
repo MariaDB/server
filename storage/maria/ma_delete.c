@@ -77,7 +77,7 @@ int maria_delete(MARIA_HA *info,const uchar *record)
     if (maria_is_key_active(share->state.key_map, i))
     {
       keyinfo->version++;
-      if (keyinfo->flag & HA_FULLTEXT)
+      if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
       {
         if (_ma_ft_del(info, i, old_key, record, info->cur_row.lastpos))
           goto err;
@@ -232,9 +232,9 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
     result= 1;
     goto err;
   }
-  if ((error= d_search(info, key, (keyinfo->flag & HA_FULLTEXT ?
-                                   SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT:
-                                   SEARCH_SAME),
+  if ((error= d_search(info, key, keyinfo->key_alg == HA_KEY_ALG_FULLTEXT ?
+                                  SEARCH_FIND | SEARCH_UPDATE | SEARCH_INSERT :
+                                  SEARCH_SAME,
                        &page)))
   {
     if (error < 0)
@@ -315,7 +315,7 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
   page_flag= anc_page->flag;
   nod_flag=  anc_page->node;
 
-  if (!flag && (keyinfo->flag & HA_FULLTEXT))
+  if (!flag && keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     uint off;
     int  subkeys;
@@ -754,7 +754,7 @@ err:
    @brief Balances adjacent pages if underflow occours
 
    @fn    underflow()
-   @param anc_buff        Anchestor page data
+   @param anc_buff        Ancestor page data
    @param leaf_page       Leaf page (page that underflowed)
    @param leaf_page_link  Pointer to pin information about leaf page
    @param keypos          Position after current key in anc_buff
@@ -764,7 +764,7 @@ err:
      leaf_page is saved to disk
      Caller must save anc_buff
 
-     For the algoritm to work, we have to ensure for packed keys that
+     For the algorithm to work, we have to ensure for packed keys that
      key_length + (underflow_length + max_block_length + key_length) / 2
      <= block_length.
      From which follows that underflow_length <= block_length - key_length *3

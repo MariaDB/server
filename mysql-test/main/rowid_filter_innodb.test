@@ -26,7 +26,7 @@ SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 create table t1 (
   pk int not null primary key, f1 varchar(10), f2 varchar(30), a int(10),
   key (f1), key (f2)
-) engine=innodb stats_persistent=0;
+) engine=innodb stats_persistent=0 charset=latin1;
 
 insert into t1 values
   (2,'a','a',2),(3,'a','a',null),(4,'a','a',55),(5,'a','a',4),(6,'a','a',0),
@@ -44,6 +44,7 @@ insert into t1 values
   (81,'a','a',20),(82,'a','a',0),(83,'a','a',0),(84,'a','a',null),
   (85,'a','a',-1),(86,'a','a',5),(87,'a','a',null),(88,'a','a',160),
   (89,null,null,null),(90,'a','a',14785),(91,'a','a',0),(92,'a','a',null);
+insert into t1 values (100,null,null,null);
 
 analyze table t1;
 
@@ -56,6 +57,7 @@ let $q=
 
 eval $q;
 eval explain $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 drop table t1;
@@ -77,6 +79,7 @@ let $q=
 select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
 
 eval $q;
+--replace_column 9 # 10 #
 eval explain extended $q;
 
 drop table t1, t2;
@@ -126,7 +129,7 @@ CREATE TABLE t1 (
     c VARCHAR(1024),
     KEY (b),
     KEY (c)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 
 INSERT INTO t1 VALUES
   (1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
@@ -139,13 +142,22 @@ INSERT INTO t1 VALUES
 ANALYZE TABLE t1;
 
 EXPLAIN EXTENDED
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 
 --echo #
 --echo # MDEV-25163 Rowid filter does not process storage engine error correctly.
 --echo #
+#INSERT INTO t1 VALUES
+# (100,'z','a'),
+# (100,'z','a'),
+# (100,'z','a'),
+# (100,'z','a');
+
+
+#ANALYZE TABLE t1;
+
 
 CREATE TABLE two(tw int) Engine=MyISAM;
 INSERT INTO two VALUES (1),(2);
@@ -154,11 +166,12 @@ INSERT INTO two VALUES (1),(2);
 SET GLOBAL innodb_stats_persistent= OFF;
 
 # Make sure it's still rowid filter + filesort
+#--optimizer_trace
 EXPLAIN EXTENDED
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a FOR UPDATE;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
 
 EXPLAIN EXTENDED
-SELECT a FROM t1,two WHERE c < 'k' AND b > 't' ORDER BY a FOR UPDATE;
+SELECT a FROM t1,two WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
 
 SET @saved_dbug = @@SESSION.debug_dbug;
 # Deadlock error should be returned from InnoDB during rowid filter container
@@ -167,13 +180,13 @@ SET @saved_dbug = @@SESSION.debug_dbug;
 # operation.
 SET debug_dbug = '+d,innodb_report_deadlock';
 --error ER_LOCK_DEADLOCK
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a FOR UPDATE;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
 SET debug_dbug = @saved_dbug;
 
 # Same as above for the join query:
 SET debug_dbug = '+d,innodb_report_deadlock';
 --error ER_LOCK_DEADLOCK
-SELECT a FROM t1,two WHERE c < 'k' AND b > 't' ORDER BY a FOR UPDATE;
+SELECT a FROM t1,two WHERE c < 'e' AND b > 't' ORDER BY a FOR UPDATE;
 SET debug_dbug = @saved_dbug;
 
 DROP TABLE two;
@@ -188,7 +201,7 @@ SET GLOBAL innodb_stats_persistent= @stats.save;
 SET @stats.save= @@innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent= ON;
 
-CREATE TABLE t1 (ch varchar(1), id int, id2 int) ENGINE=InnoDB;
+CREATE TABLE t1 (ch varchar(1), id int, id2 int) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t1 VALUES
 ('l',3,2), ('e',NULL,NULL), ('r',7,3), ('h',NULL,2), (NULL,4,4), ('c',4,NULL),
 ('k',NULL,NULL), ('h',NULL,NULL), ('b',9,NULL), ('f',6,NULL);
@@ -196,7 +209,7 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 (
   pk int NOT NULL, col_date_key date, ch2 varchar(1), id2 int,
   PRIMARY KEY (pk), KEY (col_date_key), KEY (ch2), KEY (id2)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB CHARSET=latin1;
 INSERT INTO t2 VALUES
 (1,'2034-04-21','g',9), (2,'2006-09-08','y',1), (3,NULL,'h',2),
 (4,'1987-03-02','s',2), (5,'2019-07-02','u',NULL),(6,'2012-12-18','z',1),
@@ -657,7 +670,7 @@ set global innodb_stats_persistent= @stats.save;
 set @stats.save= @@innodb_stats_persistent;
 set global innodb_stats_persistent=0;
 
-CREATE TABLE t1 (pk int NOT NULL, c1 varchar(1)) engine=innodb;
+CREATE TABLE t1 (pk int NOT NULL, c1 varchar(1)) engine=innodb charset=latin1;
 INSERT INTO t1 VALUES
 (1,NULL),(15,'o'),(16,'x'),(19,'t'),(35,'k'),(36,'h'),(42,'t'),(43,'h'),
 (53,'l'),(62,'a'),(71,NULL),(79,'u'),(128,'y'),(129,NULL),(133,NULL);
@@ -668,7 +681,7 @@ CREATE TABLE t2 (
 i1 int, c1 varchar(1) NOT NULL,
 filler1 char(255) default '0', filler2 char(255) default '0',
 KEY c1 (c1), KEY i1 (i1)
-) engine=innodb;
+) engine=innodb charset=latin1;
 INSERT INTO t2(i1,c1) VALUES
 (NULL,'1'),(1,'1'),(2,'t'),(3,'1'),(4,'u'),(5,'1'),
 (6,'4'),(7,'4'),(8,'1'),(1,'u'),(2,'1'),(NULL,'w');
@@ -684,8 +697,8 @@ SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
                       WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 
-eval $q;
 eval EXPLAIN EXTENDED $q;
+eval $q;
 
 DROP TABLE t1,t2;
 
@@ -797,13 +810,31 @@ from
 insert into t1 (a,b,f1) values ( 110, 100, 12345);
 analyze table t1;
 
---echo # The following must NOT use Rowid Filter:
 --source include/analyze-format.inc
 analyze format=json select * from t1
 where
   a =30100 and b in (30100,30101,30102)
 order by
   pk desc;
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='rowid_filter=off';
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+and
+  (a+pk)>30100+8439
+order by pk desc;
+set optimizer_switch='rowid_filter=on';
+--source include/analyze-format.inc
+analyze format=json select * from t1
+where
+  a =30100 and b in (30100,30101,30102)
+and
+  (a+pk)>30100+8439
+order by pk desc;
+set optimizer_switch=@save_optimizer_switch;
 
 drop table t1;
 

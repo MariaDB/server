@@ -24,7 +24,7 @@ CREATE TABLE test.t_range(a int, b int, PRIMARY KEY(a));
 INSERT INTO test.t_range values (1, 1), (2,2), (3, 3), (4, 4), (5, 5);
 INSERT INTO test.t_range values (6, 6), (7,7), (8, 8), (9, 9), (10, 10);
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 let $initial= `SELECT VARIABLE_VALUE FROM performance_schema.global_status WHERE VARIABLE_NAME = 'Select_range'`;
 

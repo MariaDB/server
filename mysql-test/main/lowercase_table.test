@@ -2,6 +2,8 @@
 # Test of --lower-case-table-names
 #
 
+show variables like "lower_case_table_names";
+
 create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
 create table t4 (id int primary key, Word varchar(40) not null);
 INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
@@ -140,4 +142,97 @@ delete from mysql.proc where name = '';
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 11.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-31948 Add class DBNameBuffer, split check_db_name() into stages
+--echo #
+
+SET NAMES utf8;
+
+# U+FFED HALFWIDTH BLACK SQUARE
+SET @mb3char= _utf8 0xEFBFAD;
+
+# Database names fitting into the NAME_CHAR_LEN characters limit
+
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 64), '`');
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 64), '`');
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 64), '`');
+--error ER_BAD_DB_ERROR
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 64), '`');
+
+
+# Database names longer than NAME_CHAR_LEN characters
+
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('use `', REPEAT(@mb3char, 65), '`');
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('use `#mysql50#', REPEAT(@mb3char, 65), '`');
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `', REPEAT(@mb3char, 65), '`');
+--error ER_WRONG_DB_NAME
+EXECUTE IMMEDIATE CONCAT('SHOW CREATE DATABASE `#mysql50#', REPEAT(@mb3char, 65), '`');
+
+--echo #
+--echo # End of 11.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DELIMITER ;$$
+DROP PACKAGE test.pkg;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-33281 Implement optimizer hints like in MySQL
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+
+--enable_prepare_warnings
+# Test that aliases are accent sensitive with lowercase-table-names=1
+# Test that table names in hints are also accent sensitive
+SELECT /*+BKA(a) BKA(å)*/ a.a FROM t1 a, t1 å;
+
+# Test that aliases are case insensitive with lowercase-table-names=1
+--error ER_NONUNIQ_TABLE
+SELECT a.a, A.a FROM t1 a, t1 A;
+# Test that table names in hints are also case insensitive
+SELECT /*+BKA(a) BKA(A)*/ a.a FROM t1 a;
+--disable_prepare_warnings
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.7 tests
 --echo #

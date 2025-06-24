@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@
 
 static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref, Field* field,
                                 COND *cond, uint *range_fl,
-                                uint *key_prefix_length);
+                                uint *key_prefix_length, bool *reverse);
 static int reckey_in_range(bool max_fl, TABLE_REF *ref, Field* field,
                             COND *cond, uint range_fl, uint prefix_len);
 static int maxmin_in_range(bool max_fl, Field* field, COND *cond);
@@ -101,6 +101,7 @@ static ulonglong get_exact_record_count(List<TABLE_LIST> &tables)
   @item_field       Field used in MIN()
   @range_fl         Whether range endpoint is strict less than
   @prefix_len       Length of common key part for the range
+  @reverse          Whether key part used is reverse descending index
   
   @retval
     0               No errors
@@ -109,12 +110,15 @@ static ulonglong get_exact_record_count(List<TABLE_LIST> &tables)
 
 static int get_index_min_value(TABLE *table, TABLE_REF *ref,
                                Item_field *item_field, uint range_fl,
-                               uint prefix_len)
+                               uint prefix_len, bool reverse)
 {
   int error;
   
   if (!ref->key_length)
-    error= table->file->ha_index_first(table->record[0]);
+  {
+    error= reverse ? table->file->ha_index_last(table->record[0]) :
+                     table->file->ha_index_first(table->record[0]);
+  }
   else 
   {
     /*
@@ -139,6 +143,8 @@ static int get_index_min_value(TABLE *table, TABLE_REF *ref,
       error= table->file->ha_index_read_map(table->record[0],
                                             ref->key_buff,
                                             make_prev_keypart_map(ref->key_parts),
+                                            reverse ?
+                                            HA_READ_PREFIX_LAST_OR_PREV :
                                             HA_READ_KEY_OR_NEXT);
     else
     {
@@ -154,6 +160,7 @@ static int get_index_min_value(TABLE *table, TABLE_REF *ref,
       error= table->file->ha_index_read_map(table->record[0],
                                             ref->key_buff,
                                             make_prev_keypart_map(ref->key_parts),
+                                            reverse ? HA_READ_BEFORE_KEY :
                                             HA_READ_AFTER_KEY);
       /* 
          If the found record is outside the group formed by the search
@@ -194,21 +201,31 @@ static int get_index_min_value(TABLE *table, TABLE_REF *ref,
   @param table      Table object
   @param ref        Reference to the structure where we store the key value
   @range_fl         Whether range endpoint is strict greater than
+  @reverse          Whether the key part used is reverse descending index
   
   @retval
     0               No errors
     HA_ERR_...      Otherwise
 */
 
-static int get_index_max_value(TABLE *table, TABLE_REF *ref, uint range_fl)
+static int get_index_max_value(TABLE *table, TABLE_REF *ref, uint range_fl,
+                               bool reverse)
 {
-  return (ref->key_length ?
-          table->file->ha_index_read_map(table->record[0], ref->key_buff,
-                                         make_prev_keypart_map(ref->key_parts),
-                                         range_fl & NEAR_MAX ?
-                                         HA_READ_BEFORE_KEY : 
-                                         HA_READ_PREFIX_LAST_OR_PREV) :
-          table->file->ha_index_last(table->record[0]));
+  if (ref->key_length)
+  {
+    return table->file->ha_index_read_map(table->record[0], ref->key_buff,
+                                          make_prev_keypart_map(ref->key_parts),
+                                          range_fl & NEAR_MAX ?
+                                          (reverse ? HA_READ_AFTER_KEY :
+                                           HA_READ_BEFORE_KEY) :
+                                          (reverse ? HA_READ_KEY_OR_NEXT :
+                                           HA_READ_PREFIX_LAST_OR_PREV));
+  }
+  else
+  {
+    return reverse ? table->file->ha_index_first(table->record[0]) :
+                     table->file->ha_index_last(table->record[0]);
+  }
 }
 
 
@@ -378,6 +395,7 @@ int opt_sum_query(THD *thd,
           uchar key_buff[MAX_KEY_LENGTH];
           TABLE_REF ref;
           uint range_fl, prefix_len;
+          bool reverse= false;
 
           ref.key_buff= key_buff;
           Item_field *item_field= (Item_field*) (expr->real_item());
@@ -393,7 +411,7 @@ int opt_sum_query(THD *thd,
           */
           if (table->file->inited || (outer_tables & table->map) ||
               !find_key_for_maxmin(is_max, &ref, item_field->field, conds,
-                                   &range_fl, &prefix_len))
+                                   &range_fl, &prefix_len, &reverse))
           {
             const_result= 0;
             break;
@@ -407,9 +425,9 @@ int opt_sum_query(THD *thd,
             if (likely(!(error= table->file->ha_index_init((uint) ref.key,
                                                            1))))
               error= (is_max ?
-                      get_index_max_value(table, &ref, range_fl) :
+                      get_index_max_value(table, &ref, range_fl, reverse) :
                       get_index_min_value(table, &ref, item_field, range_fl,
-                                          prefix_len));
+                                          prefix_len, reverse));
           }
           /* Verify that the read tuple indeed matches the search key */
 	  if (!error &&
@@ -899,6 +917,7 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
   @param[in]     cond        WHERE condition
   @param[out]    range_fl    Bit flags for how to search if key is ok
   @param[out]    prefix_len  Length of prefix for the search range
+  @param[out]    reverse     Whether the key part used is descending index
 
   @note
     This function may set field->table->key_read to true,
@@ -914,7 +933,8 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
       
 static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
                                 Field* field, COND *cond,
-                                uint *range_fl, uint *prefix_len)
+                                uint *range_fl, uint *prefix_len,
+                                bool *reverse)
 {
   if (!(field->flags & PART_KEY_FLAG))
     return FALSE;                               // Not key field
@@ -994,6 +1014,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
           */
           if (field->part_of_key.is_set(idx))
             table->file->ha_start_keyread(idx);
+          *reverse= part->key_part_flag & HA_REVERSE_SORT ? true : false;
           DBUG_RETURN(TRUE);
         }
       }

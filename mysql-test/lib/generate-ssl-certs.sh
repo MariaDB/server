@@ -24,10 +24,13 @@ openssl req -x509 -newkey rsa:4096 -keyout cakey.pem -out cacert.pem -days 7300 
 openssl req -newkey rsa:4096 -keyout server-key.pem -out demoCA/server-req.pem -days 7300 -nodes -subj '/CN=localhost/C=FI/ST=state or province within country, in other certificates in this file it is the same as L/L=location, usually an address but often ambiguously used/OU=organizational unit name, a division name within an organization/O=organization name, typically a company name'
 # convert the key to yassl compatible format
 openssl rsa -in server-key.pem -out server-key.pem
+# also create a password-protected server key
+echo MySecretPass > encrypted-server-key-password.txt
+openssl rsa -aes256 -in server-key.pem -out encrypted-server-key.pem -passout file:encrypted-server-key-password.txt
 # sign the server certificate with CA certificate
 openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out server-cert.pem -in demoCA/server-req.pem
 
-# server certificate with different validity period (MDEV-7598)
+# server certificate with different validity period (MDEV-16266)
 openssl req -newkey rsa:4096 -keyout server-new-key.pem -out demoCA/server-new-req.pem -days 7301 -nodes -subj '/CN=server-new/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB'
 openssl rsa -in server-new-key.pem -out server-new-key.pem
 openssl ca -keyfile cakey.pem -days 7301 -batch -cert cacert.pem -policy policy_anything -out server-new-cert.pem -in demoCA/server-new-req.pem

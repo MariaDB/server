@@ -9,6 +9,8 @@ set global spider_same_server_link=1;
 CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 CREATE TABLE t1 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a));
 CREATE TABLE t2 ( a bigint(20) NOT NULL, b bigint(20) DEFAULT 0, PRIMARY KEY (a)) ENGINE=SPIDER COMMENT='srv "srv", WRAPPER "mysql", TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM t2 WHERE b IN (SELECT b FROM t2 WHERE a > 10);
 a	b
 SELECT * FROM t2

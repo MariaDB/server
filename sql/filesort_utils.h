@@ -16,16 +16,20 @@
 #ifndef FILESORT_UTILS_INCLUDED
 #define FILESORT_UTILS_INCLUDED
 
+#include "my_global.h"
 #include "my_base.h"
 #include "sql_array.h"
+#include "handler.h"
 
 class Sort_param;
-/*
+
+/**
   Calculate cost of merge sort
 
     @param num_rows            Total number of rows.
     @param num_keys_per_buffer Number of keys per buffer.
     @param elem_size           Size of each element.
+    @param key_compare_cost    Cost to compare two keys during QSort & merge
 
     Calculates cost of merge sort by simulating call to merge_many_buff().
 
@@ -38,19 +42,82 @@ class Sort_param;
 
     See also comments get_merge_many_buffs_cost().
 */
-
 double get_merge_many_buffs_cost_fast(ha_rows num_rows,
                                       ha_rows num_keys_per_buffer,
-                                      uint    elem_size);
+                                      size_t elem_size,
+                                      double compare_cost,
+                                      bool with_addon_fields);
 
+
+
+/**
+  These are the current sorting algorithms we compute cost for:
+
+  PQ_SORT_ALL_FIELDS      Sort via priority queue, with addon fields.
+  PQ_SORT_ORDER_BY_FIELDS Sort via priority queue, without addon fields.
+
+  MERGE_SORT_ALL_FIELDS      Sort via merge sort, with addon fields.
+  MERGE_SORT_ORDER_BY_FIELDS Sort via merge sort, without addon fields.
+
+  Note:
+  There is the possibility to do merge-sorting with dynamic length fields.
+  This is more expensive than if there are only fixed length fields,
+  however we do not (yet) account for that extra cost. We can extend the
+  cost computation in the future to cover that case as well.
+
+  Effectively there are 4 possible combinations for merge sort:
+    With/without addon fields
+    With/without dynamic length fields.
+*/
+
+enum sort_type
+{
+  PQ_SORT_ALL_FIELDS= 0,
+  PQ_SORT_ORDER_BY_FIELDS,
+  MERGE_SORT_ALL_FIELDS,
+  MERGE_SORT_ORDER_BY_FIELDS,
+
+  NO_SORT_POSSIBLE_OUT_OF_MEM,                  /* In case of errors */
+  FINAL_SORT_TYPE= NO_SORT_POSSIBLE_OUT_OF_MEM
+};
+
+struct Sort_costs
+{
+  Sort_costs() :
+    fastest_sort(NO_SORT_POSSIBLE_OUT_OF_MEM), lowest_cost(DBL_MAX) {}
+
+  void compute_sort_costs(Sort_param *param, ha_rows num_rows,
+                          size_t memory_available,
+                          bool with_addon_fields);
+
+  /* Cache value for fastest_sort. */
+  enum sort_type fastest_sort;
+  /* Cache value for lowest cost. */
+  double lowest_cost;
+private:
+  /*
+    Array to hold all computed costs.
+    TODO(cvicentiu) This array is only useful for debugging. If it's not
+    used in debugging code, it can be removed to reduce memory usage.
+  */
+  double costs[FINAL_SORT_TYPE];
+
+  void compute_pq_sort_costs(Sort_param *param, ha_rows num_rows,
+                             size_t memory_available,
+                             bool with_addon_fields);
+  void compute_merge_sort_costs(Sort_param *param, ha_rows num_rows,
+                                size_t memory_available,
+                                bool with_addon_fields);
+  void compute_fastest_sort();
+};
 
 /**
   A wrapper class around the buffer used by filesort().
   The sort buffer is a contiguous chunk of memory,
   containing both records to be sorted, and pointers to said records:
 
-  <start of buffer       | still unused   |                     end of buffer>
-  |rec 0|record 1 |rec 2|  ............  |ptr to rec2|ptr to rec1|ptr to rec0|
+  <start of buffer     |  still unused  |                      end of buffer>
+  | rec0 | rec1 | rec2 |  ............  |ptr to rec2|ptr to rec1|ptr to rec0|
 
   Records will be inserted "left-to-right". Records are not necessarily
   fixed-size, they can be packed and stored without any "gaps".
@@ -268,8 +335,14 @@ private:
   longlong m_idx;
 };
 
+/* Names for sort_type */
+extern const LEX_CSTRING filesort_names[];
+
+double cost_of_filesort(TABLE *table, ORDER *order_by, ha_rows rows_to_read,
+                        ha_rows limit_rows, enum sort_type *used_sort_type);
+
+double get_qsort_sort_cost(ha_rows num_rows, bool with_addon_fields);
 int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
                              const void *b_ptr);
 qsort_cmp2 get_packed_keys_compare_ptr();
-
 #endif  // FILESORT_UTILS_INCLUDED

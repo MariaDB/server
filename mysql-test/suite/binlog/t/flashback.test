@@ -1,5 +1,6 @@
 --source include/have_binlog_format_row.inc
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 --echo #
 --echo # Preparatory cleanup.
@@ -212,7 +213,7 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 --echo # < CASE 5 >
---echo # REPLCAE Queries
+--echo # REPLACE Queries
 --echo #
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, UNIQUE uk(b)) ENGINE=InnoDB;
@@ -372,7 +373,76 @@ DROP TABLE t1;
 --error 1 # --raw mode and --flashback mode are not allowed
 --exec $MYSQL_BINLOG -vv -B --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000003> $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_8.sql
 
+--echo #
+--echo # < CASE 8 >
+--echo # Verify flashback works well for binlog_row_image full_nodup mode
+--echo #
+CREATE TABLE t1 (
+  c01 TINYINT PRIMARY KEY,
+  c02 SMALLINT,
+  c03 MEDIUMINT,
+  c04 INT,
+  c05 BIGINT,
+  c06 CHAR(10),
+  c07 VARCHAR(20),
+  c08 TEXT,
+  c09 ENUM('one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'),
+  c10 SET('black', 'white', 'red', 'yellow'),
+  c11 TIMESTAMP(3),
+  c12 DATETIME(3)
+) ENGINE = InnoDB;
+
+INSERT INTO t1 VALUES (1, 1, 1, 1, 1, 'A', 'A', 'A', 'one', 'black',
+                       '2023-11-26 10:00:00.123', '2023-11-26 10:00:00');
+INSERT INTO t1 VALUES (2, 1, 1, 1, 1, 'A', 'A', 'A', 'one', 'black',
+                       '2023-11-26 10:00:00.123', '2023-11-26 10:00:00');
+INSERT INTO t1 VALUES (3, 1, NULL, 1, 1, 'A', 'A', 'A', 'one', 'black',
+                       '2023-11-26 10:00:00.123', NULL);
+INSERT INTO t1 VALUES (4, 1, NULL, 1, 1, 'A', 'A', 'A', 'one', 'black',
+                       '2023-11-26 10:00:00.123', NULL);
+
+--let $checksum_old= `CHECKSUM TABLE t1`
+
+FLUSH BINARY LOGS;
+--echo # The update includes the cases that
+--echo # Value -> Value
+--echo # Value -> NULL
+--echo # NULL  -> value
+--echo # and the changed null bits in both first and second null byte
+
+UPDATE t1 SET c02 = NULL, c03 = 2, c09 = 'two',
+              c10 = NULL, c12 = '2023-11-26 11:00:00';
+--let $master_file= query_get_value("SHOW MASTER STATUS", File, 1)
+--let $MYSQLD_DATADIR= `select @@datadir`
+FLUSH BINARY LOGS;
+
+--echo #
+--echo # Data before flashback
+--echo #
+SELECT * FROM t1;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/$master_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback.sql;"
+
+--echo #
+--echo # Data after flashback
+--echo #
+SELECT * FROM t1;
+
+# After flashback, t1's checksum should be same to original checksum
+--let $checksum_new = `CHECKSUM TABLE t1`
+if ($checksum_new != $checksum_old)
+{
+  --die "After flashback, t1's checksum is different from the original checksum"
+}
+
+DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback.sql
+
 ## Clear
 SET binlog_format=statement;
 --error ER_FLASHBACK_NOT_SUPPORTED
 SET GLOBAL binlog_format=statement;
+
+--source include/test_db_charset_restore.inc

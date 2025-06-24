@@ -1,6 +1,6 @@
 --source include/have_sequence.inc
 #
-# Test of basic rownum() functionallity
+# Test of basic rownum() functionality
 # Test are done with Aria to ensure that row order is stable
 #
 

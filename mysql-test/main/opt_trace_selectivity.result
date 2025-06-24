@@ -1,0 +1,370 @@
+create or replace table t1 (a int, b int, c int, key(a,c), key(b,c), key (c,b)) engine=aria;
+insert into t1 select seq/100+1, mod(seq,10), mod(seq,15) from seq_1_to_10000;
+insert into t1 select seq/100+1, mod(seq,10), 10 from seq_1_to_1000;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+select count(*) from t1 where a=2;
+count(*)
+200
+select count(*) from t1 where b=5;
+count(*)
+1100
+select count(*) from t1 where c=5;
+count(*)
+667
+select count(*) from t1 where c=10;
+count(*)
+1667
+select count(*) from t1 where a=2 and b=5;
+count(*)
+20
+select count(*) from t1 where c=10 and b=5;
+count(*)
+433
+select count(*) from t1 where c=5 and b=5;
+count(*)
+334
+set optimizer_trace="enabled=on";
+select count(*) from t1 where a=2 and b=5 and c=10;
+count(*)
+14
+set @trace=(select trace from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
+select 
+JSON_DETAILED(
+JSON_EXTRACT(
+JSON_EXTRACT(@trace, '$**.considered_execution_plans'),
+'$[0]'
+    )
+) as JS;
+JS
+[
+    {
+        "plan_prefix": "",
+        "get_costs_for_tables": 
+        [
+            {
+                "best_access_path": 
+                {
+                    "table": "t1",
+                    "plan_details": 
+                    {
+                        "record_count": 1
+                    },
+                    "considered_access_paths": 
+                    [
+                        {
+                            "access_type": "ref",
+                            "index": "a",
+                            "used_range_estimates": true,
+                            "rows": 104,
+                            "cost": 0.060988785,
+                            "chosen": true
+                        },
+                        {
+                            "access_type": "ref",
+                            "index": "b",
+                            "used_range_estimates": true,
+                            "rows": 340,
+                            "cost": 0.141618657,
+                            "chosen": false,
+                            "cause": "cost"
+                        },
+                        {
+                            "access_type": "ref",
+                            "index": "c",
+                            "used_range_estimates": true,
+                            "rows": 632,
+                            "cost": 0.241826241,
+                            "chosen": false,
+                            "cause": "cost"
+                        },
+                        {
+                            "access_type": "index_merge",
+                            "rows": 7,
+                            "rows_after_filter": 7,
+                            "rows_out": 7,
+                            "cost": 0.045367017,
+                            "chosen": true
+                        }
+                    ],
+                    "chosen_access_method": 
+                    {
+                        "type": "index_merge",
+                        "rows_read": 7,
+                        "rows_out": 7,
+                        "cost": 0.045367017,
+                        "uses_join_buffering": false
+                    }
+                }
+            }
+        ]
+    },
+    {
+        "plan_prefix": "",
+        "table": "t1",
+        "rows_for_plan": 7,
+        "cost_for_plan": 0.045367017
+    }
+]
+select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.selectivity_for_indexes')) as JS;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.009454545
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 0.1
+        },
+        {
+            "use_opt_range_condition_rows_selectivity": 6.363636e-4
+        }
+    ]
+]
+select count(*) from t1 where a=2 and b=5 and c=5;
+count(*)
+3
+set @trace=(select trace from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
+select 
+JSON_DETAILED(
+JSON_EXTRACT(
+JSON_EXTRACT(@trace, '$**.considered_execution_plans'),
+'$[0]'
+    )
+) as JS;
+JS
+[
+    {
+        "plan_prefix": "",
+        "get_costs_for_tables": 
+        [
+            {
+                "best_access_path": 
+                {
+                    "table": "t1",
+                    "plan_details": 
+                    {
+                        "record_count": 1
+                    },
+                    "considered_access_paths": 
+                    [
+                        {
+                            "access_type": "ref",
+                            "index": "a",
+                            "used_range_estimates": true,
+                            "rows": 6,
+                            "cost": 0.005388489,
+                            "chosen": true
+                        },
+                        {
+                            "access_type": "ref",
+                            "index": "b",
+                            "used_range_estimates": true,
+                            "rows": 232,
+                            "cost": 0.104720241,
+                            "chosen": false,
+                            "cause": "cost"
+                        },
+                        {
+                            "access_type": "ref",
+                            "index": "c",
+                            "used_range_estimates": true,
+                            "rows": 293,
+                            "cost": 0.125561013,
+                            "chosen": false,
+                            "cause": "cost"
+                        },
+                        {
+                            "type": "scan",
+                            "chosen": false,
+                            "cause": "cost"
+                        }
+                    ],
+                    "chosen_access_method": 
+                    {
+                        "type": "ref",
+                        "index": "a",
+                        "rows_read": 6,
+                        "rows_out": 0.6,
+                        "cost": 0.005388489,
+                        "uses_join_buffering": false
+                    }
+                }
+            }
+        ]
+    },
+    {
+        "plan_prefix": "",
+        "table": "t1",
+        "rows_for_plan": 0.6,
+        "cost_for_plan": 0.005388489,
+        "pushdown_cond_selectivity": 0.1,
+        "filtered": 10,
+        "rows_out": 0.6
+    }
+]
+select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.selectivity_for_indexes')) as JS;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 5.454545e-4
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 0.1
+        }
+    ]
+]
+# Ensure that we only use selectivity from non used index for simple cases
+select count(*) from t1 where (a=2 and b= 5);
+count(*)
+20
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.017545455
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 0.073181818
+        }
+    ]
+]
+# All of the following should have selectivity=1 for index 'b'
+select count(*) from t1 where (a=2 and b between 0 and 100);
+count(*)
+200
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.017545455
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+select count(*) from t1 where (a in (2,3) and b between 0 and 100);
+count(*)
+400
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.035090909
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+select count(*) from t1 where (a>2 and b between 0 and 100);
+count(*)
+10702
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.973909091
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+select count(*) from t1 where (a>=2 and b between 0 and 100);
+count(*)
+10902
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.991454545
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+select count(*) from t1 where (a<=2 and b between 0 and 100);
+count(*)
+298
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.026181818
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+select count(*) from t1 where (a<2 and b between 0 and 100);
+count(*)
+98
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.008636364
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+select count(*) from t1 where (a between 2 and 3 and b between 0 and 100);
+count(*)
+400
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JS
+[
+    [
+        {
+            "index_name": "a",
+            "selectivity_from_index": 0.035090909
+        },
+        {
+            "index_name": "b",
+            "selectivity_from_index": 1
+        }
+    ]
+]
+drop table t1;
+set optimizer_trace='enabled=off';

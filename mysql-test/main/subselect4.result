@@ -49,7 +49,7 @@ INSERT INTO t2 SELECT * FROM t1;
 CREATE TABLE t3 LIKE t1;
 INSERT INTO t3 SELECT * FROM t1;
 # Should not crash.
-# Should have 1 impossible where and 2 dependent subqs.
+# Should have 1 impossible where and 2 dependent subqueries.
 EXPLAIN
 SELECT
 (SELECT 1 FROM t1,t2 WHERE t2.b > t3.b)
@@ -265,7 +265,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
 SELECT * FROM t1 WHERE NULL     IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk) IS UNKNOWN;
@@ -335,7 +335,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
 0	10
@@ -413,29 +413,6 @@ Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `RESULT` from dual group by NULL
 DROP TABLE t1,t2;
 #
-# BUG#45928 "Differing query results depending on MRR and
-# engine_condition_pushdown settings"
-#
-CREATE TABLE `t1` (
-`pk` int(11) NOT NULL AUTO_INCREMENT,
-`time_nokey` time NOT NULL,
-`varchar_key` varchar(1) NOT NULL,
-`varchar_nokey` varchar(1) NOT NULL,
-PRIMARY KEY (`pk`),
-KEY `varchar_key` (`varchar_key`)
-) AUTO_INCREMENT=12 DEFAULT CHARSET=latin1;
-INSERT INTO `t1` VALUES (10,'00:00:00','i','i'),(11,'00:00:00','','');
-set @old_optimizer_switch          = @@session.optimizer_switch;
-SET SESSION OPTIMIZER_SWITCH = 'materialization=off,semijoin=off,loosescan=off,firstmatch=off,mrr=on,engine_condition_pushdown=on';
-Warnings:
-Warning	1681	'engine_condition_pushdown=on' is deprecated and will be removed in a future release
-SELECT `time_nokey` G1  FROM t1  WHERE ( `varchar_nokey`  , `varchar_key`  )  IN ( 
-SELECT `varchar_nokey`  , `varchar_nokey`  )  AND `varchar_key`  >= 'c' HAVING G1  ORDER 
-BY `pk`   ;
-G1
-set @@session.optimizer_switch          = @old_optimizer_switch;
-DROP TABLE t1;
-#
 # During work with BUG#45863 I had problems with a query that was
 # optimized differently in regular and prepared mode.
 # Because there was a bug in one of the selected strategies, I became
@@ -445,17 +422,17 @@ CREATE TABLE t1
 (EMPNUM   CHAR(3) NOT NULL,
 EMPNAME  CHAR(20),
 GRADE    DECIMAL(4),
-CITY     CHAR(15));
+CITY     CHAR(15)) CHARSET=latin1;
 CREATE TABLE t2
 (PNUM     CHAR(3) NOT NULL,
 PNAME    CHAR(20),
 PTYPE    CHAR(6),
 BUDGET   DECIMAL(9),
-CITY     CHAR(15));
+CITY     CHAR(15)) CHARSET=latin1;
 CREATE TABLE t3
 (EMPNUM   CHAR(3) NOT NULL,
 PNUM     CHAR(3) NOT NULL,
-HOURS    DECIMAL(5));
+HOURS    DECIMAL(5)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('E1','Alice',12,'Deale');
 INSERT INTO t1 VALUES ('E2','Betty',10,'Vienna');
 INSERT INTO t1 VALUES ('E3','Carmen',13,'Vienna');
@@ -616,9 +593,7 @@ PRIMARY KEY (pk)
 INSERT INTO t2 VALUES (9,1);
 # Enable Index condition pushdown
 set @old_icp=@@optimizer_switch;
-SET SESSION optimizer_switch="engine_condition_pushdown=on";
-Warnings:
-Warning	1681	'engine_condition_pushdown=on' is deprecated and will be removed in a future release
+SET SESSION optimizer_switch="index_condition_pushdown=on";
 
 SELECT pk
 FROM t2
@@ -714,8 +689,7 @@ WHERE ( t1.f10 ) IN ( SELECT f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE f3 = (
 SELECT t1.f3 FROM t1
@@ -729,8 +703,7 @@ WHERE ( f10, f10 ) IN ( SELECT f11, f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE f3 = (
 SELECT f3 FROM t1
@@ -1172,7 +1145,7 @@ WHERE (t2.pk = t1.pk) AND t2.pk IN (SELECT f2 FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	
-2	DEPENDENT SUBQUERY	t1	index_subquery	f2	f2	4	func	2	Using index
+2	DEPENDENT SUBQUERY	t1	index_subquery	f2	f2	4	func	1	Using index
 SELECT t1.f3, MAX(t1.f2)
 FROM t1, t2
 WHERE (t2.pk = t1.pk) AND t2.pk IN (SELECT f2 FROM t1);
@@ -1247,12 +1220,12 @@ drop table t1, t2;
 #
 # LP BUG#641203 Query returns rows where no result is expected (impossible WHERE)
 #
-CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL);
-CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL);
-INSERT INTO t2 VALUES ('k'), ('d');
-CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL);
+CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
+CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
+INSERT INTO t2 VALUES ('k'), ('d'),('x');
+CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL) CHARSET=latin1;
 INSERT INTO t3 VALUES ('a'), ('b'), ('c');
-CREATE TABLE t4 (c1 varchar(1) primary key);
+CREATE TABLE t4 (c1 varchar(1) primary key) CHARSET=latin1;
 INSERT INTO t4 VALUES ('k'), ('d');
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
@@ -1262,16 +1235,16 @@ EXPLAIN
 SELECT * FROM t1 RIGHT JOIN t2 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT * FROM t1 RIGHT JOIN t2 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 EXPLAIN
 SELECT * FROM t2 LEFT JOIN t1 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT * FROM t2 LEFT JOIN t1 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 SET optimizer_switch='materialization=on';
@@ -1279,19 +1252,18 @@ EXPLAIN
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.c1) LEFT JOIN t3 on t3.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.c1) LEFT JOIN t3 on t3.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1	c1
 EXPLAIN
 SELECT * FROM t4 LEFT JOIN t2 ON t4.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t4	index	NULL	PRIMARY	3	NULL	2	Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t4	index	NULL	PRIMARY	3	NULL	2	Using index; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t4 LEFT JOIN t2 ON t4.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 SET optimizer_switch=@save_optimizer_switch;
@@ -1370,8 +1342,8 @@ GROUP BY SQ1_t1.f4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using temporary
-3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using join buffer (flat, BNL join)
+3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
+3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
 WHERE f4 <= ALL
@@ -1542,7 +1514,7 @@ EXPLAIN
 SELECT 'bug' FROM DUAL WHERE ( 5 ) IN ( SELECT * FROM v1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	4	const	1	Using where
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1552,7 +1524,7 @@ EXPLAIN
 SELECT ( 5 ) IN ( SELECT * FROM v1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	4	const	1	Using where
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1563,7 +1535,7 @@ EXPLAIN
 SELECT 'bug' FROM DUAL WHERE ( 5 ) IN (SELECT * FROM v2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	5	const	1	Using where
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1583,7 +1555,7 @@ EXPLAIN
 SELECT ( 5 ) IN ( SELECT * FROM v2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	index_subquery	NULL	distinct_key	5	const	2	
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1595,7 +1567,7 @@ EXPLAIN
 SELECT 'bug' FROM DUAL WHERE ( 5 ) IN ( SELECT * FROM v1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	4	const	1	Using where
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1605,7 +1577,7 @@ EXPLAIN
 SELECT ( 5 ) IN ( SELECT * FROM v1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	4	const	1	Using where
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1616,7 +1588,7 @@ EXPLAIN
 SELECT 'bug' FROM DUAL WHERE ( 5 ) IN (SELECT * FROM v2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	5	const	1	Using where
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1626,7 +1598,7 @@ EXPLAIN
 SELECT 'bug' FROM t3 WHERE ( 5 ) IN (SELECT * FROM v2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	const	NULL	distinct_key	5	const	1	Using where
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1636,7 +1608,7 @@ EXPLAIN
 SELECT ( 5 ) IN ( SELECT * FROM v2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	<derived3>	index_subquery	NULL	distinct_key	5	const	2	
 3	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	
 4	UNION	t2	system	NULL	NULL	NULL	NULL	1	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -1677,7 +1649,7 @@ WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f
 f1	f2
 8	8
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'u'
+Warning	1292	Truncated incorrect BOOLEAN value: 'u'
 EXPLAIN
 SELECT * FROM t2 WHERE (f1b, f2b) IN (SELECT max(f1a), f2a FROM t1 GROUP BY f1a, f2a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1711,7 +1683,7 @@ WHERE ( alias2.f1 , alias2.f2 ) IN ( SELECT max(f2) , f1 FROM t0 GROUP BY f2 , f
 f1	f2
 8	8
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'u'
+Warning	1292	Truncated incorrect BOOLEAN value: 'u'
 EXPLAIN
 SELECT * FROM t2 WHERE (f1b, f2b) IN (SELECT max(f1a), f2a FROM t1 GROUP BY f1a, f2a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1903,8 +1875,8 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 (SELECT col_varchar_nokey FROM t1 GROUP BY col_varchar_nokey));
 col_int_key
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'v'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'v'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
 set @@optimizer_switch='subquery_cache=off,materialization=off,in_to_exists=on,semijoin=off';
 EXPLAIN
 SELECT col_int_key
@@ -1930,8 +1902,8 @@ WHERE SUBQUERY2_t2.col_varchar_nokey IN
 (SELECT col_varchar_nokey FROM t1 GROUP BY col_varchar_nokey));
 col_int_key
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'v'
-Warning	1292	Truncated incorrect DECIMAL value: 'r'
+Warning	1292	Truncated incorrect BOOLEAN value: 'v'
+Warning	1292	Truncated incorrect BOOLEAN value: 'r'
 drop table t1, t2;
 set @@optimizer_switch = @old_optimizer_switch;
 #
@@ -2573,7 +2545,7 @@ DROP TABLE t1,t2;
 #
 # MDEV-17606: Query returns wrong results (while using CHARACTER SET utf8)
 #
-CREATE TABLE t1(l1 varchar(10), i2 int);
+CREATE TABLE t1(l1 varchar(10), i2 int) CHARSET=latin1;
 INSERT INTO t1 VALUES ('e',2),('o',6),('x',4);
 CREATE TABLE t2 (v1 varchar(10) CHARACTER SET utf8, KEY v1 (v1(3)));
 INSERT INTO t2 VALUES  ('k'),('rid'),('f'),('x');
@@ -2737,15 +2709,15 @@ drop table t1;
 #
 # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
 #
-CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1));
+CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1)) CHARSET=latin1;
 INSERT INTO t1 VALUES
 (9,'y'),(4,'q'),(0,null),(0,'p'),(null,'j');
 CREATE TABLE t2 (pk int);
 INSERT INTO t2 VALUES (1),(2);
-CREATE TABLE t3 (v2 varchar(1));
+CREATE TABLE t3 (v2 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES
 ('p'),('j'),('y'),('q');
-CREATE TABLE t4 (v2 varchar(1));
+CREATE TABLE t4 (v2 varchar(1)) CHARSET=latin1;
 INSERT INTO t4 VALUES
 ('a'),('a'),('b'),('b'),('c'),('c'),
 ('d'),('d'),('e'),('e'),('f'),('f'),
@@ -2757,12 +2729,21 @@ INSERT INTO t4 VALUES
 ('w'),('w'),('x'),('x'), (NULL),(NULL);
 SET @save_join_cache_level=@@join_cache_level;
 SET join_cache_level=0;
+explain select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	index	NULL	v1	9	NULL	5	Using index
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	MATERIALIZED	t1	ref	v1	v1	4	test.t3.v2	1	Using index
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	50	
 select 1
 from t2 join t1 on
-('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 1
 Warnings:
-Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 500. The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 10. The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
@@ -2783,18 +2764,17 @@ EXPLAIN
 SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-set names 'utf8';
+set names utf8 collate utf8_general_ci;
 #
-# IN predicate to IN subquery is performed as materialization is llowed
+# IN predicate to IN subquery is performed as materialization is allowed
 # The character set on the inner side is a proper subset of the outer side
 #
 # this test in 10.5 has only 2 rows in the IN predicate
 EXPLAIN
 SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	ref	key1,distinct_key	key1	4	test.t2.b	1	Using where; FirstMatch(t2)
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
@@ -2859,20 +2839,20 @@ CREATE TABLE t1 (
 key1 varchar(30) NOT NULL,
 col1 int(11) NOT NULL,
 filler char(100)
-);
+) CHARSET=latin1;
 insert into t1 select seq, seq, seq from seq_1_to_100;
 CREATE TABLE t10 (
 key1 varchar(30) NOT NULL,
 col1 int,
 filler char(100),
 PRIMARY KEY (key1)
-);
+) CHARSET=latin1;
 insert into t10 select seq, seq, seq from seq_1_to_1000;
 CREATE TABLE t11 (
 key1 varchar(30) NOT NULL,
 filler char(100),
 PRIMARY KEY (key1)
-);
+) CHARSET=latin1;
 insert into t11 select seq, seq from seq_1_to_1000;
 set @tmp_os=@@optimizer_switch;
 set optimizer_switch='semijoin=off,materialization=off';
@@ -2886,8 +2866,8 @@ WHERE tn.key1 IN ('1','2','3','4','5','6','7','8','9','10')
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	hist	ALL	NULL	NULL	NULL	NULL	100	Using where
-2	DEPENDENT SUBQUERY	tms	range	PRIMARY	PRIMARY	32	NULL	10	Using where; Using index
-2	DEPENDENT SUBQUERY	tn	eq_ref	PRIMARY	PRIMARY	32	test.tms.key1	1	Using where
+2	DEPENDENT SUBQUERY	tn	range	PRIMARY	PRIMARY	32	NULL	10	Using index condition; Using where
+2	DEPENDENT SUBQUERY	tms	eq_ref	PRIMARY	PRIMARY	32	test.tn.key1	1	Using index
 set optimizer_switch=@tmp_os;
 drop table t1, t10, t11;
 #
@@ -2901,64 +2881,91 @@ SELECT DISTINCT
 FROM t1;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "duplicate_removal": {
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 2,
-          "r_rows": 2,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "r_engine_stats": REPLACED,
-          "filtered": 100,
-          "r_filtered": 100
-        },
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 2,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ],
         "subqueries": [
           {
-            "expression_cache": {
+            "subquery_cache": {
               "state": "disabled",
               "r_loops": 0,
               "query_block": {
                 "select_id": 2,
+                "cost": "REPLACED",
                 "r_loops": 1,
                 "r_total_time_ms": "REPLACED",
-                "table": {
-                  "table_name": "t1",
-                  "access_type": "ALL",
-                  "r_loops": 1,
-                  "rows": 2,
-                  "r_rows": 2,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
-                  "r_engine_stats": REPLACED,
-                  "filtered": 100,
-                  "r_filtered": 50,
-                  "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
-                },
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "r_loops": 1,
+                      "rows": 2,
+                      "r_rows": 2,
+                      "cost": "REPLACED",
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_total_filtered": 50,
+                      "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))",
+                      "r_filtered": 50
+                    }
+                  }
+                ],
                 "subqueries": [
                   {
                     "query_block": {
                       "select_id": 3,
+                      "cost": "REPLACED",
                       "r_loops": 1,
                       "r_total_time_ms": "REPLACED",
-                      "table": {
-                        "table_name": "t1",
-                        "access_type": "ALL",
-                        "r_loops": 1,
-                        "rows": 2,
-                        "r_rows": 2,
-                        "r_table_time_ms": "REPLACED",
-                        "r_other_time_ms": "REPLACED",
-                        "r_engine_stats": REPLACED,
-                        "filtered": 100,
-                        "r_filtered": 100
-                      }
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "r_loops": 1,
+                            "rows": 2,
+                            "r_rows": 2,
+                            "cost": "REPLACED",
+                            "r_table_time_ms": "REPLACED",
+                            "r_other_time_ms": "REPLACED",
+                            "r_engine_stats": REPLACED,
+                            "filtered": 100,
+                            "r_total_filtered": 100,
+                            "r_filtered": 100
+                          }
+                        }
+                      ]
                     }
                   }
                 ]
@@ -3263,37 +3270,58 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 3,
-      "filtered": 100,
-      "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
-    },
+    "cost": 0.012403489,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 3,
+          "cost": 0.010504815,
+          "filtered": 100,
+          "attached_condition": "t1.a = <cache>((<in_optimizer>((subquery#2),<exists>(subquery#3))) + 1)"
+        }
+      }
+    ],
     "subqueries": [
       {
         "query_block": {
           "select_id": 3,
+          "cost": 0.01034841,
           "having_condition": "trigcond(t3.c is null)",
-          "table": {
-            "table_name": "t3",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.01034841,
+                "filtered": 100,
+                "attached_condition": "trigcond(1 = t3.c or t3.c is null)"
+              }
+            }
+          ]
         }
       },
       {
         "query_block": {
           "select_id": 2,
-          "table": {
-            "table_name": "t2",
-            "access_type": "ALL",
-            "rows": 2,
-            "filtered": 100,
-            "attached_condition": "t2.b = 1"
-          }
+          "cost": 0.01034841,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 2,
+                "cost": 0.01034841,
+                "filtered": 100,
+                "attached_condition": "t2.b = 1"
+              }
+            }
+          ]
         }
       }
     ]

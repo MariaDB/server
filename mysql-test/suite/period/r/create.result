@@ -9,18 +9,33 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create view v as select * from t;
+select * from information_schema.periods;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+def	test	t	mytime	s	e
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+drop view v;
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
 period for mytime(s,e));
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `id` int(11) NOT NULL,
-  `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `s` timestamp(6) NOT NULL,
+  `e` timestamp(6) NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)a)
 # 2) If a <table period definition> TPD is specified, then:
 # a) <table scope> shall not be specified.
@@ -93,7 +108,7 @@ t	CREATE TABLE `t` (
   `e` date NOT NULL,
   PERIOD FOR `mytime` (`s`, `e`),
   CONSTRAINT `mytime` CHECK (`x` > 1)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t values (2, '2001-01-01', '2001-01-01');
 ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
 show status like "Feature_application_time_periods";
@@ -111,3 +126,40 @@ create table t2 (s date, e date, period for
 `abcd123456789012345678901234567890123456789012345678901234567890`
                  (s,e));
 drop table t2;
+# MDEV-32205 Server crashes in get_schema_key_period_usage_record on
+# server without InnoDB
+# Make sure innodb id disabled, but there's at least one innodb table
+select "yes" from information_schema.tables where engine="innodb" limit 1;
+yes
+yes
+select plugin_status from information_schema.all_plugins where plugin_name = "innodb";
+plugin_status
+DISABLED
+select * from information_schema.periods;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+# [DUPLICATE] MDEV-32204 Server crashes in
+# get_schema_key_period_usage_record
+create table t (a date) engine=myisam;
+create table  t1 (a int) engine=merge union = (t) ;
+select 1 from information_schema.key_period_usage;
+1
+Warnings:
+Warning	1168	Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+drop table t1;
+drop table t;
+create view v1 as select 1;
+create view v2 as select * from v1;
+drop view v1;
+select * from information_schema.key_period_usage;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD_NAME
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1356	View 'test.v2' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v2;

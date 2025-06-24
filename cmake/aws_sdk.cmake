@@ -43,7 +43,7 @@ FUNCTION (CHECK_AWS_SDK RETVAL REASON)
   ENDIF()
 
   IF(UNIX)
-    # Check librairies required for building SDK
+    # Check libraries required for building SDK
     FIND_PACKAGE(CURL)
     SET_PACKAGE_PROPERTIES(CURL PROPERTIES TYPE REQUIRED)
     IF(NOT CURL_FOUND)

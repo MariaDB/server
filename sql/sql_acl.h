@@ -58,6 +58,8 @@ extern LEX_CSTRING host_not_specified;
 extern LEX_CSTRING current_user;
 extern LEX_CSTRING current_role;
 extern LEX_CSTRING current_user_and_current_role;
+extern LEX_CSTRING none;
+extern LEX_CSTRING public_name;
 
 
 static inline int access_denied_error_code(int passwd_used)
@@ -76,18 +78,17 @@ bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
-privilege_t acl_get(const char *host, const char *ip,
-                    const char *user, const char *db, my_bool db_is_pattern);
+privilege_t acl_get_all3(Security_context *sctx, const char *db,
+                         bool db_is_patern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
-bool acl_getroot(Security_context *sctx, const char *user, const char *host,
-                 const char *ip, const char *db);
+bool acl_getroot(Security_context *sctx,
+                 const LEX_CSTRING &user, const LEX_CSTRING &host,
+                 const LEX_CSTRING &ip, const LEX_CSTRING &db);
 bool acl_check_host(const char *host, const char *ip);
 bool check_change_password(THD *thd, LEX_USER *user);
 bool change_password(THD *thd, LEX_USER *user);
 
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
-bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &user_list,
-                 privilege_t rights, bool revoke, bool is_proxy);
 int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
                        List <LEX_COLUMN> &column_list, privilege_t rights,
                        bool revoke);
@@ -101,9 +102,10 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
 bool check_grant_column (THD *thd, GRANT_INFO *grant,
                          const char *db_name, const char *table_name,
-                         const char *name, size_t length, Security_context *sctx);
+                         const Lex_ident_column &name,
+                         Security_context *sctx);
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
-                                     const char *name, size_t length, Field *fld);
+                                     const Lex_ident_column &name, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
                              Field_iterator_table_ref *fields);
 bool check_grant_routine(THD *thd, privilege_t want_access,
@@ -118,7 +120,7 @@ bool check_access(THD *thd, privilege_t want_access,
 privilege_t get_table_grant(THD *thd, TABLE_LIST *table);
 privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
                              const char *db_name, const char *table_name,
-                             const char *field_name);
+                             const Lex_ident_column &field_name);
 bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
                    const char **hostname, const char **rolename);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
@@ -136,13 +138,19 @@ int mysql_alter_user(THD *thd, List <LEX_USER> &list);
 bool mysql_revoke_all(THD *thd, List <LEX_USER> &list);
 void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
                                      const char *db, const char *table);
-bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
+bool sp_revoke_privileges(THD *thd,
+                          const Lex_ident_db &sp_db,
+                          const Lex_ident_routine &sp_name,
                           const Sp_handler *sph);
-bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
+bool sp_grant_privileges(THD *thd,
+                         const Lex_ident_db &sp_db,
+                         const Lex_ident_routine &sp_name,
                          const Sp_handler *sph);
-bool check_routine_level_acl(THD *thd, const char *db, const char *name,
+bool check_routine_level_acl(THD *thd, privilege_t acl,
+                             const char *db, const char *name,
                              const Sp_handler *sph);
-bool is_acl_user(const char *host, const char *user);
+bool is_acl_user(const LEX_CSTRING &host, const LEX_CSTRING &user);
+int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
@@ -272,14 +280,23 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
                         const char *schema_name,
                         const char *table_name);
 
-bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
+bool acl_check_proxy_grant_access (THD *thd,
+                                   const LEX_CSTRING &host,
+                                   const LEX_CSTRING &user,
                                    bool with_grant);
-int acl_setrole(THD *thd, const char *rolename, privilege_t access);
-int acl_check_setrole(THD *thd, const char *rolename, privilege_t *access);
-int acl_check_set_default_role(THD *thd, const char *host, const char *user,
-                               const char *role);
-int acl_set_default_role(THD *thd, const char *host, const char *user,
-                         const char *rolename);
+int acl_setauthorization(THD *thd, const LEX_USER *user);
+int acl_setrole(THD *thd, const LEX_CSTRING &rolename, privilege_t access);
+int acl_check_setrole(THD *thd,
+                      const LEX_CSTRING &rolename,
+                      privilege_t *access);
+int acl_check_set_default_role(THD *thd,
+                               const LEX_CSTRING &host,
+                               const LEX_CSTRING &user,
+                               const LEX_CSTRING &role);
+int acl_set_default_role(THD *thd,
+                         const LEX_CSTRING &host,
+                         const LEX_CSTRING &user,
+                         const LEX_CSTRING &rolename);
 
 extern SHOW_VAR acl_statistics[];
 

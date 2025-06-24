@@ -1,0 +1,82 @@
+--source include/have_debug.inc
+--source include/have_aria.inc
+
+SHOW VARIABLES LIKE 'aria_log_file_size';
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+mkdir $targetdir;
+
+
+DELIMITER $$;
+CREATE PROCEDURE display_aria_log_control(ctrl BLOB)
+BEGIN
+  SELECT HEX(REVERSE(SUBSTRING(ctrl, 42, 4))) AS last_logno;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE populate_t1()
+BEGIN
+  FOR id IN 0..9 DO
+    INSERT INTO test.t1 (id, txt) VALUES (id, REPEAT(id,1024*1024));
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+CREATE TABLE test.t1(id INT, txt LONGTEXT) ENGINE=Aria;
+
+--echo # MYSQLD_DATADIR/aria_log_control before --backup
+--let ARIA_DATADIR=$MYSQLD_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+
+--echo # Running --backup
+--let after_scanning_log_files=CALL test.populate_t1
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --target-dir=$targetdir  --dbug=+d,mariabackup_events 2>&1
+--let after_scanning_log_files=
+--enable_result_log
+
+--echo # MYSQLD_DATADIR/aria_log_control after --backup
+--let ARIA_DATADIR=$MYSQLD_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+--echo # targetdir/aria_log_control after --backup
+--let ARIA_DATADIR=$targetdir
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+
+--echo # Running --prepare
+--disable_result_log
+--exec $XTRABACKUP  --prepare --target-dir=$targetdir
+--enable_result_log
+
+--echo # targetdir/aria_log_control after --prepare
+--let ARIA_DATADIR=$targetdir
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+
+--disable_result_log
+--source include/restart_and_restore.inc
+--enable_result_log
+
+--echo # MYSQLD_DATADIR/aria_log_control after --copy-back
+--let ARIA_DATADIR=$MYSQLD_DATADIR
+--source include/aria_log_control_load.inc
+CALL display_aria_log_control(@aria_log_control);
+
+--echo # Checking that after --restore all t1 data is there
+SELECT id, LENGTH(txt) FROM t1 ORDER BY id;
+DROP TABLE t1;
+rmdir $targetdir;
+
+DROP PROCEDURE populate_t1;
+DROP PROCEDURE display_aria_log_control;

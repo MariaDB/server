@@ -2,6 +2,8 @@
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
 --source include/default_charset.inc
+--source include/have_partition.inc
+--source include/test_db_charset_latin1.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -49,7 +51,7 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 DROP DATABASE IF EXISTS dbt3_s001;
 --enable_warnings
 
-CREATE DATABASE dbt3_s001;
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
 
 use dbt3_s001;
 
@@ -67,7 +69,9 @@ customer, lineitem, nation, orders, part, partsupp, region, supplier;
 --enable_query_log
 
 --echo === Q2 ===
-
+#  "or p_size =19999" is added to avoid symmetry between
+#     region (5 rows * 20% selectivity) = 1 and
+#     part (200 rows * 0.5% selectivity) = 1
 set optimizer_use_condition_selectivity=5;
 explain extended
 select
@@ -77,7 +81,7 @@ from
 where
 	p_partkey = ps_partkey
 	and s_suppkey = ps_suppkey
-	and p_size = 9
+	and (p_size = 9 or p_size =19999)
 	and p_type like '%TIN'
 	and s_nationkey = n_nationkey
 	and n_regionkey = r_regionkey
@@ -1008,11 +1012,11 @@ set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables='preferably';
 set optimizer_use_condition_selectivity=3;
 
-create table t1(col1 char(32));
+create table t1(col1 char(32)) charset=latin1;
 insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t1;
 
-create table t2(col1 text);
+create table t2(col1 text) charset=latin1;
 insert into t2 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
 analyze table t2;
 
@@ -1115,8 +1119,10 @@ drop function f1;
 --echo #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/30, (rand(1001)*1000)/40 from seq_1_to_1000;
+analyze table t1 ;
+select count(*) from t1 where b=2;
+select count(*) from t1 where a in (17,51,5);
 
 --echo # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
@@ -1124,6 +1130,13 @@ explain extended select * from t1 use index () where b=2;
 
 --echo # Now, the equality is used for ref access, while the range condition
 --echo # gives selectivity data
+explain extended select * from t1 where a in (17,51,5) and b=2;
+truncate table t1;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+select count(*) from t1 where b=2;
+select count(*) from t1 where a in (17,51,5);
 explain extended select * from t1 where a in (17,51,5) and b=2;
 drop table t1;
 
@@ -1139,7 +1152,7 @@ set @@optimizer_use_condition_selectivity=2;
 
 set names utf8;
 
-CREATE DATABASE world;
+CREATE DATABASE world CHARACTER SET latin1;
 
 use world;
 
@@ -1236,6 +1249,8 @@ eval $query;
 set optimizer_use_condition_selectivity=2;
 eval explain extended $query;
 eval $query;
+analyze table t1;
+eval explain extended $query;
 set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 
 drop table t1,t2,t3;
@@ -1337,3 +1352,108 @@ set histogram_size=@save_histogram_size;
 set use_stat_tables= @save_use_stat_tables;
 --source include/restore_charset.inc
 set @@global.histogram_size=@save_histogram_size;
+
+--echo #
+--echo # MDEV-20595
+--echo # Assertion `0 < sel && sel <= 2.0' failed in table_cond_selectivity
+--echo #
+
+create table t1 (id int, a int, PRIMARY KEY(id), key(a));
+insert into t1 select seq,seq from seq_1_to_100;
+create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
+insert into t2 select seq,seq,seq from seq_1_to_100;
+
+set optimizer_use_condition_selectivity=2;
+EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-30360 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
+--echo # with LIMIT .. OFFSET
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY(b), KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES
+(3,'a'),(2,'g'),(5,'v'),(9,'n'),(6,'u'),
+(7,'s'),(0,'z'),(3,'z'),(NULL,'m'),(6,'r');
+
+CREATE TABLE t2 (pk INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2);
+
+SELECT STRAIGHT_JOIN pk FROM t1 JOIN t2 ON a = pk WHERE b >= 'A' ORDER BY t2.pk LIMIT 8 OFFSET 1;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-30659 Server crash on EXPLAIN SELECT/SELECT on table with
+--echo # engine Aria for LooseScan Strategy
+--echo #
+
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+                 c2 integer, c3 integer) engine=aria;
+insert into t1(c1,c2,c3)
+        values (1,1,1), (1,2,2), (1,3,3),
+               (2,1,4), (2,2,5), (2,3,6),
+               (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and
+c2 >= 3 order by c2;
+drop table t1;
+
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+                 c2 integer, c3 integer) engine=aria;
+
+delimiter /;
+create trigger trg_t1 before update on t1 for each row
+begin
+  set new.old_c1=old.c1;
+  set new.old_c2=old.c2;
+end;
+/
+delimiter ;/
+
+insert into t1 (c1,c2,c3) values
+       (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+analyze table t1 persistent for all;
+create table t2 as select * from t1;
+truncate table t1;
+insert into t1 select * from t2;
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
+drop trigger trg_t1;
+drop table t1,t2;
+
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+                 c2 integer, c3 integer) engine=aria;
+insert into t1 (c1,c2,c3) values
+       (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+create table t2 as select * from t1;
+truncate table t1;
+insert into t1 select * from t2;
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-31864 Assertion `d >= 0' failed in COST_ADD with join_cache_level
+--echo # > 2 and partitions
+--echo #
+
+SET join_cache_level= 3;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c INT);
+INSERT INTO t2 VALUES (3,4),(5,6);
+CREATE TABLE t3 (d INT, e INT) PARTITION BY RANGE COLUMNS (d) (p1 VALUES LESS THAN (1000), pn VALUES LESS THAN (MAXVALUE));
+ANALYZE TABLE t1, t2, t3 PERSISTENT FOR ALL;
+
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON t2.b = t3.e) ON t2.c = 1;
+
+set join_cache_level= default;
+DROP TABLE t1, t2, t3;
+
+--source include/test_db_charset_restore.inc

@@ -68,7 +68,7 @@ SEDOMPROG=$SETARGETDIR/domains/program
 SECONPROG=$SETARGETDIR/file_contexts/program
 
 if [ -x /usr/sbin/semodule ] ; then
-  /usr/sbin/semodule -i /usr/share/mysql/policy/selinux/mariadb.pp
+  /usr/sbin/semodule -i /usr/share/mariadb/policy/selinux/mariadb.pp
 fi
 
 if [ -x /sbin/restorecon -a -d /var/lib/mysql ] ; then

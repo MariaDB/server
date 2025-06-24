@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,26 +37,6 @@ Created 3/14/1997 Heikki Tuuri
 #include <unordered_map>
 
 class MDL_ticket;
-/** Determines if it is possible to remove a secondary index entry.
-Removal is possible if the secondary index entry does not refer to any
-not delete marked version of a clustered index record where DB_TRX_ID
-is newer than the purge view.
-
-NOTE: This function should only be called by the purge thread, only
-while holding a latch on the leaf page of the secondary index entry
-(or keeping the buffer pool watch on the page).  It is possible that
-this function first returns true and then false, if a user transaction
-inserts a record that the secondary index entry would refer to.
-However, in that case, the user transaction would also re-insert the
-secondary index entry after purge has removed it and released the leaf
-page latch.
-@param node   row purge node
-@param index  secondary index
-@param entry  secondary index entry
-@param mtr    mini-transaction for looking up clustered index
-@return whether the secondary index record can be purged */
-bool row_purge_poss_sec(purge_node_t *node, dict_index_t *index,
-                        const dtuple_t *entry, mtr_t *mtr);
 
 /***************************************************************
 Does the purge operation.

@@ -1,0 +1,682 @@
+'\" t
+.\"
+.TH "\fBMARIADBD-MULTI\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadbd-multi
+.\" tools: mariadbd-multi
+.\" scripts
+.\" multi mariadbd
+.SH "NAME"
+mariadbd-multi \- manage multiple MariaDB servers (mariadbd-multi is now a symlink to mariadbd-multi)
+.SH "SYNOPSIS"
+.HP \w'\fBmariadbd-multi\ [\fR\fB\fIoptions\fR\fR\fB]\ {start|stop|report}\ [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB]\ \&.\&.\&.]\fR\ 'u
+\fBmariadbd-multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadbd-multi\fR
+is designed to manage several
+\fBmariadbd\fR
+processes that listen for connections on different Unix socket files and TCP/IP ports\&. It can start or stop servers, or report their current status\&.
+.PP
+\fBmariadbd-multi\fR
+searches for groups named
+[mariadbd\fIN\fR]
+in
+my\&.cnf
+(or in the file named by the
+\fB\-\-config\-file\fR
+option)\&.
+\fIN\fR
+can be any positive integer\&. This number is referred to in the following discussion as the option group number, or
+\fIGNR\fR\&. Group numbers distinguish option groups from one another and are used as arguments to
+\fBmariadbd-multi\fR
+to specify which servers you want to start, stop, or obtain a status report for\&. Options listed in these groups are the same that you would use in the
+[mariadbd]
+group used for starting
+\fBmariadbd\fR\&. However, when using multiple servers, it is necessary that each one use its own value for options such as the Unix socket file and TCP/IP port number\&.
+.PP
+To invoke
+\fBmariadbd-multi\fR, use the following syntax:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadbd-multi [\fR\fB\fIoptions\fR\fR\fB] {start|stop|report} [\fR\fB\fIGNR\fR\fR\fB[,\fR\fB\fIGNR\fR\fR\fB] \&.\&.\&.]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+start,
+stop, and
+report
+indicate which operation to perform\&. You can perform the designated operation for a single server or multiple servers, depending on the
+\fIGNR\fR
+list that follows the option name\&. If there is no list,
+\fBmariadbd-multi\fR
+performs the operation for all servers in the option file\&.
+.PP
+Each
+\fIGNR\fR
+value represents an option group number or range of group numbers\&. The value should be the number at the end of the group name in the option file\&. For example, the
+\fIGNR\fR
+for a group named
+[mariadbd17]
+is
+17\&. To specify a range of numbers, separate the first and last numbers by a dash\&. The
+\fIGNR\fR
+value
+10\-13
+represents groups
+[mariadbd10]
+through
+[mariadbd13]\&. Multiple groups or group ranges can be specified on the command line, separated by commas\&. There must be no whitespace characters (spaces or tabs) in the
+\fIGNR\fR
+list; anything after a whitespace character is ignored\&.
+.PP
+This command starts a single server using option group
+[mariadbd17]:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadbd-multi start 17\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+This command stops several servers, using option groups
+[mariadbd8]
+and
+[mariadbd10]
+through
+[mariadbd13]:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadbd-multi stop 8,10\-13\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+For an example of how you might set up an option file, use this command:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadbd-multi \-\-example\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBmariadbd-multi\fR
+searches for option files as follows:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: no-defaults option
+.\" no-defaults option: mariadbd-multi
+With
+\fB\-\-no\-defaults\fR, no option files are read\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: defaults-file option
+.\" defaults-file option: mariadbd-multi
+With
+\fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR, only the named file is read\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: defaults-extra-file option
+.\" defaults-extra-file option: mariadbd-multi
+Otherwise, option files in the standard list of locations are read, including any file named by the
+\fB\-\-defaults\-extra\-file=\fR\fB\fIfile_name\fR\fR
+option, if one is given\&. (If the option is given multiple times, the last value is used\&.)
+.RE
+.PP
+Option files read are searched for
+[mariadbd-multi]
+and
+[mariadbd\fIN\fR]
+option groups\&. The
+[mariadbd-multi]
+group can be used for options to
+\fBmariadbd-multi\fR
+itself\&.
+[mariadbd\fIN\fR]
+groups can be used for options passed to specific
+\fBmariadbd\fR
+instances\&.
+.PP
+The
+[mariadbd]
+or
+[mariadbd_safe]
+groups can be used for common options read by all instances of
+\fBmariadbd\fR
+or
+\fBmariadbd_safe\fR\&. You can specify a
+\fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR
+option to use a different configuration file for that instance, in which case the
+[mariadbd]
+or
+[mariadbd_safe]
+groups from that file will be used for that instance\&.
+.PP
+\fBmariadbd-multi\fR
+supports the following options\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: help option
+.\" help option: mariadbd-multi
+\fB\-\-help\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: example option
+.\" example option: mariadbd-multi
+\fB\-\-example\fR
+.sp
+Display a sample option file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: log option
+.\" log option: mariadbd-multi
+\fB\-\-log=\fR\fB\fIfile_name\fR\fR
+.sp
+Specify the name of the log file\&. If the file exists, log output is appended to it\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: mariadb-admin option
+.\" mariadb-admin option: mariadbd-multi
+\fB\-\-mariadb-admin=\fR\fB\fIprog_name\fR\fR
+.sp
+The
+\fBmariadb-admin\fR
+binary to be used to stop servers\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: mariadbd option
+.\" mariadbd option: mariadbd-multi
+\fB\-\-mariadbd=\fR\fB\fIprog_name\fR\fR
+.sp
+The
+\fBmariadbd\fR
+binary to be used\&. Note that you can specify
+\fBmariadbd_safe\fR
+as the value for this option also\&. If you use
+\fBmariadbd_safe\fR
+to start the server, you can include the
+mariadbd
+or
+ledir
+options in the corresponding
+[mariadbd\fIN\fR]
+option group\&. These options indicate the name of the server that
+\fBmariadbd_safe\fR
+should start and the path name of the directory where the server is located\&. (See the descriptions for these options in
+\fBmariadbd_safe\fR(1)\&.) Example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+[mariadbd38]
+mariadbd = mariadbd\-debug
+ledir  = /opt/local/mysql/libexec
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: no-log option
+.\" no-log option: mariadbd-multi
+\fB\-\-no\-log\fR
+.sp
+Print log information to
+stdout
+rather than to the log file\&. By default, output goes to the log file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: password option
+.\" password option: mariadbd-multi
+\fB\-\-password=\fR\fB\fIpassword\fR\fR
+.sp
+The password of the MariaDB account to use when invoking
+\fBmariadb-admin\fR\&. Note that the password value is not optional for this option, unlike for other MariaDB programs\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: silent option
+.\" silent option: mariadbd-multi
+\fB\-\-silent\fR
+.sp
+Silent mode; disable warnings\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: tcp-ip option
+.\" tcp-ip option: mariadbd-multi
+\fB\-\-tcp\-ip\fR
+.sp
+Connect to the MariaDB server(s) via the TCP/IP port instead of the UNIX socket\&. This affects stopping
+and reporting. If a socket file is missing, the server may still be running, but can be accessed only
+via the TCP/IP port\&. By default connecting is done via the UNIX socket\&. This option affects
+stop and report operations\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: user option
+.\" user option: mariadbd-multi
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR
+.sp
+The user name of the MariaDB account to use when invoking
+\fBmariadb-admin\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: verbose option
+.\" verbose option: mariadbd-multi
+\fB\-\-verbose\fR
+.sp
+Be more verbose\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: version option
+.\" version option: mariadbd-multi
+\fB\-\-version\fR
+.sp
+Display version information and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadbd-multi: wsrep-new-cluster option
+.\" wsrep-new-cluster option: mariadbd-multi
+\fB\-\-wsrep\-new\-cluster\fR
+.sp
+Bootstrap a cluster\&.
+.RE
+.PP
+Some notes about
+\fBmariadbd-multi\fR:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBMost important\fR: Before using
+\fBmariadbd-multi\fR
+be sure that you understand the meanings of the options that are passed to the
+\fBmariadbd\fR
+servers and
+\fIwhy\fR
+you would want to have separate
+\fBmariadbd\fR
+processes\&. Beware of the dangers of using multiple
+\fBmariadbd\fR
+servers with the same data directory\&. Use separate data directories, unless you
+\fIknow\fR
+what you are doing\&. Starting multiple servers with the same data directory does
+\fInot\fR
+give you extra performance in a threaded system\&.
+.sp .5v
+.RE
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBImportant\fR: Make sure that the data directory for each server is fully accessible to the Unix account that the specific
+\fBmariadbd\fR
+process is started as\&.
+\fIDo not\fR
+use the Unix
+\fIroot\fR
+account for this, unless you
+\fIknow\fR
+what you are doing\&.
+.sp .5v
+.RE
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Make sure that the MariaDB account used for stopping the
+\fBmariadbd\fR
+servers (with the
+\fBmariadbadmin\fR
+program) has the same user name and password for each server\&. Also, make sure that the account has the
+SHUTDOWN
+privilege\&. If the servers that you want to manage have different user names or passwords for the administrative accounts, you might want to create an account on each server that has the same user name and password\&. For example, you might set up a common
+multi_admin
+account by executing the following commands for each server:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb \-u root \-S /tmp/mariadb\&.sock \-p\fR
+Enter password:
+mariadb> \fBGRANT SHUTDOWN ON *\&.*\fR
+    \-> \fBTO 'multi_admin'@'localhost' IDENTIFIED BY 'multipass';\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Change the connection parameters appropriately when connecting to each one\&. Note that the host name part of the account name must allow you to connect as
+multi_admin
+from the host where you want to run
+\fBmariadbd-multi\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The Unix socket file and the TCP/IP port number must be different for every
+\fBmariadbd\fR\&. (Alternatively, if the host has multiple network addresses, you can use
+\fB\-\-bind\-address\fR
+to cause different servers to listen to different interfaces\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The
+\fB\-\-pid\-file\fR
+option is very important if you are using
+\fBmariadbd-safe\fR
+to start
+\fBmariadbd\fR
+(for example,
+\fB\-\-mariadbd=mariadbd-safe\fR) Every
+\fBmariadbd\fR
+should have its own process ID file\&. The advantage of using
+\fBmariadbd-safe\fR
+instead of
+\fBmariadbd\fR
+is that
+\fBmariadbd-safe\fR
+monitors its
+\fBmariadbd\fR
+process and restarts it if the process terminates due to a signal sent using
+kill \-9
+or for other reasons, such as a segmentation fault\&. Please note that the
+\fBmariadbd-safe\fR
+script might require that you start it from a certain place\&. This means that you might have to change location to a certain directory before running
+\fBmariadbd-multi\fR\&. If you have problems starting, please see the
+\fBmariadbd-safe\fR
+script\&. Check especially the lines:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
+MY_PWD=`pwd`
+# Check if we are starting this relative (for the binary release)
+if test \-d $MY_PWD/data/mariadb \-a \e
+   \-f \&./share/mariadb/english/errmsg\&.sys \-a \e
+   \-x \&./bin/mariadbd
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+The test performed by these lines should be successful, or you might encounter problems\&. See
+\fBmariadbd-safe\fR(1)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+You might want to use the
+\fB\-\-user\fR
+option for
+\fBmariadbd\fR, but to do this you need to run the
+\fBmariadbd-multi\fR
+script as the Unix
+root
+user\&. Having the option in the option file doesn't matter; you just get a warning if you are not the superuser and the
+\fBmariadbd\fR
+processes are started under your own Unix account\&.
+.RE
+.PP
+The following example shows how you might set up an option file for use with
+\fBmariadbd-multi\fR\&. The order in which the
+\fBmariadbd\fR
+programs are started or stopped depends on the order in which they appear in the option file\&. Group numbers need not form an unbroken sequence\&. The first and fifth
+[mariadbd\fIN\fR]
+groups were intentionally omitted from the example to illustrate that you can have
+\(lqgaps\(rq
+in the option file\&. This gives you more flexibility\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+# This file should probably be in your home dir (~/\&.my\&.cnf)
+# or /etc/my\&.cnf
+# Version 2\&.1 by Jani Tolonen
+[mariadbd-multi]
+mariadbd     = /usr/local/bin/mariadbd-safe
+mariadb-admin = /usr/local/bin/mariadb-admin
+user       = multi_admin
+password   = multipass
+[mariadbd2]
+socket     = /tmp/mariadb\&.sock2
+port       = 3307
+pid\-file   = /usr/local/mysql/var2/hostname\&.pid2
+datadir    = /usr/local/mysql/var2
+language   = /usr/local/share/mariadb/english
+user       = john
+[mariadbd3]
+socket     = /tmp/mysql\&.sock3
+port       = 3308
+pid\-file   = /usr/local/mysql/var3/hostname\&.pid3
+datadir    = /usr/local/mysql/var3
+language   = /usr/local/share/mariadb/swedish
+user       = monty
+[mariadbd4]
+socket     = /tmp/mysql\&.sock4
+port       = 3309
+pid\-file   = /usr/local/mysql/var4/hostname\&.pid4
+datadir    = /usr/local/mysql/var4
+language   = /usr/local/share/mariadb/estonia
+user       = tonu
+[mariadbd6]
+socket     = /tmp/mysql\&.sock6
+port       = 3311
+pid\-file   = /usr/local/mysql/var6/hostname\&.pid6
+datadir    = /usr/local/mysql/var6
+language   = /usr/local/share/mariadb/japanese
+user       = jani
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

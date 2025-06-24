@@ -27,6 +27,8 @@ typedef struct st_typelib {	/* Different types saved here */
   unsigned int *type_lengths;
 } TYPELIB;
 
+#define CREATE_TYPELIB_FOR(X) { (unsigned int)(sizeof(X)/sizeof(X[0])) - 1, "", X, NULL }
+
 extern my_ulonglong find_typeset(const char *x, TYPELIB *typelib,
                                  int *error_position);
 extern int find_type_with_warning(const char *x, TYPELIB *typelib,

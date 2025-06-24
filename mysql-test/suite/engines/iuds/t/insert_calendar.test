@@ -2828,7 +2828,7 @@ SELECT * FROM t5;
 TRUNCATE TABLE t5;
 INSERT INTO t5 SELECT * FROM t2 WHERE c1 >='98-12-31 11:30:45' AND c1 < '20070523091528' AND c2 <> '070525';
 #Following query produces different results
-#for differenct engine/platform
+#for different engine/platform
 --disable_result_log
 --sorted_result
 SELECT * FROM t5;

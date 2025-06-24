@@ -39,7 +39,9 @@ eval CREATE TABLE tbl_a (
     PRIMARY KEY (pkey)
 ) $MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (pkey,txt_utf8) VALUES (0,'01234567'),(1,'12345678'),(2,'23456789'),(3,'34567890'),(4,'45678901'),(5,'56789012'),(6,'67890123'),(7,'78901234'),(8,'89012345'),(9,'90123456');
+--enable_ps_protocol
 FLUSH TABLES;
 
 --echo
@@ -51,7 +53,10 @@ TRUNCATE TABLE mysql.general_log;
 --disable_ps2_protocol
 --connection master_1
 SET NAMES utf8;
+--disable_ps_protocol
 SELECT `pkey`, LEFT(`txt_utf8`, 4) FROM `auto_test_local`.`tbl_a` ORDER BY LEFT(`txt_utf8`, 4) LIMIT 3;
+SELECT `pkey`, SUBSTR(`txt_utf8`, 1, 4) FROM `auto_test_local`.`tbl_a` ORDER BY SUBSTR(`txt_utf8`, 1, 4) LIMIT 3;
+--enable_ps_protocol
 
 --connection child2_1
 SET NAMES utf8;

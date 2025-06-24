@@ -43,6 +43,7 @@ struct rpl_group_info;
 
 class table_def
 {
+  table_def(const table_def&) = default;
 public:
   /**
     Constructor.
@@ -56,6 +57,18 @@ public:
   table_def(unsigned char *types, ulong size, uchar *field_metadata,
             int metadata_size, uchar *null_bitmap, uint16 flags);
 
+
+  /**
+    Move constructor
+    Since it deallocates a memory during destruction, we can't safely copy it.
+    We should instead move it to zero m_memory in an old object
+   */
+  table_def(table_def &&tabledef)
+  : table_def(tabledef)
+  {
+    tabledef.m_memory= NULL;
+  }
+
   ~table_def();
 
   /**
@@ -63,7 +76,7 @@ public:
 
     @return The number of fields that there is type data for.
    */
-  ulong size() const { return m_size; }
+  uint size() const { return m_size; }
 
 
   /**
@@ -221,12 +234,12 @@ public:
 
 
 private:
-  ulong m_size;           // Number of elements in the types array
   unsigned char *m_type;  // Array of type descriptors
+  uint m_size;           // Number of elements in the types array
   uint m_field_metadata_size;
   uint16 *m_field_metadata;
-  uchar *m_null_bits;
   uint16 m_flags;         // Table flags
+  uchar *m_null_bits;
   uchar *m_memory;
 };
 
@@ -236,13 +249,37 @@ private:
    Extend the normal table list with a few new fields needed by the
    slave thread, but nowhere else.
  */
-struct RPL_TABLE_LIST
-  : public TABLE_LIST
+struct RPL_TABLE_LIST : public TABLE_LIST
 {
-  bool m_tabledef_valid;
   table_def m_tabledef;
   TABLE *m_conv_table;
+  const Copy_field *m_online_alter_copy_fields;
+  const Copy_field *m_online_alter_copy_fields_end;
+  uint cached_key_nr;                  // [0..MAX_KEY] if set, ~0U if unset
+  uint cached_usable_key_parts;
+  bool m_tabledef_valid;
   bool master_had_triggers;
+
+  RPL_TABLE_LIST(const LEX_CSTRING *db_arg, const LEX_CSTRING *table_name_arg,
+                 thr_lock_type thr_lock_type,
+                 table_def &&tabledef, bool master_had_trigers)
+    : TABLE_LIST(db_arg, table_name_arg, NULL, thr_lock_type),
+      m_tabledef(std::move(tabledef)), m_conv_table(NULL),
+      m_online_alter_copy_fields(NULL), m_online_alter_copy_fields_end(NULL),
+      cached_key_nr(~0U), m_tabledef_valid(true),
+      master_had_triggers(master_had_trigers)
+  {}
+
+  RPL_TABLE_LIST(TABLE *table, thr_lock_type lock_type, TABLE *conv_table,
+                 table_def &&tabledef,
+                 const Copy_field online_alter_copy_fields[],
+                 const Copy_field *online_alter_copy_fields_end)
+    : TABLE_LIST(table, lock_type),
+      m_tabledef(std::move(tabledef)), m_conv_table(conv_table),
+      m_online_alter_copy_fields(online_alter_copy_fields),
+      m_online_alter_copy_fields_end(online_alter_copy_fields_end),
+      cached_key_nr(~0U), m_tabledef_valid(true), master_had_triggers(false)
+  {}
 };
 
 

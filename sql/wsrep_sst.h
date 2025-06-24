@@ -56,7 +56,7 @@
 #define WSREP_SST_XTRABACKUPV2 "xtrabackupv2"
 #define WSREP_SST_DEFAULT      WSREP_SST_RSYNC
 #define WSREP_SST_ADDRESS_AUTO "AUTO"
-#define WSREP_SST_AUTH_MASK    "********"
+#define WSREP_SST_AUTH_DEFAULT NULL
 
 /* system variables */
 extern const char* wsrep_sst_method;
@@ -71,12 +71,12 @@ extern void wsrep_sst_grab();
 extern bool wsrep_sst_wait();
 /*! Signals wsrep that initialization is complete, writesets can be applied */
 extern bool wsrep_sst_continue();
-extern void wsrep_sst_auth_init();
+extern bool wsrep_sst_auth_set(const char* value);
 extern void wsrep_sst_auth_free();
 
 extern void wsrep_SE_init_grab();   /*! grab init critical section */
 extern void wsrep_SE_init_wait();   /*! wait for SE init to complete */
-extern void wsrep_SE_init_done();   /*! signal that SE init is complte */
+extern void wsrep_SE_init_done();   /*! signal that SE init is complete */
 extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
 
 /**
@@ -97,6 +97,12 @@ std::string wsrep_sst_prepare();
 int wsrep_sst_donate(const std::string& request,
                      const wsrep::gtid& gtid,
                      bool bypass);
+
+/**
+   Cleanup stale SST users from the database records
+   @param thd wsp::thd object (wraps initialized THD* pointer)
+  */
+void wsrep_sst_cleanup_user(THD* thd);
 
 #else
 #define wsrep_SE_initialized() do { } while(0)

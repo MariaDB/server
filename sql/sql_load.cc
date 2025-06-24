@@ -191,7 +191,7 @@ class READ_INFO: public Load_data_param
     For example, suppose we have an ujis file with bytes 0x8FA10A, where:
     - 0x8FA1 is an incomplete prefix of a 3-byte character
       (it should be [8F][A1-FE][A1-FE] to make a full 3-byte character)
-    - 0x0A is a line demiliter
+    - 0x0A is a line delimiter
     This file has some broken data, the trailing [A1-FE] is missing.
 
     In this example it works as follows:
@@ -419,9 +419,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                                     thd->lex->first_select_lex()->leaf_tables,
                                     FALSE,
                                     INSERT_ACL | UPDATE_ACL,
-                                    INSERT_ACL | UPDATE_ACL, FALSE))
+                                    INSERT_ACL | UPDATE_ACL, false))
      DBUG_RETURN(-1);
-  if (!table_list->table ||               // do not suport join view
+  if (!table_list->table ||               // do not support join view
       !table_list->single_table_updatable() || // and derived tables
       check_key_in_view(thd, table_list))
   {
@@ -682,6 +682,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     table->copy_blobs=1;
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
+    thd->get_stmt_da()->reset_current_row_for_warning(1);
 
     bool create_lookup_handler= handle_duplicates != DUP_ERROR;
     if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
@@ -690,7 +691,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
         goto err;
     }
-    table->file->prepare_for_insert(create_lookup_handler);
+    table->file->prepare_for_modify(true, create_lookup_handler);
     thd_progress_init(thd, 2);
     fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
@@ -723,7 +724,15 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       table->file->print_error(my_errno, MYF(0));
       error= 1;
     }
-    table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+    if (!error)
+    {
+      int err= table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+      if (err == HA_ERR_FOUND_DUPP_KEY)
+      {
+	error= 1;
+	my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+      }
+    }
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->next_number_field=0;
   }
@@ -852,14 +861,14 @@ err:
               thd->transaction->stmt.modified_non_trans_table);
   table->file->ha_release_auto_increment();
   table->auto_increment_field_not_null= FALSE;
+  if (thd->tmp_table_binlog_handled)
+    table->mark_as_not_binlogged(); 		// tmp table changes are not in binlog
   thd->abort_on_warning= 0;
   DBUG_RETURN(error);
 }
 
 
 #ifndef EMBEDDED_LIBRARY
-
-/* Not a very useful function; just to avoid duplication of code */
 static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                const char* db_arg,  /* table's database */
                                                const char* table_name_arg,
@@ -870,27 +879,34 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                int errcode)
 {
   char                *load_data_query;
-  my_off_t            fname_start,
-                      fname_end;
-  List<Item>           fv;
+  my_off_t             fname_start, fname_end;
   Item                *item, *val;
   int                  n;
-  const char          *tdb= (thd->db.str != NULL ? thd->db.str : db_arg);
-  const char          *qualify_db= NULL;
-  char                command_buffer[1024];
-  String              query_str(command_buffer, sizeof(command_buffer),
-                              system_charset_info);
+  StringBuffer<1024>   query_str(system_charset_info);
 
-  Load_log_event       lle(thd, ex, tdb, table_name_arg, fv, is_concurrent,
-                           duplicates, ignore, transactional_table);
+  query_str.append(STRING_WITH_LEN("LOAD DATA "));
 
-  /*
-    force in a LOCAL if there was one in the original.
-  */
+  if (is_concurrent)
+    query_str.append(STRING_WITH_LEN("CONCURRENT "));
+
+  fname_start= query_str.length();
+
   if (thd->lex->local_file)
-    lle.set_fname_outside_temp_buf(ex->file_name, strlen(ex->file_name));
+    query_str.append(STRING_WITH_LEN("LOCAL "));
+  query_str.append(STRING_WITH_LEN("INFILE '"));
+  query_str.append_for_single_quote(ex->file_name, strlen(ex->file_name));
+  query_str.append(STRING_WITH_LEN("' "));
 
-  query_str.length(0);
+  if (duplicates == DUP_REPLACE)
+    query_str.append(STRING_WITH_LEN("REPLACE "));
+  else if (ignore)
+    query_str.append(STRING_WITH_LEN("IGNORE "));
+
+  query_str.append(STRING_WITH_LEN("INTO"));
+
+  fname_end= query_str.length();
+
+  query_str.append(STRING_WITH_LEN(" TABLE "));
   if (!thd->db.str || strcmp(db_arg, thd->db.str))
   {
     /*
@@ -898,10 +914,47 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
       prefix table name with database name so that it 
       becomes a FQ name.
      */
-    qualify_db= db_arg;
+    append_identifier(thd, &query_str, db_arg, strlen(db_arg));
+    query_str.append(STRING_WITH_LEN("."));
   }
-  lle.print_query(thd, FALSE, (const char*) ex->cs ? ex->cs->cs_name.str : NULL,
-                  &query_str, &fname_start, &fname_end, qualify_db);
+  append_identifier(thd, &query_str, table_name_arg, strlen(table_name_arg));
+
+  if (ex->cs)
+  {
+    query_str.append(STRING_WITH_LEN(" CHARACTER SET "));
+    query_str.append(ex->cs->cs_name);
+  }
+
+  /* We have to create all optional fields as the default is not empty */
+  query_str.append(STRING_WITH_LEN(" FIELDS TERMINATED BY '"));
+  query_str.append_for_single_quote(ex->field_term);
+  query_str.append(STRING_WITH_LEN("'"));
+  if (ex->opt_enclosed)
+    query_str.append(STRING_WITH_LEN(" OPTIONALLY"));
+  query_str.append(STRING_WITH_LEN(" ENCLOSED BY '"));
+  query_str.append_for_single_quote(ex->enclosed);
+  query_str.append(STRING_WITH_LEN("'"));
+
+  query_str.append(STRING_WITH_LEN(" ESCAPED BY '"));
+  query_str.append_for_single_quote(ex->escaped);
+  query_str.append(STRING_WITH_LEN("'"));
+
+  query_str.append(STRING_WITH_LEN(" LINES TERMINATED BY '"));
+  query_str.append_for_single_quote(ex->line_term);
+  query_str.append(STRING_WITH_LEN("'"));
+  if (ex->line_start->length())
+  {
+    query_str.append(STRING_WITH_LEN(" STARTING BY '"));
+    query_str.append_for_single_quote(ex->line_start);
+    query_str.append(STRING_WITH_LEN("'"));
+  }
+
+  if (ex->skip_lines)
+  {
+    query_str.append(STRING_WITH_LEN(" IGNORE "));
+    query_str.append_ulonglong(ex->skip_lines);
+    query_str.append(STRING_WITH_LEN(" LINES "));
+  }
 
   /*
     prepare fields-list and SET if needed; print_query won't do that for us.
@@ -945,6 +998,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   if (!(load_data_query= (char *)thd->strmake(query_str.ptr(), query_str.length())))
     return TRUE;
 
+  thd->tmp_table_binlog_handled= 1;
   Execute_load_query_log_event
     e(thd, load_data_query, query_str.length(),
       (uint) (fname_start - 1), (uint) fname_end,
@@ -957,7 +1011,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
 #endif
 
 /****************************************************************************
-** Read of rows of fixed size + optional garage + optonal newline
+** Read of rows of fixed size + optional garage + optional newline
 ****************************************************************************/
 
 static int
@@ -969,7 +1023,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   List_iterator_fast<Item> it(fields_vars);
   Item *item;
   TABLE *table= table_list->table;
-  bool err, progress_reports;
+  bool err= false, progress_reports;
   ulonglong counter, time_to_report_progress;
   DBUG_ENTER("read_fixed_length");
 
@@ -1029,7 +1083,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         uchar save_chr;
         if ((length=(uint) (read_info.row_end - pos)) > fixed_length)
           length= fixed_length;
-        save_chr= pos[length]; pos[length]= '\0'; // Safeguard aganst malloc
+        save_chr= pos[length]; pos[length]= '\0'; // Safeguard against malloc
         dst->load_data_set_value(thd, (const char *) pos, length, &read_info);
         pos[length]= save_chr;
         if ((pos+= length) > read_info.row_end)
@@ -1045,10 +1099,11 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                           thd->get_stmt_da()->current_row_for_warning());
     }
 
+    bool trg_skip_row= false;
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT, &trg_skip_row))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd, ignore_check_option_errors)) {
@@ -1059,7 +1114,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    if (!trg_skip_row)
+      err= write_record(thd, table, &info);
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1193,12 +1249,20 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       }
     }
 
+    bool trg_skip_row= false;
     if (unlikely(thd->killed) ||
         unlikely(fill_record_n_invoke_before_triggers(thd, table, set_fields,
                                                       set_values,
                                                       ignore_check_option_errors,
-                                                      TRG_EVENT_INSERT)))
+                                                      TRG_EVENT_INSERT,
+                                                      &trg_skip_row)))
       DBUG_RETURN(1);
+
+    if (trg_skip_row)
+    {
+      read_info.next_line();
+      continue;
+    }
 
     switch (table_list->view_check_option(thd,
                                           ignore_check_option_errors)) {
@@ -1315,11 +1379,18 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 
     DBUG_ASSERT(!item);
 
+    bool trg_skip_row= false;
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT, &trg_skip_row))
       DBUG_RETURN(1);
+
+    if (trg_skip_row)
+    {
+      read_info.next_line();
+      continue;
+    }
 
     switch (table_list->view_check_option(thd,
                                           ignore_check_option_errors)) {
@@ -1352,7 +1423,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 char
 READ_INFO::unescape(char chr)
 {
-  /* keep this switch synchornous with the ESCAPE_CHARS macro */
+  /* keep this switch synchronous with the ESCAPE_CHARS macro */
   switch(chr) {
   case 'n': return '\n';
   case 't': return '\t';
@@ -1403,7 +1474,7 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
   uint length= MY_MAX(charset()->mbmaxlen, MY_MAX(m_field_term.length(),
                                                   m_line_term.length())) + 1;
   set_if_bigger(length,line_start.length());
-  stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
+  stack= stack_pos= thd->alloc<int>(length);
 
   DBUG_ASSERT(m_fixed_length < UINT_MAX32);
   if (data.reserve((size_t) m_fixed_length))

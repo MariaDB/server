@@ -51,7 +51,7 @@ LOAD DATA INFILE '$MYSQLTEST_VARDIR/std_data/funcs_1/t3.txt' INTO TABLE t3;
 --disable_warnings
 drop database if exists test4;
 --enable_warnings
-CREATE database test4;
+CREATE database test4 CHARACTER SET latin1;
 use test4;
 
 eval

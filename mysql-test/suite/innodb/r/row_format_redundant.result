@@ -1,11 +1,9 @@
 SET GLOBAL innodb_fast_shutdown=0;
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
-SET GLOBAL innodb_file_per_table=1;
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
 #
 # Bug#21644827 - FTS, ASSERT !SRV_READ_ONLY_MODE || M_IMPL.M_LOG_MODE ==
 #                MTR_LOG_NO_REDO
 #
-SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
@@ -16,6 +14,8 @@ insert into t values(789, 'abcdef', 'jghikl', 'mnop');
 insert into t values(134, 'kasdfsdsadf', 'adfjlasdkfjasd', 'adfsadflkasdasdfljasdf');
 insert into t1 select a,d,b,c from t, seq_1_to_1024;
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 create table t2 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156), fulltext ftsic(c)) engine=InnoDB
 row_format=redundant;
@@ -25,8 +25,7 @@ c varchar(150), index k1(c(99), b(56)), index k2(b(5), c(10))) engine=InnoDB
 row_format=redundant;
 insert into t3 values(444, 'dddd', 'bbbbb', 'aaaaa');
 insert into t3 values(555, 'eeee', 'ccccc', 'aaaaa');
-SET GLOBAL innodb_fast_shutdown=0;
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --innodb-read-only
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --innodb-read-only
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4096
@@ -42,14 +41,14 @@ TRUNCATE TABLE t2;
 ERROR HY000: Table 't2' is read only
 TRUNCATE TABLE t3;
 ERROR HY000: Table 't3' is read only
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --skip-innodb-fast-shutdown
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --skip-innodb-fast-shutdown
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 TRUNCATE TABLE t3;
 corrupted SYS_TABLES.MIX_LEN for test/t1
 corrupted SYS_TABLES.MIX_LEN for test/t2
 corrupted SYS_TABLES.MIX_LEN for test/t3
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --skip-innodb-fast-shutdown
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb_undo_directory=MYSQLTEST_VARDIR/tmp/undo_dir --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --skip-innodb-fast-shutdown
 TRUNCATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine
 TRUNCATE TABLE t2;
@@ -68,7 +67,7 @@ DROP TABLE t1;
 Warnings:
 Warning	1932	Table 'test.t1' doesn't exist in engine
 DROP TABLE t2,t3;
-FOUND 5 /\[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b.*/ in mysqld.1.err
 # restart
 ib_logfile0
 ibdata1

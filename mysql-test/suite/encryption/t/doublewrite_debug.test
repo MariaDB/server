@@ -45,7 +45,7 @@ insert into t3 values (6, repeat('%', 400));
 # Copy the t1.ibd, t2.ibd, t3.ibd file
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_1;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --skip-innodb-log-checkpoint-now --target-dir=$targetdir;
 --enable_result_log
 
 echo # xtrabackup prepare;
@@ -125,7 +125,7 @@ EOF
 let $restart_parameters=;
 --source include/start_mysqld.inc
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9]*, page number=3\\];
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9][0-9]*, page number=3\\];
 --source include/search_pattern_in_file.inc
 
 check table t1;

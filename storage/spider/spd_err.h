@@ -70,6 +70,10 @@
 #define ER_SPIDER_INVALID_CONNECT_INFO_START_WITH_NUM_STR "The connect info '%-.64s' for %s cannot start with number"
 #define ER_SPIDER_INVALID_CONNECT_INFO_SAME_NUM 12527
 #define ER_SPIDER_INVALID_CONNECT_INFO_SAME_STR "The connect info '%-.64s' for %s cannot use same name in same table"
+#define ER_SPIDER_INVALID_TABLE_OPTION_NUM 12528
+#define ER_SPIDER_INVALID_TABLE_OPTION_STR "The table option %s=%s is invalid"
+#define ER_SPIDER_COMMENT_CONNECTION_IGNORED_BY_TABLE_OPTIONS_NUM 12529
+#define ER_SPIDER_COMMENT_CONNECTION_IGNORED_BY_TABLE_OPTIONS_STR "The table or partition COMMENT or CONNECTION string '%s' is not parsed for table params because spider_ignore_comment is 1 or at least one table option has been specified"
 
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_NUM 12601
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_STR "Can't use both spider_use_consistent_snapshot = 1 and spider_internal_xa = 1"
@@ -134,6 +138,8 @@
 #define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_CANT_NUM 12721
 #define ER_SPIDER_CANT_STR1 "Can't %s%d"
+#define ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM 12722
+#define ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_STR "Table %s.%s open lock wait timeout. Please check for self-reference."
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

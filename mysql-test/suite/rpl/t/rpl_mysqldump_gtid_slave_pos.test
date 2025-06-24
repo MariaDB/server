@@ -47,16 +47,18 @@ while ($i)
 --source include/save_master_gtid.inc
 
 --connection slave
-# enforce determistic SELECT * from mysql.gtid_slave_pos
+# enforce deterministic SELECT * from mysql.gtid_slave_pos
 --let $old_gtid_cleanup_batch_size = `select @@GLOBAL.gtid_cleanup_batch_size`
 # the number of generated transactions on master must not exceed this value:
 --let $val= 2147483647
 --evalp SET @@global.gtid_cleanup_batch_size = $val
 
+# due to MDEV-19801 on 10+.10+
+CHANGE MASTER TO master_use_gtid= no;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 # Prior tests in a mtr batch could leave the min value of sub_id column with
-# arbtirary value. Therefore before dumping let's
+# arbitrary value. Therefore before dumping let's
 # adjust mysql.gtid_slave_pos to have sub_id growing deterministically.
 # The value of 2 is choosen.
 --disable_query_log
@@ -70,10 +72,10 @@ select @@global.gtid_slave_pos as "after initial slave got in sync";
 
 --echo # 3. A
 # Two dumps prepared to be restored in the following loop
---exec $MYSQL_DUMP_SLAVE --dump-slave  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_2.sql
+--exec $MYSQL_DUMP_SLAVE --no-autocommit=0 --dump-slave  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_2.sql
 --source include/stop_slave.inc
 
---exec $MYSQL_DUMP_SLAVE --master-data  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_1.sql
+--exec $MYSQL_DUMP_SLAVE --no-autocommit=0 --master-data  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_1.sql
 
 --let $i=2
 while ($i)

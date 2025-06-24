@@ -4,7 +4,7 @@
 
 # TEXT
 
-if (`SELECT UPPER(@@storage_engine) != 'MEMORY'`)
+if (`SELECT UPPER(@@default_storage_engine) != 'MEMORY'`)
 {
 EXECUTE IMMEDIATE REPLACE(
   'CREATE TABLE t1 ( '

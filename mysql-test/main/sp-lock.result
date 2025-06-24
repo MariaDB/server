@@ -119,7 +119,7 @@ drop temporary table t1;
 #
 # For that, start a transaction, use a routine. In a concurrent
 # connection, try to drop or alter the routine. It should place
-# a pending or exclusive lock and block. In another concurrnet
+# a pending or exclusive lock and block. In another concurrent
 # connection, try to use the routine.
 # That should block on the pending exclusive lock.
 #
@@ -727,7 +727,7 @@ get_lock("test", 10)
 1
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
-BEGIN END	latin1	latin1_swedish_ci	latin1_swedish_ci
+BEGIN END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection con3;
 disconnect con3;
 connection con2;

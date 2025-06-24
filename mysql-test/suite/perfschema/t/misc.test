@@ -128,7 +128,7 @@ select * from test.ghost;
 
 drop table test.ghost;
 
-# Shoud return nothing
+# Should return nothing
 select * from performance_schema.file_instances
   where file_name like "%ghost%";
 
@@ -299,3 +299,23 @@ drop tables t1;
 select object_type, object_schema, object_name
 from performance_schema.objects_summary_global_by_type
 where object_schema="test";
+
+--echo #
+--echo # MDEV-28344: sys.ps_setup_save and dependent procedures fail
+--echo #             with ER_ILLEGAL_HA_CREATE_OPTION
+--echo #
+
+# It is not allowed to create temporary tables with performance schema
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 (t int) ENGINE = PERFORMANCE_SCHEMA;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 LIKE performance_schema.setup_actors;
+
+SET @default_storage_engine_old = @@default_storage_engine;
+SET default_storage_engine = performance_schema;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 (t int);
+
+SET @@default_storage_engine = @default_storage_engine_old;

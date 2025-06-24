@@ -13,7 +13,7 @@ insert t1 select 3,seq from seq_1_to_20;
 analyze table t1;
 
 --echo #
---echo # Delete with limit (quick select - range acces)
+--echo # Delete with limit (quick select - range access)
 --echo #
 
 --disable_view_protocol
@@ -137,3 +137,170 @@ set session sort_buffer_size = 1024;
 delete from t1 where c1=0 and exists(select 'x' from t1 b where b.c1<10);
 
 drop table t1;
+
+--echo #
+--echo # MDEV-17954: multi-table DELETE with the same source and target
+--echo #
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+
+--echo #
+--echo # Single-table DELETE with the same source and target
+--echo # handled as multi-table DELETE
+--echo #
+
+let $q1=
+delete from t1
+  where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1 and a.c2 < 3);
+
+eval explain $q1;
+eval $q1;
+select * from t1;
+delete from t1;
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+eval prepare stmt from "$q1";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 values
+  (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+
+--echo #
+--echo # Multi-table DELETE with the same source and target
+--echo #
+
+create table t2 (c1 int, c2 int, c3 int);
+insert into t2 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,5,8);
+
+let $q2=
+delete from t1 using t1,t2
+  where t1.c2 = t2.c2 and t1.c1 > 1;
+
+eval explain $q2;
+eval $q2;
+select * from t1;
+delete from t1;
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+eval prepare stmt from "$q2";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 values
+  (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+let $q2=
+delete from t1 using t1,t2
+  where t1.c2 = t2.c2 and t1.c1 > 1;
+
+eval explain $q2;
+eval $q2;
+select * from t1;
+delete from t1;
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+eval prepare stmt from "$q2";
+execute stmt;
+select * from t1;
+delete from t1;
+insert into t1 values
+  (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+execute stmt;
+select * from t1;
+deallocate prepare stmt;
+
+delete from t1;
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+
+let $q3=
+delete from t1,t2 using t1,t2
+  where t1.c2 = t2.c2 and t1.c1 > 1 and t2.c1 > 1;
+
+eval explain $q3;
+eval $q3;
+select * from t1;
+select * from t2;
+delete from t1;
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+delete from t2;
+insert into t2 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,5,8);
+eval prepare stmt from "$q3";
+execute stmt;
+select * from t1;
+select * from t2;
+delete from t1;
+insert into t1 values
+  (1,2,2), (1,3,3), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+delete from t2;
+insert into t2 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5);
+execute stmt;
+select * from t1;
+select * from t2;
+deallocate prepare stmt;
+
+drop table t1,t2;
+
+--echo # End of 11.1
+
+--echo #
+--echo # MDEV-33988 DELETE (single table) to support table aliases
+--echo #
+
+create table t1 (c1 int, c2 int, c3 int);
+insert into t1 values
+  (1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,5,7), (3,5,8);
+create table t2 (id int auto_increment primary key, a int, key(a));
+insert into t2(a) values (3), (5), (-1);
+
+--echo # 1. The alias in delete coincides with the table name in IN subquery.
+
+explain extended
+delete from t1 t2 where t2.c1 in (select a from t2);
+delete from t1 t2 where t2.c1 in (select a from t2);
+
+select * from t1;
+
+--echo # 2. The alias in delete is different from the alias in IN subquery
+
+explain extended
+delete from t1 t_x where t_x.c2 IN (select a from t2 as t_y);
+delete from t1 t_x where t_x.c2 IN (select a from t2 as t_y);
+
+select * from t1;
+
+--echo # 3. The alias in delete is the same as the alias in IN subquery.
+
+explain extended
+delete from t1 as t_x where t_x.c3 IN (select a from t2 t_x);
+delete from t1 as t_x where t_x.c3 IN (select a from t2 t_x);
+
+select * from t1;
+
+--echo # 4. The table in delete is the alias in IN subquery
+
+explain extended
+delete from t1 t2 where t2.c1 IN (select a -1  from t2 as t1);
+delete from t1 t2 where t2.c1 IN (select a -1  from t2 as t1);
+select * from t1;
+
+drop table t1, t2;
+
+--echo # End of 11.6

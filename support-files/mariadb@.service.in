@@ -202,7 +202,7 @@ ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
 
 # Start main service
 # A few variables are here:
-# * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguisable
+# * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguishable
 # * MYSQLD_OPTS - user definable extras - not a replacement for my.cnf
 #
 # Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
@@ -217,7 +217,7 @@ SendSIGKILL=no
 
 # Restart crashed server only, on-failure would also restart, for example, when
 # my.cnf contains unknown option
-Restart=on-abort
+Restart=on-abnormal
 RestartSec=5s
 
 UMask=007

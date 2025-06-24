@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL\&.SERVER\FR" "1" "15 May 2020" "MariaDB 10\&.6" "MariaDB Database System"
+.TH "\fBMYSQL\&.SERVER\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -35,7 +35,7 @@ directory with the name
 mysql\&. You need not install it manually\&.
 .PP
 Some vendors provide RPM packages that install a startup script under a different name such as
-\fBmysqld\fR\&.
+\fBmariadbd\fR\&.
 .PP
 If you install MariaDB from a source distribution or using a binary distribution format that does not install
 \fBmysql\&.server\fR
@@ -45,7 +45,7 @@ automatically, you can install it manually\&.
 reads options from the
 [mysql\&.server]
 and
-[mysqld]
+[mariadbd]
 sections of option files\&. For backward compatibility, it also reads
 [mysql_server]
 sections, although you should rename such sections to
@@ -124,12 +124,12 @@ exits with an error\&. The default value is 900\&. A value of 0 means not to wai
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql.server: use-mysqld_safe option
-.\" use-mysqld_safe option: mysql.server
-\fB\-\-use\-mysqld_safe\fR
+.\" mysql.server: use-mariadbd_safe option
+.\" use-mariadbd_safe option: mysql.server
+\fB\-\-use\-mariadbd_safe\fR
 .sp
 Use
-\fBmysqld_safe\fR
+\fBmariadbd_safe\fR
 to start the server\&. This is the default\&.
 .RE
 .sp
@@ -161,12 +161,12 @@ Use Instance Manager to start the server\&.
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR
 .sp
 The login user name to use for running
-\fBmysqld\fR\&.
+\fBmariadbd\fR\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

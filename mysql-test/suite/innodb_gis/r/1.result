@@ -580,7 +580,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ST_GeomFromWKB(POINT(1,3))` geometry DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE `t1` (`object_id` bigint(20) unsigned NOT NULL default '0', `geo`
@@ -660,9 +660,9 @@ object_id	ST_geometrytype(geo)	ST_ISSIMPLE(GEO)	ST_ASTEXT(ST_centroid(geo))
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 values (1.11);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'decimal' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 values ("qwerty");
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 values (ST_pointfromtext('point(1,1)'));
@@ -789,7 +789,7 @@ show create function fn3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
 fn3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS point
     DETERMINISTIC
-return ST_GeomFromText("point(1 1)")	latin1	latin1_swedish_ci	latin1_swedish_ci
+return ST_GeomFromText("point(1 1)")	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 select ST_astext(fn3());
 ST_astext(fn3())
 POINT(1 1)
@@ -1074,10 +1074,6 @@ col0 INTEGER NOT NULL,
 col1 POINT,
 col2 POINT
 );
-CREATE SPATIAL INDEX idx0 ON t2 (col1, col2);
-ERROR 42000: Key column 'col1' doesn't exist in table
-CREATE SPATIAL INDEX idx0 ON t2 (col0, col2);
-ERROR HY000: Incorrect arguments to SPATIAL INDEX
 CREATE TABLE t4 (
 col0 INTEGER NOT NULL,
 col1 POINT,

@@ -1,0 +1,19 @@
+# Fetching into a PACKAGE BODY variable of the ROW type
+DELIMITER $$;
+CREATE PACKAGE pkg
+  FUNCTION f1() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg
+  DECLARE vc ROW(p1 INT, p2 INT);
+  FUNCTION f1() RETURNS TEXT
+  BEGIN
+    DECLARE cur CURSOR FOR SELECT 1 AS c1, 2 AS c2 FROM DUAL;
+    OPEN cur;
+    FETCH cur INTO vc;
+    CLOSE cur;
+    RETURN CONCAT(vc.p1, ' ', vc.p2);
+  END;
+END;
+$$
+DELIMITER ;$$

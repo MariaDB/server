@@ -139,7 +139,7 @@ SELECT * FROM federated.whatever;
 
 ALTER SERVER 'server_one' options(DATABASE 'second_db');
 
-# FLUSH TABLES is now unneccessary
+# FLUSH TABLES is now unnecessary
 
 INSERT INTO federated.t1 (id, name) values (1, 'server_two, new scheme, second_db.t1');
 SELECT * FROM federated.t1;
@@ -162,7 +162,7 @@ drop database second_db;
 #
 # Bug#25671 - CREATE/DROP/ALTER SERVER should require privileges
 #
-# Changes to SERVER declarations should require SUPER privilege.
+# Changes to SERVER declarations should require FEDERATED ADMIN privilege.
 # Based upon test case by Giuseppe Maxia
 
 create database db_legitimate;
@@ -202,7 +202,7 @@ create user guest_select@localhost;
 grant select on federated.* to guest_select@localhost;
 
 create user guest_super@localhost;
-grant select,SUPER,RELOAD on *.* to guest_super@localhost;
+grant select,FEDERATED ADMIN,RELOAD on *.* to guest_super@localhost;
 
 create user guest_usage@localhost;
 grant usage on *.* to guest_usage@localhost;

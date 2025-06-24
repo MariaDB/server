@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -95,7 +95,7 @@ this byte can be garbage. */
 				direction */
 #define	PAGE_N_RECS	 16	/* number of user records on the page */
 /** The largest DB_TRX_ID that may have modified a record on the page;
-Defined only in secondary index leaf pages and in change buffer leaf pages.
+Defined only in secondary index leaf pages.
 Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 #define PAGE_MAX_TRX_ID	 18
 /** The AUTO_INCREMENT value (on persistent clustered index root pages). */
@@ -636,30 +636,54 @@ page_rec_check(
 /** Get the record pointed to by a directory slot.
 @param[in] slot   directory slot
 @return pointer to record */
-inline rec_t *page_dir_slot_get_rec(page_dir_slot_t *slot)
+inline rec_t *page_dir_slot_get_rec(page_t *page, page_dir_slot_t *slot)
+  noexcept
 {
-  return page_align(slot) + mach_read_from_2(my_assume_aligned<2>(slot));
+  return page + mach_read_from_2(my_assume_aligned<2>(slot));
 }
-inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot)
+inline const rec_t *page_dir_slot_get_rec(const page_t *page,
+                                          const page_dir_slot_t *slot) noexcept
+{
+  return page_dir_slot_get_rec(const_cast<page_t*>(page),
+                               const_cast<rec_t*>(slot));
+}
+
+inline rec_t *page_dir_slot_get_rec(page_dir_slot_t *slot) noexcept
+{
+  return page_dir_slot_get_rec(page_align(slot), slot);
+}
+inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot) noexcept
 {
   return page_dir_slot_get_rec(const_cast<rec_t*>(slot));
 }
 
-inline rec_t *page_dir_slot_get_rec_validate(page_dir_slot_t *slot)
+inline rec_t *page_dir_slot_get_rec_validate(page_t *page,
+                                             page_dir_slot_t *slot) noexcept
 {
   const size_t s= mach_read_from_2(my_assume_aligned<2>(slot));
-  page_t *page= page_align(slot);
-
   return UNIV_LIKELY(s >= PAGE_NEW_INFIMUM &&
                      s <= page_header_get_field(page, PAGE_HEAP_TOP))
     ? page + s
     : nullptr;
 }
+
+inline const rec_t *page_dir_slot_get_rec_validate(const page_t *page,
+                                                   const page_dir_slot_t *slot)
+  noexcept
+{
+  return page_dir_slot_get_rec_validate(const_cast<page_t*>(page),
+                                        const_cast<page_dir_slot_t*>(slot));
+}
+
+inline rec_t *page_dir_slot_get_rec_validate(page_dir_slot_t *slot) noexcept
+{
+  return page_dir_slot_get_rec_validate(page_align(slot), slot);
+}
 inline const rec_t *page_dir_slot_get_rec_validate(const page_dir_slot_t *slot)
+  noexcept
 {
   return page_dir_slot_get_rec_validate(const_cast<rec_t*>(slot));
 }
-
 
 /***************************************************************//**
 Gets the number of records owned by a directory slot.
@@ -917,11 +941,6 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
 
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_t::commit().
-
 @return error code */
 dberr_t
 page_copy_rec_list_end_no_locks(
@@ -935,11 +954,6 @@ page_copy_rec_list_end_no_locks(
 Copies records from page to new_page, from the given record onward,
 including that record. Infimum and supremum records are not copied.
 The records are copied to the start of the record list on new_page.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_t::commit().
 
 @return pointer to the original successor of the infimum record on new_block
 @retval nullptr on ROW_FORMAT=COMPRESSED page overflow */
@@ -957,11 +971,6 @@ page_copy_rec_list_end(
 Copies records from page to new_page, up to the given record, NOT
 including that record. Infimum and supremum records are not copied.
 The records are copied to the end of the record list on new_page.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if new_block is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
 
 @return pointer to the original predecessor of the supremum record on new_block
 @retval nullptr on ROW_FORMAT=COMPRESSED page overflow */
@@ -1108,7 +1117,7 @@ page_find_rec_with_heap_no(
 @param[in]	page	index tree leaf page
 @return the last record, not delete-marked
 @retval infimum record if all records are delete-marked */
-const rec_t *page_find_rec_max_not_deleted(const page_t *page);
+const rec_t *page_find_rec_last_not_deleted(const page_t *page);
 
 #endif /* !UNIV_INNOCHECKSUM */
 

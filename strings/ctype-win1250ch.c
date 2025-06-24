@@ -490,12 +490,13 @@ int my_strnncollsp_win1250ch(CHARSET_INFO * cs,
 }
 
 
-static size_t
+static my_strnxfrm_ret_t
 my_strnxfrm_win1250ch(CHARSET_INFO *cs  __attribute__((unused)),
                       uchar *dest, size_t len,
                       uint nweights_arg __attribute__((unused)),
                       const uchar *src, size_t srclen, uint flags)
 {
+  uint warnings= 0;
   int value;
   const uchar *p;
   int pass = 0;
@@ -505,20 +506,29 @@ my_strnxfrm_win1250ch(CHARSET_INFO *cs  __attribute__((unused)),
   if (!(flags & 0x0F)) /* All levels by default */                              
     flags|= 0x0F;
 
-  while (totlen < len)
+  for ( ; ; )
   {
     NEXT_CMP_VALUE(src, p, pass, value, (int)srclen);
     if (!value)
       break;
     if ((1 << pass) & flags)
-      dest[totlen++] = value;
+    {
+      if (totlen < len)
+        dest[totlen++]= value;
+      else
+      {
+        warnings= MY_STRNXFRM_TRUNCATED_WEIGHT_REAL_CHAR;
+        break;
+      }
+    }
   }
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len > totlen)
   {
     memset(dest + totlen, 0x00, len - totlen);
     totlen= len;
   }
-  return totlen;
+  DBUG_ASSERT(src <= p);
+  return my_strnxfrm_ret_construct(totlen, pass * srclen + p - src, warnings);
 }
 
 #undef IS_END
@@ -683,12 +693,14 @@ static MY_COLLATION_HANDLER my_collation_czech_cs_handler =
   my_strnxfrmlen_simple,
   my_like_range_win1250ch,
   my_wildcmp_8bit,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_simple,
   my_propagate_simple,
   my_min_str_8bit_simple,
-  my_max_str_8bit_simple
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic,
+  my_ci_eq_collation_generic
 };
 
 
@@ -708,19 +720,17 @@ struct charset_info_st my_charset_cp1250_czech_cs =
   NULL,				/* uca          */
   tab_cp1250_uni,		/* tab_to_uni   */
   idx_uni_cp1250,		/* tab_from_uni */
-  &my_unicase_default,          /* caseinfo     */
+  NULL,                         /* casefold     */
   NULL,				/* state_map    */
   NULL,				/* ident_map    */
   2,				/* strxfrm_multiply */
-  1,                            /* caseup_multiply  */
-  1,                            /* casedn_multiply  */
   1,				/* mbminlen  */
   1,				/* mbmaxlen  */
   0,				/* min_sort_char */
   0xFF,                         /* max_sort_char */
   ' ',                          /* pad char      */
   0,                            /* escape_with_backslash_is_dangerous */
-  2,                            /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S2,
   &my_charset_8bit_handler,
   &my_collation_czech_cs_handler
 };

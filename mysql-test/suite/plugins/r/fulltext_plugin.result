@@ -8,3 +8,72 @@ DROP TABLE t1;
 UNINSTALL PLUGIN simple_parser;
 show status like 'a%status';
 Variable_name	Value
+# End of 10.5 tests
+#
+# MDEV-35308 NO_KEY_OPTIONS SQL mode has no effect on engine key options
+#
+install soname 'mypluglib';
+set sql_mode=ignore_bad_table_options;
+create table t1 (
+f1 int foo=bar primary key auto_increment,
+f2 int default 3 invisible,
+f3 text,
+vf1 int as (f2+2) invisible,
+unique (f1) koo=12,
+fulltext (f3) with parser simple_parser
+) too=yes;
+Warnings:
+Warning	1911	Unknown option 'foo'
+Warning	1911	Unknown option 'koo'
+Warning	1911	Unknown option 'too'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT `foo`=bar,
+  `f2` int(11) DEFAULT 3 INVISIBLE,
+  `f3` text DEFAULT NULL,
+  `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL INVISIBLE,
+  PRIMARY KEY (`f1`),
+  UNIQUE KEY `f1` (`f1`) `koo`=12,
+  FULLTEXT KEY `f3` (`f3`) WITH PARSER `simple_parser`
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `too`=yes
+set sql_mode=no_table_options;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT /* `foo`=bar */,
+  `f2` int(11) DEFAULT 3 INVISIBLE,
+  `f3` text DEFAULT NULL,
+  `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL INVISIBLE,
+  PRIMARY KEY (`f1`),
+  UNIQUE KEY `f1` (`f1`) /* `koo`=12 */,
+  FULLTEXT KEY `f3` (`f3`) WITH PARSER `simple_parser`
+)
+set sql_mode=no_field_options;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT 3,
+  `f3` text DEFAULT NULL,
+  `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL,
+  PRIMARY KEY (`f1`),
+  UNIQUE KEY `f1` (`f1`) /* `koo`=12 */,
+  FULLTEXT KEY `f3` (`f3`) WITH PARSER `simple_parser`
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `too`=yes */
+set sql_mode=no_key_options;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL AUTO_INCREMENT /* `foo`=bar */,
+  `f2` int(11) DEFAULT 3 INVISIBLE,
+  `f3` text DEFAULT NULL,
+  `vf1` int(11) GENERATED ALWAYS AS (`f2` + 2) VIRTUAL INVISIBLE,
+  PRIMARY KEY (`f1`),
+  UNIQUE KEY `f1` (`f1`),
+  FULLTEXT KEY `f3` (`f3`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci /* `too`=yes */
+drop table t1;
+set sql_mode=default;
+uninstall soname 'mypluglib';
+# End of 11.7 tests

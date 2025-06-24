@@ -15,7 +15,7 @@
 
 #include "maria_def.h"
 
-	/*  Read first row through  a specfic key */
+	/*  Read first row through a specific key */
 
 int maria_rfirst(MARIA_HA *info, uchar *buf, int inx)
 {

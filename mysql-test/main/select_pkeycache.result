@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2,t3,t4,t11;
 drop table if exists t1_1,t1_2,t9_1,t9_2,t1aa,t2aa;
 drop view if exists v1;
@@ -603,6 +604,31 @@ explain select t3.t2nr,fld3 from t2,t3 where t2.companynr = 34 and t2.fld1=t3.t2
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	fld1	NULL	NULL	NULL	1199	Using where; Using temporary; Using filesort
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.fld1	1	Using where; Using index
+#
+# Some test with ORDER BY and limit
+#
+explain select count(*) from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	period	period	4	NULL	41810	Using where; Using index
+1	SIMPLE	t3	ref	period	period	4	test.t1.period	4181	Using index
+explain select sum(t1.price+t3.price) from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	period	NULL	NULL	NULL	41810	
+1	SIMPLE	t3	ALL	period	NULL	NULL	NULL	41810	Using where; Using join buffer (flat, BNL join)
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	period	NULL	NULL	NULL	41810	Using temporary; Using filesort
+1	SIMPLE	t3	ALL	period	NULL	NULL	NULL	41810	Using where; Using join buffer (flat, BNL join)
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	period	NULL	NULL	NULL	41810	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	period	NULL	NULL	NULL	41810	Using where; Using join buffer (flat, BNL join)
+explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	period	NULL	NULL	NULL	41810	Using temporary; Using filesort
+1	SIMPLE	t3	ALL	period	NULL	NULL	NULL	41810	Using where; Using join buffer (flat, BNL join)
+set @save_join_cache_level=@@join_cache_level;
+set @@join_cache_level=0;
 explain select * from t3 as t1,t3 where t1.period=t3.period order by t3.period;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	period	NULL	NULL	NULL	41810	Using filesort
@@ -615,6 +641,10 @@ explain select * from t3 as t1,t3 where t1.period=t3.period order by t1.period l
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	period	period	4	NULL	1	
 1	SIMPLE	t3	ref	period	period	4	test.t1.period	4181	
+set @@join_cache_level=@save_join_cache_level;
+#
+# Search with a constant table.
+#
 select period from t1;
 period
 9410
@@ -1378,18 +1408,28 @@ explain select companynr,companyname from t4 left join t2 using (companynr) wher
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 delete from t2 where fld1=999999;
+#
+# Test left join optimization
+#
+set @save_join_cache_level=@@join_cache_level;
+set @@join_cache_level=0;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where
-1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where
 1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 and t4.companynr > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where
-1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	1	test.t2.companynr	1	
+set @@join_cache_level=@save_join_cache_level;
+explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where; Using join buffer (flat, BNL join)
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
@@ -1426,6 +1466,9 @@ explain select companynr,companyname from t4 left join t2 using (companynr) wher
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	12	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where
+#
+# Joins with forms.
+#
 select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 companynr	companynr
 37	36
@@ -2364,16 +2407,16 @@ insert into t1 values (1,2), (2,2), (3,2), (4,2);
 insert into t2 values (1,3), (2,3), (3,4), (4,4);
 explain select * from t1 left join t2 on a=c where d in (4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	c,d	d	5	const	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ref	c,d	d	5	const	2	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.c	1	
 select * from t1 left join t2 on a=c where d in (4);
 a	b	c	d
 3	2	3	4
 4	2	4	4
 explain select * from t1 left join t2 on a=c where d = 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	c,d	d	5	const	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ref	c,d	d	5	const	2	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.c	1	
 select * from t1 left join t2 on a=c where d = 4;
 a	b	c	d
 3	2	3	4
@@ -2400,11 +2443,11 @@ INSERT INTO t2 VALUES ('one'),('two'),('three'),('four'),('five');
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 USE INDEX (a) ON t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	a	a	23	test.t1.a	2	Using where
+1	SIMPLE	t2	ref	a	a	23	test.t1.a	1	Using where
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 FORCE INDEX (a) ON t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	a	a	23	test.t1.a	2	Using where
+1	SIMPLE	t2	ref	a	a	23	test.t1.a	1	Using where
 DROP TABLE t1, t2;
 CREATE TABLE t1 ( city char(30) );
 INSERT INTO t1 VALUES ('London');
@@ -3597,7 +3640,7 @@ CREATE TABLE t1(id int PRIMARY KEY, b int, e int);
 CREATE TABLE t2(i int, a int, INDEX si(i), INDEX ai(a));
 CREATE TABLE t3(a int PRIMARY KEY, c char(4), INDEX ci(c));
 INSERT INTO t1 VALUES 
-(1,10,19), (2,20,22), (4,41,42), (9,93,95), (7, 77,79),
+(1,10,19), (2,20,22), (4,41,42), (9,39,95), (7, 77,79),
 (6,63,67), (5,55,58), (3,38,39), (8,81,89);
 INSERT INTO t2 VALUES
 (21,210), (41,410), (82,820), (83,830), (84,840),
@@ -3625,6 +3668,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t2	range	si,ai	si	5	NULL	4	Using index condition; Using where
 1	SIMPLE	t3	eq_ref|filter	PRIMARY,ci	PRIMARY|ci	4|5	test.t2.a	1 (30%)	Using where; Using rowid filter
+EXPLAIN
+SELECT t3.a FROM t1,t2 FORCE INDEX (si),t3
+WHERE t1.id = 9 AND t2.i BETWEEN t1.b AND t1.e AND 
+t3.a=t2.a AND t3.c IN ('bb','ee');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	range	si	si	5	NULL	13	Using index condition; Using where
+1	SIMPLE	t3	eq_ref|filter	PRIMARY,ci	PRIMARY|ci	4|5	test.t2.a	1 (30%)	Using where; Using rowid filter
 EXPLAIN 
 SELECT t3.a FROM t1,t2 FORCE INDEX (si),t3
 WHERE t1.id = 8 AND (t2.i=t1.b OR t2.i=t1.e) AND t3.a=t2.a AND
@@ -3632,7 +3683,7 @@ t3.c IN ('bb','ee');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t2	range	si	si	5	NULL	2	Using index condition; Using where
-1	SIMPLE	t3	eq_ref|filter	PRIMARY,ci	PRIMARY|ci	4|5	test.t2.a	1 (30%)	Using where; Using rowid filter
+1	SIMPLE	t3	eq_ref	PRIMARY,ci	PRIMARY	4	test.t2.a	1	Using where
 EXPLAIN 
 SELECT t3.a FROM t1,t2,t3
 WHERE t1.id = 8 AND (t2.i=t1.b OR t2.i=t1.e) AND t3.a=t2.a AND
@@ -3640,7 +3691,7 @@ t3.c IN ('bb','ee');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t2	range	si,ai	si	5	NULL	2	Using index condition; Using where
-1	SIMPLE	t3	eq_ref|filter	PRIMARY,ci	PRIMARY|ci	4|5	test.t2.a	1 (30%)	Using where; Using rowid filter
+1	SIMPLE	t3	eq_ref	PRIMARY,ci	PRIMARY	4	test.t2.a	1	Using where
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 ( f1 int primary key, f2 int, f3 int, f4 int, f5 int, f6 int, checked_out int);
 CREATE TABLE t2 ( f11 int PRIMARY KEY );
@@ -3717,7 +3768,7 @@ COUNT(*)
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null IS NULL AND ID2_with_null=3 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	4|10	const	2 (6%)	Using where; Using rowid filter
+1	SIMPLE	t1	index_merge	idx1,idx2	idx2,idx1	4,10	NULL	1	Using intersect(idx2,idx1); Using where; Using index
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null=3 AND ID2_with_null=3 IS NULL ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -3731,7 +3782,7 @@ CREATE UNIQUE INDEX idx1 ON t1(ID1_with_null,ID2_with_null);
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null IS NULL AND ID2_with_null=3 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	4|10	const	2 (7%)	Using where; Using rowid filter
+1	SIMPLE	t1	ref	idx1,idx2	idx2	4	const	2	Using where
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null=3 AND ID2_with_null IS NULL ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -3876,7 +3927,7 @@ cc 	3	7
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.name=t2.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	name	name	6	test.t1.name	2	Using where
+1	SIMPLE	t2	ref	name	name	6	test.t1.name	1	Using where
 SELECT * FROM t1 LEFT JOIN t2 ON t1.name=t2.name;
 name	name	n
 ccc	NULL	NULL
@@ -3969,7 +4020,7 @@ cc 	3	7
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.name=t2.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	name	name	6	test.t1.name	2	Using where
+1	SIMPLE	t2	ref	name	name	6	test.t1.name	1	Using where
 SELECT * FROM t1 LEFT JOIN t2 ON t1.name=t2.name;
 name	name	n
 ccc	NULL	NULL
@@ -5259,11 +5310,11 @@ SELECT `varchar_nokey` G1  FROM CC  WHERE `int_nokey` AND `int_key`  <= 4
 HAVING G1  ORDER  BY `varchar_key` LIMIT  6   ;
 G1
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'z'
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
-Warning	1292	Truncated incorrect DECIMAL value: 'q'
-Warning	1292	Truncated incorrect DECIMAL value: 'm'
-Warning	1292	Truncated incorrect DECIMAL value: 'j'
+Warning	1292	Truncated incorrect BOOLEAN value: 'z'
+Warning	1292	Truncated incorrect BOOLEAN value: 'a'
+Warning	1292	Truncated incorrect BOOLEAN value: 'q'
+Warning	1292	Truncated incorrect BOOLEAN value: 'm'
+Warning	1292	Truncated incorrect BOOLEAN value: 'j'
 DROP TABLE CC;
 # End of test#45227
 #                    
@@ -5624,7 +5675,7 @@ CREATE TABLE t1(a VARCHAR(16383) CHARACTER SET UTF32, KEY k(a));
 Warnings:
 Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT INTO t1 VALUES ('abc'), ('def'), ('FFF'), ('abc'), ('FFF');
-SET SESSION big_tables=ON;
+set tmp_memory_table_size=0;
 SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 3
@@ -5635,6 +5686,7 @@ COUNT(DISTINCT a)
 EXECUTE stmt;
 COUNT(DISTINCT a)
 3
+set tmp_memory_table_size=default;
 DROP TABLE t1;
 #
 # MDEV-29294: Assertion `functype() == ((Item_cond *) new_item)->functype()'
@@ -5693,3 +5745,4 @@ a
 DROP TABLE t1;
 DROP VIEW v1, v2;
 End of 10.0 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

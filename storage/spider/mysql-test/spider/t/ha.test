@@ -189,12 +189,14 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_HA_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
   (1, 'a', '2008-08-01 10:21:39'),
   (2, 'b', '2000-01-01 00:00:00'),
   (3, 'e', '2007-06-04 20:03:11'),
   (4, 'd', '2003-11-30 05:01:03'),
   (5, 'c', '2001-12-31 23:59:59');
+--enable_ps_protocol
 
 --echo
 --echo select test
@@ -395,8 +397,10 @@ if ($USE_CHILD_GROUP3)
 --connection master_1
 eval $MASTER_1_SET_RECOVERY_STATUS_2_1;
 eval $MASTER_1_CHECK_LINK_STATUS;
+--disable_ps_protocol
 --disable_view_protocol
 eval $MASTER_1_COPY_TABLES_2_1;
+--enable_ps_protocol
 --enable_view_protocol
 if ($USE_CHILD_GROUP3)
 {
@@ -423,8 +427,10 @@ if ($USE_CHILD_GROUP3)
 --connection master_1
 eval $MASTER_1_SET_OK_STATUS_2_1;
 eval $MASTER_1_CHECK_LINK_STATUS;
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
-  (8, 'g', '2011-05-05 21:33:30');
+(8, 'g', '2011-05-05 21:33:30');
+--enable_ps_protocol
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 DROP TABLE ta_l;
 if ($USE_CHILD_GROUP2)
@@ -583,12 +589,14 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_HA_AS_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
   (1, 'a', '2008-08-01 10:21:39'),
   (2, 'b', '2000-01-01 00:00:00'),
   (3, 'e', '2007-06-04 20:03:11'),
   (4, 'd', '2003-11-30 05:01:03'),
   (5, 'c', '2001-12-31 23:59:59');
+--enable_ps_protocol
 
 --echo
 --echo select test
@@ -789,8 +797,10 @@ if ($USE_CHILD_GROUP3)
 --connection master_1
 eval $MASTER_1_SET_OK_STATUS_AS_2_1;
 eval $MASTER_1_CHECK_LINK_STATUS;
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
   (8, 'g', '2011-05-05 21:33:30');
+--enable_ps_protocol
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 DROP TABLE ta_l;
 if ($USE_CHILD_GROUP2)

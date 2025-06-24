@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -480,7 +480,7 @@ rec_offs_make_valid(
 	const bool is_alter_metadata = leaf
 		&& rec_is_alter_metadata(rec, *index);
 	ut_ad((leaf && rec_is_metadata(rec, *index))
-	      || index->is_dummy || index->is_ibuf()
+	      || index->is_dummy
 	      || (leaf
 		  ? rec_offs_n_fields(offsets)
 		  <= dict_index_get_n_fields(index)
@@ -882,18 +882,15 @@ rec_get_offsets_func(
 		/* The infimum and supremum records carry 1 field. */
 		ut_ad(is_user_rec || n == 1);
 		ut_ad(!is_user_rec || n_core || index->is_dummy
-		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* dict_stats_analyze_index_level() */
 		      || n - 1
 		      == dict_index_get_n_unique_in_tree_nonleaf(index));
 		ut_ad(!is_user_rec || !n_core || index->is_dummy
-		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID) >= n_core));
 
 		if (is_user_rec && n_core && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
-			ut_ad(!dict_index_is_ibuf(index));
 			n = index->n_fields;
 		}
 	}
@@ -1972,7 +1969,7 @@ rec_copy_prefix_to_buf(
 						or NULL */
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
-	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
+	ut_ad(n_fields <= index->n_fields);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
 

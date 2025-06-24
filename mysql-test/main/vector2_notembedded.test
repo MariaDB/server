@@ -1,0 +1,66 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # mysqldump
+--echo #
+create table t1 (id int auto_increment primary key, v vector(5) not null);
+insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
+                     (Vec_Fromtext('[0.186,0.696,0.035,0.668,0.847]')),
+                     (Vec_Fromtext('[0.415,0.609,0.426,0.988,0.475]'));
+select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
+exec $MYSQL_DUMP --compact test t1;
+replace_regex /\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d/YYYY-MM-DD hh:mm:ss/;
+exec $MYSQL_DUMP --compact --xml test t1;
+exec $MYSQL_DUMP test t1 > $MYSQL_TMP_DIR/vector.sql;
+exec $MYSQL test < $MYSQL_TMP_DIR/vector.sql;
+remove_file $MYSQL_TMP_DIR/vector.sql;
+show create table t1;
+select id, Vec_ToText(v) from t1;
+select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
+drop table t1;
+
+--echo #
+--echo # MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share
+--echo #
+create table t (a int primary key, v vector(10) not null, vector index(v));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a int auto_increment, lock=none;
+drop table t;
+
+--echo #
+--echo # MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+--echo #
+create table t1 (v vector(1) not null, vector(v)) engine=innodb;
+insert into t1 select 0x00000000 as v from seq_1_to_1000;
+
+--connect con1,localhost,root
+--send alter table t1 add column x int, algorithm=copy;
+--connection default
+xa start 'x';
+--error ER_NO_SUCH_TABLE
+select * from non_existing_table;
+delete from t1;
+xa end 'x';
+--error ER_GET_ERRNO
+xa prepare 'x';
+--connection con1
+--reap
+--disconnect con1
+--connection default
+drop table t1;
+
+--echo #
+--echo # MDEV-35223 REPAIR does not fix MyISAM table with vector key after crash recovery
+--echo #
+call mtr.add_suppression('t#i#00'' is marked as crashed and should be repaired');
+create table t (v vector(1) not null, vector(v)) engine=myisam;
+insert into t (v) values (0x30303030),(0x31313131);
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+check table t extended;
+repair table t extended;
+check table t extended;
+select v from t order by vec_distance_euclidean(0x323233232,v) limit 1;
+drop table t;

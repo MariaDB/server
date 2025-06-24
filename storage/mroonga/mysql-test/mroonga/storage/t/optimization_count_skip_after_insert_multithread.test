@@ -21,7 +21,7 @@
 DROP TABLE IF EXISTS diaries;
 --enable_warnings
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 CREATE TABLE diaries (
   title TEXT,
   FULLTEXT INDEX ft(title)

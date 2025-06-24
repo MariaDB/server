@@ -1,1 +1,3 @@
-SET GLOBAL innodb_file_per_table=ON;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+DROP TABLE IF EXISTS table6;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -3,7 +3,7 @@ SET GLOBAL MAX_BINLOG_SIZE = 4096;
 SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
 create table t1 (a int primary key, b int, c varchar(255)) engine=rocksdb;
 'con1'
-SET SESSION debug="d,crash_commit_after_log";
+SET SESSION debug_dbug="d,crash_commit_after_log";
 SET DEBUG_SYNC='rocksdb.prepared SIGNAL parked WAIT_FOR go';
 insert into t1 values (1, 1, "iamtheogthealphaandomega");;
 'con2'

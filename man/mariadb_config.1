@@ -1,0 +1,247 @@
+'\" t
+.\"
+.TH "\fBMARIADB-CONFIG\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mariadb-dump
+.SH "NAME"
+mariadb-dump \- get compile options for compiling clients
+.SH "SYNOPSIS"
+.HP \w'\fBmariadb-dump\ \fR\fB\fIoptions\fR\fR\ 'u
+\fBmariadb-dump \fR\fB\fIoptions\fR\fR
+.SH "DESCRIPTION"
+.PP
+\fBmariadb-dump\fR
+provides you with useful information for compiling your MariaDB client and connecting it to MariaDB\&.
+.PP
+\fBmariadb-dump\fR
+supports the following options\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: cflags option
+.\" cflags option: mariadb-dump
+\fB\-\-cflags\fR
+.sp
+Compiler flags to find include files and critical compiler flags and defines used when compiling the
+libmysqlclient
+library\&. The options returned are tied to the specific compiler that was used when the library was created and might clash with the settings for your own compiler\&. Use
+\fB\-\-include\fR
+for more portable options that contain only include paths\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: include option
+.\" include option: mariadb-dump
+\fB\-\-include\fR
+.sp
+Compiler options to find MariaDB include files\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: libmysqld-libs option
+.\" libmysqld-libs option: mariadb-dump
+.\" mariadb-dump: embedded option
+.\" embedded option: mariadb-dump
+\fB\-\-libmysqld\-libs\fR,
+\fB\-\-embedded\fR
+.sp
+Libraries and options required to link with the MariaDB embedded server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: libs option
+.\" libs option: mariadb-dump
+\fB\-\-libs\fR
+.sp
+Libraries and options required to link with the MariaDB client library\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: libs_r option
+.\" libs_r option: mariadb-dump
+\fB\-\-libs_r\fR
+.sp
+Libraries and options required to link with the thread\-safe MariaDB client library\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: plugindir option
+.\" plugindir option: mariadb-dump
+\fB\-\-plugindir\fR
+.sp
+The default plugin directory path name, defined when configuring MariaDB\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: port option
+.\" port option: mariadb-dump
+\fB\-\-port\fR
+.sp
+The default TCP/IP port number, defined when configuring MariaDB\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: socket option
+.\" socket option: mariadb-dump
+\fB\-\-socket\fR
+.sp
+The default Unix socket file, defined when configuring MariaDB\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: variable option
+.\" variable option: mariadb-dump
+\fB\-\-variable=VAR\fR
+.sp
+Path to MariaDB include, library and plugin directories\&. \fBVAR\fR is one of
+`pkgincludedir`, `pkglibdir` and `plugindir`, respectively\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: version option
+.\" version option: mariadb-dump
+\fB\-\-version\fR
+.sp
+Version number for the MariaDB distribution\&.
+.RE
+.PP
+If you invoke
+\fBmariadb-dump\fR
+with no options, it displays a list of all options that it supports, and their values:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-dump\fR
+Usage: /usr/local/mysql/bin/mariadb-dump [options]
+Options:
+  \-\-cflags         [\-I/usr/local/mysql/include/mysql \-mcpu=pentiumpro]
+  \-\-include        [\-I/usr/local/mysql/include/mysql]
+  \-\-libs           [\-L/usr/local/mysql/lib/mysql \-lmysqlclient \-lz
+                    \-lcrypt \-lnsl \-lm \-L/usr/lib \-lssl \-lcrypto]
+  \-\-libs_r         [\-L/usr/local/mysql/lib/mysql \-lmysqlclient_r
+                    \-lpthread \-lz \-lcrypt \-lnsl \-lm \-lpthread]
+  \-\-socket         [/tmp/mysql\&.sock]
+  \-\-port           [3306]
+  \-\-version        [4\&.0\&.16]
+  \-\-libmysqld\-libs [\-L/usr/local/mysql/lib/mysql \-lmysqld \-lpthread \-lz
+                    \-lcrypt \-lnsl \-lm \-lpthread \-lrt]
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+You can use
+\fBmariadb-dump\fR
+within a command line to include the value that it displays for a particular option\&. For example, to compile a MariaDB client program, use
+\fBmariadb-dump\fR
+as follows:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBCFG=/usr/local/mysql/bin/mariadb-dump\fR
+shell> \fBsh \-c "gcc \-o progname `$CFG \-\-include` progname\&.c `$CFG \-\-libs`"\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+When you use
+\fBmariadb-dump\fR
+this way, be sure to invoke it within backtick (\(lq`\(rq) characters\&. That tells the shell to execute it and substitute its output into the surrounding command\&.
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2025 MariaDB Foundation
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

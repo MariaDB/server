@@ -34,7 +34,7 @@ alter table t1 drop column a;
 alter table t1 change a c int;
 drop table t1;
 
---echo # Can't rename or drop a generated column used by the paritition function
+--echo # Can't rename or drop a generated column used by the partition function
 create table t1 (a int, b int generated always as (a+1) virtual) partition by hash(b);
 --error 1054
 alter table t1 drop b;

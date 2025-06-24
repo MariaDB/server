@@ -151,6 +151,7 @@ void Expression_cache_tmptable::init()
   }
   cache_table->s->keys= 1;
   ref.null_rejecting= 1;
+  ref.const_ref_part_map= 0;
   ref.disable_cache= FALSE;
   ref.has_record= 0;
   ref.use_count= 0;
@@ -274,13 +275,14 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
   fill_record(table_thd, cache_table, cache_table->field, items, true, true,
               true);
   if (unlikely(table_thd->is_error()))
-    goto err;;
+    goto err2;
 
   if (unlikely((error=
                 cache_table->file->ha_write_tmp_row(cache_table->record[0]))))
   {
     /* create_myisam_from_heap will generate error if needed */
-    if (cache_table->file->is_fatal_error(error, HA_CHECK_DUP))
+    if (cache_table->file->is_fatal_error(error, HA_CHECK_DUP) &&
+        error != HA_ERR_RECORD_FILE_FULL)
       goto err;
     else
     {
@@ -305,7 +307,7 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
                                                 cache_table_param.start_recinfo,
                                                 &cache_table_param.recinfo,
                                                 error, 1, NULL))
-          goto err;
+          goto err2;
       }
     }
   }
@@ -316,6 +318,8 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
   DBUG_RETURN(FALSE);
 
 err:
+  cache_table->file->print_error(error, MYF(0));
+err2:
   disable_cache();
   DBUG_RETURN(TRUE);
 }

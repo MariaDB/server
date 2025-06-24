@@ -40,7 +40,7 @@
 	<row a=212 b="b212"></row>
 
 	<!-- Bug#29752 Linefeeds break LOAD XML INFILE -->
-	<!-- Check varios combinations of TAB and NL   -->
+	<!-- Check various combinations of TAB and NL   -->
 
 	<row
 	a=213 b="b213">

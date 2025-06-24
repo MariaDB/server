@@ -1,5 +1,0 @@
-[COPY]
---alter_algorithm=copy
-
-[INPLACE]
---alter_algorithm=inplace

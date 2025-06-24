@@ -5,8 +5,8 @@
 
 --source include/have_innodb.inc
 --source include/have_symlink.inc
+--source include/test_db_charset_latin1.inc
 
-SET @innodb_file_per_table_orig=@@GLOBAL.innodb_file_per_table;
 LET $regexp=/FTS_[0-9a-f_]+([A-Z0-9_]+)\.([islbd]{3})/FTS_AUX_\1.\2/;
 
 # Set up some variables
@@ -14,7 +14,6 @@ LET $MYSQL_DATA_DIR = `select @@datadir`;
 LET $data_directory_clause = DATA DIRECTORY='$MYSQL_TMP_DIR/alt_dir';
 
 SET default_storage_engine=InnoDB;
-SET GLOBAL innodb_file_per_table=ON;
 
 SET NAMES utf8mb4;
 
@@ -528,9 +527,9 @@ ALGORITHM=COPY;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE t1n;
 
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 ALTER TABLE t1n ADD INDEX(c2), CHANGE c2 c4 INT, ALGORITHM=INPLACE;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 ALTER TABLE t1n ADD INDEX(c2), CHANGE c2 c4 INT, ALGORITHM=COPY;
 
 ALTER TABLE t1n ADD INDEX(c4), CHANGE c2 c4 INT, ALGORITHM=INPLACE;
@@ -611,7 +610,7 @@ ALGORITHM=INPLACE;
 # This would create a hidden FTS_DOC_ID column, which cannot be done online.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1o CHANGE FTS_DOC_ID foo_id BIGINT UNSIGNED NOT NULL,
-LOCK=NONE;
+ALGORITHM=INPLACE, LOCK=NONE;
 
 # This should not show duplicates.
 SELECT sc.pos FROM information_schema.innodb_sys_columns sc
@@ -706,5 +705,4 @@ DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
 --list_files $MYSQL_TMP_DIR/alt_dir/test
 --rmdir $MYSQL_TMP_DIR/alt_dir/test
 --rmdir $MYSQL_TMP_DIR/alt_dir
-
-SET GLOBAL innodb_file_per_table = @innodb_file_per_table_orig;
+--source include/test_db_charset_restore.inc

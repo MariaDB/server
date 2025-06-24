@@ -10,6 +10,8 @@ create table t1 (c int);
 create table t2 (d int);
 insert into t2 values (1), (2);
 create table t3 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t3 values (2), (3);
 select c from t3 join t2 on c = d;
 c

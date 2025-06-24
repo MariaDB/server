@@ -1,4 +1,5 @@
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 DROP TABLE IF EXISTS t1_selects, t1_modes, t1_values;
 DROP VIEW  IF EXISTS v1;
@@ -2099,9 +2100,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
+Warning	1292	Truncated incorrect BOOLEAN value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_varbinary_1000`,'IS     TRUE','IS NOT TRUE') AS `IF(my_varbinary_1000, 'IS     TRUE', 'IS NOT TRUE')`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2115,9 +2116,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
+Warning	1292	Truncated incorrect BOOLEAN value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- '
 DROP VIEW v1;
 
 
@@ -2133,10 +2134,10 @@ IS NOT TRUE	<--------30 characters------->	3
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1292	Truncated incorrect DOUBLE value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1292	Truncated incorrect DOUBLE value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect BOOLEAN value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect BOOLEAN value: '<--------30 characters------->'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect BOOLEAN value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_binary_30`,'IS     TRUE','IS NOT TRUE') AS `IF(my_binary_30, 'IS     TRUE', 'IS NOT TRUE')`,`t1_values`.`my_binary_30` AS `my_binary_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2150,10 +2151,10 @@ IS NOT TRUE	<--------30 characters------->	3
 IS NOT TRUE	 ---äÖüß@µ*$--           	4
 IS     TRUE	-1                            	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1292	Truncated incorrect DOUBLE value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-Warning	1292	Truncated incorrect DOUBLE value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect BOOLEAN value: '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect BOOLEAN value: '<--------30 characters------->'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---\xC3\xA4\xC3\x96\xC3\xBC\xC3\x9F@\xC2\xB5*$-- \x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+Warning	1292	Truncated incorrect BOOLEAN value: '-1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 DROP VIEW v1;
 
 
@@ -2169,9 +2170,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$-- '
+Warning	1292	Truncated incorrect BOOLEAN value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---äÖüß@µ*$-- '
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_varchar_1000`,'IS     TRUE','IS NOT TRUE') AS `IF(my_varchar_1000, 'IS     TRUE', 'IS NOT TRUE')`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2185,9 +2186,9 @@ IS NOT TRUE	<---------1000 characters-------------------------------------------
 IS NOT TRUE	 ---äÖüß@µ*$-- 	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$-- '
+Warning	1292	Truncated incorrect BOOLEAN value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: '<---------1000 characters----------------------------------------------------------------------------------------------------...'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---äÖüß@µ*$-- '
 DROP VIEW v1;
 
 
@@ -2203,9 +2204,9 @@ IS NOT TRUE	<--------30 characters------->	3
 IS NOT TRUE	 ---äÖüß@µ*$--	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$--'
+Warning	1292	Truncated incorrect BOOLEAN value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: '<--------30 characters------->'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---äÖüß@µ*$--'
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_char_30`,'IS     TRUE','IS NOT TRUE') AS `IF(my_char_30, 'IS     TRUE', 'IS NOT TRUE')`,`t1_values`.`my_char_30` AS `my_char_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2219,9 +2220,9 @@ IS NOT TRUE	<--------30 characters------->	3
 IS NOT TRUE	 ---äÖüß@µ*$--	4
 IS     TRUE	-1	5
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
-Warning	1292	Truncated incorrect DOUBLE value: '<--------30 characters------->'
-Warning	1292	Truncated incorrect DOUBLE value: ' ---äÖüß@µ*$--'
+Warning	1292	Truncated incorrect BOOLEAN value: ''
+Warning	1292	Truncated incorrect BOOLEAN value: '<--------30 characters------->'
+Warning	1292	Truncated incorrect BOOLEAN value: ' ---äÖüß@µ*$--'
 DROP VIEW v1;
 
 
@@ -3323,9 +3324,9 @@ NULL	NULL	1
 -3333.33	-3333.3333	30
 Warnings:
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
-Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
+Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 2
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
-Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
+Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 3
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as decimal(37,2)) AS `CAST(my_double AS DECIMAL(37,2))`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -5263,3 +5264,4 @@ DROP VIEW v1;
 
 DROP TABLE t1_selects, t1_modes, t1_values;
 SET timestamp=DEFAULT;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

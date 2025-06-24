@@ -65,7 +65,7 @@ class purge_sys_t
   {
   public:
     typedef std::vector<uint64_t, ut_allocator<uint64_t>> container_type;
-    /** Number of bits reseved to shift trx_no in purge queue element */
+    /** Number of bits reserved to shift trx_no in purge queue element */
     static constexpr unsigned TRX_NO_SHIFT= 8;
 
     bool empty() const { return m_array.empty(); }
@@ -265,7 +265,7 @@ public:
     return purge_queue.clone_container();
   }
 
-  /** Acquare purge_queue_mutex */
+  /** Acquire purge_queue_mutex */
   void queue_lock() { mysql_mutex_lock(&pq_mutex); }
 
   /** Release purge queue mutex */
@@ -278,7 +278,7 @@ public:
     Atomic_relaxed<fil_space_t*> current;
     /** The number of the undo tablespace that was last truncated,
     relative from srv_undo_space_id_start */
-    ulint last;
+    uint32_t last;
   } truncate_undo_space;
 
   /** Create the instance */
@@ -407,7 +407,7 @@ private:
   @param size      the maximum desired undo tablespace size, in pages
   @return undo tablespace whose truncation was started
   @retval nullptr  if truncation is not currently possible */
-  inline fil_space_t *undo_truncate_try(ulint id, ulint size);
+  inline fil_space_t *undo_truncate_try(uint32_t id, uint32_t size);
 public:
   /** Check if innodb_undo_log_truncate=ON needs to be handled.
   This is only to be called by purge_coordinator_callback().

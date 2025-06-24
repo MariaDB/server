@@ -13,9 +13,6 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                         /* gcc class implementation */
-#endif
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -273,8 +270,9 @@ int Materialized_cursor::send_result_set_metadata(
     Item_ident *ident= static_cast<Item_ident *>(item_dst);
     Send_field send_field(thd, item_org);
 
-    ident->db_name= thd->strmake_lex_cstring(send_field.db_name);
-    ident->table_name= thd->strmake_lex_cstring(send_field.table_name);
+    ident->db_name= Lex_ident_db(thd->strmake_lex_cstring(send_field.db_name));
+    ident->table_name= Lex_ident_table(thd->strmake_lex_cstring(
+                                              send_field.table_name));
   }
 
   /*

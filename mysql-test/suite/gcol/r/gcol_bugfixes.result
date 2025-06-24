@@ -241,7 +241,7 @@ pk >= 8
 HAVING x > '2000-02-06'
 ORDER BY col_time_nokey, pk;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	c	index_merge	PRIMARY,col_varchar_key,col_varchar_key_2	col_varchar_key,PRIMARY	5,4	NULL	2	Using union(col_varchar_key,PRIMARY); Using where
+1	SIMPLE	c	index_merge	PRIMARY,col_varchar_key,col_varchar_key_2	col_varchar_key,PRIMARY	11,4	NULL	2	Using union(col_varchar_key,PRIMARY); Using where
 SELECT COUNT(DISTINCT col_varchar_key) AS x
 FROM c
 WHERE col_varchar_key IN ('rr', 'rr') OR
@@ -444,7 +444,7 @@ Note	1265	Data truncated for column 'c13' at row 1
 Note	1265	Data truncated for column 'c11' at row 2
 Note	1265	Data truncated for column 'c13' at row 2
 CREATE VIEW view_C AS SELECT * FROM C;
-SELECT /*+ NO_BNL(t1) */ t1.c13 FROM C AS t2 STRAIGHT_JOIN C AS t1 FORCE INDEX(c13);
+SELECT t1.c13 FROM C AS t2 STRAIGHT_JOIN C AS t1 FORCE INDEX(c13);
 c13
 00:00:00
 00:00:00
@@ -489,7 +489,7 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
   `c` char(2) GENERATED ALWAYS AS (`a` <> 0 or `b` <> 0) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;
 a	b	c
@@ -510,7 +510,7 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
   `c` char(2) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;
 a	b	c
@@ -638,10 +638,10 @@ DEFAULT SUBSTRING_INDEX(USER(),'@',1)
 );
 EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN UPDATE gafld SET nuigafld = 0 WHERE nuigafld = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gafld	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE gafld;
 # (duplicate) MDEV-17653 replace into generated columns is unstable
 # Some columns are snipped from the MDEV test

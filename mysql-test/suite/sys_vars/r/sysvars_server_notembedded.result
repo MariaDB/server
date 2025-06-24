@@ -9,13 +9,23 @@ where variable_name not like 'debug%' and
 variable_name not like 'wsrep%' and
 variable_name not like 's3%' and
 variable_name not in (
-'log_tc_size','have_sanitizer'
+'log_tc_size','have_sanitizer','timestamp'
         )
 order by variable_name;
+VARIABLE_NAME	ALLOW_SUSPICIOUS_UDFS
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Allows use of user-defined functions (UDFs) consisting of only one symbol xxx() without corresponding xxx_init() or xxx_deinit(). That also means that one can load any function from any library, for example exit() from libc.so
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ALTER_ALGORITHM
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Specify the alter table algorithm
+VARIABLE_COMMENT	Unused
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -35,7 +45,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ANALYZE_SAMPLE_PERCENTAGE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Percentage of rows from the table ANALYZE TABLE will sample to collect table statistics. Set to 0 to let MariaDB decide what percentage of rows to sample.
+VARIABLE_COMMENT	Percentage of rows from the table ANALYZE TABLE will sample to collect table statistics. Set to 0 to let MariaDB decide what percentage of rows to sample
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	100
 NUMERIC_BLOCK_SIZE	NULL
@@ -45,7 +55,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_BLOCK_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Block size to be used for Aria index pages.
+VARIABLE_COMMENT	Block size to be used for Aria index pages
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	32768
 NUMERIC_BLOCK_SIZE	1024
@@ -55,7 +65,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_CHECKPOINT_INTERVAL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing.
+VARIABLE_COMMENT	Interval between tries to do an automatic checkpoints. In seconds; 0 means 'no automatic checkpoints' which makes sense only for testing
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -65,7 +75,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_CHECKPOINT_LOG_ACTIVITY
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log.
+VARIABLE_COMMENT	Number of bytes that the transaction log has to grow between checkpoints before a new checkpoint is written to the log
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -85,7 +95,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ARIA_FORCE_START_AFTER_RECOVERY_FAILURES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature.
+VARIABLE_COMMENT	Number of consecutive log recovery failures after which logs will be automatically deleted to cure the problem; 0 (the default) disables the feature
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	255
 NUMERIC_BLOCK_SIZE	1
@@ -145,7 +155,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_MAX_SORT_FILE_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Don't use the fast sort index method to created index if the temporary file would get bigger than this.
+VARIABLE_COMMENT	Don't use the fast sort index method to created index if the temporary file would get bigger than this
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	9223372036854775807
 NUMERIC_BLOCK_SIZE	1048576
@@ -155,7 +165,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_PAGECACHE_AGE_THRESHOLD
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	This characterizes the number of hits a hot block has to be untouched until it is considered aged enough to be downgraded to a warm block. This specifies the percentage ratio of that number of hits to the total number of blocks in the page cache.
+VARIABLE_COMMENT	This characterizes the number of hits a hot block has to be untouched until it is considered aged enough to be downgraded to a warm block. This specifies the percentage ratio of that number of hits to the total number of blocks in the page cache
 NUMERIC_MIN_VALUE	100
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	100
@@ -165,7 +175,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_PAGECACHE_BUFFER_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The size of the buffer used for index blocks for Aria tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford.
+VARIABLE_COMMENT	The size of the buffer used for index blocks for Aria tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford
 NUMERIC_MIN_VALUE	131072
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -185,7 +195,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_PAGECACHE_FILE_HASH_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files.
+VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of Aria files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open Aria files
 NUMERIC_MIN_VALUE	128
 NUMERIC_MAX_VALUE	16384
 NUMERIC_BLOCK_SIZE	1
@@ -215,7 +225,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ARIA_REPAIR_THREADS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair.
+VARIABLE_COMMENT	Number of threads to use when repairing Aria tables. The value of 1 disables parallel repair
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	128
 NUMERIC_BLOCK_SIZE	1
@@ -225,7 +235,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	ARIA_SORT_BUFFER_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.
+VARIABLE_COMMENT	The buffer that is allocated when sorting the index when doing a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE
 NUMERIC_MIN_VALUE	16352
 NUMERIC_MAX_VALUE	1152921504606846975
 NUMERIC_BLOCK_SIZE	1
@@ -265,7 +275,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	AUTOCOMMIT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, the default, all queries are committed immediately. If set to 0, they are only committed upon a COMMIT statement, or rolled back with a ROLLBACK statement. If autocommit is set to 0, and then changed to 1, all open transactions are immediately committed.
+VARIABLE_COMMENT	If set to 1, the default, all queries are committed immediately. If set to 0, they are only committed upon a COMMIT statement, or rolled back with a ROLLBACK statement. If autocommit is set to 0, and then changed to 1, all open transactions are immediately committed
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -305,7 +315,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	BACK_LOG
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MariaDB thread gets very many connection requests in a very short time
+VARIABLE_COMMENT	The number of outstanding connection requests MariaDB can have. This comes into play when the main MariaDB thread gets many connection requests in a very short time
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	65535
 NUMERIC_BLOCK_SIZE	1
@@ -322,26 +332,26 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	BIG_TABLES
-VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Old variable, which if set to 1, allows large result sets by saving all temporary sets to disk, avoiding 'table full' errors. No longer needed, as the server now handles this automatically.
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	BIND_ADDRESS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	IP address to bind to.
+VARIABLE_COMMENT	IP address to bind to. Several addresses may be specified, separated by a comma (,)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_ALTER_TWO_PHASE
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	When set, split ALTER at binary logging into 2 statements: START ALTER and COMMIT/ROLLBACK ALTER
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	BINLOG_ANNOTATE_ROW_EVENTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
@@ -375,7 +385,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_COMMIT_WAIT_COUNT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If non-zero, binlog write will wait at most binlog_commit_wait_usec microseconds for at least this many commits to queue up for group commit to the binlog. This can reduce I/O on the binlog and provide increased opportunity for parallel apply on the slave, but too high a value will decrease commit throughput.
+VARIABLE_COMMENT	If non-zero, binlog write will wait at most binlog_commit_wait_usec microseconds for at least this many commits to queue up for group commit to the binlog. This can reduce I/O on the binlog and provide increased opportunity for parallel apply on the slave, but too high a value will decrease commit throughput
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -385,7 +395,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_COMMIT_WAIT_USEC
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum time, in microseconds, to wait for more commits to queue up for binlog group commit. Only takes effect if the value of binlog_commit_wait_count is non-zero.
+VARIABLE_COMMENT	Maximum time, in microseconds, to wait for more commits to queue up for binlog group commit. Only takes effect if the value of binlog_commit_wait_count is non-zero
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -395,17 +405,27 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_DIRECT_NON_TRANSACTIONAL_UPDATES
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Causes updates to non-transactional engines using statement format to be written directly to binary log. Before using this option make sure that there are no dependencies between transactional and non-transactional tables such as in the statement INSERT INTO t_myisam SELECT * FROM t_innodb; otherwise, slaves may diverge from the master.
+VARIABLE_COMMENT	Causes updates to non-transactional engines using statement format to be written directly to binary log. Before using this option make sure that there are no dependencies between transactional and non-transactional tables such as in the statement INSERT INTO t_myisam SELECT * FROM t_innodb; otherwise, slaves may diverge from the master
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	BINLOG_DO_DB
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Tells the primary it should log updates for the specified database, and exclude all others not explicitly mentioned
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	BINLOG_EXPIRE_LOGS_SECONDS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; It and expire_logs_days are linked, such that changes in one are converted into the other. Possible purges happen at startup and at binary log rotation.
+VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; It and expire_logs_days are linked, such that changes in one are converted into the other. Possible purges happen at startup and at binary log rotation
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	8553600
 NUMERIC_BLOCK_SIZE	1
@@ -425,57 +445,147 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_FORMAT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	What form of binary logging the master will use: either ROW for row-based binary logging, STATEMENT for statement-based binary logging, or MIXED. MIXED is statement-based binary logging except for those statements where only row-based is correct: those which involve user-defined functions (i.e. UDFs) or the UUID() function; for those, row-based binary logging is automatically used.
+VARIABLE_COMMENT	The binary logging format the master will use: ROW for row-based binary logging (safer), STATEMENT for statement-based binary logging (smaller binary logs), MIXED for statement-based binary logging when it's safe with fall back to row-based otherwise
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	MIXED,STATEMENT,ROW
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_GTID_INDEX
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Enable the creation of a GTID index for every binlog file, and the use of such index for speeding up GTID lookup in the binlog
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	BINLOG_GTID_INDEX_PAGE_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Page size to use for the binlog GTID index
+NUMERIC_MIN_VALUE	64
+NUMERIC_MAX_VALUE	16777216
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_GTID_INDEX_SPAN_MIN
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Control sparseness of the binlog GTID index. If set to N, at most one index record will be added for every N bytes of binlog file written, to reduce the size of the index. Normally does not need tuning
+NUMERIC_MIN_VALUE	1
+NUMERIC_MAX_VALUE	1073741824
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_IGNORE_DB
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Tells the primary that updates to the given database should not be logged to the binary log
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	BINLOG_LARGE_COMMIT_THRESHOLD
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Increases transaction concurrency for large transactions (i.e. those with sizes larger than this value) by using the large transaction's cache file as a new binary log, and rotating the active binary log to the large transaction's cache file at commit time. This avoids the default commit logic that copies the transaction cache data to the end of the active binary log file while holding a lock that prevents other transactions from binlogging
+NUMERIC_MIN_VALUE	10485760
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_LEGACY_EVENT_POS
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Fill in the end_log_pos field of _all_ events in the binlog, even when doing so costs performance. Can be used in case some old application needs it for backwards compatibility. Setting this option can hurt binlog scalability
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	BINLOG_OPTIMIZE_THREAD_SCHEDULING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Run fast part of group commit in a single thread, to optimize kernel thread scheduling. On by default. Disable to run each transaction in group commit in its own thread, which can be slower at very high concurrency. This option is mostly for testing one algorithm versus the other, and it should not normally be necessary to change it.
+VARIABLE_COMMENT	Run fast part of group commit in a single thread, to optimize kernel thread scheduling. On by default. Disable to run each transaction in group commit in its own thread, which can be slower at very high concurrency. This option is mostly for testing one algorithm versus the other, and it should not normally be necessary to change it. This variable is deprecated and will be removed in a future release
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_ROW_EVENT_MAX_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	The maximum size of a row-based binary log event in bytes. Rows will be grouped into events smaller than this size if possible. The value has to be a multiple of 256
+NUMERIC_MIN_VALUE	256
+NUMERIC_MAX_VALUE	4294967040
+NUMERIC_BLOCK_SIZE	256
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_IMAGE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Controls whether rows should be logged in 'FULL', 'NOBLOB' or 'MINIMAL' formats. 'FULL', means that all columns in the before and after image are logged. 'NOBLOB', means that mysqld avoids logging blob columns whenever possible (eg, blob column was not changed or is not part of primary key). 'MINIMAL', means that a PK equivalent (PK columns or full row if there is no PK in the table) is logged in the before image, and only changed columns are logged in the after image. (Default: FULL).
+VARIABLE_COMMENT	Controls whether rows should be logged in 'FULL', 'FULL_NODUP', 'NOBLOB' or 'MINIMAL' formats. 'FULL', means that all columns in the before and after image are logged. 'FULL_NODUP', means that all columns are logged in before image, but only changed columns or all columns of inserted record are logged in after image, 'NOBLOB', means that MariaDB avoids logging blob columns whenever possible (eg, blob column was not changed or is not part of primary key). 'MINIMAL', means that a PK equivalent (PK columns or full row if there is no PK in the table) is logged in the before image, and only changed columns are logged in the after image
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	MINIMAL,NOBLOB,FULL
+ENUM_VALUE_LIST	MINIMAL,NOBLOB,FULL,FULL_NODUP
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_METADATA
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Controls whether metadata is logged using FULL , MINIMAL format and NO_LOG.FULL causes all metadata to be logged; MINIMAL means that only metadata actually required by slave is logged; NO_LOG NO metadata will be logged.Default: NO_LOG.
+VARIABLE_COMMENT	Controls whether metadata is logged using FULL , MINIMAL format and NO_LOG. FULL causes all metadata to be logged; MINIMAL means that only metadata actually required by slave is logged; NO_LOG NO metadata will be logged
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NO_LOG,MINIMAL,FULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_SPACE_LIMIT
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Alias for max_binlog_total_size. Compatibility with Percona server
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_STMT_CACHE_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance.
+VARIABLE_COMMENT	The size of the statement cache for updates to non-transactional engines for the binary log. If you often use statements updating a great number of rows, you can increase this to get more performance
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BLOCK_ENCRYPTION_MODE
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Default block encryption mode for AES_ENCRYPT() and AES_DECRYPT() functions
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	aes-128-ecb,aes-192-ecb,aes-256-ecb,aes-128-cbc,aes-192-cbc,aes-256-cbc,aes-128-ctr,aes-192-ctr,aes-256-ctr
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BULK_INSERT_BUFFER_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Size of tree cache used in bulk insert optimisation. Note that this is a limit per thread!
+VARIABLE_COMMENT	Size of tree cache used in bulk insert optimization. Note that this is a limit per thread
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -496,6 +606,16 @@ VARIABLE_NAME	CHARACTER_SET_CLIENT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
 VARIABLE_COMMENT	The character set for statements that arrive from the client
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	CHARACTER_SET_COLLATIONS
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Overrides for character set default collations
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -625,7 +745,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_STRATEGY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	The strategy parameter is used to tune the compression algorithm. Use the value DEFAULT_STRATEGY for normal data, FILTERED for data produced by a filter (or predictor), HUFFMAN_ONLY to force Huffman encoding only (no string match), or RLE to limit match distances to one (run-length encoding). Filtered data consists mostly of small values with a somewhat random distribution. In this case, the compression algorithm is tuned to compress them better. The effect of FILTERED is to force more Huffman coding and less string matching; it is somewhat intermediate between DEFAULT_STRATEGY and HUFFMAN_ONLY. RLE is designed to be almost as fast as HUFFMAN_ONLY, but give better compression for PNG image data. The strategy parameter only affects the compression ratio but not the correctness of the compressed output even if it is not set appropriately. FIXED prevents the use of dynamic Huffman codes, allowing for a simpler decoder for special applications.
+VARIABLE_COMMENT	The strategy parameter is used to tune the compression algorithm. Use the value DEFAULT_STRATEGY for normal data, FILTERED for data produced by a filter (or predictor), HUFFMAN_ONLY to force Huffman encoding only (no string match), or RLE to limit match distances to one (run-length encoding). Filtered data consists mostly of small values with a somewhat random distribution. In this case, the compression algorithm is tuned to compress them better. The effect of FILTERED is to force more Huffman coding and less string matching; it is somewhat intermediate between DEFAULT_STRATEGY and HUFFMAN_ONLY. RLE is designed to be almost as fast as HUFFMAN_ONLY, but give better compression for PNG image data. The strategy parameter only affects the compression ratio but not the correctness of the compressed output even if it is not set appropriately. FIXED prevents the use of dynamic Huffman codes, allowing for a simpler decoder for special applications
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -635,7 +755,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_WRAP
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Generate zlib header and trailer and compute adler32 check value. It can be used with storage engines that don't provide data integrity verification to detect data corruption.
+VARIABLE_COMMENT	Generate zlib header and trailer and compute adler32 check value. It can be used with storage engines that don't provide data integrity verification to detect data corruption
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -665,7 +785,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	CONNECT_TIMEOUT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The number of seconds the mysqld server is waiting for a connect packet before responding with 'Bad handshake'
+VARIABLE_COMMENT	The number of seconds the MariaDB server is waiting for a connect packet before responding with 'Bad handshake'
 NUMERIC_MIN_VALUE	2
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	1
@@ -682,30 +802,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	CREATE_TMP_TABLE_BINLOG_FORMATS
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	SET
+VARIABLE_COMMENT	The binary logging formats under which the master will log CREATE TEMPORARY statments to the binary log. If CREATE TEMPORARY is not logged, all usage of the temporary table will be logged in ROW format. Allowed values are STATEMENT or MIXED,STATEMENT
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	MIXED,STATEMENT
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	DATADIR
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
 VARIABLE_COMMENT	Path to the database root directory
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	DATETIME_FORMAT
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The DATETIME format (ignored)
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	DATE_FORMAT
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The DATE format (ignored)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -765,7 +875,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	DEFAULT_PASSWORD_LIFETIME
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	This defines the global password expiration policy. 0 means automatic password expiration is disabled. If the value is a positive integer N, the passwords must be changed every N days. This behavior can be overridden using the password expiration options in ALTER USER.
+VARIABLE_COMMENT	This defines the global password expiration policy. 0 means automatic password expiration is disabled. If the value is a positive integer N, the passwords must be changed every N days. This behavior can be overridden using the password expiration options in ALTER USER
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -815,7 +925,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	DELAYED_INSERT_LIMIT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing.
+VARIABLE_COMMENT	After inserting delayed_insert_limit rows, the INSERT DELAYED handler will check if there are any SELECT statements pending. If so, it allows these to execute before continuing
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -845,7 +955,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	DELAY_KEY_WRITE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Specifies how MyISAM tables handles CREATE TABLE DELAY_KEY_WRITE. If set to ON, the default, any DELAY KEY WRITEs are honored. The key buffer is then flushed only when the table closes, speeding up writes. MyISAM tables should be automatically checked upon startup in this case, and --external locking should not be used, as it can lead to index corruption. If set to OFF, DELAY KEY WRITEs are ignored, while if set to ALL, all new opened tables are treated as if created with DELAY KEY WRITEs enabled.
+VARIABLE_COMMENT	Specifies how MyISAM tables handles CREATE TABLE DELAY_KEY_WRITE. If set to ON, the default, any DELAY KEY WRITEs are honored. The key buffer is then flushed only when the table closes, speeding up writes. MyISAM tables should be automatically checked upon startup in this case, and --external locking should not be used, as it can lead to index corruption. If set to OFF, DELAY KEY WRITEs are ignored, while if set to ALL, all new opened tables are treated as if created with DELAY KEY WRITEs enabled
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -855,7 +965,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	DISCONNECT_ON_EXPIRED_PASSWORD
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	This variable controls how the server handles clients that are not aware of the sandbox mode. If enabled, the server disconnects the client, otherwise the server puts the client in a sandbox mode.
+VARIABLE_COMMENT	This variable controls how the server handles clients that are not aware of the sandbox mode. If enabled, the server disconnects the client, otherwise the server puts the client in a sandbox mode
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -915,7 +1025,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	EQ_RANGE_INDEX_DIVE_LIMIT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	The optimizer will use existing index statistics instead of doing index dives for equality ranges if the number of equality ranges for the index is larger than or equal to this number. If set to 0, index dives are always used.
+VARIABLE_COMMENT	The optimizer will use existing index statistics instead of doing index dives for equality ranges if the number of equality ranges for the index is larger than or equal to this number. If set to 0, index dives are always used
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -965,7 +1075,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	EXPLICIT_DEFAULTS_FOR_TIMESTAMP
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.
+VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1025,7 +1135,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	FOREIGN_KEY_CHECKS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0.
+VARIABLE_COMMENT	If set to 1 (the default) foreign key constraints (including ON UPDATE and ON DELETE behavior) InnoDB tables are checked, while if set to 0, they are not checked. 0 is not recommended for normal use, though it can be useful in situations where you know the data is consistent, but want to reload data in a different order from that that specified by parent/child relationships. Setting this variable to 1 does not retrospectively check for inconsistencies introduced while set to 0
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1085,7 +1195,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	GENERAL_LOG
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log connections and queries to a table or log file. Defaults logging to a file 'hostname'.log or a table mysql.general_logif --log-output=TABLE is used.
+VARIABLE_COMMENT	Log connections and queries to a table or log file. Defaults logging to a file 'hostname'.log or a table mysql.general_log if --log-output=TABLE is used
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1115,7 +1225,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	GTID_BINLOG_POS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Last GTID logged to the binary log, per replicationdomain
+VARIABLE_COMMENT	Last GTID logged to the binary log, per replication domain
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1125,7 +1235,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_BINLOG_STATE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The internal GTID state of the binlog, used to keep track of all GTIDs ever logged to the binlog.
+VARIABLE_COMMENT	The internal GTID state of the binlog, used to keep track of all GTIDs ever logged to the binlog
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1135,7 +1245,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_CLEANUP_BATCH_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Normally does not need tuning. How many old rows must accumulate in the mysql.gtid_slave_pos table before a background job will be run to delete them. Can be increased to reduce number of commits if using many different engines with --gtid_pos_auto_engines, or to reduce CPU overhead if using a huge number of different gtid_domain_ids. Can be decreased to reduce number of old rows in the table.
+VARIABLE_COMMENT	Normally does not need tuning. How many old rows must accumulate in the mysql.gtid_slave_pos table before a background job will be run to delete them. Can be increased to reduce number of commits if using many different engines with --gtid_pos_auto_engines, or to reduce CPU overhead if using a huge number of different gtid_domain_ids. Can be decreased to reduce number of old rows in the table
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2147483647
 NUMERIC_BLOCK_SIZE	1
@@ -1145,7 +1255,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	GTID_CURRENT_POS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Current GTID position of the server. Per replication domain, this is either the last GTID replicated by a slave thread, or the GTID logged to the binary log, whichever is most recent.
+VARIABLE_COMMENT	Current GTID position of the server. Per replication domain, this is either the last GTID replicated by a slave thread, or the GTID logged to the binary log, whichever is most recent
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1155,7 +1265,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_DOMAIN_ID
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Used with global transaction ID to identify logically independent replication streams. When events can propagate through multiple parallel paths (for example multiple masters), each independent source server must use a distinct domain_id. For simple tree-shaped replication topologies, it can be left at its default, 0.
+VARIABLE_COMMENT	Used with global transaction ID to identify logically independent replication streams. When events can propagate through multiple parallel paths (for example multiple masters), each independent source server must use a distinct domain_id. For simple tree-shaped replication topologies, it can be left at its default, 0
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -1165,7 +1275,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	GTID_IGNORE_DUPLICATES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	When set, different master connections in multi-source replication are allowed to receive and process event groups with the same GTID (when using GTID mode). Only one will be applied, any others will be ignored. Within a given replication domain, just the sequence number will be used to decide whether a given GTID has been already applied; this means it is the responsibility of the user to ensure that GTID sequence numbers are strictly increasing.
+VARIABLE_COMMENT	When set, different master connections in multi-source replication are allowed to receive and process event groups with the same GTID (when using GTID mode). Only one will be applied, any others will be ignored. Within a given replication domain, just the sequence number will be used to decide whether a given GTID has been already applied; this means it is the responsibility of the user to ensure that GTID sequence numbers are strictly increasing
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1175,7 +1285,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	GTID_POS_AUTO_ENGINES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	List of engines for which to automatically create a mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine is replicated. This can be used to avoid introducing cross-engine transactions, if engines are used different from that used by table mysql.gtid_slave_pos
+VARIABLE_COMMENT	List of engines for which a dedicated mysql.gtid_slave_pos_ENGINE table is created automatically, if a transaction using that engine is replicated. This helps to avoid cross-engine transactions, as would be the case when user tables and mysql.gtid_slave_pos were created in different transactional engines
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1185,7 +1295,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_SEQ_NO
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Internal server usage, for replication with global transaction id. When set, next event group logged to the binary log will use this sequence number, not generate a new one, thus allowing to preserve master's GTID in slave's binlog.
+VARIABLE_COMMENT	Internal server usage, for replication with global transaction id. When set, next event group logged to the binary log will use this sequence number, not generate a new one, thus allowing to preserve master's GTID in slave's binlog
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -1195,7 +1305,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_SLAVE_POS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The list of global transaction IDs that were last replicated on the server, one for each replication domain.
+VARIABLE_COMMENT	The list of global transaction IDs that were last replicated on the server, one for each replication domain
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1205,7 +1315,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	GTID_STRICT_MODE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enforce strict seq_no ordering of events in the binary log. Slave stops with an error if it encounters an event that would cause it to generate an out-of-order binlog if executed. When ON the same server-id semisync-replicated transactions that duplicate exising ones in binlog are ignored without error and slave interruption.
+VARIABLE_COMMENT	Enforce strict seq_no ordering of events in the binary log. Slave stops with an error if it encounters an event that would cause it to generate an out-of-order binlog if executed. When ON the same server-id semisync-replicated transactions that duplicate existing ones in binlog are ignored without error and slave interruption
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1215,7 +1325,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	HAVE_COMPRESS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If the zlib compression library is accessible to the server, this will be set to YES, otherwise it will be NO. The COMPRESS() and UNCOMPRESS() functions will only be available if set to YES.
+VARIABLE_COMMENT	If the zlib compression library is accessible to the server, this will be set to YES, otherwise it will be NO. The COMPRESS() and UNCOMPRESS() functions will only be available if set to YES
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1225,7 +1335,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_CRYPT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If the crypt() system call is available this variable will be set to YES, otherwise it will be set to NO. If set to NO, the ENCRYPT() function cannot be used.
+VARIABLE_COMMENT	If the crypt() system call is available this variable will be set to YES, otherwise it will be set to NO. If set to NO, the ENCRYPT() function cannot be used
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1235,7 +1345,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_DYNAMIC_LOADING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If the server supports dynamic loading of plugins, will be set to YES, otherwise will be set to NO.
+VARIABLE_COMMENT	If the server supports dynamic loading of plugins, will be set to YES, otherwise will be set to NO
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1245,7 +1355,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_GEOMETRY
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If the server supports spatial data types, will be set to YES, otherwise will be set to NO.
+VARIABLE_COMMENT	If the server supports spatial data types, will be set to YES, otherwise will be set to NO
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1255,7 +1365,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_OPENSSL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Comparing have_openssl with have_ssl will indicate whether YaSSL or openssl was used. If YaSSL, have_ssl will be YES, but have_openssl will be NO.
+VARIABLE_COMMENT	Comparing have_openssl with have_ssl will indicate whether YaSSL or openssl was used. If YaSSL, have_ssl will be YES, but have_openssl will be NO
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1265,7 +1375,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_PROFILING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If statement profiling is available, will be set to YES, otherwise will be set to NO. See SHOW PROFILES and SHOW PROFILE.
+VARIABLE_COMMENT	If statement profiling is available, will be set to YES, otherwise will be set to NO. See SHOW PROFILES and SHOW PROFILE
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1275,7 +1385,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_QUERY_CACHE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If the server supports the query cache, will be set to YES, otherwise will be set to NO.
+VARIABLE_COMMENT	If the server supports the query cache, will be set to YES, otherwise will be set to NO
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1285,7 +1395,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_RTREE_KEYS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If RTREE indexes (used for spatial indexes) are available, will be set to YES, otherwise will be set to NO.
+VARIABLE_COMMENT	If RTREE indexes (used for spatial indexes) are available, will be set to YES, otherwise will be set to NO
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1295,7 +1405,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_SSL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If the server supports secure connections, will be set to YES, otherwise will be set to NO. If set to DISABLED, the server was compiled with TLS support, but was not started with TLS support (see the mysqld options). See also have_openssl.
+VARIABLE_COMMENT	If the server supports secure connections, will be set to YES, otherwise will be set to NO. If set to DISABLED, the server was compiled with TLS support, but was not started with TLS support (see the mariadbd options). See also have_openssl
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1305,7 +1415,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HAVE_SYMLINK
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	If symbolic link support is enabled, will be set to YES, otherwise will be set to NO. Required for the INDEX DIRECTORY and DATA DIRECTORY table options (see CREATE TABLE) and Windows symlink support. Will be set to DISABLED if the server is started with the --skip-symbolic-links option.
+VARIABLE_COMMENT	If symbolic link support is enabled, will be set to YES, otherwise will be set to NO. Required for the INDEX DIRECTORY and DATA DIRECTORY table options (see CREATE TABLE) and Windows symlink support. Will be set to DISABLED if the server is started with the --skip-symbolic-links option
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1315,7 +1425,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HISTOGRAM_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of bytes used for a histogram. If set to 0, no histograms are created by ANALYZE.
+VARIABLE_COMMENT	Number of bytes used for a histogram. If set to 0, no histograms are created by ANALYZE
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	255
 NUMERIC_BLOCK_SIZE	1
@@ -1325,11 +1435,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	HISTOGRAM_TYPE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced.
+VARIABLE_COMMENT	Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced, JSON_HB - height-balanced, stored as JSON
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	SINGLE_PREC_HB,DOUBLE_PREC_HB
+ENUM_VALUE_LIST	SINGLE_PREC_HB,DOUBLE_PREC_HB,JSON_HB
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	HOSTNAME
@@ -1345,7 +1455,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	HOST_CACHE_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	How many host names should be cached to avoid resolving.
+VARIABLE_COMMENT	How many host names should be cached to avoid resolving
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	65536
 NUMERIC_BLOCK_SIZE	1
@@ -1405,7 +1515,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	IGNORE_DB_DIRS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Specifies a directory to add to the ignore list when collecting database names from the datadir. Put a blank argument to reset the list accumulated so far.
+VARIABLE_COMMENT	Specifies a directory to add to the ignore list when collecting database names from the datadir. Put a blank argument to reset the list accumulated so far
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1465,7 +1575,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	IN_PREDICATE_CONVERSION_THRESHOLD
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	The minimum number of scalar elements in the value list of IN predicate that triggers its conversion to IN subquery. Set to 0 to disable the conversion.
+VARIABLE_COMMENT	The minimum number of scalar elements in the value list of IN predicate that triggers its conversion to IN subquery. Set to 0 to disable the conversion
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -1525,7 +1635,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	KEY_BUFFER_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The size of the buffer used for index blocks for MyISAM tables. Increase this to get better index handling (for all reads and multiple writes) to as much as you can afford
+VARIABLE_COMMENT	The size of the buffer used for index blocks for MyISAM tables. Increase this to get faster index handling
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
@@ -1565,7 +1675,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	KEY_CACHE_FILE_HASH_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of MyISAM files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open MyISAM files.
+VARIABLE_COMMENT	Number of hash buckets for open and changed files.  If you have a lot of MyISAM files open you should increase this for faster flush of changes. A good value is probably 1/10 of number of possible open MyISAM files
 NUMERIC_MIN_VALUE	128
 NUMERIC_MAX_VALUE	16384
 NUMERIC_BLOCK_SIZE	1
@@ -1585,7 +1695,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LARGE_FILES_SUPPORT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Whether mysqld was compiled with options for large file support
+VARIABLE_COMMENT	Whether mariadbd was compiled with options for large file support
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1602,20 +1712,10 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	LARGE_PAGE_SIZE
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Previously showed the size of large memory pages, unused since multiple page size support was added
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	4294967295
-NUMERIC_BLOCK_SIZE	1
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	LAST_GTID
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The GTID of the last commit (if binlogging was enabled), or the empty string if none.
+VARIABLE_COMMENT	The GTID of the last commit (if binlogging was enabled), or the empty string if none
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1685,7 +1785,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOCKED_IN_MEMORY
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Whether mysqld was locked in memory with --memlock
+VARIABLE_COMMENT	Whether mariadbd process was locked in memory with --memlock
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1695,7 +1795,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	LOCK_WAIT_TIMEOUT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Timeout in seconds to wait for a lock before returning an error.
+VARIABLE_COMMENT	Timeout in seconds to wait for a lock before returning an error
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	1
@@ -1715,7 +1815,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	LOG_BIN_BASENAME
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The full path of the binary log file names, excluding the extension.
+VARIABLE_COMMENT	The full path of the binary log file names, excluding the extension
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1735,7 +1835,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOG_BIN_COMPRESS_MIN_LEN
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Minimum length of sql statement(in statement mode) or record(in row mode)that can be compressed.
+VARIABLE_COMMENT	Minimum length of sql statement (in statement mode) or record (in row mode) that can be compressed
 NUMERIC_MIN_VALUE	10
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -1745,7 +1845,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOG_BIN_INDEX
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	File that holds the names for last binary log files.
+VARIABLE_COMMENT	File that holds the names for last binary log files
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1805,7 +1905,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOG_SLAVE_UPDATES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Tells the slave to log the updates from the slave thread to the binary log. You will need to turn it on if you plan to daisy-chain the slaves.
+VARIABLE_COMMENT	Tells the slave to log the updates from the slave thread to the binary log. You will need to turn it on if you plan to daisy-chain the slaves
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1815,13 +1915,23 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOG_SLOW_ADMIN_STATEMENTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to the slow log if it is open.  Resets or sets the option 'admin' in log_slow_disabled_statements
+VARIABLE_COMMENT	Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to the slow log if it is open.  Resets or sets the option 'admin' in log_slow_filter
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	LOG_SLOW_ALWAYS_QUERY_TIME
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Queries slower than log_slow_always_query_time are not affected by log_slow_rate_limit or log_slow_min_examined_row_limit. Query will be logged if execution time of the query is longer than log_slow_query_time and log_slow_always_query_time. The argument will be treated as a decimal value with microsecond precision
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_DISABLED_STATEMENTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
@@ -1835,7 +1945,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_SLOW_FILTER
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
+VARIABLE_COMMENT	Log only certain types of queries to the slow log. If variable is empty all kinds of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1849,6 +1959,46 @@ VARIABLE_COMMENT	Max numbers of warnings printed to slow query log per statement
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1000
 NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	LOG_SLOW_MIN_EXAMINED_ROW_LIMIT
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Don't write queries to slow log that examine fewer rows than that
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	LOG_SLOW_QUERY
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Log slow queries to a table or log file. Defaults logging to a file 'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is used. Must be enabled to activate other slow log options
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	LOG_SLOW_QUERY_FILE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Log slow queries to given log file. Defaults logging to 'hostname'-slow.log. Must be enabled to activate other slow log options
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	LOG_SLOW_QUERY_TIME
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Log all queries that have taken more than log_slow_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision. Affected by log_slow_rate_limit and log_slow_min_examined_row_limit
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -1885,7 +2035,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	LOG_WARNINGS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Log some non critical warnings to the error log.Value can be between 0 and 11. Higher values mean more verbosity
+VARIABLE_COMMENT	Log some non-critical warnings to the error log. Value can be between 0 and 11. Higher values mean more verbosity
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -1895,7 +2045,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LONG_QUERY_TIME
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Log all queries that have taken more than long_query_time seconds to execute to the slow query log file. The argument will be treated as a decimal value with microsecond precision
+VARIABLE_COMMENT	Alias for log_slow_query_time
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL
@@ -1932,6 +2082,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	MASTER_INFO_FILE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	The location and name of the file that remembers the master and where the I/O replication thread is in the master's binlogs. Defaults to master.info
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MASTER_VERIFY_CHECKSUM
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -1965,7 +2125,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_BINLOG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value.
+VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value, unless `binlog_large_commit_threshold` causes rotation prematurely
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	1073741824
 NUMERIC_BLOCK_SIZE	4096
@@ -1979,6 +2139,16 @@ VARIABLE_COMMENT	Sets the total size of the statement cache
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	4096
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MAX_BINLOG_TOTAL_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Maximum space to use for all binary logs. Extra logs are deleted on server start, log rotation, FLUSH LOGS or when writing to binlog. Default is 0, which means no size restrictions. See also slave_connections_needed_for_purge
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -2015,7 +2185,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_DIGEST_LENGTH
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Maximum length considered for digest text.
+VARIABLE_COMMENT	Maximum length considered for digest text
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2045,7 +2215,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_INSERT_DELAYED_THREADS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Don't start more than this number of threads to handle INSERT DELAYED statements. If set to zero INSERT DELAYED will be not used
+VARIABLE_COMMENT	Alias for max_delayed_threads. Don't start more than this number of threads to handle INSERT DELAYED statements. If set to zero INSERT DELAYED will be not used
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	16384
 NUMERIC_BLOCK_SIZE	1
@@ -2072,10 +2242,20 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MAX_OPEN_CURSORS
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	The maximum number of open cursors allowed per session
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	65536
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_PASSWORD_ERRORS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	If there is more than this number of failed connect attempts due to invalid password, user will be blocked from further connections until FLUSH_PRIVILEGES.
+VARIABLE_COMMENT	If there is more than this number of failed connect attempts due to invalid password, user will be blocked from further connections until FLUSH_PRIVILEGES
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -2172,13 +2352,23 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	MAX_TMP_TABLES
+VARIABLE_NAME	MAX_TMP_SESSION_SPACE_USAGE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Unused, will be removed.
-NUMERIC_MIN_VALUE	1
-NUMERIC_MAX_VALUE	4294967295
-NUMERIC_BLOCK_SIZE	1
+VARIABLE_COMMENT	The maximum total size of temporary file and temporary table usage. A value of 0 disables this feature
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	65536
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MAX_TMP_TOTAL_SPACE_USAGE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	The maximum total size of all temporary file and temporary table usage over all connections. A value of 0 disables this feature
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	65536
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -2222,10 +2412,50 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_DEFAULT_DISTANCE
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Distance function to build the vector index for
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	euclidean,cosine
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_DEFAULT_M
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Larger values mean slower SELECTs and INSERTs, larger index size and higher memory consumption but more accurate results
+NUMERIC_MIN_VALUE	3
+NUMERIC_MAX_VALUE	200
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_EF_SEARCH
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Larger values mean slower SELECTs but more accurate results. Defines the minimal number of result candidates to look for in the vector index for ORDER BY ... LIMIT N queries. The search will never search for less rows than that, even if LIMIT is smaller
+NUMERIC_MIN_VALUE	1
+NUMERIC_MAX_VALUE	10000
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MHNSW_MAX_CACHE_SIZE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Upper limit for one MHNSW vector index cache
+NUMERIC_MIN_VALUE	1048576
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MIN_EXAMINED_ROW_LIMIT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Don't write queries to slow log that examine fewer rows than that
+VARIABLE_COMMENT	Alias for log_slow_min_examined_row_limit. Don't write queries to slow log that examine fewer rows than that
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -2275,7 +2505,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MYISAM_MMAP_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Restricts the total memory used for memory mapping of MySQL tables
+VARIABLE_COMMENT	Restricts the total memory used for memory mapping of MyISAM tables
 NUMERIC_MIN_VALUE	7
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -2335,7 +2565,7 @@ COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	MYSQL56_TEMPORAL_FORMAT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME, DATETIME, TIMESTAMP columns.
+VARIABLE_COMMENT	Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME, DATETIME, TIMESTAMP columns
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2385,7 +2615,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	NOTE_VERBOSITY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Verbosity level for note-warnings given to the user. See also @@sql_notes.
+VARIABLE_COMMENT	Verbosity level for note-warnings given to the user. See also @@sql_notes
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2395,21 +2625,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OLD
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Use compatible behavior from previous MariaDB version. See also --old-mode
+VARIABLE_COMMENT	Use compatible behavior from previous MariaDB version
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	OLD_ALTER_TABLE
-VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Alias for alter_algorithm. Deprecated. Use --alter-algorithm instead.
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	DEFAULT,COPY,INPLACE,NOCOPY,INSTANT
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	OLD_MODE
@@ -2419,7 +2639,7 @@ VARIABLE_COMMENT	Used to emulate old behavior from earlier MariaDB or MySQL vers
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3
+ENUM_VALUE_LIST	NO_DUP_KEY_WARNINGS_WITH_IGNORE,NO_PROGRESS_INFO,ZERO_DATE_TIME_CAST,UTF8_IS_UTF8MB3,IGNORE_INDEX_ONLY_FOR_JOIN,COMPAT_5_1_CHECKSUM,NO_NULL_COLLATION_IDS,LOCK_ALTER_TABLE_COPY,OLD_FLUSH_STATUS,SESSION_USER_IS_USER
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OLD_PASSWORDS
@@ -2435,7 +2655,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	OPEN_FILES_LIMIT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 or autoset then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
+VARIABLE_COMMENT	If this is not 0, then mariadbd will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 or autoset then mariadbd will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -2444,12 +2664,52 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_ADJUST_SECONDARY_KEY_COSTS
 VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	SET
-VARIABLE_COMMENT	A bit field with the following values: adjust_secondary_key_cost = Update secondary key costs for ranges to be at least 5x of clustered primary key costs. disable_max_seek = Disable 'max_seek optimization' for secondary keys and slight adjustment of filter cost. disable_forced_index_in_group_by = Disable automatic forced index in GROUP BY. fix_innodb_cardinality = Disable doubling of the Cardinality for InnoDB secondary keys. fix_reuse_range_for_ref = Do a better job at reusing range access estimates when estimating ref access. fix_card_multiplier = Fix the computation in selectivity_for_indexes. selectivity_multiplier. This variable will be deleted in MariaDB 11.0 as it is not needed with the new 11.0 optimizer.
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Unused
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	2
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_DISK_READ_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of reading a block of IO_SIZE (4096) from a disk (in usec)
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	10000
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	adjust_secondary_key_cost,disable_max_seek,disable_forced_index_in_group_by,fix_innodb_cardinality,fix_reuse_range_for_ref,fix_card_multiplier
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_DISK_READ_RATIO
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Chance that we have to do a disk read to find a row or index entry from the engine cache (cache_misses/total_cache_requests).  0.0 means that everything is cached and 1.0 means that nothing is expected to be in the engine cache
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_EXTRA_PRUNING_DEPTH
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	If the optimizer needs to enumerate join prefix of this size or larger, then it will try aggressively prune away the search space
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	62
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_INDEX_BLOCK_COPY_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of copying a key block from the cache to internal storage as part of an index scan
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_JOIN_LIMIT_PREF_RATIO
@@ -2462,10 +2722,50 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_KEY_COMPARE_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of checking a key against the end key condition
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_KEY_COPY_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of finding the next key in the engine and copying it to the SQL layer
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_KEY_LOOKUP_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost for finding a key based on a key value
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_KEY_NEXT_FIND_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of finding the next key and rowid when using filters
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_MAX_SEL_ARGS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The maximum number of SEL_ARG objects created when optimizing a range. If more objects would be needed, the range will not be used by the optimizer.
+VARIABLE_COMMENT	The maximum number of SEL_ARG objects created when optimizing a range. If more objects would be needed, the range will not be used by the optimizer
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -2485,17 +2785,77 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_PRUNE_LEVEL
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Controls the heuristic(s) applied during query optimization to prune less-promising partial plans from the optimizer search space. Meaning: 0 - do not apply any heuristic, thus perform exhaustive search; 1 - prune plans based on number of retrieved rows
+VARIABLE_COMMENT	Controls the heuristic(s) applied during query optimization to prune less-promising partial plans from the optimizer search space. Meaning: 0 - do not apply any heuristic, thus perform exhaustive search: 1 - prune plans based on cost and number of retrieved rows eq_ref: 2 - prune also if we find an eq_ref chain
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	1
+NUMERIC_MAX_VALUE	2
 NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_ROWID_COMPARE_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of comparing two rowid's
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_ROWID_COPY_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of copying a rowid
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_ROW_COPY_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of copying a row from the engine or the join cache to the SQL layer
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_ROW_LOOKUP_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of finding a row based on a rowid or a clustered key
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_ROW_NEXT_FIND_COST
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of finding the next row when scanning the table
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	1000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_SCAN_SETUP_COST
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Extra cost added to TABLE and INDEX scans to get optimizer to prefer index lookups
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	100000000
+NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_SEARCH_DEPTH
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value.
+VARIABLE_COMMENT	Maximum depth of search performed by the query optimizer. Values larger than the number of relations in a query result in better query plans, but take longer to compile a query. Values smaller than the number of tables in a relation result in faster optimization, but may produce very bad query plans. If set to 0, the system will automatically pick a reasonable value
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	62
 NUMERIC_BLOCK_SIZE	1
@@ -2519,7 +2879,7 @@ VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,cset_narrowing,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,duplicateweedout,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,condition_pushdown_for_subquery,rowid_filter,condition_pushdown_from_having,not_null_range_scan,hash_join_cardinality,cset_narrowing,sargable_casefold,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_TRACE
@@ -2545,17 +2905,27 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_USE_CONDITION_SELECTIVITY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Controls selectivity of which conditions the optimizer takes into account to calculate cardinality of a partial join when it searches for the best execution plan Meaning: 1 - use selectivity of index backed range conditions to calculate the cardinality of a partial join if the last joined table is accessed by full table scan or an index scan, 2 - use selectivity of index backed range conditions to calculate the cardinality of a partial join in any case, 3 - additionally always use selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join, 4 - use histograms to calculate selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join.5 - additionally use selectivity of certain non-range predicates calculated on record samples
+VARIABLE_COMMENT	Controls selectivity of which conditions the optimizer takes into account to calculate cardinality of a partial join when it searches for the best execution plan Meaning: 1 - use selectivity of index backed range conditions to calculate the cardinality of a partial join if the last joined table is accessed by full table scan or an index scan, 2 - use selectivity of index backed range conditions to calculate the cardinality of a partial join in any case, 3 - additionally always use selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join, 4 - use histograms to calculate selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join. 5 - additionally use selectivity of certain non-range predicates calculated on record samples
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	5
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_WHERE_COST
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of checking the row against the WHERE clause. Increasing this will have the optimizer to prefer plans with less row combinations
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	100000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable the performance schema.
+VARIABLE_COMMENT	Enable the performance schema
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2565,7 +2935,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	PERFORMANCE_SCHEMA_ACCOUNTS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented user@host accounts. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented user@host accounts. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2575,7 +2945,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_DIGESTS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2585,7 +2955,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_STAGES_HISTORY_LONG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows in EVENTS_STAGES_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2595,7 +2965,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_STAGES_HISTORY_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows per thread in EVENTS_STAGES_HISTORY. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -2605,7 +2975,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_STATEMENTS_HISTORY_LONG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows in EVENTS_STATEMENTS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2615,7 +2985,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_STATEMENTS_HISTORY_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_HISTORY. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_HISTORY. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -2625,7 +2995,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_TRANSACTIONS_HISTORY_LONG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows in EVENTS_TRANSACTIONS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows in EVENTS_TRANSACTIONS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2635,7 +3005,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_TRANSACTIONS_HISTORY_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows per thread in EVENTS_TRANSACTIONS_HISTORY. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows per thread in EVENTS_TRANSACTIONS_HISTORY. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -2645,7 +3015,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_WAITS_HISTORY_LONG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2655,7 +3025,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_WAITS_HISTORY_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Number of rows per thread in EVENTS_WAITS_HISTORY. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -2665,7 +3035,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_HOSTS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented hosts. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented hosts. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2675,7 +3045,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_COND_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of condition instruments.
+VARIABLE_COMMENT	Maximum number of condition instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2685,7 +3055,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_COND_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented condition objects. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented condition objects. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2695,7 +3065,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_DIGEST_LENGTH
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum length considered for digest text, when stored in performance_schema tables.
+VARIABLE_COMMENT	Maximum length considered for digest text, when stored in performance_schema tables
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2705,7 +3075,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_FILE_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of file instruments.
+VARIABLE_COMMENT	Maximum number of file instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2715,7 +3085,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_FILE_HANDLES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of opened instrumented files.
+VARIABLE_COMMENT	Maximum number of opened instrumented files
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2725,7 +3095,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_FILE_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented files. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented files. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2735,7 +3105,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_INDEX_STAT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of index statistics for instrumented tables. Use 0 to disable, -1 for automated scaling.
+VARIABLE_COMMENT	Maximum number of index statistics for instrumented tables. Use 0 to disable, -1 for automated scaling
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2745,7 +3115,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_MEMORY_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of memory pool instruments.
+VARIABLE_COMMENT	Maximum number of memory pool instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -2755,7 +3125,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_METADATA_LOCKS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of metadata locks. Use 0 to disable, -1 for automated scaling.
+VARIABLE_COMMENT	Maximum number of metadata locks. Use 0 to disable, -1 for automated scaling
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	104857600
 NUMERIC_BLOCK_SIZE	1
@@ -2765,7 +3135,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_MUTEX_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of mutex instruments.
+VARIABLE_COMMENT	Maximum number of mutex instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2775,7 +3145,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_MUTEX_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented MUTEX objects. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented MUTEX objects. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	104857600
 NUMERIC_BLOCK_SIZE	1
@@ -2785,7 +3155,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_PREPARED_STATEMENTS_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented prepared statements. Use 0 to disable, -1 for automated scaling.
+VARIABLE_COMMENT	Maximum number of instrumented prepared statements. Use 0 to disable, -1 for automated scaling
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2795,7 +3165,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_PROGRAM_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented programs. Use 0 to disable, -1 for automated scaling.
+VARIABLE_COMMENT	Maximum number of instrumented programs. Use 0 to disable, -1 for automated scaling
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2805,7 +3175,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_RWLOCK_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of rwlock instruments.
+VARIABLE_COMMENT	Maximum number of rwlock instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2815,7 +3185,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_RWLOCK_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented RWLOCK objects. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented RWLOCK objects. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	104857600
 NUMERIC_BLOCK_SIZE	1
@@ -2825,7 +3195,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_SOCKET_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of socket instruments.
+VARIABLE_COMMENT	Maximum number of socket instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2835,7 +3205,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_SOCKET_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of opened instrumented sockets. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of opened instrumented sockets. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2845,7 +3215,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_SQL_TEXT_LENGTH
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum length of displayed sql text.
+VARIABLE_COMMENT	Maximum length of displayed sql text
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2855,7 +3225,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_STAGE_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of stage instruments.
+VARIABLE_COMMENT	Maximum number of stage instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2865,7 +3235,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_STATEMENT_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of statement instruments.
+VARIABLE_COMMENT	Maximum number of statement instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2875,7 +3245,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_STATEMENT_STACK
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_CURRENT.
+VARIABLE_COMMENT	Number of rows per thread in EVENTS_STATEMENTS_CURRENT
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2885,7 +3255,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_TABLE_HANDLES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of opened instrumented tables. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of opened instrumented tables. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2895,7 +3265,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_TABLE_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented tables. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented tables. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2905,7 +3275,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_TABLE_LOCK_STAT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of lock statistics for instrumented tables. Use 0 to disable, -1 for automated scaling.
+VARIABLE_COMMENT	Maximum number of lock statistics for instrumented tables. Use 0 to disable, -1 for automated scaling
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2915,7 +3285,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_THREAD_CLASSES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of thread instruments.
+VARIABLE_COMMENT	Maximum number of thread instruments
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	256
 NUMERIC_BLOCK_SIZE	1
@@ -2925,7 +3295,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_THREAD_INSTANCES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented threads. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented threads. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2935,7 +3305,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_SESSION_CONNECT_ATTRS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Size of session attribute string buffer per thread. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Size of session attribute string buffer per thread. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2945,7 +3315,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_SETUP_ACTORS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of rows in SETUP_ACTORS.
+VARIABLE_COMMENT	Maximum number of rows in SETUP_ACTORS
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1024
 NUMERIC_BLOCK_SIZE	1
@@ -2955,7 +3325,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_SETUP_OBJECTS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of rows in SETUP_OBJECTS.
+VARIABLE_COMMENT	Maximum number of rows in SETUP_OBJECTS
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2965,7 +3335,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_USERS_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT
-VARIABLE_COMMENT	Maximum number of instrumented users. Use 0 to disable, -1 for automated sizing.
+VARIABLE_COMMENT	Maximum number of instrumented users. Use 0 to disable, -1 for automated sizing
 NUMERIC_MIN_VALUE	-1
 NUMERIC_MAX_VALUE	1048576
 NUMERIC_BLOCK_SIZE	1
@@ -2975,7 +3345,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PID_FILE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Pid file used by safe_mysqld
+VARIABLE_COMMENT	Pid file used by mariadbd-safe
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3025,7 +3395,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PROFILING
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1 (0 is default), statement profiling will be enabled. See SHOW PROFILES and SHOW PROFILE.
+VARIABLE_COMMENT	If set to 1 (0 is default), statement profiling will be enabled. See SHOW PROFILES and SHOW PROFILE
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3035,7 +3405,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	PROFILING_HISTORY_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of statements about which profiling information is maintained. If set to 0, no profiles are stored. See SHOW PROFILES.
+VARIABLE_COMMENT	Number of statements about which profiling information is maintained. If set to 0, no profiles are stored. See SHOW PROFILES
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	100
 NUMERIC_BLOCK_SIZE	1
@@ -3045,7 +3415,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PROGRESS_REPORT_TIME
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting.
+VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -3065,7 +3435,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	PROXY_PROTOCOL_NETWORKS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must the only directive on the line. String "localhost" represents non-TCP local connections (Unix domain socket, Windows named pipe or shared memory).
+VARIABLE_COMMENT	Enable proxy protocol for these source networks. The syntax is a comma separated list of IPv4 and IPv6 networks. If the network doesn't contain mask, it is considered to be a single host. "*" represents all networks and must be the only directive on the line. String "localhost" represents non-TCP local connections (Unix domain socket, Windows named pipe or shared memory)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3085,7 +3455,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	PSEUDO_SLAVE_MODE
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	SET pseudo_slave_mode= 0,1 are commands that mysqlbinlog adds to beginning and end of binary log dumps. While zero value indeed disables, the actual enabling of the slave applier execution mode is done implicitly when a Format_description_event is sent through the session.
+VARIABLE_COMMENT	SET pseudo_slave_mode= 0,1 are commands that mysqlbinlog adds to beginning and end of binary log dumps. While zero value indeed disables, the actual enabling of the slave applier execution mode is done implicitly when a Format_description_event is sent through the session
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3234,12 +3604,12 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	READ_ONLY
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Make all non-temporary tables read-only, with the exception for replication (slave) threads and users with the SUPER privilege
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Do not allow changes to non-temporary tables. Options are:OFF changes allowed. ON Disallow changes for users without the READ ONLY ADMIN privilege. NO_LOCK Additionally disallows LOCK TABLES and SELECT IN SHARE MODE. NO_LOCK_NO_ADMIN Disallows also for users with READ_ONLY ADMIN privilege. Replication (slave) threads are not affected by this option
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
+ENUM_VALUE_LIST	OFF,ON,NO_LOCK,NO_LOCK_NO_ADMIN,FALSE,TRUE
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	READ_RND_BUFFER_SIZE
@@ -3252,10 +3622,20 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	REDIRECT_URL
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	URL of another server to redirect clients to. Empty string means no redirection
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RELAY_LOG
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The location and name to use for relay logs.
+VARIABLE_COMMENT	The location and name to use for relay logs
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3265,7 +3645,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RELAY_LOG_BASENAME
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The full path of the relay log file names, excluding the extension.
+VARIABLE_COMMENT	The full path of the relay log file names, excluding the extension
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3275,7 +3655,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	RELAY_LOG_INDEX
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The location and name to use for the file that keeps a list of the last relay logs.
+VARIABLE_COMMENT	The location and name to use for the file that keeps a list of the last relay logs
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3285,7 +3665,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	RELAY_LOG_INFO_FILE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The location and name of the file that remembers where the SQL replication thread is in the relay logs.
+VARIABLE_COMMENT	The location and name of the file that remembers where the SQL replication thread is in the relay logs
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3295,7 +3675,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RELAY_LOG_PURGE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	if disabled - do not purge relay logs. if enabled - purge them as soon as they are no more needed.
+VARIABLE_COMMENT	if disabled - do not purge relay logs. if enabled - purge them as soon as they are no more needed
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3305,7 +3685,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	RELAY_LOG_RECOVERY
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enables automatic relay log recovery right after the database startup, which means that the IO Thread starts re-fetching from the master right after the last transaction processed.
+VARIABLE_COMMENT	Enables automatic relay log recovery right after the database startup, which means that the IO Thread starts re-fetching from the master right after the last transaction processed
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3335,7 +3715,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	REPLICATE_DO_DB
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Tell the slave to restrict replication to updates of tables whose names appear in the comma-separated list. For statement-based replication, only the default database (that is, the one selected by USE) is considered, not any explicitly mentioned tables in the query. For row-based replication, the actual names of table(s) being updated are checked.
+VARIABLE_COMMENT	Tell the slave to restrict replication to updates of tables whose names appear in the comma-separated list. For statement-based replication, only the default database (that is, the one selected by USE) is considered, not any explicitly mentioned tables in the query. For row-based replication, the actual names of table(s) being updated are checked
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3345,7 +3725,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	REPLICATE_DO_TABLE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Tells the slave to restrict replication to tables in the comma-separated list.
+VARIABLE_COMMENT	Tells the slave to restrict replication to tables in the comma-separated list
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3355,7 +3735,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	REPLICATE_EVENTS_MARKED_FOR_SKIP
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Whether the slave should replicate events that were created with @@skip_replication=1 on the master. Default REPLICATE (no events are skipped). Other values are FILTER_ON_SLAVE (events will be sent by the master but ignored by the slave) and FILTER_ON_MASTER (events marked with @@skip_replication=1 will be filtered on the master and never be sent to the slave).
+VARIABLE_COMMENT	Whether the slave should replicate events that were created with @@skip_replication=1 on the master. Default REPLICATE (no events are skipped). Other values are FILTER_ON_SLAVE (events will be sent by the master but ignored by the slave) and FILTER_ON_MASTER (events marked with @@skip_replication=1 will be filtered on the master and never be sent to the slave)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3365,7 +3745,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	REPLICATE_IGNORE_DB
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Tell the slave to restrict replication to updates of tables whose names do not appear in the comma-separated list. For statement-based replication, only the default database (that is, the one selected by USE) is considered, not any explicitly mentioned tables in the query. For row-based replication, the actual names of table(s) being updated are checked.
+VARIABLE_COMMENT	Tell the slave to restrict replication to updates of tables whose names do not appear in the comma-separated list. For statement-based replication, only the default database (that is, the one selected by USE) is considered, not any explicitly mentioned tables in the query. For row-based replication, the actual names of table(s) being updated are checked
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3375,17 +3755,37 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	REPLICATE_IGNORE_TABLE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Tells the slave thread not to replicate any statement that updates the specified table, even if any other tables might be updated by the same statement.
+VARIABLE_COMMENT	Tells the slave thread not to replicate any statement that updates the specified table, even if any other tables might be updated by the same statement
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	REPLICATE_REWRITE_DB
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Tells the slave to replicate binlog events into a different database than their original target on the master. Example: replicate-rewrite-db=master_db_name->slave_db_name
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	REPLICATE_SAME_SERVER_ID
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	In replication, if set to 1, do not skip events having our server id. Default value is 0 (to break infinite loops in circular replication). Can't be set to 1 if --log-slave-updates is used
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	REPLICATE_WILD_DO_TABLE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Tells the slave thread to restrict replication to statements where any of the updated tables match the specified database and table name patterns.
+VARIABLE_COMMENT	Tells the slave thread to restrict replication to statements where any of the updated tables match the specified database and table name patterns
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3395,7 +3795,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	REPLICATE_WILD_IGNORE_TABLE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Tells the slave thread to not replicate to the tables that match the given wildcard pattern.
+VARIABLE_COMMENT	Tells the slave thread to not replicate to the tables that match the given wildcard pattern
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3445,7 +3845,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	REQUIRE_SECURE_TRANSPORT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	When this option is enabled, connections attempted using insecure transport will be rejected. Secure transports are SSL/TLS, Unix sockets or named pipes.
+VARIABLE_COMMENT	When this option is enabled, connections attempted using insecure transport will be rejected. Secure transports are SSL/TLS, Unix sockets or named pipes
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3465,7 +3865,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_ENABLED
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable semi-synchronous replication master (disabled by default).
+VARIABLE_COMMENT	Enable semi-synchronous replication master (disabled by default)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3485,7 +3885,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_TRACE_LEVEL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The tracing level for semi-sync replication.
+VARIABLE_COMMENT	The tracing level for semi-sync replication
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -3495,7 +3895,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Wait until timeout when no semi-synchronous replication slave is available.
+VARIABLE_COMMENT	Wait until timeout when no semi-synchronous replication slave is available
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3505,7 +3905,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_WAIT_POINT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Should transaction wait for semi-sync ack after having synced binlog, or after having committed in storage engine.
+VARIABLE_COMMENT	Should transaction wait for semi-sync ack after having synced binlog, or after having committed in storage engine
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3515,7 +3915,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_DELAY_MASTER
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Only write master info file when ack is needed.
+VARIABLE_COMMENT	Only write master info file when ack is needed
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3525,7 +3925,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_ENABLED
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable semi-synchronous replication slave (disabled by default).
+VARIABLE_COMMENT	Enable semi-synchronous replication slave (disabled by default)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3535,7 +3935,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_KILL_CONN_TIMEOUT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Timeout for the mysql connection used to kill the slave io_thread's connection on master. This timeout comes into play when stop slave is executed.
+VARIABLE_COMMENT	Timeout for the MariaDB connection used to kill the slave io_thread's connection on master. This timeout comes into play when stop slave is executed
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -3545,7 +3945,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The tracing level for semi-sync replication.
+VARIABLE_COMMENT	The tracing level for semi-sync replication
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -3605,7 +4005,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SESSION_TRACK_SCHEMA
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Track changes to the default schema.
+VARIABLE_COMMENT	Track changes to the default schema
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3615,7 +4015,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SESSION_TRACK_STATE_CHANGE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Track changes to the session state.
+VARIABLE_COMMENT	Track changes to the session state
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3625,7 +4025,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SESSION_TRACK_SYSTEM_VARIABLES
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Track changes in registered system variables. 
+VARIABLE_COMMENT	Track changes in registered system variables
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3635,13 +4035,23 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SESSION_TRACK_TRANSACTION_INFO
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Track changes to the transaction attributes. OFF to disable; STATE to track just transaction state (Is there an active transaction? Does it have any data? etc.); CHARACTERISTICS to track transaction state and report all statements needed to start a transaction with the same characteristics (isolation level, read only/read write,snapshot - but not any work done / data modified within the transaction).
+VARIABLE_COMMENT	Track changes to the transaction attributes. OFF to disable; STATE to track just transaction state (Is there an active transaction? Does it have any data? etc.); CHARACTERISTICS to track transaction state and report all statements needed to start a transaction with the same characteristics (isolation level, read only/read write, snapshot - but not any work done / data modified within the transaction)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,STATE,CHARACTERISTICS
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SHOW_SLAVE_AUTH_INFO
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Show user and password in SHOW SLAVE HOSTS on this master
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SKIP_EXTERNAL_LOCKING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -3652,10 +4062,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	SKIP_GRANT_TABLES
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Start without grant tables. This gives all users FULL ACCESS to all tables
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SKIP_NAME_RESOLVE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Don't resolve hostnames. All hostnames are IP's or 'localhost'.
+VARIABLE_COMMENT	Don't resolve hostnames. All hostnames are IP's or 'localhost'
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3675,7 +4095,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SKIP_PARALLEL_REPLICATION
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set when a transaction is written to the binlog, parallel apply of that transaction will be avoided on a slave where slave_parallel_mode is not "aggressive". Can be used to avoid unnecessary rollback and retry for transactions that are likely to cause a conflict if replicated in parallel.
+VARIABLE_COMMENT	If set when a transaction is written to the binlog, parallel apply of that transaction will be avoided on a slave where slave_parallel_mode is not "aggressive". Can be used to avoid unnecessary rollback and retry for transactions that are likely to cause a conflict if replicated in parallel
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3685,7 +4105,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SKIP_REPLICATION
 VARIABLE_SCOPE	SESSION ONLY
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Changes are logged into the binary log with the @@skip_replication flag set. Such events will not be replicated by slaves that run with --replicate-events-marked-for-skip set different from its default of REPLICATE. See Selectively skipping replication of binlog events for more information.
+VARIABLE_COMMENT	Changes are logged into the binary log with the @@skip_replication flag set. Such events will not be replicated by slaves that run with --replicate-events-marked-for-skip set different from its default of REPLICATE. See Selectively skipping replication of binlog events for more information
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3702,6 +4122,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SLAVE_ABORT_BLOCKING_TIMEOUT
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Maximum time a slave DDL will wait for a blocking SELECT or other user query until that query will be aborted. The argument will be treated as a decimal value with nanosecond precision
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_COMPRESSED_PROTOCOL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -3712,10 +4142,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SLAVE_CONNECTIONS_NEEDED_FOR_PURGE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Minimum number of connected slaves required for automatic binary log purge with max_binlog_total_size, binlog_expire_logs_seconds or binlog_expire_logs_days. Default is 0 when Galera is enabled and 1 otherwise
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_DDL_EXEC_MODE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	How replication events should be executed. Legal values are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, replication will not stop for DDL operations that are idempotent. This means that CREATE TABLE is treated as CREATE TABLE OR REPLACE and DROP TABLE is treated as DROP TABLE IF EXISTS.
+VARIABLE_COMMENT	How replication events should be executed. Legal values are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, replication will not stop for DDL operations that are idempotent. This means that CREATE TABLE is treated as CREATE TABLE OR REPLACE and DROP TABLE is treated as DROP TABLE IF EXISTS
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3725,7 +4165,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_DOMAIN_PARALLEL_THREADS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads.
+VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	16383
 NUMERIC_BLOCK_SIZE	1
@@ -3735,7 +4175,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_EXEC_MODE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	How replication events should be executed. Legal values are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, replication will not stop for operations that are idempotent. For example, in row based replication attempts to delete rows that doesn't exist will be ignored. In STRICT mode, replication will stop on any unexpected difference between the master and the slave.
+VARIABLE_COMMENT	How replication events should be executed. Legal values are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, replication will not stop for operations that are idempotent. For example, in row based replication attempts to delete rows that doesn't exist will be ignored. In STRICT mode, replication will stop on any unexpected difference between the master and the slave
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3755,10 +4195,20 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_MAX_ALLOWED_PACKET
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave.
+VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave
 NUMERIC_MIN_VALUE	1024
 NUMERIC_MAX_VALUE	1073741824
 NUMERIC_BLOCK_SIZE	1024
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SLAVE_MAX_STATEMENT_TIME
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	A query that has taken more than slave_max_statement_time seconds to run on the slave will be aborted. The argument will be treated as a decimal value with microsecond precision. A value of 0 (default) means no timeout
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	31536000
+NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -3775,7 +4225,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_PARALLEL_MAX_QUEUED
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0.
+VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2147483647
 NUMERIC_BLOCK_SIZE	1
@@ -3785,7 +4235,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_PARALLEL_MODE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Controls what transactions are applied in parallel when using --slave-parallel-threads. Possible values: "optimistic" tries to apply most transactional DML in parallel, and handles any conflicts with rollback and retry. "conservative" limits parallelism in an effort to avoid any conflicts. "aggressive" tries to maximise the parallelism, possibly at the cost of increased conflict rate. "minimal" only parallelizes the commit steps of transactions. "none" disables parallel apply completely.
+VARIABLE_COMMENT	Controls what transactions are applied in parallel when using --slave-parallel-threads. Possible values: "optimistic" tries to apply most transactional DML in parallel, and handles any conflicts with rollback and retry. "conservative" limits parallelism in an effort to avoid any conflicts. "aggressive" tries to maximise the parallelism, possibly at the cost of increased conflict rate. "minimal" only parallelizes the commit steps of transactions. "none" disables parallel apply completely
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3815,7 +4265,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_RUN_TRIGGERS_FOR_RBR
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Modes for how triggers in row-base replication on slave side will be executed. Legal values are NO (default), YES, LOGGING and ENFORCE. NO means that trigger for RBR will not be running on slave. YES and LOGGING means that triggers will be running on slave, if there was not triggers running on the master for the statement. LOGGING also means results of that the executed triggers work will be written to the binlog. ENFORCE means that triggers will always be run on the slave, even if there are triggers on the master. ENFORCE implies LOGGING.
+VARIABLE_COMMENT	Modes for how triggers in row-base replication on slave side will be executed. Legal values are NO (default), YES, LOGGING and ENFORCE. NO means that trigger for RBR will not be running on slave. YES and LOGGING means that triggers will be running on slave, if there was not triggers running on the master for the statement. LOGGING also means results of that the executed triggers work will be written to the binlog. ENFORCE means that triggers will always be run on the slave, even if there are triggers on the master. ENFORCE implies LOGGING
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3895,7 +4345,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLOW_QUERY_LOG
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log slow queries to a table or log file. Defaults logging to a file 'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is used. Must be enabled to activate other slow log options.
+VARIABLE_COMMENT	Alias for log_slow_query. Log slow queries to a table or log file. Defaults logging to a file 'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is used. Must be enabled to activate other slow log options
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3905,7 +4355,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SLOW_QUERY_LOG_FILE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Log slow queries to given log file. Defaults logging to 'hostname'-slow.log. Must be enabled to activate other slow log options
+VARIABLE_COMMENT	Alias for log_slow_query_file. Log slow queries to given log file. Defaults logging to 'hostname'-slow.log. Must be enabled to activate other slow log options
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3935,7 +4385,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SQL_AUTO_IS_NULL
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, the query SELECT * FROM table_name WHERE auto_increment_column IS NULL will return an auto-increment that has just been successfully inserted, the same as the LAST_INSERT_ID() function. Some ODBC programs make use of this IS NULL comparison.
+VARIABLE_COMMENT	If set to 1, the query SELECT * FROM table_name WHERE auto_increment_column IS NULL will return an auto-increment that has just been successfully inserted, the same as the LAST_INSERT_ID() function. Some ODBC programs make use of this IS NULL comparison
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3945,7 +4395,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_BIG_SELECTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 0, MariaDB will not perform large SELECTs. See max_join_size for details. If max_join_size is set to anything but DEFAULT, sql_big_selects is automatically set to 0. If sql_big_selects is again set, max_join_size will be ignored.
+VARIABLE_COMMENT	If set to 0, MariaDB will not perform large SELECTs. See max_join_size for details. If max_join_size is set to anything but DEFAULT, sql_big_selects is automatically set to 0. If sql_big_selects is again set, max_join_size will be ignored
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3955,7 +4405,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_BUFFER_RESULT
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1 (0 is default), results from SELECT statements are always placed into temporary tables. This can help the server when it takes a long time to send the results to the client by allowing the table locks to be freed early.
+VARIABLE_COMMENT	If set to 1 (0 is default), results from SELECT statements are always placed into temporary tables. This can help the server when it takes a long time to send the results to the client by allowing the table locks to be freed early
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3975,7 +4425,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_LOG_BIN
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 0 (1 is the default), no logging to the binary log is done for the client. Only clients with the SUPER privilege can update this variable. Can have unintended consequences if set globally, see SET SQL_LOG_BIN. Starting MariaDB 10.1.7, this variable does not affect the replication of events in a Galera cluster.
+VARIABLE_COMMENT	If set to 0 (1 is the default), no logging to the binary log is done for the client. Only clients with the SUPER privilege can update this variable. Can have unintended consequences if set globally, see SET SQL_LOG_BIN. Starting MariaDB 10.1.7, this variable does not affect the replication of events in a Galera cluster
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -3985,7 +4435,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_LOG_OFF
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1 (0 is the default), no logging to the general query log is done for the client. Only clients with the SUPER privilege can update this variable.
+VARIABLE_COMMENT	If set to 1 (0 is the default), no logging to the general query log is done for the client. Only clients with the SUPER privilege can update this variable
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4005,7 +4455,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SQL_NOTES
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, the default, warning_count is incremented each time a Note warning is encountered. If set to 0, Note warnings are not recorded. mysqldump has outputs to set this variable to 0 so that no unnecessary increments occur when data is reloaded. See also note_verbosity, which allows one to define with notes are sent.
+VARIABLE_COMMENT	If set to 1, the default, warning_count is incremented each time a Note warning is encountered. If set to 0, Note warnings are not recorded. mysqldump has outputs to set this variable to 0 so that no unnecessary increments occur when data is reloaded. See also note_verbosity, which allows one to define with notes are sent
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4015,7 +4465,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_QUOTE_SHOW_CREATE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, the default, the server will quote identifiers for SHOW CREATE DATABASE, SHOW CREATE TABLE and SHOW CREATE VIEW statements. Quoting is disabled if set to 0. Enable to ensure replications works when identifiers require quoting.
+VARIABLE_COMMENT	If set to 1, the default, the server will quote identifiers for SHOW CREATE DATABASE, SHOW CREATE TABLE and SHOW CREATE VIEW statements. Quoting is disabled if set to 0. Enable to ensure replications works when identifiers require quoting
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4025,7 +4475,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_SAFE_UPDATES
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, UPDATEs and DELETEs need either a key in the WHERE clause, or a LIMIT clause, or else they will aborted. Prevents the common mistake of accidentally deleting or updating every row in a table.
+VARIABLE_COMMENT	If set to 1, UPDATEs and DELETEs need either a key in the WHERE clause, or a LIMIT clause, or else they will aborted. Prevents the common mistake of accidentally deleting or updating every row in a table
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4055,7 +4505,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SQL_WARNINGS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, single-row INSERTs will produce a string containing warning information if a warning occurs.
+VARIABLE_COMMENT	If set to 1, single-row INSERTs will produce a string containing warning information if a warning occurs
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4132,6 +4582,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SSL_PASSPHRASE
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	SSL certificate key passphrase
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	STANDARD_COMPLIANT_CTE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
@@ -4142,20 +4602,10 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	STORAGE_ENGINE
-VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Alias for @@default_storage_engine. Deprecated
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	STORED_PROGRAM_CACHE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection.
+VARIABLE_COMMENT	The soft upper limit for number of cached stored routines for one connection
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	524288
 NUMERIC_BLOCK_SIZE	1
@@ -4252,6 +4702,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	SYSTEM_VERSIONING_INSERT_HISTORY
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Allows direct inserts into ROW_START and ROW_END columns if secure_timestamp allows changing @@timestamp
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	TABLE_DEFINITION_CACHE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -4285,7 +4745,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TCP_KEEPALIVE_INTERVAL
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT
-VARIABLE_COMMENT	The interval, in seconds, between when successive keep-alive packets are sent if no acknowledgement is received.If set to 0, system dependent default is used.
+VARIABLE_COMMENT	The interval, in seconds, between when successive keep-alive packets are sent if no acknowledgement is received. If set to 0, system dependent default is used
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2147483
 NUMERIC_BLOCK_SIZE	1
@@ -4295,7 +4755,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TCP_KEEPALIVE_PROBES
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT
-VARIABLE_COMMENT	The number of unacknowledged probes to send before considering the connection dead and notifying the application layer.If set to 0, system dependent default is used.
+VARIABLE_COMMENT	The number of unacknowledged probes to send before considering the connection dead and notifying the application layer. If set to 0, system dependent default is used
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2147483
 NUMERIC_BLOCK_SIZE	1
@@ -4305,7 +4765,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TCP_KEEPALIVE_TIME
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT
-VARIABLE_COMMENT	Timeout, in seconds, with no activity until the first TCP keep-alive packet is sent.If set to 0, system dependent default is used.
+VARIABLE_COMMENT	Timeout, in seconds, with no activity until the first TCP keep-alive packet is sent. If set to 0, system dependent default is used
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	2147483
 NUMERIC_BLOCK_SIZE	1
@@ -4365,7 +4825,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	THREAD_POOL_IDLE_TIMEOUT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Timeout in seconds for an idle thread in the thread pool.Worker thread will be shut down after timeout
+VARIABLE_COMMENT	Timeout in seconds for an idle thread in the thread pool. Worker thread will be shut down after timeout
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -4385,7 +4845,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_POOL_OVERSUBSCRIBE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	How many additional active worker threads in a group are allowed.
+VARIABLE_COMMENT	How many additional active worker threads in a group are allowed
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	1000
 NUMERIC_BLOCK_SIZE	1
@@ -4395,7 +4855,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_POOL_PRIORITY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.
+VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority. If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4415,7 +4875,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_POOL_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Number of thread groups in the pool. This parameter is roughly equivalent to maximum number of concurrently executing threads (threads in a waiting state do not count as executing).
+VARIABLE_COMMENT	Number of thread groups in the pool. This parameter is roughly equivalent to maximum number of concurrently executing threads (threads in a waiting state do not count as executing)
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	100000
 NUMERIC_BLOCK_SIZE	1
@@ -4425,7 +4885,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_POOL_STALL_LIMIT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Maximum query execution time in milliseconds,before an executing non-yielding thread is considered stalled.If a worker thread is stalled, additional worker thread may be created to handle remaining clients.
+VARIABLE_COMMENT	Maximum query execution time in milliseconds, before an executing non-yielding thread is considered stalled. If a worker thread is stalled, additional worker thread may be created to handle remaining clients
 NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
@@ -4442,30 +4902,10 @@ NUMERIC_BLOCK_SIZE	1024
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	TIMESTAMP
-VARIABLE_SCOPE	SESSION ONLY
-VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Set the time for this client
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	2147483647
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NULL
-VARIABLE_NAME	TIME_FORMAT
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The TIME format (ignored)
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TIME_ZONE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The current time zone, used to initialize the time zone for a client when it connects. Set to SYSTEM by default, in which the client uses the system time zone value.
+VARIABLE_COMMENT	The current time zone, used to initialize the time zone for a client when it connects. Set to SYSTEM by default, in which the client uses the system time zone value
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4475,7 +4915,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	TLS_VERSION
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	SET
-VARIABLE_COMMENT	TLS protocol version for secure connections.
+VARIABLE_COMMENT	TLS protocol version for secure connections
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4485,7 +4925,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TMPDIR
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Path for temporary files. Several paths may be specified, separated by a colon (:), in this case they are used in a round-robin fashion
+VARIABLE_COMMENT	Path for temporary files. Files that are created in background for binlogging by user threads are placed in a separate location (see `binlog_large_commit_threshold` option). Several paths may be specified, separated by a colon (:), in this case they are used in a round-robin fashion
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4495,7 +4935,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TMP_DISK_TABLE_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Max size for data for an internal temporary on-disk MyISAM or Aria table.
+VARIABLE_COMMENT	Max size for data for an internal temporary on-disk MyISAM or Aria table
 NUMERIC_MIN_VALUE	1024
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	1
@@ -4505,7 +4945,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TMP_MEMORY_TABLE_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size.
+VARIABLE_COMMENT	If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table. Same as tmp_table_size
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	16384
@@ -4515,7 +4955,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TMP_TABLE_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table.
+VARIABLE_COMMENT	Alias for tmp_memory_table_size. If an internal in-memory temporary table exceeds this size, MariaDB will automatically convert it to an on-disk MyISAM or Aria table
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	18446744073709551615
 NUMERIC_BLOCK_SIZE	16384
@@ -4532,6 +4972,16 @@ NUMERIC_BLOCK_SIZE	1024
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	TRANSACTION_ISOLATION
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Default transaction isolation level
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	READ-UNCOMMITTED,READ-COMMITTED,REPEATABLE-READ,SERIALIZABLE
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	TRANSACTION_PREALLOC_SIZE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
@@ -4542,6 +4992,16 @@ NUMERIC_BLOCK_SIZE	1024
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	TRANSACTION_READ_ONLY
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Default transaction access mode. If set to OFF, the default, access is read/write. If set to ON, access is read-only. The SET TRANSACTION statement can also change the value of this variable. See SET TRANSACTION and START TRANSACTION
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	TX_ISOLATION
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
@@ -4555,7 +5015,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	TX_READ_ONLY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Default transaction access mode. If set to OFF, the default, access is read/write. If set to ON, access is read-only. The SET TRANSACTION statement can also change the value of this variable. See SET TRANSACTION and START TRANSACTION.
+VARIABLE_COMMENT	Default transaction access mode. If set to OFF, the default, access is read/write. If set to ON, access is read-only. The SET TRANSACTION statement can also change the value of this variable. See SET TRANSACTION and START TRANSACTION
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4565,7 +5025,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	UNIQUE_CHECKS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set to 1, the default, secondary indexes in InnoDB tables are performed. If set to 0, storage engines can (but are not required to) assume that duplicate keys are not present in input data. Set to 0 to speed up imports of large tables to InnoDB. The storage engine will still issue a duplicate key error if it detects one, even if set to 0.
+VARIABLE_COMMENT	If set to 1, the default, secondary indexes in InnoDB tables are performed. If set to 0, storage engines can (but are not required to) assume that duplicate keys are not present in input data. Set to 0 to speed up imports of large tables to InnoDB. The storage engine will still issue a duplicate key error if it detects one, even if set to 0
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4605,7 +5065,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	VERSION
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Server version number. It may also include a suffix with configuration or build information. -debug indicates debugging support was enabled on the server, and -log indicates at least one of the binary log, general log or slow query log are enabled, for example 10.1.1-MariaDB-mariadb1precise-log.
+VARIABLE_COMMENT	Server version number. It may also include a suffix with configuration or build information. -debug indicates debugging support was enabled on the server, and -log indicates at least one of the binary log, general log or slow query log are enabled, for example 10.1.1-MariaDB-mariadb1precise-log
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4615,7 +5075,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION_COMMENT
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Value of the COMPILATION_COMMENT option specified by CMake when building MariaDB, for example mariadb.org binary distribution.
+VARIABLE_COMMENT	Value of the COMPILATION_COMMENT option specified by CMake when building MariaDB, for example mariadb.org binary distribution
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4625,7 +5085,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION_COMPILE_MACHINE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	The machine type or architecture MariaDB was built on, for example i686.
+VARIABLE_COMMENT	The machine type or architecture MariaDB was built on, for example i686
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4635,7 +5095,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	VERSION_COMPILE_OS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Operating system that MariaDB was built on, for example debian-linux-gnu.
+VARIABLE_COMMENT	Operating system that MariaDB was built on, for example debian-linux-gnu
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -4702,7 +5162,7 @@ VARIABLE_NAME	LOG_TC_SIZE
 GLOBAL_VALUE_ORIGIN	AUTO
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Size of transaction coordinator log.
+VARIABLE_COMMENT	Size of transaction coordinator log
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
