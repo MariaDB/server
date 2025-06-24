@@ -5850,6 +5850,17 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+
+  /**
+    @brief
+    Return true if current statement uses cursor protocol for execution.
+
+    @details
+    Cursor protocol execution is determined by checking if lex->result is a
+    Select_materialize object, which is exclusively used by the server for
+    cursor result set materialization.
+  */
+  bool is_cursor_execution() const;
 };
 
 
