@@ -9916,13 +9916,10 @@ int TABLE::hlindex_open(uint nr)
     s->lock_share();
     if (!s->hlindex)
     {
-      s->unlock_share();
-      TABLE_SHARE *share;
-      char *path= NULL;
       size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
-
-      share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof(*share));
-      path= (char*)alloc_root(&s->mem_root, path_len);
+      TABLE_SHARE *share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof *share);
+      char *path= (char*)alloc_root(&s->mem_root, path_len);
+      s->unlock_share();
       if (!share || !path)
         return 1;
 
