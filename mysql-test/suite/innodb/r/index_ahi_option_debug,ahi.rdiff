@@ -1,0 +1,46 @@
+--- index_ahi_option_debug.result
++++ index_ahi_option_debug,ahi.result
+@@ -4,7 +4,7 @@
+ # Test InnoDB index-level adaptive_hash_index options (debug)
+ #
+ SET @start_global_value = @@global.innodb_adaptive_hash_index;
+-SET GLOBAL innodb_adaptive_hash_index=OFF;
++SET GLOBAL innodb_adaptive_hash_index=ON;
+ CREATE TABLE t1_ahi_default (
+ id INT PRIMARY KEY,
+ col1 INT, col2 INT, col3 INT,
+@@ -16,10 +16,10 @@
+ SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
+ CALL run_and_check_idx(240, 1, 't1_ahi_default');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_ahi_default');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_ahi_default');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -31,7 +31,7 @@
+ # No AHI used in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_ahi_no');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_ahi_no');
+ result_msg
+ # No AHI used in SELECT (idx_3)
+@@ -40,10 +40,10 @@
+ RENAME TABLE t1 TO t1_ahi_yes;
+ CALL run_and_check_idx(240, 1, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_1)
++# Used AHI in SELECT (idx_1)
+ CALL run_and_check_idx(240, 2, 't1_ahi_yes');
+ result_msg
+-# No AHI used in SELECT (idx_2)
++# Used AHI in SELECT (idx_2)
+ CALL run_and_check_idx(240, 3, 't1_ahi_yes');
+ result_msg
+ # No AHI used in SELECT (idx_3)

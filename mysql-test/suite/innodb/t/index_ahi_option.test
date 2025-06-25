@@ -1,0 +1,151 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # Test InnoDB index-level adaptive_hash_index options
+--echo #
+
+SET @start_global_value = @@global.innodb_adaptive_hash_index;
+if ($MTR_COMBINATION_AHI) {
+  SET GLOBAL innodb_adaptive_hash_index=ON;
+}
+if ($MTR_COMBINATION_NO_AHI) {
+  SET GLOBAL innodb_adaptive_hash_index=OFF;
+}
+if ($MTR_COMBINATION_IF_SPECIFIED) {
+  SET GLOBAL innodb_adaptive_hash_index=if_specified;
+}
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  col1 INT, col2 INT, col3 INT,
+  INDEX idx_1 (col1) adaptive_hash_index=DEFAULT,
+  INDEX idx_2 (col1, col2) adaptive_hash_index=YES,
+  INDEX idx_3 (col1, col2, col3) adaptive_hash_index=NO
+) ENGINE=InnoDB STATS_PERSISTENT=0 adaptive_hash_index=DEFAULT;
+
+INSERT INTO t1 SELECT seq, seq, seq << 8, seq << 16 FROM seq_0_to_255;
+
+#
+# AHI usage in searches is verified by measuring an increase in
+# the "count" of "adaptive_hash_searches" InnoDB metric.
+# An alternative strategy would use "ANALYZE FORMAT=JSON" and
+# check the "pages_accessed" entry: lower values w.r.t. the
+# base case would imply that AHI was used for the search.
+# Unfortunately, that is not really stable.
+# Hopefully using "innodb_metrics" is more stable.
+#
+
+--disable_query_log
+--disable_result_log
+DELIMITER $$;
+
+CREATE PROCEDURE run_and_check_idx(p_idx_num INT, p_rounds INT)
+BEGIN
+  DECLARE start_val BIGINT;
+  DECLARE end_val BIGINT;
+  DECLARE i INT DEFAULT 0;
+  DECLARE dummy INT;
+
+  SELECT count INTO start_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
+
+  WHILE i < p_rounds DO
+    IF p_idx_num = 1 THEN
+      SELECT COUNT(*) INTO dummy FROM t1 FORCE INDEX(idx_1) WHERE col1 >= 0 AND col1 < (1 << 8);
+    ELSEIF p_idx_num = 2 THEN
+      SELECT COUNT(*) INTO dummy FROM t1 FORCE INDEX(idx_2) WHERE col1 = 50 AND col2 >= 0 AND col2 < (1 << 16);
+    ELSEIF p_idx_num = 3 THEN
+      SELECT COUNT(*) INTO dummy FROM t1 FORCE INDEX(idx_3) WHERE col1 = 50 AND col2 = (50 << 8) AND col3 >= 0 AND col3 < (1 << 24);
+    END IF;
+    SET i = i + 1;
+  END WHILE;
+
+  IF dummy = 0 THEN
+    SELECT '# WARNING: No rows selected' AS warning_msg;
+  END IF;
+
+  SELECT count INTO end_val FROM information_schema.innodb_metrics WHERE name = 'adaptive_hash_searches';
+
+  IF end_val > start_val THEN
+    SELECT CONCAT('# Used AHI in SELECT (idx_', p_idx_num, ')') AS result_msg;
+  ELSE
+    SELECT CONCAT('# No AHI used in SELECT (idx_', p_idx_num, ')') AS result_msg;
+  END IF;
+
+END$$
+
+DELIMITER ;$$
+--enable_result_log
+--enable_query_log
+
+SET GLOBAL innodb_monitor_enable = module_adaptive_hash;
+let $query_rounds= 240;
+
+eval CALL run_and_check_idx(1, $query_rounds);
+eval CALL run_and_check_idx(2, $query_rounds);
+eval CALL run_and_check_idx(3, $query_rounds);
+
+ALTER TABLE t1 adaptive_hash_index=OFF, ALGORITHM=INSTANT, LOCK=NONE;
+
+eval CALL run_and_check_idx(1, $query_rounds);
+eval CALL run_and_check_idx(2, $query_rounds);
+eval CALL run_and_check_idx(3, $query_rounds);
+
+ALTER TABLE t1 adaptive_hash_index='ON', ALGORITHM=INSTANT, LOCK=NONE;
+
+eval CALL run_and_check_idx(1, $query_rounds);
+eval CALL run_and_check_idx(2, $query_rounds);
+eval CALL run_and_check_idx(3, $query_rounds);
+
+DROP PROCEDURE run_and_check_idx;
+DROP TABLE t1;
+SET @@global.innodb_adaptive_hash_index = @start_global_value;
+SET GLOBAL innodb_monitor_disable = module_adaptive_hash;
+--disable_warnings
+SET GLOBAL innodb_monitor_disable = default;
+SET GLOBAL innodb_monitor_enable = default;
+--enable_warnings
+
+--echo #
+--echo # Test maximum number of fields per (secondary) index is 64 (32+32)
+--echo #
+
+# Build a list of 65 columns: c1 INT NOT NULL, ..., c65 INT NOT NULL
+let $k= 1;
+let $c1_c65=;
+while ($k <= 65)
+{
+  if ($k == 1) { let $c1_c65= c$k INT NOT NULL; }
+  if ($k  > 1) { let $c1_c65= $c1_c65, c$k INT NOT NULL; }
+  inc $k;
+}
+eval CREATE TABLE t2 (dummy INT NOT NULL, $c1_c65, PRIMARY KEY (dummy)) ENGINE=InnoDB;
+
+# Build a list of 32 columns: c1, ..., c32
+let $k= 1;
+let $c1_c32=;
+while ($k <= 32)
+{
+  if ($k == 1) { let $c1_c32= c$k; }
+  if ($k  > 1) { let $c1_c32= $c1_c32, c$k; }
+  inc $k;
+}
+--error ER_TOO_MANY_KEY_PARTS
+eval ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY ($c1_c32, c33);
+eval ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY ($c1_c32);
+
+# Build a list of 32 columns: c33, ..., c64
+let $k= 33;
+let $c33_c64=;
+while ($k <= 64)
+{
+  if ($k == 33) { let $c33_c64= c$k; }
+  if ($k  > 33) { let $c33_c64= $c33_c64, c$k; }
+  inc $k;
+}
+--error ER_TOO_MANY_KEY_PARTS
+eval CREATE INDEX idx_fail ON t2 ($c33_c64, c65);
+eval CREATE INDEX idx_ok ON t2 ($c33_c64);
+
+SHOW CREATE TABLE t2;
+DROP TABLE t2;

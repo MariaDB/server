@@ -1070,6 +1070,65 @@ struct dict_index_t {
     static constexpr uint8_t HASH_ANALYSIS= 16;
     /** the number of calls to hash_analysis_useful() */
     Atomic_relaxed<uint8_t> hash_analysis{0};
+
+    /** Compound variable which contains:
+    - bits [0, 1]: adaptive_hash_index enabled/disabled preference (2 bits)
+      - 0b00 (0): force disabled
+      - 0b01 (1): no preference (set by default, use global setting)
+      - 0b10 (2): prefer enabled (if not globally disabled)
+      - 0b11 (3): reserved
+    - bits [2, 23]: fixed parameters in recommendations (22 bits)
+      - bits [2, 8]: complete_fields (fields, 7 bits)
+      - bits [9, 22]: bytes_from_incomplete_field (bytes, 14 bits)
+      - bit 23: ~for_equal_hash_point_to_last_record (left, 1 bit)
+    - bits [24, 26]: mask which indicates valid recommendations bits (3 bits)
+      - bit 24: fields valid
+      - bit 25: bytes valid
+      - bit 26: left valid
+    - bits [27, 31]: spare (5 bits)
+    @see buf_block_t::left_bytes_fields */
+    Atomic_relaxed<uint32_t> ahi_enabled_fixed_mask{0};
+
+    /* Size in bits for each field of ahi_enabled_fixed_mask */
+    static constexpr uint32_t enabled_bits= 2;  /* First */
+    static constexpr uint32_t fields_bits= 7;
+    static constexpr uint32_t bytes_bits= 14;
+    static constexpr uint32_t left_bits= 1;
+    static constexpr uint32_t is_fields_set_bits= 1;
+    static constexpr uint32_t is_bytes_set_bits= 1;
+    static constexpr uint32_t is_left_set_bits= 1;  /* Last */
+
+    /* Shifts for each field of ahi_enabled_fixed_mask (packed) */
+    static constexpr uint32_t enabled_shift= 0;  /* First */
+    static constexpr uint32_t fields_shift= enabled_shift + enabled_bits;
+    static constexpr uint32_t bytes_shift= fields_shift + fields_bits;
+    static constexpr uint32_t left_shift= bytes_shift + bytes_bits;
+    static constexpr uint32_t is_fields_set_shift=
+      left_shift + left_bits;
+    static constexpr uint32_t is_bytes_set_shift=
+      is_fields_set_shift + is_fields_set_bits;
+    static constexpr uint32_t is_left_set_shift=
+      is_bytes_set_shift + is_bytes_set_bits;  /* Last */
+
+    static_assert(is_left_set_shift + is_left_set_bits <=
+      sizeof(ahi_enabled_fixed_mask) * 8,
+      "ahi_enabled_fixed_mask does not fit in 32 bits");
+
+    /* Masks for each field of ahi_enabled_fixed_mask */
+    static constexpr uint32_t enabled_mask= (1U << enabled_bits) - 1;
+    static constexpr uint32_t fields_mask= (1U << fields_bits) - 1;
+    static constexpr uint32_t bytes_mask= (1U << bytes_bits) - 1;
+    static constexpr uint32_t left_mask= (1U << left_bits) - 1;
+    static constexpr uint32_t is_fields_set_mask=
+      (1U << is_fields_set_bits) - 1;
+    static constexpr uint32_t is_bytes_set_mask=
+      (1U << is_bytes_set_bits) - 1;
+    static constexpr uint32_t is_left_set_mask=
+      (1U << is_left_set_bits) - 1;
+
+    static_assert(left_mask == true && false < true,
+      "left_mask is unadequate for a bool");
+
   public:
     bool hash_analysis_useful() noexcept
     {
@@ -1093,6 +1152,85 @@ struct dict_index_t {
     Atomic_relaxed<uint32_t> left_bytes_fields{buf_block_t::LEFT_SIDE | 1};
     /** number of buf_block_t::index pointers to this index */
     Atomic_counter<size_t> ref_count{0};
+
+    /* Maximum values for the ahi_enabled_fixed_mask fields */
+    static constexpr uint8_t max_enabled= enabled_mask - 1;
+    static constexpr uint8_t max_fields= fields_mask;
+    static constexpr uint16_t max_bytes= bytes_mask;
+
+    inline void set_ahi_enabled_fixed_mask(
+      const uint8_t enabled,
+      const bool is_fields_set,
+      const bool is_bytes_set,
+      const bool is_left_set,
+      const uint8_t fields,
+      const uint16_t bytes,
+      const bool left) noexcept
+    {
+      ut_ad(enabled <= max_enabled);
+      ut_ad(!is_fields_set || fields <= max_fields);
+      ut_ad(!is_bytes_set || bytes <= max_bytes);
+      /* Maybe overzealous, just to highlight the arithmetic used below */
+      static_assert(uint32_t(true) == 1);
+      static_assert(uint32_t(false) == 0);
+      const uint32_t val= (uint32_t(enabled & enabled_mask) << enabled_shift) |
+        (uint32_t(fields & fields_mask) << fields_shift) |
+        (uint32_t(is_fields_set) << is_fields_set_shift) |
+        (uint32_t(bytes & bytes_mask) << bytes_shift) |
+        (uint32_t(is_bytes_set) << is_bytes_set_shift) |
+        (uint32_t(left) << left_shift) |
+        (uint32_t(is_left_set) << is_left_set_shift);
+      ahi_enabled_fixed_mask.store(val);
+    }
+
+    inline uint8_t get_ahi_enabled(const uint32_t val) const noexcept
+    {
+      const uint8_t enabled= (val >> enabled_shift) & enabled_mask;
+      ut_ad(enabled <= max_enabled);
+      return enabled;
+    }
+
+    inline uint8_t get_ahi_enabled() const noexcept
+    {
+      return get_ahi_enabled(ahi_enabled_fixed_mask.load());
+    }
+
+    inline uint32_t get_ahi_enabled_fixed_mask() const noexcept
+    {
+      return ahi_enabled_fixed_mask.load();
+    }
+
+    inline void get_ahi_fixed_mask(
+      const uint32_t val /* copy of ahi_enabled_fixed_mask */,
+      uint32_t& fixed,
+      uint32_t& mask) const noexcept
+    {
+      const uint32_t left= (val >> left_shift) & left_mask;
+      const uint32_t bytes= (val >> bytes_shift) & bytes_mask;
+      const uint32_t fields= (val >> fields_shift) & fields_mask;
+      const uint32_t is_left_set=
+        (val >> is_left_set_shift) & is_left_set_mask;
+      const uint32_t is_bytes_set=
+        (val >> is_bytes_set_shift) & is_bytes_set_mask;
+      const uint32_t is_fields_set=
+        (val >> is_fields_set_shift) & is_fields_set_mask;
+      ut_ad(!is_fields_set || fields <= fields_mask);
+      ut_ad(!is_bytes_set || bytes <= bytes_mask);
+      ut_ad(!is_left_set || left <= left_mask);
+      /* See buf_block_t::left_bytes_fields */
+      static_assert(left_mask < (1U << 1));
+      static_assert(bytes_mask < (1U << 15));
+      static_assert(fields_mask < (1U << 16));
+      fixed= fields | (bytes << 16) | (left << 31);
+      /* Just to highlight arithmetic used below */
+      static_assert(is_fields_set_mask == 1);
+      static_assert(is_bytes_set_mask == 1);
+      static_assert(is_left_set_mask == 1);
+      static_assert((0 - uint32_t(1)) == 0xFFFFFFFF);
+      mask= ((0 - is_fields_set) & 0x0000FFFF) |
+        ((0 - is_bytes_set) & 0x7FFF0000) |
+        ((0 - is_left_set) & 0x80000000);
+    }
 
 #  ifdef UNIV_SEARCH_PERF_STAT
     /** number of successful hash searches */

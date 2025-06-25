@@ -108,24 +108,56 @@ struct btr_sea
 {
   /** the actual value of innodb_adaptive_hash_index, protected by
   all partition::latch. Note that if buf_block_t::index is not nullptr
-  while a thread is holding a partition::latch, then also this must hold. */
-  Atomic_relaxed<bool> enabled;
+  while a thread is holding a partition::latch, then also this must hold.
+  Values 0 (disabled), 1 (enabled) or 2 (enabled if table or index option
+  enabled ahi */
+  Atomic_relaxed<ulong> enabled;
 
 private:
   /** Disable the adaptive hash search system and empty the index.
   @return whether the adaptive hash index was enabled */
-  ATTRIBUTE_COLD bool disable_and_lock() noexcept;
+  ATTRIBUTE_COLD ulong disable_and_lock() noexcept;
 
   /** Unlock the adaptive hash search system. */
   ATTRIBUTE_COLD void unlock() noexcept;
+
 public:
+
+  /** Check if ahi is enable for an index
+      @return true if enabled */
+  inline bool is_enabled(const dict_index_t *index) const noexcept
+  {
+    /*
+       Index is enabled if global ahi is enabled and index can be enabled.
+       If enabled is set to 2 (IF_SPECIFIED), only enable indexes declared
+       with ahi enabled on (get_ahi_enabled() == 2).
+       We don't have to check if index->search_info.get_ahi_enabled() != 0
+       as the test enabled <= get_ahi_enabled() will not be true in this case.
+    */
+    const ulong enabled{get_enabled()};
+    return (unlikely(enabled != 0) &&
+            enabled <= index->search_info.get_ahi_enabled());
+  }
+  /*
+    Same as above, but if index == 0 return 1. This to handle the case
+    where we do not yet know if ahi for the index is enabled or not
+  */
+  inline bool may_be_enabled(const dict_index_t *index) const noexcept
+  {
+    const ulong enabled{get_enabled()};
+    return (unlikely(enabled != 0) &&
+            (!index || enabled <= index->search_info.get_ahi_enabled()));
+  }
+
+  inline ulong get_enabled() const noexcept { return enabled; }
+
   /** Disable the adaptive hash search system and empty the index.
   @return whether the adaptive hash index was enabled */
-  ATTRIBUTE_COLD bool disable() noexcept;
+  ATTRIBUTE_COLD ulong disable() noexcept;
 
   /** Enable the adaptive hash search system.
   @param resize whether buf_pool_t::resize() is the caller */
-  ATTRIBUTE_COLD void enable(bool resize= false) noexcept;
+  ATTRIBUTE_COLD void enable(bool resize, ulong enable_type) noexcept;
 
   /** Hash cell chain in hash_table */
   struct hash_chain

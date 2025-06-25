@@ -343,7 +343,7 @@ ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
 void btr_sea::partition::rollback_insert() noexcept
 {
   ut_ad(latch.have_any());
-  ut_ad(!btr_search.enabled);
+  ut_ad(!btr_search.get_enabled());
   if (buf_block_t *block= spare.exchange(nullptr))
   {
     MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
@@ -386,18 +386,18 @@ ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept
   }
 }
 
-ATTRIBUTE_COLD bool btr_sea::disable_and_lock() noexcept
+ATTRIBUTE_COLD ulong btr_sea::disable_and_lock() noexcept
 {
   dict_sys.freeze(SRW_LOCK_CALL);
 
   for (ulong i= 0; i < n_parts; i++)
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
-  const bool was_enabled{enabled};
+  const ulong was_enabled{enabled};
 
   if (was_enabled)
   {
-    enabled= false;
+    enabled= 0;
     btr_search_disable(dict_sys.table_LRU);
     btr_search_disable(dict_sys.table_non_LRU);
     dict_sys.unfreeze();
@@ -418,17 +418,21 @@ ATTRIBUTE_COLD void btr_sea::unlock() noexcept
     parts[i].latch.wr_unlock();
 }
 
-ATTRIBUTE_COLD bool btr_sea::disable() noexcept
+ATTRIBUTE_COLD ulong btr_sea::disable() noexcept
 {
-  const bool was_enabled{disable_and_lock()};
+  const ulong was_enabled{disable_and_lock()};
   unlock();
   return was_enabled;
 }
 
 /** Enable the adaptive hash search system.
-@param resize whether buf_pool_t::resize() is the caller */
-ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
+@param resize whether buf_pool_t::resize() is the caller
+@param resize Type of adaptive_hash_index.
+	      1 (enable for all tables) or 2 (if_specified */
+ATTRIBUTE_COLD void btr_sea::enable(bool resize, ulong enable_opt) noexcept
 {
+  ut_ad(enable_opt > 0);
+
   if (!resize)
   {
     mysql_mutex_lock(&buf_pool.mutex);
@@ -442,22 +446,27 @@ ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
   if (!parts[0].table.array)
-    enabled= alloc(n_cells);
+  {
+    if (alloc(n_cells))
+      enabled= enable_opt;
+  }
   else
+  {
+    enabled= enable_opt;
     ut_ad(enabled);
-
+  }
   unlock();
 }
 
 ATTRIBUTE_COLD void btr_sea::resize(uint n_cells) noexcept
 {
-  const bool was_enabled{disable_and_lock()};
+  const ulong was_enabled{disable_and_lock()};
 
   clear();
   ut_ad(!parts[0].table.array);
 
   if (was_enabled)
-    enabled= alloc(n_cells);
+    enabled= alloc(n_cells) ? was_enabled : 0;
 
   if (!was_enabled || enabled)
     this->n_cells= n_cells;
@@ -480,7 +489,7 @@ void btr_sea::partition::insert(uint32_t fold, const rec_t *rec) noexcept
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
   ut_a(block->page.frame == page_align(rec));
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.get_enabled());
 
   hash_chain &cell{table.cell_get(fold)};
   page_hash_latch &hash_lock{table.lock_get(cell)};
@@ -593,7 +602,8 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
   if (ut_d(const dict_index_t *block_index=) block->index)
   {
     ut_ad(block_index == index);
-    ut_ad(btr_search.enabled);
+    ut_ad(btr_search.get_enabled());
+    ut_ad(index->search_info.get_ahi_enabled());
     uint32_t bytes_fields{block->ahi_left_bytes_fields};
     if (bytes_fields != left_bytes_fields)
       goto skip;
@@ -632,7 +642,7 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
     ut_a(!block->n_pointers);
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-    if (!btr_search.enabled)
+    if (!btr_search.get_enabled())
     {
       ut_ad(!index->any_ahi_pages());
       part.rollback_insert();
@@ -678,9 +688,22 @@ static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
   uint8_t n_hash_potential= info.n_hash_potential;
   uint32_t ret;
 
+  uint32_t ahi_enabled_fixed_mask, fixed, mask;
+  ut_d(ahi_enabled_fixed_mask= 0);
+  ut_d(fixed= 0);
+  ut_d(mask= 0);
+  ut_d(bool fixed_mask_set= false);
+
   if (!n_hash_potential)
   {
-    info.left_bytes_fields= left_bytes_fields= buf_block_t::LEFT_SIDE | 1;
+    left_bytes_fields= buf_block_t::LEFT_SIDE | 1;
+    /* Override with fixed values */
+    ut_ad(!fixed_mask_set);
+    ahi_enabled_fixed_mask= info.get_ahi_enabled_fixed_mask();
+    info.get_ahi_fixed_mask(ahi_enabled_fixed_mask, fixed, mask);
+    ut_d(fixed_mask_set= true);
+    left_bytes_fields= (left_bytes_fields & ~mask) | (fixed & mask);
+    info.left_bytes_fields= left_bytes_fields;
     info.hash_analysis_reset();
   increment_potential:
     if (n_hash_potential < BTR_SEARCH_BUILD_LIMIT)
@@ -740,6 +763,12 @@ static uint32_t btr_search_info_update_hash(const btr_cur_t &cursor) noexcept
         left_bytes_fields|= uint32_t(cursor.up_bytes + 1) << 16;
       }
     }
+    /* Override with fixed values */
+    ut_ad(!fixed_mask_set);
+    ahi_enabled_fixed_mask= info.get_ahi_enabled_fixed_mask();
+    info.get_ahi_fixed_mask(ahi_enabled_fixed_mask, fixed, mask);
+    ut_d(fixed_mask_set= true);
+    left_bytes_fields= (left_bytes_fields & ~mask) | (fixed & mask);
     /* We have to set a new recommendation; skip the hash analysis for a
     while to avoid unnecessary CPU time usage when there is no chance
     for success */
@@ -795,6 +824,167 @@ func_exit:
   else if (cursor.flag == BTR_CUR_HASH_FAIL)
     btr_search_update_hash_ref(cursor, block, left_bytes_fields);
 
+  ut_ad(!ret || ((ret & mask) == (fixed & mask)));
+  DBUG_EXECUTE_IF("index_ahi_option_debug_check",
+  {
+    /* Since enabled comes from the same atomic variable, it's coherent */
+    const uint8_t enabled= info.get_ahi_enabled(ahi_enabled_fixed_mask);
+    const char* idx_name= index->name;
+    const char* table_name= index->table->name.m_name;
+    if (!fixed_mask_set) {}
+    else if (!strcmp(idx_name, "idx_1"))
+    {
+      /*
+      INDEX idx_1 (col1)
+      adaptive_hash_index=DEFAULT
+      complete_fields=0
+      bytes_from_incomplete_field=3
+      for_equal_hash_point_to_last_record=0
+      */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+      {
+        ut_ad(enabled == 0);
+        ut_ad(false);
+      }
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(enabled == 1);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(enabled == 2);
+      else
+        goto not_under_test;
+      ut_ad(mask == 0xFFFFFFFF);
+      ut_ad((fixed & mask) == ((3 << 16) | buf_block_t::LEFT_SIDE));
+    }
+    else if (!strcmp(idx_name, "idx_2"))
+    {
+      /*
+      INDEX idx_2 (col1, col2)
+      adaptive_hash_index=YES
+      complete_fields=1
+      bytes_from_incomplete_field=2
+      for_equal_hash_point_to_last_record=0
+      */
+      ut_ad(enabled == 2);
+      if (!strcmp(table_name, "test/t1_ahi_no")) {}
+      else if (!strcmp(table_name, "test/t1_ahi_default")) {}
+      else if (!strcmp(table_name, "test/t1_ahi_yes")) {}
+      else
+        goto not_under_test;
+      ut_ad(mask == 0xFFFFFFFF);
+      ut_ad((fixed & mask) == (1 | (2 << 16) | buf_block_t::LEFT_SIDE));
+    }
+    else if (!strcmp(idx_name, "idx_3"))
+    {
+      /*
+      INDEX idx_3 (col1, col2, col3)
+      adaptive_hash_index=NO
+      complete_fields=2
+      bytes_from_incomplete_field=2
+      for_equal_hash_point_to_last_record=1
+      */
+      ut_ad(enabled == 0);
+      if (!strcmp(table_name, "test/t1_ahi_no")) {}
+      else if (!strcmp(table_name, "test/t1_ahi_default")) {}
+      else if (!strcmp(table_name, "test/t1_ahi_yes")) {}
+      else
+        goto not_under_test;
+      ut_ad(mask == 0xFFFFFFFF);
+      ut_ad((fixed & mask) == (2 | (2 << 16) | buf_block_t::LEFT_SIDE));
+    }
+    else if (!strcmp(idx_name, "PRIMARY"))
+    {
+      /* id INT PRIMARY KEY */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+      {
+        ut_ad(enabled == 0);
+        ut_ad(false);
+      }
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(enabled == 1);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(enabled == 2);
+      else
+        goto not_under_test;
+      ut_ad(mask == 0);
+      /* Since mask is 0, fixed can be anything */
+    }
+    else if (!strcmp(idx_name, "idx_4"))
+    {
+      /* INDEX idx_4 (col2) complete_fields=2 */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(enabled == 2);
+      else
+        goto not_under_test;
+      ut_ad(mask == 0x0000FFFF);
+      ut_ad((fixed & mask) == 2);
+    }
+    else if (!strcmp(idx_name, "idx_5"))
+    {
+      /* INDEX idx_5 (col3) bytes_from_incomplete_field=5 */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(enabled == 2);
+      else
+        goto not_under_test;
+      ut_ad(mask == 0x7FFF0000);
+      ut_ad((fixed & mask) == (5 << 16));
+    }
+    else if (!strcmp(idx_name, "idx_6"))
+    {
+      /*
+      INDEX idx_6 (col2, col1)
+      complete_fields=0
+      bytes_from_incomplete_field=0
+      for_equal_hash_point_to_last_record=0
+      */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(enabled == 2);
+      else
+        goto not_under_test;
+      ut_ad(mask == 0xFFFFFFFF);
+      ut_ad((fixed & mask) == buf_block_t::LEFT_SIDE);
+    }
+    else if (!strcmp(idx_name, "idx_7"))
+    {
+      /*
+      INDEX idx_7 (col3, col2)
+      complete_fields=0
+      bytes_from_incomplete_field=0
+      for_equal_hash_point_to_last_record=1
+      */
+      if (!strcmp(table_name, "test/t1_ahi_no"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_default"))
+        ut_ad(false);
+      else if (!strcmp(table_name, "test/t1_ahi_yes"))
+        ut_ad(enabled == 2);
+      else
+        goto not_under_test;
+      ut_ad(mask == 0xFFFFFFFF);
+      ut_ad((fixed & mask) == 0);
+    }
+    else
+    {
+not_under_test:
+      /* AHI access to mysql/innodb_table_stats or mysql/innodb_index_stats
+      seems possible even with STATS_PERSISTENT=0, due to usage of
+      RENAME TABLE. Just check that no attributes were set there. */
+      ut_ad(enabled == 1);
+      ut_ad(mask == 0);
+    }
+  });
+
   return ret;
 }
 
@@ -841,7 +1031,7 @@ buf_block_t *
 btr_sea::partition::cleanup_after_erase(ahi_node *erase) noexcept
 {
   ut_ad(latch.have_wr());
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.get_enabled());
 
   const ahi_node *const top= cleanup_after_erase_start();
 
@@ -864,7 +1054,7 @@ btr_sea::partition::cleanup_after_erase(ahi_node *erase, page_hash_latch *l)
 {
   ut_ad(latch.have_rd());
   ut_ad(l->is_write_locked());
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.get_enabled());
 
   const ahi_node *const top= cleanup_after_erase_start();
 
@@ -922,7 +1112,7 @@ btr_sea::partition::erase_status
 btr_sea::partition::erase(hash_chain &cell, const rec_t *rec) noexcept
 {
   ut_ad(ex ? latch.have_wr() : latch.have_rd());
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.get_enabled());
 
   page_hash_latch *const hash_lock{ex ? nullptr : &table.lock_get(cell)};
   buf_block_t *block= nullptr;
@@ -1000,7 +1190,7 @@ static bool ha_search_and_update_if_found(btr_sea::hash_table *table,
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
   ut_a(new_block->page.frame == page_align(new_data));
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.get_enabled());
 
   btr_sea::hash_chain &cell{table->cell_get(fold)};
   page_hash_latch &hash_lock{table->lock_get(cell)};
@@ -1115,7 +1305,7 @@ btr_search_guess_on_hash(
       !index->search_info.n_hash_potential)
   {
   ahi_unusable:
-    if (!index->table->is_temporary() && btr_search.enabled)
+    if (!index->table->is_temporary() && btr_search.get_enabled())
       cursor->flag= BTR_CUR_HASH_ABORT;
     return false;
   }
@@ -1142,7 +1332,7 @@ btr_search_guess_on_hash(
   page_hash_latch *hash_lock= nullptr;
   part.latch.rd_lock(SRW_LOCK_CALL);
 
-  if (!btr_search.enabled)
+  if (!btr_search.get_enabled())
   {
     ut_ad(!index->any_ahi_pages());
   ahi_release_and_fail:
@@ -1312,7 +1502,7 @@ retry:
     return;
   }
 
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.get_enabled());
 
   bool holding_x= index->freed();
 
@@ -1526,7 +1716,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
 {
   ut_ad(!index->table->is_temporary());
 
-  if (!btr_search.enabled)
+  if (!btr_search.is_enabled(index))
     return;
 
   ut_ad(block->page.id().space() == index->table->space_id);
@@ -1541,7 +1731,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   const bool rebuild= block_index &&
     (block_index != index ||
      block->ahi_left_bytes_fields != left_bytes_fields);
-  const bool enabled= btr_search.enabled;
+  const ulong enabled= btr_search.get_enabled();
   ut_ad(enabled || !index->any_ahi_pages());
 
   part.latch.rd_unlock();
@@ -1638,7 +1828,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   {
     ut_ad(!block->n_pointers);
 
-    if (!btr_search.enabled)
+    if (!btr_search.get_enabled())
     {
       ut_ad(!index->any_ahi_pages());
       part.rollback_insert();
@@ -1663,7 +1853,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   else
   {
     ut_ad(!block->n_pointers);
-    if (!btr_search.enabled)
+    if (!btr_search.get_enabled())
     {
       ut_ad(!index->any_ahi_pages());
       part.rollback_insert();
@@ -1730,10 +1920,12 @@ void btr_search_move_or_delete_hash_entries(buf_block_t *new_block,
   ut_ad(block->page.lock.have_x());
   ut_ad(new_block->page.lock.have_x());
 
-  if (!btr_search.enabled)
+  dict_index_t *index= block->index;
+
+  if (!btr_search.may_be_enabled(index))
     return;
 
-  dict_index_t *index= block->index, *new_block_index= new_block->index;
+  dict_index_t *new_block_index= new_block->index;
 
   assert_block_ahi_valid(block);
   assert_block_ahi_valid(new_block);
@@ -1742,7 +1934,8 @@ void btr_search_move_or_delete_hash_entries(buf_block_t *new_block,
   {
     ut_ad(!index || index == new_block_index);
 drop_exit:
-    btr_search_drop_page_hash_index(block, nullptr);
+    if (btr_search.is_enabled(new_block_index))
+      btr_search_drop_page_hash_index(block, nullptr);
     return;
   }
 
@@ -1775,7 +1968,7 @@ drop_exit:
 void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
 {
   ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
-  if (!btr_search.enabled)
+  if (!btr_search.get_enabled())
     return;
   buf_block_t *block= btr_cur_get_block(cursor);
 
@@ -1783,7 +1976,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
 
   assert_block_ahi_valid(block);
   dict_index_t *index= block->index;
-  if (!index)
+  if (!index || !btr_search.is_enabled(index))
     return;
   ut_ad(!cursor->index()->table->is_temporary());
 
@@ -1807,7 +2000,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
 
   if (ut_d(dict_index_t *block_index=) block->index)
   {
-    ut_ad(btr_search.enabled);
+    ut_ad(btr_search.get_enabled());
     ut_ad(block_index == index);
 
     btr_sea::partition::erase_status s=
@@ -1840,7 +2033,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
   }
   else
   {
-    ut_ad(btr_search.enabled || !index->any_ahi_pages());
+    ut_ad(btr_search.get_enabled() || !index->any_ahi_pages());
     part.latch.rd_unlock();
   }
 }
@@ -1887,7 +2080,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     part.latch.rd_lock(SRW_LOCK_CALL);
     if (!block->index)
       goto unlock_exit;
-    ut_ad(btr_search.enabled);
+    ut_ad(btr_search.get_enabled());
     locked= true;
     if (page_is_comp(page))
     {
@@ -1956,7 +2149,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
       if (!block->index)
       {
       rollback:
-        if (!btr_search.enabled)
+        if (!btr_search.get_enabled())
         {
           ut_ad(!index->any_ahi_pages());
           part.rollback_insert();
@@ -2080,7 +2273,7 @@ static bool btr_search_hash_table_validate(THD *thd, ulint hash_table_id)
 	ulint		cell_count;
 
 	btr_search_x_lock_all();
-	if (!btr_search.enabled || (thd && thd_kill_level(thd))) {
+	if (!btr_search.get_enabled() || (thd && thd_kill_level(thd))) {
 func_exit:
 		btr_search_x_unlock_all();
 		return ok;
@@ -2112,7 +2305,7 @@ func_exit:
 
 			btr_search_x_lock_all();
 
-			if (!btr_search.enabled
+			if (!btr_search.get_enabled()
 			    || (thd && thd_kill_level(thd))) {
 				goto func_exit;
 			}
@@ -2202,7 +2395,7 @@ state_ok:
 
 			btr_search_x_lock_all();
 
-			if (!btr_search.enabled
+			if (!btr_search.get_enabled()
 			    || (thd && thd_kill_level(thd))) {
 				goto func_exit;
 			}

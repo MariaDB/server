@@ -739,7 +739,7 @@ srv_printf_innodb_monitor(
 	os_aio_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (btr_search.enabled) {
+	if (btr_search.get_enabled()) {
 		fputs("-------------------\n"
 		      "ADAPTIVE HASH INDEX\n"
 		      "-------------------\n", file);
