@@ -494,18 +494,10 @@ public:
 
   bool vers_can_native(THD *thd) override
   {
-    if (thd->lex->part_info)
-    {
-      // PARTITION BY SYSTEM_TIME is not supported for now
-      return thd->lex->part_info->part_type != VERSIONING_PARTITION;
-    }
-    else
-    {
-      bool can= true;
-      for (uint i= 0; i < m_tot_parts && can; i++)
-        can= can && m_file[i]->vers_can_native(thd);
-      return can;
-    }
+    bool can= true;
+    for (uint i= 0; i < m_tot_parts && can; i++)
+      can= can && m_file[i]->vers_can_native(thd);
+    return can;
   }
 
   /*
