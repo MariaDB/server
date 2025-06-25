@@ -80,4 +80,100 @@ VARIABLE_NAME	VARIABLE_VALUE
 INNODB_ADAPTIVE_HASH_INDEX	ON
 set global innodb_adaptive_hash_index='AUTO';
 ERROR 42000: Variable 'innodb_adaptive_hash_index' can't be set to the value of 'AUTO'
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=yes;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `adaptive_hash_index`=yes
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=no;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `adaptive_hash_index`=no
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index='off';
+ALTER TABLE t1 adaptive_hash_index=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`) `adaptive_hash_index`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=no) engine=innodb, adaptive_hash_index=yes;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`) `adaptive_hash_index`=no
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `adaptive_hash_index`=yes
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb, adaptive_hash_index=no;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`) `adaptive_hash_index`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `adaptive_hash_index`=no
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb, adaptive_hash_index=yes;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`) `adaptive_hash_index`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `adaptive_hash_index`=yes
+alter table t1 add column c int, add index (c);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`) `adaptive_hash_index`=yes,
+  KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `adaptive_hash_index`=yes
+alter table t1 drop index b, add index b (b);
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=default) engine=innodb, adaptive_hash_index=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index='on') engine=innodb, adaptive_hash_index='off';
+drop table t1;
 SET @@global.innodb_adaptive_hash_index = @start_global_value;
