@@ -681,8 +681,17 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
   /* With this option the user defines the key identifier using for the encryption */
   HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key_id),
-
+  HA_TOPTION_ENUM("ADAPTIVE_HASH_INDEX", adaptive_hash_index,
+                  table_hint_options, 0),
   HA_TOPTION_END
+};
+
+
+ha_create_table_option innodb_index_option_list[]=
+{
+  HA_IOPTION_ENUM("ADAPTIVE_HASH_INDEX", adaptive_hash_index,
+                  table_hint_options, 0),
+  HA_IOPTION_END
 };
 
 /*************************************************************//**
@@ -3028,6 +3037,11 @@ innobase_copy_frm_flags_from_table_share(
                              table_share->stats_auto_recalc,
                              innodb_table->stat_initialized()))
     innodb_table->stats_sample_pages= table_share->stats_sample_pages;
+# ifdef BTR_CUR_HASH_ADAPT
+    innodb_table->ahi_enabled=
+      !table_share->option_struct ||
+      table_share->option_struct->adaptive_hash_index <= 2; /* Not used or yes */
+#endif
 }
 
 /*********************************************************************//**
@@ -4166,6 +4180,7 @@ static int innodb_init(void* p)
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
 	innobase_hton->table_options = innodb_table_option_list;
+	innobase_hton->index_options = innodb_index_option_list;
 
 	/* System Versioning */
 	innobase_hton->prepare_commit_versioned
@@ -6051,10 +6066,11 @@ ha_innobase::open(const char* name, int, uint)
 		initialize_auto_increment(m_prebuilt->table, *ai, *table->s);
 	}
 
-	/* Set plugin parser for fulltext index */
+	/* Set plugin parser for fulltext index and ahi */
 	for (uint i = 0; i < table->s->keys; i++) {
+          dict_index_t* index = 0;
 		if (table->key_info[i].flags & HA_USES_PARSER) {
-			dict_index_t*	index = innobase_get_index(i);
+                        index = innobase_get_index(i);
 			plugin_ref	parser = table->key_info[i].parser;
 
 			ut_ad(index->type & DICT_FTS);
@@ -6065,7 +6081,22 @@ ha_innobase::open(const char* name, int, uint)
 			DBUG_EXECUTE_IF("fts_instrument_use_default_parser",
 				index->parser = &fts_default_parser;);
 		}
+#ifdef BTR_CUR_HASH_ADAPT
+                /* Enable AHI if index option is 'yes' or 'on' or if no index
+                   option is given and table level AHI is enabled
+                */
+                if ((table->key_info[i].option_struct->adaptive_hash_index == 0 &&
+                     ib_table->ahi_enabled) ||
+                    (table->key_info[i].option_struct->adaptive_hash_index >= 1 &&
+                     table->key_info[i].option_struct->adaptive_hash_index <= 2))
+                {
+                  if (!index)
+                    index = innobase_get_index(i);
+                  if (index)                    // Not primary key
+                    index->search_info.ahi_enabled= 1;
+                }
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	ut_ad(!m_prebuilt->table
 	      || table->versioned() == m_prebuilt->table->versioned());
@@ -11416,7 +11447,6 @@ create_table_info_t::check_table_options()
 			return "PAGE_COMPRESSION_LEVEL";
 		}
 	}
-
 	return NULL;
 }
 

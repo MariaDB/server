@@ -63,7 +63,41 @@ select * from information_schema.session_variables where variable_name='innodb_a
 set global innodb_adaptive_hash_index='AUTO';
 
 #
+# Test table level adaptive_hash_index options
+#
+
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=yes;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=no;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index='off';
+ALTER TABLE t1 adaptive_hash_index=default;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=default;
+show create table t1;
+
+#
+# Test index level adaptive_hash_index options
+#
+
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=no) engine=innodb, adaptive_hash_index=yes;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb, adaptive_hash_index=no;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb, adaptive_hash_index=yes;
+show create table t1;
+alter table t1 add column c int, add index (c);
+show create table t1;
+alter table t1 drop index b, add index b (b);
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=default) engine=innodb, adaptive_hash_index=default;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index='on') engine=innodb, adaptive_hash_index='off';
+
+#
 # Cleanup
 #
 
+drop table t1;
 SET @@global.innodb_adaptive_hash_index = @start_global_value;

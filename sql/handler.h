@@ -5866,4 +5866,21 @@ int get_select_field_pos(Alter_info *alter_info, bool versioned);
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+
+/*
+  This is used when creating table options that affects optimizations and
+  features, like QUERY_CACHE=OFF.
+  The user can use YES and NO as synonyms for ON/OFF (needed as some options
+  are already using ON/OFF and others using YES/NO and we don't want to confuse
+  the user.
+  DEFAULT is automatically handled by sys_vars.
+*/
+
+enum table_hint_options
+{
+  TABLE_HINT_DEFAULT, TABLE_HINT_ON, TABLE_HINT_YES,
+  TABLE_HINT_OFF, TABLE_HINT_NO
+};
+
+extern const char *table_hint_options;
 #endif /* HANDLER_INCLUDED */
