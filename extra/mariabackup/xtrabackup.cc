@@ -5090,7 +5090,7 @@ class BackupStages {
 
 		bool stage_start(Backup_datasinks &backup_datasinks,
 		                 CorruptedPages &corrupted_pages) {
-			msg("BACKUP STAGE START");
+			msg("Entering BACKUP STAGE START");
 			if (!opt_no_lock) {
 				if (opt_safe_slave_backup) {
 					if (!wait_for_safe_slave(mysql_connection)) {
@@ -5104,6 +5104,7 @@ class BackupStages {
 					msg("Error on BACKUP STAGE START query execution");
 					return(false);
 				}
+                                msg("Executed BACKUP STAGE START successfully.");
 			}
 
                         InnodbDataCopier innodb_data_copier(backup_datasinks,
@@ -5138,11 +5139,12 @@ class BackupStages {
 		}
 
 		bool stage_flush() {
-			msg("BACKUP STAGE FLUSH");
+			msg("Entering BACKUP STAGE FLUSH");
 			if (!opt_no_lock && !lock_for_backup_stage_flush(m_bs_con)) {
 				msg("Error on BACKUP STAGE FLUSH query execution");
 				return false;
 			}
+			msg("Executed BACKUP STAGE FLUSH successfully.");
 			auto tables_in_use = get_tables_in_use(mysql_connection);
 			// Copy non-stats-log non-in-use tables of non-InnoDB-Aria-RocksDB engines
 			// in background
@@ -5195,11 +5197,14 @@ class BackupStages {
 
 		bool stage_block_ddl(Backup_datasinks &backup_datasinks,
                                      CorruptedPages &corrupted_pages) {
+			msg("Entering BACKUP STAGE BLOCK_DDL");
 			if (!opt_no_lock) {
 				if (!lock_for_backup_stage_block_ddl(m_bs_con)) {
-					msg("BACKUP STAGE BLOCK_DDL");
+					msg("Error on BACKUP STAGE BLOCK_DDL query execution");
 					return false;
 				}
+				msg("Executed BACKUP STAGE BLOCK_DDL "
+				    "successfully.");
 				if (have_galera_enabled)
 				{
 					xb_mysql_query(mysql_connection, "SET SESSION wsrep_sync_wait=0", false);
@@ -5265,12 +5270,12 @@ class BackupStages {
 		}
 
 		bool stage_block_commit(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE BLOCK_COMMIT");
+			msg("Entering BACKUP STAGE BLOCK_COMMIT");
 			if (!opt_no_lock && !lock_for_backup_stage_commit(m_bs_con)) {
 				msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
 				return false;
 			}
-
+			msg("Executed BACKUP STAGE BLOCK_COMMIT successfully.");
 			// Copy log tables tail
 			if (!m_common_backup.copy_log_tables(true) ||
 			    !m_common_backup.close_log_tables()) {

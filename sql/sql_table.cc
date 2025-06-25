@@ -7988,6 +7988,19 @@ write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
   return false;
 }
 
+/**
+  Check whether the table has fulltext index
+  @param table Table object
+  @retval true if fulltext index exist
+  @retval false if it doesn't have fulltext index
+*/
+static bool fulltext_index_exist(const TABLE* table)
+{
+  for (uint32_t i= 0; i < table->s->keys; i++)
+    if (table->key_info[i].algorithm == HA_KEY_ALG_FULLTEXT)
+      return true;
+  return false;
+}
 
 /**
   Perform in-place alter table.
@@ -8046,10 +8059,18 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   const enum_alter_inplace_result inplace_supported=
     ha_alter_info->inplace_supported;
+  bool fts_rebuild= ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
+                      inplace_supported == HA_ALTER_INPLACE_COPY_LOCK) &&
+                     fulltext_index_exist(altered_table));
   DBUG_ENTER("mysql_inplace_alter_table");
 
-  /* Downgrade DDL lock while we are waiting for exclusive lock below */
-  backup_set_alter_copy_lock(thd, table);
+  /*
+    If an FTS rebuild is not required, downgrade the DDL lock while
+    waiting for an exclusive lock. Defer this downgradation after
+    prepare phase completion when FTS rebuild is required
+  */
+  if (!fts_rebuild)
+    backup_set_alter_copy_lock(thd, table);
 
   /*
     Upgrade to EXCLUSIVE lock if:
@@ -8185,6 +8206,12 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   debug_crash_here("ddl_log_alter_after_prepare_inplace");
 
+  /*
+    Downgrade the DDL lock after prepare phase when fts table is being
+    rebuild
+  */
+  if (fts_rebuild)
+    backup_set_alter_copy_lock(thd, table);
   /*
     Store the new table_version() as it may have not been available before
     in some engines, like InnoDB.
