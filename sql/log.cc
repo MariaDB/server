@@ -745,6 +745,18 @@ int check_if_log_table(const TABLE_LIST *table)
 }
 
 
+bool HA_CREATE_INFO::check_if_valid_log_table()
+{
+  if (!(db_type->flags & HTON_SUPPORT_LOG_TABLES) ||
+      (db_type == maria_hton && transactional != HA_CHOICE_NO))
+  {
+    my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0), hton_name(db_type)->str);
+    return true;
+  }
+  return false;
+}
+
+
 /**
    Check if a given table is opened log table
 
