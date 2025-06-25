@@ -24,6 +24,47 @@ static int cmp_rqp_locations(const void *a_, const void *b_)
 }
 
 
+/**
+  Traverse the list of Item_param instances created on the fist parsing of
+  SP instruction's statement and put them back into sp_inst_lex->free list
+  for releasing them on deallocating statement's resources to avoid
+  memory leaks.
+*/
+
+void
+sp_lex_instr::put_back_item_params(THD *thd, LEX *lex,
+                                   const std::list<Item_param*>& param_values)
+{
+  /*
+    Instance of Item_param must be ignored on re-parsing a statement
+    of failed SP instruction, therefore lex->param_list must be empty.
+    Instance of the class Item_param created on first (initial) parsing of
+    Prepared Statement is used for whole its life.
+  */
+  DBUG_ASSERT(lex->param_list.is_empty());
+
+  for (auto reverse_it= param_values.rbegin();
+       reverse_it != param_values.rend(); ++reverse_it)
+  {
+    /*
+      Put retained instances of Item_param back into sp_lex_inst::free_list
+      to avoid leaking them. Save ordering of Item_param, so insert into
+      free_list starting from the last item back to the fist one.
+    */
+    Item_param *param_for_adding_to_free_list= *reverse_it;
+
+    Item *prev_head= free_list;
+    free_list= param_for_adding_to_free_list;
+    if (prev_head)
+    {
+      param_for_adding_to_free_list->next= prev_head;
+    }
+    else
+      param_for_adding_to_free_list->next= nullptr;
+  }
+}
+
+
 /*
   StoredRoutinesBinlogging
   This paragraph applies only to statement-based binlogging. Row-based
@@ -592,14 +633,27 @@ void sp_lex_instr::get_query(String *sql_query) const
 }
 
 
-void sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
+std::list<Item_param*>
+sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
 {
   Item *current= free_list;
+  std::list<Item_param*> param_values{};
 
   while (current)
   {
     Item *next= current->next;
-    current->delete_self();
+
+    if (current->is_stored_routine_parameter())
+      /*
+        `current` points to an instance of the class Item_param.
+        Place an instance of the class Item_param into the list `param_values`
+        and skip the item in free_list (don't invoke the method delete_self()
+        on it)
+      */
+      param_values.push_back((Item_param*)current);
+    else
+      current->delete_self();
+
     current= next;
   }
 
@@ -612,6 +666,8 @@ void sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
       dangling references.
     */
     m_cur_trigger_stmt_items.empty();
+
+  return param_values;
 }
 
 
@@ -770,10 +826,13 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
       m_cur_trigger_stmt_items.first->next_trig_field_list;
 
   /*
-    Clean up items owned by this SP instruction.
+    Clean up items owned by this SP instruction except instances of Item_param.
+    `sp_statement_param_values` stores instances of the class Item_param
+    associated with the SP instruction's statement before the statement
+    has been re-parsed.
   */
-  cleanup_before_parsing(sp->m_handler->type());
-
+  std::list<Item_param*> sp_statement_param_values=
+    cleanup_before_parsing(sp->m_handler->type());
   DBUG_ASSERT(mem_root != thd->mem_root);
   /*
     Back up the current free_list pointer and reset it to nullptr.
@@ -812,6 +871,12 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   if (parser_state.init(thd, sql_query.c_ptr(), sql_query.length()))
     return nullptr;
 
+  /*
+    Direct the parser to handle the '?' symbol in special way, that is as
+    a positional parameter inside a prepared statement.
+  */
+  parser_state.m_lip.stmt_prepare_mode= true;
+
   // Create a new LEX and initialize it.
 
   LEX *lex_saved= thd->lex;
@@ -824,6 +889,10 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   if (sp_instr_lex == nullptr)
   {
     thd->lex= new (thd->mem_root) st_lex_local;
+    st_lex_local *lex_local= (st_lex_local*)thd->lex;
+
+    lex_local->sp_statement_param_values= std::move(sp_statement_param_values);
+    lex_local->param_values_it= lex_local->sp_statement_param_values.begin();
     lex_start(thd);
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
     {
@@ -892,7 +961,17 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   const char *m_tmp_query_bak= sp->m_tmp_query;
   sp->m_tmp_query= sql_query.c_ptr();
 
+  /*
+    Hint the parser that re-parsing of a failed SP instruction is in progress
+    and instances of the class Item_param associated with SP instruction
+    should be handled carefully (re-used on re-parsing the instruction's
+    statement).
+    @sa param_push_or_clone
+    @sa LEX::add_placeholder
+  */
+  thd->reparsing_sp_stmt= true;
   bool parsing_failed= parse_sql(thd, &parser_state, nullptr);
+  thd->reparsing_sp_stmt= false;
 
   sp->m_tmp_query= m_tmp_query_bak;
   thd->m_digest= parent_digest;
@@ -902,6 +981,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   {
     thd->lex->set_trg_event_type_for_tables();
     adjust_sql_command(thd->lex);
+    put_back_item_params(thd, thd->lex, sp_statement_param_values);
     parsing_failed= on_after_expr_parsing(thd);
 
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)

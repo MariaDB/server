@@ -1,6 +1,7 @@
 #ifndef _SP_INSTR_H_
 #define _SP_INSTR_H_
 
+#include <list>
 #include "mariadb.h"
 
 #include "sql_alloc.h"    // Sql_alloc
@@ -500,8 +501,12 @@ private:
 
   /**
     Clean up items previously created on behalf of the current instruction.
+
+    @return a list of Item_param instances representing position parameters
+            specified for the instruction that is a part of a prepared
+            statement
   */
-  void cleanup_before_parsing(enum_sp_type sp_type);
+  std::list<Item_param*> cleanup_before_parsing(enum_sp_type sp_type);
 
 
   /**
@@ -524,6 +529,10 @@ private:
 
   bool setup_memroot_for_reparsing(sp_head *sphead,
                                    bool *new_memroot_allocated);
+
+  void put_back_item_params(THD *thd, LEX *lex,
+                            const std::list<Item_param*>& param_values);
+
 };
 
 
