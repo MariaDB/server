@@ -830,5 +830,4 @@ order by
 drop table t1;
 
 --echo # End of 10.6 tests
-
 set global innodb_stats_persistent= @stats.save;

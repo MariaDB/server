@@ -39,6 +39,15 @@ extern mysql_pfs_key_t btr_search_latch_key;
 
 ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept;
 
+/* Valuess for ahi_enabled variable */
+enum btr_cur_hash_options
+{
+  BTR_CUR_HASH_DEFAULT,
+  BTR_CUR_HASH_ENABLED,
+  BTR_CUR_HASH_DISABLED
+};
+
+
 /** Tries to guess the right search position based on the hash search info
 of the index. Note that if mode is PAGE_CUR_LE, which is used in inserts,
 and the function returns TRUE, then cursor->up_match and cursor->low_match
@@ -108,24 +117,34 @@ struct btr_sea
 {
   /** the actual value of innodb_adaptive_hash_index, protected by
   all partition::latch. Note that if buf_block_t::index is not nullptr
-  while a thread is holding a partition::latch, then also this must hold. */
-  Atomic_relaxed<bool> enabled;
+  while a thread is holding a partition::latch, then also this must hold.
+  Values are 0 not enabled, 1 enabled for all tables, 2 enables for tables
+  which have adaptive_hash_index enabled
+ */
+  Atomic_relaxed<unsigned long> enabled;
 
 private:
   /** Disable the adaptive hash search system and empty the index.
   @return whether the adaptive hash index was enabled */
-  ATTRIBUTE_COLD bool disable_and_lock() noexcept;
+  ATTRIBUTE_COLD unsigned long disable_and_lock() noexcept;
 
   /** Unlock the adaptive hash search system. */
   ATTRIBUTE_COLD void unlock() noexcept;
 public:
   /** Disable the adaptive hash search system and empty the index.
   @return whether the adaptive hash index was enabled */
-  ATTRIBUTE_COLD bool disable() noexcept;
+  ATTRIBUTE_COLD unsigned long disable() noexcept;
 
   /** Enable the adaptive hash search system.
   @param resize whether buf_pool_t::resize() is the caller */
-  ATTRIBUTE_COLD void enable(bool resize= false) noexcept;
+  ATTRIBUTE_COLD void enable(unsigned long type, bool resize) noexcept;
+
+  inline bool is_enabled(uint8 enabled_for_table)
+  {
+    unsigned long tmp= enabled;
+    return ((tmp == 1 && enabled_for_table <= BTR_CUR_HASH_ENABLED) ||
+            (tmp == 2 && enabled_for_table == BTR_CUR_HASH_ENABLED));
+  }
 
   /** Hash cell chain in hash_table */
   struct hash_chain

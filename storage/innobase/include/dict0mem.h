@@ -1089,6 +1089,16 @@ struct dict_index_t {
     search, and the calculation itself is not always accurate! */
     Atomic_relaxed<bool> last_hash_succ{false};
 
+    /**
+       If adaptive hash indexes are enabled for this index
+       TODO: Can we remove Atomic_relaxed as this option cannot
+             change during the lifetime of this table
+    */
+    Atomic_relaxed<uint8> ahi_enabled{false};
+    uint8		adaptive_hash_complete_columns;
+    uint16		adaptive_hash_bytes_in_first_incomplete;
+    bool		adaptive_hash_on_match_last;
+
     /** recommended parameters; @see buf_block_t::left_bytes_fields */
     Atomic_relaxed<uint32_t> left_bytes_fields{buf_block_t::LEFT_SIDE | 1};
     /** number of buf_block_t::index pointers to this index */
@@ -2326,6 +2336,12 @@ public:
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
 				performance_schema) */
+#ifdef BTR_CUR_HASH_ADAPT
+        uint8		ahi_enabled;
+				/*!< set to DEFAULT, ENABLED or DISABLED
+                                for this table.
+                                Used to update index->ahi_enabled */
+#endif /* BTR_CUR_HASH_ADAPT */
 	dict_frm_t	dict_frm_mismatch;
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and

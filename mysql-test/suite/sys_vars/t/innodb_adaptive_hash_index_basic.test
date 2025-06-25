@@ -6,17 +6,14 @@
 --source include/have_innodb.inc
 
 SET @start_global_value = @@global.innodb_adaptive_hash_index;
+set @@global.innodb_adaptive_hash_index= 0;
 
 #
 # exists as global only
 #
---echo Valid values are 'ON' and 'OFF' 
-select @@global.innodb_adaptive_hash_index in (0, 1);
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 select @@session.innodb_adaptive_hash_index;
---replace_column 2 #
 show global variables like 'innodb_adaptive_hash_index';
---replace_column 2 #
 show session variables like 'innodb_adaptive_hash_index';
 select variable_name from information_schema.global_variables where variable_name='innodb_adaptive_hash_index';
 select variable_name from information_schema.session_variables where variable_name='innodb_adaptive_hash_index';
@@ -32,6 +29,12 @@ set @@global.innodb_adaptive_hash_index=1;
 select @@global.innodb_adaptive_hash_index;
 select * from information_schema.global_variables where variable_name='innodb_adaptive_hash_index';
 select * from information_schema.session_variables where variable_name='innodb_adaptive_hash_index';
+set @@global.innodb_adaptive_hash_index=2;
+select @@global.innodb_adaptive_hash_index;
+select * from information_schema.global_variables where variable_name='innodb_adaptive_hash_index';
+set global innodb_adaptive_hash_index='OFF';
+set @@global.innodb_adaptive_hash_index='TABLE';
+select @@global.innodb_adaptive_hash_index;
 set global innodb_adaptive_hash_index=0;
 select @@global.innodb_adaptive_hash_index;
 select * from information_schema.global_variables where variable_name='innodb_adaptive_hash_index';
@@ -53,14 +56,58 @@ set global innodb_adaptive_hash_index=1.1;
 --error ER_WRONG_TYPE_FOR_VAR
 set global innodb_adaptive_hash_index=1e1;
 --error ER_WRONG_VALUE_FOR_VAR
-set global innodb_adaptive_hash_index=2;
---error ER_WRONG_VALUE_FOR_VAR
 set global innodb_adaptive_hash_index=-3;
 select @@global.innodb_adaptive_hash_index;
 select * from information_schema.global_variables where variable_name='innodb_adaptive_hash_index';
 select * from information_schema.session_variables where variable_name='innodb_adaptive_hash_index';
 --error ER_WRONG_VALUE_FOR_VAR
 set global innodb_adaptive_hash_index='AUTO';
+
+#
+# Test table level adaptive_hash_index options
+#
+
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=yes;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=no;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index='off';
+ALTER TABLE t1 adaptive_hash_index=default;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b)) engine=innodb adaptive_hash_index=default;
+show create table t1;
+
+#
+# Test index level adaptive_hash_index options
+#
+
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=no) engine=innodb, adaptive_hash_index=yes;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb, adaptive_hash_index=no;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=yes) engine=innodb, adaptive_hash_index=yes;
+show create table t1;
+alter table t1 add column c int, add index (c);
+show create table t1;
+alter table t1 drop index b, add index b (b);
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index=default) engine=innodb, adaptive_hash_index=default;
+show create table t1;
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index='on') engine=innodb, adaptive_hash_index='off';
+show create table t1;
+
+# Extra index options
+CREATE OR REPLACE TABLE t1 (a int primary key, b varchar(100), index (b) adaptive_hash_index='on' adaptive_hash_complete_columns=1 adaptive_hash_bytes_in_first_incomplete=5 adaptive_hash_on_match_last=1) engine=innodb, adaptive_hash_index='off';
+show create table t1;
+
+# Test conversion of InnnoDB to MyISAM
+insert into t1 (a) values (1),(2);
+alter table t1 engine=myisam;
+show create table t1;
+select * from t1;
+drop table t1;
 
 #
 # Cleanup

@@ -388,18 +388,18 @@ ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index) noexcept
   table->autoinc_mutex.wr_unlock();
 }
 
-ATTRIBUTE_COLD bool btr_sea::disable_and_lock() noexcept
+ATTRIBUTE_COLD unsigned long btr_sea::disable_and_lock() noexcept
 {
   dict_sys.freeze(SRW_LOCK_CALL);
 
   for (ulong i= 0; i < n_parts; i++)
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
-  const bool was_enabled{enabled};
+  const unsigned long was_enabled{enabled};
 
   if (was_enabled)
   {
-    enabled= false;
+    enabled= 0;
     btr_search_disable(dict_sys.table_LRU);
     btr_search_disable(dict_sys.table_non_LRU);
     dict_sys.unfreeze();
@@ -420,16 +420,16 @@ ATTRIBUTE_COLD void btr_sea::unlock() noexcept
     parts[i].latch.wr_unlock();
 }
 
-ATTRIBUTE_COLD bool btr_sea::disable() noexcept
+ATTRIBUTE_COLD unsigned long btr_sea::disable() noexcept
 {
-  const bool was_enabled{disable_and_lock()};
+  const unsigned long was_enabled{disable_and_lock()};
   unlock();
   return was_enabled;
 }
 
 /** Enable the adaptive hash search system.
 @param resize whether buf_pool_t::resize() is the caller */
-ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
+ATTRIBUTE_COLD void btr_sea::enable(unsigned long type, bool resize) noexcept
 {
   if (!resize)
   {
@@ -444,7 +444,12 @@ ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
     parts[i].latch.wr_lock(SRW_LOCK_CALL);
 
   if (!parts[0].table.array)
-    enabled= alloc(n_cells);
+  {
+    if (alloc(n_cells))
+      enabled= type;
+    else
+      enabled= 0;
+  }
   else
     ut_ad(enabled);
 
@@ -453,13 +458,18 @@ ATTRIBUTE_COLD void btr_sea::enable(bool resize) noexcept
 
 ATTRIBUTE_COLD void btr_sea::resize(uint n_cells) noexcept
 {
-  const bool was_enabled{disable_and_lock()};
+  const unsigned long was_enabled{disable_and_lock()};
 
   clear();
   ut_ad(!parts[0].table.array);
 
   if (was_enabled)
-    enabled= alloc(n_cells);
+  {
+    if (alloc(n_cells))
+      enabled= was_enabled;
+    else
+      enabled= 0;
+  }
 
   if (!was_enabled || enabled)
     this->n_cells= n_cells;
@@ -595,7 +605,7 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
   if (ut_d(const dict_index_t *block_index=) block->index)
   {
     ut_ad(block_index == index);
-    ut_ad(btr_search.enabled);
+    ut_ad(btr_search.is_enabled(index->search_info.ahi_enabled));
     uint32_t bytes_fields{block->ahi_left_bytes_fields};
     if (bytes_fields != left_bytes_fields)
       goto skip;
@@ -634,7 +644,7 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
     ut_a(!block->n_pointers);
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-    if (!btr_search.enabled)
+    if (!btr_search.is_enabled(index->search_info.ahi_enabled))
     {
       ut_ad(!index->any_ahi_pages());
       part.rollback_insert();
@@ -1117,7 +1127,7 @@ btr_search_guess_on_hash(
       !index->search_info.n_hash_potential)
   {
   ahi_unusable:
-    if (!index->table->is_temporary() && btr_search.enabled)
+    if (btr_search.is_enabled(index->search_info.ahi_enabled))
       cursor->flag= BTR_CUR_HASH_ABORT;
     return false;
   }
@@ -1144,7 +1154,7 @@ btr_search_guess_on_hash(
   page_hash_latch *hash_lock= nullptr;
   part.latch.rd_lock(SRW_LOCK_CALL);
 
-  if (!btr_search.enabled)
+  if (!btr_search.is_enabled(index->search_info.ahi_enabled))
   {
     ut_ad(!index->any_ahi_pages());
   ahi_release_and_fail:
@@ -1314,7 +1324,7 @@ retry:
     return;
   }
 
-  ut_ad(btr_search.enabled);
+  ut_ad(btr_search.is_enabled(index->search_info.ahi_enabled));
 
   bool holding_x= index->freed();
 
@@ -1528,7 +1538,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
 {
   ut_ad(!index->table->is_temporary());
 
-  if (!btr_search.enabled)
+  if (!btr_search.is_enabled(index->search_info.ahi_enabled))
     return;
 
   ut_ad(block->page.id().space() == index->table->space_id);
@@ -1543,7 +1553,8 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
   const bool rebuild= block_index &&
     (block_index != index ||
      block->ahi_left_bytes_fields != left_bytes_fields);
-  const bool enabled= btr_search.enabled;
+  const bool enabled= btr_search.is_enabled(index->search_info.ahi_enabled);
+
   ut_ad(enabled || !index->any_ahi_pages());
 
   part.latch.rd_unlock();
@@ -1732,10 +1743,12 @@ void btr_search_move_or_delete_hash_entries(buf_block_t *new_block,
   ut_ad(block->page.lock.have_x());
   ut_ad(new_block->page.lock.have_x());
 
-  if (!btr_search.enabled)
+  dict_index_t *index= block->index;
+
+  if (!btr_search.is_enabled(index && index->search_info.ahi_enabled))
     return;
 
-  dict_index_t *index= block->index, *new_block_index= new_block->index;
+  dict_index_t *new_block_index= new_block->index;
 
   assert_block_ahi_valid(block);
   assert_block_ahi_valid(new_block);
@@ -1777,7 +1790,7 @@ drop_exit:
 void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
 {
   ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
-  if (!btr_search.enabled)
+  if (!btr_search.is_enabled(cursor->index()->search_info.ahi_enabled))
     return;
   buf_block_t *block= btr_cur_get_block(cursor);
 
@@ -1809,7 +1822,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
 
   if (ut_d(dict_index_t *block_index=) block->index)
   {
-    ut_ad(btr_search.enabled);
+    ut_ad(btr_search.is_enabled(index->search_info.ahi_enabled));
     ut_ad(block_index == index);
 
     btr_sea::partition::erase_status s=
@@ -1889,7 +1902,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
     part.latch.rd_lock(SRW_LOCK_CALL);
     if (!block->index)
       goto unlock_exit;
-    ut_ad(btr_search.enabled);
+    ut_ad(btr_search.is_enabled(((dict_index_t*)block->index)->search_info.ahi_enabled));
     locked= true;
     if (page_is_comp(page))
     {
@@ -1958,7 +1971,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor, bool reorg) noexcept
       if (!block->index)
       {
       rollback:
-        if (!btr_search.enabled)
+        if (!btr_search.is_enabled(index->search_info.ahi_enabled))
         {
           ut_ad(!index->any_ahi_pages());
           part.rollback_insert();

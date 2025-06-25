@@ -54,6 +54,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
+#include "btr0sea.h"
 
 extern my_bool opt_readonly;
 
@@ -687,8 +688,24 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
   /* With this option the user defines the key identifier using for the encryption */
   HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key_id),
-
+  HA_TOPTION_ENUM("ADAPTIVE_HASH_INDEX", adaptive_hash_index,
+                  table_hint_options, 0),
   HA_TOPTION_END
+};
+
+
+ha_create_table_option innodb_index_option_list[]=
+{
+  HA_IOPTION_ENUM("ADAPTIVE_HASH_INDEX", adaptive_hash_index,
+                  table_hint_options, 0),
+  HA_IOPTION_NUMBER("ADAPTIVE_HASH_COMPLETE_COLUMNS", adaptive_hash_complete_columns,
+                    0, 0, 128, 1),
+  HA_IOPTION_NUMBER("ADAPTIVE_HASH_BYTES_IN_FIRST_INCOMPLETE",
+                    adaptive_hash_bytes_in_first_incomplete,
+                    0, 0, 32768, 1),
+  HA_IOPTION_BOOL("ADAPTIVE_HASH_ON_MATCH_LAST", adaptive_hash_on_match_last,
+                  0),
+  HA_IOPTION_END
 };
 
 /*************************************************************//**
@@ -3024,6 +3041,14 @@ innobase_copy_frm_flags_from_table_share(
                              table_share->stats_auto_recalc,
                              innodb_table->stat_initialized()))
     innodb_table->stats_sample_pages= table_share->stats_sample_pages;
+# ifdef BTR_CUR_HASH_ADAPT
+  if (!table_share->option_struct)
+    innodb_table->ahi_enabled= BTR_CUR_HASH_DEFAULT;
+  else if (table_share->option_struct->adaptive_hash_index <= 2)
+    innodb_table->ahi_enabled= BTR_CUR_HASH_ENABLED;
+  else
+    innodb_table->ahi_enabled= BTR_CUR_HASH_DISABLED;
+#endif
 }
 
 /*********************************************************************//**
@@ -3727,12 +3752,14 @@ static void innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
 {
   /* Prevent a possible deadlock with innobase_fts_load_stopword() */
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  if (*static_cast<const my_bool*>(save))
-    btr_search.enable();
+  ulong type= *static_cast<const ulong*>(save);
+  if (type)
+    btr_search.enable(type, 0);
   else
     btr_search.disable();
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
+
 
 static void innodb_adaptive_hash_index_cells_update(THD*, st_mysql_sys_var*,
                                                     void*, const void *save)
@@ -4209,6 +4236,7 @@ static int innodb_init(void* p)
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
 	innobase_hton->table_options = innodb_table_option_list;
+	innobase_hton->index_options = innodb_index_option_list;
 
 	/* System Versioning */
 	innobase_hton->prepare_commit_versioned
@@ -6094,10 +6122,10 @@ ha_innobase::open(const char* name, int, uint)
 		initialize_auto_increment(m_prebuilt->table, *ai, *table->s);
 	}
 
-	/* Set plugin parser for fulltext index */
+	/* Set plugin parser for fulltext index and ahi */
 	for (uint i = 0; i < table->s->keys; i++) {
+          dict_index_t* index = innobase_get_index(i);
 		if (table->key_info[i].flags & HA_USES_PARSER) {
-			dict_index_t*	index = innobase_get_index(i);
 			plugin_ref	parser = table->key_info[i].parser;
 
 			ut_ad(index->type & DICT_FTS);
@@ -6108,7 +6136,34 @@ ha_innobase::open(const char* name, int, uint)
 			DBUG_EXECUTE_IF("fts_instrument_use_default_parser",
 				index->parser = &fts_default_parser;);
 		}
+#ifdef BTR_CUR_HASH_ADAPT
+                /* The following test is to cover the case when there is an
+                   index inconsistency between the server and InnoDB.
+                   (Tested by innodb.innodb-index.test)
+                */
+                if (index)
+                {
+                  /* Setup search_info.ahi_enabled to DEFAULT,
+                     ENABLED or DISABLED */
+                  ha_index_option_struct *option= table->key_info[i].option_struct;
+                  if (table->s->tmp_table != NO_TMP_TABLE)
+                    index->search_info.ahi_enabled= BTR_CUR_HASH_DISABLED;
+                  else if (option->adaptive_hash_index == 0)
+                    index->search_info.ahi_enabled= ib_table->ahi_enabled;
+                  else if (option->adaptive_hash_index >= 1 &&
+                           option->adaptive_hash_index <= 2)
+                    index->search_info.ahi_enabled= BTR_CUR_HASH_ENABLED;
+                  else
+                    index->search_info.ahi_enabled= BTR_CUR_HASH_DISABLED;
+                  index->search_info.adaptive_hash_complete_columns=
+                    (uint8) option->adaptive_hash_complete_columns;
+                  index->search_info.adaptive_hash_bytes_in_first_incomplete=
+                    (uint16) option->adaptive_hash_bytes_in_first_incomplete;
+                  index->search_info.adaptive_hash_on_match_last=
+                    (bool) option->adaptive_hash_on_match_last;
+                }
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	ut_ad(!m_prebuilt->table
 	      || table->versioned() == m_prebuilt->table->versioned());
@@ -19284,10 +19339,20 @@ static MYSQL_SYSVAR_BOOL(stats_traditional, srv_stats_sample_traditional,
   NULL, NULL, TRUE);
 
 #ifdef BTR_CUR_HASH_ADAPT
-static MYSQL_SYSVAR_BOOL(adaptive_hash_index, *(my_bool*) &btr_search.enabled,
+
+static const char *adapative_hash_index_mode_names[] = {
+  "OFF", "ON", "TABLE", NULL
+};
+
+static TYPELIB innodb_ahi_typelib =
+  CREATE_TYPELIB_FOR(adapative_hash_index_mode_names);
+
+static MYSQL_SYSVAR_ENUM(adaptive_hash_index, *(unsigned long*) &btr_search.enabled,
   PLUGIN_VAR_OPCMDARG,
-  "Enable InnoDB adaptive hash index (disabled by default)",
-  NULL, innodb_adaptive_hash_index_update, false);
+  "Enable InnoDB adaptive hash index. Alternatives are OFF (default), "
+  "ON (for all tabless), "
+  "TABLE (only enabled for tables/index with adaptive_hash_index=ON)",
+   NULL, innodb_adaptive_hash_index_update, 0, &innodb_ahi_typelib);
 
 static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_search.n_parts,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
