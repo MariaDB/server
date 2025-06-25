@@ -10,7 +10,7 @@ SET GLOBAL innodb_buffer_pool_size=8388608;
 ERROR HY000: innodb_buffer_pool_size change aborted
 SELECT @@GLOBAL.innodb_adaptive_hash_index,@@GLOBAL.innodb_buffer_pool_size;
 @@GLOBAL.innodb_adaptive_hash_index	@@GLOBAL.innodb_buffer_pool_size
-1	16777216
+ON	16777216
 SET GLOBAL innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
 CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq FROM seq_1_to_200;
