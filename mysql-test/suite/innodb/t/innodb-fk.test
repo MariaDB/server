@@ -194,13 +194,13 @@ CREATE TABLE `boroda` (
   `b` INT(11) UNSIGNED DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
-  CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 
 ALTER TABLE `boroda`
   ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
 
-ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
+ALTER TABLE `boroda` DROP FOREIGN KEY `2`;
 
 RENAME TABLE `boroda` TO `#boroda`;
 
@@ -216,7 +216,7 @@ CREATE TABLE `boroda` (
   `b` INT(11) UNSIGNED DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
-  CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 
 RENAME TABLE `boroda` TO `bor#oda`;

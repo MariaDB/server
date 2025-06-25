@@ -212,7 +212,7 @@ CREATE TABLE t1(a INT);
 CREATE INDEX idx ON t1(a);
 CREATE TABLE t3(a INT, b INT , INDEX(b), CONSTRAINT x FOREIGN KEY(b) REFERENCES t1(a));
 CREATE TABLE t2(a INT, b INT generated always as (a+1) virtual, INDEX(b), CONSTRAINT x FOREIGN KEY(b) REFERENCES t1(a));
-ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
+DROP TABLE t2;
 CREATE TABLE t2(a INT, b INT generated always as (a+1) virtual, INDEX(b));
 DROP TABLE t3;
 DROP TABLE t2;
