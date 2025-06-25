@@ -730,6 +730,21 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
   }
 }
 
+
+int check_if_log_table(const TABLE_LIST *table)
+{
+  if (MYSQL_SCHEMA_NAME.streq(table->db))
+  {
+    if (GENERAL_LOG_NAME.streq(table->table_name))
+      return QUERY_LOG_GENERAL;;
+
+    if (SLOW_LOG_NAME.streq(table->table_name))
+      return QUERY_LOG_SLOW;
+  }
+  return 0;
+}
+
+
 /**
    Check if a given table is opened log table
 
@@ -745,25 +760,9 @@ int check_if_log_table(const TABLE_LIST *table,
                        bool check_if_opened,
                        const char *error_msg)
 {
-  int result= 0;
-  if (MYSQL_SCHEMA_NAME.streq(table->db))
-  {
-    if (GENERAL_LOG_NAME.streq(table->table_name))
-    {
-      result= QUERY_LOG_GENERAL;
-      goto end;
-    }
-
-    if (SLOW_LOG_NAME.streq(table->table_name))
-    {
-      result= QUERY_LOG_SLOW;
-      goto end;
-    }
-  }
-  return 0;
-
-end:
-  if (!check_if_opened || logger.is_log_table_enabled(result))
+  int result= check_if_log_table(table);
+  if (result &&
+      (!check_if_opened || logger.is_log_table_enabled(result)))
   {
     if (error_msg)
       my_error(ER_BAD_LOG_STATEMENT, MYF(0), error_msg);
