@@ -456,6 +456,7 @@ static void btr_search_update_hash_ref(const btr_cur_t &cursor,
   {
     ut_ad(block_index == index);
     ut_ad(btr_search.enabled);
+    ut_ad(index->search_info.ahi_enabled);
     uint32_t bytes_fields{block->ahi_left_bytes_fields};
     if (bytes_fields != left_bytes_fields)
       goto skip;
@@ -1363,7 +1364,7 @@ static void btr_search_build_page_hash_index(dict_index_t *index,
 {
   ut_ad(!index->table->is_temporary());
 
-  if (!btr_search.enabled)
+  if (!btr_search.enabled || !index->search_info.ahi_enabled)
     return;
 
   ut_ad(block->page.id().space() == index->table->space_id);
@@ -1522,10 +1523,12 @@ void btr_search_move_or_delete_hash_entries(buf_block_t *new_block,
   ut_ad(block->page.lock.have_x());
   ut_ad(new_block->page.lock.have_x());
 
-  if (!btr_search.enabled)
+  dict_index_t *index= block->index;
+
+  if (!btr_search.enabled || (index && !index->search_info.ahi_enabled))
     return;
 
-  dict_index_t *index= block->index, *new_block_index= new_block->index;
+  dict_index_t *new_block_index= new_block->index;
 
   assert_block_ahi_valid(block);
   assert_block_ahi_valid(new_block);
@@ -1534,7 +1537,8 @@ void btr_search_move_or_delete_hash_entries(buf_block_t *new_block,
   {
     ut_ad(!index || index == new_block_index);
 drop_exit:
-    btr_search_drop_page_hash_index(block, nullptr);
+    if (new_block_index->search_info.ahi_enabled)
+      btr_search_drop_page_hash_index(block, nullptr);
     return;
   }
 
@@ -1575,7 +1579,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor) noexcept
 
   assert_block_ahi_valid(block);
   dict_index_t *index= block->index;
-  if (!index)
+  if (!index || !index->search_info.ahi_enabled)
     return;
   ut_ad(!cursor->index()->table->is_temporary());
 

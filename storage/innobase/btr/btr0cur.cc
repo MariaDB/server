@@ -1136,7 +1136,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     ut_ad(mode == PAGE_CUR_L || mode == PAGE_CUR_G);
   /* We do a dirty read of btr_search.enabled below,
   and btr_search_guess_on_hash() will have to check it again. */
-  else if (!btr_search.enabled);
+  else if (!btr_search.enabled || !index()->search_info.ahi_enabled) ;
   else if (btr_search_guess_on_hash(index(), tuple, mode != PAGE_CUR_LE,
                                     latch_mode, this, mtr))
   {
@@ -1660,7 +1660,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
       /* We do a dirty read of btr_search.enabled here.  We will recheck in
       btr_search_build_page_hash_index() before building a page hash
       index, while holding search latch. */
-      if (!btr_search.enabled);
+      if (!btr_search.enabled || !index()->search_info.ahi_enabled);
       else if (tuple->info_bits & REC_INFO_MIN_REC_FLAG)
         /* This may be a search tuple for btr_pcur_t::restore_position(). */
         ut_ad(tuple->is_metadata() ||
