@@ -1,4 +1,4 @@
-
+-- source include/hostname_is_not_localhost.inc
 -- source include/mysql_upgrade_preparation.inc
 
 call mtr.add_suppression("Cannot load from mysql.proc. The table is probably corrupted");
