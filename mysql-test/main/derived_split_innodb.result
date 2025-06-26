@@ -916,4 +916,45 @@ cnt
 6
 DROP TABLE t1;
 # End of 10.4 tests
+CREATE TABLE t1 (
+a int NOT NULL,
+b int default null,
+amount decimal DEFAULT NULL,
+KEY `t1_IDX` (`a`,`b`) USING BTREE
+) ENGINE=INNODB;
+CREATE TABLE t2 (
+a int NOT NULL,
+b int default null,
+name varchar(50) DEFAULT NULL,
+KEY `t2_IDX` (`a`,`b`) USING BTREE
+) ENGINE=INNODB;
+INSERT INTO t1 VALUES
+(1, NULL, 10.0000), (2, 2, 20.0000), (3, 3, 30.0000), (4, 4, 40.0000),
+(5, 5, NULL), (6, 6, NULL), (7, 7, 70.0000), (8, 8, 80.0000);
+INSERT INTO t2 VALUES
+(1, NULL, 'A'), (2,2, 'B'), (3,3, 'C'), (4,4, 'D'), (5,5, NULL), (6,6, NULL),
+(7,7, 'E'), (8,8, 'F'), (9,9, 'G'), (10,10,'H'), (11,11, NULL), (12,12, NULL);
+# split materialized
+SELECT t2.a,t2.b,t2.name,t.total_amt FROM t2
+LEFT JOIN
+(
+SELECT a, b, sum(amount) total_amt FROM t1 GROUP BY a, b
+) AS t ON t2.a=t.a and t2.b<=>t.b
+WHERE t2.a < 2;
+a	b	name	total_amt
+1	NULL	A	10
+# not split materialized
+SELECT t2.a,t2.b,t2.name,t.total_amt FROM t2
+LEFT JOIN
+(
+SELECT a, b, sum(amount) total_amt FROM t1 GROUP BY a, b
+) AS t ON t2.a=t.a and t2.b<=>t.b
+WHERE t2.a < 6;
+a	b	name	total_amt
+1	NULL	A	10
+2	2	B	20
+3	3	C	30
+4	4	D	40
+5	5	NULL	NULL
+DROP TABLE t1,t2;
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
