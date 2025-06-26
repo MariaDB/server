@@ -5061,7 +5061,6 @@ class BackupStages {
 
 		bool stage_start(Backup_datasinks &backup_datasinks,
 		                 CorruptedPages &corrupted_pages) {
-			msg("BACKUP STAGE START");
 			if (!opt_no_lock) {
 				if (opt_safe_slave_backup) {
 					if (!wait_for_safe_slave(mysql_connection)) {
@@ -5109,7 +5108,6 @@ class BackupStages {
 		}
 
 		bool stage_flush() {
-			msg("BACKUP STAGE FLUSH");
 			if (!opt_no_lock && !lock_for_backup_stage_flush(m_bs_con)) {
 				msg("Error on BACKUP STAGE FLUSH query execution");
 				return false;
@@ -5168,7 +5166,8 @@ class BackupStages {
                                      CorruptedPages &corrupted_pages) {
 			if (!opt_no_lock) {
 				if (!lock_for_backup_stage_block_ddl(m_bs_con)) {
-					msg("BACKUP STAGE BLOCK_DDL");
+					msg("Error on BACKUP STAGE BLOCK_DDL "
+					    "query execution");
 					return false;
 				}
 				if (have_galera_enabled)
@@ -5236,7 +5235,6 @@ class BackupStages {
 		}
 
 		bool stage_block_commit(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE BLOCK_COMMIT");
 			if (!opt_no_lock && !lock_for_backup_stage_commit(m_bs_con)) {
 				msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
 				return false;
@@ -5343,7 +5341,6 @@ class BackupStages {
 		}
 
 		bool stage_end(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE END");
 			/* release all locks */
 			if (!opt_no_lock) {
 				unlock_all(m_bs_con);

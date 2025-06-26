@@ -908,8 +908,10 @@ lock_for_backup_stage_start(MYSQL *connection)
     xb_mysql_query(connection, "SET SESSION wsrep_sync_wait=0", false);
   }
 
+  msg("Starting BACKUP STAGE START");
   xb_mysql_query(connection, "BACKUP STAGE START", true);
   DBUG_MARIABACKUP_EVENT("after_backup_stage_start", {});
+  msg("Executed BACKUP STAGE START successfully");
   /* Set the maximum supported session value for
   lock_wait_timeout to prevent unnecessary timeouts when the
   global value is changed from the default */
@@ -930,10 +932,13 @@ lock_for_backup_stage_flush(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
+
+	msg("Starting BACKUP STAGE FLUSH");
 	xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
 	}
+	msg("Executed BACKUP STAGE FLUSH Successfully");
 	return true;
 }
 
@@ -942,11 +947,13 @@ lock_for_backup_stage_block_ddl(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
+	msg("Starting BACKUP STAGE BLOCK_DDL");
 	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
 	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_ddl", {});
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
 	}
+	msg("Executed BACKUP STAGE BLOCK_DDL Successfully");
 	return true;
 }
 
@@ -955,11 +962,14 @@ lock_for_backup_stage_commit(MYSQL *connection) {
 	if (opt_kill_long_queries_timeout) {
 		start_query_killer();
 	}
+
+	msg("Starting BACKUP STAGE BLOCK_COMMIT");
 	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
 	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
 	}
+	msg("Executed BACKUP STAGE BLOCK_COMMIT Successfully");
 	return true;
 }
 
