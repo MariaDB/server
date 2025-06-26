@@ -484,4 +484,9 @@ t1	CREATE TABLE `t1` (
   VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+#
+# MDEV-37025 Incorrect error/docs for Vector column lengths (max = 65532)
+#
+create table t1(v vector (16384) not null,vector (v));
+ERROR 42000: Column length too big for column 'v' (max = 16383); use BLOB or TEXT instead
 # End of 11.8 tests
