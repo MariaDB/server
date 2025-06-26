@@ -4499,7 +4499,6 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
                  ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
                    OPTION_GTID_BEGIN);
     thd->transaction->all.modified_non_trans_table= false;
-    thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
@@ -4509,7 +4508,6 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
   {
     // disabling autocommit
     thd->transaction->all.modified_non_trans_table= false;
-    thd->transaction->all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
     return false;
