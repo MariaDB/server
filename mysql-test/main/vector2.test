@@ -355,4 +355,10 @@ alter table t1 add x int references t1(x),add y int constraint c references t1(y
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-37025 Incorrect error/docs for Vector column lengths (max = 65532)
+--echo #
+--error ER_TOO_BIG_FIELDLENGTH
+create table t1(v vector (16384) not null,vector (v));
+
 --echo # End of 11.8 tests
