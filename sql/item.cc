@@ -5241,9 +5241,36 @@ static Field *make_default_field(THD *thd, Field *field_arg)
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
   }
   else
-    def_field->move_field_offset((my_ptrdiff_t)
-                                 (def_field->table->s->default_values -
-                                  def_field->table->record[0]));
+  {
+    if (field_arg->table->s->field != nullptr)
+    {
+      /*
+        Use fields array from TABLE_SHARE for referencing to null byte and
+        field's value on construction of a Field object for default value of
+        table column
+      */
+      Field *target= field_arg->table->s->field[field_arg->field_index];
+
+      /*
+        Set up table field's pointers ptr, null_ptr to point to corresponding
+        s->default_values parts.
+      */
+      def_field->move_field(target->ptr, target->null_ptr, target->null_bit);
+    }
+    else
+    {
+      /*
+        We get to here in case the field references a temporary table.
+        Triggers in not associated with a temporary table. Check these
+        invariants by DBUG_ASSERTs.
+      */
+      DBUG_ASSERT(field_arg->table->s->tmp_table != NO_TMP_TABLE);
+      DBUG_ASSERT(field_arg->table->triggers == nullptr);
+      def_field->move_field_offset((my_ptrdiff_t)
+                                   (def_field->table->s->default_values -
+                                    def_field->table->record[0]));
+    }
+  }
   return def_field;
 }
 
