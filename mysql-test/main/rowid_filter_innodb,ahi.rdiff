@@ -1,0 +1,29 @@
+--- rowid_filter_innodb.result
++++ rowid_filter_innodb,ahi.result
+@@ -2,7 +2,7 @@
+ SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+ SET GLOBAL innodb_stats_persistent=0;
+ SET @save_ahi=@@GLOBAL.innodb_adaptive_hash_index;
+-SET GLOBAL innodb_adaptive_hash_index=OFF;
++SET GLOBAL innodb_adaptive_hash_index=ON;
+ DROP DATABASE IF EXISTS dbt3_s001;
+ CREATE DATABASE dbt3_s001;
+ use dbt3_s001;
+@@ -2059,7 +2059,7 @@
+           "r_table_time_ms": "REPLACED",
+           "r_other_time_ms": "REPLACED",
+           "r_engine_stats": {
+-            "pages_accessed": 84
++            "pages_accessed": 6
+           },
+           "filtered": "REPLACED",
+           "r_total_filtered": 2.43902439,
+@@ -2227,7 +2227,7 @@
+           "r_table_time_ms": "REPLACED",
+           "r_other_time_ms": "REPLACED",
+           "r_engine_stats": {
+-            "pages_accessed": 84
++            "pages_accessed": 2
+           },
+           "filtered": "REPLACED",
+           "r_total_filtered": 2.43902439,
