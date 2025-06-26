@@ -1,5 +1,6 @@
 # Test case for validating acl statistics for the feedback plugin.
 --source include/not_embedded.inc
+--source include/hostname_is_not_localhost.inc
 
 # First get a baseline of the initial statistics.
 SHOW STATUS LIKE 'Acl%';
