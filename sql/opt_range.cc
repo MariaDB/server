@@ -7221,6 +7221,32 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
       tree->n_ror_scans--;
       continue;
     }
+    /*
+      Don't use index-merge-intersect in the plan when any of the primary key
+      parts with a reverse sort are present in the other index keys
+    */
+    uint keynr= param->real_keynr[idx];
+    if (keynr != param->table->s->primary_key)
+    {
+      KEY_PART_INFO *key_part= param->table->key_info[keynr].key_part;
+      KEY_PART_INFO *key_part_end=
+          key_part + param->table->key_info[keynr].user_defined_key_parts;
+      for (; key_part != key_part_end; ++key_part)
+      {
+        if (MY_TEST(key_part->key_part_flag & HA_REVERSE_SORT))
+        {
+          uint pknr= param->table->s->primary_key;
+          KEY_PART_INFO *pk_part= param->table->key_info[pknr].key_part;
+          KEY_PART_INFO *pk_part_end=
+              pk_part + param->table->key_info[pknr].user_defined_key_parts;
+          for (; pk_part != pk_part_end; ++pk_part)
+          {
+            if (key_part->fieldnr == pk_part->fieldnr)
+              DBUG_RETURN(NULL);
+          }
+        }
+      }
+    }
     if (!(scan= make_ror_scan(param, idx, tree->keys[idx])))
       return NULL;
     if (key_no == cpk_no)
