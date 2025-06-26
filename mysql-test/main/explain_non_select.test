@@ -2,6 +2,7 @@
 # MariaDB tests for EXPLAIN UPDATE/DELETE.
 #
 --source include/have_partition.inc
+--source include/hostname_is_not_localhost.inc
 
 --disable_warnings
 drop table if exists t0, t1;

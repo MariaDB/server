@@ -4,6 +4,7 @@
 --source include/have_stat_tables.inc
 --source include/have_partition.inc
 --source include/have_sequence.inc
+--source include/hostname_is_not_localhost.inc
 
 select @@global.use_stat_tables;
 select @@session.use_stat_tables;

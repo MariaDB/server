@@ -1,4 +1,7 @@
+call mtr.add_suppression('Can''t get hardware address with error');
+--disable_warnings
 INSTALL SONAME 'ha_spider';
+--enable_warnings
 SET spider_same_server_link= ON;
 
 --evalp create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_1_MYPORT)
