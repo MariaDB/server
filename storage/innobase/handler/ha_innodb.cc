@@ -15858,7 +15858,9 @@ ha_innobase::extra(
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
-		trx = check_trx_exists(ha_thd());
+        {
+		THD *user_thd = ha_thd();
+		trx = check_trx_exists(user_thd);
 		if (!m_prebuilt->table->skip_alter_undo) {
 			/* This could be invoked inside INSERT...SELECT.
 			We do not want any extra log writes, because
@@ -15877,7 +15879,9 @@ ha_innobase::extra(
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
 		}
+		alter_stats_rebuild(m_prebuilt->table, user_thd);
 		break;
+        }
 	default:/* Do nothing */
 		;
 	}
@@ -21307,4 +21311,23 @@ ulint buf_pool_size_align(ulint size) noexcept
   } else {
     return (ulint)((size / m + 1) * m);
   }
+}
+
+/** Adjust the persistent statistics after rebuilding ALTER TABLE.
+Remove statistics for dropped indexes, add statistics for created indexes
+and rename statistics for renamed indexes.
+@param table InnoDB table that was rebuilt by ALTER TABLE
+@param thd MySQL connection */
+void alter_stats_rebuild(dict_table_t *table, THD *thd)
+{
+  DBUG_ENTER("alter_stats_rebuild");
+  if (!table->space || !dict_stats_is_persistent_enabled(table))
+    DBUG_VOID_RETURN;
+
+  dberr_t ret= dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
+  if (ret != DB_SUCCESS)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			ER_ALTER_INFO, "Error updating stats for table after"
+                        " table rebuild: %s", ut_strerr(ret));
+  DBUG_VOID_RETURN;
 }
