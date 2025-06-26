@@ -1320,10 +1320,19 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 */
 %left   PREC_BELOW_CONTRACTION_TOKEN2
-%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM BODY_MARIADB_SYM OF_SYM
+%precedence PREC_INTERVAL_CONTEXT
+%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM BODY_MARIADB_SYM OF_SYM TO_SYM
 %left EMPTY_FROM_CLAUSE
 %right INTO
-
+%precedence YEAR_SYM
+%precedence MONTH_SYM
+%precedence DAY_SYM
+%precedence HOUR_SYM
+%precedence MINUTE_SYM
+%precedence SECOND_SYM
+%precedence MICROSECOND_SYM
+%precedence WEEK_SYM
+%precedence QUARTER_SYM
 %type <lex_comment>
         HINT_COMMENT opt_hint_comment
 
@@ -5582,7 +5591,21 @@ opt_versioning_interval_start:
          {
            $$= NULL;
          }
-       | STARTS_SYM literal
+       | STARTS_SYM TIMESTAMP TEXT_STRING
+         {
+           if (unlikely(!($$= type_handler_datetime.create_literal_item(thd,
+                                                            $3.str, $3.length,
+                                                            YYCSCL, true))))
+             MYSQL_YYABORT;
+         }
+       | STARTS_SYM DATE_SYM TEXT_STRING
+         {
+           if (unlikely(!($$= type_handler_newdate.create_literal_item(thd,
+                                                           $3.str, $3.length,
+                                                           YYCSCL, true))))
+             MYSQL_YYABORT;
+         }
+       | STARTS_SYM NUM_literal
          {
            $$= $2;
          }
@@ -6627,9 +6650,25 @@ field_type_temporal:
           {
             $$.set(thd->type_handler_for_datetime(), $2);
           }
+        | INTERVAL_SYM interval_qualifier
+        {
+            $$.set(&type_handler_interval_DDhhmmssff);
+        }
         ;
 
+interval_qualifier:
+          single_datetime_field
+        | range_datetime_field;
 
+single_datetime_field:
+        interval_time_stamp opt_field_length
+        %prec PREC_INTERVAL_CONTEXT;
+
+range_datetime_field:
+        interval_time_stamp opt_field_length
+        TO_SYM
+        interval_time_stamp opt_field_length;
+                
 field_type_lob:
           TINYBLOB opt_compressed
           {
@@ -15711,6 +15750,13 @@ temporal_literal:
                                                             YYCSCL, true))))
               MYSQL_YYABORT;
           }
+        | INTERVAL_SYM %prec EMPTY_FROM_CLAUSE TEXT_STRING interval_qualifier
+                    {
+                      if (unlikely(!($$= type_handler_datetime.create_literal_item(thd,
+                                                                      $2.str, $2.length,
+                                                                      YYCSCL, true))))
+                        MYSQL_YYABORT;
+                    }
         ;
 
 with_clause:
@@ -16869,7 +16915,6 @@ reserved_keyword_udt_not_param_type:
         | INSENSITIVE_SYM
         | INSERT
         | INTERSECT_SYM
-        | INTERVAL_SYM
         | INTO
         | IS
         | ITERATE_SYM
