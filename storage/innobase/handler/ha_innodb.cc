@@ -4476,15 +4476,14 @@ innobase_start_trx_and_assign_read_view(
 	trx->isolation_level = innobase_map_isolation_level(
 		thd_get_trx_isolation(thd)) & 3;
 
-	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
+	if (trx->isolation_level != TRX_ISO_READ_UNCOMMITTED) {
 		trx->read_view.open(trx);
 	} else {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    HA_ERR_UNSUPPORTED,
 				    "InnoDB: WITH CONSISTENT SNAPSHOT"
-				    " was ignored because this phrase"
-				    " can only be used with"
-				    " REPEATABLE READ isolation level.");
+				    " is ignored at READ UNCOMMITTED"
+				    " isolation level.");
 	}
 
 	/* Set the MySQL flag to mark that there is an active transaction */
