@@ -23,6 +23,7 @@
 #include "sql_type_vector.h"
 #include "item_jsonfunc.cc"
 #include <unordered_map>
+#include "json_lib.h"
 
 static char *host, *api_key;
 
@@ -83,7 +84,7 @@ class Item_func_gen_embedding: public Item_str_func
     CURLcode ret;
     CURL *hnd;
     std::ostringstream read_data_stream;
-    std::string response;
+    std::string response, post_fields, escaped_input_str;
     struct curl_slist *slist1;
     long http_response_code;
 
@@ -97,9 +98,25 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
     curl_easy_setopt(hnd, CURLOPT_URL, host);
     curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
-    std::string post_fields =
+    // Escape the JSON input string
+    const int jsLen = input->length();
+    const char* rawJS = input->ptr();
+    // TODO: The my_charset_utf8mb3_general_ci charset works, but is it the correct one?
+    int strLen = jsLen * 12 * my_charset_utf8mb3_general_ci.mbmaxlen / my_charset_utf8mb3_general_ci.mbminlen;
+    char* buf = (char*)alloca(strLen);
+    if ((strLen = json_escape(&my_charset_utf8mb3_general_ci, (const uchar*)rawJS, (const uchar*)rawJS + jsLen, &my_charset_utf8mb3_general_ci, (uchar*)buf,
+                            (uchar*)buf + strLen)) < 0) {
+                              null_value = true;
+                              goto cleanup;
+                            }
+    buf[strLen] = '\0';
+    escaped_input_str = std::string(buf);
+    // It is essential to escape the input string to ensure the input of the API call is a valid JSON
+    // The model name does not need escaping as it is a valid string
+    // Validity of the model name is checked later in this function 
+    post_fields =
       std::string("{\"input\": \"") +
-      input->c_ptr() + 
+      escaped_input_str + 
       "\", \"model\": \"" +
       model->c_ptr() +
       "\",\"encoding_format\": \"float\"}";
