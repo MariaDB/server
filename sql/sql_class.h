@@ -2726,6 +2726,9 @@ private:
   { DBUG_ASSERT(0); return Statement::is_conventional(); }
 
 public:
+  /// Type for @ref proc_info and @ref wsrep_info
+  using Rows_log_event_info= char [128];
+
   MDL_context mdl_context;
 
   /* Used to execute base64 coded binlog events in MySQL server */
@@ -5552,7 +5555,7 @@ public:
   uint32                    wsrep_rand;
   rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
+  Rows_log_event_info       wsrep_info; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
