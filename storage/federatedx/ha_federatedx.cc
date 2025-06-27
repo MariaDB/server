@@ -3403,6 +3403,12 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   federatedx_io *tmp_io= NULL;
   DBUG_ENTER("ha_federatedx::create");
 
+  if (table_arg->s->hlindexes())
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "FEDERATEDX", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   if ((retval= parse_url(thd->mem_root, &tmp_share, table_arg->s, 1)))
     goto error;
 
@@ -3706,6 +3712,15 @@ err2:
 err1:
   if (error)
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), mysql_error(&mysql));
+  else if ((error= table_s->hlindexes()))
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "FEDERATEDX", "VECTOR");
+    char file_name[FN_REFLEN+1];
+    strxnmov(file_name, sizeof(file_name)-1, table_s->normalized_path.str,
+             reg_ext, NullS);
+    my_delete(file_name, MYF(0));
+    plugin_unlock(0, table_s->db_plugin);
+  }
   mysql_close(&mysql);
   return error;
 }
