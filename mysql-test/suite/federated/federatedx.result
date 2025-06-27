@@ -2374,6 +2374,19 @@ a
 DROP VIEW v;
 DROP TABLE t1_fed, t1, t2;
 DROP SERVER s;
+# End of 11.0 tests
+#
+# MDEV-35184 Corruption errors upon creation or usage of Federated table with vector key
+#
+create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+create table t1 (a vector(1) not null, vector(a));
+create table t1_fed1 engine=federated connection = 's/t1';
+ERROR HY000: Table storage engine 'FEDERATEDX' does not support the create option 'VECTOR'
+create table t1_fed2 (a vector(1) not null, vector(a)) engine=federated connection = 's/t1';
+ERROR HY000: Table storage engine 'FEDERATEDX' does not support the create option 'VECTOR'
+drop table t1;
+drop server s;
+# End of 11.8 tests
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
