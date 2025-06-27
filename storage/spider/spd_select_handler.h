@@ -1,5 +1,6 @@
 class spider_select_handler: public select_handler
 {
+  bool first;
 public:
   spider_select_handler(THD *, SELECT_LEX *);
   int init_scan() override;
