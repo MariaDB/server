@@ -185,7 +185,7 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
     return nullptr;
 
   if (!buf_page_make_young_if_needed(&block->page))
-    buf_read_ahead_linear(block->page.id(), false);
+    buf_read_ahead_undo(nullptr, block->page.id());
   return trx_undo_page_get_last_rec(block, page_no, offset);
 }
 
@@ -261,7 +261,7 @@ trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
 }
 
 /** Get the first record in an undo log.
-@param[in]      space   undo log header space
+@param[in,out]  space   undo log header space
 @param[in]      page_no undo log header page number
 @param[in]      offset  undo log header offset on page
 @param[in]      mode    latching mode: RW_S_LATCH or RW_X_LATCH
@@ -271,19 +271,19 @@ trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
 @return undo log record, the page latched
 @retval nullptr if none */
 static trx_undo_rec_t*
-trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
+trx_undo_get_first_rec(fil_space_t *space, uint32_t page_no,
                        uint16_t offset, rw_lock_type_t mode,
                        const buf_block_t *&block,
                        mtr_t *mtr, dberr_t *err)
 {
-  buf_block_t *b= buf_page_get_gen(page_id_t{space.id, page_no}, 0, mode,
+  buf_block_t *b= buf_page_get_gen(page_id_t{space->id, page_no}, 0, mode,
                                    nullptr, BUF_GET, mtr, err);
   block= b;
   if (!block)
     return nullptr;
 
   if (!buf_page_make_young_if_needed(&b->page))
-    buf_read_ahead_linear(b->page.id(), false);
+    buf_read_ahead_undo(space, b->page.id());
 
   if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(b, page_no, offset))
     return rec;
@@ -921,7 +921,7 @@ loop:
 
 	dberr_t err;
 	const buf_block_t* undo_page;
-	rec = trx_undo_get_first_rec(*rseg->space, hdr_page_no, hdr_offset,
+	rec = trx_undo_get_first_rec(rseg->space, hdr_page_no, hdr_offset,
 				     RW_X_LATCH, undo_page, &mtr, &err);
 	if (rec == NULL) {
 		/* Already empty */
