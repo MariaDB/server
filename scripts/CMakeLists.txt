@@ -227,17 +227,19 @@ IF(UNIX AND NOT WITHOUT_SERVER)
 
   INSTALL_LINK(mariadb-install-db mysql_install_db ${INSTALL_SCRIPTDIR} ServerSymlinks)
 
-  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/galera_new_cluster.sh
-    ${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster ESCAPE_QUOTES @ONLY)
-    EXECUTE_PROCESS(
-    COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster
-    )
+  IF(WITH_WSREP)
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/galera_new_cluster.sh
+      ${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster ESCAPE_QUOTES @ONLY)
+      EXECUTE_PROCESS(
+      COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster
+      )
 
-  INSTALL_SCRIPT(
-   "${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster"
-    DESTINATION ${INSTALL_SCRIPTDIR}
-    COMPONENT Server
-    )
+    INSTALL_SCRIPT(
+      "${CMAKE_CURRENT_BINARY_DIR}/galera_new_cluster"
+      DESTINATION ${INSTALL_SCRIPTDIR}
+      COMPONENT Server
+      )
+  ENDIF()
 ENDIF()
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
