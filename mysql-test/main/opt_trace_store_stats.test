@@ -1,0 +1,186 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--echo #enable both optimizer_trace, and optimizer_record_context
+set optimizer_record_context=ON;
+set optimizer_trace=1;
+
+create database db1;
+use db1;
+
+create table t1
+(
+    a int, b int,
+    index t1_idx_a (a),
+    index t1_idx_b (b),
+    index t1_idx_ab (a, b)
+);
+
+insert into t1 select seq%2, seq%3 from seq_1_to_20;
+
+create table t2 (
+    a int,
+    index t2_idx_a (a)
+);
+insert into t2 select seq%6 from seq_1_to_30;
+
+create view view1 as (
+    select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a and t1.a = 5
+);
+
+--echo # analyze all the tables
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+
+--echo #
+--echo # simple query using one table
+--echo #
+select count(*) from t1;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+--echo #
+--echo # simple query using join of two tables
+--echo #
+select count(*) from t1, t2 where t1.a = t2.a;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+--echo #
+--echo # negative test
+--echo # simple query using join of two tables
+--echo # there should be no result
+--echo #
+set optimizer_record_context=OFF;
+select count(*) from t1, t2 where t1.a = t2.a;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+set optimizer_record_context=ON;
+
+--echo #
+--echo # there should be no duplicate information
+--echo #
+select * from view1 union select * from view1;
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+--echo #
+--echo # test for update
+--echo #
+update t1 set t1.b = t1.a;
+analyze table t1 persistent for all;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+--echo #
+--echo # test for insert as select
+--echo #
+insert into t1 (select t2.a as a, t2.a as b from t2);
+analyze table t1 persistent for all;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+
+--echo #
+--echo # range analysis tests
+--echo #
+
+--echo #
+--echo # simple query with or condition on 2 columns
+--echo #
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows'
+    )
+) as jt;
+
+--echo #
+--echo # simple query with or condition on the same column
+--echo #
+analyze select * from t1 where t1.a between 1 and 5 or t1.a between 6 and 10;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows'
+    )
+) as jt;
+
+--echo #
+--echo # negative test on the simple query with or condition on 2 columns
+--echo #
+set optimizer_record_context=OFF;
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows'
+    )
+) as jt;
+
+set optimizer_record_context=ON;
+
+--echo #
+--echo # simple query with or condition on 2 columns
+--echo # testing all the stats information
+--echo #
+analyze select * from t1 where t1.a between 1 and 5 or t1.b between 6 and 10;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @records= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.num_of_records')));
+select * from json_table(@records, '$[*]' columns(num_of_records text path '$')) as jt;
+set @indexes=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.indexes')));
+select * from json_table(@indexes, '$[*][*]' columns(index_name text path '$.index_name', rec_per_key json path '$.rec_per_key')) as jt;
+set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.list_ranges')));
+select * from json_table(
+    @list_ranges,
+    '$[*][*]' columns(
+        index_name text path '$.index_name',
+        ranges json path '$.ranges',
+        num_rows int path '$.num_rows'
+    )
+) as jt;
+
+drop view view1;
+drop table t1;
+drop table t2;
+drop database db1;
