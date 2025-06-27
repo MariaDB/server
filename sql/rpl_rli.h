@@ -258,6 +258,25 @@ public:
     Seconds_Behind_Master as zero while the SQL thread is so waiting.
   */
   bool sql_thread_caught_up;
+  /**
+    Simple setter for @ref worker_threads_caught_up;
+    sets it `false` to to indicate new user events in queue
+    @pre @ref data_lock held to prevent race with is_threads_caught_up()
+  */
+  inline void unset_worker_threads_caught_up()
+  {
+    mysql_mutex_assert_owner(&data_lock);
+    worker_threads_caught_up= false;
+  }
+  /**
+    @return @ref worker_threads_caught_up
+      (refresh according to @ref last_inuse_relaylog as needed)
+    @pre Check @ref sql_thread_caught_up first,
+      because the SQL thread sets it to `false` _before_ it enqueues events
+    @pre Only meaningful if `mi->using_parallel()`
+    @pre @ref data_lock held to prevent race condition
+  */
+  bool are_worker_threads_caught_up();
 
   void clear_until_condition();
   /**
@@ -588,6 +607,13 @@ private:
     relay log.
   */
   uint32 m_flags;
+
+  /**
+    * Turns `false` from unset_worker_threads_caught_up()
+    * Automatically turns `true` by are_worker_threads_caught_up()
+    @pre Only meaningful if `mi->using_parallel()`
+  */
+  bool worker_threads_caught_up= true;
 };
 
 
