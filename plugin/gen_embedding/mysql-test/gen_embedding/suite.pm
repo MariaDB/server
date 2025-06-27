@@ -6,6 +6,13 @@ use mtr_report;
 
 @ISA = qw(My::Suite);
 
+sub skip_combinations {
+  my %skip;
+  my $api_key_file = "$ENV{HOME}/openai_api_key.inc";
+  $skip{'t/openai_server.test'}="No OpenAI API key" unless -r $api_key_file;
+  %skip;
+}
+
 sub openai_start {
     my ($openai, $test) = @_; # My::Config::Group, My::Test
     if ($openai->{proc}) {
