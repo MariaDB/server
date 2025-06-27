@@ -1,7 +1,6 @@
 --source include/have_plugin_auth.inc
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
---source include/have_tlsv13.inc
 
 if (!$SERVER_AUDIT_SO) {
   skip No SERVER_AUDIT plugin;
