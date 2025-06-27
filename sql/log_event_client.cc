@@ -1475,7 +1475,7 @@ void Rows_log_event::count_row_events(PRINT_EVENT_INFO *print_event_info)
     row_events= 2;
     break;
   default:
-    DBUG_ASSERT(0); /* Not possible */
+    DBUG_ASSERT_NO_ASSUME(0); /* Not possible */
     return;
   }
 
@@ -1578,7 +1578,7 @@ bool Rows_log_event::print_verbose(IO_CACHE *file,
   default:
     sql_command= sql_clause1= sql_clause2= NULL;
     sql_command_short= "";
-    DBUG_ASSERT(0); /* Not possible */
+    DBUG_ASSERT_NO_ASSUME(0); /* Not possible */
   }
 
   if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
@@ -1741,10 +1741,7 @@ bool Log_event::print_base64(IO_CACHE* file,
     if (!(tmp_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, tmp_str_sz, MYF(MY_WME))))
       goto err;
 
-    if (my_base64_encode(ptr, (size_t) size, tmp_str))
-    {
-      DBUG_ASSERT(0);
-    }
+    DBUG_ASSERT(!my_base64_encode(ptr, (size_t) size, tmp_str));
 
     my_b_printf(file, "%s\n", tmp_str);
     my_free(tmp_str);

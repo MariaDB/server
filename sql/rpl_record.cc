@@ -466,7 +466,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const colcnt,
       bool result=
 #endif
         unpack_field(tabledef, f, &st, i);
-      DBUG_ASSERT(result);
+      DBUG_ASSERT_NO_ASSUME(result);
     }
 
     for (const auto *copy=rpl_data.copy_fields;

@@ -130,7 +130,7 @@ int maria_delete(MARIA_HA *info,const uchar *record)
 
 err:
   save_errno= my_errno;
-  DBUG_ASSERT(save_errno);
+  DBUG_ASSERT_NO_ASSUME(save_errno);
   if (!save_errno)
     save_errno= HA_ERR_INTERNAL_ERROR;          /* Should never happen */
 

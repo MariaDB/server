@@ -220,7 +220,7 @@ static bool print_mysql_datetime_value(String *buffer, enum_field_types type,
       TIME_from_longlong_datetime_packed(&t, sint8korr(data));
       break;
     default:
-      DBUG_ASSERT(0);
+      DBUG_ASSERT_NO_ASSUME(0);
       return true;
   }
   /* Wrap all datetime strings within double quotes. */

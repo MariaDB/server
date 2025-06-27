@@ -794,7 +794,7 @@ ulonglong ma_retrieve_auto_increment(const uchar *key, uint8 key_type)
     value= uint8korr(key);
     break;
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     value=0;                                    /* Error */
     break;
   }
