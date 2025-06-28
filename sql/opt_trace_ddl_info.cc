@@ -18,20 +18,90 @@
 #include "opt_trace_ddl_info.h"
 #include "sql_show.h"
 #include "my_json_writer.h"
-#include "sql_list.h"
 #include "sql_table.h"
 #include "mysql.h"
 #include "hash.h"
+
+#include "sql_select.h"
+#include "sql_explain.h"
 
 /**
   @file
 
   @brief
-    Stores the ddls of the tables, and views that are used
-    in either SELECT, INSERT, DELETE, and UPDATE queries,
-    into the optimizer trace. All the ddls are stored together
-    at one place as a JSON array object with name "list_ddls"
+    Stores the tables, and views context (i.e. ddls, and basic stats)
+    that are used in either SELECT, INSERT, DELETE, and UPDATE queries,
+    into the optimizer trace. All the contexts are stored in
+    one place as a JSON array object with name "list_contexts".
+    Additionally, database name is also included in the trace.
+    The json structure looks like: -
+    {
+      "current_database": "db_name",
+      "list_contexts": [
+        {
+          "name": "table_name",
+          "ddl": "create table/view definition",
+          "num_of_records": n,
+          "indexes": [
+            {
+              "index_name": "index_name1",
+              "rec_per_key": ["n1", "n2", ...]
+            }, ...,
+          ],
+          "list_ranges": [
+            {
+              "index_name": "index_name1",
+              "ranges": ["(NULL) < (key1) < (foo)", ...],
+              "num_rows": n
+            }, ...
+          ]
+        }, ...
+      ]
+    }
 */
+
+/*
+   One index range, aka interval.
+
+   Currently we store the interval's text representation, like
+   "1 < (key1) < 2"
+*/
+struct Range_record : public Sql_alloc
+{
+  char *range;
+};
+
+/*
+   A record of one multi_range_read_info_const() call:
+   - index name
+   - number of records
+   - list of ranges.
+*/
+class Multi_range_read_const_call_record : public Range_list_recorder
+{
+public:
+  char *idx_name;
+  size_t num_records;
+  List<Range_record> range_list;
+};
+
+/*
+   structure to store all the index range records
+   pertaining to a table
+*/
+class trace_table_index_range_context : public Sql_alloc
+{
+public:
+  /*
+     full name of the table or view
+     i.e db_name.[table/view]_name
+  */
+  char *name;
+  size_t name_len;
+  List<Multi_range_read_const_call_record> index_list;
+};
+
+static void store_full_table_name(TABLE_LIST *tbl, String *buf);
 
 struct DDL_Key
 {
@@ -76,10 +146,10 @@ static bool is_base_table(TABLE_LIST *tbl)
      tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
 
-static bool dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)
+static bool dump_name_ddl_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt,
+                                   Json_writer_object &ctx_wrapper)
 {
-  Json_writer_object ddl_wrapper(thd);
-  ddl_wrapper.add("name", ddl_key->name);
+  ctx_wrapper.add("name", ddl_key->name);
   size_t non_esc_stmt_len= stmt->length();
   /*
     making escape_stmt size to be 4 times the non_esc_stmt
@@ -101,8 +171,71 @@ static bool dump_record_to_trace(THD *thd, DDL_Key *ddl_key, String *stmt)
     return true;
 
   escaped_stmt[act_escape_stmt_len]= 0;
-  ddl_wrapper.add("ddl", escaped_stmt);
+  ctx_wrapper.add("ddl", escaped_stmt);
   return false;
+}
+
+static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
+                                            size_t tbl_name_len)
+{
+  if (!thd->stats_ctx_recorder || !thd->stats_ctx_recorder->has_records())
+    return;
+
+  trace_table_index_range_context *context=
+      thd->stats_ctx_recorder->search(tbl_name, tbl_name_len);
+
+  if (!context)
+    return;
+
+  Json_writer_array list_ranges_wrapper(thd, "list_ranges");
+  List_iterator irc_li(context->index_list);
+  while (Multi_range_read_const_call_record *irc= irc_li++)
+  {
+    Json_writer_object irc_wrapper(thd);
+    irc_wrapper.add("index_name", irc->idx_name);
+    List_iterator rc_li(irc->range_list);
+    Json_writer_array ranges_wrapper(thd, "ranges");
+    while (Range_record *rc= rc_li++)
+    {
+      ranges_wrapper.add(rc->range, strlen(rc->range));
+    }
+    ranges_wrapper.end();
+    irc_wrapper.add("num_rows", irc->num_records);
+  }
+}
+
+/*
+  dump the following table stats to trace: -
+  1. total number of records in the table
+  2. if there any indexes for the table then
+      their names, and the num of records per key
+  3. range stats on the indexes
+*/
+static void dump_table_stats_to_trace(THD *thd, TABLE_LIST *tbl,
+                                      uchar *tbl_name, size_t tbl_name_len,
+                                      Json_writer_object &ctx_wrapper)
+{
+  TABLE *table= tbl->table;
+  ctx_wrapper.add("num_of_records", tbl->table->stat_records());
+
+  if (!table->key_info)
+    return;
+
+  Json_writer_array indexes_wrapper(thd, "indexes");
+  for (uint idx= 0; idx < table->s->keys; idx++)
+  {
+    KEY key= table->key_info[idx];
+    uint num_key_parts= key.user_defined_key_parts;
+    Json_writer_object index_wrapper(thd);
+    index_wrapper.add("index_name", key.name);
+    Json_writer_array rpk_wrapper(thd, "rec_per_key");
+    for (uint i= 0; i < num_key_parts; i++)
+    {
+      rpk_wrapper.add(key.actual_rec_per_key(i));
+    }
+  }
+  indexes_wrapper.end();
+  dump_index_range_stats_to_trace(thd, tbl_name, tbl_name_len);
 }
 
 static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
@@ -118,12 +251,13 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
 
 /*
   @brief
-    Dump definitions of all tables and view used by the statement into
-    the optimizer trace. The goal is to eventually save everything that
-    is needed to reproduce the query execution
+    Dump definitions, basic stats of all tables and views used by the
+    statement into the optimizer trace.
+    The goal is to eventually save everything that is needed to
+    reproduce the query execution
 
   @detail
-    Stores the ddls of the tables, and views that are used
+    Stores the ddls, stats of the tables, and views that are used
     in either SELECT, INSERT, DELETE, and UPDATE queries,
     into the optimizer trace.
     Global query_tables are read in reverse order from the thd->lex,
@@ -136,7 +270,7 @@ static void create_view_def(THD *thd, TABLE_LIST *table, String *name,
   @return
     false when no error occurred during the computation
 */
-bool store_table_definitions_in_trace(THD *thd)
+bool store_tables_context_in_trace(THD *thd)
 {
   LEX *lex= thd->lex;
   if (!(thd->variables.optimizer_trace &&
@@ -152,9 +286,9 @@ bool store_table_definitions_in_trace(THD *thd)
   if (lex->query_tables == *(lex->query_tables_last))
     return false;
 
-  Json_writer_object ddls_wrapper(thd);
-  ddls_wrapper.add("current_database", thd->get_db());
-  Json_writer_array ddl_list(thd, "list_ddls");
+  Json_writer_object main_wrapper(thd);
+  main_wrapper.add("current_database", thd->get_db());
+  Json_writer_array context_list(thd, "list_contexts");
   HASH hash;
   List<TABLE_LIST> tables_list;
 
@@ -182,16 +316,12 @@ bool store_table_definitions_in_trace(THD *thd)
     String ddl;
     String name;
     DDL_Key *ddl_key;
-    char *name_copy;
+    store_full_table_name(tbl, &name);
 
     /*
       A query can use the same table multiple times. Do not dump the DDL
       multiple times.
     */
-    name.append(tbl->get_db_name().str, tbl->get_db_name().length);
-    name.append(STRING_WITH_LEN("."));
-    name.append(tbl->get_table_name().str, tbl->get_table_name().length);
-
     if (my_hash_search(&hash, (uchar *) name.c_ptr(), name.length()))
       continue;
 
@@ -212,18 +342,138 @@ bool store_table_definitions_in_trace(THD *thd)
       }
     }
 
-    name_copy= (char *) thd->alloc(name.length() + 1);
-    strcpy(name_copy, name.c_ptr());
-    ddl_key->name= name_copy;
+    ddl_key->name= strdup_root(thd->mem_root, name.c_ptr());
     ddl_key->name_len= name.length();
     my_hash_insert(&hash, (uchar *) ddl_key);
+    Json_writer_object ctx_wrapper(thd);
 
-    if (dump_record_to_trace(thd, ddl_key, &ddl))
+    if (dump_name_ddl_to_trace(thd, ddl_key, &ddl, ctx_wrapper))
     {
       res= true;
       break;
     }
+
+    if (!tbl->is_view())
+    {
+      dump_table_stats_to_trace(thd, tbl, (uchar *) ddl_key->name,
+                                ddl_key->name_len, ctx_wrapper);
+    }
   }
   my_hash_free(&hash);
   return res;
+}
+
+Optimizer_Stats_Context_Recorder::Optimizer_Stats_Context_Recorder()
+{
+  my_hash_init(key_memory_trace_ddl_info, &tbl_trace_ctx_hash,
+               system_charset_info, 16, 0, 0,
+               &Optimizer_Stats_Context_Recorder::get_tbl_trace_ctx_key, 0,
+               HASH_UNIQUE);
+}
+
+Optimizer_Stats_Context_Recorder::~Optimizer_Stats_Context_Recorder()
+{
+  my_hash_free(&tbl_trace_ctx_hash);
+}
+
+bool Optimizer_Stats_Context_Recorder::has_records()
+{
+  return tbl_trace_ctx_hash.records > 0;
+}
+
+trace_table_index_range_context *
+Optimizer_Stats_Context_Recorder::search(uchar *tbl_name, size_t tbl_name_len)
+{
+  return (trace_table_index_range_context *) my_hash_search(
+      &tbl_trace_ctx_hash, tbl_name, tbl_name_len);
+}
+
+/*
+  @detail
+    Do not use thd->mem_root, allocate memory only on the passed mem_root.
+*/
+void Range_list_recorder::add_range(MEM_ROOT *mem_root, const char *range)
+{
+  Range_record *record= new (mem_root) Range_record;
+  record->range= strdup_root(mem_root, range);
+  ((Multi_range_read_const_call_record *) this)
+      ->range_list.push_back(record, mem_root);
+}
+
+/*
+  @brief
+    Start recording a range list for tbl.index_name
+
+  @return
+    Pointer one can use to add ranges.
+*/
+Range_list_recorder *Optimizer_Stats_Context_Recorder::start_range_list_record(
+    THD *thd, MEM_ROOT *mem_root, TABLE_LIST *tbl, size_t found_records,
+    const char *index_name)
+{
+  String tbl_name;
+
+  Multi_range_read_const_call_record *index_ctx=
+      new (mem_root) Multi_range_read_const_call_record;
+
+  /*
+    Create a new table context if it is not already present in the
+    hash.
+    Store the ranges of every index of the table into the
+    table context.
+    The table context is also persisted in the hash which is to be
+    used later for dumping all the context infomation into the trace.
+  */
+  store_full_table_name(tbl, &tbl_name);
+  trace_table_index_range_context *table_ctx=
+      search((uchar *) tbl_name.c_ptr(), tbl_name.length());
+
+  if (!table_ctx)
+  {
+    table_ctx= new (mem_root) trace_table_index_range_context;
+    table_ctx->name= strdup_root(mem_root, tbl_name.c_ptr());
+    table_ctx->name_len= tbl_name.length();
+    table_ctx->index_list.empty();
+    my_hash_insert(&tbl_trace_ctx_hash, (uchar *) table_ctx);
+  }
+
+  index_ctx->idx_name= strdup_root(mem_root, index_name);
+  index_ctx->num_records= found_records;
+  table_ctx->index_list.push_back(index_ctx, mem_root);
+  return index_ctx;
+}
+
+/*
+  helper function to know the key portion of the
+  trace table context that is stored in hash.
+*/
+const uchar *Optimizer_Stats_Context_Recorder::get_tbl_trace_ctx_key(
+    const void *entry_, size_t *length, my_bool flags)
+{
+  auto entry= static_cast<const trace_table_index_range_context *>(entry_);
+  *length= entry->name_len;
+  return reinterpret_cast<const uchar *>(entry->name);
+}
+
+/*
+  store full table name i.e. "db_name.table_name",
+  into the supplied variable buf
+*/
+static void store_full_table_name(TABLE_LIST *tbl, String *buf)
+{
+  buf->append(tbl->get_db_name().str, tbl->get_db_name().length);
+  buf->append(STRING_WITH_LEN("."));
+  buf->append(tbl->get_table_name().str, tbl->get_table_name().length);
+}
+
+Optimizer_Stats_Context_Recorder *get_current_stats_recorder(THD *thd)
+{
+  if (thd->variables.optimizer_record_context &&
+      !thd->lex->explain->is_query_plan_ready())
+  {
+    if (!thd->stats_ctx_recorder)
+      thd->stats_ctx_recorder= new Optimizer_Stats_Context_Recorder();
+    return thd->stats_ctx_recorder;
+  }
+  return nullptr;
 }

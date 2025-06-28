@@ -5882,7 +5882,7 @@ wsrep_error_label:
 
 finish:
   if (!thd->is_error() && !res)
-    res= store_table_definitions_in_trace(thd);
+    res= store_tables_context_in_trace(thd);
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
