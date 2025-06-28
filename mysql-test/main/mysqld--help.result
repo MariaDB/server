@@ -466,7 +466,10 @@ The following specify which files/extra groups are read (specified before remain
  the only option you need for specifying log files. Sets
  names for --log-bin, --log-bin-index, --relay-log,
  --relay-log-index, --general-log-file,
- --log-slow-query-file, --log-error-file, and --pid-file
+ --log-slow-query-file, --log-error-file, and --pid-file.
+ If log-basename includes a path, the path will apply for
+ all above variables except pid-file that will use it
+ without the path
  --log-bin[=name]    Log update queries in binary format. Optional argument
  should be name for binary log. If not given
  'datadir'/'log-basename'-bin or 'datadir'/mysql-bin will
