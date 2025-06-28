@@ -6506,7 +6506,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
     DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
-    char index_file_name[FN_REFLEN+1], *index_file_name_end;
+    char index_file_name[FN_REFLEN+1], *UNINIT_VAR(index_file_name_end);
     Alter_info index_ainfo;
     HA_CREATE_INFO index_cinfo;
     char *path_end= strmov(file_name, path);
