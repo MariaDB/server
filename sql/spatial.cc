@@ -1616,7 +1616,7 @@ int Gis_line_string::is_valid(int *valid) const
   if (not_enough_points(m_data, num_points))
     return 1;
 
-  double x, y, previous_x, previous_y;
+  double x, y, UNINIT_VAR(previous_x), UNINIT_VAR(previous_y);
   for (uint32 i = 1; i <= num_points; i++)
   {
     String wkb= 0;
