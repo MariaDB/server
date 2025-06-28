@@ -8828,7 +8828,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       StringBuffer<NAME_LEN*3> tmp;
       append_drop_column(thd, &tmp, field);
-      my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
+      my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr_safe());
       goto err;
     }
     else if (drop && field->invisible < INVISIBLE_SYSTEM &&
@@ -8989,7 +8989,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       append_drop_column(thd, &tmp, table->vers_start_field());
     if (!(dropped_sys_vers_fields & VERS_ROW_END))
       append_drop_column(thd, &tmp, table->vers_end_field());
-    my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
+    my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr_safe());
     goto err;
   }
   else if (alter_info->flags & ALTER_DROP_PERIOD && vers_system_invisible)
@@ -9993,7 +9993,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       buff.append('.');
       append_identifier(thd, &buff, tbl);
       my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD, MYF(0), bad_column_name,
-               f_key->foreign_id->str, buff.c_ptr());
+               f_key->foreign_id->str, buff.c_ptr_safe());
       DBUG_RETURN(true);
     }
     /* FK_COLUMN_NOT_NULL error happens only when changing
