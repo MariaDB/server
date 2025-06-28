@@ -1,0 +1,11 @@
+# transformation of memory into pseudo with uext8
+M0:	module
+main:	func	i32
+	local	i64:i0_d, i64:a
+	mov i0_d, 300
+	addr8 a, i0_d
+	mov u8:(a), 256
+	ret i0_d
+	endfunc
+	export	main
+	endmodule

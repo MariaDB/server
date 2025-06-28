@@ -1,0 +1,22 @@
+# test for returns
+mc:       module
+	  import printf
+p_printf: proto p:fmt, ...
+f0:       func i64:a                              # no return value
+     	  call p_printf, printf, "arg=%ld\n", a
+      	  ret
+	  endfunc
+p_f0:     proto i64:a
+fn:       func i64, f                              # multiple return values
+	  ret 42, 4.2f
+	  endfunc
+p_fn:	  proto i64, f
+main:  	  func i64
+	  local i64:i, f:f, d:d, ld:ld, i64:i2, ld:ld2, d:fd
+	  call p_f0, f0, 42
+	  call p_fn, fn, i, f
+	  f2d fd, f
+     	  call p_printf, printf, "i=%ld, f=%e\n", i, fd
+	  ret 0
+	  endfunc
+          endmodule

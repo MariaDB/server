@@ -1,0 +1,19 @@
+# test for link-time expression
+mc:       module
+	  import printf
+e:	  func i64          # expression function
+	  local i64:r
+	  add r, printf, 16
+	  ret r
+	  endfunc
+d:	  expr e          # expression data
+p_printf: proto p:fmt, ...
+main:  	  func p
+	  local i64:a, i64:e
+	  mov a, d
+	  mov e, i64:(a)
+	  call p_printf, printf, "printf addr = %lx\n", printf
+	  call p_printf, printf, "expr: (printf addr + 0x10) = %lx\n", e
+	  ret 0
+	  endfunc
+          endmodule
