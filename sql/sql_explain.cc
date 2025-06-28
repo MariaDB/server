@@ -167,6 +167,10 @@ void Explain_query::query_plan_ready()
 #endif
 }
 
+bool Explain_query::is_query_plan_ready()
+{
+  return optimization_time_tracker.get_loops() == 1;
+}
 
 void Explain_query::notify_tables_are_closed()
 {
