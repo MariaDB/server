@@ -129,6 +129,17 @@ int main(int argc, char **argv)
 #endif
 } /* main */
 
+
+/* Free memory and exit */
+
+void __attribute__ ((noreturn)) my_exit(int exit_state)
+{
+  free_defaults(default_argv);
+  my_end(MY_CHECK_ERROR);
+  exit(exit_state);
+}
+
+
 enum options_mc {
   OPT_CHARSETS_DIR=256, OPT_SET_COLLATION,OPT_START_CHECK_POS,
   OPT_CORRECT_CHECKSUM, OPT_CREATE_MISSING_KEYS, OPT_KEY_BUFFER_SIZE,
@@ -660,7 +671,7 @@ get_one_option(const struct my_option *opt,
 	fprintf(stderr,
 		"The value of the sort key is bigger than max key: %d.\n",
 		MI_MAX_KEY);
-	exit(1);
+	my_exit(1);
       }
     }
     break;
@@ -694,7 +705,9 @@ get_one_option(const struct my_option *opt,
     break;
   case 'V':
     print_version();
-    exit(0);
+    free_defaults(default_argv);
+    my_end(MY_CHECK_ERROR);
+    my_exit(0);
   case OPT_CORRECT_CHECKSUM:
     if (argument == disabled_my_option)
       check_param.testflag&= ~T_CALC_CHECKSUM;
@@ -711,7 +724,7 @@ get_one_option(const struct my_option *opt,
                            FIND_TYPE_BASIC)) <= 0)
     {
       fprintf(stderr, "Invalid value of stats_method: %s.\n", argument);
-      exit(1);
+      my_exit(1);
     }
     switch (method-1) {
     case 0: 
@@ -735,10 +748,10 @@ get_one_option(const struct my_option *opt,
 #endif
   case 'H':
     my_print_help(my_long_options);
-    exit(0);
+    my_exit(0);
   case '?':
     usage();
-    exit(0);
+    my_exit(0);
   }
   return 0;
 }
@@ -754,7 +767,7 @@ static void get_options(register int *argc,register char ***argv)
     check_param.testflag|=T_WRITE_LOOP;
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    my_exit(ho_error);
 
   /* If using repair, then update checksum if one uses --update-state */
   if ((check_param.testflag & T_UPDATE_STATE) &&
@@ -764,7 +777,7 @@ static void get_options(register int *argc,register char ***argv)
   if (*argc == 0)
   {
     usage();
-    exit(-1);
+    my_exit(-1);
   }
 
   if ((check_param.testflag & T_UNPACK) &&
@@ -773,7 +786,7 @@ static void get_options(register int *argc,register char ***argv)
     (void) fprintf(stderr,
 		 "%s: --unpack can't be used with --quick or --sort-records\n",
 		 my_progname_short);
-    exit(1);
+    my_exit(1);
   }
   if ((check_param.testflag & T_READONLY) &&
       (check_param.testflag &
@@ -783,11 +796,11 @@ static void get_options(register int *argc,register char ***argv)
     (void) fprintf(stderr,
 		 "%s: Can't use --readonly when repairing or sorting\n",
 		 my_progname_short);
-    exit(1);
+    my_exit(1);
   }
 
   if (init_tmpdir(&myisamchk_tmpdir, opt_tmpdir))
-    exit(1);
+    my_exit(1);
 
   check_param.tmpdir=&myisamchk_tmpdir;
   check_param.key_cache_block_size= opt_key_cache_block_size;
@@ -795,7 +808,7 @@ static void get_options(register int *argc,register char ***argv)
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
                                              MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
-      exit(1);
+      my_exit(1);
 
   myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
   return;
