@@ -418,3 +418,13 @@ extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
   return (wsrep_thd_is_local(thd) &&
 	  thd->wsrep_cs().transaction().active());
 }
+
+extern "C" my_bool wsrep_applier_log_warnings(const THD *thd)
+{
+  /* Applier will log warning on fk  errors if
+     (1) wsrep_mode !=  WSREP_MODE_APPLIER_DISABLE_WARNINGS AND
+     (2) thd executing is applier
+  */
+  return (!wsrep_check_mode(WSREP_MODE_APPLIER_DISABLE_WARNINGS) &&
+          thd->wsrep_cs().mode() == wsrep::client_state::m_high_priority);
+}
