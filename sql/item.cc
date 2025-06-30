@@ -5064,6 +5064,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
+  current_thd->lex->default_used= true;
   state= DEFAULT_VALUE;
   /*
     When Item_param is set to DEFAULT_VALUE:

@@ -4595,6 +4595,8 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
+  lex->default_used= thd->lex->default_used;
+  thd->lex->default_used= false;
   if (res)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
