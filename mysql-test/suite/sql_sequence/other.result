@@ -1,3 +1,4 @@
+call mtr.add_suppression("Check failed, sequence is invalid. max_value: .* min_value: .* start: .* cache: .* real_increment: .* max_increment: .* reserved_until: .* next_free_value: .*");
 #
 # Create and check
 #
