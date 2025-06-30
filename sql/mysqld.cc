@@ -2398,8 +2398,8 @@ static void activate_tcp_port(uint port,
     else 
     {
       ip_sock.address_family= a->ai_family;
-      sql_print_information("Server socket created on IP: '%s'.",
-                          (const char *) ip_addr);
+      sql_print_information("Server socket created on IP: '%s', port: '%u'.",
+                          (const char *) ip_addr, port);
 
       if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
       {
