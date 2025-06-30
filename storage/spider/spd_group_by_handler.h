@@ -48,3 +48,21 @@ group_by_handler *spider_create_group_by_handler(
   THD *thd,
   Query *query
 );
+
+/* TODO: move this somewhere else so that spider_select_handler does
+  not depend on gbh */
+SPIDER_TABLE_HOLDER *spider_create_table_holder(
+  uint table_count_arg
+);
+
+SPIDER_TABLE_HOLDER *spider_add_table_holder(
+  ha_spider *spider_arg,
+  SPIDER_TABLE_HOLDER *table_holder
+);
+
+int spider_make_query(const Query& query, spider_fields* fields,
+                      ha_spider *spider, TABLE *table);
+
+int spider_prepare_init_scan(
+  const Query& query, MY_BITMAP *skips, spider_fields *fields, ha_spider *spider,
+  SPIDER_TRX *trx, longlong& offset_limit, THD *thd);

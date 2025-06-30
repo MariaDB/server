@@ -1,8 +1,9 @@
 class spider_select_handler: public select_handler
 {
-  bool first;
+  spider_fields *fields;
 public:
-  spider_select_handler(THD *, SELECT_LEX *);
+  spider_select_handler(THD *, SELECT_LEX *, spider_fields *);
+  ~spider_select_handler();
   int init_scan() override;
   int next_row() override;
   int end_scan() override;
