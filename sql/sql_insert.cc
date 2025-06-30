@@ -1622,6 +1622,9 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(insert_view_fields(thd, &fields, table_list));
   }
 
+  if (table_list->table->check_sequence_privileges(thd))
+    DBUG_RETURN(TRUE);
+
   DBUG_RETURN(FALSE);
 }
 

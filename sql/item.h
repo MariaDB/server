@@ -2432,6 +2432,7 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  virtual bool check_sequence_privileges(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
   /*

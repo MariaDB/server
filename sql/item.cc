@@ -5222,6 +5222,11 @@ static Field *make_default_field(THD *thd, Field *field_arg)
     if (!newptr)
       return nullptr;
 
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    if (def_field->table->pos_in_table_list &&
+        def_field->default_value->check_access(thd))
+      return nullptr;
+
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);

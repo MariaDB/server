@@ -3744,6 +3744,19 @@ Vcol_expr_context::~Vcol_expr_context()
 }
 
 
+bool TABLE::check_sequence_privileges(THD *thd)
+{
+  if (internal_tables)
+    for (Field **fp= field; *fp; fp++)
+    {
+      Virtual_column_info *vcol= (*fp)->default_value;
+      if (vcol && vcol->check_access(thd))
+        return 1;
+    }
+  return 0;
+}
+
+
 bool TABLE::vcol_fix_expr(THD *thd)
 {
   if (pos_in_table_list->placeholder() || vcol_refix_list.is_empty())
@@ -3877,6 +3890,13 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
     table->vcol_refix_list.push_back(this, &table->mem_root);
 
   DBUG_RETURN(0);
+}
+
+
+bool Virtual_column_info::check_access(THD *thd)
+{
+  return flags & VCOL_NEXTVAL &&
+         expr->walk(&Item::check_sequence_privileges, 0, thd);
 }
 
 

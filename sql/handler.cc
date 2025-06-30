@@ -6113,7 +6113,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
 
   name= get_canonical_filename(table.file, share.path.str, name_buff);
 
-  error= table.file->ha_create(name, &table, create_info);
+  error= table.check_sequence_privileges(thd) ? 1 :
+         table.file->ha_create(name, &table, create_info);
 
   if (unlikely(error))
   {

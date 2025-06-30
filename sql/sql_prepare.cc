@@ -1506,6 +1506,11 @@ static int mysql_test_update(Prepared_statement *stmt,
                    0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
+  {
+    List_iterator_fast<Item> fs(select->item_list), vs(stmt->lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
 error:
