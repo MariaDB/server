@@ -523,6 +523,8 @@ mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
 mysql_pfs_key_t	tpool_cache_mutex_key;
 mysql_pfs_key_t fsp_active_binlog_mutex_key;
+mysql_pfs_key_t fsp_binlog_durable_mutex_key;
+mysql_pfs_key_t fsp_binlog_durable_cond_key;
 mysql_pfs_key_t fsp_purge_binlog_mutex_key;
 mysql_pfs_key_t fsp_page_fifo_mutex_key;
 
@@ -4062,7 +4064,11 @@ static int innodb_init(void* p)
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
         innobase_hton->binlog_init= innodb_binlog_init;
+        innobase_hton->binlog_write_direct_ordered=
+          innobase_binlog_write_direct_ordered;
         innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
+        innobase_hton->binlog_group_commit_ordered= ibb_group_commit;
+        innobase_hton->binlog_oob_data_ordered= innodb_binlog_oob_ordered;
         innobase_hton->binlog_oob_data= innodb_binlog_oob;
         innobase_hton->binlog_oob_reset= innodb_reset_oob;
         innobase_hton->binlog_oob_free= innodb_free_oob;

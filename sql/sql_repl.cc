@@ -2568,7 +2568,7 @@ static int init_binlog_sender(binlog_send_info *info,
   /* ToDo: Need more complex logic here. I want to be able to at least switch from legacy to innodb binlog without having to RESET MASTER. So we need to be able to start reading from legacy and then switch over to the binlog in innodb. Also, we might want to pass the init GTID position in so that the binlog reader can find the place to start by itself? But probably still want to allocate the reader here like this. */
   if (opt_binlog_engine_hton &&
       !(info->engine_binlog_reader=
-        (*opt_binlog_engine_hton->get_binlog_reader)()))
+        (*opt_binlog_engine_hton->get_binlog_reader)(true)))
   {
     LEX_CSTRING *engine_name= hton_name(opt_binlog_engine_hton);
     my_error(ER_CANNOT_INIT_ENGINE_BINLOG_READER, MYF(0), engine_name->str);
@@ -3345,8 +3345,6 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
 
     if (error == LOG_READ_EOF)
     {
-      PSI_stage_info old_stage;
-
       /**
        * check if we should wait for more data
        */
@@ -3367,23 +3365,15 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
         return 1;
       }
 
-      mysql_bin_log.lock_binlog_end_pos();
-      info->thd->ENTER_COND(mysql_bin_log.get_bin_log_cond(),
-                            mysql_bin_log.get_binlog_end_pos_lock(),
-                            &stage_master_has_sent_all_binlog_to_slave,
-                            &old_stage);
-      while (!should_stop(info, true) &&
-             !reader->data_available())
+      while (!should_stop(info, true) && !reader->data_available())
       {
         //DBUG_ASSERT(!info->heartbeat_period /* ToDo: Implement support for heartbeat events while waiting for more data. */);
-        int ret= mysql_bin_log.wait_for_update_binlog_end_pos(info->thd, NULL);
-        if (ret != 0 && ret != ETIMEDOUT && ret != ETIME)
+        bool ret= reader->wait_available(info->thd, nullptr /* ToDo hearthbeat period. */);
+        if (ret)
         {
-          ret= 1; // error
-          break;
+          // ToDo Hearthbeat sending
         }
       }
-      info->thd->EXIT_COND(&old_stage);
       continue;
     }
 
@@ -4853,7 +4843,8 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
 
   DBUG_ASSERT(opt_binlog_engine_hton);
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS);
-  handler_binlog_reader *reader= (*opt_binlog_engine_hton->get_binlog_reader)();
+  handler_binlog_reader *reader=
+    (*opt_binlog_engine_hton->get_binlog_reader)(false);
   if (!reader)
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));

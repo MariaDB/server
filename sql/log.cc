@@ -6543,9 +6543,11 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
   void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
   mysql_mutex_lock(&LOCK_commit_ordered);
-  bool res= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data, len,
-                                                       engine_ptr);
+  bool res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)(mngr->thd, data,
+                                                               len, engine_ptr);
   mysql_mutex_unlock(&LOCK_commit_ordered);
+  res|= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data,
+                                                   len, engine_ptr);
   mngr->engine_binlog_info.out_of_band_offset+= len;
   cache->pos_in_file+= len;
 
@@ -7639,6 +7641,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   bool events_direct;
   ulong UNINIT_VAR(prev_binlog_id);
   uint64 UNINIT_VAR(commit_id);
+  const rpl_gtid *commit_gtid;
   DBUG_ENTER("MYSQL_BIN_LOG::write(Log_event *)");
 
   /*
@@ -7940,12 +7943,19 @@ err:
         mysql_mutex_unlock(&LOCK_log);
         mysql_mutex_lock(&LOCK_commit_ordered);
         mysql_mutex_unlock(&LOCK_after_binlog_sync);
-        if ((*opt_binlog_engine_hton->binlog_write_direct)
-            (file, engine_context, thd->get_last_commit_gtid()))
+        /* ToDo: Is this correct? How do we guarantee here correct gtid allocation order? By chained LOCK_log and LOCK_commit_ordered ? */
+        commit_gtid= thd->get_last_commit_gtid();
+        if (unlikely((*opt_binlog_engine_hton->binlog_write_direct_ordered)
+                     (file, engine_context, commit_gtid)))
+        {
+          mysql_mutex_unlock(&LOCK_commit_ordered);
           goto engine_fail;
+        }
         mysql_mutex_unlock(&LOCK_commit_ordered);
 
-        update_binlog_end_pos();
+        if (unlikely((*opt_binlog_engine_hton->binlog_write_direct)
+                     (file, engine_context, commit_gtid)))
+            goto engine_fail;
         status_var_add(thd->status_var.binlog_bytes_written, binlog_total_bytes);
 
         goto engine_ok;
@@ -9484,9 +9494,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     }
     else
     {
-      if (opt_binlog_engine_hton)
-        update_binlog_end_pos();
-
       /*
         If we rotated the binlog, and if we are using the unoptimized thread
         scheduling where every thread runs its own commit_ordered(), then we
@@ -9922,7 +9929,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DEBUG_SYNC(leader->thd, "commit_after_group_release_commit_ordered");
 
   if (opt_binlog_engine_hton)
-    update_binlog_end_pos();
+    (*opt_binlog_engine_hton->binlog_group_commit_ordered)
+      (last_in_queue->thd, &last_in_queue->cache_mngr->engine_binlog_info);
   else if (check_purge)
     checkpoint_and_purge(binlog_id);
 
@@ -10258,6 +10266,7 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_binlog_end_pos");
 
+  DBUG_ASSERT(!opt_binlog_engine_hton);
   thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(get_binlog_end_pos_lock());
   if (!timeout)

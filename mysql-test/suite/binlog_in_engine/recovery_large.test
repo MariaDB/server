@@ -14,7 +14,7 @@ SET GLOBAL gtid_slave_pos= '';
 
 --connection master
 --let $datadir= `SELECT @@datadir`
-RESET MASTER;
+--source include/reset_master.inc
 
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;

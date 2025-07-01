@@ -968,6 +968,7 @@ public:
       signal_relay_log_update();
     else
     {
+      DBUG_ASSERT(!opt_binlog_engine_hton);
       lock_binlog_end_pos();
       binlog_end_pos= my_b_safe_tell(&log_file);
       signal_bin_log_update();
@@ -976,6 +977,7 @@ public:
   }
   void update_binlog_end_pos(my_off_t pos)
   {
+    DBUG_ASSERT(!opt_binlog_engine_hton);
     mysql_mutex_assert_owner(&LOCK_log);
     mysql_mutex_assert_not_owner(&LOCK_binlog_end_pos);
     lock_binlog_end_pos();

@@ -5,13 +5,13 @@
 --source include/have_innodb_binlog.inc
 
 --let $datadir= `SELECT @@datadir`
-RESET MASTER;
+--source include/reset_master.inc
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 
 --let $no_checkpoint_flush= 1
---let $no_checkpoint_kill= 1
+--let no_checkpoint_kill= 1
 --source ../../suite/innodb/include/no_checkpoint_start.inc
 --let $file= query_get_value(SHOW MASTER STATUS, File, 1)
 --let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
