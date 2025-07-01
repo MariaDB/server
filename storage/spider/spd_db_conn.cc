@@ -6899,11 +6899,19 @@ int spider_db_print_item_type(
   DBUG_ENTER("spider_db_print_item_type");
   DBUG_PRINT("info",("spider COND type=%d", item->type()));
 
-  if (item->type() == Item::REF_ITEM &&
-      ((Item_ref*)item)->ref_type() == Item_ref::DIRECT_REF)
+  if (item->type() == Item::REF_ITEM)
   {
-    item= item->real_item();
-    DBUG_PRINT("info",("spider new COND type=%d", item->type()));
+    const auto rtype= ((Item_ref*)item)->ref_type();
+    /* Fixes MDEV-32907 for gbh */
+    if (rtype == Item_ref::AGGREGATE_REF && !str)
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+    /* Allows MDEV-32907 case to work for sh */
+    else if (rtype == Item_ref::AGGREGATE_REF ||
+             rtype == Item_ref::DIRECT_REF)
+    {
+      item= item->real_item();
+      DBUG_PRINT("info", ("spider new COND type=%d", item->type()));
+    }
   }
   switch (item->type())
   {
@@ -7109,6 +7117,10 @@ int spider_db_open_item_ident(
   int error_num, field_name_length;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_db_open_item_ident");
+  /* Likely tmp_field - see Item_ident::print */
+  /* TODO: find test case that covers this, if possible */
+  if (!str && (!item_ident->field_name.str || !item_ident->field_name.str[0]))
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   if (
     item_ident->cached_field_index != NO_CACHED_FIELD_INDEX &&
     item_ident->cached_table
