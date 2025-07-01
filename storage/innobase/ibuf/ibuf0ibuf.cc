@@ -1855,12 +1855,17 @@ corrupted:
 	return true;
 }
 
-/*********************************************************************//**
-Removes a page from the free list and frees it to the fsp system. */
-static void ibuf_remove_free_page()
+/** Removes a page from the free list and frees it to the fsp system.
+@param all Free all freed page. This should be useful only during slow
+shutdown
+@return error code when InnoDB fails to free the page
+@retval DB_SUCCESS_LOCKED_REC if all free pages are freed
+@retval DB_SUCCESS if page is freed */
+static dberr_t ibuf_remove_free_page(bool all = false)
 {
 	mtr_t	mtr;
 	page_t*	header_page;
+	dberr_t err = DB_SUCCESS;
 
 	log_free_check();
 
@@ -1876,17 +1881,17 @@ static void ibuf_remove_free_page()
 	mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
 	mysql_mutex_lock(&ibuf_mutex);
 
-	if (!header_page || !ibuf_data_too_much_free()) {
+	if (!header_page || (!all && !ibuf_data_too_much_free())) {
 early_exit:
 		mysql_mutex_unlock(&ibuf_mutex);
 		mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
-
+exit:
 		ibuf_mtr_commit(&mtr);
 
-		return;
+		return err;
 	}
 
-	buf_block_t* root = ibuf_tree_root_get(&mtr);
+	buf_block_t* root = ibuf_tree_root_get(&mtr, &err);
 
 	if (UNIV_UNLIKELY(!root)) {
 		goto early_exit;
@@ -1897,7 +1902,10 @@ early_exit:
 					       + PAGE_BTR_IBUF_FREE_LIST
 					       + root->page.frame).page;
 
+	/* If all the freed pages are removed during slow shutdown
+	then exit early with DB_SUCCESS_LOCKED_REC */
 	if (page_no >= fil_system.sys_space->free_limit) {
+		err = DB_SUCCESS_LOCKED_REC;
 		goto early_exit;
 	}
 
@@ -1919,7 +1927,7 @@ early_exit:
 	compile_time_assert(IBUF_SPACE_ID == 0);
 	const page_id_t	page_id{IBUF_SPACE_ID, page_no};
 	buf_block_t* bitmap_page = nullptr;
-	dberr_t err = fseg_free_page(
+	err = fseg_free_page(
 		header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
 		fil_system.sys_space, page_no, &mtr);
 
@@ -1964,7 +1972,7 @@ func_exit:
 		buf_page_free(fil_system.sys_space, page_no, &mtr);
 	}
 
-	ibuf_mtr_commit(&mtr);
+        goto exit;
 }
 
 /***********************************************************************//**
@@ -2433,7 +2441,9 @@ ATTRIBUTE_COLD ulint ibuf_contract()
 		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
-
+		/* Remove all free page from free list and
+		frees it to system tablespace */
+		while (ibuf_remove_free_page(true) == DB_SUCCESS);
 		return(0);
 	}
 
