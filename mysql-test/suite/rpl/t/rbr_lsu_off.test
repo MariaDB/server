@@ -1,0 +1,35 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-33957 UPDATE fails on replica replicating blob virtual column in
+--echo #            NOBLOB mode when replica logging is off
+--echo #
+
+--connection slave
+select @@log_slave_updates;
+--connection master
+set binlog_row_image= 'NOBLOB';
+create table t (
+  c int primary key, d int,
+  i blob generated always as (c), key k(i)) engine=innodb;
+insert into t (c) values (1);
+update t set d= 0;
+--sync_slave_with_master
+
+--connection master
+drop table t;
+create table t (
+  c int primary key, d int,
+  i blob generated always as (c), key k(i)) engine=innodb
+  partition by key (c) partitions 2;
+insert into t (c) values (1);
+update t set d= 0;
+--sync_slave_with_master
+
+--connection master
+drop table t;
+
+--source include/rpl_end.inc
