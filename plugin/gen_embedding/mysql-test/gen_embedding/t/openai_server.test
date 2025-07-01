@@ -3,6 +3,8 @@ source include/have_gen_embedding.inc;
 source $HOME/openai_api_key.inc;
 --enable_query_log
 
+# This file contains tests that use the actual OpenAI API endpoint (instead of our mockup server)
+
 if (!$GEN_EMBEDDING_OPENAI_PLUGIN) {
   skip GEN_EMBEDDING_OPENAI_PLUGIN is not set;
 }
@@ -37,7 +39,8 @@ select vec_totext(generate_embedding_openai(doc, model)) is null as is_null from
 
 drop table t1;
 
-# Test that a wrong API key does not crash the server
+# Test that an error HTTP response code from OpenAI is handled correctly
+# The error might be caused by a wrong api key, which is tested here
 
 set generate_embedding_openai_api_key="wrong-api-key";
 
