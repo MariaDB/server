@@ -1460,6 +1460,7 @@ group_by_handler *spider_create_group_by_handler(
     goto skip_free_table_holder;
   }
   memset(dbton_bitmap, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
+  /* Find all backends used by the first table. */
   for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];
@@ -1490,6 +1491,7 @@ group_by_handler *spider_create_group_by_handler(
       DBUG_PRINT("info",("spider can not add a table"));
       goto skip_free_table_holder;
     }
+    /* Find all backends used by the current table */
     memset(dbton_bitmap_tmp, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
     for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
     {
@@ -1501,6 +1503,7 @@ group_by_handler *spider_create_group_by_handler(
         spider_set_bit(dbton_bitmap_tmp, dbton_id);
       }
     }
+    /* Intersect to get common backends used by all tables (so far) */
     for (roop_count = 0;
       roop_count < spider_bitmap_size(SPIDER_DBTON_SIZE); ++roop_count)
     {
