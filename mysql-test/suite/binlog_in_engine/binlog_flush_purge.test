@@ -1,7 +1,7 @@
 --source include/have_binlog_format_row.inc
 --source include/have_innodb_binlog.inc
 
-RESET MASTER;
+--source include/reset_master.inc
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
@@ -51,7 +51,7 @@ EOF
 eval SHOW BINLOG EVENTS IN '$file' LIMIT 1;
 
 
-RESET MASTER;
+--source include/reset_master.inc
 --let $binlog_name= binlog-000001.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
