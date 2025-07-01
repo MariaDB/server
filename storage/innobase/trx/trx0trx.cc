@@ -1133,6 +1133,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
   ut_ad(!read_only);
   trx_rseg_t *rseg= rsegs.m_redo.rseg;
   trx_undo_t *&undo= rsegs.m_redo.undo;
+  binlog_oob_context *binlog_ctx= nullptr;
   if (UNIV_LIKELY(undo != nullptr))
   {
     MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
@@ -1174,7 +1175,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
       trx_sys.assign_new_trx_no(this);
 
     /* Include binlog data in the commit record, if any. */
-    innodb_binlog_trx(this, mtr);
+    binlog_ctx= innodb_binlog_trx(this, mtr);
 
     UT_LIST_REMOVE(rseg->undo_list, undo);
     /* Change the undo log segment state from TRX_UNDO_ACTIVE, to
@@ -1189,6 +1190,7 @@ inline void trx_t::write_serialisation_history(mtr_t *mtr)
     rseg->release();
   mtr->commit();
   commit_lsn= undo_no || !xid.is_null() ? mtr->commit_lsn() : 0;
+  innodb_binlog_post_commit(mtr, binlog_ctx);
 }
 
 /********************************************************************
