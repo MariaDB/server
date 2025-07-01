@@ -1548,9 +1548,18 @@ struct handlerton
   /* Optional implementation of binlog in the engine. */
   bool (*binlog_init)(size_t binlog_size, const char *directory);
   /* Binlog an event group that doesn't go through commit_ordered. */
+  bool (*binlog_write_direct_ordered)(IO_CACHE *cache,
+                              handler_binlog_event_group_info *binlog_info,
+                              const rpl_gtid *gtid);
   bool (*binlog_write_direct)(IO_CACHE *cache,
                               handler_binlog_event_group_info *binlog_info,
                               const rpl_gtid *gtid);
+  /*
+    Called for the last transaction (only) in a binlog group commit, with
+    no locks being held.
+  */
+  void (*binlog_group_commit_ordered)(THD *thd,
+                               handler_binlog_event_group_info *binlog_info);
   /*
     Binlog parts of large transactions out-of-band, in different chunks in the
     binlog as the transaction executes. This limits the amount of data that
@@ -1558,8 +1567,10 @@ struct handlerton
     a pointer location that the engine can set to maintain its own context
     for the out-of-band data.
    */
-  bool (*binlog_oob_data)(THD *thd, const unsigned char *data, size_t data_len,
-                          void **engine_data);
+  bool (*binlog_oob_data_ordered)(THD *thd, const unsigned char *data,
+                                  size_t data_len, void **engine_data);
+  bool (*binlog_oob_data)(THD *thd, const unsigned char *data,
+                          size_t data_len, void **engine_data);
   /*
     Call to reset (for new transactions) the engine_data from
     binlog_oob_data(). Can also change the pointer to point to different data
@@ -1568,8 +1579,15 @@ struct handlerton
   void (*binlog_oob_reset)(THD *thd, void **engine_data);
   /* Call to allow engine to release the engine_data from binlog_oob_data(). */
   void (*binlog_oob_free)(THD *thd, void *engine_data);
-  /* Obtain an object to allow reading from the binlog. */
-  handler_binlog_reader * (*get_binlog_reader)();
+  /*
+    Obtain an object to allow reading from the binlog.
+    The boolean argument wait_durable is set to true to require that
+    transactions be durable before they can be read and returned from the
+    reader. This is used to make replication crash-safe without requiring
+    durability; this way, if the master crashes, when it comes back up the
+    slave will not be ahead and replication will not diverge.
+  */
+  handler_binlog_reader * (*get_binlog_reader)(bool wait_durable);
   /*
     Obtain the current position in the binlog.
     Used to support legacy SHOW MASTER STATUS.
@@ -5931,6 +5949,12 @@ public:
   };
   virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
   virtual bool data_available()= 0;
+  /*
+    Wait for data to be available to read, for kill, or for timeout.
+    Returns true in case of timeout reached, false otherwise.
+    Caller should check for kill before calling again (to avoid busy-loop).
+  */
+  virtual bool wait_available(THD *thd, const struct timespec *abstime) = 0;
   /*
     This initializes the current read position to the point of the slave GTID
     position passed in as POS. It is permissible to start at a position a bit

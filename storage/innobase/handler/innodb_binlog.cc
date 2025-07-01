@@ -21,6 +21,14 @@ this program; if not, write to the Free Software Foundation, Inc.,
 InnoDB implementation of binlog.
 *******************************************************/
 
+/*
+  Need MYSQL_SERVER defined to be able to use THD_ENTER_COND from sql_class.h
+  to make my_cond_wait() killable.
+*/
+#define MYSQL_SERVER 1
+#include <my_global.h>
+#include "sql_class.h"
+
 #include "ut0compr_int.h"
 #include "innodb_binlog.h"
 #include "mtr0log.h"
@@ -37,6 +45,7 @@ InnoDB implementation of binlog.
 
 static int innodb_binlog_inited= 0;
 
+pending_lsn_fifo ibb_pending_lsn_fifo;
 uint32_t innodb_binlog_size_in_pages;
 const char *innodb_binlog_directory;
 
@@ -118,7 +127,15 @@ struct binlog_oob_context {
 
   bool binlog_node(uint32_t node, uint64_t new_idx,
                    uint32_t left_node, uint32_t right_node,
-                   chunk_data_oob *oob_data, LF_PINS *pins);
+                   chunk_data_oob *oob_data, LF_PINS *pins, mtr_t *mtr);
+
+  /*
+    Pending binlog write for the ibb_pending_lsn_fifo.
+    pending_file_no is ~0 when no write is pending.
+  */
+  uint64_t pending_file_no;
+  uint64_t pending_offset;
+  lsn_t pending_lsn;
 
   uint64_t first_node_file_no;
   uint64_t first_node_offset;
@@ -223,12 +240,12 @@ class ha_innodb_binlog_reader : public handler_binlog_reader {
   innodb_binlog_oob_reader oob_reader;
   binlog_chunk_reader::saved_position saved_commit_pos;
 
-  /* Buffer to hold a page read directly from the binlog file. */
-  uchar *page_buf;
   /* Out-of-band data to read after commit record, if any. */
   uint64_t oob_count;
   uint64_t oob_last_file_no;
   uint64_t oob_last_offset;
+  /* Buffer to hold a page read directly from the binlog file. */
+  uchar *page_buf;
   /* Keep track of pending bytes in the rd_buf. */
   uint32_t rd_buf_len;
   uint32_t rd_buf_sofar;
@@ -241,13 +258,16 @@ private:
   int read_data(uchar *buf, uint32_t len);
 
 public:
-  ha_innodb_binlog_reader(uint64_t file_no= 0, uint64_t offset= 0);
+  ha_innodb_binlog_reader(bool wait_durable, uint64_t file_no= 0,
+                          uint64_t offset= 0);
   ~ha_innodb_binlog_reader();
   virtual int read_binlog_data(uchar *buf, uint32_t len) final;
   virtual bool data_available() final;
+  virtual bool wait_available(THD *thd, const struct timespec *abstime) final;
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
   virtual int init_legacy_pos(const char *filename, ulonglong offset) final;
+  void seek_internal(uint64_t file_no, uint64_t offset);
 };
 
 
@@ -1160,8 +1180,11 @@ static void
 innodb_binlog_init_state()
 {
   first_open_binlog_file_no= ~(uint64_t)0;
-  binlog_cur_end_offset[0].store(~(uint64_t)0, std::memory_order_relaxed);
-  binlog_cur_end_offset[1].store(~(uint64_t)0, std::memory_order_relaxed);
+  for (uint32_t i= 0; i < 4; ++i)
+  {
+    binlog_cur_end_offset[i].store(~(uint64_t)0, std::memory_order_relaxed);
+    binlog_cur_durable_offset[i].store(~(uint64_t)0, std::memory_order_relaxed);
+  }
   last_created_binlog_file_no= ~(uint64_t)0;
   earliest_binlog_file_no= ~(uint64_t)0;
   total_binlog_used_size= 0;
@@ -1211,11 +1234,14 @@ binlog_sync_initial()
   ut_a(lf_pins);
   mtr.start();
   fsp_binlog_write_rec(&dummy_data, &mtr, FSP_BINLOG_TYPE_FILLER, lf_pins);
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
   mtr.commit();
   lf_hash_put_pins(lf_pins);
   log_buffer_flush_to_disk(true);
   binlog_page_fifo->flush_up_to(0, 0);
   binlog_page_fifo->do_fdatasync(0);
+  ibb_pending_lsn_fifo.add_to_fifo(mtr.commit_lsn(), file_no,
+    binlog_cur_end_offset[file_no & 3].load(std::memory_order_relaxed));
 }
 
 
@@ -1380,7 +1406,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
 {
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= (uint32_t)ibb_page_size_shift;
-  const uint32_t idx= file_no & 1;
+  const uint32_t idx= file_no & 3;
   char file_name[OS_FILE_MAX_PATH];
   uint32_t p_0, p_1, p_2, last_nonempty;
   byte *p, *page_end;
@@ -1415,7 +1441,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   if (out_header_data->is_empty) {
     ret=
       fsp_binlog_open(file_name, fh, file_no, file_size, ~(uint32_t)0, nullptr);
-    binlog_cur_written_offset[idx].store(0, std::memory_order_relaxed);
+    binlog_cur_durable_offset[idx].store(0, std::memory_order_relaxed);
     binlog_cur_end_offset[idx].store(0, std::memory_order_relaxed);
     return (ret ? -1 : 0);
   }
@@ -1498,9 +1524,19 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   ret= fsp_binlog_open(file_name, fh, file_no, file_size,
                        *out_page_no, partial_page);
   uint64_t pos= (*out_page_no << page_size_shift) | *out_pos_in_page;
-  binlog_cur_written_offset[idx].store(pos, std::memory_order_relaxed);
+  binlog_cur_durable_offset[idx].store(pos, std::memory_order_relaxed);
   binlog_cur_end_offset[idx].store(pos, std::memory_order_relaxed);
   return ret ? -1 : 1;
+}
+
+
+static void
+binlog_discover_init(uint64_t file_no, uint64_t interval)
+{
+  active_binlog_file_no.store(file_no, std::memory_order_release);
+  ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
+  current_binlog_state_interval= interval;
+  ibb_pending_lsn_fifo.init(file_no);
 }
 
 
@@ -1546,9 +1582,7 @@ innodb_binlog_discover()
       file_no= binlog_files.last_file_no;
       if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
         return -1;
-      active_binlog_file_no.store(file_no, std::memory_order_release);
-      ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
-      current_binlog_state_interval= innodb_binlog_state_interval;
+      binlog_discover_init(file_no, innodb_binlog_state_interval);
       sql_print_warning("Binlog number %llu could no be opened. Starting a new "
                         "binlog file from number %llu",
                         binlog_files.last_file_no, (file_no + 1));
@@ -1561,9 +1595,7 @@ innodb_binlog_discover()
       if (ibb_record_in_file_hash(file_no, header.oob_ref_file_no,
                                   header.xa_ref_file_no))
         return -1;
-      active_binlog_file_no.store(file_no, std::memory_order_release);
-      ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
-      current_binlog_state_interval= header.diff_state_interval;
+      binlog_discover_init(file_no, header.diff_state_interval);
       binlog_cur_page_no= page_no;
       binlog_cur_page_offset= pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1584,9 +1616,7 @@ innodb_binlog_discover()
         file_no= binlog_files.last_file_no;
         if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
           return -1;
-        active_binlog_file_no.store(file_no, std::memory_order_release);
-        ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
-        current_binlog_state_interval= innodb_binlog_state_interval;
+        binlog_discover_init(file_no, innodb_binlog_state_interval);
         binlog_cur_page_no= page_no;
         binlog_cur_page_offset= pos_in_page;
         sql_print_warning("Binlog number %llu could not be opened, starting "
@@ -1598,9 +1628,7 @@ innodb_binlog_discover()
       if (ibb_record_in_file_hash(file_no, header.oob_ref_file_no,
                                   header.xa_ref_file_no))
         return -1;
-      active_binlog_file_no.store(file_no, std::memory_order_release);
-      ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
-      current_binlog_state_interval= header.diff_state_interval;
+      binlog_discover_init(file_no, header.diff_state_interval);
       binlog_cur_page_no= prev_page_no;
       binlog_cur_page_offset= prev_pos_in_page;
       ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1614,9 +1642,7 @@ innodb_binlog_discover()
     file_no= binlog_files.last_file_no;
     if (ibb_record_in_file_hash(file_no, ~(uint64_t)0, ~(uint64_t)0))
       return -1;
-    active_binlog_file_no.store(file_no, std::memory_order_release);
-    ibb_file_hash.earliest_oob_ref.store(file_no, std::memory_order_relaxed);
-    current_binlog_state_interval= innodb_binlog_state_interval;
+    binlog_discover_init(file_no, innodb_binlog_state_interval);
     binlog_cur_page_no= page_no;
     binlog_cur_page_offset= pos_in_page;
     ib::info() << "Continuing binlog number " << file_no << " from position "
@@ -1629,6 +1655,7 @@ innodb_binlog_discover()
   earliest_binlog_file_no= 0;
   ibb_file_hash.earliest_oob_ref.store(0, std::memory_order_relaxed);
   total_binlog_used_size= 0;
+  ibb_pending_lsn_fifo.init(0);
   current_binlog_state_interval= innodb_binlog_state_interval;
   ib::info() << "Starting a new binlog from file number " << file_no << ".";
   return 0;
@@ -1721,6 +1748,10 @@ innodb_binlog_prealloc_thread()
       /* If we created the initial tablespace file, make it the active one. */
       ut_ad(active < ~(uint64_t)0 || last_created == 0);
       if (active == ~(uint64_t)0) {
+        binlog_cur_end_offset[last_created & 3].
+          store(0, std::memory_order_release);
+        binlog_cur_durable_offset[last_created & 3]
+          .store(0, std::memory_order_release);
         active_binlog_file_no.store(last_created, std::memory_order_relaxed);
         ibb_file_hash.earliest_oob_ref.store(last_created,
                                              std::memory_order_relaxed);
@@ -1742,8 +1773,6 @@ innodb_binlog_prealloc_thread()
       fsp_binlog_tablespace_close(active - 1);
       mysql_mutex_lock(&active_binlog_mutex);
       first_open_binlog_file_no= first_open + 1;
-      binlog_cur_end_offset[first_open & 1].store(~(uint64_t)0,
-                                                  std::memory_order_relaxed);
       continue;  /* Re-start loop after releasing/reacquiring mutex. */
     }
 
@@ -2089,7 +2118,8 @@ binlog_state_recover()
   }
   my_close(file, MYF(0));
 
-  ha_innodb_binlog_reader reader(active, page_no << ibb_page_size_shift);
+  ha_innodb_binlog_reader reader(false, active,
+                                 page_no << ibb_page_size_shift);
   return binlog_recover_gtid_state(&state, &reader);
 }
 
@@ -2110,6 +2140,7 @@ alloc_oob_context(uint32 list_length= 10)
       ut_free(c);
       return nullptr;
     }
+    c->pending_file_no= ~(uint64_t)0;
     c->node_list_alloc_len= list_length;
     c->node_list_len= 0;
     c->pending_refcount= false;
@@ -2132,12 +2163,17 @@ innodb_binlog_write_cache(IO_CACHE *cache,
   chunk_data_cache chunk_data(cache, binlog_info);
 
   fsp_binlog_write_rec(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT, c->lf_pins);
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+  c->pending_file_no= file_no;
+  c->pending_offset=
+    binlog_cur_end_offset[file_no & 3].load(std::memory_order_relaxed);
 }
 
 
 static inline void
 reset_oob_context(binlog_oob_context *c)
 {
+  c->pending_file_no= ~(uint64_t)0;
   if (c->pending_refcount)
   {
     ibb_file_hash.oob_ref_dec(c->first_node_file_no, c->lf_pins);
@@ -2237,8 +2273,8 @@ ensure_oob_context(void **engine_data, uint32_t needed_len)
   are purged.
 */
 bool
-innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
-               void **engine_data)
+innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
+                          void **engine_data)
 {
   binlog_oob_context *c= (binlog_oob_context *)*engine_data;
   if (!c)
@@ -2246,6 +2282,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
   if (UNIV_UNLIKELY(!c))
     return true;
 
+  mtr_t mtr;
   uint32_t i= c->node_list_len;
   uint64_t new_idx= i==0 ? 0 : c->node_list[i-1].node_index + 1;
   if (i >= 2 && c->node_list[i-2].height == c->node_list[i-1].height)
@@ -2256,7 +2293,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
        c->node_list[i-2].file_no, c->node_list[i-2].offset,
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
        (byte *)data, data_len);
-    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data, c->lf_pins))
+    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data, c->lf_pins, &mtr))
       return true;
     c->node_list_len= i - 1;
   }
@@ -2271,7 +2308,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
        0, 0, /* NULL left child signifies a leaf */
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
        (byte *)data, data_len);
-    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data, c->lf_pins))
+    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data, c->lf_pins, &mtr))
       return true;
     c->node_list_len= i + 1;
   }
@@ -2281,7 +2318,7 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
     binlog_oob_context::chunk_data_oob oob_data
       (new_idx, 0, 0, 0, 0, (byte *)data, data_len);
     if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data,
-                       c->lf_pins))
+                       c->lf_pins, &mtr))
       return true;
     c->first_node_file_no= c->node_list[i].file_no;
     c->first_node_offset= c->node_list[i].offset;
@@ -2290,6 +2327,22 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
       ibb_file_hash.oob_ref_inc(c->first_node_file_no, c->lf_pins);
   }
 
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+  c->pending_file_no= file_no;
+  c->pending_offset=
+    binlog_cur_end_offset[file_no & 3].load(std::memory_order_relaxed);
+  innodb_binlog_post_commit(&mtr, c);
+  return false;
+}
+
+
+bool
+innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
+                  void **engine_data)
+{
+  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  if (UNIV_LIKELY(c != nullptr))
+    ibb_pending_lsn_fifo.record_commit(c);
   return false;
 }
 
@@ -2302,15 +2355,15 @@ innodb_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
 bool
 binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
                                 uint32_t left_node, uint32_t right_node,
-                                chunk_data_oob *oob_data, LF_PINS *pins)
+                                chunk_data_oob *oob_data, LF_PINS *pins,
+                                mtr_t *mtr)
 {
   uint32_t new_height=
     left_node == right_node ? 1 : 1 + node_list[left_node].height;
-  mtr_t mtr;
-  mtr.start();
+  mtr->start();
   std::pair<uint64_t, uint64_t> new_file_no_offset=
-    fsp_binlog_write_rec(oob_data, &mtr, FSP_BINLOG_TYPE_OOB_DATA, pins);
-  mtr.commit();
+    fsp_binlog_write_rec(oob_data, mtr, FSP_BINLOG_TYPE_OOB_DATA, pins);
+  mtr->commit();
   node_list[node].file_no= new_file_no_offset.first;
   node_list[node].offset= new_file_no_offset.second;
   node_list[node].node_index= new_idx;
@@ -2560,9 +2613,12 @@ again:
 }
 
 
-ha_innodb_binlog_reader::ha_innodb_binlog_reader(uint64_t file_no,
+ha_innodb_binlog_reader::ha_innodb_binlog_reader(bool wait_durable,
+                                                 uint64_t file_no,
                                                  uint64_t offset)
-  : rd_buf_len(0), rd_buf_sofar(0), state(ST_read_next_event_group)
+  : chunk_rd(wait_durable ?
+             binlog_cur_durable_offset : binlog_cur_end_offset),
+    rd_buf_len(0), rd_buf_sofar(0), state(ST_read_next_event_group)
 {
   page_buf= (uchar *)ut_malloc(ibb_page_size, mem_key_binlog);
   chunk_rd.set_page_buf(page_buf);
@@ -2738,10 +2794,108 @@ ha_innodb_binlog_reader::data_available()
 }
 
 
-handler_binlog_reader *
-innodb_get_binlog_reader()
+bool
+ha_innodb_binlog_reader::wait_available(THD *thd,
+                                        const struct timespec *abstime)
 {
-  return new ha_innodb_binlog_reader();
+  bool is_timeout= false;
+  bool pending_sync_lsn= 0;
+  bool did_enter_cond= false;
+  PSI_stage_info old_stage;
+
+  if (data_available())
+    return false;
+
+  mysql_mutex_lock(&binlog_durable_mutex);
+  for (;;)
+  {
+    /* Process anything that has become durable since we last looked. */
+    lsn_t durable_lsn= log_sys.get_flushed_lsn(std::memory_order_relaxed);
+    ibb_pending_lsn_fifo.process_durable_lsn(durable_lsn);
+
+    /* Check if there is anything more pending to be made durable. */
+    if (!ibb_pending_lsn_fifo.is_empty())
+    {
+      pending_lsn_fifo::entry &e= ibb_pending_lsn_fifo.cur_head();
+      if (durable_lsn < e.lsn)
+        pending_sync_lsn= e.lsn;
+    }
+
+    /*
+      Check if there is data available for us now.
+      As we are holding binlog_durable_mutex, active_binlog_file_no cannot
+      move during this check.
+    */
+    uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+    uint64_t durable_offset=
+      binlog_cur_durable_offset[active & 3].load(std::memory_order_relaxed);
+    if (chunk_rd.is_before_pos(active, durable_offset))
+      break;
+
+    if (pending_sync_lsn != 0 && ibb_pending_lsn_fifo.flushing_lsn == 0)
+    {
+      /*
+        There is no data available for us now, but there is data that will be
+        available when the InnoDB redo log has been durably flushed to disk.
+        So now we will do such a sync (unless another thread is already doing
+        it), so we can proceed getting more data out.
+      */
+      ibb_pending_lsn_fifo.flushing_lsn= pending_sync_lsn;
+      mysql_mutex_unlock(&binlog_durable_mutex);
+      log_write_up_to(pending_sync_lsn, true);
+      mysql_mutex_lock(&binlog_durable_mutex);
+      ibb_pending_lsn_fifo.flushing_lsn= pending_sync_lsn= 0;
+      /* Need to loop back to repeat all checks, after releasing the mutex. */
+      continue;
+    }
+
+    if (thd && thd_kill_level(thd))
+      break;
+
+    if (thd && !did_enter_cond)
+    {
+      THD_ENTER_COND(thd, &binlog_durable_cond, &binlog_durable_mutex,
+                     &stage_master_has_sent_all_binlog_to_slave, &old_stage);
+      did_enter_cond= true;
+    }
+    if (abstime)
+    {
+      int res= mysql_cond_timedwait(&binlog_durable_cond,
+                                    &binlog_durable_mutex,
+                                    abstime);
+      if (res == ETIMEDOUT)
+      {
+        is_timeout= true;
+        break;
+      }
+    }
+    else
+      mysql_cond_wait(&binlog_durable_cond, &binlog_durable_mutex);
+  }
+  /*
+    If there is pending binlog data to durably sync to the redo log, but we
+    did not do this sync ourselves, then signal another thread (if any) to
+    wakeup and sync. This is necessary to not lose the sync wakeup signal.
+
+    (We use wake-one rather than wake-all for signalling a pending redo log
+    sync to avoid wakeup-storm).
+  */
+  if (pending_sync_lsn != 0)
+    mysql_cond_signal(&binlog_durable_cond);
+
+  if (did_enter_cond)
+    THD_EXIT_COND(thd, &old_stage);
+  else
+    mysql_mutex_unlock(&binlog_durable_mutex);
+
+  return is_timeout;
+}
+
+
+handler_binlog_reader *
+innodb_get_binlog_reader(bool wait_durable)
+{
+  return new ha_innodb_binlog_reader(wait_durable);
 }
 
 
@@ -2786,7 +2940,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
   {
     uint64_t active= active2;
     uint64_t end_offset=
-      binlog_cur_end_offset[file_no&1].load(std::memory_order_acquire);
+      binlog_cur_end_offset[file_no & 3].load(std::memory_order_acquire);
     fsp_binlog_page_entry *block;
 
     if (file_no + 1 >= active &&
@@ -2924,7 +3078,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
       return -1;
     }
     {
-      binlog_chunk_reader chunk_reader;
+      binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
       chunk_reader.set_page_buf(page_buffer);
       chunk_reader.seek(file_no, 0);
       err= chunk_reader.get_file_header(&header);
@@ -3077,6 +3231,178 @@ ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
 
 
 void
+ha_innodb_binlog_reader::seek_internal(uint64_t file_no, uint64_t offset)
+{
+  chunk_rd.seek(file_no, offset);
+  chunk_rd.skip_partial(true);
+  cur_file_no= chunk_rd.current_file_no();
+  cur_file_pos= chunk_rd.current_pos();
+}
+
+
+void
+ibb_wait_durable_offset(uint64_t file_no, uint64_t wait_offset)
+{
+  uint64_t dur_offset=
+    binlog_cur_durable_offset[file_no & 3].load(std:: memory_order_relaxed);
+  ha_innodb_binlog_reader reader(true, file_no, dur_offset);
+  for (;;)
+  {
+    reader.wait_available(nullptr, nullptr);
+    dur_offset=
+      binlog_cur_durable_offset[file_no & 3].load(std:: memory_order_relaxed);
+    if (dur_offset >= wait_offset)
+      break;
+    reader.seek_internal(file_no, dur_offset);
+  }
+}
+
+
+pending_lsn_fifo::pending_lsn_fifo()
+  : flushing_lsn(0), cur_file_no(~(uint64_t)0), head(0), tail(0)
+{
+}
+
+
+void
+pending_lsn_fifo::init(uint64_t start_file_no)
+{
+  mysql_mutex_lock(&binlog_durable_mutex);
+  ut_ad(cur_file_no == ~(uint64_t)0);
+  cur_file_no= start_file_no;
+  mysql_mutex_unlock(&binlog_durable_mutex);
+}
+
+
+void
+pending_lsn_fifo::reset()
+{
+  mysql_mutex_lock(&binlog_durable_mutex);
+  cur_file_no= ~(uint64_t)0;
+  mysql_mutex_unlock(&binlog_durable_mutex);
+}
+
+
+bool
+pending_lsn_fifo::process_durable_lsn(lsn_t lsn)
+{
+  mysql_mutex_assert_owner(&binlog_durable_mutex);
+  ut_ad(cur_file_no != ~(uint64_t)0);
+
+  entry *got= nullptr;
+  for (;;)
+  {
+    if (is_empty())
+      break;
+    entry &e= cur_tail();
+    if (lsn < e.lsn)
+      break;
+    got= &e;
+    drop_tail();
+  }
+  if (got)
+  {
+    uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
+    if (got->file_no + 1 >= active)
+      binlog_cur_durable_offset[got->file_no & 3].store
+        (got->offset, std::memory_order_relaxed);
+    /*
+      If we moved the durable point to the next file_no, mark the prior
+      file_no as now fully durable.
+      Since we only ever have at most two binlog tablespaces open, and since
+      we make file_no=N fully durable (by calling into this function) before
+      pre-allocating N+2, we can only ever move ahead one file_no at a time
+      here.
+    */
+    if (cur_file_no != got->file_no)
+    {
+      ut_ad(got->file_no == cur_file_no + 1);
+      binlog_cur_durable_offset[cur_file_no & 3].store(
+        binlog_cur_end_offset[cur_file_no & 3].load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+      cur_file_no= got->file_no;
+    }
+    mysql_cond_broadcast(&binlog_durable_cond);
+    return true;
+  }
+  return false;
+}
+
+
+/*
+  After a binlog commit, put the LSN and the corresponding binlog position
+  into the ibb_pending_lsn_fifo. We do this here (rather than immediately in
+  innodb_binlog_post_commit()), so that we can delay it until we are no longer
+  holding more critical locks that could block other writers. As we will be
+  contending with readers here on binlog_durable_mutex.
+*/
+void
+pending_lsn_fifo::record_commit(binlog_oob_context *c)
+{
+  uint64_t pending_file_no= c->pending_file_no;
+  if (pending_file_no == ~(uint64_t)0)
+    return;
+  c->pending_file_no= ~(uint64_t)0;
+  lsn_t pending_lsn= c->pending_lsn;
+  uint64_t pending_offset= c->pending_offset;
+  add_to_fifo(pending_lsn, pending_file_no, pending_offset);
+}
+
+
+void
+pending_lsn_fifo::add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset)
+{
+  mysql_mutex_lock(&binlog_durable_mutex);
+  /*
+    The record_commit() operation is done outside of critical locks for
+    scalabitily, so can occur out-of-order. So only insert the new entry if
+    it is newer than any previously inserted.
+  */
+  if (is_empty() || lsn > cur_tail().lsn)
+  {
+    if (is_full())
+    {
+      /*
+        When the fifo is full, we just overwrite the head with a newer LSN.
+        This way, whenever _some_ LSN gets synced durably to disk, we will
+        always be able to make some progress and clear some fifo entries. And
+        when this latest LSN gets eventually synced, any overwritten entry
+        will progress as well.
+      */
+    }
+    else
+    {
+      /*
+        Insert a new head.
+        Note that we make the fifo size a power-of-two (2 <<fixed_size_log2).
+        So if we wrap around uint32_t here, the outcome is still valid.
+      */
+      new_head();
+    }
+    entry &h= cur_head();
+    h.file_no= file_no;
+    h.offset= offset;
+    h.lsn= lsn;
+    /* Make an immediate check in case the LSN is already durable. */
+    bool signalled=
+      process_durable_lsn(log_sys.get_flushed_lsn(std::memory_order_relaxed));
+    if (!signalled && flushing_lsn == 0)
+    {
+      /*
+        If process_durable_lsn() did not find any new data become durable, it
+        does not broadcast a wakeup signal. But since we inserted a new entry
+        in the fifo, we still want to signal _one_ other thread to potentially
+        wake up and start a redo log sync to make the new entry durable, unless
+        a thread is already doing such redo log sync.
+      */
+      mysql_cond_signal(&binlog_durable_cond);
+    }
+  }
+  mysql_mutex_unlock(&binlog_durable_mutex);
+}
+
+
+void
 ibb_get_filename(char name[FN_REFLEN], uint64_t file_no)
 {
   static_assert(BINLOG_NAME_MAX_LEN <= FN_REFLEN,
@@ -3089,7 +3415,7 @@ extern "C" void binlog_get_cache(THD *, uint64_t, uint64_t, IO_CACHE **,
                                  handler_binlog_event_group_info **,
                                  const rpl_gtid **);
 
-void
+binlog_oob_context *
 innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
 {
   IO_CACHE *cache;
@@ -3098,19 +3424,32 @@ innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
   uint64_t file_no, pos;
 
   if (!trx->mysql_thd)
-    return;
+    return nullptr;
   innodb_binlog_status(&file_no, &pos);
   binlog_get_cache(trx->mysql_thd, file_no, pos, &cache, &binlog_info, &gtid);
   if (UNIV_LIKELY(binlog_info != nullptr) &&
       UNIV_LIKELY(binlog_info->gtid_offset > 0)) {
     binlog_diff_state.update_nolock(gtid);
     innodb_binlog_write_cache(cache, binlog_info, mtr);
+    return (binlog_oob_context *)binlog_info->engine_ptr;
+  }
+  return nullptr;
+}
+
+
+void
+innodb_binlog_post_commit(mtr_t *mtr, binlog_oob_context *c)
+{
+  if (c)
+  {
+    c->pending_lsn= mtr->commit_lsn();
+    ut_ad(c->pending_lsn != 0);
   }
 }
 
 
 bool
-innobase_binlog_write_direct(IO_CACHE *cache,
+innobase_binlog_write_direct_ordered(IO_CACHE *cache,
                              handler_binlog_event_group_info *binlog_info,
                              const rpl_gtid *gtid)
 {
@@ -3120,9 +3459,45 @@ innobase_binlog_write_direct(IO_CACHE *cache,
   mtr.start();
   innodb_binlog_write_cache(cache, binlog_info, &mtr);
   mtr.commit();
-  /* ToDo: Should we sync the log here? Maybe depending on an extra bool parameter? */
+  innodb_binlog_post_commit(&mtr,
+                            (binlog_oob_context *)binlog_info->engine_ptr);
   /* ToDo: Presumably innodb_binlog_write_cache() should be able to fail in some cases? Then return any such error to the caller. */
   return false;
+}
+
+
+bool
+innobase_binlog_write_direct(IO_CACHE *cache,
+                             handler_binlog_event_group_info *binlog_info,
+                             const rpl_gtid *gtid)
+{
+  binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+  if (UNIV_LIKELY(c != nullptr))
+  {
+    if (srv_flush_log_at_trx_commit & 1)
+      log_write_up_to(c->pending_lsn, true);
+    ibb_pending_lsn_fifo.record_commit(c);
+  }
+  return false;
+}
+
+
+void
+ibb_group_commit(THD *thd, handler_binlog_event_group_info *binlog_info)
+{
+  binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+  if (UNIV_LIKELY(c != nullptr))
+  {
+    if (srv_flush_log_at_trx_commit & 1 && c->pending_lsn)
+    {
+      /*
+        Sync the InnoDB redo log durably to disk here for the entire group
+        commit, so that it will be available for all binlog readers.
+      */
+      log_write_up_to(c->pending_lsn, true);
+    }
+    ibb_pending_lsn_fifo.record_commit(c);
+  }
 }
 
 
@@ -3199,6 +3574,7 @@ innodb_reset_binlogs()
   /* Prevent any flushing activity while resetting. */
   binlog_page_fifo->lock_wait_for_idle();
   binlog_page_fifo->reset();
+  ibb_pending_lsn_fifo.reset();
 
   ibb_file_hash.remove_up_to(last_created_binlog_file_no, lf_pins);
 
@@ -3240,6 +3616,7 @@ innodb_reset_binlogs()
 
   /* Re-initialize empty binlog state and start the pre-alloc thread. */
   innodb_binlog_init_state();
+  ibb_pending_lsn_fifo.init(0);
   binlog_page_fifo->unlock_with_delayed_free();
   start_binlog_prealloc_thread();
   binlog_sync_initial();

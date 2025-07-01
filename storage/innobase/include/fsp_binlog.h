@@ -379,6 +379,10 @@ public:
     bool in_record;
   } s;
 
+  /* Amount of data in file, valid after fetch_current_page(). */
+  uint64_t cur_end_offset;
+  /* Length of the currently open file, valid if cur_file_handle != -1. */
+  uint64_t cur_file_length;
   /*
     After fetch_current_page(), this points into either cur_block or
     page_buffer as appropriate.
@@ -388,10 +392,12 @@ public:
   fsp_binlog_page_entry *cur_block;
   /* Buffer for reading a page directly from a tablespace file. */
   byte *page_buffer;
-  /* Amount of data in file, valid after fetch_current_page(). */
-  uint64_t cur_end_offset;
-  /* Length of the currently open file, valid if cur_file_handle != -1. */
-  uint64_t cur_file_length;
+  /*
+    Points to either binlog_cur_durable_offset, for readers that should not
+    see binlog data until it has become durable on disk; or
+    binlog_cur_end_offset otherwise.
+  */
+  std::atomic<uint64_t> * const limit_offset;
   /* Open file handle to tablespace file_no, or -1. */
   File cur_file_handle;
   /*
@@ -400,7 +406,7 @@ public:
   */
   bool skipping_partial;
 
-  binlog_chunk_reader();
+  binlog_chunk_reader(std::atomic<uint64_t> *limit_offset_);
   void set_page_buf(byte *in_page_buf) { page_buffer= in_page_buf; }
   ~binlog_chunk_reader();
 
@@ -451,6 +457,7 @@ public:
   /* Release any buffer pool page latch. */
   void release(bool release_file_page= false);
   bool data_available();
+  bool is_before_pos(uint64_t file_no, uint64_t offset);
   uint64_t current_file_no() { return s.file_no; }
   uint64_t current_pos() {
     return (s.page_no << srv_page_size_shift) + s.in_page_offset;
@@ -464,11 +471,13 @@ extern ulong ibb_page_size;
 extern uint64_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
 extern pthread_cond_t active_binlog_cond;
+extern mysql_mutex_t binlog_durable_mutex;
+extern mysql_cond_t binlog_durable_cond;
 extern std::atomic<uint64_t> active_binlog_file_no;
 extern uint64_t first_open_binlog_file_no;
 extern uint64_t last_created_binlog_file_no;
-extern std::atomic<uint64_t> binlog_cur_written_offset[2];
-extern std::atomic<uint64_t> binlog_cur_end_offset[2];
+extern std::atomic<uint64_t> binlog_cur_durable_offset[4];
+extern std::atomic<uint64_t> binlog_cur_end_offset[4];
 extern fsp_binlog_page_fifo *binlog_page_fifo;
 
 extern ibb_file_oob_refs ibb_file_hash;

@@ -2058,6 +2058,7 @@ void mtr_t::write_binlog(bool space_id, uint32_t page_no,
     m_log.close(end);
     m_log.push(static_cast<const byte*>(buf), uint32_t(size));
   }
+  m_modifications= true;
 }
 
 /** Write binlog data
