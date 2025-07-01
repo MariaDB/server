@@ -27,15 +27,17 @@
 
 static char *host, *api_key;
 
+static std::string JSON_EMBEDDING_PATH = "$.data[0].embedding";
+
 static MYSQL_THDVAR_STR(host,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
   "OpenAI API host, can be set to 'https://api.openai.com/v1/embeddings' or a custom endpoint",
-  NULL, NULL, "My Default Host"); // TODO: Change this
+  NULL, NULL, "");
 
 static MYSQL_THDVAR_STR(api_key,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
   "OpenAI API key",
-  NULL, NULL, "My Default API Key"); // TODO: Change this
+  NULL, NULL, "");
 
 static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(host),
@@ -148,9 +150,9 @@ class Item_func_gen_embedding: public Item_str_func
       goto cleanup;
     }
     curl_easy_getinfo(hnd, CURLINFO_RESPONSE_CODE, &http_response_code);
-    if (http_response_code != 200) { // TODO: Maybe the check here should be http_response_code < 200 || http_response_code >= 300
+    if (http_response_code != 200) { // The only valid response code for OpenAI API is 200
       my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
-        "Bad http response code: %lu", ME_ERROR_LOG | ME_WARNING, http_response_code); // TODO: Grab the error message from response
+        "Bad http response code: %lu", ME_ERROR_LOG | ME_WARNING, http_response_code); // TODO: We colud grab the error message from response
       goto cleanup;
     }
     curl_easy_cleanup(hnd);
@@ -178,8 +180,6 @@ cleanup:
     using Item_str_func::Item_str_func;
     bool fix_length_and_dec(THD *thd) override
     {
-      // TODO: I am grabbing the session variables here, because this is the function that has access to the THD
-      // Is there a better place to do this?
       host = THDVAR(thd, host);
       api_key = THDVAR(thd, api_key);
       uint max_dimensions = 3072; // Default to the largest embedding size
@@ -196,7 +196,6 @@ cleanup:
       }
 
       decimals= 0;
-      // TODO: What is the best way/place to do this allocation?
       MEM_ROOT *root= thd->active_stmt_arena_to_use()->mem_root;
       uint n_paths = 1;
       paths= (json_path_with_flags *) alloc_root(root, sizeof(json_path_with_flags) * n_paths);
@@ -232,7 +231,6 @@ cleanup:
   public:
     Item *create_2_arg(THD *thd, Item *arg1, Item* arg2) override
     {
-      // Specific argument parsing logic should go here ? (TODO)
       return new (thd->mem_root) Item_func_gen_embedding(thd, arg1, arg2);
     }
   };
@@ -263,8 +261,7 @@ String *Item_func_gen_embedding::read_json(String *str,
     return 0;
 
   c_path->p.types_used= JSON_PATH_KEY_NULL;
-  // TODO: This path constant needs to be defined in another place probably
-  const uchar* s_p = (const uchar*) "$.data[0].embedding";
+  const uchar* s_p = (const uchar*) JSON_EMBEDDING_PATH.c_str();
   if (s_p)
   {
     if (json_path_setup(&c_path->p,&my_charset_utf8mb3_general_ci, s_p,
@@ -324,8 +321,8 @@ String *Item_func_gen_embedding::read_json(String *str,
     return str;
   }
 
-  // if (unlikely(je.s.error))
-  //   goto error;
+  if (unlikely(je.s.error))
+    goto error;
 
   if (!not_first_value)
   {
@@ -335,12 +332,10 @@ String *Item_func_gen_embedding::read_json(String *str,
 
 
 return_ok:
-// return &tmp_js;
-// My return, result is in js
   return str;
 
 error:
-  // report_json_error(js, &je, 0);
+  report_json_error(js, &je, 0);
 return_null:
   null_value= 1;
   return 0;
@@ -355,7 +350,7 @@ int Item_func_gen_embedding::parse_vector(String *buf, json_engine_t je, CHARSET
     The vector is expected to be in binary format
     Returns 0 on success, 1 on error
   */
-   bool end_ok= false;
+  bool end_ok= false;
   if (json_scan_start(&je, cs, start, end) ||
       json_read_value(&je))
     goto error;
@@ -418,7 +413,7 @@ maria_declare_plugin(type_test)
   0,                            // Pointer to plugin deinitialization function
   0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
-  system_variables,                         // System variables
+  system_variables,             // System variables
   "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
 }
