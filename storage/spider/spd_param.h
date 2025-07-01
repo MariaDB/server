@@ -367,5 +367,6 @@ int spider_param_strict_group_by(
 );
 bool spider_param_direct_aggregate(THD *thd);
 bool spider_param_disable_group_by_handler(THD *thd);
+bool spider_param_disable_select_handler(THD *thd);
 bool spider_param_suppress_comment_ignored_warning(THD *thd);
 bool spider_param_ignore_comments(THD *thd);
