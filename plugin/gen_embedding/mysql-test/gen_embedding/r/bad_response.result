@@ -5,3 +5,7 @@ vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'))
 NULL
 Warnings:
 Warning	1	GENERATE_EMBEDDING_OPENAI: Bad http response code: 400
+set generate_embedding_openai_host="http://127.0.0.1:OPENAI_PORT/wrongjsonpath";
+select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
+vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'))
+NULL

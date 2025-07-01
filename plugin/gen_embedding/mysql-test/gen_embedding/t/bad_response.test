@@ -1,0 +1,19 @@
+source include/have_gen_embedding.inc;
+
+# This file contains tests for unexpected/bad API responses
+
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Bad http response code: 400");
+
+# Currently only checks that an HTTP error code is handled correctly,
+# without examining the response body
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/errorcode";
+select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
+
+# Test that if some element of the API response changes in the future, for example the path of the embedding
+# vector the server does not crash and a NULL value is returned
+
+--replace_result $OPENAI_PORT OPENAI_PORT
+eval set generate_embedding_openai_host="http://127.0.0.1:$OPENAI_PORT/wrongjsonpath";
+select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));

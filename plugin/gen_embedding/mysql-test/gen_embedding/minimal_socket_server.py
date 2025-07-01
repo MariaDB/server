@@ -8,6 +8,7 @@ import signal
 HOST = '127.0.0.1' # TODO: This should be configurable
 PORT = int(sys.argv[1])
 SUCCESS_FILENAME = sys.argv[2]
+WRONG_JSON_PATH_FILENAME = sys.argv[3]
 
 def get_response(filename, status_code):
     if not os.path.exists(filename):
@@ -28,6 +29,8 @@ def handle_request(request):
         elif path == "/errorcode" and method in ("GET", "POST"):
             # The response body is irreleveant for this endpoint, the tests only care about the status code
             return build_response(json.dumps({"error": "Not Found"}), 400)
+        elif path == "/wrongjsonpath" and method in ("GET", "POST"):
+            return get_response(WRONG_JSON_PATH_FILENAME, 200)
         else:
             return build_response(json.dumps({"error": "Bad API endpoint or method"}), 404)
 
@@ -61,7 +64,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         sys.exit(0)
     server_socket.listen(1)
 
-    print(f"Serving '/embeddings' on http://{HOST}:{PORT} ...")
+    print(f"Started mockup API server on http://{HOST}:{PORT} ...")
 
     while True:
         client_connection, client_address = server_socket.accept()
