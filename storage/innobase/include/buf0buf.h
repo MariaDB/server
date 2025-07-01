@@ -1582,7 +1582,7 @@ public:
   size_t flush_list_requests;
 
   TPOOL_SUPPRESS_TSAN void add_flush_list_requests(size_t size)
-  { ut_ad(size); flush_list_requests+= size; }
+  { flush_list_requests+= size; }
 private:
   static constexpr unsigned PAGE_CLEANER_IDLE= 1;
   static constexpr unsigned FLUSH_LIST_ACTIVE= 2;

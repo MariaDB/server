@@ -34,6 +34,7 @@ struct rpl_gtid;
 struct handler_binlog_event_group_info;
 class handler_binlog_reader;
 struct handler_binlog_purge_info;
+struct binlog_oob_context;
 
 
 /*
@@ -128,12 +129,64 @@ struct binlog_header_data {
 };
 
 
+/*
+  The class pending_lsn_fifo keeps track of pending LSNs - and their
+  corresponding binlog file_no/offset - that have been mtr-committed, but have
+  not yet become durable.
+
+  Used to delay sending to slaves any data that might be lost in case the
+  master crashes just after sending.
+*/
+class pending_lsn_fifo {
+  static constexpr uint32_t fixed_size_log2= 10;
+  static constexpr uint32_t fixed_size= (2 << fixed_size_log2);
+  static constexpr uint32_t mask= (2 << fixed_size_log2) - 1;
+public:
+  struct entry {
+    lsn_t lsn;
+    uint64_t file_no;
+    uint64_t offset;
+  } fifo[fixed_size];
+  /*
+    Set while we are duing a durable sync of the redo log to the LSN that we
+    are requesting to become durable. Used to avoid multiple threads
+    needlessly trying to sync the redo log on top of one another.
+  */
+  lsn_t flushing_lsn;
+  /*
+    The current file_no that has any durable data. Used to detect when an LSN
+    moves the current durable end point to the next file, so that the previous
+    file can then be marked as fully durable.
+    The value ~0 is used as a marker for "not yet initialized".
+  */
+  uint64_t cur_file_no;
+  /* The `head' points one past the most recent element. */
+  uint32_t head;
+  /* The `tail' points to the earliest element. */
+  uint32_t tail;
+
+  pending_lsn_fifo();
+  void init(uint64_t start_file_no);
+  void reset();
+  bool is_empty() { return head == tail; }
+  bool is_full() { return head == tail + fixed_size; }
+  entry &cur_head() { ut_ad(!is_empty()); return fifo[(head - 1) & mask]; }
+  entry &cur_tail() { ut_ad(!is_empty()); return fifo[tail & mask]; }
+  void drop_tail() { ut_ad(!is_empty()); ++tail; }
+  void new_head() { ut_ad(!is_full()); ++head; }
+  void record_commit(binlog_oob_context *c);
+  void add_to_fifo(uint64_t lsn, uint64_t file_no, uint64_t offset);
+  bool process_durable_lsn(lsn_t lsn);
+};
+
+
 #define BINLOG_NAME_BASE "binlog-"
 #define BINLOG_NAME_EXT ".ibb"
 /* '/' + "binlog-" + (<=20 digits) + '.' + "ibb" + '\0'. */
 #define BINLOG_NAME_MAX_LEN 1 + 1 + 7 + 20 + 1 + 3 + 1
 
 
+extern pending_lsn_fifo ibb_pending_lsn_fifo;
 extern uint32_t innodb_binlog_size_in_pages;
 extern const char *innodb_binlog_directory;
 extern uint32_t binlog_cur_page_no;
@@ -181,16 +234,25 @@ extern bool ibb_write_header_page(mtr_t *mtr, uint64_t file_no,
 extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               fsp_binlog_page_entry * &block, uint32_t &page_no,
                               uint32_t &page_offset, uint64_t file_no);
+extern bool innodb_binlog_oob_ordered(THD *thd, const unsigned char *data,
+                                      size_t data_len, void **engine_data);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 extern void innodb_reset_oob(THD *thd, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
-extern handler_binlog_reader *innodb_get_binlog_reader();
+extern handler_binlog_reader *innodb_get_binlog_reader(bool wait_durable);
+extern void ibb_wait_durable_offset(uint64_t file_no, uint64_t wait_offset);
 extern void ibb_get_filename(char name[FN_REFLEN], uint64_t file_no);
-extern void innodb_binlog_trx(trx_t *trx, mtr_t *mtr);
+extern binlog_oob_context *innodb_binlog_trx(trx_t *trx, mtr_t *mtr);
+extern void innodb_binlog_post_commit(mtr_t *mtr, binlog_oob_context *c);
+extern bool innobase_binlog_write_direct_ordered
+  (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
+   const rpl_gtid *gtid);
 extern bool innobase_binlog_write_direct
   (IO_CACHE *cache, handler_binlog_event_group_info *binlog_info,
    const rpl_gtid *gtid);
+extern void ibb_group_commit(THD *thd,
+                             handler_binlog_event_group_info *binlog_info);
 extern bool innodb_find_binlogs(uint64_t *out_first, uint64_t *out_last);
 extern void innodb_binlog_status(uint64_t *out_file_no, uint64_t *out_pos);
 extern bool innodb_binlog_get_init_state(rpl_binlog_state_base *out_state);

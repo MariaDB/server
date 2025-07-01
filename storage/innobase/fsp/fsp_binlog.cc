@@ -69,6 +69,9 @@ uint64_t current_binlog_state_interval;
 */
 mysql_mutex_t active_binlog_mutex;
 pthread_cond_t active_binlog_cond;
+/* Mutex protecting binlog_cur_durable_offset[] and ibb_pending_lsn_fifo. */
+mysql_mutex_t binlog_durable_mutex;
+mysql_cond_t binlog_durable_cond;
 
 /* The currently being written binlog tablespace. */
 std::atomic<uint64_t> active_binlog_file_no;
@@ -95,16 +98,21 @@ uint64_t last_created_binlog_file_no;
   Point at which it is guaranteed that all data has been written out to the
   binlog file (on the OS level; not necessarily fsync()'ed yet).
 
-  Stores the most recent two values, each corresponding to active_binlog_file_no&1.
+  Stores the most recent four values, each corresponding to
+  active_binlog_file_no&4. This is so that it can be always valid for both
+  active and active-1 (active-2 is always durable, as we make the entire binlog
+  file N durable before pre-allocating N+2). Just before active moves to the
+  next file_no, we can set the value for active+1, leaving active and active-1
+  still valid. (Only 3 entries are needed, but we use four to be able to use
+  bit-wise and instead of modulo-3).
 */
-/* ToDo: maintain this offset value as up to where data has been written out to the OS. Needs to be binary-searched in current binlog file at server restart; which is also a reason why it might not be a multiple of the page size. */
-std::atomic<uint64_t> binlog_cur_written_offset[2];
+std::atomic<uint64_t> binlog_cur_durable_offset[4];
 /*
-  Offset of last valid byte of data in most recent 2 binlog files.
+  Offset of last valid byte of data in most recent 4 binlog files.
   A value of ~0 means that file is not opened as a tablespace (and data is
   valid until the end of the file).
 */
-std::atomic<uint64_t> binlog_cur_end_offset[2];
+std::atomic<uint64_t> binlog_cur_end_offset[4];
 
 fsp_binlog_page_fifo *binlog_page_fifo;
 
@@ -1170,6 +1178,10 @@ fsp_binlog_init()
 {
   mysql_mutex_init(fsp_active_binlog_mutex_key, &active_binlog_mutex, nullptr);
   pthread_cond_init(&active_binlog_cond, nullptr);
+  mysql_mutex_init(fsp_binlog_durable_mutex_key, &binlog_durable_mutex, nullptr);
+  mysql_cond_init(fsp_binlog_durable_cond_key, &binlog_durable_cond, nullptr);
+  mysql_mutex_record_order(&binlog_durable_mutex, &active_binlog_mutex);
+
   ibb_file_hash.init();
   binlog_page_fifo= new fsp_binlog_page_fifo();
   binlog_page_fifo->start_flush_thread();
@@ -1182,6 +1194,8 @@ fsp_binlog_shutdown()
   binlog_page_fifo->stop_flush_thread();
   delete binlog_page_fifo;
   ibb_file_hash.destroy();
+  mysql_cond_destroy(&binlog_durable_cond);
+  mysql_mutex_destroy(&binlog_durable_mutex);
   pthread_cond_destroy(&active_binlog_cond);
   mysql_mutex_destroy(&active_binlog_mutex);
 }
@@ -1194,6 +1208,8 @@ dberr_t
 fsp_binlog_tablespace_close(uint64_t file_no)
 {
   binlog_page_fifo->flush_up_to(file_no, ~(uint32_t)0);
+  uint32_t size=
+    binlog_page_fifo->size_in_pages(file_no) << ibb_page_size_shift;
   /* release_tablespace() will fdatasync() the file first. */
   binlog_page_fifo->release_tablespace(file_no);
   /*
@@ -1202,6 +1218,23 @@ fsp_binlog_tablespace_close(uint64_t file_no)
     recovery, at most from the latest two existing files.
   */
   log_buffer_flush_to_disk(true);
+  uint64_t end_offset=
+    binlog_cur_end_offset[file_no & 3].load(std::memory_order_relaxed);
+  binlog_cur_end_offset[file_no & 3].store(size, std::memory_order_relaxed);
+  /*
+    Wait for the last record in the file to be marked durably synced to the
+    (redo) log. We already ensured that the record is durable with the above
+    call to log_buffer_flush_to_disk(); this way, we ensure that the update
+    of binlog_cur_durable_offset[] happens correctly through the
+    ibb_pending_lsn_fifo, so that the current durable position will be
+    consistent with a recorded LSN, and a reader will not see EOF in the
+    middle of a record.
+  */
+  uint64_t dur_offset=
+    binlog_cur_durable_offset[file_no & 3].load(std:: memory_order_relaxed);
+  if (dur_offset < end_offset)
+    ibb_wait_durable_offset(file_no, end_offset);
+
   return DB_SUCCESS;
 }
 
@@ -1368,8 +1401,8 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
         // ToDo: assert that a single write doesn't span more than two binlog files.
         ++file_no;
         file_size_in_pages= binlog_page_fifo->size_in_pages(file_no);
-        binlog_cur_written_offset[file_no & 1].store(0, std::memory_order_relaxed);
-        binlog_cur_end_offset[file_no & 1].store(0, std::memory_order_relaxed);
+        binlog_cur_durable_offset[file_no & 3].store(0, std::memory_order_relaxed);
+        binlog_cur_end_offset[file_no & 3].store(0, std::memory_order_relaxed);
         pthread_cond_signal(&active_binlog_cond);
         mysql_mutex_unlock(&active_binlog_mutex);
         binlog_cur_page_no= page_no= 0;
@@ -1533,16 +1566,19 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
     binlog_page_fifo->release_page_mtr(block, mtr);
   binlog_cur_page_no= page_no;
   binlog_cur_page_offset= page_offset;
-  binlog_cur_end_offset[file_no & 1].store(((uint64_t)page_no << page_size_shift) + page_offset,
-                                           std::memory_order_relaxed);
+  binlog_cur_end_offset[file_no & 3].store
+    (((uint64_t)page_no << page_size_shift) + page_offset,
+     std::memory_order_relaxed);
   if (UNIV_UNLIKELY(pending_prev_end_offset != 0))
   {
+    mysql_mutex_lock(&binlog_durable_mutex);
     mysql_mutex_lock(&active_binlog_mutex);
-    binlog_cur_end_offset[(file_no-1) & 1].store(pending_prev_end_offset,
+    binlog_cur_end_offset[(file_no-1) & 3].store(pending_prev_end_offset,
                                                  std::memory_order_relaxed);
     active_binlog_file_no.store(file_no, std::memory_order_release);
     pthread_cond_signal(&active_binlog_cond);
     mysql_mutex_unlock(&active_binlog_mutex);
+    mysql_mutex_unlock(&binlog_durable_mutex);
   }
   return {start_file_no, start_offset};
 }
@@ -1636,15 +1672,18 @@ fsp_binlog_flush()
   mtr.commit();
   lf_hash_put_pins(lf_pins);
   log_buffer_flush_to_disk(srv_flush_log_at_trx_commit & 1);
+  ibb_pending_lsn_fifo.add_to_fifo(mtr.commit_lsn(), file_no+1,
+    binlog_cur_end_offset[(file_no + 1) & 3].load(std::memory_order_relaxed));
 
   return false;
 }
 
 
-binlog_chunk_reader::binlog_chunk_reader()
+binlog_chunk_reader::binlog_chunk_reader(std::atomic<uint64_t> *limit_offset_)
   : s { 0, 0, 0, 0, 0, FSP_BINLOG_TYPE_FILLER, false, false },
     page_ptr(0), cur_block(0), page_buffer(nullptr),
-    cur_file_handle((File)-1), skipping_partial(false)
+    limit_offset(limit_offset_), cur_file_handle((File)-1),
+    skipping_partial(false)
 {
   /* Nothing else. */
 }
@@ -1691,8 +1730,8 @@ binlog_chunk_reader::fetch_current_page()
     uint64_t offset= (s.page_no << ibb_page_size_shift) | s.in_page_offset;
     uint64_t active= active2;
     uint64_t end_offset=
-      binlog_cur_end_offset[s.file_no&1].load(std::memory_order_acquire);
-    if (s.file_no > active)
+      limit_offset[s.file_no & 3].load(std::memory_order_acquire);
+    if (s.file_no > active || UNIV_UNLIKELY(active == ~(uint64_t)0))
     {
       ut_ad(s.page_no == 1);
       ut_ad(s.in_page_offset == 0);
@@ -1705,15 +1744,8 @@ binlog_chunk_reader::fetch_current_page()
 
     if (s.file_no + 1 >= active) {
       /* Check if we should read from the buffer pool or from the file. */
-      if (end_offset != ~(uint64_t)0 && offset < end_offset) {
-        /*
-          ToDo: Should we keep track of the last block read and use it as a
-          hint? Will be mainly useful when reading the partially written active
-          page at the current end of the active binlog, which might be a common
-          case.
-        */
+      if (end_offset != ~(uint64_t)0 && offset < end_offset)
         block= binlog_page_fifo->get_page(s.file_no, s.page_no);
-      }
       active2= active_binlog_file_no.load(std::memory_order_acquire);
       if (UNIV_UNLIKELY(active2 != active)) {
         /*
@@ -1765,18 +1797,13 @@ binlog_chunk_reader::fetch_current_page()
       }
       cur_file_length= stat_buf.st_size;
     }
-    if (s.file_no == active)
+    if (s.file_no + 1 >= active)
       cur_end_offset= end_offset;
     else
       cur_end_offset= cur_file_length;
 
     if (offset >= cur_file_length) {
       /* End of this file, move to the next one. */
-      /*
-        ToDo: Should also obey binlog_cur_written_offset[], once we start
-        actually maintaining that, to save unnecessary buffer pool
-        lookup.
-      */
   goto_next_file:
       if (cur_file_handle >= (File)0)
       {
@@ -1845,8 +1872,7 @@ read_more_data:
                     "Replace static_assert with code from above comment");
 
     /* Check for end-of-file. */
-    if (cur_end_offset == ~(uint64_t)0 ||
-        (s.page_no << ibb_page_size_shift) + s.in_page_offset >= cur_end_offset)
+    if ((s.page_no << ibb_page_size_shift) + s.in_page_offset >= cur_end_offset)
       return sofar;
 
     if (s.in_page_offset >= ibb_page_size - (BINLOG_PAGE_DATA_END + 3) ||
@@ -2075,23 +2101,39 @@ bool binlog_chunk_reader::data_available()
   if (!end_of_record())
     return true;
   uint64_t active= active_binlog_file_no.load(std::memory_order_acquire);
-  if (active != s.file_no)
+  if (UNIV_UNLIKELY(active == ~(uint64_t)0))
+    return false;
+  uint64_t end_offset;
+  for (;;)
   {
-    ut_ad(active > s.file_no || (s.page_no == 1 && s.in_page_offset == 0));
-    return active > s.file_no;
+    if (active > s.file_no + 1)
+      return true;
+    end_offset= limit_offset[s.file_no & 3].load(std::memory_order_acquire);
+    uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
+    if (active2 == active)
+      break;
+    /* Active moved while we were checking, try again. */
+    active= active2;
   }
-  uint64_t end_offset=
-    binlog_cur_end_offset[s.file_no&1].load(std::memory_order_acquire);
-  uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
-  if (active2 != active)
-    return true;  // Active moved while we were checking
-  if (end_offset == ~(uint64_t)0)
-    return false;  // Nothing in this binlog file yet
   uint64_t offset= (s.page_no << ibb_page_size_shift) | s.in_page_offset;
   if (offset < end_offset)
     return true;
 
-  ut_ad(s.file_no == active2);
-  ut_ad(offset == end_offset);
+  ut_ad(s.file_no + 1 == active || s.file_no == active);
+  ut_ad(offset == end_offset || (offset == ibb_page_size && end_offset == 0));
+  return false;
+}
+
+
+bool
+binlog_chunk_reader::is_before_pos(uint64_t file_no, uint64_t offset)
+{
+  if (s.file_no < file_no)
+    return true;
+  if (s.file_no > file_no)
+    return false;
+  uint64_t own_offset= (s.page_no << ibb_page_size_shift) | s.in_page_offset;
+  if (own_offset < offset)
+    return true;
   return false;
 }

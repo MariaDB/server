@@ -1,4 +1,4 @@
-RESET MASTER;
+include/reset_master.inc
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 BEGIN;
