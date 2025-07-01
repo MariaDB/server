@@ -42,21 +42,25 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   uint n_tables= 0;
   spider_fields *fields;
   ha_spider *spider;
+  TABLE_LIST *from= select_lex->get_table_list();
   if (spider_param_disable_select_handler(thd))
     return NULL;
-  for (TABLE_LIST *tl= select_lex->get_table_list(); tl;
-       n_tables++, tl= tl->next_local)
+  for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
   {
+    /* One of the join tables is not a spider table */
+    if (tl->table->file->partition_ht() != spider_hton_ptr)
+      return NULL;
     spider = (ha_spider *) tl->table->file;
     spider->idx_for_direct_join = n_tables;
   }
   if (!(table_holder= spider_create_table_holder(n_tables)))
     DBUG_RETURN(NULL);
-  for (TABLE_LIST *tl= select_lex->get_table_list(); tl; tl= tl->next_local)
+  for (TABLE_LIST *tl= from; tl; tl= tl->next_local)
   {
     spider = (ha_spider *) tl->table->file;
     spider_add_table_holder(spider, table_holder);
   }
+  spider= (ha_spider *) from->table->file;
   spider_check_trx_and_get_conn(thd, spider);
   fields= new spider_fields();
   fields->set_table_holder(table_holder, n_tables);
@@ -70,14 +74,15 @@ int spider_select_handler::init_scan()
   /*
     longlong unused;
    */
-  Query query= {select_lex->get_item_list(), 0, select_lex->distinct,
+  Query query= {select_lex->get_item_list(), 0,
+    /* TODO: consider handling high_priority, sql_calc_found_rows
+      etc. see st_select_lex::print */
+    select_lex->options & SELECT_DISTINCT ? true : false,
     select_lex->get_table_list(), select_lex->where,
     /* TODO: do we need to reference join here? Can we get GROUP BY /
       ORDER BY from select_lex directly */
-    select_lex->join->group_list,
-    select_lex->join->order,
-    select_lex->having,
-    &select_lex->master_unit()->lim};
+    select_lex->join->group_list, select_lex->join->order,
+    select_lex->having, &select_lex->master_unit()->lim};
   ha_spider *spider= fields->get_first_table_holder()->spider;
   int link_idx= 0;
   SPIDER_CONN *conn= spider->conns[link_idx];

@@ -1,0 +1,220 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+set spider_disable_select_handler= 0;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+# basic case
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t1 values (1), (2), (3);
+select c from t1;
+c
+1
+2
+3
+drop table t1, t2;
+# join
+create table t1 (c int);
+create table ts1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+create table t2 (c int);
+create table ts2 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into ts1 values (1), (2), (3);
+insert into ts2 values (2), (3), (4);
+## joining two spider tables goes through sh
+explain select * from ts1 join ts2 on (ts1.c = ts2.c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from ts1 join ts2 on (ts1.c = ts2.c);
+c	c
+2	2
+3	3
+## joining one spider table with a nonspider table does not go
+## through sh
+explain select * from t1 join ts2 on (t1.c = ts2.c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	ts2	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+select * from t1 join ts2 on (t1.c = ts2.c);
+c	c
+2	2
+3	3
+drop table ts2, t2;
+drop table ts1, t1;
+# union
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+create table t4 (c int);
+create table t3 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t4"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t1 values (1), (2), (3);
+insert into t3 values (4), (5), (6);
+explain select c from t1 union all select c from t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select c from t1 union all select c from t3;
+c
+1
+2
+3
+4
+5
+6
+drop table t1, t2, t3, t4;
+#
+# MDEV-37110 Spider select handler: implement one that handles
+# testcases showcasing problems with the gbh
+#
+## SpdSkipConst: (MDEV-26345) the const item is SELECTed by
+## gbh, but its results discarded when storing to the temp table
+create table t2 (a int, b int, PRIMARY KEY (a, b));
+create table t1 (a int, b int, PRIMARY KEY (a, b)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t1 VALUES (1,4), (1,2), (2,11);
+explain
+SELECT MIN(b), a FROM t1 WHERE a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT MIN(b), a FROM t1 WHERE a=1;
+MIN(b)	a
+2	1
+explain
+SELECT MAX(b), a FROM t1 WHERE a<3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT MAX(b), a FROM t1 WHERE a<3;
+MAX(b)	a
+11	1
+drop table t1, t2;
+## SpdSkipConst: (MDEV-26345) the const item is SELECTed by
+## gbh, but its results discarded when storing to the temp table
+create table t2 (a int, b int, c int, PRIMARY KEY (a, b));
+create table t1 (a int, b int, c int, PRIMARY KEY (a, b)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t2 VALUES (1,4,1), (1,2,2), (2,11,3);
+explain
+SELECT MIN(b), a, c FROM t1 WHERE a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SELECT MIN(b), a, c FROM t1 WHERE a=1;
+MIN(b)	a	c
+2	1	2
+drop table t1, t2;
+## SpdExtraFields: (MDEV-26345) auxiliary fields should not be
+## SELECTed by gbh
+create table t2 (a int, b int);
+create table t1 ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 VALUES (1,1), (1,1), (2,2), (2,2);
+explain
+select distinct count(a) from t1 group by b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select distinct count(a) from t1 group by b;
+count(a)
+2
+drop table t1, t2;
+## SpdExtraFields: (MDEV-26345) having should still work with
+## gbh, despite referring to auxiliary field items which are
+## not SELECTed
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t1 values (1),(3),(5),(7),(9),(11),(13),(15);
+select count(c) as d from t1 having d > 5;
+d
+8
+drop table t1, t2;
+## SpdInvalidQuery: (MDEV-33560) in predicate to subquery
+## conversion. semi join and tvc in query. gbh cannot handle
+## this
+create table t2 (c int, d int, primary key (c));
+create table t1 (c int, d int, primary key (c))
+ENGINE=SPIDER COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t2 select seq, seq from seq_1_to_100;
+set in_predicate_conversion_threshold= 2;
+explain select * from t1 where c in (23, 37, 55, 89);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1 where c in (23, 37, 55, 89);
+c	d
+23	23
+37	37
+55	55
+89	89
+## default value - ok with gbh
+set in_predicate_conversion_threshold= 1000;
+explain select * from t1 where c in (23, 37, 55, 89);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1 where c in (23, 37, 55, 89);
+c	d
+23	23
+37	37
+55	55
+89	89
+drop table t1, t2;
+## SpdInvalidQuery: (MDEV-26247) right join to left join with
+## bad ON. gbh is not created because of the invalid query
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE TABLE t3 (a int);
+CREATE TABLE t1s (a int) engine=spider remote_server=srv remote_table=t1;
+CREATE TABLE t2s (a int) engine=spider remote_server=srv remote_table=t2;
+CREATE TABLE t3s (a int) engine=spider remote_server=srv remote_table=t3;
+INSERT INTO t1s VALUES (1);
+INSERT INTO t2s VALUES (1), (2);
+INSERT INTO t3s VALUES (1), (2), (3);
+explain
+select * from t1s left join t2s on t1s.a = t2s.a right join t3s on t3s.a = t1s.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1s left join t2s on t1s.a = t2s.a right join t3s on t3s.a = t1s.a;
+a	a	a
+1	1	1
+NULL	NULL	2
+NULL	NULL	3
+drop table t1,t2,t3,t1s,t2s,t3s;
+## SpdInvalidQuery: (MDEV-32907) gbh cannot handle this because
+## the query is invalid at execution stage
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+insert into t1 values (3), (NULL);
+explain select nvl(sum(c), 0) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select nvl(sum(c), 0) from t1;
+nvl(sum(c), 0)
+3
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
