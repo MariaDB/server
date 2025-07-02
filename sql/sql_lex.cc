@@ -8176,9 +8176,19 @@ Item *LEX::make_item_sysvar(THD *thd,
 
 static bool param_push_or_clone(THD *thd, LEX *lex, Item_param *item)
 {
-  return !lex->clone_spec_offset ?
-         lex->param_list.push_back(item, thd->mem_root) :
-         item->add_as_clone(thd);
+  if (lex->clone_spec_offset)
+    return item->add_as_clone(thd);
+  else
+  {
+    if (thd->reparsing_sp_stmt)
+      /*
+        Don't put an instance of Item_param in case a SP statement
+        being re-parsed.
+      */
+      return false;
+
+    return lex->param_list.push_back(item, thd->mem_root);
+  }
 }
 
 
@@ -8196,8 +8206,40 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
   Query_fragment pos(thd, sphead, start, end);
-  Item_param *item= new (thd->mem_root) Item_param(thd, name,
-                                                   pos.pos(), pos.length());
+  Item_param *item;
+  /*
+    Check whether re-parsing of a failed SP instruction is in progress.
+    In context of the method LEX::add_placeholder, the failed instruction
+    being re-parsed is a part of compound statement enclosed into
+    the BEGIN/END clauses.
+  */
+  if (thd->reparsing_sp_stmt)
+  {
+    /*
+      Get a saved Item_param and reuse it instead of creating a new one.
+      st_lex_local stores instances of the class Item_param that were saved
+      before cleaning up SP instruction's free_list. So, the same instance of
+      Item_param will be used on every re-parsing of failed SP instruction
+      for each specific positional parameter.
+    */
+    st_lex_local *lex= (st_lex_local*)this;
+    DBUG_ASSERT(lex->param_values_it != lex->sp_statement_param_values.end());
+    /*
+      For release build emit internal error in case the assert condition
+      fails
+    */
+    if (lex->param_values_it == lex->sp_statement_param_values.end())
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "no more Item_param for re-bind");
+      return nullptr;
+    }
+
+    item= lex->param_values_it.operator ->();
+    lex->param_values_it++;
+  }
+  else
+    item= new (thd->mem_root) Item_param(thd, name,
+                                         pos.pos(), pos.length());
   if (unlikely(!item) || unlikely(param_push_or_clone(thd, this, item)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
