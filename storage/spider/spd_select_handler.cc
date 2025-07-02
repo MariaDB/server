@@ -35,6 +35,35 @@ spider_select_handler::~spider_select_handler()
   delete fields;
 }
 
+/* TODO: for sh we just need to check select_lex and do not have to
+  worry about any spider things. is this the case with gbh? */
+static bool spider_sh_can_handle_query(SELECT_LEX *select_lex)
+{
+  List_iterator_fast<Item> it(*select_lex->get_item_list());
+  while (Item *item= it++)
+    if (item->walk(&Item::is_subquery_processor, 0, 0))
+      return false;
+  if (select_lex->where &&
+      select_lex->where->walk(&Item::is_subquery_processor, 0, 0))
+    return false;
+  if (select_lex->join->group_list)
+    for (ORDER *order= select_lex->join->group_list; order;
+         order= order->next)
+      if (order->item_ptr &&
+          order->item_ptr->walk(&Item::is_subquery_processor, 0, 0))
+        return false;
+  if (select_lex->join->order)
+    for (ORDER *order= select_lex->join->order; order; order= order->next)
+      /* TODO: What happens if item_ptr is NULL? When is it NULL? */
+      if (order->item_ptr &&
+          order->item_ptr->walk(&Item::is_subquery_processor, 0, 0))
+        return false;
+  if (select_lex->having &&
+      select_lex->having->walk(&Item::is_subquery_processor, 0, 0))
+    return false;
+  return true;
+}
+
 select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
                                              SELECT_LEX_UNIT *)
 {
@@ -66,6 +95,8 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     else if (dbton_id != (int) spider->share->use_sql_dbton_ids[0])
       return NULL;
   }
+  if (!spider_sh_can_handle_query(select_lex))
+    return NULL;
   if (!(table_holder= spider_create_table_holder(n_tables)))
     DBUG_RETURN(NULL);
   for (TABLE_LIST *tl= from; tl; tl= tl->next_local)
@@ -98,6 +129,8 @@ int spider_select_handler::init_scan()
     select_lex->join->group_list, select_lex->join->order,
     select_lex->having, &select_lex->master_unit()->lim};
   ha_spider *spider= fields->get_first_table_holder()->spider;
+  /* TODO: dbton_id should come from fields->get_next_dbton_id(), and
+    link_idx might be nonzero if the common backends is not the first */
   int link_idx= 0;
   SPIDER_CONN *conn= spider->conns[link_idx];
   spider_db_handler *dbton_hdl= spider->dbton_handler[conn->dbton_id];
