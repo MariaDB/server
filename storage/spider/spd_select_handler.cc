@@ -48,10 +48,17 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     return NULL;
   for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
   {
+    /* We do not support partitioned table yet, and there's no point
+      in supporting partitioned table with only on partition which gbh
+      does */
+    if (tl->table->part_info)
+      return NULL;
     /* One of the join tables is not a spider table */
     if (tl->table->file->partition_ht() != spider_hton_ptr)
       return NULL;
     spider = (ha_spider *) tl->table->file;
+    /* TODO: is this needed? if so do we need to clean this up on
+      returning NULL? */
     spider->idx_for_direct_join = n_tables;
     /* TODO: only create if all tables have common first backend */
     if (dbton_id == -1)
