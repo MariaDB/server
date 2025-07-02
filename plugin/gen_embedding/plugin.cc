@@ -152,7 +152,7 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_getinfo(hnd, CURLINFO_RESPONSE_CODE, &http_response_code);
     if (http_response_code != 200) { // The only valid response code for OpenAI API is 200
       my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
-        "Bad http response code: %lu", ME_ERROR_LOG | ME_WARNING, http_response_code); // TODO: We colud grab the error message from response
+        "Bad http response code: %lu", ME_ERROR_LOG | ME_WARNING, http_response_code); // TODO: We could grab the error message from response
       goto cleanup;
     }
     curl_easy_cleanup(hnd);
