@@ -73,6 +73,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   ha_spider *spider;
   TABLE_LIST *from= select_lex->get_table_list();
   int dbton_id = -1;
+  SPIDER_CONN *common_conn= NULL;
   if (spider_param_disable_select_handler(thd))
     return NULL;
   for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
@@ -89,7 +90,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     /* TODO: is this needed? if so do we need to clean this up on
       returning NULL? */
     spider->idx_for_direct_join = n_tables;
-    /* TODO: only create if all tables have common first backend */
+    /* only create if all tables have common first backend. */
     if (dbton_id == -1)
       dbton_id= spider->share->use_sql_dbton_ids[0];
     else if (dbton_id != (int) spider->share->use_sql_dbton_ids[0])
@@ -103,7 +104,13 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   {
     spider = (ha_spider *) tl->table->file;
     spider_add_table_holder(spider, table_holder);
-    spider_check_trx_and_get_conn(thd, spider);
+    if (spider_check_trx_and_get_conn(thd, spider))
+      goto free_table_holder;
+    /* only create if all tables have common first connection. */
+    if (!common_conn)
+      common_conn= spider->conns[0];
+    else if (common_conn != spider->conns[0])
+      goto free_table_holder;
     /* So that dbton_hdl->first_link_idx is not -1. Called in
       dml_init() in gbh */
     spider->reset_first_link_idx();
@@ -112,6 +119,9 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   fields->set_table_holder(table_holder, n_tables);
   fields->add_dbton_id(dbton_id);
   return new spider_select_handler(thd, select_lex, fields);
+free_table_holder:
+  spider_free(spider_current_trx, table_holder, MYF(0));
+  return NULL;
 }
 
 int spider_select_handler::init_scan()
@@ -158,7 +168,7 @@ int spider_select_handler::init_scan()
     result_list->limit_num= 9223372036854775807LL;
     result_list->internal_offset= 0;
   }
-  /* print query */
+  /* build query string */
   spider_make_query(query, fields, spider, table);
 
   /* send query */
