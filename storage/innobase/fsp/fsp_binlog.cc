@@ -1681,7 +1681,7 @@ fsp_binlog_flush()
 
 binlog_chunk_reader::binlog_chunk_reader(std::atomic<uint64_t> *limit_offset_)
   : s { 0, 0, 0, 0, 0, FSP_BINLOG_TYPE_FILLER, false, false },
-    page_ptr(0), cur_block(0), page_buffer(nullptr),
+    stop_file_no(~(uint64_t)0), page_ptr(0), cur_block(0), page_buffer(nullptr),
     limit_offset(limit_offset_), cur_file_handle((File)-1),
     skipping_partial(false)
 {
@@ -1731,7 +1731,8 @@ binlog_chunk_reader::fetch_current_page()
     uint64_t active= active2;
     uint64_t end_offset=
       limit_offset[s.file_no & 3].load(std::memory_order_acquire);
-    if (s.file_no > active || UNIV_UNLIKELY(active == ~(uint64_t)0))
+    if (s.file_no > active || UNIV_UNLIKELY(active == ~(uint64_t)0)
+        || UNIV_UNLIKELY(s.file_no > stop_file_no))
     {
       ut_ad(s.page_no == 1);
       ut_ad(s.in_page_offset == 0);
@@ -2088,8 +2089,8 @@ void binlog_chunk_reader::release(bool release_file_page)
   {
     /*
       For when we reach EOF while reading from the file. We need to re-read
-      the page from the file (or buffer pool) in this case on next read, as
-      data might be added to the page.
+      the page from the file in this case on next read, as data might be added
+      to the page.
     */
     page_ptr= nullptr;
   }
