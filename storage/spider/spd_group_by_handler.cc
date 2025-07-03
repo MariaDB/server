@@ -631,7 +631,8 @@ bool spider_fields::has_conn_holder(
   DBUG_RETURN(first_conn_holder);
 }
 
-void spider_fields::clear_conn_holder_from_conn(
+/* Mark checked_for_same_conn to false for all conn holders */
+void spider_fields::clear_conn_holder_checked(
 ) {
   DBUG_ENTER("spider_fields::clear_conn_checked_for_same_conn");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -643,6 +644,9 @@ void spider_fields::clear_conn_holder_from_conn(
   DBUG_VOID_RETURN;
 }
 
+/* Set current conn holder to be the first conn holder with a matching
+  conn and mark its checked_for_same_conn to be true. Return true if
+  one is found and vice versa. */
 bool spider_fields::check_conn_same_conn(
   SPIDER_CONN *conn_arg
 ) {
@@ -660,6 +664,7 @@ bool spider_fields::check_conn_same_conn(
   DBUG_RETURN(FALSE);
 }
 
+/* Remove all conn holders with false checked_for_same_conn */
 bool spider_fields::remove_conn_if_not_checked(
 ) {
   SPIDER_CONN_HOLDER *conn_holder;
@@ -1740,7 +1745,7 @@ group_by_handler *spider_create_group_by_handler(
 
   while ((from = from->next_local))
   {
-    fields->clear_conn_holder_from_conn();
+    fields->clear_conn_holder_checked();
 
     if (from->table->part_info)
     {
@@ -1774,10 +1779,13 @@ group_by_handler *spider_create_group_by_handler(
       DBUG_PRINT("info",("spider conn=%p", conn));
       if (!fields->check_conn_same_conn(conn))
       {
-        DBUG_PRINT("info",("spider connection %p can not be used for this query with locking",
-          conn));
         if (lock_mode)
+        {
+          DBUG_PRINT("info", ("spider connection %p can not be used for this "
+                              "query with locking",
+                              conn));
           goto skip_free_fields;
+        }
         continue;
       }
       if (fields->add_link_idx(conn->conn_holder_for_direct_join, spider, roop_count))
@@ -1795,6 +1803,10 @@ group_by_handler *spider_create_group_by_handler(
         goto skip_free_fields;
       }
     }
+    /* Do not create if all conn holders have been removed. This
+      happens if the current table does not share usable conns with
+      the first table. One typical example is when the current table
+      is located on a different server from the first table. */
     if (!fields->has_conn_holder())
     {
       goto skip_free_fields;
