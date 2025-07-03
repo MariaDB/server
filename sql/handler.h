@@ -726,6 +726,12 @@ typedef bool Log_func(THD*, TABLE*, Event_log *, binlog_cache_data *, bool,
 #define ALTER_ADD_PERIOD             (1ULL << 33)
 #define ALTER_DROP_PERIOD            (1ULL << 34)
 #define ALTER_VERS_EXPLICIT          (1ULL << 35)
+#define ALTER_VERS_IMPLICIT          (1ULL << 36)
+
+/*
+  System versioning of table is added or changed (but not dropped).
+*/
+#define ALTER_VERS_CHANGE (ALTER_ADD_SYSTEM_VERSIONING | ALTER_VERS_EXPLICIT | ALTER_VERS_IMPLICIT)
 
 /*
   Following defines are used by ALTER_INPLACE_TABLE
@@ -2149,6 +2155,10 @@ struct Table_period_info: Sql_alloc
       end(_end) {}
     Lex_ident_column start;
     Lex_ident_column end;
+    bool is_set()
+    {
+      return bool(start) && bool(end);
+    }
   };
   start_end_t period;
   bool create_if_not_exists;
@@ -2171,6 +2181,8 @@ struct Table_period_info: Sql_alloc
 
 struct Vers_parse_info: public Table_period_info
 {
+  static const field_index_t FIELDNO_UNSET= 0xFFFF;
+
   Vers_parse_info() :
     Table_period_info(STRING_WITH_LEN("SYSTEM_TIME")),
     versioned_fields(false),
@@ -2179,18 +2191,12 @@ struct Vers_parse_info: public Table_period_info
   {}
 
   Table_period_info::start_end_t as_row;
+  /*
+    Field names for FRM creation.
+  */
+  Table_period_info::start_end_t sys_fields;
 
   friend struct Table_scope_and_contents_source_st;
-  void set_start(const Lex_ident_column field_name)
-  {
-    as_row.start= field_name;
-    period.start= field_name;
-  }
-  void set_end(const Lex_ident_column field_name)
-  {
-    as_row.end= field_name;
-    period.end= field_name;
-  }
 
 protected:
   bool is_start(const Create_field &f) const;
@@ -2201,8 +2207,8 @@ protected:
     return as_row.start || as_row.end || period.start || period.end;
   }
   bool need_check(const Alter_info *alter_info) const;
-  bool check_conditions(const Lex_ident_table &table_name,
-                        const Lex_ident_db &db) const;
+  bool check_parser_data(const Lex_ident_table &table_name,
+                         const Lex_ident_db &db, Alter_info *alter_info);
   bool create_sys_field(THD *thd, const Lex_ident_column &field_name,
                         Alter_info *alter_info, int flags);
 
@@ -2214,8 +2220,11 @@ public:
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
+  /*
+    Check data types of System Versioniong system fields.
+  */
   bool check_sys_fields(const Lex_ident_table &table_name,
-                        const Lex_ident_db &db, Alter_info *alter_info) const;
+                        const Lex_ident_db &db, Alter_info *alter_info);
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.

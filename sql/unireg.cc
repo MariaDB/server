@@ -531,10 +531,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     *pos++= EXTRA2_PERIOD_FOR_SYSTEM_TIME;
     *pos++= 2 * frm_fieldno_size;
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
-                                       create_info->vers_info.as_row.start));
+                                               create_info->vers_info.sys_fields.start));
     pos+= frm_fieldno_size;
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
-                                       create_info->vers_info.as_row.end));
+                                               create_info->vers_info.sys_fields.end));
     pos+= frm_fieldno_size;
   }
 

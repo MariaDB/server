@@ -74,10 +74,14 @@ alter table t add column trx_start timestamp(6) as row start;
 alter table t add system versioning;
 show create table t;
 
---error ER_MISSING
+--error ER_WRONG_FIELD_SPEC
 alter table t add column trx_start timestamp(6) as row start;
 --error ER_WRONG_FIELD_SPEC
+alter table t add column row_start timestamp(6) as row start;
+--error ER_WRONG_FIELD_SPEC
 alter table t modify a int as row start;
+--error ER_WRONG_FIELD_SPEC
+alter table t modify row_start int as row start;
 
 alter table t add column b int;
 show create table t;
@@ -468,7 +472,6 @@ use test;
 
 --echo # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
---error ER_VERS_DUPLICATE_ROW_START_END
 alter table t1 modify s timestamp(6) as row start;
 
 --echo # ignore CHECK for historical rows
@@ -792,11 +795,11 @@ set @old_system_versioning_alter_history= @@system_versioning_alter_history;
 set @@system_versioning_alter_history= keep;
 alter table t1 add column y int;
 show create table t1;
---error ER_MISSING
+--error ER_WRONG_FIELD_SPEC
 alter table t1 add column rs timestamp(6) as row start;
 --error ER_MISSING
 alter table t1 add column re timestamp(6) as row end, add period for system_time (row_start, re);
---error ER_MISSING
+--error ER_WRONG_FIELD_SPEC
 alter table t1 add column rs timestamp(6) as row start, add column re timestamp(6) as row end;
 --error ER_BAD_FIELD_ERROR
 alter table t1 rename column row_start to re;
@@ -812,6 +815,58 @@ show create table t1;
 
 set @@system_versioning_alter_history= @old_system_versioning_alter_history;
 drop table t1;
+
+--echo #
+--echo # MDEV-37008 ROW START/END columns added with ALTER TABLE are never INVISIBLE
+--echo #
+set @svah_save= @@system_versioning_alter_history;
+set @@system_versioning_alter_history= keep;
+create table t (x int) with system versioning;
+--echo # Fail on implicit system field
+--error ER_WRONG_FIELD_SPEC
+alter table t change column row_end valid_until timestamp(6) as row end invisible;
+--echo # Convert implicit to explicit
+alter table t
+  add column valid_since timestamp(6) as row start invisible,
+  add column valid_until timestamp(6) as row end invisible,
+  add period for system_time (valid_since, valid_until);
+show create table t;
+create or replace table t (
+  x int, row_start timestamp(6) as row start,
+  row_end timestamp(6) as row end,
+  period for system_time (row_start, row_end)) with system versioning;
+show create table t;
+alter table t force;
+--echo # Missing AS ROW START
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t modify column row_start timestamp(6) invisible;
+--echo # Fail on wrong name
+--error ER_WRONG_FIELD_SPEC
+alter table t modify column abcd timestamp(6) as row start invisible;
+--echo # Add invisible
+alter table t modify column row_start timestamp(6) as row start invisible;
+show create table t;
+--echo # Missing AS ROW END
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t change column row_start valid_since timestamp(6) invisible;
+--echo # Rename and add invisible
+alter table t change column row_end valid_until timestamp(6) as row end invisible;
+show create table t;
+--echo # Remove invisible and rename
+alter table t change column row_start valid_since timestamp(6) as row start;
+show create table t;
+--echo # Fail on wrong name
+--error ER_WRONG_FIELD_SPEC
+alter table t change column row_start valid_since timestamp(6) as row start invisible;
+show create table t;
+--echo # Add invisible, don't rename
+alter table t change column valid_since valid_since timestamp(6) as row start invisible;
+show create table t;
+create table t2 like t;
+--error ER_VERS_DB_NOT_SUPPORTED
+create table mysql.t2 like t;
+drop tables t, t2;
+set @@system_versioning_alter_history= @svah_save;
 
 --echo # End of 11.6 tests
 --source suite/versioning/common_finish.inc

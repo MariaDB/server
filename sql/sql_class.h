@@ -408,10 +408,13 @@ public:
   LEX_CSTRING new_name;
   Virtual_column_info *default_value;
   bool alter_if_exists;
+  field_visibility_t invisible;
   Alter_column(LEX_CSTRING par_name, Virtual_column_info *expr, bool par_exists)
-    :name(par_name), new_name{NULL, 0}, default_value(expr), alter_if_exists(par_exists) {}
+    :name(par_name), new_name{NULL, 0}, default_value(expr), alter_if_exists(par_exists),
+     invisible(VISIBLE) {}
   Alter_column(LEX_CSTRING par_name, LEX_CSTRING _new_name, bool exists)
-    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(exists) {}
+    :name(par_name), new_name(_new_name), default_value(NULL), alter_if_exists(exists),
+     invisible(VISIBLE) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
