@@ -326,7 +326,7 @@ public:
   uint check_vcol_field(Item_field *f) const;
 
   bool add_alter_list(THD *thd, LEX_CSTRING name, LEX_CSTRING new_name,
-                      bool exists);
+                      bool exists, field_visibility_t invisible= VISIBLE);
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented

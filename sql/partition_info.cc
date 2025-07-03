@@ -923,8 +923,8 @@ bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
     create_info.options|= HA_VERSIONED_TABLE;
     DBUG_ASSERT(create_info.db_type);
 
-    create_info.vers_info.set_start(table->s->vers_start_field()->field_name);
-    create_info.vers_info.set_end(table->s->vers_end_field()->field_name);
+    create_info.vers_info.sys_fields.start= table->s->vers_start_field()->field_name;
+    create_info.vers_info.sys_fields.end= table->s->vers_end_field()->field_name;
 
     partition_info *part_info= new partition_info();
     if (unlikely(!part_info))

@@ -4260,8 +4260,8 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
                                     Key *key)
 {
-  const Lex_ident_column &row_start_field= create_info->vers_info.as_row.start;
-  const Lex_ident_column &row_end_field= create_info->vers_info.as_row.end;
+  const Lex_ident_column &row_start_field= create_info->vers_info.sys_fields.start;
+  const Lex_ident_column &row_end_field= create_info->vers_info.sys_fields.end;
   DBUG_ASSERT(!create_info->versioned() || (row_start_field && row_end_field));
 
   int result = 0;
@@ -5788,6 +5788,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       local_create_info.vers_info.fix_create_like(local_alter_info, local_create_info,
                                                   *src_table, *table))
   {
+    res= 1;
     goto err;
   }
 
@@ -8731,7 +8732,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       /* "dropping" a versioning field only hides it from the user */
       def= new (root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
-      alter_info->flags|= ALTER_CHANGE_COLUMN;
+      alter_info->flags|= (ALTER_VERS_IMPLICIT | ALTER_CHANGE_COLUMN);
       if (field->flags & VERS_ROW_START)
         create_info->vers_info.period.start=
           create_info->vers_info.as_row.start=
@@ -8768,7 +8769,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           def->change= Lex_ident_column(alter->name);
           def->field_name= Lex_ident_column(alter->new_name);
           if (vers_system_invisible)
-            def->invisible= VISIBLE;
+            def->invisible= alter->invisible;
           column_rename_param.fields.push_back(def);
           if (field->flags & VERS_ROW_START)
           {
