@@ -3880,8 +3880,7 @@ bool sp_head::add_instr_copenX(THD *thd, sp_pcontext *spcont,
                                           addr.offset());
   else
   {
-    const sp_pcursor *pcursor= addr.rcontext_handler()->
-                                 get_pcursor(spcont, addr.offset());
+    const sp_pcursor *pcursor= spcont->get_pcursor(addr);
     i= new (thd->mem_root) sp_instr_copen2(instructions(), spcont,
                                            addr, pcursor->lex());
   }

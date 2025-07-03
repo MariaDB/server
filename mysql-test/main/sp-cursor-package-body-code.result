@@ -1,7 +1,6 @@
 #
 # MDEV-36053 CURSOR declarations in PACKAGE BODY
 #
-SET @code=true;
 #
 # FUNCTION:
 #   FETCH package_body_cursor INTO package_body_variable

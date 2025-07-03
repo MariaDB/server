@@ -4,4 +4,5 @@ SET sql_mode=ORACLE;
 --echo # MDEV-36053 CURSOR declarations in PACKAGE BODY
 --echo #
 
+--let $code=0
 --source include/sp/sp-cursor-package-body.inc

@@ -910,6 +910,9 @@ private:
 }; // class sp_pcontext : public Sql_alloc
 
 
+/*
+  A class for the top level parse context of an SP.
+*/
 class sp_pcontext_top: public sp_pcontext
 {
 public:
@@ -963,7 +966,7 @@ public:
     - CREATE PACKAGE wide variables and cursors (coming soon - MDEV-13139)
     - CREATE PACKAGE BODY wide variables and cursors
 
-    Example:
+    Example (using Oracle syntax):
 
       CREATE PACKAGE BODY pkg AS -- sp_package
         a0 INT;                  -- A member
@@ -1006,7 +1009,14 @@ public:
   }
 
 private:
+  /*
+    A pointer to the owner SP. It's used by package routines
+    e.g. to access elements of the parse context of the owner package body,
+    such as cursors. See Sp_rcontext_handler_package_body::get_pcursor() for
+    an example.
+  */
   const sp_head *m_sp;
+  // An array of member cursors. Used by packages.
   Dynamic_array<sp_pcursor> m_member_cursors;
 };
 

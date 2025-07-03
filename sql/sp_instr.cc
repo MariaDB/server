@@ -2059,10 +2059,11 @@ sp_instr_copen::print(String *str)
 {
   const LEX_CSTRING cmd= {STRING_WITH_LEN("copen ")};
   const sp_pcursor *cursor= m_ctx->find_cursor(m_cursor);
+  DBUG_ASSERT(cursor);
   // sp_instr_copen handles only local cursors
   const sp_rcontext_addr addr(&sp_rcontext_handler_local, m_cursor);
   /* copen name@offset */
-  print_cmd_and_var(cmd, cursor ? *cursor : empty_clex_str, addr, str);
+  print_cmd_and_var(cmd, *cursor, addr, str);
 }
 
 
@@ -2094,8 +2095,9 @@ sp_instr_cclose::print(String *str)
 {
   const LEX_CSTRING cmd= {STRING_WITH_LEN("cclose ")};
   const sp_pcursor *cursor= m_ctx->get_pcursor(*this);
+  DBUG_ASSERT(cursor);
   /* cclose name@offset */
-  print_cmd_and_var(cmd, cursor ? *cursor : empty_clex_str, *this, str);
+  print_cmd_and_var(cmd, *cursor, *this, str);
 }
 
 
@@ -2125,9 +2127,9 @@ sp_instr_cfetch::print(String *str)
 {
   const LEX_CSTRING cmd= {STRING_WITH_LEN("cfetch ")};
   const sp_pcursor *cursor= m_ctx->get_pcursor(*this);
-
+  DBUG_ASSERT(cursor);
   /* cfetch name@offset vars... */
-  print_cmd_and_var(cmd, cursor ? *cursor : empty_clex_str, *this, str);
+  print_cmd_and_var(cmd, *cursor, *this, str);
   print_fetch_into(str, m_fetch_target_list);
 }
 
@@ -2261,7 +2263,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
       /*
         If m_rcontext_handler is sp_rcontext_handler_member then the cursor
         structure is being exported from a package wide cursor to a
-        variable, e.g.:
+        variable, e.g. (using Oracle syntax):
           CREATE PACKAGE BODY pkg AS
             CURSOR c0 IS SELECT 1 AS c0, 'c1' AS c1 FROM DUAL;
             mr0 c0%ROWTYPE;
@@ -2316,9 +2318,10 @@ sp_instr_cursor_copy_struct::print(String *str)
 {
   const LEX_CSTRING cmd= {STRING_WITH_LEN("cursor_copy_struct ")};
   const sp_pcursor *cursor= m_ctx->get_pcursor(*this);
+  DBUG_ASSERT(cursor);
   const sp_variable *var= m_ctx->get_pvariable(m_var);
   // cursor_copy_struct cur@0 var@0
-  print_cmd_and_var(cmd, cursor ? *cursor : empty_clex_str, *this, str);
+  print_cmd_and_var(cmd, *cursor, *this, str);
   str->append(' ');
   str->append(*m_var.rcontext_handler()->get_name_prefix());
   str->append(&var->name);
@@ -2401,8 +2404,9 @@ sp_instr_copen2::print(String *str)
 {
   const LEX_CSTRING cmd= {STRING_WITH_LEN("copen2 ")};
   const sp_pcursor *cursor= m_ctx->get_pcursor(*this);
+  DBUG_ASSERT(cursor);
   /* copen2 name@offset */
-  print_cmd_and_var(cmd, cursor ? *cursor : empty_clex_str, *this, str);
+  print_cmd_and_var(cmd, *cursor, *this, str);
 }
 
 

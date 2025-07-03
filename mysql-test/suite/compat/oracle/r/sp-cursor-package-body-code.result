@@ -2,7 +2,6 @@ SET sql_mode=ORACLE;
 #
 # MDEV-36053 CURSOR declarations in PACKAGE BODY
 #
-SET @code=TRUE;
 #
 # FUNCTION:
 #   FETCH package_body_cursor INTO package_body_variable
