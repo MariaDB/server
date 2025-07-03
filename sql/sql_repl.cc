@@ -4883,6 +4883,8 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
     err= true;
     goto end;
   }
+  /* The engine reader will stop at the end of the requested file. */
+  reader->enable_single_file();
 
   {
     SELECT_LEX_UNIT *unit= &thd->lex->unit;
@@ -4894,9 +4896,7 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
     char name_buf[FN_REFLEN];
     opt_binlog_engine_hton->get_filename(name_buf, file_no);
 
-    for (ha_rows event_count= 0;
-         reader->cur_file_no == file_no && event_count < limit;
-         ++event_count)
+    for (ha_rows event_count= 0; event_count < limit; ++event_count)
     {
       packet.length(0);
       int reader_error= reader->read_log_event(&packet, 0,

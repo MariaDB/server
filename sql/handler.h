@@ -5976,7 +5976,12 @@ public:
     support legacy SHOW BINLOG EVENTS.
   */
   virtual int init_legacy_pos(const char *filename, ulonglong offset) = 0;
-
+  /*
+    Can be called after init_gtid_pos() or init_legacy_pos() to make the reader
+    stop (return EOF) at the end of the binlog file. Used for SHOW BINLOG
+    EVENTS, which has a file-based interface based on legacy file name.
+  */
+  virtual void enable_single_file() = 0;
   int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
 };
 
