@@ -217,9 +217,9 @@ btr_pcur_copy_stored_position(
 @param mtr         mini-transaction
 @return true on success */
 TRANSACTIONAL_TARGET
-static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
-                                             btr_latch_mode *latch_mode,
-                                             mtr_t *mtr)
+btr_pcur_t::restore_status
+btr_pcur_t::restore_optimistic(btr_latch_mode restore_latch_mode, mtr_t *mtr)
+  noexcept
 {
   static_assert(BTR_SEARCH_PREV & BTR_SEARCH_LEAF, "");
   static_assert(BTR_MODIFY_PREV & BTR_MODIFY_LEAF, "");
@@ -227,32 +227,80 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
                 (RW_S_LATCH ^ RW_X_LATCH), "");
 
   buf_block_t *const block=
-    buf_page_optimistic_fix(pcur->btr_cur.page_cur.block, pcur->old_page_id);
+    buf_page_optimistic_fix(btr_cur.page_cur.block, old_page_id);
 
   if (!block)
-    return false;
+  pessimistic:
+    return restore_pessimistic(restore_latch_mode, mtr);
 
-  if (*latch_mode == BTR_SEARCH_LEAF || *latch_mode == BTR_MODIFY_LEAF)
-    return buf_page_optimistic_get(block, rw_lock_type_t(*latch_mode),
-                                   pcur->modify_clock, mtr);
+  if (!(restore_latch_mode & 4))
+  {
+    if (!buf_page_optimistic_get(block, rw_lock_type_t(restore_latch_mode),
+                                 modify_clock, mtr))
+      goto pessimistic;
+  optimistic:
+    pos_state= BTR_PCUR_IS_POSITIONED;
+    latch_mode= restore_latch_mode;
 
-  ut_ad(*latch_mode == BTR_SEARCH_PREV || *latch_mode == BTR_MODIFY_PREV);
-  const rw_lock_type_t mode=
-    rw_lock_type_t(*latch_mode & (RW_X_LATCH | RW_S_LATCH));
+    if (rel_pos == BTR_PCUR_ON) {
+#ifdef UNIV_DEBUG
+      rec_offs offsets1_[REC_OFFS_NORMAL_SIZE];
+      rec_offs offsets2_[REC_OFFS_NORMAL_SIZE];
+      rec_offs *offsets1= offsets1_;
+      rec_offs *offsets2= offsets2_;
+      const rec_t *rec= btr_pcur_get_rec(this);
 
-  uint64_t modify_clock;
+      rec_offs_init(offsets1_);
+      rec_offs_init(offsets2_);
+
+      mem_heap_t *heap= mem_heap_create(256);
+      ut_ad(old_n_core_fields == index()->n_core_fields);
+
+      offsets1= rec_get_offsets(old_rec, index(), offsets1,
+                                old_n_core_fields, old_n_fields, &heap);
+      offsets2= rec_get_offsets(rec, index(), offsets2, index()->n_core_fields,
+				old_n_fields, &heap);
+
+      ut_ad(!cmp_rec_rec(old_rec, rec, offsets1, offsets2, index()));
+      mem_heap_free(heap);
+#endif /* UNIV_DEBUG */
+      return restore_status::SAME_ALL;
+    }
+
+    /* This is the same record as stored, may need to be adjusted for
+    BTR_PCUR_BEFORE/AFTER, depending on search mode and direction. */
+    if (btr_pcur_is_on_user_rec(this))
+      pos_state= BTR_PCUR_IS_POSITIONED_OPTIMISTIC;
+    return restore_status::NOT_SAME;
+  }
+
+  ut_ad(restore_latch_mode == BTR_SEARCH_PREV ||
+        restore_latch_mode == BTR_MODIFY_PREV);
+
+  if (restore_optimistic_prev(rw_lock_type_t(restore_latch_mode &
+                                             (RW_X_LATCH | RW_S_LATCH)),
+                              mtr, block))
+    goto optimistic;
+  goto pessimistic;
+}
+
+TRANSACTIONAL_TARGET
+bool btr_pcur_t::restore_optimistic_prev(rw_lock_type_t mode, mtr_t *mtr,
+                                         buf_block_t *block) noexcept
+{
+  uint64_t block_modify_clock;
   uint32_t left_page_no;
   const page_t *const page= block->page.frame;
   {
     transactional_shared_lock_guard<block_lock> g{block->page.lock};
-    modify_clock= block->modify_clock;
+    block_modify_clock= block->modify_clock;
     left_page_no= btr_page_get_prev(page);
   }
 
   const auto savepoint= mtr->get_savepoint();
   mtr->memo_push(block, MTR_MEMO_BUF_FIX);
 
-  if (UNIV_UNLIKELY(modify_clock != pcur->modify_clock))
+  if (UNIV_UNLIKELY(block_modify_clock != modify_clock))
   {
   fail:
     mtr->rollback_to_savepoint(savepoint);
@@ -262,7 +310,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   buf_block_t *prev;
   if (left_page_no != FIL_NULL)
   {
-    prev= buf_page_get_gen(page_id_t(pcur->old_page_id.space(),
+    prev= buf_page_get_gen(page_id_t(old_page_id.space(),
                                      left_page_no), block->zip_size(),
                            mode, nullptr, BUF_GET_POSSIBLY_FREED, mtr);
     if (!prev ||
@@ -308,21 +356,13 @@ btr_pcur_t::SAME_UNIQ cursor position is on user rec and points on the
 record with the same unique field values as in the stored record,
 btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
 the record with not the samebuniq field values as in the stored */
-TRANSACTIONAL_TARGET
 btr_pcur_t::restore_status
 btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
+  noexcept
 {
-	dict_index_t*	index;
-	dtuple_t*	tuple;
-	page_cur_mode_t	mode;
-	page_cur_mode_t	old_mode;
-	mem_heap_t*	heap;
-
 	ut_ad(mtr->is_active());
 	ut_ad(pos_state == BTR_PCUR_WAS_POSITIONED
 	      || pos_state == BTR_PCUR_IS_POSITIONED);
-
-	index = btr_cur_get_index(&btr_cur);
 
 	if (UNIV_UNLIKELY
 	    (rel_pos == BTR_PCUR_AFTER_LAST_IN_TREE
@@ -331,7 +371,7 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 		but always do a search */
 
 		if (btr_cur.open_leaf(rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
-				      index, restore_latch_mode, mtr)
+				      index(), restore_latch_mode, mtr)
 		    != DB_SUCCESS) {
 			return restore_status::CORRUPTED;
 		}
@@ -345,7 +385,7 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 
 	ut_a(old_rec);
 	ut_a(old_n_core_fields);
-	ut_a(old_n_core_fields <= index->n_core_fields);
+	ut_a(old_n_core_fields <= index()->n_core_fields);
 	ut_a(old_n_fields);
 
 	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
@@ -354,70 +394,29 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	switch (restore_latch_mode | 4) {
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
-		/* Try optimistic restoration. */
-		if (btr_pcur_optimistic_latch_leaves(this, &restore_latch_mode,
-						     mtr)) {
-			pos_state = BTR_PCUR_IS_POSITIONED;
-			latch_mode = restore_latch_mode;
-
-			if (rel_pos == BTR_PCUR_ON) {
-#ifdef UNIV_DEBUG
-				const rec_t*	rec;
-				rec_offs	offsets1_[REC_OFFS_NORMAL_SIZE];
-				rec_offs	offsets2_[REC_OFFS_NORMAL_SIZE];
-				rec_offs*	offsets1 = offsets1_;
-				rec_offs*	offsets2 = offsets2_;
-				rec = btr_pcur_get_rec(this);
-
-				rec_offs_init(offsets1_);
-				rec_offs_init(offsets2_);
-
-				heap = mem_heap_create(256);
-				ut_ad(old_n_core_fields
-				      == index->n_core_fields);
-
-				offsets1 = rec_get_offsets(
-					old_rec, index, offsets1,
-					old_n_core_fields,
-					old_n_fields, &heap);
-				offsets2 = rec_get_offsets(
-					rec, index, offsets2,
-					index->n_core_fields,
-					old_n_fields, &heap);
-
-				ut_ad(!cmp_rec_rec(old_rec,
-						   rec, offsets1, offsets2,
-						   index));
-				mem_heap_free(heap);
-#endif /* UNIV_DEBUG */
-				return restore_status::SAME_ALL;
-			}
-			/* This is the same record as stored,
-			may need to be adjusted for BTR_PCUR_BEFORE/AFTER,
-			depending on search mode and direction. */
-			if (btr_pcur_is_on_user_rec(this)) {
-				pos_state
-					= BTR_PCUR_IS_POSITIONED_OPTIMISTIC;
-			}
-			return restore_status::NOT_SAME;
-		}
+		return restore_optimistic(restore_latch_mode, mtr);
 	}
 
 	/* If optimistic restoration did not succeed, open the cursor anew */
+	return restore_pessimistic(restore_latch_mode, mtr);
+}
 
-	heap = mem_heap_create(256);
+btr_pcur_t::restore_status
+btr_pcur_t::restore_pessimistic(btr_latch_mode restore_latch_mode, mtr_t *mtr)
+  noexcept
+{
+	mem_heap_t* heap = mem_heap_create(256);
+	dtuple_t* tuple = dtuple_create(heap, old_n_fields);
 
-	tuple = dtuple_create(heap, old_n_fields);
+	dict_index_copy_types(tuple, index(), old_n_fields);
 
-	dict_index_copy_types(tuple, index, old_n_fields);
-
-	rec_copy_prefix_to_dtuple(tuple, old_rec, index,
+	rec_copy_prefix_to_dtuple(tuple, old_rec, index(),
 				  old_n_core_fields,
 				  old_n_fields, heap);
 	ut_ad(dtuple_check_typed(tuple));
 
 	/* Save the old search mode of the cursor */
-	old_mode = search_mode;
+	page_cur_mode_t	old_mode = search_mode, mode;
 
 	switch (rel_pos) {
 	case BTR_PCUR_ON:
@@ -453,8 +452,9 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 		ulint n_matched_fields= 0;
 		if (!cmp_dtuple_rec_with_match(
 		      tuple, btr_pcur_get_rec(this),
-		      rec_get_offsets(btr_pcur_get_rec(this), index, offsets,
-			index->n_core_fields, ULINT_UNDEFINED, &heap),
+		      rec_get_offsets(btr_pcur_get_rec(this), index(), offsets,
+				      index()->n_core_fields,
+				      ULINT_UNDEFINED, &heap),
 		      &n_matched_fields)) {
 
 			/* We have to store the NEW value for the modify clock,
@@ -468,15 +468,15 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 
 			return restore_status::SAME_ALL;
 		}
-		if (n_matched_fields >= index->n_uniq
+		if (n_matched_fields >= index()->n_uniq
 		    /* Unique indexes can contain "NULL" keys, and if all
 		    unique fields are NULL and not all tuple
 		    fields match to record fields, then treat it as if
 		    restored cursor position points to the record with
 		    not the same unique key. */
-		    && !(index->n_nullable
-			    && dtuple_contains_null(tuple, index->n_uniq)))
-			  ret_val= restore_status::SAME_UNIQ;
+		    && !(index()->n_nullable
+			 && dtuple_contains_null(tuple, index()->n_uniq)))
+			ret_val= restore_status::SAME_UNIQ;
 	}
 
 	mem_heap_free(heap);
@@ -578,14 +578,11 @@ btr_pcur_move_backward_from_page(
 	const auto latch_mode = cursor->latch_mode;
 	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
 
+	const page_id_t prev_id{btr_pcur_get_block(cursor)->page.id().space(),
+				btr_page_get_prev(btr_pcur_get_page(cursor))};
 	/* Fast path: Try to latch the previous page without waiting. */
-	if (buf_block_t *prev
-	    = buf_pool.page_fix(page_id_t(btr_pcur_get_block(cursor)
-					  ->page.id().space(),
-					  btr_page_get_prev(
-						  btr_pcur_get_page(cursor))),
-				nullptr, buf_pool_t::FIX_NOWAIT)) {
-
+	if (buf_block_t *prev = buf_pool.page_fix(prev_id, nullptr,
+                                                  buf_pool_t::FIX_NOWAIT)) {
 		if (prev == reinterpret_cast<buf_block_t*>(-1)) {
 		} else if (latch_mode == BTR_SEARCH_LEAF
 			   ? prev->page.lock.s_lock_try()

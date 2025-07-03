@@ -372,8 +372,16 @@ struct btr_pcur_t
   @retval NOT_SAME cursor position is not on user rec or points on
   the record with not the same uniq field values as in the stored
   @retval CORRUPTED if the index is corrupted */
-  restore_status restore_position(btr_latch_mode latch_mode, mtr_t *mtr);
-
+  restore_status restore_position(btr_latch_mode latch_mode, mtr_t *mtr)
+    noexcept;
+private:
+  restore_status restore_pessimistic(btr_latch_mode latch_mode, mtr_t *mtr)
+    noexcept;
+  bool restore_optimistic_prev(rw_lock_type_t mode, mtr_t *mtr,
+                               buf_block_t *block) noexcept;
+public:
+  restore_status restore_optimistic(btr_latch_mode latch_mode, mtr_t *mtr)
+    noexcept;
   /** Open the cursor on the first or last record.
   @param first         true=first record, false=last record
   @param index         B-tree

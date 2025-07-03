@@ -2236,8 +2236,9 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
       hash_lock.unlock_shared();
       switch (dberr_t err= buf_read_page(page_id, false)) {
       case DB_SUCCESS:
-      case DB_SUCCESS_LOCKED_REC:
         mariadb_increment_pages_read(stats);
+        /* fall through */
+      case DB_SUCCESS_LOCKED_REC:
         continue;
       case DB_TABLESPACE_DELETED:
         return nullptr;
@@ -2655,8 +2656,9 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
         *err= local_err;
       return nullptr;
     case DB_SUCCESS:
-    case DB_SUCCESS_LOCKED_REC:
       mariadb_increment_pages_read(stats);
+      /* fall through */
+    case DB_SUCCESS_LOCKED_REC:
       buf_read_ahead_random(id, false);
     }
   }
@@ -2789,8 +2791,9 @@ loop:
 
 	switch (dberr_t local_err = buf_read_page(page_id)) {
 	case DB_SUCCESS:
-	case DB_SUCCESS_LOCKED_REC:
 		mariadb_increment_pages_read(stats);
+		/* fall through */
+	case DB_SUCCESS_LOCKED_REC:
 		buf_read_ahead_random(page_id, ibuf_inside(mtr));
 		break;
 	default:
