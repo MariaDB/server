@@ -112,6 +112,10 @@ static_assert(FSP_BINLOG_TYPE_END <= 8*sizeof(ALLOWED_NESTED_RECORDS),
               "in ALLOWED_NESTED_RECORDS bitmask");
 
 
+extern uint32_t ibb_page_size_shift;
+extern ulong ibb_page_size;
+
+
 /*
   The object representing a binlog page that is not yet flushed to disk.
   At the end of the object is an additionally allocated byte buffer of
@@ -384,6 +388,12 @@ public:
   /* Length of the currently open file, valid if cur_file_handle != -1. */
   uint64_t cur_file_length;
   /*
+    If different from ~0, stop (return EOF) when reaching the end of this file.
+    This is used for SHOW BINLOG EVENTS, which has an old file-based interface,
+    and wants to show the events in a single file.
+  */
+  uint64_t stop_file_no;
+  /*
     After fetch_current_page(), this points into either cur_block or
     page_buffer as appropriate.
   */
@@ -414,6 +424,10 @@ public:
   byte cur_type() { return (byte)(s.chunk_type & FSP_BINLOG_TYPE_MASK); }
   bool cur_is_cont() { return (s.chunk_type & FSP_BINLOG_FLAG_CONT) != 0; }
   bool end_of_record() { return !s.in_record; }
+  bool is_end_of_page() noexcept
+  {
+    return s.in_page_offset >= ibb_page_size - (BINLOG_PAGE_DATA_END + 3);
+  }
   static int read_error_corruption(uint64_t file_no, uint64_t page_no,
                                    const char *msg);
   int read_error_corruption(const char *msg)
@@ -460,13 +474,11 @@ public:
   bool is_before_pos(uint64_t file_no, uint64_t offset);
   uint64_t current_file_no() { return s.file_no; }
   uint64_t current_pos() {
-    return (s.page_no << srv_page_size_shift) + s.in_page_offset;
+    return (s.page_no << ibb_page_size_shift) + s.in_page_offset;
   }
 };
 
 
-extern uint32_t ibb_page_size_shift;
-extern ulong ibb_page_size;
 /* The state interval (in pages) used for active_binlog_file_no. */
 extern uint64_t current_binlog_state_interval;
 extern mysql_mutex_t active_binlog_mutex;
