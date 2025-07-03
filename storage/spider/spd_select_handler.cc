@@ -23,6 +23,7 @@
 #include "spd_table.h"
 
 extern handlerton *spider_hton_ptr;
+constexpr int LINK_IDX= 0;
 
 spider_select_handler::spider_select_handler(THD *thd, SELECT_LEX *select_lex,
                                              spider_fields *fields)
@@ -87,8 +88,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     if (tl->table->file->partition_ht() != spider_hton_ptr)
       return NULL;
     spider = (ha_spider *) tl->table->file;
-    /* TODO: is this needed? if so do we need to clean this up on
-      returning NULL? */
+    /* needed for table holder (see spider_add_table_holder()) */
     spider->idx_for_direct_join = n_tables;
     /* only create if all tables have common first backend. */
     if (dbton_id == -1)
@@ -108,12 +108,14 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
       goto free_table_holder;
     /* only create if all tables have common first connection. */
     if (!common_conn)
-      common_conn= spider->conns[0];
-    else if (common_conn != spider->conns[0])
+      common_conn= spider->conns[LINK_IDX];
+    else if (common_conn != spider->conns[LINK_IDX])
       goto free_table_holder;
-    /* So that dbton_hdl->first_link_idx is not -1. Called in
-      dml_init() in gbh */
-    spider->reset_first_link_idx();
+    /* Sync dbton_hdl->first_link_idx with the chosen connection so
+      that translation of table names is correct. NOTE: in spider gbh
+      this is done in spider_fields::set_first_link_idx, after a
+      connection is randomly chosen by spider_fields::choose_a_conn */
+    spider->dbton_handler[dbton_id]->first_link_idx= LINK_IDX;
   }
   fields= new spider_fields();
   fields->set_table_holder(table_holder, n_tables);
@@ -141,8 +143,7 @@ int spider_select_handler::init_scan()
   ha_spider *spider= fields->get_first_table_holder()->spider;
   /* TODO: dbton_id should come from fields->get_next_dbton_id(), and
     link_idx might be nonzero if the common backends is not the first */
-  int link_idx= 0;
-  SPIDER_CONN *conn= spider->conns[link_idx];
+  SPIDER_CONN *conn= spider->conns[LINK_IDX];
   spider_db_handler *dbton_hdl= spider->dbton_handler[conn->dbton_id];
   /*
     spider_prepare_init_scan(query, NULL, fields, spider,
@@ -173,21 +174,21 @@ int spider_select_handler::init_scan()
 
   /* send query */
   dbton_hdl->set_sql_for_exec(
-    SPIDER_SQL_TYPE_SELECT_SQL, link_idx, NULL);
-  spider_lock_before_query(conn, &spider->need_mons[link_idx]);
+    SPIDER_SQL_TYPE_SELECT_SQL, LINK_IDX, NULL);
+  spider_lock_before_query(conn, &spider->need_mons[LINK_IDX]);
   if (dbton_hdl->execute_sql(
          SPIDER_SQL_TYPE_SELECT_SQL,
          conn,
          spider->result_list.quick_mode,
-         &spider->need_mons[link_idx]))
+         &spider->need_mons[LINK_IDX]))
     return spider_unlock_after_query_1(conn);
   /*
     So that in spider_db_store_results the check
        if (conn->connection_id != spider->connection_ids[link_idx])
     will go through
   */
-  spider->connection_ids[link_idx] = conn->connection_id;
-  spider_unlock_after_query_2(conn, spider, link_idx, table);
+  spider->connection_ids[LINK_IDX] = conn->connection_id;
+  spider_unlock_after_query_2(conn, spider, LINK_IDX, table);
   return 0;
 }
 
