@@ -331,4 +331,13 @@ set statement sql_mode='' for alter table t modify v vector(1);
 select * from t;
 drop table t;
 
+--echo #
+--echo # MDEV-36758 - LeakSanitizer errors in MHNSW_Share::alloc_node after DML on empty table with vector key
+--echo #
+create table t (v vector(1) not null, vector(v)) engine=myisam;
+delete from t;
+insert into t values (0x31313131);
+delete from t;
+drop table t;
+
 --echo # End of 11.8 tests

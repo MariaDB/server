@@ -1546,9 +1546,9 @@ int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
   if (!MHNSW_Share::acquire(&ctx, table, true))
   {
     ctx->reset(table->s);
-    ctx->release(table);
   }
 
+  ctx->release(table);
   return 0;
 }
 
