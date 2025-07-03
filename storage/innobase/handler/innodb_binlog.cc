@@ -267,6 +267,7 @@ public:
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
   virtual int init_legacy_pos(const char *filename, ulonglong offset) final;
+  virtual void enable_single_file() final;
   void seek_internal(uint64_t file_no, uint64_t offset);
 };
 
@@ -2670,7 +2671,7 @@ int ha_innodb_binlog_reader::read_data(uchar *buf, uint32_t len)
   const uchar *p_end;
   const uchar *p;
   std::pair<uint64_t, const unsigned char *> v_and_p;
-  int size;
+  int sofar= 0;
 
 again:
   switch (state)
@@ -2679,8 +2680,10 @@ again:
     static_assert(sizeof(rd_buf) == 5*COMPR_INT_MAX64,
                   "rd_buf size must match code using it");
     res= chunk_rd.read_data(rd_buf, 5*COMPR_INT_MAX64, true);
-    if (res <= 0)
+    if (res < 0)
       return res;
+    if (res == 0)
+      return sofar;
     if (chunk_rd.cur_type() != FSP_BINLOG_TYPE_COMMIT)
     {
       chunk_rd.skip_current();
@@ -2727,15 +2730,15 @@ again:
     goto again;
 
   case ST_read_commit_record:
-    size= 0;
     if (rd_buf_len > rd_buf_sofar)
     {
       /* Use any excess data from when the header was read. */
-      size= std::min((int)(rd_buf_len - rd_buf_sofar), (int)len);
+      int size= std::min((int)(rd_buf_len - rd_buf_sofar), (int)len);
       memcpy(buf, rd_buf + rd_buf_sofar, size);
       rd_buf_sofar+= size;
       len-= size;
       buf+= size;
+      sofar+= size;
     }
 
     if (UNIV_LIKELY(len > 0) && UNIV_LIKELY(!chunk_rd.end_of_record()))
@@ -2743,24 +2746,38 @@ again:
       res= chunk_rd.read_data(buf, len, false);
       if (res < 0)
         return -1;
-      size+= res;
+      len-= res;
+      buf+= res;
+      sofar+= res;
     }
 
     if (UNIV_LIKELY(rd_buf_sofar == rd_buf_len) && chunk_rd.end_of_record())
     {
       if (oob_count == 0)
+      {
         state= ST_read_next_event_group;
+        if (len > 0 && !chunk_rd.is_end_of_page())
+        {
+          /*
+            Let us try to read more data from this page. The goal is to read
+            from each page only once, as long as caller passes in a buffer at
+            least as big as our page size. Though commit record header that
+            spans a page boundary or oob records can break this property.
+          */
+          goto again;
+        }
+      }
       else
       {
         oob_reader.start_traversal(oob_last_file_no, oob_last_offset);
         chunk_rd.save_pos(&saved_commit_pos);
         state= ST_read_oob_data;
       }
-      if (size == 0)
+      if (sofar == 0)
         goto again;
     }
 
-    return size;
+    return sofar;
 
   case ST_read_oob_data:
     res= oob_reader.read_data(&chunk_rd, buf, len);
@@ -2774,9 +2791,10 @@ again:
     if (UNIV_UNLIKELY(res == 0))
     {
       ut_ad(0 /* Should have had oob_traversal_done() last time then. */);
-      goto again;
+      if (sofar == 0)
+        goto again;
     }
-    return res;
+    return sofar + res;
 
   default:
     ut_ad(0);
@@ -3227,6 +3245,13 @@ ha_innodb_binlog_reader::init_legacy_pos(const char *filename, ulonglong offset)
   cur_file_no= chunk_rd.current_file_no();
   cur_file_pos= chunk_rd.current_pos();
   return 0;
+}
+
+
+void
+ha_innodb_binlog_reader::enable_single_file()
+{
+  chunk_rd.stop_file_no= chunk_rd.s.file_no;
 }
 
 
