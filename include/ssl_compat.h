@@ -57,6 +57,8 @@
 #define ERR_remove_state(x) do {} while(0)
 #undef SSL_get_cipher
 #define SSL_get_cipher(ssl) (SSL_version(ssl) == TLS1_3_VERSION ? wolfSSL_get_cipher(ssl) : wolfSSL_get_cipher_name(ssl))
+#undef SSL_get_cipher_list
+#define SSL_get_cipher_list(ctx,i) wolfSSL_get_cipher_list(i)
 #elif defined (HAVE_ERR_remove_thread_state)
 #define ERR_remove_state(X) ERR_remove_thread_state(NULL)
 #endif /* HAVE_ERR_remove_thread_state */
