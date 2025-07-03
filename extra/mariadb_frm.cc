@@ -14,7 +14,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA */
 
 /**
-  @file extra/frm_parser.cc
+  @file extra/mariadb_frm.cc
   FRM file parser utility - extracts table structure from .frm files
 */
 
@@ -28,7 +28,6 @@
 #include <my_dir.h>
 #include "field.h"
 
-
 extern "C" {
   // Stub implementations for plugin system
   struct st_maria_plugin *mysql_mandatory_plugins[] = { NULL };
@@ -36,56 +35,187 @@ extern "C" {
 }
 
 
-/**
-  Initialize THD for FRM parsing
-*/
-static THD* init_thd()
+// Properly initialized mock handlerton (simplified)
+static handlerton mock_hton = { 0 };
+
+// Properly initialized mock plugin
+static st_maria_plugin mock_plugin = {
+  .type = MYSQL_STORAGE_ENGINE_PLUGIN,
+  .info = &mock_hton,
+  .name = "MOCK_ENGINE",
+  .author = "Mock Author",
+  .descr = "Mock storage engine for FRM parsing",
+  .license = PLUGIN_LICENSE_GPL,
+  .init = NULL,
+  .deinit = NULL,
+  .version = 0x0100,
+  .status_vars = NULL,
+  .system_vars = NULL,
+  .version_info = "1.0",
+  .maturity = MariaDB_PLUGIN_MATURITY_STABLE
+};
+
+// Properly initialized mock plugin_int structure
+static st_plugin_int mock_plugin_int = {
+  .name = {const_cast<char*>("mock_storage_engine"), 19}, // name and length
+  .plugin = &mock_plugin,
+  .plugin_dl = NULL, // Built-in plugin (not dynamically loaded)
+  .state = PLUGIN_IS_READY,
+  .ref_count = 1,
+  .load_option = PLUGIN_ON,
+  .locks_total = 0,
+  .mem_root = {0}, // Will be initialized if needed
+  .system_vars = NULL,
+  .nbackups = 0,
+  .ptr_backup = NULL
+};
+
+// Mock plugin reference
+static plugin_ref mock_plugin_ref = (plugin_ref)&mock_plugin_int;
+
+// Global plugin system variables (minimal initialization)
+extern mysql_mutex_t LOCK_plugin;  // Use existing LOCK_plugin from libsql.a
+static bool plugin_system_initialized = false;
+
+// Initialize minimal plugin system
+static void init_minimal_plugin_system()
 {
-  printf("DEBUG: Entering init_thd\n");
-  fflush(stdout);
-
-
-  THD *thd= new THD(0);
-  printf("DEBUG: THD created\n");
+  if (plugin_system_initialized)
+    return;
+    
+  printf("DEBUG: Initializing minimal plugin system\n");
   fflush(stdout);
   
-  if (!thd)
+  // Note: LOCK_plugin is already initialized by the main MariaDB code
+  // We don't need to initialize it ourselves
+  
+  plugin_system_initialized = true;
+  
+  printf("DEBUG: Plugin system initialized\n");
+  fflush(stdout);
+}
+
+// Cleanup plugin system
+static void cleanup_minimal_plugin_system()
+{
+  if (plugin_system_initialized) {
+    // Note: Don't destroy LOCK_plugin as it's owned by the main MariaDB code
+    plugin_system_initialized = false;
+  }
+}
+
+// Comprehensive mock functions - cover all plugin lookup paths
+#define ha_resolve_by_name(thd, name, tmp) (mock_plugin_ref)
+#define ha_checktype(thd, type, check) (&mock_hton)
+#define ha_lock_engine(thd, hton) (mock_plugin_ref)
+#define plugin_hton(plugin) (&mock_hton)
+#define get_new_handler(share, root, hton) (NULL)
+
+// Additional plugin lookup functions that FRM parsing might use
+#define plugin_lock_by_name(thd, name, type) (mock_plugin_ref)
+#define plugin_find_by_type(type) (mock_plugin_ref)
+#define ha_resolve_by_legacy_type(thd, type) (mock_plugin_ref)
+#define plugin_find_internal(name, type) (&mock_plugin_int)
+#define plugin_int_to_ref(plugin) (mock_plugin_ref)
+#define plugin_ref_to_int(plugin) (&mock_plugin_int)
+
+// Storage engine resolution functions
+#define ha_default_handlerton(thd) (&mock_hton)
+#define ha_storage_engine_is_enabled(hton) (true)
+
+// Mock validation function - return safe default
+#define enum_value_with_check(thd, share, name, value, max_val) ((value <= max_val) ? value : 0)
+
+// Mock status variable increment - no-op
+#define status_var_increment(x) do { } while(0)
+
+// Additional mock functions for plugin system
+static plugin_ref mock_plugin_lock(THD *thd, plugin_ref ptr) {
+  printf("DEBUG: mock_plugin_lock called with ptr=%p\n", ptr);
+  fflush(stdout);
+  return ptr ? ptr : mock_plugin_ref;
+}
+
+static void mock_plugin_unlock(THD *thd, plugin_ref ptr) {
+  printf("DEBUG: mock_plugin_unlock called with ptr=%p\n", ptr);
+  fflush(stdout);
+  // No-op for mock
+}
+
+// Override the actual plugin_lock and plugin_unlock functions
+#define plugin_lock(thd, ptr) mock_plugin_lock(thd, ptr)
+#define plugin_unlock(thd, ptr) mock_plugin_unlock(thd, ptr)
+
+/**
+  Fake THD structure that contains only fields needed for FRM parsing
+*/
+struct FakeTHD {
+  MEM_ROOT mem_root;
+  char *thread_stack;
+  
+  struct {
+    const CHARSET_INFO *character_set_client;
+    const CHARSET_INFO *collation_connection;
+    const CHARSET_INFO *collation_database;
+    const CHARSET_INFO *character_set_results;
+  } variables;
+  
+  struct {
+    ulong feature_system_versioning;
+    ulong feature_application_time_periods;
+  } status_var;
+};
+
+/**
+  Initialize fake THD structure
+*/
+static FakeTHD* init_fake_thd()
+{
+  printf("DEBUG: Entering init_fake_thd\n");
+  fflush(stdout);
+
+  // Initialize minimal plugin system FIRST
+  init_minimal_plugin_system();
+
+  FakeTHD *fake_thd = (FakeTHD*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(FakeTHD), MYF(MY_ZEROFILL));
+  if (!fake_thd)
     return NULL;
     
-  thd->thread_stack= (char*) &thd;
-  printf("DEBUG: thread_stack set\n");
-  fflush(stdout);
+  // Initialize memory root
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &fake_thd->mem_root, 8192, 0, MYF(0));
   
-  thd->store_globals();
-  printf("DEBUG: store_globals called\n");
-  fflush(stdout);
+  // Set thread stack for recursion limits
+  char stack_dummy;
+  fake_thd->thread_stack = &stack_dummy;
   
-  // Initialize basic THD settings needed for FRM parsing
-  thd->variables.character_set_client= &my_charset_utf8mb4_general_ci;
-  thd->variables.collation_connection= &my_charset_utf8mb4_general_ci;
-  thd->variables.collation_database= &my_charset_utf8mb4_general_ci;
-  thd->variables.character_set_results= &my_charset_utf8mb4_general_ci;
-  printf("DEBUG: Character sets initialized\n");
-  fflush(stdout);
+  // Set up essential character set variables
+  fake_thd->variables.character_set_client = &my_charset_utf8mb4_general_ci;
+  fake_thd->variables.collation_connection = &my_charset_utf8mb4_general_ci;
+  fake_thd->variables.collation_database = &my_charset_utf8mb4_general_ci;
+  fake_thd->variables.character_set_results = &my_charset_utf8mb4_general_ci;
   
-  thd->security_ctx->master_access= ALL_KNOWN_ACL;
-  printf("DEBUG: Security context set\n");
+  // Initialize status variables
+  fake_thd->status_var.feature_system_versioning = 0;
+  fake_thd->status_var.feature_application_time_periods = 0;
+
+  printf("DEBUG: Fake THD initialized successfully\n");
   fflush(stdout);
-  
-  printf("DEBUG: init_thd completed successfully\n");
-  fflush(stdout);
-  return thd;
+  return fake_thd;
 }
 
 /**
-  Cleanup THD
+  Cleanup fake THD
 */
-static void cleanup_thd(THD *thd)
+static void cleanup_fake_thd(FakeTHD *fake_thd)
 {
-  if (thd)
+  if (fake_thd)
   {
-    delete thd;
+    free_root(&fake_thd->mem_root, MYF(0));
+    my_free(fake_thd);
   }
+  
+  // Cleanup plugin system
+  cleanup_minimal_plugin_system();
 }
 
 /**
@@ -192,7 +322,7 @@ static bool extract_db_table_names(const char *frm_path,
 /**
   Parse FRM file and create TABLE_SHARE and TABLE structures
 */
-static bool parse_frm_file(THD *thd, const char *frm_path)
+static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
 {
   printf("DEBUG: Entering parse_frm_file\n");
   fflush(stdout);
@@ -233,25 +363,37 @@ static bool parse_frm_file(THD *thd, const char *frm_path)
          (int)db_name.length, db_name.str, (int)table_name.length, table_name.str);
   fflush(stdout);
 
-  // Create TABLE_SHARE and initialize it
-  printf("DEBUG: Allocating TABLE_SHARE\n");
+  // Create TABLE_SHARE manually to avoid character set conversion issues
+  printf("DEBUG: Allocating TABLE_SHARE manually\n");
   fflush(stdout);
   
-  share= alloc_table_share(db_name.str, table_name.str, "", 0);
+  share = (TABLE_SHARE*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(TABLE_SHARE), MYF(MY_ZEROFILL));
   if (!share)
   {
     fprintf(stderr, "Error: Cannot allocate TABLE_SHARE\n");
     goto cleanup;
   }
   
-  printf("DEBUG: TABLE_SHARE allocated successfully\n");
+  // Initialize essential TABLE_SHARE fields
+  share->db.str = db_name.str;
+  share->db.length = db_name.length;
+  share->table_name.str = table_name.str;
+  share->table_name.length = table_name.length;
+  
+  // Initialize TABLE_SHARE memory root
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &share->mem_root, 1024, 0, MYF(0));
+  
+  // Set fake_thd to use the share's memory root for parsing
+  fake_thd->mem_root = share->mem_root;
+  
+  printf("DEBUG: TABLE_SHARE allocated and initialized successfully\n");
   fflush(stdout);
   
   // Initialize TABLE_SHARE from binary FRM image
   printf("DEBUG: About to call init_from_binary_frm_image\n");
   fflush(stdout);
   
-  if (share->init_from_binary_frm_image(thd, false, frm_data, frm_length))
+  if (share->init_from_binary_frm_image((THD*)fake_thd, false, frm_data, frm_length))
   {
     fprintf(stderr, "Error: Cannot parse FRM file - init_from_binary_frm_image failed\n");
     goto cleanup;
@@ -272,7 +414,7 @@ static bool parse_frm_file(THD *thd, const char *frm_path)
   
   // Initialize TABLE structure
   table->s= share;
-  table->in_use= thd;
+  table->in_use= (THD*)fake_thd;
   
   // Call TABLE::init to complete initialization
   // Note: We use a dummy TABLE_LIST for this
@@ -280,7 +422,7 @@ static bool parse_frm_file(THD *thd, const char *frm_path)
   table_list.db= Lex_ident_db(db_name);
   table_list.alias= Lex_ident_table(table_name);
   
-  table->init(thd, &table_list);
+  table->init((THD*)fake_thd, &table_list);
   
   // Generate and output CREATE TABLE statement
   printf("Table: %.*s.%.*s\n", (int)db_name.length, db_name.str, (int)table_name.length, table_name.str);
@@ -290,27 +432,16 @@ static bool parse_frm_file(THD *thd, const char *frm_path)
   error= false;
   
 cleanup:
-  if (table)
-  {
-    my_free(table);
-  }
   if (share)
   {
-    free_table_share(share);
+    // Clean up manually allocated TABLE_SHARE
+    free_root(&share->mem_root, MYF(0));
+    my_free(share);
   }
-  if (frm_data)
-  {
-    my_free(frm_data);
-  }
-  if (db_name.str)
-  {
-    my_free((void*)db_name.str);
-  }
-  if (table_name.str)
-  {
-    my_free((void*)table_name.str);
-  }
-  
+  my_free(table);
+  my_free(frm_data);
+  my_free((void*)db_name.str);
+  my_free((void*)table_name.str);
   return error;
 }
 
@@ -326,7 +457,7 @@ int main(int argc, char **argv)
   printf("DEBUG: MY_INIT completed\n");
   fflush(stdout);
   
-  THD *thd= NULL;
+  FakeTHD *fake_thd= NULL;
   int exit_code= 0;
 
   // Check if FRM file was specified as argument
@@ -342,10 +473,11 @@ int main(int argc, char **argv)
   printf("DEBUG: About to initialize THD...\n");
   fflush(stdout);
 
-  // Initialize THD (Thread Descriptor)
+  // Initialize Fake THD (Thread Descriptor)
   my_thread_init();
-  thd= init_thd();
-  if (!thd)
+  my_mutex_init();
+  fake_thd= init_fake_thd();
+  if (!fake_thd)
   {
     fprintf(stderr, "Error: Cannot initialize THD\n");
     exit_code= 1;
@@ -356,7 +488,7 @@ int main(int argc, char **argv)
   fflush(stdout);
 
   // Parse the FRM file
-  if (parse_frm_file(thd, argv[1]))
+  if (parse_frm_file(fake_thd, argv[1]))
   {
     exit_code= 1;
   }
@@ -366,8 +498,9 @@ int main(int argc, char **argv)
 
   exit:
     // Cleanup
-    cleanup_thd(thd);
+    cleanup_fake_thd(fake_thd);
   my_thread_end();
+  my_mutex_end();
   my_end(0);
   return exit_code;
 }
