@@ -88,7 +88,7 @@ void sp_pcontext::init(uint var_offset,
 }
 
 
-sp_pcontext_top::sp_pcontext_top(const sp_head *owner)
+sp_pcontext_top::sp_pcontext_top(sp_head *owner)
  :sp_pcontext(this),
   m_sp(owner),
   m_member_cursors(PSI_INSTRUMENT_MEM)

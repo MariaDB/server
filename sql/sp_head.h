@@ -129,7 +129,7 @@ public:
 };
 
 
-class sp_head :private Query_arena,
+class sp_head :public Query_arena,
                public Database_qualified_name,
                public Sql_alloc
 {
@@ -220,7 +220,6 @@ public:
   LEX_CSTRING m_defstr;
   AUTHID      m_definer;
 
-  Query_arena *query_arena() { return this; }
   const st_sp_chistics &chistics() const { return m_chistics; }
   const LEX_CSTRING &comment() const { return m_chistics.comment; }
   void set_suid(enum_sp_suid_behaviour suid) { m_chistics.suid= suid; }
@@ -1164,8 +1163,8 @@ public:
     sp_pcontext *ctx= frame_for_members();
     return ctx ? ctx->find_variable(name, true) : NULL;
   }
-  const sp_pcursor *find_member_cursor(const LEX_CSTRING *name, uint *poff)
-                                                                      const
+  const sp_pcursor *find_member_cursor(const Lex_ident_column &name, uint *poff)
+                                                                          const
   {
     return m_pcont->find_member_cursor(name, poff);
   }

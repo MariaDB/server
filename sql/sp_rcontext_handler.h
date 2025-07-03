@@ -214,17 +214,12 @@ public:
 };
 
 
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_local sp_rcontext_handler_local;
+extern Sp_rcontext_handler_local sp_rcontext_handler_local;
 
+extern Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
 
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+extern Sp_rcontext_handler_member sp_rcontext_handler_member;
 
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_member sp_rcontext_handler_member;
-
-extern MYSQL_PLUGIN_IMPORT
-  Sp_rcontext_handler_statement sp_rcontext_handler_statement;
+extern Sp_rcontext_handler_statement sp_rcontext_handler_statement;
 
 #endif  // SP_RCONTEXT_HANDLER_INCLUDED

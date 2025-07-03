@@ -6820,12 +6820,12 @@ bool LEX::check_variable_is_refcursor(const LEX_CSTRING &verb_clause,
   - An own member cursor (if LEX::sphead is PACKAGE BODY)
   - A parent PACKAGE BODY cursor (if LEX::sphead is a package routine)
 */
-const sp_pcursor *LEX::find_cursor(const LEX_CSTRING *name,
+const sp_pcursor *LEX::find_cursor(const Lex_ident_column &name,
                                    sp_rcontext_addr *addr) const
 {
   const sp_pcursor *c;
   uint offset;
-  if (spcont && (c= spcont->find_cursor(name, &offset, false)))
+  if (spcont && (c= spcont->find_cursor(&name, &offset, false)))
   {
     /*
       The top level parse context frame contains routine formal parameters.
@@ -7093,7 +7093,7 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
 {
   sp_rcontext_addr cursor_addr(nullptr, 0);
   const sp_pcursor *pcursor= ref->table.str && ref->db.str ? NULL :
-                             find_cursor(&ref->m_column, &cursor_addr);
+                             find_cursor(ref->m_column, &cursor_addr);
   if (pcursor)
     return sp_variable_declarations_cursor_rowtype_finalize(thd, nvars,
                                                             cursor_addr,
@@ -7330,8 +7330,8 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
 {
   Item *item;
   DBUG_ASSERT(sphead);
-  LEX_CSTRING name= {STRING_WITH_LEN("[implicit_cursor]") };
-  if (sp_declare_cursor(thd, &name, cur, NULL, true))
+  Lex_ident_column name("[implicit_cursor]"_Lex_ident_column);
+  if (sp_declare_cursor(thd, name, cur, NULL, true))
     return true;
   DBUG_ASSERT(thd->lex == this);
   if (unlikely(!(bounds->m_index=
@@ -7504,13 +7504,13 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   Item_splocal *item_splocal;
   Item_field *item_field;
   Item_func_sp *item_func_sp= NULL;
-  LEX_CSTRING name;
+  Lex_ident_column name;
   uint param_count= 0;
   const sp_pcursor *pcursor;
   DBUG_ENTER("LEX::sp_for_loop_cursor_declarations");
 
   if ((item_splocal= item->get_item_splocal()))
-    name= item_splocal->m_name;
+    name= Lex_ident_column(item_splocal->m_name);
   else if ((item_field= item->type() == Item::FIELD_ITEM ?
                         static_cast<Item_field *>(item) : NULL) &&
            item_field->table_name.str == NULL)
@@ -7533,7 +7533,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
       "OPEN cursor(1,2,3)" where every expression belongs to a separate LEX.
     */
     item_func_sp= static_cast<Item_func_sp*>(item);
-    name= item_func_sp->get_sp_name()->m_name;
+    name= Lex_ident_column(item_func_sp->get_sp_name()->m_name);
     param_count= item_func_sp->argument_count();
   }
   else
@@ -7544,7 +7544,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
 
   sp_rcontext_addr cursor_addr(nullptr, 0);
 
-  if (unlikely(!(pcursor= find_cursor_with_error(&name, &cursor_addr)) ||
+  if (unlikely(!(pcursor= find_cursor_with_error(name, &cursor_addr)) ||
                pcursor->check_param_count_with_error(param_count)))
     DBUG_RETURN(true);
 
@@ -7644,7 +7644,7 @@ bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
 
 /***************************************************************************/
 
-bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
+bool LEX::sp_declare_cursor(THD *thd, const Lex_ident_column &name,
                             sp_lex_cursor *cursor_stmt,
                             sp_pcontext *param_ctx, bool add_cpush_instr)
 
@@ -7677,13 +7677,13 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     return sphead->get_parse_context()->add_member_cursor(name, param_ctx,
                                                           cursor_stmt);
   // Add a local cursor
-  if (spcont->find_cursor(name, &offp, true))
+  if (spcont->find_cursor(&name, &offp, true))
   {
-    my_error(ER_SP_DUP_CURS, MYF(0), name->str);
+    my_error(ER_SP_DUP_CURS, MYF(0), name.str);
     return true;
   }
 
-  if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
+  if (unlikely(spcont->add_cursor(&name, param_ctx, cursor_stmt)))
     return true;
 
   if (add_cpush_instr)
@@ -7704,7 +7704,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
   @param parameters - Cursor parameters, e.g. OPEN c(1,2,3)
   @returns          - false on success, true on error
 */
-bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
+bool LEX::sp_open_cursor(THD *thd, const Lex_ident_column &name,
                          List<sp_assignment_lex> *parameters)
 {
   sp_rcontext_addr addr(nullptr, 0);
@@ -7764,7 +7764,7 @@ bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
   sp_rcontext_addr addr(nullptr, 0);
 
   // Search for a static cursor with the given name first
-  if (find_cursor(&name, &addr))
+  if (find_cursor(Lex_ident_column(name), &addr))
   {
     sp_instr_cclose *i=
       new (thd->mem_root) sp_instr_cclose(sphead->instructions(),
@@ -8607,7 +8607,7 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
     cur%ROWCOUNT
   Works for static cursors and SYS_REFCURSORs.
 */
-Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+Item *LEX::make_item_plsql_cursor_attr(THD *thd, const Lex_ident_column &name,
                                        plsql_cursor_attr_t attr)
 {
   const Sp_rcontext_handler *rh= nullptr;
@@ -8616,10 +8616,10 @@ Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
   if (spcont && find_cursor(name, &addr))
   {
     // A static cursor found
-    return make_item_plsql_cursor_attr(thd, Cursor_ref(name, addr, nullptr),
+    return make_item_plsql_cursor_attr(thd, Cursor_ref(&name, addr, nullptr),
                                        attr);
   }
-  if (spcont && (spv= find_variable(name, &rh)))
+  if (spcont && (spv= find_variable(&name, &rh)))
   {
     static constexpr LEX_CSTRING cursor_attr=
       {STRING_WITH_LEN("%cursor_attr")};
@@ -8627,11 +8627,11 @@ Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
       return nullptr;
      // A SYS_REFCURSOR variable found
     return make_item_plsql_cursor_attr(thd,
-             Cursor_ref(name, sp_rcontext_addr(rh, spv->offset),
+             Cursor_ref(&name, sp_rcontext_addr(rh, spv->offset),
                         &sp_rcontext_handler_statement),
              attr);
   }
-  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
   return NULL;
 }
 
@@ -9211,7 +9211,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
   sp_rcontext_addr cursor_addr(nullptr, 0);
   if (fields_are_impossible() &&
       (current_select->parsing_place != FOR_LOOP_BOUND ||
-       find_cursor(name, &cursor_addr) == NULL))
+       find_cursor(Lex_ident_column(*name), &cursor_addr) == NULL))
   {
     // we are out of SELECT or FOR so it is syntax error
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
@@ -9901,7 +9901,7 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
   It covers both static cursors and SYS_REFCUSORs.
 */
 sp_instr_fetch_cursor *
-LEX::sp_add_instr_fetch_cursor(THD *thd, const LEX_CSTRING *name)
+LEX::sp_add_instr_fetch_cursor(THD *thd, const Lex_ident_column &name)
 {
   sp_rcontext_addr addr(nullptr, 0);
 
@@ -9916,7 +9916,7 @@ LEX::sp_add_instr_fetch_cursor(THD *thd, const LEX_CSTRING *name)
 
   // Search for a SYS_REFCURSOR variable
   const Sp_rcontext_handler *rh;
-  const sp_variable *spv= find_variable(name, &rh);
+  const sp_variable *spv= find_variable(&name, &rh);
   if (spv)
   {
     if (check_variable_is_refcursor({STRING_WITH_LEN("FETCH")}, spv))
@@ -9930,7 +9930,7 @@ LEX::sp_add_instr_fetch_cursor(THD *thd, const LEX_CSTRING *name)
     return i == nullptr || sphead->add_instr(i) ? nullptr : i;
   }
 
-  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+  my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
   return nullptr;
 }
 

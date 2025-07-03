@@ -308,7 +308,7 @@ public:
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
   bool check_param_count_with_error(uint param_count) const;
-  bool eq_name(const LEX_CSTRING &name) const
+  bool eq_name(const Lex_ident_column &name) const
   {
     return !system_charset_info->strnncoll(name.str, name.length, str, length);
   }
@@ -910,34 +910,37 @@ private:
 }; // class sp_pcontext : public Sql_alloc
 
 
+/*
+  A class for the top level parse context of an SP.
+*/
 class sp_pcontext_top: public sp_pcontext
 {
 public:
-  sp_pcontext_top(const sp_head *sp);
+  sp_pcontext_top(sp_head *sp);
 
-  const sp_head *sp() const
+  sp_head *sp() const
   {
     return m_sp;
   }
 
-  bool add_member_cursor(const LEX_CSTRING *name, sp_pcontext *param_ctx,
+  bool add_member_cursor(const Lex_ident_column &name, sp_pcontext *param_ctx,
                          class sp_lex_cursor *lex)
   {
     uint dummy_offset;
     if (find_member_cursor(name, &dummy_offset))
     {
-       my_error(ER_SP_DUP_CURS, MYF(0), name->str);
+       my_error(ER_SP_DUP_CURS, MYF(0), name.str);
        return true;
     }
-    return m_member_cursors.append(sp_pcursor(name, param_ctx, lex));
+    return m_member_cursors.append(sp_pcursor(&name, param_ctx, lex));
   }
 
-  const sp_pcursor *find_member_cursor(const LEX_CSTRING *name,
+  const sp_pcursor *find_member_cursor(const Lex_ident_column &name,
                                        uint *poff) const
   {
     for (uint i= 0; i < m_member_cursors.elements(); i++)
     {
-      if (m_member_cursors.at(i).eq_name(*name))
+      if (m_member_cursors.at(i).eq_name(name))
       {
         *poff= i;
         return &m_member_cursors.at(i);
@@ -963,7 +966,7 @@ public:
     - CREATE PACKAGE wide variables and cursors (coming soon - MDEV-13139)
     - CREATE PACKAGE BODY wide variables and cursors
 
-    Example:
+    Example (using Oracle syntax):
 
       CREATE PACKAGE BODY pkg AS -- sp_package
         a0 INT;                  -- A member
@@ -1006,7 +1009,14 @@ public:
   }
 
 private:
-  const sp_head *m_sp;
+  /*
+    A pointer to the owner SP. It's used by package routines
+    e.g. to access elements of the parse context of the owner package body,
+    such as cursors. See Sp_rcontext_handler_package_body::get_pcursor() for
+    an example.
+  */
+  sp_head *m_sp;
+  // An array of member cursors. Used by packages.
   Dynamic_array<sp_pcursor> m_member_cursors;
 };
 
