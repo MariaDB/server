@@ -2329,7 +2329,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   *having_item= NULL;
 
   if (join_having || select_lex->with_sum_func ||
-      select_lex->group_list.elements)
+      select_lex->group_list.elements || select_lex->with_rownum)
   {
     LEX_CSTRING field_name= this->full_name_cstring();
     Item *item= func->create(thd, expr,
@@ -2576,9 +2576,10 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
     during JOIN::optimize: this->tmp_having= this->having; this->having= 0;
   */
   Item* join_having= join->having ? join->having : join->tmp_having;
-  bool is_having_used= (join_having || select_lex->with_sum_func ||
-                        select_lex->group_list.first ||
-                        !select_lex->table_list.elements);
+  bool is_having_used=
+      (join_having || select_lex->with_sum_func ||
+       select_lex->group_list.first || !select_lex->table_list.elements ||
+       select_lex->with_rownum);
   LEX_CSTRING list_ref= { STRING_WITH_LEN("<list ref>")};
   DBUG_ENTER("Item_in_subselect::create_row_in_to_exists_cond");
   DBUG_ASSERT(thd == join->thd);
