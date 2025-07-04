@@ -569,6 +569,7 @@ struct st_dyncall_create_def
 typedef struct st_dyncall_create_def DYNCALL_CREATE_DEF;
 
 
+typedef bool (*Item_predicate) (Item *item);
 typedef bool (Item::*Item_processor) (void *arg);
 /*
   Analyzer function
@@ -2238,6 +2239,8 @@ public:
   bool cleanup_excluding_immutables_processor (void *arg);
   virtual bool cleanup_excluding_const_fields_processor (void *arg)
   { return cleanup_processor(arg); }
+  bool any_item_processor(void *arg)
+  { return (*(Item_predicate) arg)(this); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
   virtual bool unknown_splocal_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }

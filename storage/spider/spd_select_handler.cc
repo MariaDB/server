@@ -37,31 +37,43 @@ spider_select_handler::~spider_select_handler()
   delete fields;
 }
 
+bool spider_sh_cannot_handle_item(Item *item)
+{
+  enum Item::Type type= item->type();
+  return (type == Item::SUBSELECT_ITEM);
+}
+
 /* TODO: for sh we just need to check select_lex and do not have to
   worry about any spider things. is this the case with gbh? */
 static bool spider_sh_can_handle_query(SELECT_LEX *select_lex)
 {
+  List<Item> all_items;
   List_iterator_fast<Item> it(*select_lex->get_item_list());
   while (Item *item= it++)
-    if (item->walk(&Item::is_subquery_processor, 0, 0))
+    if (item->walk(&Item::any_item_processor, 0,
+                   (void *) &spider_sh_cannot_handle_item))
       return false;
   if (select_lex->where &&
-      select_lex->where->walk(&Item::is_subquery_processor, 0, 0))
+      select_lex->where->walk(&Item::any_item_processor, 0,
+                              (void *) &spider_sh_cannot_handle_item))
     return false;
   if (select_lex->join->group_list)
     for (ORDER *order= select_lex->join->group_list; order;
          order= order->next)
       if (order->item_ptr &&
-          order->item_ptr->walk(&Item::is_subquery_processor, 0, 0))
+          order->item_ptr->walk(&Item::any_item_processor, 0,
+                                (void *) &spider_sh_cannot_handle_item))
         return false;
   if (select_lex->join->order)
     for (ORDER *order= select_lex->join->order; order; order= order->next)
       /* TODO: What happens if item_ptr is NULL? When is it NULL? */
       if (order->item_ptr &&
-          order->item_ptr->walk(&Item::is_subquery_processor, 0, 0))
+          order->item_ptr->walk(&Item::any_item_processor, 0,
+                                (void *) &spider_sh_cannot_handle_item))
         return false;
   if (select_lex->having &&
-      select_lex->having->walk(&Item::is_subquery_processor, 0, 0))
+      select_lex->having->walk(&Item::any_item_processor, 0,
+                               (void *) &spider_sh_cannot_handle_item))
     return false;
   return true;
 }
