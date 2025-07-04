@@ -737,25 +737,26 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         11. It is first optimisation (the subquery could be moved from ON
             clause during first optimisation and then be considered for SJ
             on the second when it is too late)
+        12. Subquery does not have ROWNUM
 
       There are also other requirements which cannot be checked at this phase,
       yet. They are checked later in convert_join_subqueries_to_semijoins(),
       look for calls to block_conversion_to_sj().
     */
-    if (select_lex->semijoin_enabled(thd) &&
-        in_subs &&                                                    // 1
-        !select_lex->is_part_of_union() &&                            // 2
-        !select_lex->group_list.elements && !join->order &&           // 3
-        !join->having && !select_lex->with_sum_func &&                // 4
-        in_subs->emb_on_expr_nest &&                                  // 5
-        !select_lex->is_sj_conversion_prohibited(thd) &&              // 6
-        parent_unit->first_select()->leaf_tables.elements &&          // 7
-        !in_subs->has_strategy() &&                                   // 8
-        select_lex->outer_select()->table_list.first &&               // 9
-        !((join->select_options |                                     // 10
-           select_lex->outer_select()->join->select_options)          // 10
-          & SELECT_STRAIGHT_JOIN) &&                                  // 10
-        select_lex->first_cond_optimization)                          // 11
+    if (select_lex->semijoin_enabled(thd) && in_subs &&      // 1
+        !select_lex->is_part_of_union() &&                   // 2
+        !select_lex->group_list.elements && !join->order &&  // 3
+        !join->having && !select_lex->with_sum_func &&       // 4
+        in_subs->emb_on_expr_nest &&                         // 5
+        !select_lex->is_sj_conversion_prohibited(thd) &&     // 6
+        parent_unit->first_select()->leaf_tables.elements && // 7
+        !in_subs->has_strategy() &&                          // 8
+        select_lex->outer_select()->table_list.first &&      // 9
+        !((join->select_options |                            // 10
+           select_lex->outer_select()->join->select_options) // 10
+          & SELECT_STRAIGHT_JOIN) &&                         // 10
+        select_lex->first_cond_optimization &&               // 11
+        !select_lex->with_rownum)                            // 12
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
