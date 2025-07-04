@@ -27,7 +27,8 @@ constexpr int LINK_IDX= 0;
 
 spider_select_handler::spider_select_handler(THD *thd, SELECT_LEX *select_lex,
                                              spider_fields *fields)
-  : select_handler(thd, spider_hton_ptr, select_lex), fields(fields)
+  : select_handler(thd, spider_hton_ptr, select_lex), fields(fields),
+    store_error(0)
 {}
 
 spider_select_handler::~spider_select_handler()
@@ -181,7 +182,16 @@ int spider_select_handler::init_scan()
          conn,
          spider->result_list.quick_mode,
          &spider->need_mons[LINK_IDX]))
-    return spider_unlock_after_query_1(conn);
+  {
+    int error= spider_unlock_after_query_1(conn);
+    if ((error = spider->check_error_mode_eof(error)) ==
+        HA_ERR_END_OF_FILE)
+    {
+      store_error= HA_ERR_END_OF_FILE;
+      error= 0;
+    }
+    return error;
+  }
   /*
     So that in spider_db_store_results the check
        if (conn->connection_id != spider->connection_ids[link_idx])
@@ -196,6 +206,8 @@ int spider_select_handler::next_row()
 {
   ha_spider *spider= fields->get_first_table_holder()->spider;
   SPIDER_RESULT_LIST *result_list= &spider->result_list;
+  if (store_error)
+    return store_error;
   if (result_list->current_row_num >= result_list->current->record_num)
     return HA_ERR_END_OF_FILE;
   else
