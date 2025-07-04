@@ -65,9 +65,11 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   {
     spider = (ha_spider *) tl->table->file;
     spider_add_table_holder(spider, table_holder);
+    spider_check_trx_and_get_conn(thd, spider);
+    /* So that dbton_hdl->first_link_idx is not -1. Called in
+      dml_init() in gbh */
+    spider->reset_first_link_idx();
   }
-  spider= (ha_spider *) from->table->file;
-  spider_check_trx_and_get_conn(thd, spider);
   fields= new spider_fields();
   fields->set_table_holder(table_holder, n_tables);
   fields->add_dbton_id(dbton_id);
@@ -119,11 +121,12 @@ int spider_select_handler::init_scan()
   dbton_hdl->set_sql_for_exec(
     SPIDER_SQL_TYPE_SELECT_SQL, link_idx, NULL);
   spider_lock_before_query(conn, &spider->need_mons[link_idx]);
-  dbton_hdl->execute_sql(
-    SPIDER_SQL_TYPE_SELECT_SQL,
-    conn,
-    spider->result_list.quick_mode,
-    &spider->need_mons[link_idx]);
+  if (dbton_hdl->execute_sql(
+         SPIDER_SQL_TYPE_SELECT_SQL,
+         conn,
+         spider->result_list.quick_mode,
+         &spider->need_mons[link_idx]))
+    return spider_unlock_after_query_1(conn);
   /*
     So that in spider_db_store_results the check
        if (conn->connection_id != spider->connection_ids[link_idx])
