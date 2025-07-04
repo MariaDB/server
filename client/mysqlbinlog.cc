@@ -3711,8 +3711,9 @@ int main(int argc, char** argv)
   }
 
   /*
-    Emit warning(s) if we finished processing input before reaching the stop
-    boundaries indicated by --stop-datetime or --stop-position index.
+    Emit warning(s) (in Gtid_event_filter::verify_completed_state() for GTID(s))
+    if we finished processing input before reaching the stop
+    boundaries indicated by --stop-datetime or --stop-position.
   */
   if (stop_datetime != MY_TIME_T_MAX &&
       stop_datetime > last_processed_ev.datetime)
@@ -3722,20 +3723,6 @@ int main(int argc, char** argv)
       stop_position > last_processed_ev.position)
     warning("Did not reach stop position %llu before end of input",
             stop_position);
-
-  /*
-    Emit warning(s) (in Gtid_event_filter::verify_completed_state())
-    in the event that we finished processing input
-    before reaching all boundaries indicated by --stop-position GTID(s).
-  */
-  if (position_gtid_filter)
-    position_gtid_filter->verify_final_state();
-
-  /*
-    Emit warning(s) (in Gtid_event_filter::verify_completed_state())
-    in the event that we finished processing input
-    before reaching all boundaries indicated by --stop-position GTID(s).
-  */
   if (position_gtid_filter)
     position_gtid_filter->verify_final_state();
 
