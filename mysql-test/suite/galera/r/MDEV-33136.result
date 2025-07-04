@@ -4,7 +4,7 @@ connect node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 connection node_1a;
-TRUNCATE TABLE t1;
+RENAME TABLE t1 TO tmp, tmp TO t1;
 SET SESSION wsrep_retry_autocommit = 0;
 SET DEBUG_SYNC = 'dict_stats_mdl_acquired SIGNAL may_toi WAIT_FOR bf_abort';
 INSERT INTO t1 VALUES (1);

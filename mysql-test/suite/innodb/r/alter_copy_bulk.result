@@ -91,3 +91,24 @@ INSERT INTO t1 VALUES
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
+#
+#  MDEV-36504 Memory leak after insert into empty table
+#
+CREATE TABLE t1 (k INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 SET k= 1;
+START TRANSACTION;
+INSERT INTO t1 SET k= 2;
+SELECT COUNT(*) > 0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
+COUNT(*) > 0
+1
+connect con1,localhost,root,,,;
+SET innodb_lock_wait_timeout=0;
+CREATE TABLE t2(f1 INT DEFAULT 1 PRIMARY KEY)
+STATS_PERSISTENT= 1 ENGINE=InnoDB as SELECT k FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+SET innodb_lock_wait_timeout=default;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t2;
+# restart

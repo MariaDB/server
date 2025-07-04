@@ -13,10 +13,13 @@ grant all on *.* to  repl2@'%';
 connect replica, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection replica;
 connection node_2;
+connection primary1;
+connection primary2;
 connection replica;
 # Galera replica changing master to primary1
-SET @@default_master_connection='stream2';
+SET @@default_master_connection='stream1';
 # Primary node changing master to primary2
+SET @@default_master_connection='stream2';
 START ALL SLAVES;
 Warnings:
 Note	1937	SLAVE 'stream1' started

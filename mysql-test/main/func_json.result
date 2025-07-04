@@ -1766,6 +1766,43 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
 #
+# MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+#
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+hex_smiley
+F09F988A
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+smiley
+😊
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+equal_smileys
+1
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+less_or_equal_smileys
+1
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+v	collation_v
+{ "color":"😊" }	utf8mb4_general_ci
+select json_valid(@v) as valid;
+valid
+1
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+color_extraction	color_extraction_collation
+"😊"	utf8mb4_general_ci
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+unquoted	unquoted_collation
+😊	utf8mb4_bin
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+invalid_utf8mb4
+"\uc080\ude0a"
+Warnings:
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
+show warnings;
+Level	Code	Message
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
+#
 # End of 10.6 tests
 #
 #

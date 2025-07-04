@@ -87,22 +87,22 @@ static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
 
 /* INFORMATION_SCHEMA name */
-LEX_CSTRING INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
+Lex_ident_db INFORMATION_SCHEMA_NAME= {STRING_WITH_LEN("information_schema")};
 
 /* PERFORMANCE_SCHEMA name */
-LEX_CSTRING PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
+Lex_ident_db PERFORMANCE_SCHEMA_DB_NAME= {STRING_WITH_LEN("performance_schema")};
 
 /* MYSQL_SCHEMA name */
 Lex_ident_db MYSQL_SCHEMA_NAME= {STRING_WITH_LEN("mysql")};
 
 /* GENERAL_LOG name */
-LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
+Lex_ident_table GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
 
 /* SLOW_LOG name */
-LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
+Lex_ident_table SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
 
-LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
-LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
+Lex_ident_table TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
+Lex_ident_table MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
 
 /* 
   Keyword added as a prefix when parsing the defining expression for a
@@ -5320,9 +5320,10 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
 }
 
 
-bool check_column_name(const char *name)
+bool check_column_name(const Lex_ident &ident)
 {
   // name length in symbols
+  const char *name= ident.str, *end= ident.str + ident.length;
   size_t name_length= 0;
   bool last_char_is_space= TRUE;
 
@@ -5332,9 +5333,7 @@ bool check_column_name(const char *name)
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (system_charset_info->use_mb())
     {
-      int len=my_ismbchar(system_charset_info, name, 
-                          name+system_charset_info->mbmaxlen);
-      if (len)
+      if (int len= my_ismbchar(system_charset_info, name,  end))
       {
         name += len;
         name_length++;
@@ -5351,12 +5350,6 @@ bool check_column_name(const char *name)
   }
   /* Error if empty or too long column name */
   return last_char_is_space || (name_length > NAME_CHAR_LEN);
-}
-
-
-bool check_period_name(const char *name)
-{
-  return check_column_name(name);
 }
 
 
@@ -6061,7 +6054,6 @@ allocate:
 
   while ((item= it++))
   {
-    DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
     transl[field_count++].item= item;
@@ -6360,9 +6352,9 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   @pre This method can be called only if there is an error.
 */
 
-void TABLE_LIST::hide_view_error(THD *thd)
+void TABLE_LIST::replace_view_error_with_generic(THD *thd)
 {
-  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error()) || thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
@@ -7908,7 +7900,8 @@ void TABLE::mark_columns_needed_for_insert()
 }
 
 /*
-  Mark columns according the binlog row image option.
+  Mark columns according the binlog row image option
+  or mark virtual columns for slave.
 
   Columns to be written are stored in 'rpl_write_set'
 
@@ -7939,6 +7932,10 @@ void TABLE::mark_columns_needed_for_insert()
   the read_set at binlogging time (for those cases that
   we only want to log a PK and we needed other fields for
   execution).
+
+  If binlog row image is off on slave we mark virtual columns
+  for read as InnoDB requires correct field metadata which is set
+  by update_virtual_fields().
 */
 
 void TABLE::mark_columns_per_binlog_row_image()
@@ -7947,9 +7944,6 @@ void TABLE::mark_columns_per_binlog_row_image()
   DBUG_ENTER("mark_columns_per_binlog_row_image");
   DBUG_ASSERT(read_set->bitmap);
   DBUG_ASSERT(write_set->bitmap);
-
-  /* If not using row format */
-  rpl_write_set= write_set;
 
   /**
     If in RBR we may need to mark some extra columns,
@@ -8024,6 +8018,12 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
+    file->column_bitmaps_signal();
+  }
+  else
+  {
+    /* If not using row format */
+    rpl_write_set= write_set;
     file->column_bitmaps_signal();
   }
 
@@ -9956,37 +9956,6 @@ int TABLE_LIST::fetch_number_of_rows()
   return error;
 }
 
-/*
-  Procedure of keys generation for result tables of materialized derived
-  tables/views.
-
-  A key is generated for each equi-join pair derived table-another table.
-  Each generated key consists of fields of derived table used in equi-join.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 and tt.f2.=t1.f4;
-  In this case for the derived table tt one key will be generated. It will
-  consist of two parts f1 and f2.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=t1.f3 JOIN
-                  t2 ON tt.f2=t2.f4;
-  In this case for the derived table tt two keys will be generated.
-  One key over f1 field, and another key over f2 field.
-  Currently optimizer may choose to use only one such key, thus the second
-  one will be dropped after range optimizer is finished.
-  See also JOIN::drop_unused_derived_keys function.
-  Example:
-
-    SELECT * FROM (SELECT * FROM t1 GROUP BY 1) tt JOIN
-                  t1 ON tt.f1=a_function(t1.f3);
-  In this case for the derived table tt one key will be generated. It will
-  consist of one field - f1.
-*/
-
-
 
 /*
   @brief
@@ -10558,8 +10527,8 @@ bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.check_unit(thd) ||
-         end.check_unit(thd);
+  return start.check_unit(thd, this) ||
+         end.check_unit(thd, this);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -10585,7 +10554,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::check_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd, vers_select_conds_t *vers_conds)
 {
   if (!item)
     return false;
@@ -10595,6 +10564,9 @@ bool Vers_history_point::check_unit(THD *thd)
              item->full_name(), "FOR SYSTEM_TIME");
     return true;
   }
+  else if (item->with_param())
+    vers_conds->has_param= true;
+
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();

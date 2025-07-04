@@ -26,7 +26,6 @@
 --source include/have_debug_sync.inc
 --source include/galera_have_debug_sync.inc
 
-
 # Setup
 
 CREATE TABLE t1 (f1 VARCHAR(32) NOT NULL) ENGINE=InnoDB;
@@ -44,7 +43,7 @@ SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_slave_threads = 2;
 
 --echo ***************************************************************
---echo scenario 1,  conflicting UPDATE
+--echo scenario 1, conflicting UPDATE
 --echo ***************************************************************
 
 # Set up a synchronization point to catch the first transaction
@@ -99,9 +98,8 @@ COMMIT;
 --source include/galera_signal_sync_point.inc
 --source include/galera_clear_sync_point.inc
 
-
 --echo ***************************************************************
---echo scenario 2,  conflicting DELETE
+--echo scenario 2, conflicting DELETE
 --echo ***************************************************************
 
 # Set up a synchronization point to catch the first transaction
@@ -164,5 +162,6 @@ SET GLOBAL wsrep_slave_threads = DEFAULT;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
 --connection node_2
 SET GLOBAL wsrep_slave_threads = DEFAULT;

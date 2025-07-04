@@ -135,15 +135,19 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLES;
   --connection child2_2
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
     eval $CHILD2_2_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_2_SELECT_TABLES;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -195,15 +199,19 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
     eval $CHILD2_1_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_1_SELECT_TABLES;
   --connection child2_2
   if ($USE_GENERAL_LOG)
   {
+    --disable_view_protocol
     --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
     eval $CHILD2_2_SELECT_ARGUMENT1;
+    --enable_view_protocol
   }
   eval $CHILD2_2_SELECT_TABLES;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -243,6 +251,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_view_protocol
 --disable_ps2_protocol
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 if ($USE_CHILD_GROUP2)
@@ -273,6 +282,7 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --enable_ps2_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

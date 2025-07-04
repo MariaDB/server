@@ -2431,9 +2431,6 @@ create table t1 (a int) engine=myisam;
 create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
-connect  con1, localhost, root;
-start transaction with consistent snapshot;
-connection default;
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 update t1,t2 set t1.a=2,t2.a=3;
 connection con2;
@@ -2456,6 +2453,7 @@ SET DEBUG_SYNC= 'now SIGNAL grlwait';
 SET DEBUG_SYNC= 'now WAIT_FOR table_opened';
 SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL grlwait';
 FLUSH TABLES WITH READ LOCK;
+InnoDB		0 transactions not purged
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_FTWRL2	Backup lock		
@@ -2465,7 +2463,6 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
-disconnect con1;
 #
 # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
 #           failed in open_ltable()
@@ -3018,3 +3015,34 @@ connection default;
 SET debug_sync='RESET';
 DROP TABLE t1;
 disconnect con1;
+#
+# MDEV-28567 Assertion `0' in open_tables upon function-related operation
+#
+CREATE VIEW v1 AS SELECT 1;
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT * FROM v1);
+connect con1, localhost, root;
+SET debug_sync='open_and_process_table SIGNAL ready1 WAIT_FOR go1';
+ALTER VIEW v1 AS SELECT f1();
+connect con2, localhost, root;
+SET debug_sync='now WAIT_FOR ready1';
+SET debug_sync='mdl_after_find_deadlock SIGNAL ready2';
+SELECT f1();
+connect con3, localhost, root;
+SET debug_sync='now WAIT_FOR ready2';
+SET debug_sync='mdl_after_find_deadlock SIGNAL ready3';
+DROP FUNCTION f1;
+connection default;
+SET debug_sync='now WAIT_FOR ready3';
+SET debug_sync='now SIGNAL go1';
+connection con3;
+disconnect con3;
+connection con2;
+f1()
+1
+disconnect con2;
+connection con1;
+ERROR 42000: FUNCTION test.f1 does not exist
+disconnect con1;
+connection default;
+DROP VIEW v1;
+SET debug_sync='reset';

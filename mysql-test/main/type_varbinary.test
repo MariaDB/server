@@ -1,0 +1,10 @@
+--echo #
+--echo # MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+--echo #
+CREATE TABLE t1 (c1 VARBINARY(10), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (-2),(-1),(1),(2);
+SELECT c1 FROM t1 WHERE 'a' BETWEEN 0 AND (c1);
+SELECT c1 FROM t1 IGNORE KEY(c1) WHERE 'a' BETWEEN 0 AND (c1);
+SELECT c1 FROM t1 WHERE '#' BETWEEN c1 AND 0;
+SELECT c1 FROM t1 IGNORE KEY(c1) WHERE '#' BETWEEN c1 AND 0;
+DROP TABLE t1;

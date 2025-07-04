@@ -144,18 +144,6 @@ wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 			return false;
 		}
 
-		/* Check whether TRX_SYS page has been changed */
-		if (mach_read_from_4(page + FIL_PAGE_SPACE_ID)
-				== TRX_SYS_SPACE
-		    && mach_read_from_4(page + FIL_PAGE_OFFSET)
-				== TRX_SYS_PAGE_NO) {
-			msg(cursor->thread_n,
-			    "--incremental backup is impossible if "
-			    "the server had been restarted with "
-			    "different innodb_undo_tablespaces.");
-			return false;
-		}
-
 		/* updated page */
 		if (cp->npages == page_size / 4) {
 			/* flush buffer */

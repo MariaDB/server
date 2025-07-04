@@ -4,7 +4,7 @@ create table t1 (id serial, val int) engine=innodb;
 create table t2 (id serial, val int) engine=aria;
 insert into t1 values(1, 23);
 insert into t2 values(2, 42);
-call mtr.add_suppression("WSREP: Replication of non-transactional engines is experimental. Storage engine Aria for table 'test'.'t2' is not supported in Galera");
+call mtr.add_suppression("WSREP: Replication of non-transactional engines is experimental\\. Storage engine Aria for table 'test'\\.'t2' is not supported in Galera");
 begin;
 update t1 set val=24 where id=1;
 update t2 set val=41 where id=2;

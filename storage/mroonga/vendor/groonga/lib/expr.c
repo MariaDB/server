@@ -2459,6 +2459,10 @@ grn_proc_call(grn_ctx *ctx, grn_obj *proc, int nargs, grn_obj *caller)
   }                                                                     \
 } while (0)
 
+#ifdef __GNUC__
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wframe-larger-than="
+#endif
 inline static void
 grn_expr_exec_get_member_vector(grn_ctx *ctx,
                                 grn_obj *expr,
@@ -3834,6 +3838,9 @@ exit :
   }
   GRN_API_RETURN(val);
 }
+#ifdef __GNUC__
+# pragma GCC diagnostic pop
+#endif
 
 grn_obj *
 grn_expr_get_value(grn_ctx *ctx, grn_obj *expr, int offset)

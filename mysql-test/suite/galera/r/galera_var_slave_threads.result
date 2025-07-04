@@ -33,7 +33,6 @@ connection node_2;
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 70
-SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;
 DROP TABLE t2;
 #

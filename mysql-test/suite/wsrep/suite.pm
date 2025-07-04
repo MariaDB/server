@@ -9,9 +9,9 @@ return wsrep_not_ok() if wsrep_not_ok();
 
 push @::global_suppressions,
   (
-     qr(WSREP: Could not open saved state file for reading: .*),
-     qr(WSREP: Could not open state file for reading: .*),
-     qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
+     qr(WSREP: Could not open saved state file for reading: ),
+     qr(WSREP: Could not open state file for reading: ),
+     qr|WSREP: access file\(.*gvwstate.dat\) failed ?\(No such file or directory\)|,
    );
 
 bless { };

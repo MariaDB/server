@@ -49,8 +49,10 @@ TRUNCATE TABLE mysql.general_log;
 SELECT * FROM tbl_a ORDER BY pkey;
 
 --connection child2_1
+--disable_view_protocol
 --replace_regex /-[0-9a-f]{12}-[0-9a-f]+-/-xxxxxxxxxxxx-xxxxx-/
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps2_protocol
 

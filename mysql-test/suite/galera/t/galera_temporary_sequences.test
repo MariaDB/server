@@ -30,7 +30,6 @@ SELECT * FROM t;
 SHOW CREATE TABLE seq1;
 SHOW CREATE TABLE seq2;
 
-
 --connection node_1
 DROP TABLE t;
 DROP SEQUENCE seq1;

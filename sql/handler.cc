@@ -499,7 +499,7 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_INDEX_COL_TOO_LONG,	ER_DEFAULT(ER_INDEX_COLUMN_TOO_LONG));
   SETMSG(HA_ERR_INDEX_CORRUPT,		ER_DEFAULT(ER_INDEX_CORRUPT));
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
-  SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
+  SETMSG(HA_ERR_DISK_FULL,              "Disk got full writing '%s'");
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
   SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
   SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
@@ -672,6 +672,8 @@ int ha_initialize_handlerton(void *plugin_)
 
   DBUG_EXECUTE_IF("unstable_db_type", {
                     static int i= (int) DB_TYPE_FIRST_DYNAMIC;
+                    while (installed_htons[i])
+                      i++;
                     hton->db_type= (enum legacy_db_type)++i;
                   });
 
@@ -1574,6 +1576,12 @@ uint ha_count_rw_2pc(THD *thd, bool all)
 /**
   Check if we can skip the two-phase commit.
 
+  @param thd           Thread handler
+  @param ha_list       List of all engines participating on the commit
+  @param all           True if this is final commit (not statement commit)
+  @param no_rollback   Set to 1 if one of the engines doing writes does
+                       not support rollback
+
   A helper function to evaluate if two-phase commit is mandatory.
   As a side effect, propagates the read-only/read-write flags
   of the statement transaction to its enclosing normal transaction.
@@ -1592,16 +1600,21 @@ uint ha_count_rw_2pc(THD *thd, bool all)
 
 uint
 ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                    bool all)
+                                    bool all, bool *no_rollback)
 {
   /* The number of storage engines that have actual changes. */
   unsigned rw_ha_count= 0;
   Ha_trx_info *ha_info;
 
+  *no_rollback= false;
   for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write())
+    {
       ++rw_ha_count;
+      if (ha_info->is_trx_no_rollback())
+        *no_rollback= true;
+    }
 
     if (! all)
     {
@@ -1624,7 +1637,18 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
         information up, and the need for two-phase commit has been
         already established. Break the loop prematurely.
       */
-      break;
+      if (*no_rollback == 0)
+      {
+        while ((ha_info= ha_info->next()))
+        {
+          if (ha_info->is_trx_read_write() && ha_info->is_trx_no_rollback())
+          {
+            *no_rollback= 1;
+            break;
+          }
+        }
+        break;
+      }
     }
   }
   return rw_ha_count;
@@ -1760,7 +1784,9 @@ int ha_commit_trans(THD *thd, bool all)
   if (is_real_trans)                          /* not a statement commit */
     thd->stmt_map.close_transient_cursors();
 
-  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool no_rollback;
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
+                                                        &no_rollback);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
   MDL_request mdl_backup;
@@ -1773,7 +1799,7 @@ int ha_commit_trans(THD *thd, bool all)
     calling ha_commit_trans() from spader_commit().
   */
 
-  if (rw_trans && !thd->backup_commit_lock)
+  if ((rw_trans || no_rollback) && !thd->backup_commit_lock)
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -1899,6 +1925,8 @@ int ha_commit_trans(THD *thd, bool all)
     }
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+    if (error)
+      goto err;
 #ifdef WITH_WSREP
     // Here in case of error we must return 2 for inconsistency
     if (run_wsrep_hooks && !error)
@@ -2111,7 +2139,9 @@ int ha_commit_one_phase(THD *thd, bool all)
 static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
                             bool is_real_trans)
 {
-  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool no_rollback;
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
+                                                        &no_rollback);
   bool rw_trans= is_real_trans &&
     (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
 
@@ -2139,7 +2169,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 
   if (ha_info)
   {
-    int err;
+    int err= 0;
 
     if (has_binlog_hton(ha_info) &&
         (err= binlog_commit(thd, all,
@@ -2147,6 +2177,8 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     {
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
       error= 1;
+
+      goto err;
     }
     for (; ha_info; ha_info= ha_info_next)
     {
@@ -2182,7 +2214,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
-
+ err:
   DBUG_RETURN(error);
 }
 
@@ -2291,7 +2323,7 @@ int ha_rollback_trans(THD *thd, bool all)
                      "conf %d wsrep_err %s SQL %s",
                      thd->thread_id, thd->query_id, thd->wsrep_trx().state(),
                      wsrep::to_c_string(thd->wsrep_cs().current_error()),
-                     thd->query());
+                     wsrep_thd_query(thd));
         }
 #endif /* WITH_WSREP */
       }
@@ -2307,7 +2339,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (WSREP(thd) && thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: msg %s is_real %d wsrep_err %s",
-                thd->thread_id, all? "TRUE" : "FALSE",
+                thd->thread_id, all ? "TRUE" : "FALSE",
                 thd->get_stmt_da()->message(), is_real_trans,
                 wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
@@ -2800,6 +2832,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         }
         if (IF_WSREP((wsrep_emulate_bin_log &&
                       wsrep_is_wsrep_xid(info->list + i) &&
+                      !wsrep_is_xid_gtid_undefined(info->list + i) &&
                       x <= wsrep_limit), false) ||
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
@@ -3287,12 +3320,16 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
 
 handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 {
+  int error= 0;
   handler *new_handler= get_new_handler(table->s, mem_root, ht);
 
   if (!new_handler)
     return NULL;
   if (new_handler->set_ha_share_ref(ha_share))
+  {
+    error= ER_OUT_OF_RESOURCES;
     goto err;
+  }
 
   /*
     TODO: Implement a more efficient way to have more than one index open for
@@ -3301,14 +3338,17 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     This is not critical as the engines already have the table open
     and should be able to use the original instance of the table.
   */
-  if (new_handler->ha_open(table, name, table->db_stat,
-                           HA_OPEN_IGNORE_IF_LOCKED, mem_root))
+  if ((error= new_handler->ha_open(table, name,
+                                   table->db_stat & HA_READ_ONLY ?
+                                   O_RDONLY : O_RDWR,
+                                   HA_OPEN_IGNORE_IF_LOCKED, mem_root)))
     goto err;
   new_handler->handler_stats= handler_stats;
 
   return new_handler;
 
 err:
+  new_handler->print_error(error, MYF(0));
   delete new_handler;
   return NULL;
 }
@@ -4455,8 +4495,12 @@ void handler::print_error(int error, myf errflag)
     break;
   case ENOSPC:
   case HA_ERR_DISK_FULL:
-    textno= ER_DISK_FULL;
     SET_FATAL_ERROR;                            // Ensure error is logged
+    my_printf_error(ER_DISK_FULL, "Disk got full writing '%s.%s' (Errcode: %M)",
+                    MYF(errflag | ME_ERROR_LOG),
+                    table_share->db.str, table_share->table_name.str,
+                    error);
+    DBUG_VOID_RETURN;
     break;
   case HA_ERR_KEY_NOT_FOUND:
   case HA_ERR_NO_ACTIVE_RECORD:
@@ -5134,6 +5178,9 @@ void handler::mark_trx_read_write_internal()
     */
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
+    /* Mark if we are using a table that cannot do rollback */
+    if (ht->flags & HTON_NO_ROLLBACK)
+      ha_info->set_trx_no_rollback();
   }
 }
 
@@ -5441,6 +5488,9 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
                                   HA_CREATE_USED_CHECKSUM |
                                   HA_CREATE_USED_MAX_ROWS) ||
       (table->s->row_type != create_info->row_type))
+    DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+  if (create_info->sequence)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   uint table_changes= (ha_alter_info->handler_flags &
@@ -7718,7 +7768,10 @@ int handler::ha_write_row(const uchar *buf)
                   });
 #endif /* WITH_WSREP */
   if ((error= ha_check_overlaps(NULL, buf)))
+  {
+    DEBUG_SYNC_C("ha_write_row_end");
     DBUG_RETURN(error);
+  }
 
   /*
     NOTE: this != table->file is true in 3 cases:
@@ -7739,6 +7792,7 @@ int handler::ha_write_row(const uchar *buf)
       if (table->next_number_field && buf == table->record[0])
         if (int err= update_auto_increment())
           error= err;
+      DEBUG_SYNC_C("ha_write_row_end");
       DBUG_RETURN(error);
     }
   }
@@ -7749,7 +7803,8 @@ int handler::ha_write_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
                       { error= write_row(buf); })
-  DBUG_PRINT("dml", ("INSERT: %s = %d", dbug_print_row(table, buf, false), error));
+  DBUG_PRINT("dml", ("INSERT: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
 
   MYSQL_INSERT_ROW_DONE(error);
   if (likely(!error))
@@ -7760,14 +7815,12 @@ int handler::ha_write_row(const uchar *buf)
       Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
       error= binlog_log_row(table, 0, buf, log_func);
     }
+
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-    {
-      DEBUG_SYNC_C("ha_write_row_end");
-      DBUG_RETURN(error);
-    }
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd) && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION && !error)
+      error= wsrep_after_row(thd);
 #endif /* WITH_WSREP */
   }
 
@@ -7811,8 +7864,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
-  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d", dbug_print_row(table, old_data, false),
-                     dbug_print_row(table, new_data, false), error));
+  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d",
+                     dbug_format_row(table, old_data, false).c_ptr_safe(),
+                     dbug_format_row(table, new_data, false).c_ptr_safe(),
+                     error));
 
   MYSQL_UPDATE_ROW_DONE(error);
   if (likely(!error))
@@ -7892,7 +7947,8 @@ int handler::ha_delete_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, active_index, error,
     { error= delete_row(buf);})
-  DBUG_PRINT("dml", ("DELETE: %s = %d", dbug_print_row(table, buf, false), error));
+  DBUG_PRINT("dml", ("DELETE: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
   MYSQL_DELETE_ROW_DONE(error);
   if (likely(!error))
   {
@@ -8236,16 +8292,6 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   VERSIONING functions
 ******************************************************************************/
 
-bool Vers_parse_info::is_start(const char *name) const
-{
-  DBUG_ASSERT(name);
-  return as_row.start && as_row.start.streq(name);
-}
-bool Vers_parse_info::is_end(const char *name) const
-{
-  DBUG_ASSERT(name);
-  return as_row.end && as_row.end.streq(name);
-}
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
   return f.flags & VERS_ROW_START;
@@ -8300,8 +8346,8 @@ bool Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-const Lex_ident Vers_parse_info::default_start= "row_start";
-const Lex_ident Vers_parse_info::default_end= "row_end";
+const Lex_ident Vers_parse_info::default_start= { STRING_WITH_LEN("row_start")};
+const Lex_ident Vers_parse_info::default_end= { STRING_WITH_LEN("row_end")};
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 {
@@ -8560,7 +8606,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
   {
-    if (check_sys_fields(table_name, share->db, alter_info))
+    if (check_sys_fields(share->table_name, share->db, alter_info))
       return true;
   }
 
@@ -8866,8 +8912,8 @@ bool Table_scope_and_contents_source_st::check_period_fields(
     }
   }
 
-  bool res= period_info.check_field(row_start, period.start.str)
-            || period_info.check_field(row_end, period.end.str);
+  bool res= period_info.check_field(row_start, period.start)
+            || period_info.check_field(row_end, period.end);
   if (res)
     return true;
 

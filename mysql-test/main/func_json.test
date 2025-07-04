@@ -1194,6 +1194,7 @@ SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
 
 SET @@collation_connection= @save_collation_connection;
 
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
@@ -1230,6 +1231,27 @@ SET @data = '[{"Data": "<root language=\\"de\\"></root>"}]';
 SELECT
   data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
+
+
+--echo #
+--echo # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
+--echo #
+
+SELECT HEX(JSON_UNQUOTE('"\\ud83d\\ude0a"')) as hex_smiley;
+set names utf8mb4;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') as smiley;
+
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') = JSON_UNQUOTE('"\\ud83d\\ude0a"') as equal_smileys;
+SELECT JSON_UNQUOTE('"\\ud83d\\ude0a"') <= JSON_UNQUOTE('"\\ud83d\\ude0a"') as less_or_equal_smileys;
+
+set @v='{ "color":"😊" }';
+select @v as v, collation(@v) as collation_v;
+select json_valid(@v) as valid;
+select json_extract(@v,'$.color') as color_extraction, collation(json_extract(@v,'$.color')) as color_extraction_collation;
+select json_unquote(json_extract(@v,'$.color')) as unquoted, collation(json_unquote(json_extract(@v,'$.color'))) as unquoted_collation;
+
+SELECT JSON_UNQUOTE('"\\uc080\\ude0a"') as invalid_utf8mb4;
+show warnings;
 
 --echo #
 --echo # End of 10.6 tests

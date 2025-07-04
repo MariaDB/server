@@ -1,0 +1,362 @@
+connection node_2;
+connection node_1;
+#
+# 1. BF-BF conflict on MDL locks between: DROP TABLE t6 and DELETE on t1
+#    with foreign key references as below:
+#    - t1<-t2<-t3<-t4
+#    - t3<-t5
+#    - t2<-t6
+#
+connection node_2;
+SET GLOBAL wsrep_slave_threads=2;
+CREATE TABLE t1 (
+id INTEGER PRIMARY KEY,
+f2 INTEGER
+);
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+t1_id INT NOT NULL,
+t5_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t1_id(t1_id),
+CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE,
+KEY key_t5_id(t5_id)
+);
+CREATE TABLE t3 (
+id INT PRIMARY KEY,
+t2_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t2_id(t2_id),
+CONSTRAINT key_t2_id FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+CREATE TABLE t4 (
+id INT PRIMARY KEY,
+t3_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t3_id(t3_id),
+CONSTRAINT key_t3_id FOREIGN KEY (t3_id) REFERENCES t3 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+CREATE TABLE t5 (
+id INT PRIMARY KEY,
+t3_id_1 INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t3_id_1(t3_id_1),
+CONSTRAINT key_t3_id_1 FOREIGN KEY (t3_id_1) REFERENCES t3 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+CREATE TABLE t6 (
+id INT PRIMARY KEY,
+t2_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t2_id_1(t2_id),
+CONSTRAINT key_t2_id_1 FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t2 VALUES (1,1,1,1234);
+INSERT INTO t2 VALUES (2,2,2,1234);
+INSERT INTO t3 VALUES (1,1,1234);
+INSERT INTO t3 VALUES (2,2,1234);
+INSERT INTO t4 VALUES (1,1,1234);
+INSERT INTO t4 VALUES (2,2,1234);
+INSERT INTO t5 VALUES (1,1,1234);
+INSERT INTO t5 VALUES (2,2,1234);
+ALTER TABLE t2 ADD CONSTRAINT key_t5_id FOREIGN KEY (t5_id)
+REFERENCES t5 (id) ON UPDATE CASCADE ON DELETE CASCADE;
+connection node_1;
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '+d,sync.wsrep_apply_toi';
+connection node_1;
+DROP TABLE t6;
+connection node_2;
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
+START TRANSACTION;
+DELETE FROM t1 WHERE id = 3;
+COMMIT;
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '-d,sync.wsrep_apply_toi';
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_toi";
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+include/assert_grep.inc [Foreign key referenced table found: 4 tables]
+include/assert_grep.inc [Foreign key referenced table found: test.t2]
+include/assert_grep.inc [Foreign key referenced table found: test.t3]
+include/assert_grep.inc [Foreign key referenced table found: test.t4]
+include/assert_grep.inc [Foreign key referenced table found: test.t5]
+connection node_2;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	t5_id	f2
+1	1	1	1234
+2	2	2	1234
+select * from t3;
+id	t2_id	f2
+1	1	1234
+2	2	1234
+select * from t4;
+id	t3_id	f2
+1	1	1234
+2	2	1234
+select * from t5;
+id	t3_id_1	f2
+1	1	1234
+2	2	1234
+select * from t6;
+ERROR 42S02: Table 'test.t6' doesn't exist
+connection node_1;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	t5_id	f2
+1	1	1	1234
+2	2	2	1234
+select * from t3;
+id	t2_id	f2
+1	1	1234
+2	2	1234
+select * from t4;
+id	t3_id	f2
+1	1	1234
+2	2	1234
+select * from t5;
+id	t3_id_1	f2
+1	1	1234
+2	2	1234
+select * from t6;
+ERROR 42S02: Table 'test.t6' doesn't exist
+ALTER TABLE t2 DROP FOREIGN KEY key_t5_id;
+DROP TABLE t5, t4, t3, t2, t1;
+#
+# 2. BF-BF conflict on MDL locks between:
+#    ALTER TABLE t3 (whose parent table are t3 -> t2 -> t1), and
+#    DELETE on t1 with t2 referencing t1, and t3 referencing t2.
+#
+connection node_2;
+SET GLOBAL wsrep_slave_threads=2;
+CREATE TABLE t1 (
+id INTEGER PRIMARY KEY,
+f2 INTEGER
+);
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+t1_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t1_id(t1_id),
+CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+CREATE TABLE t3 (
+id INT PRIMARY KEY,
+t2_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t2_id(t2_id)
+);
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t2 VALUES (1,1,1234);
+INSERT INTO t2 VALUES (2,2,1234);
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '+d,sync.wsrep_apply_toi';
+connection node_1;
+ALTER TABLE t3 ADD CONSTRAINT key_t2_id FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE;
+connection node_2;
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
+START TRANSACTION;
+DELETE FROM t1 WHERE id = 3;
+COMMIT;
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '-d,sync.wsrep_apply_toi';
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_toi";
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+include/assert_grep.inc [Foreign key referenced table found: 2 tables]
+include/assert_grep.inc [Foreign key referenced table found: test.t2]
+include/assert_grep.inc [Foreign key referenced table found: test.t3]
+connection node_2;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	f2
+1	1	1234
+2	2	1234
+select * from t3;
+id	t2_id	f2
+connection node_1;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	f2
+1	1	1234
+2	2	1234
+select * from t3;
+id	t2_id	f2
+DROP TABLE t3, t2, t1;
+#
+# 3. BF-BF conflict on MDL locks between:
+#    CREATE TABLE t3 (whose parent table are t3 -> t2 -> t1), and
+#    DELETE on t1 with t2 referencing t1, and t3 referencing t2.
+#
+connection node_2;
+SET GLOBAL wsrep_slave_threads=2;
+CREATE TABLE t1 (
+id INTEGER PRIMARY KEY,
+f2 INTEGER
+);
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+t1_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t1_id(t1_id),
+CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t2 VALUES (1,1,1234);
+INSERT INTO t2 VALUES (2,2,1234);
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '+d,sync.wsrep_apply_toi';
+connection node_1;
+CREATE TABLE t3 (id INT PRIMARY KEY, t2_id INT NOT NULL, f2 INTEGER NOT NULL, KEY key_t2_id(t2_id), CONSTRAINT key_t2_id FOREIGN KEY (t2_id) REFERENCES t2 (id) ON UPDATE CASCADE ON DELETE CASCADE);
+connection node_2;
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
+START TRANSACTION;
+DELETE FROM t1 WHERE id = 3;
+COMMIT;
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '-d,sync.wsrep_apply_toi';
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_toi";
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+include/assert_grep.inc [Foreign key referenced table found: 2 tables]
+include/assert_grep.inc [Foreign key referenced table found: test.t2]
+include/assert_grep.inc [Foreign key referenced table found: test.t3]
+connection node_2;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	f2
+1	1	1234
+2	2	1234
+select * from t3;
+id	t2_id	f2
+connection node_1;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	f2
+1	1	1234
+2	2	1234
+select * from t3;
+id	t2_id	f2
+DROP TABLE t3, t2, t1;
+#
+# 4. BF-BF conflict on MDL locks between:
+#    OPTIMIZE TABLE t2 (whose parent table are t2 -> t1), and
+#    DELETE on t1.
+#
+connection node_2;
+SET GLOBAL wsrep_slave_threads=2;
+CREATE TABLE t1 (
+id INTEGER PRIMARY KEY,
+f2 INTEGER
+);
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+t1_id INT NOT NULL,
+f2 INTEGER NOT NULL,
+KEY key_t1_id(t1_id),
+CONSTRAINT key_t1_id FOREIGN KEY (t1_id) REFERENCES t1 (id) ON UPDATE CASCADE ON DELETE CASCADE
+);
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t2 VALUES (1,1,1234);
+INSERT INTO t2 VALUES (2,2,1234);
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '+d,sync.wsrep_apply_toi';
+connection node_1;
+OPTIMIZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+connection node_2;
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_toi_reached";
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET GLOBAL DEBUG_DBUG = '+d,wsrep_print_foreign_keys_table';
+START TRANSACTION;
+DELETE FROM t1 WHERE id = 3;
+COMMIT;
+connection node_2;
+SET GLOBAL DEBUG_DBUG = '-d,sync.wsrep_apply_toi';
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_toi";
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = "";
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+connection node_1;
+include/assert_grep.inc [Foreign key referenced table found: 1 tables]
+include/assert_grep.inc [Foreign key referenced table found: test.t2]
+connection node_2;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	f2
+1	1	1234
+2	2	1234
+connection node_1;
+select * from t1;
+id	f2
+1	0
+2	0
+select * from t2;
+id	t1_id	f2
+1	1	1234
+2	2	1234
+DROP TABLE t2, t1;

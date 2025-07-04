@@ -7,6 +7,12 @@ SET @save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
 SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
 SET GLOBAL innodb_max_dirty_pages_pct=0.0;
 
+CREATE TABLE t(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--connection default
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
 let $wait_condition =
 SELECT variable_value = 0
 FROM information_schema.global_status
@@ -15,7 +21,24 @@ WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 
 SET GLOBAL innodb_max_dirty_pages_pct=90.0;
 
-CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_10000;
+--disable_cursor_protocol
+SELECT variable_value INTO @log_writes FROM information_schema.global_status
+WHERE variable_name='innodb_log_writes';
+--enable_cursor_protocol
+
+BEGIN;
+--disable_query_log
+let $N=500;
+while ($N) {
+  INSERT INTO t SELECT * FROM seq_1_to_10;
+  dec $N;
+}
+--enable_query_log
+ROLLBACK;
+
+SELECT if(variable_value-@log_writes<500,'ok',variable_value-@log_writes)
+FROM information_schema.global_status WHERE variable_name='innodb_log_writes';
+--disconnect prevent_purge
 
 SELECT variable_value>0 FROM information_schema.global_status
 WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';

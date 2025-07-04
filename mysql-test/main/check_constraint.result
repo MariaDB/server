@@ -139,7 +139,7 @@ drop table t1;
 create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or c1 is null ) );
 ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the CHECK clause of `c1`
 create table t1 (a int check (@b in (select user from mysql.user)));
-ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `a`
+ERROR 42000: CHECK does not support subqueries or stored functions
 create table t1 (a int check (a > @b));
 ERROR HY000: Function or expression '@b' cannot be used in the CHECK clause of `a`
 create table t1 (a int check (a = 1));
@@ -319,4 +319,62 @@ ERROR 23000: CONSTRAINT `t1.b` failed for `test`.`t1`
 drop table t1;
 #
 # End of 10.4 tests
+#
+#
+# MDEV-36662 CHECK constraint does not repeat in case of error
+#
+create table t1 (d date check (d > 2020-01-01));
+insert into t1 values ('2023-12-05');
+ERROR 22007: Truncated incorrect datetime value: '2018'
+INSERT into t1 values ('2024-12-05');
+ERROR 22007: Truncated incorrect datetime value: '2018'
+create or replace table t1 (d time check (d > "a"));
+insert into t1 values ('22:30');
+ERROR 22007: Truncated incorrect time value: 'a'
+insert into t1 values ('23:30');
+ERROR 22007: Truncated incorrect time value: 'a'
+create or replace table t1 (d datetime check (d > "a"));
+insert into t1 values ('2023-12-05');
+ERROR 22007: Truncated incorrect datetime value: 'a'
+insert into t1 values ('2024-12-05');
+ERROR 22007: Truncated incorrect datetime value: 'a'
+create or replace table t1 (d timestamp check (d > "a"));
+insert into t1 values ('2023-12-05');
+ERROR 22007: Truncated incorrect datetime value: 'a'
+insert into t1 values ('2024-12-05');
+ERROR 22007: Truncated incorrect datetime value: 'a'
+create or replace table t1 (d year check (d > "a"));
+insert into t1 values ('2023');
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+insert into t1 values ('2024');
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+create or replace table t1 (d int check (d > "a"));
+insert into t1 values (0);
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+insert into t1 values (1);
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+create or replace table t1 (d real check (d > "a"));
+insert into t1 values (0.1);
+ERROR 22007: Truncated incorrect DOUBLE value: 'a'
+insert into t1 values (1.1);
+ERROR 22007: Truncated incorrect DOUBLE value: 'a'
+create or replace table t1 (d decimal check (d > "a"));
+insert into t1 values (0);
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+insert into t1 values (1);
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+create or replace table t1 (d bool check (d != "a"));
+insert into t1 values (0);
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+insert into t1 values (1);
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+drop table t1;
+create or replace table t1 (d varchar(30) check (d != 1));
+insert into t1 values ("a");
+ERROR 22007: Truncated incorrect DECIMAL value: 'a'
+insert into t1 values ("b");
+ERROR 22007: Truncated incorrect DECIMAL value: 'b'
+drop table t1;
+#
+# End of 10.11 tests
 #

@@ -1,6 +1,9 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_aria.inc
 
+--disable_ps2_protocol
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
 #
@@ -45,6 +48,7 @@ SHOW CREATE SEQUENCE Seq1_1;
 select NEXT VALUE FOR Seq1_1;
 
 --connection node_1
+SHOW CREATE SEQUENCE Seq1_1;
 DROP SEQUENCE Seq1_1;
 
 #
@@ -316,6 +320,12 @@ SELECT NEXTVAL(t);
 DROP TABLE t1;
 DROP SEQUENCE t;
 
+--connection node_2
+--let $wsrep_sync_wait_orig_2 = `SELECT @@wsrep_sync_wait`
+SET SESSION wsrep_sync_wait=15;
+
+--connection node_1
+
 CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 CREATE TABLE t1(a int not null primary key default nextval(t), b int) engine=innodb;
 #
@@ -338,6 +348,10 @@ SELECT NEXTVAL(t);
 SELECT * FROM t1;
 SELECT NEXTVAL(t);
 
+--disable_query_log
+--eval SET SESSION wsrep_sync_wait = $wsrep_sync_wait_orig_2
+--enable_query_log
+
 --connection node_1
 DROP TABLE t1;
 DROP SEQUENCE t;
@@ -355,4 +369,17 @@ CREATE TABLE t1 (c VARCHAR) ENGINE=InnoDB;
 ALTER SEQUENCE IF EXISTS t MINVALUE=1;
 
 DROP TABLE t;
+
+--echo
+--echo MDEV-32631:
+--echo
+
+CREATE OR REPLACE TABLE t1(c INT ) ENGINE=ARIA;
+SET SESSION WSREP_OSU_METHOD=RSU;
+--error ER_NOT_SUPPORTED_YET
+INSERT INTO t1 SELECT seq,concat(seq,1) FROM seq_1_to_100;
+SET SESSION WSREP_OSU_METHOD=TOI;
+DROP TABLE t1;
+
+--echo
 --echo End of 10.5 tests

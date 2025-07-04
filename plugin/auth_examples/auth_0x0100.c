@@ -56,6 +56,10 @@ struct st_mysql_auth
 };
 #endif
 
+/* function-type-mismatch ignore */
+#if defined(__clang__)
+__attribute__((no_sanitize("undefined")))
+#endif
 static int do_auth_0x0100(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   info->password_used= 1;

@@ -94,11 +94,13 @@ SELECT * FROM t1;
 --eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
 --eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node1
 --eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node1
+--disconnect node_1a
 
 --connection node_2
 --eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
 --eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node2
 --eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node2
+--disconnect node_2a
 
 --enable_query_log
 

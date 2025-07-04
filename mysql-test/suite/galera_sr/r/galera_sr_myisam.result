@@ -14,3 +14,4 @@ LENGTH(f1) = 65535
 1
 DROP TABLE t1;
 connection node_1;
+SET GLOBAL wsrep_mode = DEFAULT;

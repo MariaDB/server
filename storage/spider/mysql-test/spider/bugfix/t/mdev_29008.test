@@ -31,15 +31,19 @@ eval CREATE TABLE tbl_a (
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 
 --disable_ps_protocol
+--disable_view_protocol
 SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY f1, f2;
 SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY MIN(t2.a), MAX(t2.a), f2;
+--enable_view_protocol
 --enable_ps_protocol
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
 --connection child2_1
 --disable_ps_protocol
+--disable_view_protocol
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+--enable_view_protocol
 --enable_ps_protocol
 set global log_output=@old_log_output;
 set global general_log=@old_general_log;

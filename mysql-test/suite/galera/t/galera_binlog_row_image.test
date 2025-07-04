@@ -94,7 +94,3 @@ SELECT COUNT(*) = 0 FROM t2;
 
 DROP TABLE t1;
 DROP TABLE t2;
-
-
-
-

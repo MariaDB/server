@@ -57,7 +57,6 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-CALL mtr.add_suppression("is inconsistent with group");
 connection node_3;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -80,4 +79,5 @@ CALL mtr.add_suppression("Native table .* has the wrong structure");
 CALL mtr.add_suppression("Table 'mysql\\.gtid_slave_pos' doesn't exist");
 connection node_2;
 # restart
+CALL mtr.add_suppression("WSREP: .+ is inconsistent with group");
 connection node_1;

@@ -612,6 +612,7 @@ extern PSI_stage_info stage_preparing;
 extern PSI_stage_info stage_purging_old_relay_logs;
 extern PSI_stage_info stage_query_end;
 extern PSI_stage_info stage_starting_cleanup;
+extern PSI_stage_info stage_slave_sql_cleanup;
 extern PSI_stage_info stage_rollback;
 extern PSI_stage_info stage_rollback_implicit;
 extern PSI_stage_info stage_commit;

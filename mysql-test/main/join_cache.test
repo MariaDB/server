@@ -4321,3 +4321,30 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-36165: BKA join cache buffer is employed despite join_cache_level=3 (flat BNLH)
+--echo #
+--source include/have_sequence.inc
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT a, a from t1;
+CREATE TABLE t3(a INT, b INT, c INT, key (a,b));
+INSERT INTO t3 select a, a, a FROM t1;
+
+SET optimizer_switch = 'join_cache_hashed=off,join_cache_bka=on,mrr=on';
+
+SET join_cache_level = 3;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+
+SET join_cache_level = 4;
+EXPLAIN SELECT * FROM t2, t3 WHERE t2.a=t3.a AND (t3.b+1 <= t2.b+1);
+
+SET join_cache_level = default;
+SET optimizer_switch = default;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

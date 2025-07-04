@@ -249,3 +249,31 @@ ALTER TABLE `t1` ADD PRIMARY KEY  (`a`);
 ALTER TABLE `t1` REMOVE PARTITIONING;
 CHECK TABLE `t1` EXTENDED;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-31122 Server crash in get_lock_data / mysql_lock_abort_for_thread
+--echo #
+CREATE TABLE t1 (a INT);
+
+CREATE TABLE t2 (b INT, c varchar(5))
+  PARTITION BY RANGE COLUMNS(c)
+  SUBPARTITION by key(b) SUBPARTITIONS 2 (
+    PARTITION p0 VALUES LESS THAN ('m'),
+    PARTITION p1 VALUES LESS THAN ('z')
+  );
+
+--connect (con1,localhost,root,,)
+HANDLER t1 OPEN;
+--send
+  SELECT b FROM t2 PARTITION (p0);
+
+--connection default
+SET lock_wait_timeout= 1;
+--error 0,ER_STATEMENT_TIMEOUT,ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 FORCE;
+
+--connection con1
+--reap
+--disconnect con1
+--connection default
+DROP TABLE t2, t1;

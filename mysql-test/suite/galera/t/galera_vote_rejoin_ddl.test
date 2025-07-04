@@ -91,10 +91,6 @@ CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with
 
 DROP TABLE t2;
 
---let $node_3=node_3
---let $auto_increment_offset_node_3 = 3;
---let $node_4=node_4
---let $auto_increment_offset_node_4 = 4;
 --source suite/galera/include/auto_increment_offset_restore.inc
 
 --disconnect node_3

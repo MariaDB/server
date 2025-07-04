@@ -48,7 +48,7 @@ SET @@global.wsrep_desync = 0;
 SET SESSION wsrep_sync_wait=15;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
-CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender (.*) is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
+CALL mtr.add_suppression("WSREP: Protocol violation\\. JOIN message sender .+ ?is not in state transfer \\(SYNCED\\)\\. Message ignored\\.");
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';

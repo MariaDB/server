@@ -174,7 +174,7 @@ create sequence s_db.s2;
 drop sequence s_db.s2;
 connection m_normal_2;
 select next value for s_db.s1;
-ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
+ERROR 42000: SELECT, INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
 create sequence s_db.s2;
 ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table `s_db`.`s2`
 connection m_normal_1;

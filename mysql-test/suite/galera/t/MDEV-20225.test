@@ -41,7 +41,7 @@ INSERT INTO t1 VALUES (NULL);
 SET GLOBAL debug_dbug = 'RESET';
 SET DEBUG_SYNC = 'now SIGNAL signal.mdev_20225_continue';
 SET DEBUG_SYNC = 'RESET';
-SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
 
 --connection node_2
 # Trigger should now be dropped on node_2.

@@ -1,5 +1,3 @@
---source include/not_msan.inc
-
 --echo #
 --echo # MDEV-23836: Assertion `! is_set() || m_can_overwrite_status' in
 --echo # Diagnostics_area::set_error_status (interrupted ALTER TABLE under LOCK)

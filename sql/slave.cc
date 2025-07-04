@@ -3213,21 +3213,23 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     if (full)
       protocol->store(mi->connection_name.str, mi->connection_name.length,
                       &my_charset_bin);
+
     mysql_mutex_lock(&mi->run_lock);
+    THD *sql_thd= mi->rli.sql_driver_thd;
+    const char *slave_sql_running_state=
+      sql_thd ? sql_thd->get_proc_info() : "";
+    THD *io_thd= mi->io_thd;
+    const char *slave_io_running_state= io_thd ? io_thd->get_proc_info() : "";
+    mysql_mutex_unlock(&mi->run_lock);
+
     if (full)
-    {
       /*
         Show what the sql driver replication thread is doing
         This is only meaningful if there is only one slave thread.
       */
-      msg= (mi->rli.sql_driver_thd ?
-            mi->rli.sql_driver_thd->get_proc_info() : "");
-      protocol->store_string_or_null(msg, &my_charset_bin);
-    }
-    msg= mi->io_thd ? mi->io_thd->get_proc_info() : "";
-    protocol->store_string_or_null(msg, &my_charset_bin);
+      protocol->store_string_or_null(slave_sql_running_state, &my_charset_bin);
 
-    mysql_mutex_unlock(&mi->run_lock);
+    protocol->store_string_or_null(slave_io_running_state, &my_charset_bin);
 
     mysql_mutex_lock(&mi->data_lock);
     mysql_mutex_lock(&mi->rli.data_lock);
@@ -3401,10 +3403,6 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     protocol->store((uint32) mi->rli.get_sql_delay());
     // SQL_Remaining_Delay
-    // THD::proc_info is not protected by any lock, so we read it once
-    // to ensure that we use the same value throughout this function.
-    const char *slave_sql_running_state=
-      mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
     if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
@@ -5485,6 +5483,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   THD *thd;                     /* needs to be first for thread_stack */
   char saved_log_name[FN_REFLEN];
   char saved_master_log_name[FN_REFLEN];
+  bool thd_initialized= 0;
   my_off_t UNINIT_VAR(saved_log_pos);
   my_off_t UNINIT_VAR(saved_master_log_pos);
   String saved_skip_gtid_pos;
@@ -5587,6 +5586,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
 
   server_threads.insert(thd);
+  thd_initialized= 1;
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
     alive and connected, this is going to make Seconds_Behind_Master be 0
@@ -5966,7 +5966,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
   thd->add_status_to_global();
-  server_threads.erase(thd);
+  THD_STAGE_INFO(thd, stage_slave_sql_cleanup);
   mysql_mutex_lock(&rli->run_lock);
 
 err_during_init:
@@ -5980,9 +5980,9 @@ err_during_init:
   rli->relay_log.description_event_for_exec= 0;
   rli->reset_inuse_relaylog();
   /* Wake up master_pos_wait() */
-  mysql_mutex_unlock(&rli->data_lock);
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));
   mysql_cond_broadcast(&rli->data_cond);
+  mysql_mutex_unlock(&rli->data_lock);
   rli->ignore_log_space_limit= 0; /* don't need any lock */
   /* we die so won't remember charset - re-update them on next thread start */
   thd->system_thread_info.rpl_sql_info->cached_charset_invalidate();
@@ -6037,6 +6037,8 @@ err_during_init:
   rpl_parallel_resize_pool_if_no_slaves();
 
   delete serial_rgi;
+  if (thd_initialized)
+    server_threads.erase(thd);
   delete thd;
 
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
@@ -7616,49 +7618,9 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   if (opt_slave_compressed_protocol)
     client_flag|= CLIENT_COMPRESS;                /* We will use compression */
 
-  mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
-  mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);
+  setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                 (char*) &my_true);
-
-#ifdef HAVE_OPENSSL
-  if (mi->ssl)
-  {
-    mysql_ssl_set(mysql,
-                  mi->ssl_key[0]?mi->ssl_key:0,
-                  mi->ssl_cert[0]?mi->ssl_cert:0,
-                  mi->ssl_ca[0]?mi->ssl_ca:0,
-                  mi->ssl_capath[0]?mi->ssl_capath:0,
-                  mi->ssl_cipher[0]?mi->ssl_cipher:0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL,
-                  mi->ssl_crl[0] ? mi->ssl_crl : 0);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH,
-                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
-    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                  &mi->ssl_verify_server_cert);
-  }
-#endif
-
-  /*
-    If server's default charset is not supported (like utf16, utf32) as client
-    charset, then set client charset to 'latin1' (default client charset).
-  */
-  if (is_supported_parser_charset(default_charset_info))
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
-  else
-  {
-    sql_print_information("'%s' can not be used as client character set. "
-                          "'%s' will be used as default client character set "
-                          "while connecting to master.",
-                          default_charset_info->cs_name.str,
-                          default_client_charset_info->cs_name.str);
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
-                  default_client_charset_info->cs_name.str);
-  }
-
-  /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
-  if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
-    mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 
   /* we disallow empty users */
   if (mi->user[0] == 0)

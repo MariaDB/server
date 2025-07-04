@@ -57,9 +57,3 @@ SELECT @@wsrep_mode;
 
 # reset
 SET GLOBAL wsrep_mode=DEFAULT;
-
-
-
-
-
-

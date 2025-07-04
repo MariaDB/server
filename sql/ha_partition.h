@@ -576,6 +576,17 @@ public:
   {
     m_file[part_id]->update_create_info(create_info);
   }
+
+  void column_bitmaps_signal() override
+  {
+    for (uint i= bitmap_get_first_set(&m_opened_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(&m_opened_partitions, i))
+    {
+      m_file[i]->column_bitmaps_signal();
+    }
+  }
+
 private:
   int copy_partitions(ulonglong * const copied, ulonglong * const deleted);
   void cleanup_new_partition(uint part_count);

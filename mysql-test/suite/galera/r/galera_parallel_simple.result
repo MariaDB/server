@@ -34,6 +34,5 @@ expect_20
 SELECT COUNT(*) as expect_20 FROM t2;
 expect_20
 20
-SET GLOBAL wsrep_slave_threads = 1;;
 DROP TABLE t1;
 DROP TABLE t2;

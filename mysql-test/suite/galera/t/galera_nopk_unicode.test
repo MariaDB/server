@@ -39,5 +39,4 @@ COMMIT;
 SELECT f1 = 'текст2' FROM t1;
 SELECT f1 = 'текст2' FROM t1 WHERE f1 = 'текст2';
 
-
 DROP TABLE t1;

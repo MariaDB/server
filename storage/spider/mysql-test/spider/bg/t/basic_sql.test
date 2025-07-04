@@ -848,52 +848,6 @@ if ($USE_CHILD_GROUP2)
 }
 
 --echo
---echo select sql_calc_found_rows
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    TRUNCATE TABLE mysql.general_log;
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
---connection master_1
-SELECT SQL_CALC_FOUND_ROWS a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
-ORDER BY a LIMIT 4;
-if ($USE_CHILD_GROUP2)
-{
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --disable_query_log
-    --disable_result_log
-  }
-  --connection child2_1
-  if ($USE_GENERAL_LOG)
-  {
-    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
-  }
-  if (!$OUTPUT_CHILD_GROUP2)
-  {
-    --enable_query_log
-    --enable_result_log
-  }
-}
---connection master_1
---disable_ps2_protocol
-SELECT found_rows();
---enable_ps2_protocol
-
---echo
 --echo select high_priority
 if ($USE_CHILD_GROUP2)
 {
@@ -1039,8 +993,11 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+# MDEV-36357
+--disable_view_protocol
 SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM tb_l a WHERE
 EXISTS (SELECT * FROM ta_l b WHERE b.b = a.b) ORDER BY a.a;
+--enable_view_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)

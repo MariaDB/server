@@ -28,7 +28,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &update_fields,
                          List<Item> &update_values, enum_duplicates duplic,
                          bool ignore,
-                         COND **where, bool select_insert);
+                         COND **where, bool select_insert, bool * const cache_results);
 bool mysql_insert(THD *thd,TABLE_LIST *table,List<Item> &fields,
                   List<List_item> &values, List<Item> &update_fields,
                   List<Item> &update_values, enum_duplicates flag,

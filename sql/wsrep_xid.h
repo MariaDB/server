@@ -1,4 +1,4 @@
-/* Copyright (C) 2015 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,6 +34,8 @@ bool wsrep_set_SE_checkpoint(const wsrep::gtid& gtid, const wsrep_server_gtid_t&
 //void wsrep_set_SE_checkpoint(XID&);             /* uncomment if needed */
 
 void wsrep_sort_xid_array(XID *array, int len);
+std::string wsrep_xid_print(const XID *xid);
+bool wsrep_is_xid_gtid_undefined(const XID *xid);
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_UTILS_H */

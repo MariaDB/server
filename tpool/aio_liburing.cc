@@ -34,9 +34,9 @@ class aio_uring final : public tpool::aio
 public:
   aio_uring(tpool::thread_pool *tpool, int max_aio) : tpool_(tpool)
   {
-    if (io_uring_queue_init(max_aio, &uring_, 0) != 0)
+    if (const auto e= io_uring_queue_init(max_aio, &uring_, 0))
     {
-      switch (const auto e= errno) {
+      switch (-e) {
       case ENOMEM:
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with ENOMEM:"
@@ -57,6 +57,12 @@ public:
                         "(newer than 5.1 required)",
                         ME_ERROR_LOG | ME_WARNING);
         break;
+      case EPERM:
+	my_printf_error(ER_UNKNOWN_ERROR,
+                        "io_uring_queue_init() failed with EPERM:"
+			" sysctl kernel.io_uring_disabled has the value 2, or 1 and the user of the process is not a member of sysctl kernel.io_uring_group. (see man 2 io_uring_setup).",
+                        ME_ERROR_LOG | ME_WARNING);
+	break;
       default:
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with errno %d",
@@ -73,8 +79,9 @@ public:
 
     thread_= std::thread(thread_routine, this);
   }
+  const char *get_implementation() const override { return "io_uring"; };
 
-  ~aio_uring() noexcept
+  ~aio_uring() noexcept override
   {
     {
       std::lock_guard<std::mutex> _(mutex_);
@@ -97,8 +104,8 @@ public:
 
   int submit_io(tpool::aiocb *cb) final
   {
-    cb->iov_base= cb->m_buffer;
-    cb->iov_len= cb->m_len;
+    cb->m_iovec.iov_base= cb->m_buffer;
+    cb->m_iovec.iov_len= cb->m_len;
 
     // The whole operation since io_uring_get_sqe() and till io_uring_submit()
     // must be atomical. This is because liburing provides thread-unsafe calls.
@@ -106,11 +113,9 @@ public:
 
     io_uring_sqe *sqe= io_uring_get_sqe(&uring_);
     if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
-      io_uring_prep_readv(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
-                          cb->m_offset);
+      io_uring_prep_readv(sqe, cb->m_fh, &cb->m_iovec, 1, cb->m_offset);
     else
-      io_uring_prep_writev(sqe, cb->m_fh, static_cast<struct iovec *>(cb), 1,
-                           cb->m_offset);
+      io_uring_prep_writev(sqe, cb->m_fh, &cb->m_iovec, 1, cb->m_offset);
     io_uring_sqe_set_data(sqe, cb);
 
     return io_uring_submit(&uring_) == 1 ? 0 : -1;
@@ -196,12 +201,11 @@ private:
 
 namespace tpool
 {
-
-aio *create_linux_aio(thread_pool *pool, int max_aio)
+aio *create_uring(thread_pool *pool, int max_aio)
 {
   try {
     return new aio_uring(pool, max_aio);
-  } catch (std::runtime_error& error) {
+  } catch (std::runtime_error&) {
     return nullptr;
   }
 }

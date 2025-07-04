@@ -38,8 +38,6 @@ SELECT * FROM t1;
 --connection node_1
 DROP TABLE t1;
 
---disable_query_log
 SET @@global.wsrep_mode=DEFAULT;
---enable_query_log
 
 --echo # End of tests.

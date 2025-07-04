@@ -22,7 +22,3 @@ SET GLOBAL wsrep_desync = 0;
 --source include/wait_condition.inc
 
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
-
-
-
-

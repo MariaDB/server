@@ -7,7 +7,7 @@
 # leave the cluster.
 #
 
-CALL mtr.add_suppression("WSREP: discarding established.*");
+CALL mtr.add_suppression("WSREP: discarding established");
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1

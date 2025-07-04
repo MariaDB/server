@@ -460,7 +460,9 @@ if ($HAVE_PARTITION)
   --connection master_1
   eval $MASTER_1_SET_RECOVERY_STATUS_P_2_1;
   eval $MASTER_1_CHECK_LINK_STATUS;
+  --disable_view_protocol
   eval $MASTER_1_COPY_TABLES_P_2_1;
+  --enable_view_protocol
   if ($USE_CHILD_GROUP3)
   {
     if (!$OUTPUT_CHILD_GROUP3)

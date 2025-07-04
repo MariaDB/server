@@ -18,4 +18,3 @@ DROP TABLE t1;
 
 --connection node_2
 --source include/galera_wait_ready.inc
-

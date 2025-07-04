@@ -41,4 +41,13 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_CONFIG;
 SELECT @@GLOBAL.innodb_ft_aux_table;
+
+CREATE TABLE t(a INT) ENGINE=InnoDB;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_ft_aux_table='test/t';
+DROP TABLE t;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_ft_aux_table='test/t';
+SELECT @@GLOBAL.innodb_ft_aux_table;
+
 SET GLOBAL innodb_ft_aux_table = @save_ft_aux_table;

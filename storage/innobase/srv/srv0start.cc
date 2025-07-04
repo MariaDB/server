@@ -1057,7 +1057,7 @@ srv_init_abort_low(
 /** Prepare to delete the redo log file. Flush the dirty pages from all the
 buffer pools.  Flush the redo log buffer to the redo log file.
 @return lsn upto which data pages have been flushed. */
-static lsn_t srv_prepare_to_delete_redo_log_file()
+static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
 {
   DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
@@ -1071,7 +1071,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const bool latest_format{log_sys.is_latest()};
-  lsn_t flushed_lsn{log_sys.get_lsn()};
+  lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
   if (latest_format && !(log_sys.file_size & 4095) &&
       flushed_lsn != log_sys.next_checkpoint_lsn +
@@ -1079,6 +1079,11 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
        ? SIZE_OF_FILE_CHECKPOINT + 8
        : SIZE_OF_FILE_CHECKPOINT))
   {
+#ifdef HAVE_PMEM
+    if (!log_sys.is_opened())
+      log_sys.buf_size= unsigned(std::min<uint64_t>(log_sys.capacity(),
+                                                    log_sys.buf_size_max));
+#endif
     fil_names_clear(flushed_lsn);
     flushed_lsn= log_sys.get_lsn();
   }
@@ -1119,7 +1124,7 @@ same_size:
   if (latest_format)
     log_write_up_to(flushed_lsn, false);
 
-  ut_ad(flushed_lsn == log_sys.get_lsn());
+  ut_ad(flushed_lsn == log_get_lsn());
   ut_ad(!os_aio_pending_reads());
   ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
   ut_ad(!buf_pool.get_oldest_modification(0));
@@ -1133,6 +1138,18 @@ static tpool::task_group rollback_all_recovered_group(1);
 static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 					       nullptr,
 					       &rollback_all_recovered_group);
+
+inline lsn_t log_t::init_lsn() noexcept
+{
+  latch.wr_lock(SRW_LOCK_CALL);
+  ut_ad(!write_lsn_offset);
+  write_lsn_offset= 0;
+  const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};
+  flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  write_lsn= lsn;
+  latch.wr_unlock();
+  return lsn;
+}
 
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
@@ -1270,52 +1287,18 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (os_aio_init()) {
-		ib::error() << "Cannot initialize AIO sub-system";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-#ifdef LINUX_NATIVE_AIO
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
-	}
-#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
-	ib::info() << "Initializing buffer pool, total size = "
-		<< ib::bytes_iec{srv_buf_pool_size}
-		<< ", chunk size = " << ib::bytes_iec{srv_buf_pool_chunk_unit};
-
 	if (buf_pool.create()) {
-		ib::error() << "Cannot allocate memory for the buffer pool";
-
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	ib::info() << "Completed initialization of buffer pool";
-
-#ifdef UNIV_DEBUG
-	/* We have observed deadlocks with a 5MB buffer pool but
-	the actual lower limit could very well be a little higher. */
-
-	if (srv_buf_pool_size <= 5 * 1024 * 1024) {
-
-		ib::info() << "Small buffer pool size ("
-			<< ib::bytes_iec{srv_buf_pool_size}
-			<< "), the flst_validate() debug function can cause a"
-			<< " deadlock if the buffer pool fills up.";
-	}
-#endif /* UNIV_DEBUG */
-
 	log_sys.create();
 	recv_sys.create();
-	lock_sys.create(srv_lock_table_size);
+	lock_sys.create(srv_lock_table_size = 5 * buf_pool.curr_size());
 
 	srv_startup_is_before_trx_rollback_phase = true;
 

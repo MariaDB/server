@@ -45,7 +45,6 @@ extern int upgrade_config_file(const char *myini_path);
 "OPTIONS:"
 
 static char mysqld_path[MAX_PATH];
-static char mysqladmin_path[MAX_PATH];
 static char mysqlupgrade_path[MAX_PATH];
 
 static char defaults_file_param[MAX_PATH + 16]; /*--defaults-file=<path> */
@@ -302,13 +301,29 @@ void stop_mysqld_service()
   our --skip-grant-tables do not work anymore after mysql_upgrade
   that does "flush privileges". Instead, the shutdown event  is set.
 */
+#define OPEN_EVENT_RETRY_SLEEP_MS 100
+#define OPEN_EVENT_MAX_RETRIES 50
+
 void initiate_mysqld_shutdown()
 {
   char event_name[32];
   DWORD pid= GetProcessId(mysqld_process);
   sprintf_s(event_name, "MySQLShutdown%d", pid);
-  HANDLE shutdown_handle= OpenEvent(EVENT_MODIFY_STATE, FALSE, event_name);
-  if(!shutdown_handle)
+
+  HANDLE shutdown_handle;
+  for (int i= 0;; i++)
+  {
+    shutdown_handle= OpenEvent(EVENT_MODIFY_STATE, FALSE, event_name);
+    if(shutdown_handle != nullptr || i == OPEN_EVENT_MAX_RETRIES)
+      break;
+    if (WaitForSingleObject(mysqld_process, OPEN_EVENT_RETRY_SLEEP_MS) !=
+        WAIT_TIMEOUT)
+    {
+      die("server process exited before shutdown event was created");
+      break;
+    }
+  }
+  if (!shutdown_handle)
   {
     die("OpenEvent() failed for shutdown event");
   }
@@ -403,6 +418,26 @@ static void change_service_config()
 
 }
 
+/**
+  Waits until starting server can be connected to, via given named pipe, with timeout
+  Dies if either server process exited meanwhile, or when timeout was exceeded.
+*/
+static void wait_for_server_startup(HANDLE process, const char *named_pipe, DWORD timeout_sec)
+{
+  unsigned long long end_time= GetTickCount64() + 1000ULL*timeout_sec;
+  for (;;)
+  {
+    if (WaitNamedPipe(named_pipe, 0))
+      return;
+
+    if (GetTickCount64() >= end_time)
+      die("Server did not startup after %lu seconds", timeout_sec);
+
+    if (WaitForSingleObject(process, 100) != WAIT_TIMEOUT)
+      die("Server did not start");
+  }
+}
+
 
 int main(int argc, char **argv)
 {
@@ -419,8 +454,9 @@ int main(int argc, char **argv)
  
  /*
     Get full path to mysqld, we need it when changing service configuration.
-    Assume installation layout, i.e mysqld.exe, mysqladmin.exe, mysqlupgrade.exe
-    and mysql_upgrade_service.exe are in the same directory.
+    Assume mysqld.exe in the same directory as this program.
+    mysql_upgrade.exe is either in the same directory, or pointed to by
+    MARIADB_UPGRADE_EXE environment variable (in case of MTR running it)
   */
   GetModuleFileName(NULL, bindir, FN_REFLEN);
   p= strrchr(bindir, FN_LIBCHAR);
@@ -429,15 +465,19 @@ int main(int argc, char **argv)
     *p= 0;
   }
   sprintf_s(mysqld_path, "%s\\mysqld.exe", bindir);
-  sprintf_s(mysqladmin_path, "%s\\mysqladmin.exe", bindir);
   sprintf_s(mysqlupgrade_path, "%s\\mysql_upgrade.exe", bindir);
 
-  char *paths[]= {mysqld_path, mysqladmin_path, mysqlupgrade_path};
-  for(int i= 0; i< 3;i++)
+  if (access(mysqld_path, 0))
+    die("File %s does not exist", mysqld_path);
+  if (access(mysqlupgrade_path, 0))
   {
-    if(GetFileAttributes(paths[i]) == INVALID_FILE_ATTRIBUTES)
-      die("File %s does not exist", paths[i]);
+    /* Try to get path from environment variable, set by MTR */
+    char *alt_mysqlupgrade_path= getenv("MARIADB_UPGRADE_EXE");
+    if (alt_mysqlupgrade_path)
+      sprintf_s(mysqlupgrade_path, "%s", alt_mysqlupgrade_path);
   }
+  if (access(mysqlupgrade_path, 0))
+    die("File %s does not exist", mysqld_path);
 
   /*
     Messages written on stdout should not be buffered,  GUI upgrade program 
@@ -482,6 +522,10 @@ int main(int argc, char **argv)
 
   DWORD start_duration_ms = 0;
 
+  char pipe_name[64];
+  snprintf(pipe_name, sizeof(pipe_name),
+           "\\\\.\\pipe\\mysql_upgrade_service_%lu", GetCurrentProcessId());
+
   if (do_start_stop_server)
   {
     /* Start/stop server with  --loose-innodb-fast-shutdown=1 */
@@ -493,37 +537,23 @@ int main(int argc, char **argv)
     {
       die("Cannot start mysqld.exe process, last error =%u", GetLastError());
     }
-    char pipe_name[64];
-    snprintf(pipe_name, sizeof(pipe_name), "\\\\.\\pipe\\mysql_upgrade_service_%lu",
-      GetCurrentProcessId());
-    for (;;)
+    wait_for_server_startup(mysqld_process, pipe_name, startup_timeout);
+    // Server started, shut it down.
+    initiate_mysqld_shutdown();
+    if (WaitForSingleObject((HANDLE)mysqld_process, shutdown_timeout * 1000) != WAIT_OBJECT_0)
     {
-      if (WaitForSingleObject(mysqld_process, 0) != WAIT_TIMEOUT)
-        die("mysqld.exe did not start");
-
-      if (WaitNamedPipe(pipe_name, 0))
-      {
-        // Server started, shut it down.
-        initiate_mysqld_shutdown();
-        if (WaitForSingleObject((HANDLE)mysqld_process, shutdown_timeout * 1000) != WAIT_OBJECT_0)
-        {
-          die("Could not shutdown server started with '--innodb-fast-shutdown=0'");
-        }
-        DWORD exit_code;
-        if (!GetExitCodeProcess((HANDLE)mysqld_process, &exit_code))
-        {
-          die("Could not get mysqld's exit code");
-        }
-        if (exit_code)
-        {
-          die("Could not get successfully shutdown mysqld");
-        }
-        CloseHandle(mysqld_process);
-        break;
-      }
-      Sleep(500);
-      start_duration_ms += 500;
+       die("Could not shutdown server");
     }
+    DWORD exit_code;
+    if (!GetExitCodeProcess((HANDLE)mysqld_process, &exit_code))
+    {
+      die("Could not get server's exit code");
+    }
+    if (exit_code)
+    {
+      die("Could not get successfully shutdown server (exit code %u)",exit_code);
+    }
+    CloseHandle(mysqld_process);
   }
 
   log("Phase %d/%d: Fixing server config file%s", ++phase, max_phases,
@@ -550,22 +580,7 @@ int main(int argc, char **argv)
   }
 
   log("Phase %d/%d: Waiting for startup to complete",++phase,max_phases);
-  start_duration_ms= 0;
-  for(;;)
-  {
-    if (WaitForSingleObject(mysqld_process, 0) != WAIT_TIMEOUT)
-      die("mysqld.exe did not start");
-
-    if (run_tool(P_WAIT, mysqladmin_path, "--protocol=pipe", socket_param,
-                 "ping", "--no-beep", NULL) == 0)
-    {
-      break;
-    }
-    if (start_duration_ms > startup_timeout*1000)
-      die("Server did not come up in %d seconds",startup_timeout);
-    Sleep(500);
-    start_duration_ms+= 500;
-  }
+  wait_for_server_startup(mysqld_process, pipe_name, startup_timeout);
 
   log("Phase %d/%d: Running mysql_upgrade",++phase,max_phases);
   int upgrade_err= (int) run_tool(P_WAIT,  mysqlupgrade_path, 

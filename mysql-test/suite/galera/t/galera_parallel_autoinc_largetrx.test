@@ -67,4 +67,3 @@ SELECT COUNT(DISTINCT f1) AS  EXPECT_30000 FROM t1;
 --connection default
 DROP TABLE t1;
 DROP TABLE ten;
-

@@ -2,5 +2,3 @@
 
 [mysqld]
 log-bin
-wsrep-debug=1
-loose-mysql-wsrep198=1

@@ -101,9 +101,6 @@ bool user_connect::user_init()
   PACTIVITY ap= NULL;
   PDBUSER   dup= NULL;
 
-  // Areasize= 64M because of VEC tables. Should be parameterisable
-//g= PlugInit(NULL, 67108864);
-//g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests
   g= PlugInit(NULL, (size_t)worksize);
 
   // Check whether the initialization is complete
@@ -113,12 +110,13 @@ bool user_connect::user_init()
       printf("%s\n", g->Message);
 
     (void) PlugExit(g);
+    g= 0;
 
-		if (dup)
-	    free(dup);
+    if (dup)
+      free(dup);
 
     return true;
-    } // endif g->
+  } // endif g->
 
   dup->Catalog= new MYCAT(NULL);
 
@@ -128,17 +126,16 @@ bool user_connect::user_init()
   g->Activityp= ap;
   g->Activityp->Aptr= dup;
 
-	pthread_mutex_lock(&usrmut);
+  pthread_mutex_lock(&usrmut);
   next= to_users;
   to_users= this;
 
   if (next)
     next->previous= this;
 
-	count = 1;
-	pthread_mutex_unlock(&usrmut);
-
-	last_query_id= thdp->query_id;
+  count = 1;
+  pthread_mutex_unlock(&usrmut);
+  last_query_id= thdp->query_id;
   return false;
 } // end of user_init
 

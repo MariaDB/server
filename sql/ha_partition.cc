@@ -2141,7 +2141,9 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     m_added_file[i]->extra(HA_EXTRA_BEGIN_ALTER_COPY);
   error= copy_partitions(copied, deleted);
   for (i= 0; i < part_count; i++)
-    m_added_file[i]->extra(HA_EXTRA_END_ALTER_COPY);
+    m_added_file[i]->extra(error
+                           ? HA_EXTRA_ABORT_ALTER_COPY
+                           : HA_EXTRA_END_ALTER_COPY);
   if (unlikely(error))
   {
     /*
@@ -2191,7 +2193,10 @@ int ha_partition::copy_partitions(ulonglong * const copied,
   else if (m_part_info->part_type == VERSIONING_PARTITION)
   {
     if (m_part_info->check_constants(ha_thd(), m_part_info))
+    {
+      result= HA_ERR_PARTITION_LIST;
       goto init_error;
+    }
   }
 
   while (reorg_part < m_reorged_parts)
@@ -4404,31 +4409,19 @@ THR_LOCK_DATA **ha_partition::store_lock(THD *thd,
   DBUG_ENTER("ha_partition::store_lock");
   DBUG_ASSERT(thd == current_thd);
 
-  /*
-    This can be called from get_lock_data() in mysql_lock_abort_for_thread(),
-    even when thd != table->in_use. In that case don't use partition pruning,
-    but use all partitions instead to avoid using another threads structures.
-  */
-  if (thd != table->in_use)
-  {
-    for (i= 0; i < m_tot_parts; i++)
-      to= m_file[i]->store_lock(thd, to, lock_type);
-  }
-  else
-  {
-    MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
-                                lock_type == TL_IGNORE ?
-                                &m_locked_partitions :
-                                &m_part_info->lock_partitions;
+  MY_BITMAP *used_partitions= lock_type == TL_UNLOCK ||
+                              lock_type == TL_IGNORE ?
+                              &m_locked_partitions :
+                              &m_part_info->lock_partitions;
 
-    for (i= bitmap_get_first_set(used_partitions);
-         i < m_tot_parts;
-         i= bitmap_get_next_set(used_partitions, i))
-    {
-      DBUG_PRINT("info", ("store lock %u iteration", i));
-      to= m_file[i]->store_lock(thd, to, lock_type);
-    }
+  for (i= bitmap_get_first_set(used_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(used_partitions, i))
+  {
+    DBUG_PRINT("info", ("store lock %u iteration", i));
+    to= m_file[i]->store_lock(thd, to, lock_type);
   }
+
   DBUG_RETURN(to);
 }
 
@@ -4755,7 +4748,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   }
 
 
-  m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
   DBUG_ASSERT(!m_file[new_part_id]->row_logging);
   if (new_part_id == old_part_id)
@@ -4789,6 +4781,8 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     if (unlikely(error))
       goto exit;
   }
+
+  m_last_part= new_part_id;
 
 exit:
   /*
@@ -9478,6 +9472,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_ABORT_ALTER_COPY:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {

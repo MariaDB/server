@@ -1,5 +1,10 @@
 connection node_2;
 connection node_1;
+connection node_2;
+SET GLOBAL wsrep_ignore_apply_errors=0;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_sync_wait=0;
 SET GLOBAL wsrep_ignore_apply_errors=0;
 SET SESSION AUTOCOMMIT=0;
 SET SESSION max_error_count=0;
@@ -8,5 +13,4 @@ ERROR 42000: This version of MariaDB doesn't yet support 'non-InnoDB sequences i
 connection node_2;
 SHOW CREATE TABLE t0;
 ERROR 42S02: Table 'test.t0' doesn't exist
-connection node_1;
-SET GLOBAL wsrep_ignore_apply_errors=DEFAULT;
+disconnect node_2a;

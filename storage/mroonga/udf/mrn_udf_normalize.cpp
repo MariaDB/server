@@ -151,7 +151,7 @@ error:
 }
 
 MRN_API char *mroonga_normalize(UDF_INIT *init, UDF_ARGS *args, char *result,
-                                unsigned long *length, char *is_null, char *error)
+                                unsigned long *length, uchar *is_null, uchar *error)
 {
   st_mrn_normalize_info *info = (st_mrn_normalize_info *)init->ptr;
   grn_ctx *ctx = info->ctx;

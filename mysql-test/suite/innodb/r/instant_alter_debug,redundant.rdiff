@@ -1,8 +1,9 @@
-@@ -527,6 +527,6 @@
+@@ -576,7 +576,7 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
 -37
 +38
- SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
- # End of 10.6 tests
+ CREATE TABLE t1(f1 INT, f2 TEXT)ENGINE=InnoDB;
+ INSERT INTO t1 VALUES(1, 'a');
+ ALTER TABLE t1 ADD COLUMN f3 TEXT FIRST;

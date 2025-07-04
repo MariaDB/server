@@ -1,0 +1,4 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.2]
+wsrep_sst_donor=node1

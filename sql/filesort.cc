@@ -640,26 +640,16 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
 }
 
 #ifndef DBUG_OFF
-/*
-  Print table's current row into a buffer and return a pointer to it.
 
-  This is intended to be used from gdb:
-  
-    (gdb) p dbug_print_table_row(table)
-      $33 = "SUBQUERY2_t1(col_int_key,col_varchar_nokey)=(7,c)"
-    (gdb)
+static char dbug_row_print_buf[4096];
 
-  Only columns in table->read_set are printed
-*/
 
-const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
+String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
 {
   Field **pfield;
-  const size_t alloc_size= 512;
-  char *row_buff= (char *) alloc_root(&table->mem_root, alloc_size);
-  char *row_buff_tmp= (char *) alloc_root(&table->mem_root, alloc_size);
-  String tmp(row_buff_tmp, alloc_size, &my_charset_bin);
-  String output(row_buff, alloc_size, &my_charset_bin);
+  char row_buff_tmp[512];
+  String tmp(row_buff_tmp, sizeof(row_buff_tmp), &my_charset_bin);
+  String output(dbug_row_print_buf, sizeof(dbug_row_print_buf), &my_charset_bin);
 
   auto move_back_lambda= [table, rec]() mutable {
     table->move_fields(table->field, table->record[0], rec);
@@ -672,7 +662,7 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
     move_back_guard.engage();
   }
 
-  SCOPE_VALUE(table->read_set, (table->read_set && table->write_set) ?
+  SCOPE_VALUE(table->read_set, (table->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                 table->write_set : table->read_set);
 
   output.length(0);
@@ -724,10 +714,35 @@ const char* dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
   }
   output.append(')');
 
-  return output.c_ptr_safe();
+  return output;
 }
 
+/**
+  A function to display a row in debugger.
 
+  Example usage:
+  (gdb) p dbug_print_row(table, table->record[1])
+*/
+const char *dbug_print_row(TABLE *table, const uchar *rec)
+{
+  String row= dbug_format_row(table, table->record[0]);
+  if (row.length() > sizeof dbug_row_print_buf - 1)
+    return "Couldn't fit into buffer";
+  memcpy(dbug_row_print_buf, row.c_ptr(), row.length());
+  return dbug_row_print_buf;
+}
+
+/**
+  Print table's current row into a buffer and return a pointer to it.
+
+  This is intended to be used from gdb:
+
+    (gdb) p dbug_print_table_row(table)
+      $33 = "SUBQUERY2_t1(col_int_key,col_varchar_nokey)=(7,c)"
+    (gdb)
+
+  Only columns in table->read_set are printed
+*/
 const char* dbug_print_table_row(TABLE *table)
 {
   return dbug_print_row(table, table->record[0]);

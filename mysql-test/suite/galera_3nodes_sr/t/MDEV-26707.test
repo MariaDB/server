@@ -21,7 +21,7 @@
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_3,  127.0.0.1, root, , test, $NODE_MYPORT_3
 --connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3
 
 # Save original auto_increment_offset values.
@@ -158,15 +158,15 @@ SET SESSION wsrep_sync_wait = DEFAULT;
 --connection node_1a
 --let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 --connection node_2a
 --let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 --connection node_3a
 --let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
 --source include/wait_condition.inc
-SELECT COUNT(*) AS EXPECT_0 FROM  mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 
 --connection node_1

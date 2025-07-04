@@ -1,3 +1,4 @@
+--source include/long_test.inc
 --source include/have_debug.inc
 --source include/have_sequence.inc
 --source include/have_innodb.inc

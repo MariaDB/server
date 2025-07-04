@@ -412,3 +412,16 @@ update t1 set a=point(5,5), b=point(5,5), c=5 where i < 3;
 ERROR HY000: Lost connection to server during query
 insert into t1 values(5, point(5,5), point(5,5), 5);
 drop table t1;
+#
+# MDEV-35420 Server aborts while deleting the record
+#               in spatial index
+#
+CREATE TABLE t1 (c POINT NOT NULL, SPATIAL(c)) engine=InnoDB;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SET STATEMENT unique_checks=0,foreign_key_checks=0 FOR
+START TRANSACTION;
+INSERT INTO t1 SELECT ST_GeomFromText('POINT(114368751 656950466)') FROM seq_1_to_512;
+ROLLBACK;
+DROP TABLE t1;

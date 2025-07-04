@@ -13,7 +13,7 @@ SET lock_wait_timeout= 1;
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
 SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for table level lock'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table level lock'
 --source include/wait_condition.inc
 
 --connection node_1

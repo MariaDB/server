@@ -158,6 +158,15 @@ size_t my_pwrite(int Filedes, const uchar *Buffer, size_t Count,
 #else
     writtenbytes= pwrite(Filedes, Buffer, Count, offset);
 #endif
+
+    DBUG_EXECUTE_IF ("simulate_file_pwrite_error",
+                     if (writtenbytes == Count &&
+                         my_seek(Filedes, 0, SEEK_END, MYF(0)) > 1024*1024L)
+                     {
+                       errno= ENOSPC;
+                       writtenbytes= (size_t) -1;
+                     });
+
     if (writtenbytes == Count)
       break;
     my_errno= errno;

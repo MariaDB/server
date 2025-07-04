@@ -1,0 +1,161 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+set @max_binlog_cache_size         = @@global.max_binlog_cache_size;
+set @binlog_cache_size             = @@global.binlog_cache_size;
+set @@global.max_binlog_cache_size = 4096;
+set @@global.    binlog_cache_size = 4096;
+
+--echo #
+--echo # MDEV-35207 ignored error at binlogging by CREATE-TABLE-SELECT leads to assert
+--echo #
+# fix the current (write) binlog position
+--let $binlog_file_0= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start_0 = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# use a separate connection also to validate its close will be clean
+connect (conn_err,localhost,root,,);
+
+call mtr.add_suppression("Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage");
+--error ER_TRANS_CACHE_FULL
+create table t engine=myisam select repeat ('a',4096*3) AS a;
+
+--error ER_TRANS_CACHE_FULL
+create table t engine=innodb select repeat ('a',4096*3) AS a;
+
+--error ER_DUP_ENTRY
+create table t (a int unique, b char) select 1 AS a, 'b' as b union select 1 as a, 'c' as b;
+--error ER_NO_SUCH_TABLE
+select * from t;
+
+--disconnect conn_err
+
+--connection master
+--let $binlog_file_1= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start_1= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--let $cmp = `select strcmp('$binlog_file_1', '$binlog_file_0') <> 0 OR $binlog_start_1 <> $binlog_start_0`
+if (!$cmp)
+{
+   --echo *** Error: unexpected advance of binlog position
+   --die
+}
+
+--echo
+--echo #
+--echo # MDEV-35499 errored CREATE-OR-REPLACE-SELECT does not DROP table in binlog
+--echo #
+--let $i = 2
+while ($i)
+{
+  --let $engine=`select if($i % 2, "myisam", "innodb")`
+  --echo #
+  --echo # Engine = $engine
+  --echo #
+  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+  --error ER_DUP_ENTRY
+  --eval set statement binlog_format=row for create or replace table t (a int primary key, b char) engine=$engine select 1 AS a, 'b' as b union select 1 as a, 'c' as b
+  --error ER_NO_SUCH_TABLE
+  select * from t;
+  --echo #
+  --echo # Prove an expected lonely `DROP table t'
+  --source include/show_binlog_events.inc
+
+  # error before stmt commit
+  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+  --error ER_TRANS_CACHE_FULL
+  --eval set statement binlog_format=row for create or replace table t (a text) engine=$engine select repeat ('a',1024) AS a union select repeat ('a',3*4096) AS a union select repeat ('a',3*4096) AS a
+  --error ER_NO_SUCH_TABLE
+  select * from t;
+  --echo #
+  --echo # Prove an expected lonely `DROP table t'
+  --source include/show_binlog_events.inc
+
+  # error at stmt commit
+  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+  --error ER_TRANS_CACHE_FULL
+  --eval set statement binlog_format=row for create or replace table t (a text) engine=$engine select repeat ('a',4096*3) AS a;
+  --error ER_NO_SUCH_TABLE
+  select * from t;
+  --echo #
+  --echo # Prove an expected lonely `DROP table t'
+  --source include/show_binlog_events.inc
+
+--dec $i
+}
+
+# Tests of mixed engines to demonstrate non-transaction table updates
+# are binlogged or otherwise MDEV-36027.
+create table ti_pk (a int primary key) engine=innodb;
+create table ta (a int) engine=aria;
+delimiter |;
+create function f_ia(arg int)
+returns integer
+begin
+  insert into ti_pk set a=1;
+  insert into ta set a=1;
+  insert into ti_pk set a=arg;
+  return 1;
+end |
+delimiter ;|
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--error ER_DUP_ENTRY
+set statement binlog_format = ROW for create table t_y (a int) engine=aria select f_ia(1 /* err */) as a;
+--error ER_NO_SUCH_TABLE
+select * from t_y;
+
+--echo # correct execution: `ta` is modified and its new record is binlogged
+--source include/show_binlog_events.inc
+select * from ta;
+select * from ti_pk;
+
+--sync_slave_with_master
+--let  $diff_tables=master:ta,slave:ta
+--source include/diff_tables.inc
+
+--connection master
+delete from ta;
+--sync_slave_with_master
+
+--connection master
+# MDEV-36027 Errored-out CREATE-SELECT does not binlog results of any function modifying non-transactional table
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+--error ER_DUP_ENTRY
+set statement binlog_format = STATEMENT for create table t_y (a int) engine=aria select f_ia(1 /* err */) as a;
+--error ER_NO_SUCH_TABLE
+select * from t_y;
+
+--echo # ***TODO: fix MDEV-36027***. As of now `ta` is modified but that's not binlogged
+--source include/show_binlog_events.inc
+select *,'on_master' from ta;
+select * from ti_pk;
+
+--sync_slave_with_master
+select *,'on_slave' from ta;
+
+# Cleanup
+--connection master
+drop function f_ia;
+drop table ti_pk, ta;
+
+SET @@global.max_binlog_cache_size = @max_binlog_cache_size;
+SET @@global.    binlog_cache_size = @binlog_cache_size;
+
+# test that binlog replicates correctly to slave
+# --connection slave
+--sync_slave_with_master
+
+--echo End of the tests
+--source include/rpl_end.inc

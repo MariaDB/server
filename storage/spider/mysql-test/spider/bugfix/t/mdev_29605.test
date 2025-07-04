@@ -1,0 +1,25 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+set spider_same_server_link= 1;
+CREATE USER spider@localhost IDENTIFIED BY 'pwd';
+GRANT ALL ON test.* TO spider@localhost;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'spider', password 'pwd');
+SET autocommit=0;
+set @old_init_connect=@@global.init_connect;
+set global init_connect="dummy";
+--error ER_NET_ERROR_ON_WRITE,12701
+CREATE TABLE t ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"' AS SELECT 1;
+set global init_connect=@old_init_connect;
+drop server srv;
+drop user spider@localhost;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

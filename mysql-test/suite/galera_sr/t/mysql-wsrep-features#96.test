@@ -39,7 +39,3 @@ SELECT COUNT(*) = 0 FROM t2;
 --connection node_1
 DROP TABLE t1;
 DROP TABLE t2;
-
-
-
-

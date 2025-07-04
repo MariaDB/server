@@ -65,6 +65,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
@@ -5913,7 +5914,8 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   if (rpl_master_erroneous_autoinc(this))
   {
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
-    auto_inc_intervals_forced.swap(&backup->auto_inc_intervals_forced);
+    backup->auto_inc_intervals_forced.copy_shallow(&auto_inc_intervals_forced);
+    MEM_UNDEFINED(&auto_inc_intervals_forced, sizeof auto_inc_intervals_forced);
   }
 #endif
   
@@ -5961,7 +5963,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
    */
   if (rpl_master_erroneous_autoinc(this))
   {
-    backup->auto_inc_intervals_forced.swap(&auto_inc_intervals_forced);
+    auto_inc_intervals_forced.copy_shallow(&backup->auto_inc_intervals_forced);
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
   }
 #endif
@@ -8381,6 +8383,24 @@ end:
 }
 
 
+void
+wait_for_commit::prior_commit_error(THD *thd)
+{
+  /*
+    Only raise a "prior commit failed" error if we didn't already raise
+    an error.
+
+    The ER_PRIOR_COMMIT_FAILED is just an internal mechanism to ensure that a
+    transaction does not commit successfully if a prior commit failed, so that
+    the parallel replication worker threads stop in an orderly fashion when
+    one of them get an error. Thus, if another worker already got another real
+    error, overriding it with ER_PRIOR_COMMIT_FAILED is not useful.
+  */
+  if (!thd->get_stmt_da()->is_set())
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+}
+
+
 /*
   Wakeup anyone waiting for us to have committed.
 
@@ -8506,16 +8526,19 @@ void mariadb_sleep_for_space(unsigned int seconds)
 {
   THD *thd= current_thd;
   PSI_stage_info old_stage;
+  struct timespec abstime;
   if (!thd)
   {
     sleep(seconds);
     return;
   }
- mysql_mutex_lock(&thd->LOCK_wakeup_ready);
+  set_timespec(abstime, seconds);
+  mysql_mutex_lock(&thd->LOCK_wakeup_ready);
   thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
                   &stage_waiting_for_disk_space, &old_stage);
   if (!thd->killed)
-    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+    mysql_cond_timedwait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
+                         &abstime);
   thd->EXIT_COND(&old_stage);
   return;
 }
@@ -8714,4 +8737,10 @@ void Charset_loader_server::raise_not_applicable_error(const char *cs,
                                                        const char *cl) const
 {
   my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
+}
+
+
+bool THD::is_cursor_execution() const
+{
+  return dynamic_cast<Select_materialize*>(this->lex->result);
 }

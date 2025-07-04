@@ -3,7 +3,7 @@
 --source include/have_innodb.inc
 --source include/have_aria.inc
 
-call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table.*");
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine partition for table");
 
 --echo # wsrep-mode= DEFAULT
 SET GLOBAL wsrep_mode = "";

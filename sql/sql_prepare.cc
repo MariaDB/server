@@ -1304,6 +1304,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
+  bool cache_results= FALSE;
   DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
@@ -1336,7 +1337,8 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, fields, values, update_fields,
                              update_values, duplic, ignore,
-                             &unused_conds, FALSE))
+                             &unused_conds, FALSE,
+                             &cache_results))
       goto error;
 
     value_count= values->elements;
@@ -2477,18 +2479,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   }
 
 #ifdef WITH_WSREP
-    if (wsrep_sync_wait(thd, sql_command))
-      goto error;
-    if (!stmt->is_sql_prepare())
-    {
-      wsrep_after_command_before_result(thd);
-      if (wsrep_current_error(thd))
-      {
-        wsrep_override_error(thd, wsrep_current_error(thd),
-                             wsrep_current_error_status(thd));
-        goto error;
-      }
-    }
+  if (wsrep_sync_wait(thd, sql_command))
+    goto error;
 #endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
@@ -2712,6 +2704,20 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   default:
     break;
   }
+
+#ifdef WITH_WSREP
+  if (!stmt->is_sql_prepare())
+  {
+    wsrep_after_command_before_result(thd);
+    if (wsrep_current_error(thd))
+    {
+      wsrep_override_error(thd, wsrep_current_error(thd),
+                           wsrep_current_error_status(thd));
+      goto error;
+    }
+  }
+#endif
+
   if (res == 0)
   {
     if (!stmt->is_sql_prepare())
@@ -3760,6 +3766,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
   thd->set_n_backup_statement(stmt, &stmt_backup);
 
   cursor->fetch(num_rows);
+
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
 
   if (!cursor->is_open())
   {
@@ -6493,6 +6502,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
     new_thd->variables.sql_log_bin= 0;
+    new_thd->affected_rows= 0;
     new_thd->set_binlog_bit();
     /*
       TOSO: decide if we should turn the auditing off

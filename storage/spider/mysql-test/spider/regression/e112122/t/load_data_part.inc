@@ -84,11 +84,15 @@ eval LOAD DATA $OPTION_LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/spider_outfile.tsv' $
 
 --disable_ps2_protocol
 --connection child2_1
+--disable_view_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --connection child2_2
+--disable_view_protocol
 eval $CHILD2_2_SELECT_ARGUMENT1;
+--enable_view_protocol
 eval $CHILD2_2_SELECT_TABLES;
 --enable_ps2_protocol
 

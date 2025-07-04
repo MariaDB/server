@@ -4,6 +4,9 @@
 #
 CREATE TABLE t (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 ALTER TABLE t PARTITION BY KEY(pk);
+# Incremental backup
+# Prepare fullbackup
+# Prepare incremental backup
 # shutdown server
 # remove datadir
 # xtrabackup move back

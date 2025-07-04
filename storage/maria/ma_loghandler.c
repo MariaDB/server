@@ -3601,9 +3601,6 @@ static my_bool translog_is_LSN_chunk(uchar type)
   @retval 1 Error
 */
 
-/* Stack size 26120 from clang */
-PRAGMA_DISABLE_CHECK_STACK_FRAME
-
 my_bool translog_init_with_table(const char *directory,
                                  uint32 log_file_max_size,
                                  uint32 server_version,
@@ -3857,6 +3854,7 @@ my_bool translog_init_with_table(const char *directory,
 
   if (logs_found)
   {
+    TRANSLOG_PAGE_SIZE_BUFF psize_buff;
     TRANSLOG_ADDRESS current_page= sure_page;
     my_bool pageok;
 
@@ -3897,7 +3895,6 @@ my_bool translog_init_with_table(const char *directory,
       do
       {
         TRANSLOG_VALIDATOR_DATA data;
-        TRANSLOG_PAGE_SIZE_BUFF psize_buff;
         uchar *page;
         data.addr= &current_page;
         if ((page= translog_get_page(&data, psize_buff.buffer, NULL)) == NULL)
@@ -3946,7 +3943,6 @@ my_bool translog_init_with_table(const char *directory,
     if (logs_found && !old_log_was_recovered && old_flags == flags)
     {
       TRANSLOG_VALIDATOR_DATA data;
-      TRANSLOG_PAGE_SIZE_BUFF psize_buff;
       uchar *page;
       uint16 chunk_offset;
       data.addr= &last_valid_page;
@@ -4237,7 +4233,6 @@ err:
   ma_message_no_user(0, "log initialization failed");
   DBUG_RETURN(1);
 }
-PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /*

@@ -1,11 +1,11 @@
 connection node_2;
 connection node_1;
 connection node_1;
+connection node_2;
+connection node_1;
 SET GLOBAL auto_increment_offset=1;
 connection node_2;
 SET GLOBAL auto_increment_offset=2;
-connection node_1;
-connection node_2;
 connection node_2;
 SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
 connection node_1;

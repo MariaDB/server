@@ -3366,3 +3366,11 @@ Variable_name	Value
 Handler_read_rnd_next	0
 drop table t1,t2,t3;
 # End of 10.4 tests
+#
+# MDEV-29300 Assertion `*ref && (*ref)->fixed()' failed in Item_field::fix_outer_field on SELECT
+#
+CREATE TABLE t(c INT);
+SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
+(SELECT 0 GROUP BY c HAVING (SELECT c))
+DROP TABLE t;
+# End of 10.11 tests

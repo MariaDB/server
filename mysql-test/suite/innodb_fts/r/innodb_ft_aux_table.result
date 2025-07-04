@@ -118,4 +118,13 @@ KEY	VALUE
 SELECT @@GLOBAL.innodb_ft_aux_table;
 @@GLOBAL.innodb_ft_aux_table
 test/t1
+CREATE TABLE t(a INT) ENGINE=InnoDB;
+SET GLOBAL innodb_ft_aux_table='test/t';
+ERROR 42000: Variable 'innodb_ft_aux_table' can't be set to the value of 'test/t'
+DROP TABLE t;
+SET GLOBAL innodb_ft_aux_table='test/t';
+ERROR 42000: Variable 'innodb_ft_aux_table' can't be set to the value of 'test/t'
+SELECT @@GLOBAL.innodb_ft_aux_table;
+@@GLOBAL.innodb_ft_aux_table
+test/t1
 SET GLOBAL innodb_ft_aux_table = @save_ft_aux_table;

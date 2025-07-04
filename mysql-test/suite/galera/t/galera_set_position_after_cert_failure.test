@@ -95,4 +95,5 @@ if ($galera_wsrep_start_position != $expected_position)
 --connection node_1
 DROP TABLE t1;
 SET GLOBAL wsrep_slave_threads = DEFAULT;
+
 --source include/auto_increment_offset_restore.inc

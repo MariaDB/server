@@ -15,7 +15,7 @@
 
 # https://buildbot.askmonty.org/buildbot/builders/work-amd64-valgrind/builds/5263/steps/compile/logs/stdio
 # says CMake 2.6.2... We want to drop old software support...
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 2.8...3.12)
 # cmake_minimum_required(VERSION 2.6.4) # CentOS 5
 set(GRN_PROJECT_NAME "groonga")
 set(GRN_PROJECT_LABEL "Groonga")

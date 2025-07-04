@@ -26,3 +26,4 @@ COUNT(*) = 1
 1
 DROP TABLE t1;
 connection node_1;
+SET GLOBAL wsrep_mode = DEFAULT;

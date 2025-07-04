@@ -50,4 +50,3 @@ DROP USER foo@localhost;
 DROP TABLE t2;
 
 --echo # End of tests
-

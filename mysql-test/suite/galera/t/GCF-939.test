@@ -3,6 +3,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 --exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
 
@@ -30,5 +31,6 @@ SELECT * FROM t1;
 
 DROP TABLE t1;
 CALL mtr.add_suppression("Ignoring error 'Unknown table 'test\\.t1'' on query");
+
 --connection node_2
 CALL mtr.add_suppression("Error 'Unknown table 'test\\.t1'' on query");

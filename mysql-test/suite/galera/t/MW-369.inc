@@ -80,5 +80,3 @@ SET SESSION DEBUG_SYNC = 'now SIGNAL signal.wsrep_apply_cb';
 
 SET GLOBAL DEBUG_DBUG = "";
 SET DEBUG_SYNC = 'RESET';
-
-

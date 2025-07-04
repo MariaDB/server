@@ -1,10 +1,10 @@
 # This test case will test R-tree purge.
 
+--source include/long_test.inc
 --source include/innodb_page_size.inc
 --source include/have_sequence.inc
 --source include/not_valgrind.inc
-# This test often times out with MSAN
---source include/not_msan.inc
+--source include/no_msan_without_big.inc
 
 create table t (
   b point not null,d point not null, spatial key (d),spatial key (b)

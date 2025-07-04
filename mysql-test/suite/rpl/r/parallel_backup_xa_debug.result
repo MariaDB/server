@@ -4,6 +4,7 @@ connection master;
 CREATE TABLE t (a INT) ENGINE = innodb;
 connection slave;
 include/stop_slave.inc
+SET STATEMENT sql_log_bin= 0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
 SET @@global.slave_parallel_threads= 2;
@@ -19,6 +20,7 @@ xa prepare 'x';
 connection slave;
 SET @@global.debug_dbug="+d,hold_worker_on_schedule";
 start slave;
+SET debug_sync = 'now WAIT_FOR reached_pause';
 connection slave1;
 backup stage start;
 backup stage block_commit;

@@ -2513,10 +2513,12 @@ corrupted:
 	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
+		auto i = fk_tables.size();
 		err = dict_load_foreigns(table->name.m_name, nullptr,
 					 0, true, ignore_err, fk_tables);
 
 		if (err != DB_SUCCESS) {
+			fk_tables.erase(fk_tables.begin() + i, fk_tables.end());
 			ib::warn() << "Load table " << table->name
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"

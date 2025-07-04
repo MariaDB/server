@@ -244,8 +244,7 @@ func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 
 	if (UNIV_LIKELY_NULL(table)) {
-		dict_table_close(table, dict_locked,
-				 node->trx->mysql_thd, mdl_ticket);
+		dict_table_close(table, node->trx->mysql_thd, mdl_ticket);
 	}
 
 	return(err);
@@ -452,7 +451,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked);
+		node->table->release();
 		node->table = NULL;
 		return false;
 	} else {
@@ -614,7 +613,7 @@ row_undo_ins(
 			err = row_undo_ins_remove_clust_rec(node);
 		}
 
-		if (err == DB_SUCCESS && node->table->stat_initialized) {
+		if (err == DB_SUCCESS && node->table->stat_initialized()) {
 			/* Not protected by dict_sys.latch
 			or table->stats_mutex_lock() for
 			performance reasons, we would rather get garbage
@@ -644,8 +643,7 @@ row_undo_ins(
 		break;
 	}
 
-	dict_table_close(node->table, dict_locked);
-
+	node->table->release();
 	node->table = NULL;
 
 	return(err);

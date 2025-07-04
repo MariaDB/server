@@ -1870,18 +1870,6 @@ err:
   if (non_temp_tables_count)
     query_cache_invalidate3(thd, tables, 0);
 
-  /*
-    We are always logging drop of temporary tables.
-    The reason is to handle the following case:
-    - Use statement based replication
-    - CREATE TEMPORARY TABLE foo (logged)
-    - set row based replication
-    - DROP TEMPORARY TABLE foo   (needs to be logged)
-    This should be fixed so that we remember if creation of the
-    temporary table was logged and only log it if the creation was
-    logged.
-  */
-
   if (non_trans_tmp_table_deleted ||
       trans_tmp_table_deleted || non_tmp_table_deleted)
   {
@@ -3119,7 +3107,7 @@ static bool mysql_prepare_create_table_stage1(THD *thd,
 
     DBUG_ASSERT(sql_field->charset);
 
-    if (check_column_name(sql_field->field_name.str))
+    if (check_column_name(sql_field->field_name))
     {
       my_error(ER_WRONG_COLUMN_NAME, MYF(0), sql_field->field_name.str);
       DBUG_RETURN(TRUE);
@@ -3757,7 +3745,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 
       key_part_info++;
     }
-    if (!key_info->name.str || check_column_name(key_info->name.str))
+    if (!key_info->name.str || check_column_name(key_info->name))
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name.str);
       DBUG_RETURN(TRUE);
@@ -4641,6 +4629,12 @@ int create_table_impl(THD *thd,
       goto err;
     }
 
+    TABLE_LIST table_list;
+    table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
+    int log_table= check_if_log_table(&table_list);
+    if (log_table && create_info->check_if_valid_log_table())
+      goto err;
+
     handlerton *db_type;
     if (!internal_tmp_table &&
         ha_table_exists(thd, &db, &table_name,
@@ -4657,12 +4651,13 @@ int create_table_impl(THD *thd,
       {
         (void) delete_statistics_for_table(thd, &db, &table_name);
 
-        TABLE_LIST table_list;
-        table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
 
-        if (check_if_log_table(&table_list, TRUE, "CREATE OR REPLACE"))
+        if (log_table && logger.is_log_table_enabled(log_table))
+        {
+          my_error(ER_BAD_LOG_STATEMENT, MYF(0), "CREATE OR REPLACE");
           goto err;
+        }
         
         /*
           Rollback the empty transaction started in mysql_create_table()
@@ -6247,7 +6242,7 @@ drop_create_field:
       }
       else if (drop->type == Alter_drop::PERIOD)
       {
-        if (table->s->period.name.streq(drop->name))
+        if (table->s->period.name.streq(Lex_ident(drop->name)))
           remove_drop= FALSE;
       }
       else /* Alter_drop::KEY and Alter_drop::FOREIGN_KEY */
@@ -8023,7 +8018,7 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   if (table->file->ha_prepare_inplace_alter_table(altered_table,
                                                   ha_alter_info))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   debug_crash_here("ddl_log_alter_after_prepare_inplace");
 
@@ -8079,21 +8074,17 @@ static bool mysql_inplace_alter_table(THD *thd,
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
 
-  if (start_alter_id && wait_for_master(thd))
-    goto rollback;
-
-  if (res)
-    goto rollback;
-
+  if (res || (start_alter_id && wait_for_master(thd)))
+    goto rollback_no_restore_lock;
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Set MDL_BACKUP_DDL */
   if (backup_reset_alter_copy_lock(thd))
-    goto rollback;
+    goto rollback_no_restore_lock;
 
   /* Crashing here should cause the original table to be used */
   debug_crash_here("ddl_log_alter_after_copy");
@@ -8122,7 +8113,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (!(table->file->partition_ht()->flags &
         HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT) &&
       notify_tabledef_changed(table_list))
-    goto rollback;
+    goto rollback_restore_lock;
 
   {
     TR_table trt(thd, true);
@@ -8135,17 +8126,17 @@ static bool mysql_inplace_alter_table(THD *thd,
         if (!TR_table::use_transaction_registry)
         {
           my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-          goto rollback;
+          goto rollback_restore_lock;
         }
         if (trt.update(trx_start_id, trx_end_id))
-          goto rollback;
+          goto rollback_restore_lock;
       }
     }
 
     if (table->file->ha_commit_inplace_alter_table(altered_table,
                                                   ha_alter_info,
                                                   true))
-      goto rollback;
+      goto rollback_restore_lock;
     DEBUG_SYNC(thd, "alter_table_inplace_after_commit");
   }
 
@@ -8242,7 +8233,11 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DBUG_RETURN(commit_succeded_with_error);
 
- rollback:
+rollback_restore_lock:
+  /* Wait for backup if it is running */
+  backup_reset_alter_copy_lock(thd);
+
+rollback_no_restore_lock:
   table->file->ha_commit_inplace_alter_table(altered_table,
                                              ha_alter_info,
                                              false);
@@ -9239,7 +9234,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     for (bool found= false; !found && (drop= drop_it++); )
     {
       found= drop->type == Alter_drop::PERIOD &&
-             table->s->period.name.streq(drop->name);
+             table->s->period.name.streq(Lex_ident(drop->name));
     }
 
     if (drop)
@@ -9282,7 +9277,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      if (share->period.constr_name.streq(check->name.str))
+      if (share->period.constr_name.streq(check->name))
       {
         if (!drop_period && !keep)
         {
@@ -10429,7 +10424,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     it is the case.
     TODO: this design is obsolete and will be removed.
   */
-  int table_kind= check_if_log_table(table_list, FALSE, NullS);
+  int table_kind= check_if_log_table(table_list);
   const bool used_engine= create_info->used_fields & HA_CREATE_USED_ENGINE;
 
   if (table_kind)
@@ -10444,17 +10439,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     /* Disable alter of log tables to unsupported engine */
     if ((used_engine) &&
         (!create_info->db_type || /* unknown engine */
-         !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
-    {
-    unsupported:
-      my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
-               hton_name(create_info->db_type)->str);
+         create_info->check_if_valid_log_table()))
       DBUG_RETURN(true);
-    }
-
-    if (create_info->db_type == maria_hton &&
-        create_info->transactional != HA_CHOICE_NO)
-      goto unsupported;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (alter_info->partition_flags & ALTER_PARTITION_INFO)
@@ -11644,7 +11630,8 @@ do_continue:;
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  engine_changed= ((new_table->file->ht != table->file->ht) &&
+  engine_changed= ((new_table->file->storage_ht() !=
+                    table->file->storage_ht()) &&
                    ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                      !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
@@ -11679,7 +11666,7 @@ do_continue:;
 
   debug_crash_here("ddl_log_alter_after_copy");      // Use old table
   /*
-    We are new ready to use the new table. Update the state in the
+    We are now ready to use the new table. Update the state in the
     ddl log so that we recovery know that the new table is ready and
     in case of crash it should use the new one and log the query
     to the binary log.
@@ -12165,6 +12152,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   Create_field *def;
   copy_end=copy;
   to->s->default_fields= 0;
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE &&
+      from->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT &&
+      from->file->stats.records != 1)
+  {
+    if (from->file->stats.records > 1)
+      my_error(ER_INTERNAL_ERROR, MYF(0), "More than one row in the table");
+    else
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Fewer than one row in the table");
+    goto err;
+  }
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -12348,6 +12345,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
       else
         to->next_number_field->reset();
     }
+    if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 1)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "More than one row in the table");
+      error= 1;
+      break;
+    }
     error= to->file->ha_write_row(to->record[0]);
     to->auto_increment_field_not_null= FALSE;
     if (unlikely(error))
@@ -12365,6 +12368,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
       mysql_stage_set_work_completed(thd->m_stage_progress_psi, found_count);
     }
     thd->get_stmt_da()->inc_current_row_for_warning();
+  }
+
+  if (to->s->table_type == TABLE_TYPE_SEQUENCE && found_count == 0)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0), "Fewer than one row in the table");
+    error= 1;
   }
 
   THD_STAGE_INFO(thd, stage_enabling_keys);
@@ -12389,6 +12398,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     if (alt_error > 0)
     {
       error= alt_error;
+      to->file->extra(HA_EXTRA_ABORT_ALTER_COPY);
       copy_data_error_ignore(error, false, to, thd, alter_ctx);
     }
   }
@@ -12402,7 +12412,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
 
- err:
+end:
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
 
@@ -12433,6 +12443,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
     error= 1;
   thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
+
+err:
+  backup_reset_alter_copy_lock(thd);
+  goto end;
 }
 
 

@@ -776,7 +776,7 @@ SELECT ST_DISTANCE_SPHERE(1, 1, NULL);
 ST_DISTANCE_SPHERE(1, 1, NULL)
 NULL
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(1 0)'), ST_GEOMFROMTEXT('LINESTRING(0 0, 1 1)')) as result;
-ERROR HY000: Internal error: st_distance_sphere
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # Test Points and radius
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)')) as result;
 result
@@ -788,9 +788,9 @@ SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(
 result
 0.024682056391766436
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)'), 0) as result;
-ERROR HY000: Internal error: Radius must be greater than zero.
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 0)'), ST_GEOMFROMTEXT('POINT(1 1)'), -1) as result;
-ERROR HY000: Internal error: Radius must be greater than zero.
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 # Test longitude/lattitude
 SELECT TRUNCATE(ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('POINT(0 1)'), ST_GEOMFROMTEXT('POINT(1 2)')), 10) as result;
 result
@@ -843,7 +843,7 @@ SELECT TRUNCATE(ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_G
 result
 0.04933028646581131
 SELECT ST_DISTANCE_SPHERE(ST_GEOMFROMTEXT('MULTIPOINT(1 2,1 1 )'), ST_GEOMFROMTEXT('MULTIPOINT(8 9,3 4 )'),0) as result;
-ERROR HY000: Internal error: Radius must be greater than zero.
+ERROR HY000: Calling geometry function st_distance_sphere with unsupported types of arguments.
 set @pt1 = ST_GeomFromText('POINT(190 -30)');
 set @pt2 = ST_GeomFromText('POINT(-30  50)');
 SELECT ST_Distance_Sphere(@pt1, @pt2);

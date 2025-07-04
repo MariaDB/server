@@ -47,4 +47,3 @@ DROP VIEW v1, v2, v3, v4;
 DROP TABLE t1;
 
 --echo # End of tests
-

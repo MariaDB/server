@@ -595,11 +595,8 @@ void network_init_win()
 
 void handle_connections_win()
 {
-  int n_waits;
-
   create_shutdown_event();
   wait_events.push_back(hEventShutdown);
-  n_waits= 1;
 
   for (size_t i= 0; i < all_listeners.size(); i++)
   {

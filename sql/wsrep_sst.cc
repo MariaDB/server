@@ -464,7 +464,7 @@ bool wsrep_sst_received (THD*                thd,
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);
-      error= wsrep_sst_complete(thd,rcode, sst_gtid);
+      error= wsrep_sst_complete(thd, rcode, sst_gtid);
     }
 
     return error;
@@ -1976,6 +1976,15 @@ wait_signal:
   wsrep::gtid gtid(wsrep::id(ret_uuid.data, sizeof(ret_uuid.data)),
                    wsrep::seqno(err ? wsrep::seqno::undefined() :
                                 wsrep::seqno(ret_seqno)));
+
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_sst_donor_after_donation", {
+    const char act[]= "now "
+                      "SIGNAL sync.wsrep_sst_donor_after_donation_reached "
+                      "WAIT_FOR signal.wsrep_sst_donor_after_donation_continue";
+    DBUG_ASSERT(!debug_sync_set_action(thd.ptr, STRING_WITH_LEN(act)));
+  });
+#endif /* ENABLED_DEBUG_SYNC */
 
   Wsrep_server_state::instance().sst_sent(gtid, err);
 

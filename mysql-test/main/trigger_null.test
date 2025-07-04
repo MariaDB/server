@@ -425,4 +425,15 @@ insert into t1 (c) values (1);
 drop table t1;
 set sql_mode=default;
 
+--echo #
+--echo # MDEV-36026 Problem with INSERT SELECT on NOT NULL columns while having BEFORE UPDATE trigger
+--echo #
+create table t1 (b int(11) not null);
+create trigger t1bu before update on t1 for each row begin end;
+insert t1 (b) select 1 union select 2;
+create trigger trgi before insert on t1 for each row set new.b=ifnull(new.b,10);
+insert t1 (b) select NULL union select 11;
+select * from t1;
+drop table t1;
+
 --echo # End of 10.5 tests

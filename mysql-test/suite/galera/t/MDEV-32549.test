@@ -3,6 +3,7 @@
 # statement is rolled back
 #
 --source include/galera_cluster.inc
+--source include/have_aria.inc
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) engine=innodb;
 CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) engine=aria;

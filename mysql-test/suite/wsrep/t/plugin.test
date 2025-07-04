@@ -5,4 +5,4 @@
 # MDEV-7604: wsrep plugin lists its status as Unknown
 #
 
-SELECT plugin_name,plugin_version,plugin_maturity   FROM information_schema.plugins    where plugin_name like 'wsrep' ORDER BY plugin_maturity,plugin_name;
+SELECT plugin_name,plugin_version,plugin_maturity FROM information_schema.plugins WHERE plugin_name like 'wsrep' ORDER BY plugin_maturity,plugin_name;

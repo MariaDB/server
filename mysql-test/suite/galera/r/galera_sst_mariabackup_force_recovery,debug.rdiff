@@ -1,5 +1,5 @@
---- r/galera_sst_mariabackup.result
-+++ r/galera_sst_mariabackup,debug.reject
+--- r/galera_sst_mariabackup_force_recovery.result
++++ r/galera_sst_mariabackup_force_recovery,debug.reject
 @@ -516,5 +516,189 @@
  1
  DROP TABLE t1;

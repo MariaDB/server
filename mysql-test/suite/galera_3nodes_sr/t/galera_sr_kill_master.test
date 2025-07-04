@@ -6,6 +6,7 @@
 --source include/have_innodb.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2

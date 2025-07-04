@@ -201,8 +201,6 @@ struct xb_filter_entry_t{
 	xb_filter_entry_t *name_hash;
 };
 
-lsn_t checkpoint_lsn_start;
-lsn_t checkpoint_no_start;
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
 /** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
@@ -380,6 +378,10 @@ extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
 extern const char *innodb_flush_method_names[];
 extern TYPELIB innodb_flush_method_typelib;
+#ifdef __linux__
+extern const char *innodb_linux_aio_names[];
+extern TYPELIB innodb_linux_aio_typelib;
+#endif
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
@@ -1188,6 +1190,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
+        const char *error= "";
 	bool fail = false;
 	const std::string spacename{filename_to_spacename(name, len)};
 	switch (type) {
@@ -1195,6 +1198,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
 		fail = !check_if_skip_table(spacename.c_str());
+                error= "create";
 		break;
 	case FILE_MODIFY:
 		break;
@@ -1204,12 +1208,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
+                error= "rename";
 		break;
 	case FILE_DELETE:
 		fail = !check_if_skip_table(spacename.c_str())
 			&& !check_if_fts_table(spacename.c_str());
 		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
+                error= "delete";
 		break;
 	default:
 		ut_ad(0);
@@ -1217,9 +1223,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	}
 
 	if (fail) {
-		ut_a(opt_no_lock);
-		die("DDL operation detected in the late phase of backup."
-			"Backup is inconsistent. Remove --no-lock option to fix.");
+          if (opt_no_lock)
+            die("DDL operation detected in the late phase of backup while "
+                "executing %s on %s. "
+                "Backup is inconsistent. Remove --no-lock option to fix.",
+                error, name);
+          die("Unexpected DDL operation detected in the late phase of backup "
+              "while executing %s on %s. Backup is inconsistent.",
+              error, name);
 	}
 }
 
@@ -1327,6 +1338,9 @@ enum options_xtrabackup
   OPT_INNODB_READ_IO_THREADS,
   OPT_INNODB_WRITE_IO_THREADS,
   OPT_INNODB_USE_NATIVE_AIO,
+#ifdef __linux__
+  OPT_INNODB_LINUX_AIO,
+#endif
   OPT_INNODB_PAGE_SIZE,
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
@@ -1383,6 +1397,7 @@ enum options_xtrabackup
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
   OPT_INNODB_FORCE_RECOVERY,
+  OPT_INNODB_CHECKPOINT,
   OPT_ARIA_LOG_DIR_PATH
 };
 
@@ -1414,8 +1429,9 @@ struct my_option xb_client_options[]= {
      "The value is used in place of innodb_buffer_pool_size. "
      "This option is only relevant when the --prepare option is specified.",
      (G_PTR *) &xtrabackup_use_memory, (G_PTR *) &xtrabackup_use_memory, 0,
-     GET_LL, REQUIRED_ARG, 100 * 1024 * 1024L, 1024 * 1024L, LONGLONG_MAX, 0,
-     1024 * 1024L, 0},
+     GET_ULL, REQUIRED_ARG, 96 << 20, innodb_buffer_pool_extent_size,
+     size_t(-ssize_t(innodb_buffer_pool_extent_size)),
+     0, innodb_buffer_pool_extent_size, 0},
     {"throttle", OPT_XTRA_THROTTLE,
      "limit count of IO operations (pairs of read&write) per second to IOS "
      "values (for '--backup')",
@@ -1787,10 +1803,7 @@ uint xb_client_options_count = array_elements(xb_client_options);
 static const char *dbug_option;
 #endif
 
-#ifdef HAVE_URING
-extern const char *io_uring_may_be_unsafe;
-bool innodb_use_native_aio_default();
-#endif
+static my_bool innodb_log_checkpoint_now;
 
 struct my_option xb_server_options[] =
 {
@@ -1927,12 +1940,15 @@ struct my_option xb_server_options[] =
    "Use native AIO if supported on this platform.",
    (G_PTR*) &srv_use_native_aio,
    (G_PTR*) &srv_use_native_aio, 0, GET_BOOL, NO_ARG,
-#ifdef HAVE_URING
-   innodb_use_native_aio_default(),
-#else
-   TRUE,
+   TRUE, 0, 0, 0, 0, 0},
+#ifdef __linux__
+  {"innodb_linux_aio", OPT_INNODB_LINUX_AIO,
+   "Which linux AIO implementation to use, auto (io_uring, failing to aio) or explicit",
+   (G_PTR*) &srv_linux_aio_method,
+   (G_PTR*) &srv_linux_aio_method,
+   &innodb_linux_aio_typelib, GET_ENUM, REQUIRED_ARG,
+   SRV_LINUX_AIO_AUTO, 0, 0, 0, 0, 0},
 #endif
-   0, 0, 0, 0, 0},
   {"innodb_page_size", OPT_INNODB_PAGE_SIZE,
    "The universal page size of the database.",
    (G_PTR*) &innobase_page_size, (G_PTR*) &innobase_page_size, 0,
@@ -2018,6 +2034,12 @@ struct my_option xb_server_options[] =
    (G_PTR*)&srv_force_recovery,
    (G_PTR*)&srv_force_recovery,
    0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
+
+  {"innodb_log_checkpoint_now", OPT_INNODB_CHECKPOINT,
+   "(for --backup): Force an InnoDB checkpoint",
+   (G_PTR*)&innodb_log_checkpoint_now,
+   (G_PTR*)&innodb_log_checkpoint_now,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
 
     {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
      "All arguments that follow this argument are considered as server "
@@ -2482,7 +2504,7 @@ static bool innodb_init_param()
 	}
 
 	srv_sys_space.normalize_size();
-	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
+	srv_lock_table_size = 5 * buf_pool.curr_size();
 
 	/* -------------- Log files ---------------------------*/
 
@@ -2504,11 +2526,8 @@ static bool innodb_init_param()
 
 	srv_adaptive_flushing = FALSE;
 
-        /* We set srv_pool_size here in units of 1 kB. InnoDB internally
-        changes the value so that it becomes the number of database pages. */
-
-	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
-	srv_buf_pool_chunk_unit = srv_buf_pool_size;
+	buf_pool.size_in_bytes_max = size_t(xtrabackup_use_memory);
+	buf_pool.size_in_bytes_requested = buf_pool.size_in_bytes_max;
 
 	srv_n_read_io_threads = (uint) innobase_read_io_threads;
 	srv_n_write_io_threads = (uint) innobase_write_io_threads;
@@ -2525,30 +2544,7 @@ static bool innodb_init_param()
 
 	ut_ad(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
 
-#ifdef _WIN32
-	srv_use_native_aio = TRUE;
-
-#elif defined(LINUX_NATIVE_AIO)
-
-	if (srv_use_native_aio) {
-		msg("InnoDB: Using Linux native AIO");
-	}
-#elif defined(HAVE_URING)
-	if (!srv_use_native_aio) {
-	} else if (io_uring_may_be_unsafe) {
-		msg("InnoDB: Using liburing on this kernel %s may cause hangs;"
-		    " see https://jira.mariadb.org/browse/MDEV-26674",
-		    io_uring_may_be_unsafe);
-	} else {
-		msg("InnoDB: Using liburing");
-	}
-#else
-	/* Currently native AIO is supported only on windows and linux
-	and that also when the support is compiled in. In all other
-	cases, we ignore the setting of innodb_use_native_aio. */
-	srv_use_native_aio = FALSE;
-
-#endif
+	srv_use_native_aio= tpool::supports_native_aio();
 
 	/* Assign the default value to srv_undo_dir if it's not specified, as
 	my_getopt does not support default values for string options. We also
@@ -2583,9 +2579,6 @@ static bool innodb_init_param()
 		}
 	}
 
-#ifdef _WIN32
-	srv_use_native_aio = TRUE;
-#endif
 	return false;
 
 error:
@@ -2593,6 +2586,7 @@ error:
 	return true;
 }
 
+alignas(8)
 static byte log_hdr_buf[log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT];
 
 /** Initialize an InnoDB log file header in log_hdr_buf[] */
@@ -2679,7 +2673,7 @@ static bool innodb_init()
   }
 
   recv_sys.lsn= log_sys.next_checkpoint_lsn=
-    log_sys.get_lsn() - SIZE_OF_FILE_CHECKPOINT;
+    log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
   byte *b= &log_hdr_buf[log_t::START_OFFSET];
@@ -2946,6 +2940,15 @@ my_bool regex_list_check_match(
 	const regex_list_t& list,
 	const char* name)
 {
+	if (list.empty()) return (FALSE);
+
+	/*
+	  regexec/pcre2_regexec is not threadsafe, also documented.
+	  Serialize access from multiple threads to compiled regexes.
+	*/
+	static std::mutex regex_match_mutex;
+	std::lock_guard<std::mutex> lock(regex_match_mutex);
+
 	regmatch_t tables_regmatch[1];
 	for (regex_list_t::const_iterator i = list.begin(), end = list.end();
 	     i != end; ++i) {
@@ -4151,7 +4154,6 @@ next_file:
 		return(-1);
 	}
 
-	MSAN_STAT_WORKAROUND(&statinfo);
 	info->size = statinfo.st_size;
 
 	if (S_ISDIR(statinfo.st_mode)) {
@@ -5405,6 +5407,14 @@ static bool xtrabackup_backup_func()
 	}
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
+	if (innodb_log_checkpoint_now != false && mysql_send_query(
+		    mysql_connection,
+		    C_STRING_WITH_LEN("SET GLOBAL "
+				      "innodb_log_checkpoint_now=ON;"))) {
+		msg("initiating checkpoint failed");
+		return(false);
+	}
+
 	msg("open files limit requested %lu, set to %lu",
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5456,7 +5466,6 @@ fail:
 	xb_fil_io_init();
 
 	if (os_aio_init()) {
-		msg("Error: cannot initialize AIO subsystem");
 		goto fail;
 	}
 
@@ -5504,16 +5513,22 @@ fail:
 
 	backup_datasinks.init();
 
-	if (!select_history()) {
-		goto fail;
-	}
-
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
 	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
 	if (dst_log_file == NULL) {
 		msg("Error: failed to open the target stream for '%s'.",
 		    LOG_FILE_NAME);
+		goto fail;
+	}
+
+	/* try to wait for a log checkpoint, but do not fail if the
+	server does not support this */
+	if (innodb_log_checkpoint_now != false) {
+		mysql_read_query_result(mysql_connection);
+	}
+
+	if (!select_history()) {
 		goto fail;
 	}
 
@@ -6230,9 +6245,22 @@ xtrabackup_apply_delta(
 					buf + FSP_HEADER_OFFSET + FSP_SIZE);
 				if (mach_read_from_4(buf
 						     + FIL_PAGE_SPACE_ID)) {
+#ifdef _WIN32
+					os_offset_t last_page =
+					  os_file_get_size(dst_file) /
+					  page_size;
+
+					/* os_file_set_size() would
+					shrink the size of the file */
+					if (last_page < n_pages &&
+					    !os_file_set_size(
+					       dst_path, dst_file,
+					       n_pages * page_size))
+#else
 					if (!os_file_set_size(
 						    dst_path, dst_file,
 						    n_pages * page_size))
+#endif /* _WIN32 */
 						goto error;
 				} else if (fil_space_t* space
 					   = fil_system.sys_space) {

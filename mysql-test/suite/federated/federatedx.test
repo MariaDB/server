@@ -92,7 +92,7 @@ eval CREATE TABLE federated.t1 (
     `name` varchar(32) NOT NULL default ''
     )
   ENGINE="FEDERATED" DEFAULT CHARSET=latin1
-  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+  CONNECTION='mariadb://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
 
 INSERT INTO federated.t1 (id, name) VALUES (1, 'foo');
 INSERT INTO federated.t1 (id, name) VALUES (2, 'fee');

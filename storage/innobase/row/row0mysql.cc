@@ -69,7 +69,7 @@ Created 9/17/2000 Heikki Tuuri
 
 
 /** Delay an INSERT, DELETE or UPDATE operation if the purge is lagging. */
-static void row_mysql_delay_if_needed()
+static void row_mysql_delay_if_needed() noexcept
 {
   const auto delay= srv_dml_needed_delay;
   if (UNIV_UNLIKELY(delay != 0))
@@ -78,8 +78,8 @@ static void row_mysql_delay_if_needed()
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
+    const lsn_t lsn= log_sys.get_flushed_lsn();
     log_sys.latch.rd_unlock();
-    const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -687,8 +687,12 @@ handle_new_error:
 			/* MariaDB will roll back the latest SQL statement */
 			break;
 		}
-		/* MariaDB will roll back the entire transaction. */
-		trx->bulk_insert = false;
+		/* For DML, InnoDB does partial rollback and clear
+		bulk buffer in row_mysql_handle_errors().
+		For ALTER TABLE ALGORITHM=COPY & CREATE TABLE...SELECT,
+		the bulk insert transaction will be rolled back inside
+		ha_innobase::extra(HA_EXTRA_ABORT_ALTER_COPY) */
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = 0;
 		break;
 	case DB_LOCK_WAIT:
@@ -704,6 +708,7 @@ handle_new_error:
 	case DB_DEADLOCK:
 	case DB_RECORD_CHANGED:
 	case DB_LOCK_TABLE_FULL:
+	case DB_TEMP_FILE_WRITE_FAIL:
 	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
@@ -981,7 +986,7 @@ void row_prebuilt_free(row_prebuilt_t *prebuilt)
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table);
+		prebuilt->table->release();
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1599,7 +1604,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	ut_ad(table->stat_initialized);
+	ut_ad(table->stat_initialized());
 
 	if (!table->is_readable()) {
 		return row_mysql_get_table_error(trx, table);
@@ -2159,11 +2164,9 @@ row_create_index_for_mysql(
 
 		index = node->index;
 
-		ut_ad(!index == (err != DB_SUCCESS));
-
 		que_graph_free((que_t*) que_node_get_parent(thr));
 
-		if (index && (index->type & DICT_FTS)) {
+		if (err == DB_SUCCESS && (index->type & DICT_FTS)) {
 			err = fts_create_index_tables(trx, index, table->id);
 		}
 

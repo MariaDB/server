@@ -783,11 +783,6 @@ pars_retrieve_table_list_defs(
 {
 	ulint		count		= 0;
 
-	if (sym_node == NULL) {
-
-		return(count);
-	}
-
 	while (sym_node) {
 		pars_retrieve_table_def(sym_node);
 

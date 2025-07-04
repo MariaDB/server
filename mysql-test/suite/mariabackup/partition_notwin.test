@@ -1,0 +1,25 @@
+source include/not_windows.inc;
+source include/have_partition.inc;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $log=$MYSQL_TMP_DIR/backup.log;
+
+--echo #
+--echo # MDEV-36437 mariabackup - confusing error message when running out of file handles with partitioned MyISAM
+--echo #
+
+create table t1 (
+  id bigint(20) not null auto_increment,
+  primary key (id)
+) engine=myisam
+ partition by hash (id)
+ partitions 600;
+
+error 1;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $log 2>&1;
+let SEARCH_FILE=$log;
+let SEARCH_PATTERN=Error 24 on file ./test/t1#P#p\d+\.MY[DI] open during `test`.`t1` table copy: Too many open files;
+source include/search_pattern_in_file.inc;
+
+rmdir $targetdir;
+#remove_file $log;
+drop table t1;

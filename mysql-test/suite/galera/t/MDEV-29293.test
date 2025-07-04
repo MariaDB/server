@@ -38,4 +38,3 @@ set debug_sync= 'now SIGNAL continue';
 --reap 
 DROP TABLE t1;
 SET DEBUG_SYNC= 'RESET';
-

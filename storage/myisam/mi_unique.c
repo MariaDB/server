@@ -115,6 +115,8 @@ ha_checksum mi_unique_hash(MI_UNIQUEDEF *def, const uchar *record)
     {
       uint tmp_length=_mi_calc_blob_length(keyseg->bit_start,pos);
       memcpy((char**) &pos, pos+keyseg->bit_start, sizeof(char*));
+      if (!pos)
+        pos= (const uchar*) ""; /* hash_sort does not support NULL ptr */
       if (!length || length > tmp_length)
 	length=tmp_length;			/* The whole blob */
     }
@@ -211,6 +213,10 @@ int mi_unique_comp(MI_UNIQUEDEF *def, const uchar *a, const uchar *b,
       }
       memcpy((char**) &pos_a, pos_a+keyseg->bit_start, sizeof(char*));
       memcpy((char**) &pos_b, pos_b+keyseg->bit_start, sizeof(char*));
+      if (pos_a == 0)
+        pos_a= (const uchar *) ""; /* Avoid UBSAN nullptr-with-offset */
+      if (pos_b == 0)
+        pos_b= (const uchar *) ""; /* Avoid UBSAN nullptr-with-offset */
     }
     if (type == HA_KEYTYPE_TEXT/*The CHAR data type*/)
     {

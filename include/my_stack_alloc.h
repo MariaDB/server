@@ -38,6 +38,8 @@ static inline void *my_get_stack_pointer(void *default_stack)
 #if defined(__GNUC__) || defined(__clang__) /* GCC and Clang compilers */
 #if defined(__i386__) /* Intel x86 (32-bit) */
   __asm__ volatile ("movl %%esp, %0" : "=r" (stack_ptr));
+#elif defined(__x86_64__) && defined (__ILP32__) /* Intel x86-64 (64-bit), X32 ABI */
+  __asm__ volatile ("movl %%esp, %0" : "=r" (stack_ptr));
 #elif defined(__x86_64__) /* Intel x86-64 (64-bit) */
   __asm__ volatile ("movq %%rsp, %0" : "=r" (stack_ptr));
 #elif defined(__powerpc__) /* PowerPC (32-bit) */

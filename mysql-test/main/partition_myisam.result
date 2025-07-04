@@ -259,3 +259,24 @@ CHECK TABLE `t1` EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-31122 Server crash in get_lock_data / mysql_lock_abort_for_thread
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT, c varchar(5))
+PARTITION BY RANGE COLUMNS(c)
+SUBPARTITION by key(b) SUBPARTITIONS 2 (
+PARTITION p0 VALUES LESS THAN ('m'),
+PARTITION p1 VALUES LESS THAN ('z')
+);
+connect  con1,localhost,root,,;
+HANDLER t1 OPEN;
+SELECT b FROM t2 PARTITION (p0);
+connection default;
+SET lock_wait_timeout= 1;
+ALTER TABLE t1 FORCE;
+connection con1;
+b
+disconnect con1;
+connection default;
+DROP TABLE t2, t1;

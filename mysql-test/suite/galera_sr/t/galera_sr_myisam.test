@@ -22,6 +22,4 @@ SELECT LENGTH(f1) = 65535 FROM t1;
 DROP TABLE t1;
 
 --connection node_1
---disable_query_log
 SET GLOBAL wsrep_mode = DEFAULT;
---enable_query_log

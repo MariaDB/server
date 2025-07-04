@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine partition for table.*");
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled\\. Storage engine partition for table");
 # wsrep-mode= DEFAULT
 SET GLOBAL wsrep_mode = "";
 SELECT @@wsrep_mode;

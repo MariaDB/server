@@ -56,9 +56,11 @@ exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -
 --enable_query_log
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 TRUNCATE TABLE mysql.general_log;
@@ -69,9 +71,11 @@ exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -
 --enable_query_log
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 TRUNCATE TABLE mysql.general_log;
@@ -82,9 +86,11 @@ exec $MYSQL -v -v -u root -h localhost -P $MASTER_1_MYPORT -S $MASTER_1_MYSOCK -
 --enable_query_log
 
 --connection child2_1
+--disable_view_protocol
 --disable_ps2_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 --enable_ps2_protocol
+--enable_view_protocol
 eval $CHILD2_1_SELECT_TABLES;
 
 --echo

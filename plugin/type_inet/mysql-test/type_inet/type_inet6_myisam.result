@@ -88,6 +88,18 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::ff'
 DROP TABLE t1;
 #
+# MDEV-34922: Assertion `value.length() == FbtImpl::binary_length()' failed in
+# Type_handler_fbt<FbtImpl, TypeCollectionImpl>::Field_fbt::store_native,
+# Assertion `item->null_value' failed in Type_handler::Item_send_str
+#
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM (SELECT cast('::' AS INET6),min(1) FROM t1 WHERE if(uuid_short(), a,1)) dt;
+cast('::' AS INET6)	min(1)
+::	NULL
+DROP TABLE t1;
+# End of 10.5 tests
+#
 # MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item
 #
 CREATE TABLE t1 (c varchar(64), key(c)) engine=myisam;

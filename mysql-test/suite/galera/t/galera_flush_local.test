@@ -3,6 +3,7 @@
 # PXC-391
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_query_cache.inc
 
 --disable_warnings
@@ -71,7 +72,6 @@ SELECT COUNT(*) AS EXPECT_10 FROM t1;
 SELECT COUNT(*) AS EXPECT_10 FROM x1;
 SELECT COUNT(*) AS EXPECT_10000 FROM t2;
 SELECT COUNT(*) AS EXPECT_10 FROM x2;
-
 
 --connection node_1
 DROP TABLE t1, t2, x1, x2;
@@ -144,4 +144,3 @@ DROP TABLE t1, t2, x1, x2;
 --disable_query_log
 SET GLOBAL wsrep_mode = DEFAULT;
 --enable_query_log
-

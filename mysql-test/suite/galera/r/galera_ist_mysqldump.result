@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to ");
+connection node_1;
+connection node_2;
 Setting SST method to mysqldump ...
 call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to '127\\.0\\.0\\.1'");
 call mtr.add_suppression("Failed to load slave replication state from table mysql\\.gtid_slave_pos");
@@ -9,9 +12,6 @@ GRANT ALL PRIVILEGES ON *.* TO 'sst';
 SET GLOBAL wsrep_sst_auth = 'sst:';
 connection node_2;
 SET GLOBAL wsrep_sst_method = 'mysqldump';
-call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to ");
-connection node_1;
-connection node_2;
 Performing State Transfer on a server that has been shut down cleanly and restarted
 connection node_1;
 CREATE TABLE t1 (id int not null primary key,f1 CHAR(255)) ENGINE=InnoDB;
@@ -355,10 +355,10 @@ COUNT(*) = 0
 DROP TABLE t1;
 COMMIT;
 connection node_1;
-CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("Slave SQL: Error 'The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
 DROP USER sst;
 connection node_2;
-CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("Slave SQL: Error 'The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
 CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
 CALL mtr.add_suppression("Can't open and lock time zone table");
 CALL mtr.add_suppression("Can't open and lock privilege tables");

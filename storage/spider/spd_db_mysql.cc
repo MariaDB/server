@@ -2100,6 +2100,10 @@ int spider_db_mbase::exec_query(
     general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
       tmp_query_str.length());
   }
+  /* There should be a live connection to the data node */
+  DBUG_ASSERT(db_conn);
+  if (!db_conn)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   if (!spider_param_dry_access())
   {
     error_num = mysql_real_query(db_conn, query, length);
@@ -8893,12 +8897,13 @@ int spider_mbase_handler::append_key_select_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = append_key_select(str, idx);
+  error_num = append_key_select(str, sql_type, idx);
   DBUG_RETURN(error_num);
 }
 
 int spider_mbase_handler::append_key_select(
   spider_string *str,
+  ulong sql_type,
   uint idx
 ) {
   st_select_lex *select_lex = NULL;
@@ -8947,6 +8952,7 @@ int spider_mbase_handler::append_key_select(
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
     }
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+    DBUG_RETURN(append_from(str, sql_type, first_link_idx));
   } else {
     table_name_pos = str->length() + mysql_share->key_select_pos[idx];
     if (str->append(mysql_share->key_select[idx]))

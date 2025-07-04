@@ -1,0 +1,28 @@
+# Test wsrep GTID recovery with binlog off. The test restarts the server
+# and verifies that the GTID returned by SELECT WSREP_LAST_SEEN_GTID()
+# gets initialized properly during server restart.
+#
+--source include/have_wsrep.inc
+--source include/have_wsrep_provider.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+--echo # Case 1: Server goes through graceful shutdown and is restarted
+--connection default
+INSERT INTO t1 VALUES (1);
+
+--echo Expect 100-10-2
+SELECT WSREP_LAST_SEEN_GTID();
+
+--source include/shutdown_mysqld.inc
+--let $galera_wsrep_recover_server_id = 1
+--source suite/galera/include/galera_wsrep_recover.inc
+--source suite/galera/include/start_mysqld.inc
+
+--echo Expect 100-10-2
+SELECT WSREP_LAST_SEEN_GTID();
+SELECT * FROM t1;
+
+DROP TABLE t1;

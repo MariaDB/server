@@ -125,7 +125,7 @@ WHERE
 table_name = 'test_ps_fetch' AND
 index_name = 'idx' AND
 stat_name = 'n_diff_pfx02';
-FLUSH TABLE test_ps_fetch;
+RENAME TABLE test_ps_fetch TO tmp, tmp TO test_ps_fetch;
 SELECT seq_in_index, column_name, cardinality
 FROM information_schema.statistics WHERE table_name = 'test_ps_fetch'
 ORDER BY index_name, seq_in_index;

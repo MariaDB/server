@@ -5,6 +5,9 @@ id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200),
 content TEXT
 ) ENGINE= InnoDB;
+SET STATEMENT debug_dbug='+d,innodb_report_deadlock' FOR
+CREATE FULLTEXT INDEX idx ON articles (title, content);
+ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB
 CREATE FULLTEXT INDEX idx ON articles (title, content);
 INSERT INTO articles (title, content) VALUES
 ('MySQL Tutorial','DBMS stands for MySQL DataBase ...'),

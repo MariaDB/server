@@ -14,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.12)
 
 IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   # Setting build type to RelWithDebInfo as none was specified.
@@ -31,7 +31,7 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135)
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0056 CMP0067 CMP0074 CMP0075 CMP0069 CMP0135 CMP0091)
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
@@ -246,7 +246,7 @@ ENDIF()
 
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE")
   IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
           AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
     MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")
@@ -256,7 +256,7 @@ IF (WITH_MSAN)
     MESSAGE(FATAL_ERROR "C++ Compiler requires support for -stdlib=libc++")
   ENDIF()
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory")
   IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
     MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
   ENDIF()
@@ -292,7 +292,7 @@ ENDIF()
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 
-IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+IF(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
   # Enable extra checks when using a recent enough version of GNU libstdc++
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS")
 ENDIF()
@@ -633,7 +633,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill mariadb-upgrade-service)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

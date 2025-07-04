@@ -3,6 +3,7 @@
 # following tests such as galera_3nodes.galera_var_dirty_reads2
 
 !include ../galera_2x3nodes.cnf
+
 [mysqld.1]
 wsrep_gtid_domain_id=1
 server-id=11

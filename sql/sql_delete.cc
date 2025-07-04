@@ -393,7 +393,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   if (delete_history)
+  {
+    DBUG_ASSERT(conds);
     table->vers_write= false;
+  }
 
   if (returning)
     (void) result->prepare(returning->item_list, NULL);

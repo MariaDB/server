@@ -4,6 +4,7 @@
 delimiter $
 select 1;
 $
+exit
 Welcome to the MariaDB monitor.  Commands end with ; or \g.
 Your MariaDB connection id is X
 Server version: Y
@@ -21,4 +22,5 @@ MariaDB [(none)]> select 1;
 +---+
 1 row in set
 
-MariaDB [(none)]> 
+MariaDB [(none)]> exit
+Bye

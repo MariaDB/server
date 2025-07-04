@@ -44,4 +44,3 @@ SET DEBUG_SYNC= 'RESET';
 
 --connection node_1a
 SET DEBUG_SYNC= 'RESET';
-

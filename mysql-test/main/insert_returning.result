@@ -498,6 +498,8 @@ t1 WHERE id1=1)
 5	6
 INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT id2 FROM t2);
 ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+INSERT INTO t2(id2,val2) VALUES(5,'f') RETURNING (SELECT 1 UNION SELECT id2 FROM t2);
+ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
 INSERT INTO t2 (id2, val2) VALUES (6,'f') RETURNING t1.*;
 ERROR 42S02: Unknown table 'test.t1'
 #

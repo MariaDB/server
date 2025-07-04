@@ -47,9 +47,13 @@ CALL mtr.add_suppression("Slave SQL: Error 'Unknown database 'test'' on query\\.
 CALL mtr.add_suppression("Query apply failed");
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("WSREP: Cert position .* less than last committed");
+CALL mtr.add_suppression("WSREP: Sending JOIN failed: ");
 connection node_3;
 Node 3 synced
 CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query\\. Default database: 'test'\\. Query: 'CREATE TABLE test\\.t1 \\(f1 INTEGER\\)', Error_code: 1050");
 CALL mtr.add_suppression("Query apply failed");
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("WSREP: Cert position .* less than last committed");
+CALL mtr.add_suppression("WSREP: Sending JOIN failed: ");

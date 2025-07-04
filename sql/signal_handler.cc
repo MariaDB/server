@@ -277,7 +277,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_safe_printf_stderr("Status: %s\n", kreason);
     my_safe_printf_stderr("Query (%p): ", thd->query());
     my_safe_print_str(thd->query(), MY_MIN(65536U, thd->query_length()));
-    my_safe_printf_stderr("%s", "Optimizer switch: ");
+    my_safe_printf_stderr("%s", "\nOptimizer switch: ");
     ulonglong optsw= thd->variables.optimizer_switch;
     for (uint i= 0; optimizer_switch_names[i+1]; i++, optsw >>= 1)
     {

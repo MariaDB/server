@@ -1,0 +1,8 @@
+#
+# MDEV-27126: my_getopt compares option names case sensitively
+#
+# Check if the variable is set correctly from options
+SELECT @@GLOBAL.wsrep_slave_uk_checks;
+@@GLOBAL.wsrep_slave_uk_checks
+1
+# End of test.

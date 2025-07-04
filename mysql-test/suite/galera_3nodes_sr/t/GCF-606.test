@@ -85,4 +85,5 @@ DROP TABLE t1;
 
 --connection node_2
 CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+
 --source ../galera/include/auto_increment_offset_restore.inc

@@ -25,4 +25,3 @@ SELECT COUNT(*)=0 FROM mysql.servers;
 
 --source include/galera_end.inc
 --echo # End of test
-
