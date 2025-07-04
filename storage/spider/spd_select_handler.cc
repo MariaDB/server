@@ -138,6 +138,10 @@ int spider_select_handler::init_scan()
     spider_prepare_init_scan(query, NULL, fields, spider,
                              spider->wide_handler->trx, unused, thd);
    */
+  /* Reset select_column_mode so that previous insertions would not
+    affect. TODO: the default value is 1 even though it is reset to 0
+    in gbh as well. */
+  spider->select_column_mode= 0;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   spider_set_result_list_param(spider);
   /* TODO: we need to extract result_list init to a separate
