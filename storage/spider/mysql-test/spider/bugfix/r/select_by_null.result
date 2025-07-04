@@ -42,6 +42,7 @@ pkey
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
+select t0.`pkey` `pkey` from `auto_test_remote`.`tbl_a` t0 where NULL
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
