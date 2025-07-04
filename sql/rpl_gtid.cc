@@ -3416,9 +3416,8 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       bounds of this window.
     */
 
-    if (!m_has_start && is_gtid_at_or_before(&m_stop, gtid))
+    if (!m_has_start && m_has_stop && is_gtid_at_or_before(&m_stop, gtid))
     {
-      DBUG_ASSERT(m_has_stop);
       /*
         Start GTID was not provided, so we want to include everything from here
         up to m_stop
