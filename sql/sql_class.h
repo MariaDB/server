@@ -4076,6 +4076,47 @@ public:
   }
 
 private:
+  bool m_sql_mode_changed= false;
+  ulonglong m_orig_sql_mode;
+public:
+  /*
+  Enable a less-stricter sql_mode to allow all the values into
+  temporary table. Used in cursor protocol, buffer results, etc.
+  */
+  void switch_sql_mode_for_temp_table()
+  {
+    if (m_sql_mode_changed)
+      return;
+
+    m_orig_sql_mode= variables.sql_mode;
+    ulonglong temp_sql_mode= m_orig_sql_mode;
+
+    temp_sql_mode |= MODE_INVALID_DATES;
+    temp_sql_mode &= ~MODE_NO_ZERO_DATE;
+    temp_sql_mode &= ~MODE_NO_ZERO_IN_DATE;
+    temp_sql_mode &= ~MODE_STRICT_ALL_TABLES;
+    temp_sql_mode &= ~MODE_STRICT_TRANS_TABLES;
+
+    variables.sql_mode= temp_sql_mode;
+    m_sql_mode_changed= true;
+  }
+
+  inline void restore_sql_mode()
+  {
+    if (m_sql_mode_changed)
+    {
+      variables.sql_mode= m_orig_sql_mode;
+      m_sql_mode_changed= false;
+    }
+  }
+
+  inline bool is_sql_mode_changed() const { return m_sql_mode_changed; }
+  inline ulonglong get_orig_sql_mode() const
+  {
+    return m_sql_mode_changed ? m_orig_sql_mode : variables.sql_mode;
+  }
+
+private:
   struct {
     my_hrtime_t start;
     my_time_t sec;

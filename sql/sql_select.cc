@@ -5162,6 +5162,8 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 {
   int err= 0;
   bool free_join= 1;
+  bool sql_mode_changed= false;
+  // ulonglong orig_sql_mode;
   DBUG_ENTER("mysql_select");
 
   if (!fields.is_empty())
@@ -5240,7 +5242,21 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   if (unlikely(thd->is_error()))
     goto err;
 
+  /*
+    For buffered sql select, we need to enable lenient sql_mode as soon as we
+    start join->exec() because, by the time we go to fill_records, values are
+    already materialized, except for values calculated by sql functions.
+  */
+  if (select_options & OPTION_BUFFER_RESULT)
+  {
+    thd->switch_sql_mode_for_temp_table();
+    sql_mode_changed= true;
+  }
+
   join->exec();
+
+  if (sql_mode_changed)
+    thd->restore_sql_mode();
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {

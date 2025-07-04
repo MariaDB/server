@@ -1329,6 +1329,16 @@ bool Protocol::send_result_set_row(List<Item> *row_items)
 
   for (Item *item= it++; item; item= it++)
   {
+    bool sql_mode_restored= false;
+    SELECT_LEX *sel_lex= thd->lex->first_select_lex();
+    ulonglong select_option= sel_lex->options | thd->variables.option_bits |
+                           OPTION_SETUP_TABLES_DONE;
+
+    if ((select_option & OPTION_BUFFER_RESULT) && item->type() == Item::FUNC_ITEM)
+    {
+      thd->restore_sql_mode();
+      sql_mode_restored= true;
+    }
     value_buffer.reset_buffer();
     if (item->send(this, &value_buffer))
     {
@@ -1337,6 +1347,8 @@ bool Protocol::send_result_set_row(List<Item> *row_items)
       DBUG_RETURN(TRUE);
     }
     /* Item::send() may generate an error. If so, abort the loop. */
+    if (sql_mode_restored)
+      thd->switch_sql_mode_for_temp_table();
     if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
   }

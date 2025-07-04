@@ -9295,6 +9295,12 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
+  bool sql_mode_changed= false;
+  bool sql_mode_restored= false;
+  // ulonglong orig_sql_mode;
+  SELECT_LEX *sel_lex= thd->lex->first_select_lex();
+  ulonglong select_option= sel_lex->options | thd->variables.option_bits |
+                           OPTION_SETUP_TABLES_DONE;
   uint autoinc_index= table->next_number_field
                         ? table->next_number_field->field_index
                         : ~0U;
@@ -9350,11 +9356,44 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     if (skip_sys_field)
       continue;
 
+    /*
+      Irrespective of whether we it's a cursor protocol execution or buffering
+      sql select, if the value to be materialized is not a result of function,
+      we switch to a more leniant version of sql_mode
+    */
+    if (((select_option & OPTION_BUFFER_RESULT) || thd->is_cursor_execution()) &&
+         value->type() != Item::FUNC_ITEM)
+    {
+      thd->switch_sql_mode_for_temp_table();
+      sql_mode_changed= true;
+    }
+
+    /*
+      sql_mode was changed but we need orig-mode back because, value to be
+      stored is a result of an sql function
+    */
+    if ((select_option & OPTION_BUFFER_RESULT) &&
+        (value->type() == Item::FUNC_ITEM) && thd->is_sql_mode_changed())
+    {
+      thd->restore_sql_mode();
+      sql_mode_restored= true;
+    }
+
     if (use_value)
       value->save_val(field);
     else
       if (value->save_in_field(field, 0) < 0)
         goto err;
+
+    /*
+      If we have changed sql_mode, change it back to what it was before, when
+      we started filling records. Also, do it in err
+    */
+    if (sql_mode_restored)
+      thd->switch_sql_mode_for_temp_table();
+    if (sql_mode_changed)
+      thd->restore_sql_mode();
+
     field->set_has_explicit_value();
   }
   /* Update virtual fields if there wasn't any errors */
@@ -9375,6 +9414,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 err:
   thd->abort_on_warning= abort_on_warning_saved;
   table->auto_increment_field_not_null= FALSE;
+  if (sql_mode_restored)
+    thd->switch_sql_mode_for_temp_table();
+  if (sql_mode_changed)
+    thd->restore_sql_mode();
   DBUG_RETURN(TRUE);
 }
 
