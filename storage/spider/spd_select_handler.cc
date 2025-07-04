@@ -37,32 +37,47 @@ spider_select_handler::~spider_select_handler()
   delete fields;
 }
 
-/* TODO: for sh we just need to check select_lex and do not have to
-  worry about any spider things. is this the case with gbh? */
-static bool spider_sh_can_handle_query(SELECT_LEX *select_lex)
+static bool spider_sh_cannot_handle_item(Item *item, SPIDER_SHARE *share,
+                                         THD *thd)
 {
+  enum Item::Type type= item->type();
+  if (type == Item::SUBSELECT_ITEM)
+    return true;
+  if (!spider_param_use_pushdown_udf(thd, share->use_pushdown_udf) &&
+      type == Item::FUNC_ITEM)
+  {
+    enum Item_func::Functype ftype= ((Item_func *) item)->functype();
+    if (ftype == Item_func::UDF_FUNC || ftype == Item_func::FUNC_SP)
+      return true;
+  }
+  return false;
+}
+
+static bool spider_sh_can_handle_query(SELECT_LEX *select_lex,
+                                       SPIDER_SHARE *share, THD *thd)
+{
+  List<Item> items;
   List_iterator_fast<Item> it(*select_lex->get_item_list());
   while (Item *item= it++)
-    if (item->walk(&Item::is_subquery_processor, 0, 0))
-      return false;
-  if (select_lex->where &&
-      select_lex->where->walk(&Item::is_subquery_processor, 0, 0))
-    return false;
+    item->walk(&Item::collect_item_processor, 1, (void *) &items);
+  if (select_lex->where)
+    select_lex->where->walk(&Item::collect_item_processor, 1, (void *) &items);
   if (select_lex->join->group_list)
     for (ORDER *order= select_lex->join->group_list; order;
          order= order->next)
-      if (order->item_ptr &&
-          order->item_ptr->walk(&Item::is_subquery_processor, 0, 0))
-        return false;
+      if (order->item_ptr)
+        order->item_ptr->walk(&Item::collect_item_processor, 1, (void *) &items);
   if (select_lex->join->order)
     for (ORDER *order= select_lex->join->order; order; order= order->next)
       /* TODO: What happens if item_ptr is NULL? When is it NULL? */
-      if (order->item_ptr &&
-          order->item_ptr->walk(&Item::is_subquery_processor, 0, 0))
-        return false;
-  if (select_lex->having &&
-      select_lex->having->walk(&Item::is_subquery_processor, 0, 0))
-    return false;
+      if (order->item_ptr)
+        order->item_ptr->walk(&Item::collect_item_processor, 1, (void *) &items);
+  if (select_lex->having)
+    select_lex->having->walk(&Item::collect_item_processor, 1, (void *) &items);
+  it.init(items);
+  while (Item *item= it++)
+    if (spider_sh_cannot_handle_item(item, share, thd))
+      return false;
   return true;
 }
 
@@ -97,7 +112,9 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     else if (dbton_id != (int) spider->share->use_sql_dbton_ids[0])
       return NULL;
   }
-  if (!spider_sh_can_handle_query(select_lex))
+  if (!spider_sh_can_handle_query(select_lex,
+                                  ((ha_spider *) from->table->file)->share,
+                                  thd))
     return NULL;
   if (!(table_holder= spider_create_table_holder(n_tables)))
     DBUG_RETURN(NULL);
@@ -177,11 +194,10 @@ int spider_select_handler::init_scan()
   dbton_hdl->set_sql_for_exec(
     SPIDER_SQL_TYPE_SELECT_SQL, LINK_IDX, NULL);
   spider_lock_before_query(conn, &spider->need_mons[LINK_IDX]);
-  if (dbton_hdl->execute_sql(
-         SPIDER_SQL_TYPE_SELECT_SQL,
-         conn,
-         spider->result_list.quick_mode,
-         &spider->need_mons[LINK_IDX]))
+  if (dbton_hdl->execute_sql_for_sh(
+        conn, spider->share->tgt_dbs[conn->link_idx],
+        spider->result_list.quick_mode,
+        &spider->need_mons[LINK_IDX]))
   {
     int error= spider_unlock_after_query_1(conn);
     if ((error = spider->check_error_mode_eof(error)) ==
