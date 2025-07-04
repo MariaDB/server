@@ -5911,6 +5911,8 @@ public:
 #ifdef WITH_WSREP
   bool                      wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
+  bool                      wsrep_applier_in_rollback; /* applier is rolling
+                                                          back a transaction */
   bool                      wsrep_client_thread; /* to identify client threads*/
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
@@ -5951,7 +5953,6 @@ public:
   bool                      wsrep_has_ignored_error;
   /* true if wsrep_on was ON in last wsrep_on_update */
   bool                      wsrep_was_on;
-  uint64                    wsrep_assert_bitmask;
 
   /*
     When enabled, do not replicate/binlog updates from the current table that's
@@ -6029,6 +6030,8 @@ public:
   Wsrep_applier_service* wsrep_applier_service;
   /* wait_for_commit struct for binlog group commit */
   wait_for_commit wsrep_wfc;
+  bool wsrep_applier_is_in_rollback() const
+  { return wsrep_applier_in_rollback; }
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */
@@ -8552,12 +8555,6 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
                         const char *end_ptr);
 
 #include "deprecation.h"
-
-
-#ifdef WITH_WSREP
-extern void wsrep_set_assert(THD* thd, uint64 assert, bool is_disabled);
-extern bool wsrep_get_assert(THD* thd, uint64 assert);
-#endif
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

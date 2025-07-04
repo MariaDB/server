@@ -296,6 +296,22 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
   return false;
 }
 
+/** Check if a wsrep applier is rolling back a transaction locally.
+
+This function is used for notifying InnoDB routines that this thread
+is rolling back a wsrep transaction locally.
+
+@param thd         thread handle
+
+@return true       if wsrep applier is rolling back a transaction locally
+@return false      otherwise
+
+*/
+extern "C" my_bool wsrep_thd_in_rollback(const THD *thd)
+{
+  return thd->wsrep_applier_is_in_rollback();
+}
+
 static inline enum wsrep::key::type
 map_key_type(enum Wsrep_service_key_type type)
 {
