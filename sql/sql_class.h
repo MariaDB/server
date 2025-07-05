@@ -5972,6 +5972,8 @@ public:
     return (lex->sphead != 0 &&
             !(in_sub_stmt & (SUB_STMT_FUNCTION | SUB_STMT_TRIGGER)));
   }
+
+  bool reparsing_sp_stmt= {false};
 };
 
 

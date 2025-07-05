@@ -10655,7 +10655,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (unlikely(error))
   {
-    if (if_exists)
+    if (if_exists && thd->get_stmt_da()->is_error())
     {
       int tmp_errno= thd->get_stmt_da()->sql_errno();
       if (tmp_errno == ER_NO_SUCH_TABLE)

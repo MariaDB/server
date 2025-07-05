@@ -500,8 +500,12 @@ private:
 
   /**
     Clean up items previously created on behalf of the current instruction.
+
+    @return a list of Item_param instances representing position parameters
+            specified for the instruction that is a part of a prepared
+            statement
   */
-  void cleanup_before_parsing(enum_sp_type sp_type);
+  List<Item_param> cleanup_before_parsing(enum_sp_type sp_type);
 
 
   /**
@@ -524,6 +528,10 @@ private:
 
   bool setup_memroot_for_reparsing(sp_head *sphead,
                                    bool *new_memroot_allocated);
+
+  void put_back_item_params(THD *thd, LEX *lex,
+                            const List<Item_param>& param_values);
+
 };
 
 
