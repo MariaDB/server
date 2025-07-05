@@ -52,10 +52,6 @@ Created 10/21/1995 Heikki Tuuri
 
 #include <tpool_structs.h>
 
-#ifdef LINUX_NATIVE_AIO
-#include <libaio.h>
-#endif /* LINUX_NATIVE_AIO */
-
 #ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
 # include <fcntl.h>
 # include <linux/falloc.h>
@@ -3079,132 +3075,6 @@ static void write_io_callback(void *c)
   write_slots->release(cb);
 }
 
-#ifdef LINUX_NATIVE_AIO
-/** Checks if the system supports native linux aio. On some kernel
-versions where native aio is supported it won't work on tmpfs. In such
-cases we can't use native aio.
-
-@return: true if supported, false otherwise. */
-static bool is_linux_native_aio_supported()
-{
-	File		fd;
-	io_context_t	io_ctx;
-	std::string log_file_path = get_log_file_path();
-
-	memset(&io_ctx, 0, sizeof(io_ctx));
-	if (io_setup(1, &io_ctx)) {
-
-		/* The platform does not support native aio. */
-
-		return(false);
-
-	}
-	else if (!srv_read_only_mode) {
-
-		/* Now check if tmpdir supports native aio ops. */
-		fd = mysql_tmpfile("ib");
-
-		if (fd < 0) {
-			ib::warn()
-				<< "Unable to create temp file to check"
-				" native AIO support.";
-
-			int ret = io_destroy(io_ctx);
-			ut_a(ret != -EINVAL);
-			ut_ad(ret != -EFAULT);
-
-			return(false);
-		}
-	}
-	else {
-		fd = my_open(log_file_path.c_str(), O_RDONLY | O_CLOEXEC,
-			     MYF(0));
-
-		if (fd == -1) {
-
-			ib::warn() << "Unable to open \"" << log_file_path
-				   << "\" to check native"
-				   << " AIO read support.";
-
-			int ret = io_destroy(io_ctx);
-			ut_a(ret != EINVAL);
-			ut_ad(ret != EFAULT);
-
-			return(false);
-		}
-	}
-
-	struct io_event	io_event;
-
-	memset(&io_event, 0x0, sizeof(io_event));
-
-	byte* ptr = static_cast<byte*>(aligned_malloc(srv_page_size,
-						      srv_page_size));
-
-	struct iocb	iocb;
-
-	/* Suppress valgrind warning. */
-	memset(ptr, 0, srv_page_size);
-	memset(&iocb, 0x0, sizeof(iocb));
-
-	struct iocb* p_iocb = &iocb;
-
-	if (!srv_read_only_mode) {
-
-		io_prep_pwrite(p_iocb, fd, ptr, srv_page_size, 0);
-
-	}
-	else {
-		ut_a(srv_page_size >= 512);
-		io_prep_pread(p_iocb, fd, ptr, 512, 0);
-	}
-
-	int	err = io_submit(io_ctx, 1, &p_iocb);
-
-	if (err >= 1) {
-		/* Now collect the submitted IO request. */
-		err = io_getevents(io_ctx, 1, 1, &io_event, NULL);
-	}
-
-	aligned_free(ptr);
-	my_close(fd, MYF(MY_WME));
-
-	switch (err) {
-	case 1:
-		{
-			int ret = io_destroy(io_ctx);
-			ut_a(ret != -EINVAL);
-			ut_ad(ret != -EFAULT);
-
-			return(true);
-		}
-
-	case -EINVAL:
-	case -ENOSYS:
-		ib::warn()
-			<< "Linux Native AIO not supported. You can either"
-			" move "
-			<< (srv_read_only_mode ? log_file_path : "tmpdir")
-			<< " to a file system that supports native"
-			" AIO or you can set innodb_use_native_aio to"
-			" FALSE to avoid this message.";
-
-		/* fall through. */
-	default:
-		ib::warn()
-			<< "Linux Native AIO check on "
-			<< (srv_read_only_mode ? log_file_path : "tmpdir")
-			<< "returned error[" << -err << "]";
-	}
-
-	int ret = io_destroy(io_ctx);
-	ut_a(ret != -EINVAL);
-	ut_ad(ret != -EFAULT);
-
-	return(false);
-}
-#endif
-
 int os_aio_init() noexcept
 {
   int max_write_events= int(srv_n_write_io_threads *
@@ -3212,41 +3082,41 @@ int os_aio_init() noexcept
   int max_read_events= int(srv_n_read_io_threads *
                            OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_events= max_read_events + max_write_events;
-  int ret;
-#if LINUX_NATIVE_AIO
-  if (srv_use_native_aio && !is_linux_native_aio_supported())
-    goto disable;
-#endif
+  int ret= 1;
 
-  ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events);
-
-#ifdef LINUX_NATIVE_AIO
-  if (ret)
+  if (srv_use_native_aio)
   {
-    ut_ad(srv_use_native_aio);
-disable:
-    ib::warn() << "Linux Native AIO disabled.";
-    srv_use_native_aio= false;
-    ret= srv_thread_pool->configure_aio(false, max_events);
-  }
+    tpool::aio_implementation aio_impl= tpool::OS_IO_DEFAULT;
+#ifdef __linux__
+    compile_time_assert(SRV_LINUX_AIO_IO_URING == (srv_linux_aio_t)tpool::OS_IO_URING);
+    compile_time_assert(SRV_LINUX_AIO_LIBAIO == (srv_linux_aio_t) tpool::OS_IO_LIBAIO);
+    compile_time_assert(SRV_LINUX_AIO_AUTO == (srv_linux_aio_t) tpool::OS_IO_DEFAULT);
+    aio_impl=(tpool::aio_implementation) srv_linux_aio_method;
 #endif
 
-#ifdef HAVE_URING
+    ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events,
+                                        aio_impl);
+    if (ret)
+    {
+      srv_use_native_aio= false;
+      sql_print_warning("InnoDB: native AIO failed: falling back to"
+                        " innodb_use_native_aio=OFF");
+    }
+    else
+      sql_print_information("InnoDB: Using %s", srv_thread_pool
+                            ->get_aio_implementation());
+  }
   if (ret)
-  {
-    ut_ad(srv_use_native_aio);
-    ib::warn()
-	    << "liburing disabled: falling back to innodb_use_native_aio=OFF";
-    srv_use_native_aio= false;
-    ret= srv_thread_pool->configure_aio(false, max_events);
-  }
-#endif
-
+    ret= srv_thread_pool->configure_aio(false, max_events,
+                                        tpool::OS_IO_DEFAULT);
   if (!ret)
   {
     read_slots= new io_slots(max_read_events, srv_n_read_io_threads);
     write_slots= new io_slots(max_write_events, srv_n_write_io_threads);
   }
+  else
+    sql_print_error("InnoDB: Cannot initialize AIO sub-system");
+
   return ret;
 }
 
@@ -3285,8 +3155,8 @@ int os_aio_resize(ulint n_reader_threads, ulint n_writer_threads) noexcept
   int max_write_events= int(n_writer_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
   int events= max_read_events + max_write_events;
 
-  /** Do the Linux AIO dance (this will try to create a new
-  io context with changed max_events ,etc*/
+  /* Do the Linux AIO dance (this will try to create a new
+  io context with changed max_events, etc.) */
 
   int ret= srv_thread_pool->reconfigure_aio(srv_use_native_aio, events);
 

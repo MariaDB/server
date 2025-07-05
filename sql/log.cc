@@ -730,6 +730,33 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
   }
 }
 
+
+int check_if_log_table(const TABLE_LIST *table)
+{
+  if (MYSQL_SCHEMA_NAME.streq(table->db))
+  {
+    if (GENERAL_LOG_NAME.streq(table->table_name))
+      return QUERY_LOG_GENERAL;;
+
+    if (SLOW_LOG_NAME.streq(table->table_name))
+      return QUERY_LOG_SLOW;
+  }
+  return 0;
+}
+
+
+bool HA_CREATE_INFO::check_if_valid_log_table()
+{
+  if (!(db_type->flags & HTON_SUPPORT_LOG_TABLES) ||
+      (db_type == maria_hton && transactional != HA_CHOICE_NO))
+  {
+    my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0), hton_name(db_type)->str);
+    return true;
+  }
+  return false;
+}
+
+
 /**
    Check if a given table is opened log table
 
@@ -745,30 +772,9 @@ int check_if_log_table(const TABLE_LIST *table,
                        bool check_if_opened,
                        const char *error_msg)
 {
-  int result= 0;
-  if (table->db.length == 5 &&
-      !my_strcasecmp(table_alias_charset, table->db.str, "mysql"))
-  {
-    const char *table_name= table->table_name.str;
-
-    if (table->table_name.length == 11 &&
-        !my_strcasecmp(table_alias_charset, table_name, "general_log"))
-    {
-      result= QUERY_LOG_GENERAL;
-      goto end;
-    }
-
-    if (table->table_name.length == 8 &&
-        !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
-    {
-      result= QUERY_LOG_SLOW;
-      goto end;
-    }
-  }
-  return 0;
-
-end:
-  if (!check_if_opened || logger.is_log_table_enabled(result))
+  int result= check_if_log_table(table);
+  if (result &&
+      (!check_if_opened || logger.is_log_table_enabled(result)))
   {
     if (error_msg)
       my_error(ER_BAD_LOG_STATEMENT, MYF(0), error_msg);

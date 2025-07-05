@@ -7124,7 +7124,7 @@ static inline
 void store_compressed_length(String &str_buf, ulonglong length)
 {
   // Store Type and packed length
-  uchar buf[4];
+  uchar buf[9];
   uchar *buf_ptr = net_store_length(buf, length);
 
   str_buf.append(reinterpret_cast<char *>(buf), buf_ptr-buf);
