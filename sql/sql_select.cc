@@ -2276,6 +2276,7 @@ JOIN::optimize_inner()
   SELECT_LEX *sel= select_lex;
   if (sel->first_cond_optimization)
   {
+    bool error= false;
     /*
       The following code will allocate the new items in a permanent
       MEMROOT for prepared statements and stored procedures.
@@ -2293,7 +2294,7 @@ JOIN::optimize_inner()
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
 
-    add_table_function_dependencies(join_list, table_map(-1));
+    add_table_function_dependencies(join_list, table_map(-1), &error);
 
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
