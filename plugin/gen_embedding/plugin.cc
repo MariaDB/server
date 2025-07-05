@@ -83,6 +83,19 @@ class Item_func_gen_embedding: public Item_str_func
       null_value= true;
       return 1;
     }
+    uint errors= 0;
+    CHARSET_INFO *cs= input->charset();
+    // Convert the input to cs_openai
+    CHARSET_INFO cs_openai = my_charset_utf8mb4_general_ci;  
+    size_t dst_length= cs_openai.mbmaxlen * input->length() + 1;
+    MEM_ROOT *root= current_thd->active_stmt_arena_to_use()->mem_root;
+    char *converted_input_buff;
+    converted_input_buff= (char *) alloc_root(root, dst_length);
+    uint32 actual_len = copy_and_convert(converted_input_buff, dst_length, &cs_openai, input->ptr(), input->length(),
+      cs, &errors);
+    converted_input_buff[actual_len] = '\0';
+    String *converted_input_str = new String(converted_input_buff, actual_len, &cs_openai);
+
     CURLcode ret;
     CURL *hnd;
     std::ostringstream read_data_stream;
@@ -94,19 +107,18 @@ class Item_func_gen_embedding: public Item_str_func
     slist1 = NULL;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
     slist1 = curl_slist_append(slist1, authorization.c_str());
-    slist1 = curl_slist_append(slist1, "Content-Type: application/json");
+    slist1 = curl_slist_append(slist1, "Content-Type: application/json; charset=utf-8");
 
     hnd = curl_easy_init();
     curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
     curl_easy_setopt(hnd, CURLOPT_URL, host);
     curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
-    // Escape the JSON input string
-    const int jsLen = input->length();
-    const char* rawJS = input->ptr();
-    // TODO: The my_charset_utf8mb3_general_ci charset works, but is it the correct one?
-    int strLen = jsLen * 12 * my_charset_utf8mb3_general_ci.mbmaxlen / my_charset_utf8mb3_general_ci.mbminlen;
+    // Escape the input string
+    const int jsLen = converted_input_str->length();
+    const char* rawJS = converted_input_str->ptr();
+    int strLen = jsLen * 12 * cs_openai.mbmaxlen / cs_openai.mbminlen;
     char* buf = (char*)alloca(strLen);
-    if ((strLen = json_escape(&my_charset_utf8mb3_general_ci, (const uchar*)rawJS, (const uchar*)rawJS + jsLen, &my_charset_utf8mb3_general_ci, (uchar*)buf,
+    if ((strLen = json_escape(&cs_openai, (const uchar*)rawJS, (const uchar*)rawJS + jsLen, &cs_openai, (uchar*)buf,
                             (uchar*)buf + strLen)) < 0) {
                               null_value = true;
                               goto cleanup;
@@ -161,7 +173,7 @@ class Item_func_gen_embedding: public Item_str_func
     slist1 = NULL;
     response = read_data_stream.str();
 
-    api_response.copy(response.c_str(), response.length(), &my_charset_utf8mb3_general_ci); // TODO This charset works, but is this the correct one?
+    api_response.copy(response.c_str(), response.length(), &cs_openai);
     return 0;
 cleanup:
     curl_easy_cleanup(hnd);
@@ -264,7 +276,7 @@ String *Item_func_gen_embedding::read_json(String *str,
   const uchar* s_p = (const uchar*) JSON_EMBEDDING_PATH.c_str();
   if (s_p)
   {
-    if (json_path_setup(&c_path->p,&my_charset_utf8mb3_general_ci, s_p,
+    if (json_path_setup(&c_path->p,&my_charset_utf8mb4_general_ci, s_p,
                       s_p + strlen((const char *) s_p)))
     {
     //  report_path_error(s_p, &c_path->p, n_arg);
