@@ -10,6 +10,7 @@ sub skip_combinations {
   my %skip;
   my $api_key_file = "$ENV{HOME}/openai_api_key.inc";
   $skip{'t/openai_server.test'}="No OpenAI API key" unless -r $api_key_file;
+  $skip{'t/openai_greek_charset.test'}="No OpenAI API key" unless -r $api_key_file;
   %skip;
 }
 

@@ -1,0 +1,20 @@
+source include/have_gen_embedding.inc;
+--disable_query_log
+source $HOME/openai_api_key.inc;
+--enable_query_log
+
+if (!$GEN_EMBEDDING_OPENAI_PLUGIN) {
+  skip GEN_EMBEDDING_OPENAI_PLUGIN is not set;
+}
+
+set names greek;
+set character_set_results=utf8;
+
+eval set generate_embedding_openai_host="https://api.openai.com/v1/embeddings";
+set @model="text-embedding-ada-002";
+--disable_query_log
+set @text="Με τον όρο βάση δεδομένων εννοείται μια συλλογή από συστηματικά μορφοποιημένα δεδομένα στα οποία είναι δυνατή η ανάκτηση δεδομένων μέσω αναζήτησης κατ απαίτηση.";
+--enable_query_log
+select vec_totext(generate_embedding_openai(@text, @model)) is null as is_null;
+
+set names default;

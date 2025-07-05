@@ -7,7 +7,7 @@ import signal
 
 HOST = '127.0.0.1' # TODO: This should be configurable
 PORT = int(sys.argv[1])
-SUCCESS_FILENAME = sys.argv[2]
+SUCCESS_RESPONSES_FILENAME = sys.argv[2]
 WRONG_JSON_PATH_FILENAME = sys.argv[3]
 
 def get_response(filename, status_code):
@@ -25,7 +25,17 @@ def handle_request(request):
         request_line = request.splitlines()[0]
         method, path, _ = request_line.split()
         if path == "/success" and method in ("GET", "POST"):
-            return get_response(SUCCESS_FILENAME, 200)
+            parsed_input = json.loads(request.splitlines()[-1])["input"]
+            print(parsed_input)
+            with open(SUCCESS_RESPONSES_FILENAME, 'r') as file:
+                responses = json.load(file)
+            if parsed_input in responses:
+                print(f"Input '{parsed_input}' found in {SUCCESS_RESPONSES_FILENAME}.")
+                return_text = responses[parsed_input]
+                return build_response(json.dumps(return_text), 200)
+            else:
+                print(f"Input '{parsed_input}' not found in {SUCCESS_RESPONSES_FILENAME}.")
+                return {}
         elif path == "/errorcode" and method in ("GET", "POST"):
             # The response body is irreleveant for this endpoint, the tests only care about the status code
             return build_response(json.dumps({"error": "Not Found"}), 400)
@@ -52,7 +62,7 @@ def build_response(body, status_code, content_type="application/json"):
         "\r\n"
         f"{body}"
     )
-    print(response)
+    # print(response)
     return response.encode('utf-8')
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
