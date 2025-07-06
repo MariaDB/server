@@ -5536,6 +5536,29 @@ static my_bool include_database(const char *hash_key)
 }
 
 
+/* check database name if it's INFORMATION_SCHEMA or PERFORMANCE_SCHEMA. */
+static bool is_IS_or_PS(const char *schema_name)
+{
+  if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
+      !cmp_database(schema_name, INFORMATION_SCHEMA_DB_NAME))
+    return TRUE;
+
+  if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
+      !cmp_database(schema_name, PERFORMANCE_SCHEMA_DB_NAME))
+    return TRUE;
+
+  return FALSE;
+}
+
+
+/* check database name if it's SYS_SCHEMA. */
+static bool is_SyS(const char *schema_name)
+{
+  return (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
+          !cmp_database(schema_name, SYS_SCHEMA_DB_NAME));
+}
+
+
 static int dump_all_databases()
 {
   MYSQL_ROW row;
@@ -5546,17 +5569,8 @@ static int dump_all_databases()
     return 1;
   while ((row= mysql_fetch_row(tableres)))
   {
-    if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-        !cmp_database(row[0], INFORMATION_SCHEMA_DB_NAME))
+    if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
       continue;
-
-    if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-        !cmp_database(row[0], PERFORMANCE_SCHEMA_DB_NAME))
-      continue;
-
-   if (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
-       !cmp_database(row[0], SYS_SCHEMA_DB_NAME))
-     continue;
 
     if (include_database(row[0]))
       if (dump_all_tables_in_db(row[0]))
@@ -5574,16 +5588,7 @@ static int dump_all_databases()
     }
     while ((row= mysql_fetch_row(tableres)))
     {
-      if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-          !cmp_database(row[0], INFORMATION_SCHEMA_DB_NAME))
-        continue;
-
-      if (mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-          !cmp_database(row[0], PERFORMANCE_SCHEMA_DB_NAME))
-        continue;
-
-     if (mysql_get_server_version(mysql) >= FIRST_SYS_SCHEMA_VERSION &&
-        !cmp_database(row[0], SYS_SCHEMA_DB_NAME))
+      if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
         continue;
 
       if (include_database(row[0]))
@@ -6191,11 +6196,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   end= pos;
 
   /* Can't LOCK TABLES in I_S / P_S, so don't try. */
-  if (lock_tables &&
-      !(mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-        !cmp_database(db, INFORMATION_SCHEMA_DB_NAME)) &&
-      !(mysql_get_server_version(mysql) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-        !cmp_database(db, PERFORMANCE_SCHEMA_DB_NAME)))
+  if (lock_tables && !is_IS_or_PS(db))
   {
     if (mysql_real_query(mysql, lock_tables_query.str,
                          (ulong)lock_tables_query.length-1))
@@ -7475,6 +7476,9 @@ void dump_databases_wild(int n_patterns, char **db_patterns)
   i= 0;
   while ((row= mysql_fetch_row(dbinfo)))
   {
+    if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
+      continue;
+
     databases_to_dump[i++]= row[0];
   }
   databases_to_dump[i]= NULL;
