@@ -7340,44 +7340,63 @@ static void do_print_set_gtid_slave_pos(const char *set_gtid_pos,
   fprintf(md_result_file, "%s", set_gtid_pos);
 }
 
-void dump_tables_for_database_wild(const char *db, const char *pattern)
+void dump_tables_for_database_wild(const char *db,
+                                   int n_patterns, char **patterns)
 {
   int num= 1;
   int number_of_tables= 0;
   MYSQL_ROW row;
-  char buff[2*NAME_LEN+30];
+  char *buff;
   MYSQL_RES *dbinfo;
   char **tables_to_dump;
   /* dbcopy - unquoted db; */
   char dbcopy[2 * NAME_LEN + 30];
+  size_t len;
+  size_t buff_size= 108 + (NAME_LEN + 30)*n_patterns;
 
   DBUG_ENTER("dump_tables_for_database_wild");
+  DBUG_ASSERT(n_patterns > 0);
+
 
   if (*db == '`')
   {
-      size_t len = strlen(db);
-      memcpy(dbcopy, db + 1, len - 2);
-      dbcopy[len - 2] = 0;
+    len= strlen(db);
+    memcpy(dbcopy, db + 1, len - 2);
+    dbcopy[len - 2] = 0;
   }
   else
   {
-      strncpy(dbcopy, db, NAME_LEN + 1);
+    strncpy(dbcopy, db, NAME_LEN + 1);
   }
-  my_snprintf(buff, sizeof(buff), "SHOW TABLES IN `%s` LIKE '%s'",
-              dbcopy, pattern);
+
+  if (!(buff=(char*) my_malloc(PSI_NOT_INSTRUMENTED, buff_size, MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+
+  len= my_snprintf(buff, buff_size,
+              "SELECT table_name FROM INFORMATION_SCHEMA.TABLES"
+              " WHERE table_schema='%s' AND (table_name LIKE '%s'",
+              dbcopy, patterns[0]);
+
+  for (num=1; num<n_patterns; num++)
+    len+= my_snprintf(buff+len, buff_size-len,
+                      " OR table_name LIKE '%s'", patterns[num]);
+
+  my_snprintf(buff+len, buff_size-len, ") ORDER BY table_name");
+
   if(mysql_query_with_error_report(mysql, &dbinfo, buff))
   {
     fprintf(stderr,
             "%s: Error: '%s' when trying to find tables satisfying pattern\n",
             my_progname_short, mysql_error(mysql));
-    DBUG_VOID_RETURN;
+    goto free_buf_and_exit;
   }
-  number_of_tables= static_cast<int> dbinfo->row_count;
+  number_of_tables= static_cast<int> (dbinfo->row_count);
   if (!(tables_to_dump= (char **) my_malloc(
             PSI_NOT_INSTRUMENTED,
             (number_of_tables + (int) 2) * sizeof(char *), MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate memory");
   tables_to_dump[0]= dbcopy;
+  num= 1;
   while ((row= mysql_fetch_row(dbinfo)))
   {
     tables_to_dump[num++]= row[0];
@@ -7393,32 +7412,58 @@ void dump_tables_for_database_wild(const char *db, const char *pattern)
   }
   mysql_free_result(dbinfo);
   my_free(tables_to_dump);
+
+free_buf_and_exit:
+  my_free(buff);
   DBUG_VOID_RETURN;
 }
 
 
 /* pattern should be unquoted */
-void dump_databases_wild(const char *db_pattern)
+void dump_databases_wild(int n_patterns, char **db_patterns)
 {
   MYSQL_RES *dbinfo;
-  char buff[NAME_LEN+30];
+  char *qwe_buff;
+  size_t qwe_buff_size= (NAME_LEN + 30)*n_patterns + 40;
+  size_t qwe_len;
   MYSQL_ROW row;
-  int i= 0;
+  int i;
   char **databases_to_dump;
   DBUG_ENTER("dump_databases_wild");
-  my_snprintf(buff, sizeof(buff), "SHOW DATABASES LIKE '%s'", db_pattern);
-  if (mysql_query_with_error_report(mysql, &dbinfo, buff))
+  DBUG_ASSERT(n_patterns > 0);
+
+  if (!(qwe_buff= (char *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                     qwe_buff_size, MYF(MY_WME))))
+    die(EX_MYSQLERR, "Couldn't allocate memory");
+
+
+  qwe_len= my_snprintf(qwe_buff, qwe_buff_size,
+                       "SHOW DATABASES WHERE Database LIKE '%s'", db_patterns[0]);
+  for (i=1; i<n_patterns; i++)
+    qwe_len+= my_snprintf(qwe_buff + qwe_len, qwe_buff_size-qwe_len,
+                          " OR Database LIKE '%s'", db_patterns[i]);
+  if (mysql_query_with_error_report(mysql, &dbinfo, qwe_buff))
   {
     fprintf(stderr,
        "%s: Error: '%s' when trying to find databases satisfying pattern\n",
        my_progname_short, mysql_error(mysql));
-    DBUG_VOID_RETURN;
+    goto free_buf_and_exit;
   }
   if (dbinfo->row_count == 0)
   {
-    fprintf(stderr,
-            "%s: Error: no databases matching the pattern '%s' found.\n",
-            my_progname_short, db_pattern);
+    fprintf(stderr, "%s: Error: no databases matching the ", my_progname_short);
+
+    if (n_patterns > 1)
+    {
+      fprintf(stderr, "patterns ['%s'", db_patterns[0]);
+      for (i=1; i<n_patterns-1; i++)
+        fprintf(stderr, ", '%s'", db_patterns[i]);
+      fprintf(stderr, ", '%s']", db_patterns[i]);
+    }
+    else
+      fprintf(stderr, "pattern '%s'", db_patterns[0]);
+
+    fprintf(stderr, " found.\n");
     DBUG_VOID_RETURN;
   }
 
@@ -7426,6 +7471,8 @@ void dump_databases_wild(const char *db_pattern)
             PSI_NOT_INSTRUMENTED,
             (dbinfo->row_count + (int) 1) * sizeof(char *), MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate memory");
+
+  i= 0;
   while ((row= mysql_fetch_row(dbinfo)))
   {
     databases_to_dump[i++]= row[0];
@@ -7435,6 +7482,9 @@ void dump_databases_wild(const char *db_pattern)
     dump_tablespaces_for_databases(databases_to_dump);
   dump_databases(databases_to_dump);
   my_free(databases_to_dump);
+
+free_buf_and_exit:
+  my_free(qwe_buff);
   DBUG_VOID_RETURN;
 }
 
@@ -7607,12 +7657,10 @@ int main(int argc, char **argv)
     {
       if (argc > 1 && !opt_databases)
         /* One database, tables matching the wildcard. */
-        for (int i= 1; i < argc; i++)
-          dump_tables_for_database_wild(argv[0], argv[i]);
+        dump_tables_for_database_wild(argv[0], argc-1, argv+1);
       else if (argc > 0)
-        /* Databases matching the wildcard. */
-        for (int i= 0; i < argc; i++)
-          dump_databases_wild(argv[i]);
+        /* Databases matching the wildcards. */
+        dump_databases_wild(argc, argv);
       else
         die(EX_CONSCHECK,
             "Incorrect usage of patterns \n");

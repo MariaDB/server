@@ -3197,6 +3197,16 @@ USE test2;
 CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (2),(5),(11);
 --exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON t%
+
+--echo #
+--echo # Table names match multiple patterns.
+--echo #
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L test1 "t%" "t%"
+--echo #
+--echo # Database names match multiple patterns.
+--echo #
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L -B "t%" "t%"
+
 DROP DATABASE test1;
 DROP DATABASE test2;
 
@@ -3210,6 +3220,7 @@ CREATE TABLE tt(a int);
 INSERT INTO tt VALUES (2),(5),(11);
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L test1 table1
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --compact --opt -L test1 tab?e1
+
 DROP DATABASE test1;
 
 --echo #
