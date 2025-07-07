@@ -308,7 +308,7 @@ public:
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
   bool check_param_count_with_error(uint param_count) const;
-  bool eq_name(const LEX_CSTRING &name) const
+  bool eq_name(const Lex_ident_column &name) const
   {
     return !system_charset_info->strnncoll(name.str, name.length, str, length);
   }
@@ -923,24 +923,24 @@ public:
     return m_sp;
   }
 
-  bool add_member_cursor(const LEX_CSTRING *name, sp_pcontext *param_ctx,
+  bool add_member_cursor(const Lex_ident_column &name, sp_pcontext *param_ctx,
                          class sp_lex_cursor *lex)
   {
     uint dummy_offset;
     if (find_member_cursor(name, &dummy_offset))
     {
-       my_error(ER_SP_DUP_CURS, MYF(0), name->str);
+       my_error(ER_SP_DUP_CURS, MYF(0), name.str);
        return true;
     }
-    return m_member_cursors.append(sp_pcursor(name, param_ctx, lex));
+    return m_member_cursors.append(sp_pcursor(&name, param_ctx, lex));
   }
 
-  const sp_pcursor *find_member_cursor(const LEX_CSTRING *name,
+  const sp_pcursor *find_member_cursor(const Lex_ident_column &name,
                                        uint *poff) const
   {
     for (uint i= 0; i < m_member_cursors.elements(); i++)
     {
-      if (m_member_cursors.at(i).eq_name(*name))
+      if (m_member_cursors.at(i).eq_name(name))
       {
         *poff= i;
         return &m_member_cursors.at(i);

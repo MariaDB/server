@@ -3940,15 +3940,15 @@ public:
     @retval            nullptr if not found
     @retval            the sp_pcursor not null pointer if found
   */
-  const sp_pcursor *find_cursor(const LEX_CSTRING *name,
+  const sp_pcursor *find_cursor(const Lex_ident_column &name,
                                 sp_rcontext_addr *addr) const;
-  const sp_pcursor *find_cursor_with_error(const LEX_CSTRING *name,
+  const sp_pcursor *find_cursor_with_error(const Lex_ident_column &name,
                                            sp_rcontext_addr *addr) const
   {
     const sp_pcursor *pcursor= find_cursor(name, addr);
     if (!pcursor)
     {
-      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
       return nullptr;
     }
     return pcursor;
@@ -4023,11 +4023,11 @@ public:
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 
-  bool sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
+  bool sp_declare_cursor(THD *thd, const Lex_ident_column &name,
                          class sp_lex_cursor *cursor_stmt,
                          sp_pcontext *param_ctx, bool add_cpush_instr);
 
-  bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
+  bool sp_open_cursor(THD *thd, const Lex_ident_column &name,
                       List<sp_assignment_lex> *parameters);
   bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
                                sp_lex_cursor *stmt);
@@ -4314,7 +4314,7 @@ public:
                                     const Lex_ident_cli_st *a,
                                     const Lex_ident_cli_st *b);
   // PLSQL: cursor%ISOPEN etc
-  Item *make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+  Item *make_item_plsql_cursor_attr(THD *thd, const Lex_ident_column &name,
                                     plsql_cursor_attr_t attr);
   Item *make_item_plsql_cursor_attr(THD *thd, const Cursor_ref &ref,
                                     plsql_cursor_attr_t attr);
@@ -4631,7 +4631,8 @@ public:
     return check_create_options(create_info);
   }
   sp_instr_fetch_cursor* sp_add_instr_fetch_cursor(THD *thd,
-                                                   const LEX_CSTRING *name);
+                                                   const Lex_ident_column
+                                                   &name);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
