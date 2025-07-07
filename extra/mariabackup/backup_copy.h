@@ -41,4 +41,5 @@ directory_exists(const char *dir, bool create);
 lsn_t
 get_current_lsn(MYSQL *connection);
 
+bool starts_with(const char *str, const char *prefix);
 #endif
