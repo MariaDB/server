@@ -3069,13 +3069,21 @@ rpl_parallel::stop_during_until()
 }
 
 
-bool
-rpl_parallel::workers_idle(Relay_log_info *rli)
+bool Relay_log_info::are_sql_threads_caught_up()
 {
-  mysql_mutex_assert_owner(&rli->data_lock);
-  return !rli->last_inuse_relaylog ||
-    rli->last_inuse_relaylog->queued_count ==
-    rli->last_inuse_relaylog->dequeued_count;
+  mysql_mutex_assert_owner(&data_lock);
+  if (!sql_thread_caught_up)
+    return false;
+  /*
+    The SQL thread sets @ref worker_threads_caught_up to `false` but not `true`.
+    Therefore, this place needs to check if it can now be `true`.
+  */
+  if (!worker_threads_caught_up && ( // No need to re-check if already `true`.
+    !last_inuse_relaylog || // `nullptr` case
+      last_inuse_relaylog->queued_count == last_inuse_relaylog->dequeued_count
+  ))
+    worker_threads_caught_up= true; // Refresh
+  return worker_threads_caught_up;
 }
 
 
