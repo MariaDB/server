@@ -7347,7 +7347,7 @@ void dump_tables_for_database_wild(const char *db,
   int num= 1;
   int number_of_tables= 0;
   MYSQL_ROW row;
-  char *buff;
+  char *buff, quoted_buf[NAME_LEN*2+3];
   MYSQL_RES *dbinfo;
   char **tables_to_dump;
   /* dbcopy - unquoted db; */
@@ -7375,8 +7375,8 @@ void dump_tables_for_database_wild(const char *db,
 
   len= my_snprintf(buff, buff_size,
               "SELECT table_name FROM INFORMATION_SCHEMA.TABLES"
-              " WHERE table_schema='%s' AND (table_name LIKE '%s'",
-              dbcopy, patterns[0]);
+              " WHERE table_schema=%s AND (table_name LIKE '%s'",
+              quote_for_equal(dbcopy, quoted_buf), patterns[0]);
 
   for (num=1; num<n_patterns; num++)
     len+= my_snprintf(buff+len, buff_size-len,
