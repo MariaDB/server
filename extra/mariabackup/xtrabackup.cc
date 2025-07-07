@@ -113,6 +113,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <derror.h>
 #include <thr_timer.h>
 #include "backup_debug.h"
+#include "fts0types.h"
 
 #define MB_CORRUPTED_PAGES_FILE "innodb_corrupted_pages"
 
@@ -124,6 +125,8 @@ int sd_notifyf() { return 0; }
 
 int sys_var_init();
 
+extern const char* fts_common_tables[];
+extern const  fts_index_selector_t fts_index_selector[];
 /* === xtrabackup specific options === */
 #define DEFAULT_TARGET_DIR "./xtrabackup_backupfiles/"
 char xtrabackup_real_target_dir[FN_REFLEN] = DEFAULT_TARGET_DIR;
@@ -960,6 +963,61 @@ static void backup_file_op(uint32_t space_id, int type,
 	pthread_mutex_unlock(&backup_mutex);
 }
 
+/** Check whether the spacename belongs to internal FTS table
+@param space_name  space name to be checked
+@return true if it is fts table or false otherwise */
+static bool check_if_fts_table(const char *space_name) {
+	/* There are two types of FTS internal table
+	1) FTS common tables (FTS_<space_id>_<fts_common_tables>
+	2) FTS INDEX auxiliary table (FTS_<space_id>_<index_id>_<aux_table> */
+	const char *table_name_start = strrchr(space_name, '/');
+	if (table_name_start)
+		++table_name_start;
+	else
+		table_name_start = space_name;
+
+	if (!starts_with(table_name_start,"FTS_"))
+		return false;
+
+        const char *table_name_end =
+		table_name_start + strlen(table_name_start) - 1;
+
+        /* Skip FTS_ */
+        const char *table_name_suffix = strchr(table_name_start, '_');
+        if (!table_name_suffix ||
+            table_name_suffix == table_name_end) {
+		return false;
+        }
+        table_name_suffix++;
+
+        /* Skip <table_id>_ */
+        table_name_suffix = strchr(table_name_suffix, '_');
+        if (!table_name_suffix ||
+            table_name_end == table_name_suffix) {
+		return false;
+        }
+        table_name_suffix++;
+
+	/* Compare only common tables */
+	for (const char **suffix = fts_common_tables; *suffix; ++suffix) {
+		if (!strcmp(table_name_suffix, *suffix))
+			return true;
+	}
+
+	/* Skip index_id on fts table name */
+	table_name_suffix = strchr(table_name_suffix, '_');
+        if (!table_name_suffix ||
+            table_name_suffix == table_name_end) {
+          return false;
+        }
+	table_name_suffix++;
+
+	for (size_t i = 0; fts_index_selector[i].suffix; ++i)
+		if (!strcmp(table_name_suffix, fts_index_selector[i].suffix))
+			return true;
+	return false;
+}
+
 
 /*
  This callback is called if DDL operation is detected,
@@ -982,6 +1040,20 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 			space_id, int(len), name);
 		fail = !check_if_skip_table(
 				filename_to_spacename(name, len).c_str());
+		if (fail && !opt_no_lock &&
+		    check_if_fts_table(
+			filename_to_spacename(name, len).c_str())) {
+			/* Ignore the FTS internal table because InnoDB does
+			create intermediate table and their associative FTS
+			internal table when table is being rebuilt during
+			prepare phase. Also, backup_set_alter_copy_lock()
+			downgrades the MDL_BACKUP_DDL before prepare phase
+			of alter. This leads to the FTS internal table being
+			created in the late phase of backup.
+			mariabackup --prepare should be able to handle
+			this case. */
+			fail = false;
+		}
                 error= "create";
 		break;
 	case FILE_MODIFY:

@@ -635,7 +635,7 @@ ends_with(const char *str, const char *suffix)
 	       && strcmp(str + str_len - suffix_len, suffix) == 0);
 }
 
-static bool starts_with(const char *str, const char *prefix)
+bool starts_with(const char *str, const char *prefix)
 {
 	return strncmp(str, prefix, strlen(prefix)) == 0;
 }
