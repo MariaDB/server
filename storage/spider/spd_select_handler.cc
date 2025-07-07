@@ -124,6 +124,12 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     spider_add_table_holder(spider, table_holder);
     if (spider_check_trx_and_get_conn(thd, spider))
       goto free_table_holder;
+    /* only create if the first remote server is ok (here we use the
+      assumption that link_idx ==
+      spider->conns[link_idx]->link_idx)
+      TODO: verify this assumption */
+    if (spider->share->link_statuses[LINK_IDX] != SPIDER_LINK_STATUS_OK)
+      goto free_table_holder;
     /* only create if all tables have common first connection. */
     if (!common_conn)
       common_conn= spider->conns[LINK_IDX];
