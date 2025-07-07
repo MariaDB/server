@@ -122,6 +122,13 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   {
     spider = (ha_spider *) tl->table->file;
     spider_add_table_holder(spider, table_holder);
+    /* As in dml_init, wide_handler->lock_mode == -2 is a relic from
+      MDEV-19002. Needed to add the likes of "lock in share mode" to
+      INSERT ... SELECT, as promised by the selupd_lock_mode
+      variable */
+    if (spider->wide_handler->lock_mode == -2)
+      spider->wide_handler->lock_mode = spider_param_selupd_lock_mode(
+        thd, spider->share->selupd_lock_mode);
     if (spider_check_trx_and_get_conn(thd, spider))
       goto free_table_holder;
     /* only create if the first remote server is ok (here we use the

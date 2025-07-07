@@ -294,7 +294,7 @@ direct order limit
 connection master_1;
 SHOW STATUS LIKE 'Spider_direct_order_limit';
 Variable_name	Value
-Spider_direct_order_limit	2
+Spider_direct_order_limit	0
 SELECT a, b, c FROM ta_l_int ORDER BY a LIMIT 3;
 a	b	c
 1	2	4
@@ -302,7 +302,7 @@ a	b	c
 3	4	5
 SHOW STATUS LIKE 'Spider_direct_order_limit';
 Variable_name	Value
-Spider_direct_order_limit	3
+Spider_direct_order_limit	0
 
 2.26
 lock tables
