@@ -943,9 +943,21 @@ void (*log_file_op)(uint32_t space_id, int type,
 		    const byte* name, size_t len,
 		    const byte* new_name, size_t new_len);
 
+/** Report an redo log read operation
+@param lsn        log sequence number
+@param read_lsn   last read lsn */
+void (*log_file_report)(lsn_t lsn) noexcept;
+
 void (*undo_space_trunc)(uint32_t space_id);
 
 void (*first_page_init)(uint32_t space_id);
+
+static void log_recv_parse_report(lsn_t lsn) noexcept
+{
+  sql_print_information("InnoDB: Read redo log up to LSN=" LSN_PF, lsn);
+  service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                 "Read redo log up to LSN=" LSN_PF, lsn);
+}
 
 /** Information about initializing page contents during redo log processing.
 FIXME: Rely on recv_sys.pages! */
@@ -1478,6 +1490,7 @@ void recv_sys_t::create()
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
 	last_stored_lsn = 1;
 	UT_LIST_INIT(blocks, &buf_block_t::unzip_LRU);
+	log_file_report = log_recv_parse_report;
 }
 
 /** Clear a fully processed set of stored redo log records. */
@@ -1649,10 +1662,7 @@ fail:
 	}
 
 	if (recv_sys.report(time(NULL))) {
-		ib::info() << "Read redo log up to LSN=" << *start_lsn;
-		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"Read redo log up to LSN=" LSN_PF,
-			*start_lsn);
+		log_file_report(*start_lsn);
 	}
 
 	if (*start_lsn != end_lsn) {

@@ -3138,6 +3138,22 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 	return(scanned_lsn);
 }
 
+/** Reports the log progress report information for backup
+@param end_lsn upto which lsn mariabackup read */
+static void backup_log_report(lsn_t end_lsn) noexcept
+{
+  /* Start lsn of the log copied by mariabackup.
+  Don't reprint the same message again. It can give
+  impression that InnoDB could be stuck while reading
+  the redo log */
+  lsn_t start_lsn = ut_uint64_align_up(log_copy_scanned_lsn,
+				       OS_FILE_LOG_BLOCK_SIZE);
+  msg("backup_log_report start_lsn %ld\n", start_lsn);
+  if (start_lsn == end_lsn)
+    return;
+  msg("Read redo log up to LSN= %ld", end_lsn);
+}
+
 /** Copy redo log until the current end of the log is reached
 @param last	whether we are copying the final part of the log
 @return	whether the operation failed */
@@ -3207,7 +3223,12 @@ static bool xtrabackup_copy_logfile(bool last = false)
 
 	/* update global variable*/
 	pthread_mutex_lock(&backup_mutex);
-	log_copy_scanned_lsn = start_lsn;
+	if (start_lsn != log_copy_scanned_lsn) {
+		msg("Read redo log upto LSN= %ld",
+			ut_uint64_align_up(start_lsn,
+					   OS_FILE_LOG_BLOCK_SIZE));
+		log_copy_scanned_lsn = start_lsn;
+	}
 	pthread_cond_broadcast(&scanned_lsn_cond);
 	pthread_mutex_unlock(&backup_mutex);
 	return(false);
@@ -4855,7 +4876,7 @@ fail_before_log_copying_thread_start:
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	recv_sys.recovered_lsn = log_copy_scanned_lsn;
-
+	log_file_report = backup_log_report;
 	mysql_mutex_lock(&log_sys.mutex);
 
 	const bool log_copy_failed = xtrabackup_copy_logfile();
