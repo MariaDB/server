@@ -3312,21 +3312,10 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
       if (!stamp)
         idle= true;
+      else if (mi->using_parallel())
+        idle= mi->rli.are_sql_threads_caught_up();
       else
-      {
         idle= mi->rli.sql_thread_caught_up;
-
-        /*
-          The idleness of the SQL thread is needed for the parallel slave
-          because events can be ignored before distribution to a worker thread.
-          That is, Seconds_Behind_Master should still be calculated and visible
-          while the slave is processing ignored events, such as those skipped
-          due to slave_skip_counter.
-        */
-        if (mi->using_parallel() && idle &&
-            !rpl_parallel::workers_idle(&mi->rli))
-          idle= false;
-      }
       if (idle)
         time_diff= 0;
       else
@@ -4441,20 +4430,19 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if (rli->mi->using_parallel())
     {
       /*
-        rli->sql_thread_caught_up is checked and negated here to ensure that
+        Relay_log_info::are_sql_threads_caught_up()
+        is checked and its states are negated here to ensure that
         the value of Seconds_Behind_Master in SHOW SLAVE STATUS is consistent
         with the update of last_master_timestamp. It was previously unset
         immediately after reading an event from the relay log; however, for the
         duration between that unset and the time that LMT would be updated
         could lead to spikes in SBM.
 
-        The check for queued_count == dequeued_count ensures the worker threads
-        are all idle (i.e. all events have been executed).
+        The check also ensures the worker threads
+        are all practically idle (i.e. all user events have been executed).
       */
       if ((unlikely(rli->last_master_timestamp == 0) ||
-           (rli->sql_thread_caught_up &&
-            (rli->last_inuse_relaylog->queued_count ==
-             rli->last_inuse_relaylog->dequeued_count))) &&
+           rli->are_sql_threads_caught_up()) &&
           event_can_update_last_master_timestamp(ev))
       {
         /*
@@ -4469,6 +4457,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           rli->last_master_timestamp= ev->when;
         }
         rli->sql_thread_caught_up= false;
+        rli->unset_worker_threads_caught_up();
       }
 
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
