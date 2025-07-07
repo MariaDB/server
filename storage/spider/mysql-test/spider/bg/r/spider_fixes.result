@@ -485,7 +485,6 @@ Warning	1287	'ewm' is deprecated and will be removed in a future release
 SELECT id FROM t1 ORDER BY id;
 id
 Warnings:
-Error	12702	Remote table 'auto_test_remote.ter1_1' is not found
 Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
 INSERT INTO t1 (id) VALUES (1);
 Warnings:
