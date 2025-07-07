@@ -4814,7 +4814,7 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
     if (*conds)
     {
       thd->check_and_register_item_tree(&prep_where, conds);
-      *conds= where= prep_where->copy_andor_structure(thd);
+      *conds= prep_where->copy_andor_structure(thd);
     }
     if (*having_conds)
     {
