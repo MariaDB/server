@@ -3572,6 +3572,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
         We've already entered/left prelocked mode with this statement.
         Attach the list of tables that need to be prelocked and mark m_lex
         as having such list attached.
+
+        TODO: DBUG_ASSERT(prelocking_tables);
       */
       *lex_query_tables_own_last= prelocking_tables;
       m_lex->mark_as_requiring_prelocking(lex_query_tables_own_last);

@@ -2532,7 +2532,8 @@ bool
 Table_triggers_list::
 add_tables_and_routines_for_triggers(THD *thd,
                                      Query_tables_list *prelocking_ctx,
-                                     TABLE_LIST *table_list)
+                                     TABLE_LIST *table_list,
+                                     bool *need_prelocking)
 {
   DBUG_ASSERT(static_cast<int>(table_list->lock_type) >=
               static_cast<int>(TL_FIRST_WRITE));
@@ -2551,6 +2552,8 @@ add_tables_and_routines_for_triggers(THD *thd,
 
           if (unlikely(!triggers->body))                  // Parse error
             continue;
+
+          *need_prelocking= true;
 
           MDL_key key(MDL_key::TRIGGER, trigger->m_db.str, trigger->m_name.str);
 

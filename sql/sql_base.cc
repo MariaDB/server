@@ -3709,7 +3709,12 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
                                              &need_prelocking);
 
     if (need_prelocking && ! lex->requires_prelocking())
+    {
+      /*
+        TODO: DBUG_ASSERT(save_query_tables_last != lex->query_tables_last);
+      */
       lex->mark_as_requiring_prelocking(save_query_tables_last);
+    }
   }
   return error;
 }
@@ -4912,14 +4917,10 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 
   if (table_list->trg_event_map)
   {
-    if (table->triggers)
-    {
-      *need_prelocking= TRUE;
-
-      if (table->triggers->
-          add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
-        return TRUE;
-    }
+    Table_triggers_list *tr= table->triggers;
+    if (tr && tr->add_tables_and_routines_for_triggers(thd, prelocking_ctx,
+                                                       table_list, need_prelocking))
+      return true;
 
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
