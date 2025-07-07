@@ -1151,29 +1151,63 @@ static void backup_file_op(uint32_t space_id, int type,
 	}
 }
 
-static bool check_if_fts_table(const char *file_name) {
-	const char *table_name_start = strrchr(file_name, '/');
+/** Check whether the spacename belongs to internal FTS table
+@param space_name  space name to be checked
+@return true if it is fts table or false otherwise */
+static bool check_if_fts_table(const char *space_name) {
+	/* There are two types of FTS internal table
+	1) FTS common tables (FTS_<space_id>_<fts_common_tables>
+	2) FTS INDEX auxiliary table (FTS_<space_id>_<index_id>_<aux_table> */
+	const char *table_name_start = strrchr(space_name, '/');
 	if (table_name_start)
 		++table_name_start;
 	else
-		table_name_start = file_name;
-
-	if (!starts_with(table_name_start,"FTS_"))
-		return false;
+		table_name_start = space_name;
 
 	const char *table_name_end = strrchr(table_name_start, '.');
 	if (!table_name_end)
-		table_name_end = table_name_start + strlen(table_name_start);
-	ptrdiff_t table_name_len = table_name_end - table_name_end;
+		table_name_end =
+			table_name_start + strlen(table_name_start) - 1;
+	if (!starts_with(table_name_start,"FTS_"))
+		return false;
 
-	for (const char **suffix = fts_common_tables; *suffix; ++suffix)
-		if (!strncmp(table_name_start, *suffix, table_name_len))
+	/* Skip FTS_ */
+	const char *table_name_suffix = strchr(table_name_start, '_');
+	if (!table_name_suffix ||
+	    table_name_suffix == table_name_end) {
+		return false;
+	}
+	table_name_suffix++;
+
+	/* Skip <table_id>_ */
+	table_name_suffix = strchr(table_name_suffix, '_');
+	if (!table_name_suffix ||
+	    table_name_end == table_name_suffix) {
+		return false;
+	}
+	table_name_suffix++;
+
+        ptrdiff_t table_name_len = table_name_end - table_name_suffix;
+
+	/* Compare only common tables */
+	for (const char **suffix = fts_common_tables; *suffix; ++suffix) {
+		if (!strncmp(table_name_suffix, *suffix, table_name_len))
 			return true;
+	}
+
+	/* Skip index_id on fts table name */
+	table_name_suffix = strchr(table_name_suffix, '_');
+	if (!table_name_suffix ||
+	    table_name_suffix == table_name_end) {
+		return false;
+	}
+	table_name_suffix++;
+
+        table_name_len = table_name_end - table_name_suffix;
 	for (size_t i = 0; fts_index_selector[i].suffix; ++i)
-		if (!strncmp(table_name_start, fts_index_selector[i].suffix,
-			table_name_len))
+		if (!strncmp(table_name_suffix, fts_index_selector[i].suffix,
+                             table_name_len))
 			return true;
-
 	return false;
 }
 
@@ -1198,7 +1232,20 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
 		fail = !check_if_skip_table(spacename.c_str());
-                error= "create";
+		if (!opt_no_lock && fail &&
+		    check_if_fts_table(spacename.c_str())) {
+			/* Ignore the FTS internal table because InnoDB does
+			create intermediate table and their associative FTS
+			internal table when table is being rebuilt during
+			prepare phase. Also, backup_set_alter_copy_lock()
+			downgrades the MDL_BACKUP_DDL before prepare phase
+			of alter. This leads to the FTS internal table being
+			created in the late phase of backup.
+			mariabackup --prepare should be able to handle
+			this case. */
+			fail = false;
+		}
+	        error= "create";
 		break;
 	case FILE_MODIFY:
 		break;
@@ -5061,7 +5108,7 @@ class BackupStages {
 
 		bool stage_start(Backup_datasinks &backup_datasinks,
 		                 CorruptedPages &corrupted_pages) {
-			msg("BACKUP STAGE START");
+			msg("Starting BACKUP STAGE START");
 			if (!opt_no_lock) {
 				if (opt_safe_slave_backup) {
 					if (!wait_for_safe_slave(mysql_connection)) {
@@ -5075,6 +5122,7 @@ class BackupStages {
 					msg("Error on BACKUP STAGE START query execution");
 					return(false);
 				}
+				msg("Acquired locks for BACKUP STAGE START");
 			}
 
                         InnodbDataCopier innodb_data_copier(backup_datasinks,
@@ -5105,14 +5153,18 @@ class BackupStages {
 
 			DBUG_MARIABACKUP_EVENT_LOCK("after_aria_background", {});
 
+			msg("Finished BACKUP STAGE START");
 			return true;
 		}
 
 		bool stage_flush() {
-			msg("BACKUP STAGE FLUSH");
-			if (!opt_no_lock && !lock_for_backup_stage_flush(m_bs_con)) {
-				msg("Error on BACKUP STAGE FLUSH query execution");
-				return false;
+			msg("Starting BACKUP STAGE FLUSH");
+			if (!opt_no_lock) {
+				if (!lock_for_backup_stage_flush(m_bs_con)) {
+					msg("Error on BACKUP STAGE FLUSH query execution");
+					return false;
+				}
+				msg("Acquired locks for BACKUP STAGE FLUSH");
 			}
 			auto tables_in_use = get_tables_in_use(mysql_connection);
 			// Copy non-stats-log non-in-use tables of non-InnoDB-Aria-RocksDB engines
@@ -5160,17 +5212,20 @@ class BackupStages {
 					xb_mysql_query(mysql_connection,
 						"SET debug_sync='now WAIT_FOR copy_started'", false, true);
 				);
-
+			msg("Finished BACKUP STAGE FLUSH");
 			return true;
 		}
 
 		bool stage_block_ddl(Backup_datasinks &backup_datasinks,
                                      CorruptedPages &corrupted_pages) {
+			msg("Started BACKUP STAGE BLOCK_DDL");
 			if (!opt_no_lock) {
 				if (!lock_for_backup_stage_block_ddl(m_bs_con)) {
-					msg("BACKUP STAGE BLOCK_DDL");
+					msg("Error on BACKUP STAGE BLOCK_DDL "
+					    "query execution");
 					return false;
 				}
+				msg("Acquired locks for BACKUP STAGE BLOCK_DDL");
 				if (have_galera_enabled)
 				{
 					xb_mysql_query(mysql_connection, "SET SESSION wsrep_sync_wait=0", false);
@@ -5232,14 +5287,18 @@ class BackupStages {
 
 			DBUG_MARIABACKUP_EVENT_LOCK("after_stage_block_ddl", {});
 
+			msg("Finished BACKUP STAGE BLOCK_DDL");
 			return true;
 		}
 
 		bool stage_block_commit(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE BLOCK_COMMIT");
-			if (!opt_no_lock && !lock_for_backup_stage_commit(m_bs_con)) {
-				msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
-				return false;
+			msg("Starting BACKUP STAGE BLOCK_COMMIT");
+			if (!opt_no_lock) {
+				if (!lock_for_backup_stage_commit(m_bs_con)) {
+					msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
+					return false;
+				}
+				msg("Acquired locks for BACKUP STAGE BLOCK_COMMIT");
 			}
 
 			// Copy log tables tail
@@ -5339,11 +5398,13 @@ class BackupStages {
 						"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
 			}
 
-			return backup_datasinks.backup_low();
+			bool res= backup_datasinks.backup_low();
+			msg("Finishing BACKUP STAGE BLOCK_COMMIT");
+			return res;
 		}
 
 		bool stage_end(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE END");
+			msg("Starting BACKUP STAGE END");
 			/* release all locks */
 			if (!opt_no_lock) {
 				unlock_all(m_bs_con);
