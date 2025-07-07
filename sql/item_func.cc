@@ -2857,6 +2857,7 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
   if (Item_real_func::fix_fields(thd, ref))
     return TRUE;
   used_tables_cache|= RAND_TABLE_BIT;
+  thd->lex->safe_to_cache_query= 0;
   if (arg_count)
   {					// Only use argument once in query
     /*
