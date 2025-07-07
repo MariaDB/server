@@ -1219,3 +1219,84 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-31850: SIGSEGV in Item::print_parenthesised | Item_cond::print
+--echo #
+
+--disable_view_protocol
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE x=a AND a<=4)));
+
+SHOW FUNCTION CODE f;
+
+SELECT f(1288477526) < f(1288481125);
+SHOW FUNCTION CODE f;
+
+DROP FUNCTION f;
+DROP TABLE t;
+
+# Test with plain function calls in query & no result comparisons. Also verify query output
+
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT a FROM t WHERE x=a AND a<=4)));
+INSERT INTO t VALUES (2);
+
+SHOW FUNCTION CODE f;
+
+SELECT f(23);
+SHOW FUNCTION CODE f;
+
+SELECT f(2);
+SHOW FUNCTION CODE f;
+
+SELECT f(23);
+SHOW FUNCTION CODE f;
+
+# Replace the function in the same session forcing the server to parse the function again
+
+CREATE OR REPLACE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE x=a AND a<=4)));
+SHOW FUNCTION CODE f;
+
+SELECT f(23);
+SHOW FUNCTION CODE f;
+
+DROP FUNCTION f;
+DROP TABLE t;
+
+# SHOW FUNCTION CODE didn't crash when arguments to function was less than 4. Shouldn't crash after the fix.
+
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE x=a AND a<=4)));
+
+SHOW FUNCTION CODE f;
+
+SELECT f(2) < f(3);
+
+SHOW FUNCTION CODE f;
+
+DROP FUNCTION f;
+DROP TABLE t;
+
+# Tests with a different function to make sure fix doesn't break it
+
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE a > x)));
+INSERT INTO t VALUES (5), (10), (15);
+
+SHOW FUNCTION CODE f;
+
+SELECT f(4);
+SHOW FUNCTION CODE f;
+
+SELECT f(20);
+SHOW FUNCTION CODE f;
+
+SELECT f(8);
+SHOW FUNCTION CODE f;
+
+DROP FUNCTION f;
+DROP TABLE t;
+--enable_view_protocol
+
+--echo # End of 10.11 tests

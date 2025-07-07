@@ -1701,3 +1701,95 @@ DROP PROCEDURE p1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-31850: SIGSEGV in Item::print_parenthesised | Item_cond::print
+#
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE x=a AND a<=4)));
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `*` from `test`.`t` where x@0 = `a` and `a` <= 4)
+SELECT f(1288477526) < f(1288481125);
+f(1288477526) < f(1288481125)
+0
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select 1 from `test`.`t` where x@0 = `a` and `a` <= 4)
+DROP FUNCTION f;
+DROP TABLE t;
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT a FROM t WHERE x=a AND a<=4)));
+INSERT INTO t VALUES (2);
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `a` from `test`.`t` where x@0 = `a` and `a` <= 4)
+SELECT f(23);
+f(23)
+0
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `a` from `test`.`t` where x@0 = `a` and `a` <= 4)
+SELECT f(2);
+f(2)
+1
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `a` from dual where x@0 = `a` and `a` <= 4)
+SELECT f(23);
+f(23)
+0
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `a` from dual where x@0 = `a` and `a` <= 4)
+CREATE OR REPLACE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE x=a AND a<=4)));
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `*` from `test`.`t` where x@0 = `a` and `a` <= 4)
+SELECT f(23);
+f(23)
+0
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select 1 from `test`.`t` where x@0 = `a` and `a` <= 4)
+DROP FUNCTION f;
+DROP TABLE t;
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE x=a AND a<=4)));
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `*` from `test`.`t` where x@0 = `a` and `a` <= 4)
+SELECT f(2) < f(3);
+f(2) < f(3)
+0
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select 1 from `test`.`t` where x@0 = `a` and `a` <= 4)
+DROP FUNCTION f;
+DROP TABLE t;
+CREATE TABLE t (a INT);
+CREATE FUNCTION f (x INT) RETURNS INT RETURN EXISTS (( (SELECT * FROM t WHERE a > x)));
+INSERT INTO t VALUES (5), (10), (15);
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select `*` from `test`.`t` where `a` > x@0)
+SELECT f(4);
+f(4)
+1
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select 1 from `test`.`t` where `a` > x@0)
+SELECT f(20);
+f(20)
+0
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select 1 from `test`.`t` where `a` > x@0)
+SELECT f(8);
+f(8)
+1
+SHOW FUNCTION CODE f;
+Pos	Instruction
+0	freturn int exists(select 1 from `test`.`t` where `a` > x@0)
+DROP FUNCTION f;
+DROP TABLE t;
+# End of 10.11 tests

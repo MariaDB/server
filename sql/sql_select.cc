@@ -2295,7 +2295,7 @@ JOIN::optimize_inner()
 
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
 
-    sel->where= conds;
+    // sel->where= conds;
 
     select_lex->update_used_tables();
 
