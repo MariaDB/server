@@ -54,11 +54,7 @@ ADD_DEPENDENCIES(perror GenError)
 TARGET_LINK_LIBRARIES(perror mysys)
 
 # FRM Parser utility
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql)
-MYSQL_ADD_EXECUTABLE(mariadb-frm mariadb_frm.cc)
-TARGET_COMPILE_DEFINITIONS(mariadb-frm PRIVATE MYSQL_SERVER)
-TARGET_LINK_LIBRARIES(mariadb-frm mysys sql)
-ADD_DEPENDENCIES(mariadb-frm GenError)
+ADD_SUBDIRECTORY(mariadbfrm)
 
 IF(UNIX)
 MYSQL_ADD_EXECUTABLE(resolveip resolveip.c)
