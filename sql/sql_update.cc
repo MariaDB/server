@@ -3157,6 +3157,7 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
       {
         my_error(ER_PERIOD_COLUMNS_UPDATED, MYF(0),
                  item->name.str, period.name.str);
+        table_list->table->unlock_hlindexes();
         DBUG_RETURN(true);
       }
     }
@@ -3165,6 +3166,7 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
         || !table_list->period_conditions.end.item->const_item())
     {
       my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
+      table_list->table->unlock_hlindexes();
       DBUG_RETURN(true);
     }
     table_list->table->no_cache= true;

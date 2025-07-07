@@ -345,4 +345,54 @@ drop table t;
 #
 create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
 ERROR 42000: Primary key was too long for vector indexes, max length is 256 bytes
+# FIXME: ER_TABLE_EXISTS_ERROR on next create table t if t is not dropped
+drop table t;
+#
+# MDEV-36791 - Assertion failures after failed DML on table with app period and vector key
+#
+# Case: update+ER_PERIOD_COLUMNS_UPDATED+insert
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+update t for portion of p from '2000-01-01' to '2001-01-01' set e = '2020-01-01';
+ERROR HY000: Column `e` used in period `p` specified in update SET list
+connect  con1,localhost,root,,;
+insert into t values ('2025-01-01','2026-01-01',0x31313131);
+drop table t;
+connection default;
+disconnect con1;
+# Case: update+ER_PERIOD_COLUMNS_UPDATED
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+update t for portion of p from '2000-01-01' to '2001-01-01' set e = '2020-01-01';
+ERROR HY000: Column `e` used in period `p` specified in update SET list
+drop table t;
+# Case: update+ER_PERIOD_COLUMNS_UPDATED+restart_mysqld
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+update t for portion of p from '2000-01-01' to '2001-01-01' set e = '2020-01-01';
+ERROR HY000: Column `e` used in period `p` specified in update SET list
+# restart
+drop table t;
+# Case: update+ER_NOT_CONSTANT_EXPRESSION+insert
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+update t for portion of p from s to e set v = 0x31313131;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+connect  con1,localhost,root,,;
+insert into t values ('2025-01-01','2026-01-01',0x31313131);
+drop table t;
+connection default;
+disconnect con1;
+# Case: update+ER_NOT_CONSTANT_EXPRESSION
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+update t for portion of p from s to e set v = 0x31313131;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+drop table t;
+# Case: update+ER_NOT_CONSTANT_EXPRESSION+restart_mysqld
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+update t for portion of p from s to e set v = 0x31313131;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+# restart
+drop table t;
+# Unaffected case: delete+ER_NOT_CONSTANT_EXPRESSION
+create table t (s date, e date, v vector(1) not null, vector(v), period for p(s,e)) engine=innodb;
+delete from t for portion of p from s to e;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+drop table t;
 # End of 11.8 tests
