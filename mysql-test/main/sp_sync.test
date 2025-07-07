@@ -168,3 +168,49 @@ SET DEBUG_SYNC = 'RESET';
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-26048 Table 'test._test_new' doesn't exist when add trigger (use pt-osc)
+--echo #
+create table t1 (x int);
+
+--delimiter $$
+# Note: it's important to do INSERT in a loop as
+# the bug reproduces only on the same statetement
+# (has_prelocking_list depends on it)
+create procedure sp()
+begin
+  declare a int default 1;
+  while a <= 2 do
+    set debug_sync= concat("now wait_for created_", a);
+    insert into t1 values(a);
+    set debug_sync= "now signal inserted";
+    set a= a + 1;
+  end while;
+end$$
+--delimiter ;
+
+--connect (con1,localhost,root,,test)
+send call sp();
+--connection default
+
+create table t2 (y int);
+create trigger tr1 after delete on t1 for each row delete from t2;
+set debug_sync= "now signal created_1";
+set debug_sync= "now wait_for inserted";
+create trigger tr2 after insert on t1 for each row insert t2 values (0);
+set debug_sync= "now signal created_2";
+
+--connection con1
+--reap
+
+--disconnect con1
+--connection default
+drop trigger tr1;
+drop trigger tr2;
+drop table t2;
+drop procedure sp;
+drop table t1;
+set debug_sync= "reset";
+
+# End of 10.11 tests

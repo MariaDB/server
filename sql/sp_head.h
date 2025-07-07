@@ -1269,7 +1269,8 @@ class sp_lex_keeper
 public:
 
   sp_lex_keeper(LEX *lex, bool lex_resp)
-    : m_lex(lex), m_lex_resp(lex_resp), 
+    : m_lex(lex), m_lex_resp(lex_resp),
+      prelocking_tables(NULL),
       lex_query_tables_own_last(NULL)
   {
     lex->sp_lex_in_use= TRUE;
