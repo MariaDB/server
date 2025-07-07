@@ -104,6 +104,17 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
       (e->force_abort && !rli->stop_for_until))
     return;
 
+  #ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
+      )));
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL main_sql_thread_continue"
+      )));
+    );
+  #endif
+
   mysql_mutex_lock(&rli->data_lock);
   cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)

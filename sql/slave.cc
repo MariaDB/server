@@ -4481,6 +4481,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
       {
+        DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+          if (typ == FORMAT_DESCRIPTION_EVENT)
+            DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+              "now WAIT_FOR main_sql_thread_continue"
+            )));
+        );
 #ifdef WITH_WSREP
 	wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
@@ -4510,15 +4516,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if (typ == GTID_EVENT)
     {
       Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
-
-#ifdef ENABLED_DEBUG_SYNC
-    DBUG_EXECUTE_IF(
-        "pause_sql_thread_on_relay_fde_after_trans",
-        {
-          DBUG_SET("-d,pause_sql_thread_on_relay_fde_after_trans");
-          DBUG_SET("+d,pause_sql_thread_on_next_relay_fde");
-        });
-#endif
 
       /*
         For GTID, allocate a new sub_id for the given domain_id.
@@ -4671,16 +4668,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
 #ifdef ENABLED_DEBUG_SYNC
-    DBUG_EXECUTE_IF(
-        "pause_sql_thread_on_next_relay_fde",
-        if (ev && typ == FORMAT_DESCRIPTION_EVENT &&
-            ((Format_description_log_event *) ev)->is_relay_log_event()) {
-          DBUG_ASSERT(!debug_sync_set_action(
-              thd,
-              STRING_WITH_LEN(
-                  "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
-          DBUG_SET("-d,pause_sql_thread_on_next_relay_fde");
-        });
+    // Note: Parallel Replication does not hit this point.
+    DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+      if (typ == FORMAT_DESCRIPTION_EVENT)
+        DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+          "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
+        )));
+    );
 #endif
 
     DBUG_RETURN(exec_res);
