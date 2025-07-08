@@ -2385,7 +2385,7 @@ static MYSQL_THDVAR_BOOL(
   "Disables the select handler", /* comment */
   NULL, /* check */
   NULL, /* update */
-  TRUE /* def */
+  FALSE /* def */
 );
 
 SPIDER_THDVAR_VALUE_FUNC(bool, disable_select_handler)

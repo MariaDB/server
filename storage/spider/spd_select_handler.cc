@@ -43,6 +43,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   spider_fields *fields;
   ha_spider *spider;
   TABLE_LIST *from= select_lex->get_table_list();
+  int dbton_id = -1;
   if (spider_param_disable_select_handler(thd))
     return NULL;
   for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
@@ -52,6 +53,11 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
       return NULL;
     spider = (ha_spider *) tl->table->file;
     spider->idx_for_direct_join = n_tables;
+    /* TODO: only create if all tables have common first backend */
+    if (dbton_id == -1)
+      dbton_id= spider->share->use_sql_dbton_ids[0];
+    else if (dbton_id != (int) spider->share->use_sql_dbton_ids[0])
+      return NULL;
   }
   if (!(table_holder= spider_create_table_holder(n_tables)))
     DBUG_RETURN(NULL);
@@ -64,8 +70,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   spider_check_trx_and_get_conn(thd, spider);
   fields= new spider_fields();
   fields->set_table_holder(table_holder, n_tables);
-  /* only add MYSQL for now */
-  fields->add_dbton_id(0);
+  fields->add_dbton_id(dbton_id);
   return new spider_select_handler(thd, select_lex, fields);
 }
 
