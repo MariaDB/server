@@ -2534,7 +2534,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           std::this_thread::sleep_for(std::chrono::microseconds(100));
           continue;
         }
-        b->lock.s_lock();
+        b->lock.s_lock_nospin();
         state= b->state();
         ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
 
@@ -2778,7 +2778,7 @@ ignore_unfixed:
 		in buf_page_t::read_complete() or
 		buf_pool_t::corrupted_evict(), or
 		after buf_zip_decompress() in this function. */
-		block->page.lock.s_lock();
+		block->page.lock.s_lock_nospin();
 		state = block->page.state();
 		ut_ad(state < buf_page_t::READ_FIX
 		      || state >= buf_page_t::WRITE_FIX);
