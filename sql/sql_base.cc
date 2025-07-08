@@ -316,24 +316,14 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd,
 }
 
 /**
-  Check if any global temporary tables are still opened in this session.
+  Check if flush should ignore this table
+  Now it only checks for global temporary tables in non-replica connections.
 */
-static int flush_check_for_global_temporary_tables(THD *thd, TABLE_LIST *tl)
+static int flush_ignore_table(THD *thd, TABLE_LIST *tl)
 {
-  if (thd->rgi_slave || !thd->has_open_global_temporary_tables())
-    return 0;
-
-  for (;tl; tl= tl->next_global)
-  {
-    TABLE_SHARE *share= thd->find_tmp_table_share(tl,
-                                                  Tmp_table_kind::GLOBAL);
-    if (share)
-    {
-      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
-      return 1;
-    }
-  }
-  return 0;
+  // Ignore if tl refers to an open global temporary table.
+  return thd->has_open_global_temporary_tables() &&
+         thd->find_tmp_table_share(tl, Tmp_table_kind::GLOBAL);
 }
 
 
@@ -459,9 +449,6 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
     /* close open HANDLER for this thread to allow table to be closed */
     mysql_ha_flush_tables(thd, tables);
 
-    if (flush_check_for_global_temporary_tables(thd, tables))
-      DBUG_RETURN(true);
-
     for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
       MDL_request *mdl_request= new (thd->mem_root) MDL_request;
@@ -476,7 +463,8 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       DBUG_RETURN(true);
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
-      tdc_remove_table(thd, table->db.str, table->table_name.str);
+      if (!flush_ignore_table(thd, table))
+        tdc_remove_table(thd, table->db.str, table->table_name.str);
   }
   DBUG_RETURN(false);
 }
