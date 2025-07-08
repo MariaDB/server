@@ -493,5 +493,23 @@ select * from t;
 truncate t;
 drop table t;
 
+--echo # XA COMMIT/ROLLBACK
+create global temporary table t(x int) on commit delete rows;
+xa start "trx";
+insert t values (1), (2), (3);
+select * from t;
+xa end "trx";
+xa prepare "trx";
+xa commit "trx";
+select * from t;
+
+xa start "trx";
+insert t values (1), (2), (3);
+select * from t;
+xa end "trx";
+xa rollback "trx";
+select * from t;
+
+drop table t;
 
 --disconnect con1
