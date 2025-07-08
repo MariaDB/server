@@ -26,6 +26,8 @@
 #include "json_lib.h"
 
 static char *host, *api_key;
+ulonglong curl_requests= 0; /* Number of total curl requests */
+ulonglong successful_curl_requests= 0; /* Number of successful curl requests */
 
 static std::string JSON_EMBEDDING_PATH = "$.data[0].embedding";
 
@@ -43,6 +45,13 @@ static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(host),
   MYSQL_SYSVAR(api_key),
   NULL
+};
+
+static SHOW_VAR status_variables[]= {
+  {"successful_curl_requests", (char*) &successful_curl_requests, SHOW_LONGLONG},
+  {"total_curl_requests", (char*) &curl_requests, SHOW_LONGLONG},
+
+  {NullS, NullS, SHOW_LONG}
 };
 
 /*
@@ -163,6 +172,7 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_setopt(hnd, CURLOPT_WRITEDATA, &read_data_stream);
     
     ret = curl_easy_perform(hnd);
+    curl_requests++; // Once we call curl_easy_perform, we count the request
     if (ret != CURLE_OK) {
       my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
         "curl returned this error code: %u "
@@ -176,6 +186,7 @@ class Item_func_gen_embedding: public Item_str_func
         "Bad http response code: %lu", ME_ERROR_LOG | ME_WARNING, http_response_code); // TODO: We could grab the error message from response
       goto cleanup;
     }
+    successful_curl_requests++; // If we reach this point, the request was successful
     curl_easy_cleanup(hnd);
     hnd = NULL;
     curl_slist_free_all(slist1);
@@ -436,7 +447,7 @@ maria_declare_plugin(type_test)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function
   0x0100,                       // Numeric version 0xAABB means AA.BB version
-  NULL,                         // Status variables
+  status_variables,                         // Status variables
   system_variables,             // System variables
   "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
