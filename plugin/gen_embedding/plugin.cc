@@ -83,9 +83,20 @@ class Item_func_gen_embedding: public Item_str_func
       null_value= true;
       return 1;
     }
+
+    std::string model_name= (std::string) args[1]->val_str()->c_ptr();
+    // Before performing the request, check if the model is supported
+    // This might allow us to avoid a request if the model is not supported
+    if (model_dimensions.find(model_name) == model_dimensions.end()) {
+      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+        "Model %s is not supported", ME_ERROR_LOG | ME_WARNING, model_name.c_str());
+      null_value= true;
+      return 1;
+    }
+
+    // Convert the input to cs_openai charset
     uint errors= 0;
     CHARSET_INFO *cs= input->charset();
-    // Convert the input to cs_openai
     CHARSET_INFO cs_openai = my_charset_utf8mb4_general_ci;  
     size_t dst_length= cs_openai.mbmaxlen * input->length() + 1;
     MEM_ROOT *root= current_thd->active_stmt_arena_to_use()->mem_root;
@@ -108,17 +119,8 @@ class Item_func_gen_embedding: public Item_str_func
     std::string response, post_fields, escaped_input_str;
     struct curl_slist *slist1;
     long http_response_code;
-
-    std::string model_name= (std::string) args[1]->val_str()->c_ptr();
-    slist1 = NULL;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
-    slist1 = curl_slist_append(slist1, authorization.c_str());
-    slist1 = curl_slist_append(slist1, "Content-Type: application/json; charset=utf-8");
-
-    hnd = curl_easy_init();
-    curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
-    curl_easy_setopt(hnd, CURLOPT_URL, host);
-    curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
+    
     // Escape the input string
     const int jsLen = converted_input_str->length();
     const char* rawJS = converted_input_str->ptr();
@@ -140,6 +142,15 @@ class Item_func_gen_embedding: public Item_str_func
       "\", \"model\": \"" +
       model->c_ptr() +
       "\",\"encoding_format\": \"float\"}";
+    
+    // Prepare the request to OpenAI API
+    slist1 = NULL;
+    slist1 = curl_slist_append(slist1, authorization.c_str());
+    slist1 = curl_slist_append(slist1, "Content-Type: application/json; charset=utf-8");
+    hnd = curl_easy_init();
+    curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
+    curl_easy_setopt(hnd, CURLOPT_URL, host);
+    curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
     curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, post_fields.c_str());
     curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)post_fields.length());
     curl_easy_setopt(hnd, CURLOPT_HTTPHEADER, slist1);
@@ -150,14 +161,6 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_setopt(hnd, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
     curl_easy_setopt(hnd, CURLOPT_WRITEDATA, &read_data_stream);
-    // Before performing the request, check if the model is supported
-    // This might allow us to avoid a request if the model is not supported
-    if (model_dimensions.find(model_name) == model_dimensions.end()) {
-      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
-        "Model %s is not supported", ME_ERROR_LOG | ME_WARNING, model_name.c_str());
-      null_value= true;
-      goto cleanup;
-    }
     
     ret = curl_easy_perform(hnd);
     if (ret != CURLE_OK) {
