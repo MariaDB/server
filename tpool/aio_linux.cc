@@ -15,6 +15,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #include "tpool_structs.h"
 #include "tpool.h"
+#include "my_valgrind.h"
 
 # include <thread>
 # include <atomic>
@@ -117,6 +118,9 @@ class aio_linux final : public aio
           abort();
           goto end;
         }
+#if __has_feature(memory_sanitizer)
+        MEM_MAKE_DEFINED(events, ret * sizeof *events);
+#endif
         for (int i= 0; i < ret; i++)
         {
           const io_event &event= events[i];
@@ -128,6 +132,10 @@ class aio_linux final : public aio
           }
           else
           {
+#if __has_feature(memory_sanitizer)
+            if (iocb->m_opcode == aio_opcode::AIO_PREAD)
+              MEM_MAKE_DEFINED(iocb->m_buffer, event.res);
+#endif
             iocb->m_ret_len= event.res;
             iocb->m_err= 0;
             finish_synchronous(iocb);

@@ -86,3 +86,12 @@ ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
 
 SELECT * FROM mysql.innodb_index_stats;
+
+--echo #
+--echo # MDEV-37123  dict_table_open_on_id() fails to release dict_sys.latch
+--echo #
+SET GLOBAL innodb_defragment_stats_accuracy=1;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t (f INT,f2 CHAR(1),KEY k1 (f2),FULLTEXT KEY(f2),
+                FOREIGN KEY(f2) REFERENCES t (f3)) ENGINE=InnoDB;
+SET GLOBAL innodb_defragment_stats_accuracy=default;

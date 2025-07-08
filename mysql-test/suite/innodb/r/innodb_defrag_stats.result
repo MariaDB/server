@@ -131,3 +131,11 @@ ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
 SELECT * FROM mysql.innodb_index_stats;
 database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description
+#
+# MDEV-37123  dict_table_open_on_id() fails to release dict_sys.latch
+#
+SET GLOBAL innodb_defragment_stats_accuracy=1;
+CREATE TABLE t (f INT,f2 CHAR(1),KEY k1 (f2),FULLTEXT KEY(f2),
+FOREIGN KEY(f2) REFERENCES t (f3)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET GLOBAL innodb_defragment_stats_accuracy=default;

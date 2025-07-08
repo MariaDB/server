@@ -7082,7 +7082,13 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         }
       }
     }
-    if (field->hash_join_is_possible() &&
+    /*
+      Compressed field cannot be part of a key. For optimizer temporary table
+      compressed fields are replaced by uncompressed, see
+      is_optimizer_tmp_table() and Field_*_compressed::make_new_field().
+    */
+    if (!field->compression_method() &&
+        field->hash_join_is_possible() &&
         (key_field->optimize & KEY_OPTIMIZE_EQ) &&
         key_field->val->used_tables())
     {
