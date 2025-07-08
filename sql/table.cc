@@ -8611,12 +8611,10 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
       fld_store_len+= HA_KEY_BLOB_LENGTH;
     key_len+= fld_store_len;
   }
-  /*
-    We use MI_MAX_KEY_LENGTH (myisam's default) below because it is
-    smaller than MAX_KEY_LENGTH (heap's default) and it's unknown whether
-    myisam or heap will be used for the temporary table.
-  */
-  return key_len <= MI_MAX_KEY_LENGTH;
+
+  //  We use the on-disk storage engine's limit
+  return key_len <= tmp_table_max_key_length() &&
+         key_parts <= tmp_table_max_key_parts();
 }
 
 /**
