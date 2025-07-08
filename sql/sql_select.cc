@@ -1279,21 +1279,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
 
       if (vers_conditions.type == SYSTEM_TIME_ALL)
-      {
-        if (vers_conditions.has_param)
-        {
-          /*
-            Parameter substitution (set_params_from_actual_params()) works
-            on existing items so we don't have to reevaluate table->where
-            (in update_this below), we just update SELECT_LEX WHERE expression
-            from existing table conditions.
-          */
-          DBUG_ASSERT(vers_conditions.delete_history);
-          DBUG_ASSERT(thd->stmt_arena->is_stmt_execute());
-          where= and_items(thd, where, table->where);
-        }
         continue;
-      }
     }
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
@@ -1322,7 +1308,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
           the loop, but at execution enter update_this. The second execution
           is skipped on vers_conditions.type == SYSTEM_TIME_ALL condition.
         */
-        DBUG_ASSERT(vers_conditions.delete_history);
         if (thd->stmt_arena->is_stmt_prepare())
           continue;
         DBUG_ASSERT(thd->stmt_arena->is_stmt_execute());
@@ -1347,6 +1332,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         else
           where= and_items(thd, where, cond);
         table->where= and_items(thd, table->where, cond);
+        if (where && vers_conditions.has_param && vers_conditions.delete_history)
+          prep_where= where->copy_andor_structure(thd);
       }
 
       table->vers_conditions.set_all();
