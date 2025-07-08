@@ -89,8 +89,13 @@ SET @@GLOBAL.rpl_semi_sync_master_wait_for_slave_count= 2;
 SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
 
 
-SET STATEMENT sql_log_bin=0 FOR
-  CALL mtr.add_suppression('Timeout waiting for reply of binlog');
+--let $timeout_warning= Timeout waiting for reply of binlog
+eval SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression('$timeout_warning');
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN= $timeout_warning
+--let SEARCH_OUTPUT= count
+
 --let $wait_no_slave= 0
 while ($wait_no_slave < 2)
 {
@@ -150,6 +155,12 @@ while ($wait_no_slave < 2)
 
   --inc $wait_no_slave
 }
+
+--echo # Case 2.4: "Stays Async" is not "fails to return to Semi-Sync"
+# The number of timeouts should be 2, 1 from Case 2.1 per loop.
+#TODO: MDEV-36936 Expose rpl_semi_sync_master_wait_timeouts
+# grep the Error Log for `$timeout_warning` in the mean time
+--source include/search_pattern_in_file.inc
 
 
 --echo # Cleanup

@@ -245,14 +245,12 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
   DBUG_RETURN(get_tranx_node(log_file_name, log_file_pos));
 }
 
-void Active_tranx::clear_active_tranx_nodes(Tranx_node *node)
+bool Active_tranx::flush_active_tranx_nodes(Tranx_node *until_node)
 {
   Tranx_node *new_front;
-
-  DBUG_ENTER("Active_tranx::clear_active_tranx_nodes");
+  DBUG_ENTER("Active_tranx::flush_active_tranx_nodes");
   mysql_mutex_assert_owner(m_lock);
-
-  for (new_front= m_trx_front; new_front && new_front != node;
+  for (new_front= m_trx_front; new_front && new_front != until_node;
        new_front= new_front->next)
     /*
       It is possible that the connection thd waiting for an ACK was killed.
@@ -260,9 +258,17 @@ void Active_tranx::clear_active_tranx_nodes(Tranx_node *node)
       its Active_tranx node. So before we try to signal, ensure the THD exists.
     */
     if (new_front->thd)
+    {
       mysql_cond_signal(&new_front->thd->COND_wakeup_ready);
+      new_front->thd= nullptr; // Prevent waking this transaction in the future
+    }
+  DBUG_RETURN(!new_front);
+}
 
-  if (new_front == NULL)
+void Active_tranx::clear_active_tranx_nodes(Tranx_node *new_front)
+{
+  DBUG_ENTER("Active_tranx::clear_active_tranx_nodes");
+  if (flush_active_tranx_nodes(new_front))
   {
     /* No active transaction nodes after the call. */
 
@@ -545,7 +551,7 @@ void Repl_semi_sync_master::remove_slave()
       Signal transactions waiting in commit_trx() that they do not have to
       wait anymore.
     */
-    m_active_tranxs->clear_active_tranx_nodes(nullptr);
+    m_active_tranxs->flush_active_tranx_nodes(nullptr);
   }
   unlock();
 }
@@ -653,10 +659,6 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
   if (!get_master_enabled())
     goto l_end;
 
-  if (!is_on())
-    /* We check to see whether we can switch semi-sync ON. */
-    try_switch_on(server_id, log_file_name, log_file_pos);
-
   /* The position should increase monotonically, if there is only one
    * thread sending the binlog to the slave.
    * In reality, to improve the transaction availability, we allow multiple
@@ -689,8 +691,12 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
     DBUG_ASSERT(m_active_tranxs);
     entry= m_active_tranxs->get_tranx_node(log_file_name, log_file_pos);
     if (entry && ++(entry->acks) >= rpl_semi_sync_master_wait_for_slave_count)
-      report_reply_trx(*entry);
-
+    {
+      if (!is_on()) // We check to see whether we can switch semi-sync ON ...
+        try_switch_on(server_id, log_file_name, log_file_pos);
+      if (is_on()) // ... and only submit replies if it was or just switched ON.
+        report_reply_trx(*entry);
+    }
     DBUG_PRINT("semisync", ("%s: Got reply at (%s, %lu)",
                             "Repl_semi_sync_master::report_reply_binlog",
                             log_file_name, (ulong)log_file_pos));
@@ -1056,7 +1062,8 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
       m_active_tranxs may be NULL if someone disabled semi sync during
       mysql_cond_timedwait
     */
-    DBUG_ASSERT(aborted || !m_active_tranxs || m_active_tranxs->is_empty() ||
+    DBUG_ASSERT(aborted || !is_on() ||
+                !m_active_tranxs || m_active_tranxs->is_empty() ||
                 !m_active_tranxs->is_tranx_end_pos(trx_wait_binlog_name,
                                                    trx_wait_binlog_pos));
 
@@ -1097,9 +1104,9 @@ void Repl_semi_sync_master::switch_off()
 {
   DBUG_ENTER("Repl_semi_sync_master::switch_off");
 
-  /* Clear the active transaction list. */
+  /* Flush the active transaction list. */
   if (m_active_tranxs)
-    m_active_tranxs->clear_active_tranx_nodes(nullptr);
+    m_active_tranxs->flush_active_tranx_nodes(nullptr);
 
   if (m_state)
   {
@@ -1298,27 +1305,27 @@ int Repl_semi_sync_master::write_tranx_in_binlog(THD *thd,
     m_commit_file_name_inited = true;
   }
 
-  if (is_on())
+  DBUG_ASSERT(m_active_tranxs != NULL);
+  /*
+    Add a node even if semi-sync is temporarily down to track turning back
+    on when there are `rpl_semi_sync_master_wait_for_slave_count` acks
+  */
+  if (m_active_tranxs->insert_tranx_node(is_on() ? thd : nullptr,
+                                         log_file_name, log_file_pos))
   {
-    DBUG_ASSERT(m_active_tranxs != NULL);
-    if(m_active_tranxs->insert_tranx_node(thd, log_file_name, log_file_pos))
-    {
-      /*
-        if insert tranx_node failed, print a warning message
-        and turn off semi-sync
-      */
-      sql_print_warning("Semi-sync failed to insert tranx_node for binlog file: %s, position: %lu",
-                        log_file_name, (ulong)log_file_pos);
-      switch_off();
-    }
-    else
-    {
-      rpl_semi_sync_master_request_ack++;
+    // If insert tranx_node failed, print a warning and disable semi-sync
+    sql_print_warning("Semi-sync failed to insert tranx_node for binlog file: "
+                      "%s, position: %llu", log_file_name,
+                      static_cast<unsigned long long>(log_file_pos));
+    disable_master();
+  }
+  else
+  {
+    ++rpl_semi_sync_master_request_ack;
 
-#ifndef DBUG_OFF
+    #ifndef DBUG_OFF
       thd->expected_semi_sync_offs= rpl_semi_sync_master_off_times;
-#endif
-    }
+    #endif
   }
 
  l_end:

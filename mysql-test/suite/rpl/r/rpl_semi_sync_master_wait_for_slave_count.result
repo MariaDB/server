@@ -164,6 +164,8 @@ SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_%\_tx';
 Variable_name	Value
 Rpl_semi_sync_master_no_tx	0
 Rpl_semi_sync_master_yes_tx	1
+# Case 2.4: "Stays Async" is not "fails to return to Semi-Sync"
+FOUND 2 matches in mysqld.1.err
 # Cleanup
 SET @@GLOBAL.debug_dbug= @dbug_reset;
 SET @@SESSION.debug_sync= 'RESET';
