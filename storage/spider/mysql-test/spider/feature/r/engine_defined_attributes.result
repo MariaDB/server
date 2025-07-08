@@ -203,7 +203,6 @@ connection child2_1;
 select argument from mysql.general_log
 where argument like "select `a` %force index (primary)%" limit 1;
 argument
-select `a` from `auto_test_remote`.`tbl_a` FORCE INDEX (PRIMARY) order by `a` desc limit 1
 SET global general_log = @old_general_log;
 SET global log_output = @old_log_output;
 truncate table mysql.general_log;
