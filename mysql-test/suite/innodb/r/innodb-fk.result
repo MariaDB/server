@@ -135,7 +135,7 @@ Table	Create Table
   PRIMARY KEY (`id_depart`,`id_depart_in`),
   KEY `id_depart_in` (`id_depart_in`),
   CONSTRAINT `#departaments_tree_ibfk_1` FOREIGN KEY (`id_depart`) REFERENCES `#departaments` (`id_depart`),
-  CONSTRAINT `#departaments_tree_ibfk_2` FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments` (`id_depart`)
+  CONSTRAINT `1` FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments` (`id_depart`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE `#departaments_tree`;
 DROP TABLE `#departaments`;
@@ -145,11 +145,11 @@ CREATE TABLE `boroda` (
 `b` INT(11) UNSIGNED DEFAULT NULL,
 PRIMARY KEY (`id`),
 KEY `a` (`a`),
-CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 ALTER TABLE `boroda`
   ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
-ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
+ALTER TABLE `boroda` DROP FOREIGN KEY `2`;
 RENAME TABLE `boroda` TO `#boroda`;
 ALTER TABLE `#boroda`
 ADD FOREIGN KEY (`b`) REFERENCES `#boroda`(`id`);
@@ -162,8 +162,8 @@ Table	Create Table
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`),
-  CONSTRAINT `#boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
-  CONSTRAINT `#boroda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
+  CONSTRAINT `2` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE `#boroda`;
 CREATE TABLE `boroda` (
@@ -172,7 +172,7 @@ CREATE TABLE `boroda` (
 `b` INT(11) UNSIGNED DEFAULT NULL,
 PRIMARY KEY (`id`),
 KEY `a` (`a`),
-CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 RENAME TABLE `boroda` TO `bor#oda`;
 ALTER TABLE `bor#oda`
@@ -186,8 +186,8 @@ bor#oda	CREATE TABLE `bor#oda` (
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`),
-  CONSTRAINT `bor#oda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `bor#oda` (`id`),
-  CONSTRAINT `bor#oda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
+  CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `bor#oda` (`id`),
+  CONSTRAINT `2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 DROP TABLE `bor#oda`;
 #
@@ -216,7 +216,7 @@ CREATE TABLE t1_fk (a VARCHAR(40), KEY a (a), FULLTEXT KEY(a), CONSTRAINT fk FOR
 ALTER TABLE t1 RENAME TO tm1, ALGORITHM=COPY;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-test/fk	test/t1_fk	test/t1	1	4
+fk	test/t1_fk	test/t1	1	4
 SET FOREIGN_KEY_CHECKS=0;
 CREATE TABLE t1 (c1 BIGINT NOT NULL, c2 BIGINT NOT NULL, PRIMARY KEY(c1), UNIQUE KEY(c2)) ENGINE=MEMORY;
 ALTER TABLE t1 ENGINE=InnoDB, ALGORITHM=COPY;

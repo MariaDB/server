@@ -22,7 +22,7 @@ insert t2 values (4,1),(5,2),(6,3);
 flush table t2 with read lock;
 connect  con1,localhost,root;
 delete from t1 where a=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
 update t1 set a=10 where a=1;
 connection default;
 unlock tables;
@@ -34,7 +34,7 @@ delete from t1 where a=2;
 connection default;
 unlock tables;
 connection con1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
 connection default;
 unlock tables;
 disconnect con1;
@@ -75,7 +75,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `f2` int(11) NOT NULL,
   PRIMARY KEY (`f2`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 disconnect con1;
 connection default;
@@ -132,7 +132,7 @@ insert t2 values (4,1),(5,2),(6,3);
 flush table t2 with read lock;
 connect  con1,localhost,root;
 delete from t1 where a=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
 update t1 set a=10 where a=1;
 connection default;
 unlock tables;
@@ -144,7 +144,7 @@ delete from t1 where a=2;
 connection default;
 unlock tables;
 connection con1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
 connection default;
 unlock tables;
 disconnect con1;
@@ -233,7 +233,7 @@ SET FOREIGN_KEY_CHECKS=0;
 DROP INDEX f2 ON t2;
 SET FOREIGN_KEY_CHECKS=1;
 INSERT INTO t2 VALUES('G', 3);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
 DROP TABLE t2, t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 CREATE TABLE t1(a SERIAL) ENGINE=InnoDB ROW_FORMAT=COMPRESSED PAGE_COMPRESSED=1;
@@ -261,7 +261,15 @@ index i2яяяяяяяяяяььььььььььззззззззззшшшшшш
 insert t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш values(99, 2);
 alter table t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш add foreign key(f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш) references t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш(f1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш);
 insert t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш values('g', 3);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`, CONSTRAINT `t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш_ibfk_1` FOREIGN KEY (`f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`) REFERENCES `t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш` (`f1яяяяяяяяяяььььььььььззззз
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`, CONSTRAINT `1` FOREIGN KEY (`f2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`) REFERENCES `t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш` (`f1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш`))
 drop table t2яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш,
 t1яяяяяяяяяяььььььььььззззззззззшшшшшшшшшш;
 # End of 10.6 tests
+#
+# MDEV-37077 Crash in innobase_get_foreign_key_info()
+#
+CREATE TABLE t (id INT PRIMARY KEY, f INT NOT NULL, KEY(f)) ENGINE=InnoDB;
+SET STATEMENT FOREIGN_KEY_CHECKS = OFF FOR
+ALTER TABLE t ADD FOREIGN KEY (f) REFERENCES t (id) ON UPDATE SET NULL;
+ERROR HY000: Failed to add the foreign key constraint on table 't'. Incorrect options in FOREIGN KEY constraint '(null)'
+DROP TABLE t;

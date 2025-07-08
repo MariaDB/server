@@ -42,5 +42,5 @@ FULLTEXT (b))ENGINE=InnoDB;
 INSERT INTO t1 SET a=1;
 ALTER TABLE t2 DISCARD TABLESPACE;
 UPDATE t1 SET a=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 DROP TABLE t2,t1;

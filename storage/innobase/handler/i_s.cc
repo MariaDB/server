@@ -5742,7 +5742,7 @@ i_s_dict_fill_sys_foreign(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign->id));
+	OK(field_store_string(fields[SYS_FOREIGN_ID], foreign->sql_id()));
 
 	OK(field_store_string(fields[SYS_FOREIGN_FOR_NAME],
 			      foreign->foreign_table_name));
@@ -5934,8 +5934,11 @@ i_s_dict_fill_sys_foreign_cols(
 	DBUG_ENTER("i_s_dict_fill_sys_foreign_cols");
 
 	fields = table_to_fill->field;
+	const char* id = strchr(name, '\377');
+	if (!id) id = strchr(name, '/');
+	id = id ? id + 1 : name;
 
-	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], name));
+	OK(field_store_string(fields[SYS_FOREIGN_COL_ID], id));
 
 	OK(field_store_string(fields[SYS_FOREIGN_COL_FOR_NAME], for_col_name));
 
