@@ -35,7 +35,8 @@ def handle_request(request):
                 return build_response(json.dumps(return_text), 200)
             else:
                 print(f"Input '{parsed_input}' not found in {SUCCESS_RESPONSES_FILENAME}.")
-                return {}
+                # In our tests we always provide a valid input, but we can return some form of error here
+                return build_response(json.dumps({"error": "Not Found"}), 400)
         elif path == "/errorcode" and method in ("GET", "POST"):
             # The response body is irreleveant for this endpoint, the tests only care about the status code
             return build_response(json.dumps({"error": "Not Found"}), 400)
