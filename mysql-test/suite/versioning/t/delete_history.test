@@ -276,6 +276,17 @@ set @ts2= '2000-01-01 00:00:02'; set timestamp= unix_timestamp(@ts2);
 update t set a= a + 1 where a < 100;
 set @ts3= '2000-01-01 00:00:03'; set timestamp= unix_timestamp(@ts3);
 select *, row_start, row_end from t for system_time all order by a;
+select *, row_start, row_end from t for system_time as of @ts1;
+execute immediate "select *, row_start, row_end from t for system_time as of ?" using @ts1;
+prepare stmt from 'select *, row_start, row_end from t for system_time as of ?';
+execute stmt using @ts1;
+Execute stmt using @ts1;
+select *, row_start, row_end from t for system_time as of @ts2;
+execute immediate "select *, row_start, row_end from t for system_time as of ?" using @ts2;
+execute stmt using @ts2;
+Execute stmt using @ts2;
+drop prepare stmt;
+
 execute immediate "delete history from t before system_time @ts1";
 select *, row_start, row_end from t for system_time all order by a;
 execute immediate "delete history from t before system_time @ts2";
@@ -351,6 +362,14 @@ drop prepare stmt;
 
 drop table t;
 set timestamp= default;
+
+--echo #
+--echo # MDEV-37164 Assertion `vers_conditions.delete_history' failed upon PREPARE
+--echo #
+create table t (a int) with system versioning;
+insert into t values (1),(2);
+prepare stmt from 'select * from t for system_time as of timestamp ?';
+drop table t;
 
 --echo # End of 10.11 tests
 

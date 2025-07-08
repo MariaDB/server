@@ -68,7 +68,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list,
 
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= (thd->open_temporary_tables(table_list) ||
+  result_code= (thd->check_and_open_tmp_table(table_list) ||
                 mysql_recreate_table(thd, table_list, recreate_info, false));
   reenable_binlog(thd);
   /*

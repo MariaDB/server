@@ -598,7 +598,7 @@
 
     <!-- Optional 3rd party tools -->
     <DirectoryRef Id='TARGETDIR'>
-     <Directory Id='CommonFilesFolder'>
+     <Directory Id='CommonFiles64Folder'>
        <Directory Id='MariaDBShared' Name='MariaDBShared'/>
      </Directory>
      <Directory Id='DesktopFolder'/>

@@ -277,6 +277,40 @@ a	row_start	row_end
 2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
 3	2000-01-01 00:00:02.000000	2038-01-19 03:14:07.999999
 100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+select *, row_start, row_end from t for system_time as of @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+execute immediate "select *, row_start, row_end from t for system_time as of ?" using @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+prepare stmt from 'select *, row_start, row_end from t for system_time as of ?';
+execute stmt using @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+Execute stmt using @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+select *, row_start, row_end from t for system_time as of @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2038-01-19 03:14:07.999999
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+execute immediate "select *, row_start, row_end from t for system_time as of ?" using @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2038-01-19 03:14:07.999999
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+execute stmt using @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2038-01-19 03:14:07.999999
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+Execute stmt using @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2038-01-19 03:14:07.999999
+100	2000-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+drop prepare stmt;
 execute immediate "delete history from t before system_time @ts1";
 select *, row_start, row_end from t for system_time all order by a;
 a	row_start	row_end
@@ -463,4 +497,11 @@ a	row_start	row_end
 drop prepare stmt;
 drop table t;
 set timestamp= default;
+#
+# MDEV-37164 Assertion `vers_conditions.delete_history' failed upon PREPARE
+#
+create table t (a int) with system versioning;
+insert into t values (1),(2);
+prepare stmt from 'select * from t for system_time as of timestamp ?';
+drop table t;
 # End of 10.11 tests
