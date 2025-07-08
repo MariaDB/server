@@ -288,7 +288,6 @@ drop table tx;
 create global temporary table t(x int primary key) on commit preserve rows;
 flush table t;
 insert t values (1);
---error ER_LOCK_WAIT_TIMEOUT
 flush table t;
 select * from t;
 truncate t;
