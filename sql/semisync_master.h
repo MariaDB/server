@@ -362,13 +362,23 @@ public:
                         my_off_t log_file_pos);
 
   /**
+    Commit the active transaction nodes until (exclusive) the specified node. If
+    it's not in the collection (e.g., is `nullptr`), everything will be flushed.
+
+    @return whether the node is *not* in the collection or is `nullptr`
+    @pre Repl_semi_sync_binlog::LOCK_binlog
+  */
+  bool flush_active_tranx_nodes(Tranx_node *until_node);
+
+  /**
     Flush and clear the active transaction nodes until (exclusive) the specified
     node. If it's not in the collection (e.g., is `nullptr`), everything will
     be cleared: the sorted list and the hash table will be reset to empty.
 
     @pre Repl_semi_sync_binlog::LOCK_binlog
+    @see flush_active_tranx_nodes()
   */
-  void clear_active_tranx_nodes(Tranx_node *node);
+  void clear_active_tranx_nodes(Tranx_node *new_front);
 
   /**
     Find (if any) the __last__ transaction with at least
