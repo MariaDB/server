@@ -341,7 +341,6 @@ create global temporary table t(x int primary key) on commit preserve rows;
 flush table t;
 insert t values (1);
 flush table t;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t;
 x
 1
