@@ -721,16 +721,30 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
     lpt                    Struct carrying many parameters needed for this
                            method
     flags                  Flags as defined below
-      WFRM_INITIAL_WRITE        If set we need to prepare table before
-                                creating the frm file
-      WFRM_INSTALL_SHADOW       If set we should install the new frm
-      WFRM_KEEP_SHARE           If set we know that the share is to be
+      WFRM_WRITE_SHADOW         If set, we need to prepare the table before
+                                creating the frm file. Note it is possible that
+                                mysql_write_frm was already called with
+                                WFRM_WRITE_CONVERTED_TO, which would have
+                                already called mysql_prepare_create_table, in
+                                which case, we can skip that specific step in
+                                the preparation.
+      WFRM_INSTALL_SHADOW       If set, we should install the new frm
+      WFRM_KEEP_SHARE           If set, we know that the share is to be
                                 retained and thus we should ensure share
                                 object is correct, if not set we don't
                                 set the new partition syntax string since
                                 we know the share object is destroyed.
-      WFRM_PACK_FRM             If set we should pack the frm file and delete
-                                the frm file
+      WFRM_WRITE_CONVERTED_TO   Similar to WFRM_WRITE_SHADOW but for
+                                ALTER TABLE ... CONVERT PARTITION .. TO TABLE,
+                                i.e., we need to prepare the table before
+                                creating the frm file. Though in this case,
+                                mysql_write_frm will be called again with
+                                WFRM_WRITE_SHADOW, where the
+                                prepare_create_table step will be skipped.
+      WFRM_BACKUP_ORIGINAL      If set, will back up the existing frm file
+                                before creating the new frm file.
+      WFRM_ALTER_INFO_PREPARED  If set, the prepare_create_table step should be
+                                skipped when WFRM_WRITE_SHADOW is set.
 
   RETURN VALUES
     TRUE                   Error
@@ -775,7 +789,15 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   strxmov(shadow_frm_name, shadow_path, reg_ext, NullS);
   if (flags & WFRM_WRITE_SHADOW)
   {
-    if (mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
+    /*
+      It is possible mysql_prepare_create_table was already called in our
+      create/alter_info context and we don't need to call it again. That is, if
+      in the context of `ALTER TABLE ... CONVERT PARTITION .. TO TABLE` then
+      mysql_prepare_create_table would have already been called through a prior
+      invocation of mysql_write_frm with flag MFRM_WRITE_CONVERTED_TO.
+    */
+    if (!(flags & WFRM_ALTER_INFO_PREPARED) &&
+        mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
                                    &lpt->db_options, lpt->table->file,
                                    &lpt->key_info_buffer, &lpt->key_count,
                                    C_ALTER_TABLE))
@@ -850,6 +872,11 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
         ERROR_INJECT("create_before_create_frm"))
       DBUG_RETURN(TRUE);
 
+    /*
+      For WFRM_WRITE_CONVERTED_TO, we always need to call
+      mysql_prepare_create_table
+    */
+    DBUG_ASSERT(!(flags & WFRM_ALTER_INFO_PREPARED));
     if (mysql_prepare_create_table(thd, create_info, lpt->alter_info,
                                    &lpt->db_options, file,
                                    &lpt->key_info_buffer, &lpt->key_count,
@@ -3004,6 +3031,11 @@ my_bool init_key_info(THD *thd, Alter_info *alter_info,
 
   for (Key &key: alter_info->key_list)
   {
+    /*
+      Ensure we aren't re-initializing keys that were already initialized.
+    */
+    DBUG_ASSERT(!key.length);
+
     if (key.type == Key::FOREIGN_KEY)
       continue;
 
