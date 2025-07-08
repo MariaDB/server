@@ -93,6 +93,12 @@ class Item_func_gen_embedding: public Item_str_func
     converted_input_buff= (char *) alloc_root(root, dst_length);
     uint32 actual_len = copy_and_convert(converted_input_buff, dst_length, &cs_openai, input->ptr(), input->length(),
       cs, &errors);
+    if (errors != 0) {
+      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+        "Error converting input string from %s to UTF-8 charset", ME_ERROR_LOG | ME_WARNING, cs->cs_name.str);
+      null_value = true;
+      return 1;
+    }
     converted_input_buff[actual_len] = '\0';
     String *converted_input_str = new String(converted_input_buff, actual_len, &cs_openai);
 
@@ -190,6 +196,9 @@ cleanup:
   
   public:
     using Item_str_func::Item_str_func;
+
+    bool is_expensive() override { return true; }
+
     bool fix_length_and_dec(THD *thd) override
     {
       host = THDVAR(thd, host);

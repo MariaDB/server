@@ -1,0 +1,9 @@
+source include/have_gen_embedding.inc;
+
+# Test that an invalid character set produces a Warning and returns NULL
+# The call to generate_embedding_openai contains characters in the greek charset (ISO-8859-7), but the input is set to 7bit Swedish
+
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Error converting input string from swe7 to UTF-8 charset");
+
+set names swe7;
+select generate_embedding_openai("сту", 'text-embedding-ada-002');
