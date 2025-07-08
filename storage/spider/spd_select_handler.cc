@@ -91,6 +91,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   TABLE_LIST *from= select_lex->get_table_list();
   int dbton_id = -1;
   SPIDER_CONN *common_conn= NULL;
+  SPIDER_TRX *trx;
   if (spider_param_disable_select_handler(thd))
     return NULL;
   for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
@@ -148,6 +149,46 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
       connection is randomly chosen by spider_fields::choose_a_conn */
     spider->dbton_handler[dbton_id]->first_link_idx= LINK_IDX;
   }
+  /* So that spider executes a query setting sql_mode according to
+    the spider system variable sync_sql_mode.
+    TODO: in gbh this is part of
+    spider_internal_start_trx_for_connection called from
+    dml_init(). Check whether other statements in those subroutines
+    need to be preserved as well. */
+  if ((spider_check_and_set_sql_log_off(
+         thd, common_conn, &spider->need_mons[LINK_IDX])) ||
+      (spider_check_and_set_wait_timeout(
+        thd, common_conn, &spider->need_mons[LINK_IDX])) ||
+      (spider_param_sync_sql_mode(thd) &&
+       (spider_check_and_set_sql_mode(
+         thd, common_conn, &spider->need_mons[LINK_IDX]))) ||
+      (spider_param_sync_autocommit(thd) &&
+       (spider_check_and_set_autocommit(
+         thd, common_conn, &spider->need_mons[LINK_IDX]))) ||
+      (spider_param_sync_trx_isolation(thd) &&
+       spider_check_and_set_trx_isolation(
+         common_conn, &spider->need_mons[LINK_IDX])))
+    goto free_table_holder;
+  trx= ((ha_spider *) from->table->file)->wide_handler->trx;
+  if (!common_conn->join_trx && !trx->trx_xa)
+  {
+    /* So that spider executes queries that start a transaction. */
+    spider_conn_queue_start_transaction(common_conn);
+    /* So that spider executes a commit query on the connection, see
+      spider_tree_first(trx->join_trx_top) in spider_commit() */
+    common_conn->join_trx = 1;
+    if (trx->join_trx_top)
+      spider_tree_insert(trx->join_trx_top, common_conn);
+    else
+    {
+      common_conn->p_small= NULL;
+      common_conn->p_big= NULL;
+      common_conn->c_small= NULL;
+      common_conn->c_big= NULL;
+      trx->join_trx_top= common_conn;
+    }
+  }
+
   fields= new spider_fields();
   fields->set_table_holder(table_holder, n_tables);
   fields->add_dbton_id(dbton_id);
