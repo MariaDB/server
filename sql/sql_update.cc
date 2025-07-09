@@ -471,12 +471,13 @@ bool Sql_cmd_update::update_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
-    DBUG_RETURN(1); // Fatal error
-
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
   transactional_table= table->file->has_transactions_and_rollback();
+
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
+    DBUG_RETURN(1); // Fatal error
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (prune_partitions(thd, table, conds))
