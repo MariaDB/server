@@ -50,12 +50,18 @@ public:
   {
     return true;
   }
-  virtual Item_field *element_by_key(THD *thd, String *key) { return NULL; }
-  virtual Item_field *element_by_key(THD *thd, String *key) const
+  virtual Item_field *element_by_key(THD *thd, const String &key)
   {
     return NULL;
   }
-  virtual Item **element_addr_by_key(THD *thd, String *key) { return NULL; }
+  virtual Item_field *element_by_key(THD *thd, const String &key) const
+  {
+    return NULL;
+  }
+  virtual Item **element_addr_by_key(THD *thd, const String &key)
+  {
+    return NULL;
+  }
   virtual bool delete_all_elements() { return true; }
   virtual bool delete_element_by_key(String *key) { return true; }
 

@@ -3341,3 +3341,32 @@ $$
 DELIMITER ;$$
 CALL p1;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-36850 - SIGSEGV in Item_sp_variable::save_in_field | fill_record
+--echo #
+CREATE OR REPLACE TABLE t1 (a INT);
+DELIMITER $$;
+DECLARE
+  TYPE first_names_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20) CHARACTER SET latin1;
+  first_names first_names_t;
+  nick VARCHAR(64) CHARACTER SET latin1:= 'Monty';
+BEGIN
+  first_names('Monty') := 'Michael';
+  INSERT INTO t1 VALUES (first_names(nick || CONVERT(' ' USING ucs2)));
+END;
+$$
+DECLARE
+  TYPE rec_t IS RECORD (i INT);
+  TYPE assoc0_t IS TABLE OF rec_t INDEX BY VARCHAR2(20) CHARACTER SET latin1;
+  assoc0 assoc0_t;
+  nick VARCHAR(64) CHARACTER SET latin1:= 'Monty';
+BEGIN
+  assoc0('Monty') := rec_t(1);
+  INSERT INTO t1 VALUES (assoc0(nick || CONVERT(' ' USING ucs2)).i);
+END;
+$$
+DELIMITER ;$$
+ 
+DROP TABLE t1;

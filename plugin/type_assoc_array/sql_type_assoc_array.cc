@@ -825,7 +825,7 @@ public:
     auto *array= get_composite_field();
     DBUG_ASSERT(array);
 
-    return array->element_by_key(current_thd, str) != NULL;
+    return array->element_by_key(current_thd, *str) != NULL;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1139,7 +1139,7 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
   {
     do
     {
-      Item **src_elem= composite->element_addr_by_key(thd, NULL, &src_key);
+      Item **src_elem= composite->element_addr_by_key(thd, NULL, src_key);
       if (!src_elem)
         goto error;
       
@@ -1195,13 +1195,10 @@ bool Field_assoc_array::insert_element(THD *thd, Assoc_array_data *data,
 }
 
 
-Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
+Item_field *Field_assoc_array::element_by_key(THD *thd, const String &key)
 {
-  if (!key)
-    return NULL;
-
   Assoc_array_data data;
-  if (copy_and_convert_key(*key, &data.m_key))
+  if (copy_and_convert_key(key, &data.m_key))
     return nullptr;
 
   bool is_inserted= false;
@@ -1223,7 +1220,7 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
     is_inserted= true;
 
     // "data" is now released. Copy/convert the key again.
-    if (copy_and_convert_key(*key, &data.m_key))
+    if (copy_and_convert_key(key, &data.m_key))
       return nullptr;
     tree_data= assoc_tree_search(&data.m_key);
     DBUG_ASSERT(tree_data);
@@ -1238,13 +1235,10 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
 }
 
 
-Item_field *Field_assoc_array::element_by_key(THD *thd, String *key) const
+Item_field *Field_assoc_array::element_by_key(THD *thd, const String &key) const
 {
-  if (!key)
-    return NULL;
-
   String key_copy;
-  if (copy_and_convert_key(*key, &key_copy))
+  if (copy_and_convert_key(key, &key_copy))
     return NULL;
 
   Assoc_array_data *data= assoc_tree_search(&key_copy);
@@ -1636,13 +1630,10 @@ Field_assoc_array::make_item_field_spvar(THD *thd,
 }
 
 
-Item **Field_assoc_array::element_addr_by_key(THD *thd, String *key)
+Item **Field_assoc_array::element_addr_by_key(THD *thd, const String &key)
 {
-  if (!key)
-    return NULL;
-
   String key_copy;
-  if (copy_and_convert_key(*key, &key_copy))
+  if (copy_and_convert_key(key, &key_copy))
     return NULL;
 
   Assoc_array_data *data= assoc_tree_search(&key_copy);
@@ -1885,17 +1876,15 @@ bool Item_assoc_array::get_next_key(const String *curr_key, String *next_key)
 }
 
 
-Item *Item_assoc_array::element_by_key(THD *thd, String *key)
+Item *Item_assoc_array::element_by_key(THD *thd, const String &key)
 {
-  DBUG_ASSERT(key);
-
   /*
     See the comment in get_next_key() about the performance
   */
   for (uint i= 0; i < arg_count; i++)
   {
-    if (args[i]->name.length == key->length() &&
-        !memcmp(args[i]->name.str, key->ptr(), key->length()))
+    if (args[i]->name.length == key.length() &&
+        !memcmp(args[i]->name.str, key.ptr(), key.length()))
       return args[i];
   }
 
@@ -1905,15 +1894,15 @@ Item *Item_assoc_array::element_by_key(THD *thd, String *key)
 
 Item **Item_assoc_array::element_addr_by_key(THD *thd,
                                              Item **addr_arg,
-                                             String *key)
+                                             const String &key)
 {
   /*
     See the comment in get_next_key() about the performance
   */
   for (uint i= 0; i < arg_count; i++)
   {
-    if (args[i]->name.length == key->length() &&
-        !memcmp(args[i]->name.str, key->ptr(), key->length()))
+    if (args[i]->name.length == key.length() &&
+        !memcmp(args[i]->name.str, key.ptr(), key.length()))
       return &args[i];
   }
 
@@ -1949,38 +1938,43 @@ Item_splocal_assoc_array_element::Item_splocal_assoc_array_element(THD *thd,
 
 
 bool Item_splocal_assoc_array_base::fix_key(THD *thd,
-                                            const sp_rcontext_addr &array_addr)
+                                            const sp_rcontext_addr &array_addr,
+                                            const LEX_CSTRING &name)
 {
   Field *generic_field= thd->get_variable(array_addr)->field;
   auto field= dynamic_cast<const Field_assoc_array*>(generic_field);
+
   return m_key->fix_fields_if_needed(thd, &m_key) ||
          Type_handler_assoc_array::
             check_subscript_expression(field->get_key_def()->type_handler(),
-                                       m_key);
+                                       m_key) ||
+         cache_key(name);
+}
+
+
+bool Item_splocal_assoc_array_base::cache_key(const LEX_CSTRING &name)
+{
+  String *tmp;
+  if (!(tmp= m_key->val_str(&m_key_cache)))
+  {
+    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0), name.str);
+    return true;
+  }
+  return m_key_cache.copy(*tmp);
 }
 
 
 bool Item_splocal_assoc_array_base::is_element_exists(THD *thd,
-                                                  const Field_composite *field,
-                                                  const LEX_CSTRING &name)
+                                                  const Field_composite *field)
                                                   const
 {
   DBUG_ASSERT(field);
   DBUG_ASSERT(m_key->fixed());
 
-  StringBufferKey buffer;
-  auto key_str= m_key->val_str(&buffer);
-  if (!key_str)
-  {
-    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
-             name.str);
-    return false;
-  }
-
-  if (field->element_by_key(thd, key_str) == nullptr)
+  if (field->element_by_key(thd, m_key_cache) == nullptr)
   {
     my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             ErrConvString(key_str).ptr());
+             ErrConvString(&m_key_cache).ptr());
     return false;
   }
   return true;
@@ -1991,13 +1985,13 @@ bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
-  if (fix_key(thd, rcontext_addr()))
+  if (fix_key(thd, rcontext_addr(), m_name))
     return true;
 
   auto field= get_composite_variable(thd->spcont)->get_composite_field();
   DBUG_ASSERT(field);
 
-  if (!is_element_exists(thd, field, m_name))
+  if (!is_element_exists(thd, field))
     return true;
 
   auto item= field->get_element_item();
@@ -2014,9 +2008,8 @@ Item_splocal_assoc_array_element::this_item()
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
-  StringBufferKey buffer;
   return get_composite_variable(m_thd->spcont)->
-            element_by_key(m_thd, m_key->val_str(&buffer));
+            element_by_key(m_thd, m_key_cache);
 }
 
 
@@ -2026,9 +2019,8 @@ Item_splocal_assoc_array_element::this_item() const
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
-  StringBufferKey buffer;
   return get_composite_variable(m_thd->spcont)->
-            element_by_key(m_thd, m_key->val_str(&buffer));
+            element_by_key(m_thd, m_key_cache);
 }
 
 
@@ -2038,9 +2030,8 @@ Item_splocal_assoc_array_element::this_item_addr(THD *thd, Item **ref)
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
-  StringBufferKey buffer;
   return get_composite_variable(thd->spcont)->
-           element_addr_by_key(m_thd, ref, m_key->val_str(&buffer));
+           element_addr_by_key(m_thd, ref, m_key_cache);
 }
 
 
@@ -2100,13 +2091,13 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
-  if (fix_key(thd, rcontext_addr()))
+  if (fix_key(thd, rcontext_addr(), m_name))
     return true;
 
   auto field= get_composite_variable(thd->spcont)->get_composite_field();
   DBUG_ASSERT(field);
 
-  if (!is_element_exists(thd, field, m_name))
+  if (!is_element_exists(thd, field))
     return true;
 
   auto element_item= field->get_element_item();
@@ -2136,9 +2127,8 @@ Item_splocal_assoc_array_element_field::this_item()
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
-  StringBufferKey buffer;
   auto elem= get_composite_variable(m_thd->spcont)->
-                element_by_key(m_thd, m_key->val_str(&buffer));
+                element_by_key(m_thd, m_key_cache);
   if (!elem)
     return nullptr;
 
@@ -2154,7 +2144,7 @@ Item_splocal_assoc_array_element_field::this_item() const
 
   StringBufferKey buffer;
   auto elem= get_composite_variable(m_thd->spcont)->
-                element_by_key(m_thd, m_key->val_str(&buffer));
+                element_by_key(m_thd, m_key_cache);
   if (!elem)
     return nullptr;
 
@@ -2170,7 +2160,7 @@ Item_splocal_assoc_array_element_field::this_item_addr(THD *thd, Item **)
 
   StringBufferKey buffer;
   auto elem= get_composite_variable(m_thd->spcont)->
-                element_by_key(m_thd, m_key->val_str(&buffer));
+                element_by_key(m_thd, m_key_cache);
   if (!elem)
     return nullptr;
 
@@ -2810,7 +2800,7 @@ Item_field *Type_handler_assoc_array::get_item(THD *thd,
   DBUG_ASSERT(name.length == Well_formed_prefix(key_cs, name).length());
 
   String key(name.str, name.length, key_cs);
-  auto elem= field->element_by_key(thd, &key);
+  auto elem= field->element_by_key(thd, key);
   if (!elem)
   {
     my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
@@ -2846,7 +2836,7 @@ Type_handler_assoc_array::get_or_create_item(THD *thd,
   DBUG_ASSERT(name.length == Well_formed_prefix(key_cs, name).length());
 
   String key(name.str, name.length, key_cs);
-  return field->element_by_key(thd, &key);
+  return field->element_by_key(thd, key);
 }
 
 
