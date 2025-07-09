@@ -340,4 +340,12 @@ insert into t values (0x31313131);
 delete from t;
 drop table t;
 
+--echo #
+--echo # MDEV-35323 - ER_TOO_BIG_FIELDLENGTH shows wrong maximum length for vector field
+--echo #
+--error ER_TOO_BIG_FIELDLENGTH
+create or replace table t (v vector(16384));
+create or replace table t (v vector(16383));
+drop table t;
+
 --echo # End of 11.8 tests

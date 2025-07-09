@@ -4194,8 +4194,10 @@ bool Column_definition::prepare_blob_field(THD *thd)
 
     if (thd->is_strict_mode())
     {
+      const bool is_vector = !strcmp(type_handler()->name().ptr(), "vector");
       my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
-               static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / charset->mbmaxlen));
+               static_cast<ulong>(MAX_FIELD_VARCHARLENGTH /
+                (!is_vector ? charset->mbmaxlen : sizeof(float))));
       DBUG_RETURN(1);
     }
     set_handler(&type_handler_blob);
