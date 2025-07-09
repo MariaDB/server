@@ -269,6 +269,31 @@ template void ssux_lock_impl<false>::wake() noexcept;
 template void srw_mutex_impl<true>::wake() noexcept;
 template void ssux_lock_impl<true>::wake() noexcept;
 
+class spin_control
+{
+  /** number of threads that are executing a spin loop */
+  static std::atomic<unsigned> active;
+  /** number of available hardware threads */
+  static const unsigned limit;
+
+public:
+  /** whether a spin loop is advisable */
+  const bool enabled;
+
+  spin_control() :
+    enabled(active.fetch_add(1, std::memory_order_relaxed) < limit)
+  { ut_ad(limit); }
+  ~spin_control()
+  {
+    ut_d(unsigned was=)
+    active.fetch_sub(1, std::memory_order_relaxed);
+    ut_ad(was);
+  }
+};
+
+std::atomic<unsigned> spin_control::active{};
+const unsigned spin_control::limit= std::thread::hardware_concurrency();
+
 template<bool spinloop>
 void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
 {
@@ -276,32 +301,37 @@ void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
 
   if (spinloop)
   {
-    const unsigned delay= srw_pause_delay();
-
-    for (auto spin= srv_n_spin_wait_rounds;;)
+    spin_control spinning;
+    if (spinning.enabled)
     {
-      DBUG_ASSERT(~HOLDER & lk);
-      lk= lock.load(std::memory_order_relaxed);
-      if (!(lk & HOLDER))
+      const unsigned delay= srw_pause_delay();
+
+      for (auto spin= srv_n_spin_wait_rounds;;)
       {
+        DBUG_ASSERT(~HOLDER & lk);
+        lk= lock.load(std::memory_order_relaxed);
+        if (!(lk & HOLDER))
+        {
 #if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
-        lk |= HOLDER;
+          lk |= HOLDER;
 # ifdef _MSC_VER
-        static_assert(HOLDER == (1U << 0), "compatibility");
-        if (!_interlockedbittestandset
-            (reinterpret_cast<volatile long*>(&lock), 0))
+          static_assert(HOLDER == (1U << 0), "compatibility");
+          if (!_interlockedbittestandset
+              (reinterpret_cast<volatile long*>(&lock), 0))
 # else
-        if (!(lock.fetch_or(HOLDER, std::memory_order_relaxed) & HOLDER))
+          if (!(lock.fetch_or(HOLDER, std::memory_order_relaxed) & HOLDER))
 # endif
-          goto acquired;
+            goto acquired;
 #else
-        if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER))
-          goto acquired;
+          if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) &
+                HOLDER))
+            goto acquired;
 #endif
+        }
+        if (!--spin)
+          break;
+        srw_pause(delay);
       }
-      if (!--spin)
-        break;
-      srw_pause(delay);
     }
   }
 
@@ -351,15 +381,19 @@ void ssux_lock_impl<spinloop>::wr_wait(uint32_t lk) noexcept
 
   if (spinloop)
   {
-    const unsigned delay= srw_pause_delay();
-
-    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    spin_control spinning;
+    if (spinning.enabled)
     {
-      srw_pause(delay);
-      lk= readers.load(std::memory_order_acquire);
-      if (lk == WRITER)
-        return;
-      DBUG_ASSERT(lk > WRITER);
+      const unsigned delay= srw_pause_delay();
+
+      for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+      {
+        srw_pause(delay);
+        lk= readers.load(std::memory_order_acquire);
+        if (lk == WRITER)
+          return;
+        DBUG_ASSERT(lk > WRITER);
+      }
     }
   }
 
@@ -382,13 +416,17 @@ void ssux_lock_impl<spinloop>::rd_lock_spin() noexcept
 {
   if (spinloop)
   {
-    const unsigned delay= srw_pause_delay();
-
-    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    spin_control spinning;
+    if (spinning.enabled)
     {
-      srw_pause(delay);
-      if (rd_lock_try())
-        return;
+      const unsigned delay= srw_pause_delay();
+
+      for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+      {
+        srw_pause(delay);
+        if (rd_lock_try())
+          return;
+      }
     }
   }
 
