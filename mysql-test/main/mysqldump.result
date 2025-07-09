@@ -5617,7 +5617,6 @@ proc
 one
 DROP DATABASE bug25717383;
 mariadb-dump: Got error: 2005: "Unknown server host 'unknownhost'" when trying to connect
-mariadb-dump: Couldn't execute 'SHOW SLAVE STATUS': Server has gone away (2006)
 Usage: mariadb-dump [OPTIONS] database [tables]
 OR     mariadb-dump [OPTIONS] --databases DB1 [DB2 DB3...]
 OR     mariadb-dump [OPTIONS] --all-databases
