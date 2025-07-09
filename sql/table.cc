@@ -7962,7 +7962,8 @@ void TABLE::mark_columns_needed_for_update()
   if (default_field)
     mark_default_fields_for_write(FALSE);
   if (vfield)
-    need_signal|= mark_virtual_columns_for_write(FALSE);
+    need_signal|= mark_virtual_columns_for_write(
+      in_use->lex->sql_command != SQLCOM_UPDATE);
   if (file->ha_table_flags() & HA_REQUIRES_KEY_COLUMNS_FOR_DELETE)
   {
     KEY *end= key_info + s->keys;
@@ -8234,12 +8235,12 @@ void TABLE::mark_columns_per_binlog_row_image()
 
   @details
     The function marks virtual columns used in a update/insert commands
-    in the vcol_set bitmap.
+    in the read_set bitmap.
     For an insert command a virtual column is always marked in write_set if
     it is a stored column.
-    If a virtual column is from write_set it is always marked in vcol_set.
+    If a virtual column is from write_set it is always marked in read_set.
     If a stored virtual column is not from write_set but it is computed
-    through columns from write_set it is also marked in vcol_set, and,
+    through columns from read_set it is also marked in read_set, and,
     besides, it is added to write_set. 
 
   @return whether a bitmap was updated
@@ -8248,18 +8249,17 @@ void TABLE::mark_columns_per_binlog_row_image()
     Let table t1 have columns a,b,c and let column c be a stored virtual 
     column computed through columns a and b. Then for the query
       UPDATE t1 SET a=1
-    column c will be placed into vcol_set and into write_set while
+    column c will be placed into read_set and into write_set while
     column b will be placed into read_set.
     If column c was a virtual column, but not a stored virtual column
     then it would not be added to any of the sets. Column b would not
     be added to read_set either.
 */
 
-bool TABLE::mark_virtual_columns_for_write(bool insert_fl
-                                           __attribute__((unused)))
+bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
 {
   Field **vfield_ptr, *tmp_vfield;
-  bool bitmap_updated= false;
+  bool bitmap_updated= false, mark_fl;
   DBUG_ENTER("mark_virtual_columns_for_write");
 
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
@@ -8267,13 +8267,30 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
     tmp_vfield= *vfield_ptr;
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
       bitmap_updated|= mark_virtual_column_with_deps(tmp_vfield);
-    else if (tmp_vfield->vcol_info->is_stored() ||
-             (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
-                                   PART_INDIRECT_KEY_FLAG)))
+    else
     {
-      bitmap_set_bit(write_set, tmp_vfield->field_index);
-      mark_virtual_column_with_deps(tmp_vfield);
-      bitmap_updated= true;
+      mark_fl= (tmp_vfield->vcol_info->is_stored() ||
+                (tmp_vfield->flags & (FIELD_IN_PART_FUNC_FLAG |
+                                      PART_INDIRECT_KEY_FLAG)));
+      mark_fl= mark_fl || (insert_fl && (tmp_vfield->flags & PART_KEY_FLAG));
+      if (!mark_fl && (tmp_vfield->flags & PART_KEY_FLAG))
+      {
+        MY_BITMAP *save_read_set;
+        Item *vcol_item= tmp_vfield->vcol_info->expr;
+        DBUG_ASSERT(vcol_item);
+        bitmap_clear_all(&tmp_set);
+        save_read_set= read_set;
+        read_set= &tmp_set;
+        vcol_item->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+        read_set= save_read_set;
+        mark_fl= bitmap_is_overlapping(&tmp_set, write_set);
+      }
+      if (mark_fl)
+      {
+        bitmap_set_bit(write_set, tmp_vfield->field_index);
+        mark_virtual_column_with_deps(tmp_vfield);
+        bitmap_updated= true;
+      }
     }
   }
   if (bitmap_updated)
