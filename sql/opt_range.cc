@@ -11938,26 +11938,29 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
   if (!param->table->file->pk_is_clustering_key(pk_number))
     return FALSE;
 
+  if (keynr == pk_number)
+    return TRUE; /* Scan on clustered PK is always ROR */
+
+
   KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
   KEY_PART_INFO *pk_part_end= pk_part +
                               param->table->key_info[pk_number].user_defined_key_parts;
   /*
-    when any of the primary key parts with a reverse sort
-    are present in the non-primary index keys,
-    then it is not an ROR-scan
+    Check for columns indexed with DESC.
+    If a column is present in both Secondary Key and Primary Key and either of
+    indexes include it with DESC, then the scan is not a ROR scan.
+    (TODO: if the column is indexed as DESC in both PK and SK, does the scan
+    have ROR property?)
   */
-  if (keynr != pk_number)
+  for (; key_part != key_part_end; ++key_part)
   {
-    for (; key_part != key_part_end; ++key_part)
+    pk_part= param->table->key_info[pk_number].key_part;
+    for (; pk_part != pk_part_end; ++pk_part)
     {
-      pk_part= param->table->key_info[pk_number].key_part;
-      for (; pk_part != pk_part_end; ++pk_part)
-      {
-        if ((MY_TEST(key_part->key_part_flag & HA_REVERSE_SORT) ||
-             MY_TEST(pk_part->key_part_flag & HA_REVERSE_SORT)) &&
-            (key_part->fieldnr == pk_part->fieldnr))
-          return FALSE;
-      }
+      if (key_part->fieldnr == pk_part->fieldnr &&
+          (MY_TEST(key_part->key_part_flag & HA_REVERSE_SORT) ||
+           MY_TEST(pk_part->key_part_flag & HA_REVERSE_SORT)))
+        return FALSE;
     }
   }
 
