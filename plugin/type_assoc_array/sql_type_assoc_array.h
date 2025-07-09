@@ -285,9 +285,9 @@ public:
   bool get_key(String *key, bool is_first) override;
   bool get_next_key(const String *curr_key, String *next_key) override;
   bool get_prior_key(const String *curr_key, String *prior_key) override;
-  Item_field *element_by_key(THD *thd, String *key) override;
-  Item_field *element_by_key(THD *thd, String *key) const override;
-  Item **element_addr_by_key(THD *thd, String *key) override;
+  Item_field *element_by_key(THD *thd, const String &key) override;
+  Item_field *element_by_key(THD *thd, const String &key) const override;
+  Item **element_addr_by_key(THD *thd, const String &key) override;
   bool delete_all_elements() override;
   bool delete_element_by_key(String *key) override;
   void expr_event_handler(THD *thd, expr_event_t event) override
@@ -364,12 +364,12 @@ public:
   {
     return get_composite_field()->get_next_key(curr_key, next_key);
   }
-  Item *element_by_key(THD *thd, String *key) override
+  Item *element_by_key(THD *thd, const String &key) override
   {
     return ((const Field_composite *)get_composite_field())->
       element_by_key(thd, key);
   }
-  Item **element_addr_by_key(THD *thd, Item **ref, String *key) override
+  Item **element_addr_by_key(THD *thd, Item **ref, const String &key) override
   {
     return get_composite_field()->element_addr_by_key(thd, key);
   }
@@ -410,8 +410,9 @@ public:
   uint rows() const override;
   bool get_key(String *key, bool is_first) override;
   bool get_next_key(const String *curr_key, String *next_key) override;
-  Item *element_by_key(THD *thd, String *key) override;
-  Item **element_addr_by_key(THD *thd, Item **addr_arg, String *key) override;
+  Item *element_by_key(THD *thd, const String &key) override;
+  Item **element_addr_by_key(THD *thd, Item **addr_arg,
+                             const String &key) override;
 
   bool fix_fields(THD *thd, Item **ref) override;
   void bring_value() override;
@@ -427,6 +428,8 @@ class Item_splocal_assoc_array_base :public Item_composite_base
 {
 protected:
   Item *m_key;
+
+  String m_key_cache;
   /*
     In expressions:
       - assoc_array(key_expr)
@@ -436,11 +439,13 @@ protected:
     definition.
     @param thd        - Current thd
     @param array_addr - The run-time address of the assoc array variable.
+    @name             - The name of the assoc array variable. 
   */
-  bool fix_key(THD *thd, const sp_rcontext_addr &array_addr);
+  bool fix_key(THD *thd, const sp_rcontext_addr &array_addr,
+               const LEX_CSTRING &name);
+  bool cache_key(const LEX_CSTRING &name);
   bool is_element_exists(THD *thd,
-                         const Field_composite *field,
-                         const LEX_CSTRING &name) const;
+                         const Field_composite *field) const;
 public:
   Item_splocal_assoc_array_base(Item *key);
 };

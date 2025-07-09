@@ -36,8 +36,8 @@ public:
   {
     return true;
   }
-  virtual Item *element_by_key(THD *thd, String *key) { return nullptr; }
-  virtual Item **element_addr_by_key(THD *thd, Item **addr_arg, String *key)
+  virtual Item *element_by_key(THD *thd, const String &key) { return nullptr; }
+  virtual Item **element_addr_by_key(THD *thd, Item **addr_arg, const String &key)
   {
     return addr_arg;
   }
