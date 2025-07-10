@@ -1350,6 +1350,13 @@ public:
   }
 
 protected:
+  /*
+    Switch to the given rcontext and open the cursor.
+    Used e.g. when copying a structure of a package cursor to a variable:
+      DECLARE var package_cursor%ROWTYPE;
+  */
+  int open_cursor_in_rcontext(THD *thd, sp_cursor *c, sp_rcontext *ctx);
+
   LEX_CSTRING get_expr_query() const override
   {
     return get_cursor_query(m_cursor_stmt);
@@ -1540,6 +1547,9 @@ protected:
     m_valid= true;
     return false;
   }
+
+  // Export the structure of a previosly opened cursor into a row SP variable
+  int export_structure(THD *thd, sp_cursor *c, Item_field_row *row);
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }

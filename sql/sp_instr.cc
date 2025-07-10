@@ -2195,6 +2195,61 @@ sp_instr_agg_cfetch::print(String *str)
 PSI_statement_info sp_instr_cursor_copy_struct::psi_info=
 { 0, "cursor_copy_struct", 0};
 
+
+int sp_lex_cursor_instr::open_cursor_in_rcontext(THD *thd,
+                                                 sp_cursor *c,
+                                                 sp_rcontext *ctx)
+{
+  /*
+    ctx can point either to
+    - the rcontext of the current routine
+    - the rcontext of the parent package of the current routine
+  */
+  DBUG_ASSERT(ctx == thd->spcont ||
+              ctx == thd->spcont->m_sp->m_parent->m_rcontext);
+  /*
+    - backup thd->spcont
+    - reset thd->spcont to ctx
+    - open the cursor
+    - restore thd->spcont from the backup
+  */
+  int ret;
+  DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
+  auto read_only_flag= thd->lex->query_arena()->mem_root->flags &
+                       ROOT_FLAG_READ_ONLY;
+  thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+  sp_rcontext *rcontext_backup= thd->spcont;
+  thd->spcont= ctx;
+//TODO: not yet
+//  DBUG_ASSERT(thd->lex->sphead == thd->spcont->m_sp);
+  ret= c->open(thd);
+  thd->spcont= rcontext_backup;
+  thd->lex->query_arena()->mem_root->flags|= read_only_flag;
+  return ret;
+}
+
+
+int
+sp_instr_cursor_copy_struct::export_structure(THD *thd, sp_cursor *c,
+                                              Item_field_row *row)
+{
+  DBUG_ASSERT(c->is_open());
+  Row_definition_list defs;
+  int ret;
+  Query_arena backup_arena;
+  Query_arena *arena= thd->spcont->m_sp->query_arena();
+  auto read_only_flag= arena->mem_root->flags & ROOT_FLAG_READ_ONLY;
+  arena->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
+  thd->set_n_backup_active_arena(arena, &backup_arena);
+  ret= c->export_structure(thd, &defs) ||
+       static_cast<Field_row*>(row->field)->row_create_fields(thd, &defs) ||
+       row->add_array_of_item_field(thd, *row->field->virtual_tmp_table());
+  thd->restore_active_arena(arena, &backup_arena);
+  arena->mem_root->flags|= read_only_flag;
+  return ret;
+}
+
+
 int
 sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 {
@@ -2217,10 +2272,6 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   {
     sp_cursor tmp(thd, false, true);
     // Open the cursor without copying data
-    // TODO: Check with DmitryS if hiding ROOT_FLAG_READ_ONLY is OK.
-    DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
-    auto backup_flags= thd->lex->query_arena()->mem_root->flags;
-    thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
 
     /*
       Open the cursor in its sp_rcontext, because
@@ -2244,39 +2295,15 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
       has its own sp_rcontext. thd->spcont is pointing to the
       PROCEDURE p1 sp_rcontext at the time of the current
       sp_instr::exec_core().
-
-      Using the above package as an example again, let's do the following:
-      - backup thd->spcont (pointing to the PROCEDURE p1 sp_rcontext)
-      - reset thd->spcont to the sp_rcontext of the PACKAGE BODY pkg
-      - open the cursor in its sp_rcontext
-      - restore thd->spcont to the sp_rcontext of the PROCEDURE p1
     */
-    sp_rcontext *rcontext_backup= thd->spcont;
-    thd->spcont= m_rcontext_handler->get_rcontext(thd->spcont);
-    ret= tmp.open(thd);
-    thd->spcont= rcontext_backup;
-    thd->lex->query_arena()->mem_root->flags= backup_flags;
+    ret= open_cursor_in_rcontext(thd, &tmp,
+                                 m_rcontext_handler->get_rcontext(thd->spcont));
 
     if (!ret)
     {
-      Row_definition_list defs;
       /*
-        If m_rcontext_handler is sp_rcontext_handler_member then the cursor
-        structure is being exported from a package wide cursor to a
-        variable, e.g. (using Oracle syntax):
-          CREATE PACKAGE BODY pkg AS
-            CURSOR c0 IS SELECT 1 AS c0, 'c1' AS c1 FROM DUAL;
-            mr0 c0%ROWTYPE;
-            ...
-          END;
-        In this case the cursor structure must have the same life cycle with
-        the sp_package (pointed by thd->spcont->m_sp), thus let's use
-        thd->spcont->m_sp->query_arena() as the arena.
-
-        Otherwise, the structure is being exported for a local variable
-        whose life cycle is the current sp_head::execute().
-        Create row elements on the caller arena.
-        It's the same arena that was used during sp_rcontext::create().
+        Create row elements on sp_head main arena.
+        It's the same arena that was used to created explicit ROWs.
         This puts cursor%ROWTYPE elements on the same mem_root
         where explicit ROW elements and table%ROWTYPE reside:
         - tmp.export_structure() allocates new Spvar_definition instances
@@ -2287,15 +2314,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
           corresponding to Field instances.
         They all are created on the same mem_root.
       */
-      Query_arena current_arena;
-      Query_arena *arena= rcontext_handler() == &sp_rcontext_handler_member ?
-                          thd->spcont->m_sp->query_arena() :
-                          thd->spcont->callers_arena;
-      thd->set_n_backup_active_arena(arena, &current_arena);
-      ret= tmp.export_structure(thd, &defs) ||
-           static_cast<Field_row*>(row->field)->row_create_fields(thd, &defs) ||
-           row->add_array_of_item_field(thd, *row->field->virtual_tmp_table());
-      thd->restore_active_arena(arena, &current_arena);
+      ret= export_structure(thd, &tmp, row);
       tmp.close(thd);
     }
   }
@@ -2367,35 +2386,17 @@ int sp_instr_copen2::exec_core(THD *thd, uint *nextp)
     END;
 
     "OPEN package_body_wide_cursor" can be called from two different places:
-    #1. From the package initialization secion. In this case
+    #1. From the package initialization section. In this case
         sp_head::mem_main_root::flags does not have the ROOT_FLAG_READ_ONLY bit
-        yet - it will be set in the end of the current sp_head::execute().
+        yet - it will possibly be set in the end of the current
+        sp_head::execute().
     #2. From a package routine. In this case sp_head::execute() representing
         the initialization section of the package was called earlier and
-        its mem_main_root::flags already has the ROOT_FLAG_READ_ONLY flag.
+        its mem_main_root::flags can already have the ROOT_FLAG_READ_ONLY flag.
         Unset it temporarily.
   */
-  /*
-    TODO:
-    this assert crashes due to a problem in the metadata modification code
-  */
-  //DBUG_ASSERT(thd->spcont->m_sp->get_package() ||
-  //            (thd->lex->query_arena()->mem_root->flags & ROOT_FLAG_READ_ONLY));
-  DBUG_ASSERT(thd->lex == m_lex_keeper.lex());
-  auto backup_flags= thd->lex->query_arena()->mem_root->flags;
-  thd->lex->query_arena()->mem_root->flags&= ~ROOT_FLAG_READ_ONLY;
-
-  /*
-    Open the cursor in its sp_rcontext.
-    See sp_instr_cursor_copy_struct::exec_core() for details.
-  */
-  sp_rcontext *ctx_backup= thd->spcont;
-  thd->spcont= m_rcontext_handler->get_rcontext(thd->spcont);
-  int rc= cursor->open(thd);
-  thd->spcont= ctx_backup;
-
-  thd->lex->query_arena()->mem_root->flags= backup_flags;
-  DBUG_RETURN(rc);
+  DBUG_RETURN(open_cursor_in_rcontext(thd, cursor,
+                               m_rcontext_handler->get_rcontext(thd->spcont)));
 }
 
 
