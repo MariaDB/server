@@ -37,7 +37,7 @@ DROP DATABASE IF EXISTS auto_test_local;
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
 argument
-select min(t1.`a`) `f1`,t0.`b` `f2` from `auto_test_remote`.`tbl_a` t0 join `auto_test_remote`.`tbl_a` t1 group by `f2` order by `f1`,`f2`
+select min(t1.`a`) `f1`,t0.`b` `f2` from (`auto_test_remote`.`tbl_a` t0 join `auto_test_remote`.`tbl_a` t1) group by `f2` order by `f1`,`f2`
 SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %'
 set global log_output=@old_log_output;
 set global general_log=@old_general_log;

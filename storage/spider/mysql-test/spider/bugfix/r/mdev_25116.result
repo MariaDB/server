@@ -30,7 +30,7 @@ IF(COUNT(id > 0),'Y','N')
 N
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	1
+Spider_direct_aggregate	0
 set spider_direct_aggregate=@old_spider_direct_aggregate;
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;

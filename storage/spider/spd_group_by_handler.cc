@@ -829,7 +829,7 @@ void spider_fields::free_conn_holder(
 
 /* Add the table associated with an ha_spider to a table_holder.
 Return the table_holder. */
-static SPIDER_TABLE_HOLDER *spider_add_table_holder(
+SPIDER_TABLE_HOLDER *spider_add_table_holder(
   ha_spider *spider_arg,
   SPIDER_TABLE_HOLDER *table_holder
 ) {
@@ -876,7 +876,7 @@ void spider_fields::set_table_holder(SPIDER_TABLE_HOLDER *table_holder_arg,
 }
 
 /* Allocate space for table_count_arg table holders. */
-static SPIDER_TABLE_HOLDER *spider_create_table_holder(
+SPIDER_TABLE_HOLDER *spider_create_table_holder(
   uint table_count_arg
 ) {
   SPIDER_TABLE_HOLDER* table_holder;
@@ -1011,7 +1011,7 @@ spider_group_by_handler::~spider_group_by_handler()
   DBUG_VOID_RETURN;
 }
 
-static int spider_prepare_init_scan(
+int spider_prepare_init_scan(
   const Query& query, MY_BITMAP *skips, spider_fields *fields, ha_spider *spider,
   SPIDER_TRX *trx, longlong& offset_limit, THD *thd)
 {
@@ -1029,6 +1029,8 @@ static int spider_prepare_init_scan(
   spider->pushed_pos = NULL;
   result_list->sorted = (query.group_by || query.order_by);
   spider_set_result_list_param(spider);
+  /* TODO: do we need to remove ones that were initialised with the
+    same value in ha_spider::init_fields? */
   spider->mrr_with_cnt = FALSE;
   spider->init_index_handler = FALSE;
   spider->use_spatial_index = FALSE;
@@ -1090,7 +1092,8 @@ static int spider_prepare_init_scan(
   DBUG_RETURN(0);
 }
 
-static int spider_make_query(const Query& query, spider_fields* fields, ha_spider *spider, TABLE *table)
+int spider_make_query(const Query& query, spider_fields* fields,
+                      ha_spider *spider, TABLE *table)
 {
   uint dbton_id;
   spider_db_handler* dbton_hdl;
@@ -1462,6 +1465,7 @@ group_by_handler *spider_create_group_by_handler(
     goto skip_free_table_holder;
   }
   memset(dbton_bitmap, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
+  /* Find all backends used by the first table. */
   for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
   {
     dbton_id = share->use_sql_dbton_ids[roop_count];
@@ -1492,6 +1496,7 @@ group_by_handler *spider_create_group_by_handler(
       DBUG_PRINT("info",("spider can not add a table"));
       goto skip_free_table_holder;
     }
+    /* Find all backends used by the current table */
     memset(dbton_bitmap_tmp, 0, spider_bitmap_size(SPIDER_DBTON_SIZE));
     for (roop_count = 0; roop_count < (int) share->use_dbton_count; ++roop_count)
     {
@@ -1503,6 +1508,7 @@ group_by_handler *spider_create_group_by_handler(
         spider_set_bit(dbton_bitmap_tmp, dbton_id);
       }
     }
+    /* Intersect to get common backends used by all tables (so far) */
     for (roop_count = 0;
       roop_count < spider_bitmap_size(SPIDER_DBTON_SIZE); ++roop_count)
     {

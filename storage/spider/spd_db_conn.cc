@@ -6885,6 +6885,9 @@ Field *spider_db_find_field_in_item_list(
   @return                   Error code.
 */
 
+/* TODO: if an ER_SPIDER_COND_SKIP_NUM would be emitted, we should do
+  a check for str. If it is non-NULL then the failure should be
+  different because we are in execution stage */
 int spider_db_print_item_type(
   Item *item,
   Field *field,
@@ -6956,6 +6959,7 @@ int spider_db_print_item_type(
     case Item::INSERT_VALUE_ITEM:
       DBUG_RETURN(spider_db_open_item_insert_value((Item_insert_value *) item,
         field, spider, str, alias, alias_length, dbton_id, use_fields, fields));
+      /* TODO: consider adding SUBSELECT_ITEM support for spider sh */
     case Item::SUBSELECT_ITEM:
     case Item::TRIGGER_FIELD_ITEM:
     case Item::EXPR_CACHE_ITEM:

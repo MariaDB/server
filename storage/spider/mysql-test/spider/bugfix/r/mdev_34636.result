@@ -12,7 +12,7 @@ Warning	138	Spider table params in COMMENT or CONNECTION strings have been depre
 INSERT INTO t2 SELECT * FROM t3;
 ERROR 21S01: Column count doesn't match value count at row 1
 SELECT * FROM t3;
-ERROR HY000: Unable to connect to foreign data source: localhost
+Got one of the listed errors
 ALTER TABLE t1 CHANGE COLUMN c1 d1 INT;
 ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed
 DROP TABLE t1,t2,t3;
