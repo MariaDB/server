@@ -35,9 +35,48 @@ SELECT @@in_transaction;
 @@in_transaction
 0
 ROLLBACK;
-disconnect con1;
 SELECT * FROM t1;
 col1	col2
 1	10
 2	100
 DROP TABLE t1;
+#
+# MDEV-37141 DML committed within XA transaction block after deadlock error and implicit rollback
+#
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+SELECT * FROM t1;
+col1	col2
+1	1
+2	2
+connection con1;
+XA BEGIN 'x1';
+# XA Trx-1: Lock 1st record
+UPDATE t1 SET col2=10 where col1=1;
+connection default;
+XA BEGIN 'x2';
+# XA Trx-2: Lock 2nd record
+UPDATE t1 SET col2=100 where col1=2;
+connection con1;
+# XA Trx-1: Try locking 1st record : Wait
+UPDATE t1 SET col2=10 where col1=2;
+connection default;
+# Wait for XA Trx-1 to get into lock wait stage
+# XA Trx-2: Try locking 2nd record : Deadlock
+UPDATE t1 SET col2=100 where col1=1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+INSERT INTO t1 VALUES (3, 3), (4, 4);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+XA END 'x2';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+XA ROLLBACK 'x2';
+connection con1;
+XA END 'x1';
+XA ROLLBACK 'x1';
+connection default;
+SELECT * FROM t1;
+col1	col2
+1	1
+2	2
+DROP TABLE t1;
+disconnect con1;

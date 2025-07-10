@@ -135,11 +135,13 @@ connection con2;
 update t1 set c = 'aa' where a = 1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select count(*) from t1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+xa end 'a','c';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+xa rollback 'a','c';
+select count(*) from t1;
 count(*)
 2
-xa end 'a','c';
-ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
-xa rollback 'a','c';
 disconnect con2;
 connect  con3,localhost,root,,;
 connection con3;
@@ -207,7 +209,7 @@ connection default;
 UPDATE t1 SET a=5 WHERE a=1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 XA END 'xid1';
-ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
 XA ROLLBACK 'xid1';
 XA START 'xid1';
 XA END 'xid1';

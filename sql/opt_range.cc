@@ -11931,22 +11931,44 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
       return FALSE;
   }
   
+  if (key_part >= key_part_end)
+    return TRUE;
+
+  pk_number= param->table->s->primary_key;
+  if (!param->table->file->pk_is_clustering_key(pk_number))
+    return FALSE;
+
+  if (keynr == pk_number)
+    return TRUE; /* Scan on clustered PK is always ROR */
+
+
+  KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
+  KEY_PART_INFO *pk_part_end= pk_part +
+                              param->table->key_info[pk_number].user_defined_key_parts;
+  /*
+    Check for columns indexed with DESC.
+    If a column is present in both Secondary Key and Primary Key and either of
+    indexes include it with DESC, then the scan is not a ROR scan.
+  */
+  for (; key_part != key_part_end; ++key_part)
+  {
+    pk_part= param->table->key_info[pk_number].key_part;
+    for (; pk_part != pk_part_end; ++pk_part)
+    {
+      if (key_part->fieldnr == pk_part->fieldnr &&
+          (MY_TEST(key_part->key_part_flag & HA_REVERSE_SORT) ||
+           MY_TEST(pk_part->key_part_flag & HA_REVERSE_SORT)))
+        return FALSE;
+    }
+  }
+
   /*
     If there are equalities for all key parts, it is a ROR scan. If there are
     equalities all keyparts and even some of key parts from "Extended Key"
     index suffix, it is a ROR-scan, too.
   */
-  if (key_part >= key_part_end)
-    return TRUE;
-
   key_part= table_key->key_part + nparts;
-  pk_number= param->table->s->primary_key;
-  if (!param->table->file->pk_is_clustering_key(pk_number))
-    return FALSE;
-
-  KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
-  KEY_PART_INFO *pk_part_end= pk_part +
-                              param->table->key_info[pk_number].user_defined_key_parts;
+  pk_part= param->table->key_info[pk_number].key_part;
   for (;(key_part!=key_part_end) && (pk_part != pk_part_end);
        ++key_part, ++pk_part)
   {

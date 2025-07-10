@@ -6248,6 +6248,9 @@ finish:
       one of storage engines (e.g. due to deadlock). Rollback transaction in
       all storage engines including binary log.
     */
+    auto &xid_state= thd->transaction->xid_state;
+    if (xid_state.is_explicit_XA())
+      xid_state.set_rollback_only();
     trans_rollback_implicit(thd);
     thd->release_transactional_locks();
   }
