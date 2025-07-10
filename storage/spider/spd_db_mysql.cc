@@ -4855,13 +4855,9 @@ int spider_db_mbase_util::open_item_func(
 ) {
   DBUG_ENTER("spider_db_mbase_util::open_item_func");
 
-  int error = check_item_func(item_func, spider, alias,
-    alias_length, use_fields, fields);
-  if (error)
-    DBUG_RETURN(error);
   if (!str)
-    DBUG_RETURN(0);
-
+    DBUG_RETURN(check_item_func(item_func, spider, alias,
+                                alias_length, use_fields, fields));
   DBUG_RETURN(print_item_func(item_func, spider, str, alias,
     alias_length, use_fields, fields));
 }
@@ -5021,8 +5017,6 @@ int spider_db_mbase_util::print_item_func(
   int use_pushdown_udf, case_when_start, case_when_count;
   bool merge_func = FALSE, case_with_else;
   DBUG_ENTER("spider_db_mbase_util::print_item_func");
-  DBUG_ASSERT(!check_item_func(item_func, spider, alias, alias_length,
-                               use_fields, fields));
   DBUG_ASSERT(str);
 
   if (str->reserve(SPIDER_SQL_OPEN_PAREN_LEN))
