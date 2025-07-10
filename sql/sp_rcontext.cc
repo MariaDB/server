@@ -864,8 +864,13 @@ int sp_cursor::fetch(THD *thd, List<sp_fetch_target> *vars,
   if (! server_side_cursor->is_open())
   {
     m_found= false;
-    if (!error_on_no_data)
+    if (!error_on_no_data) {
+      // report the not found condition and 
+      // 'contitnue handler for not found' can catch it
+      push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SP_FETCH_NO_DATA,
+                     ER_THD(thd, ER_SP_FETCH_NO_DATA));
       return 0;
+    }
     my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
     return -1;
   }
