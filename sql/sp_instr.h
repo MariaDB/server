@@ -468,12 +468,11 @@ public:
     LEX-object.
 
     @param thd  Thread context.
-    @param sp   The stored program.
     @param lex  SP instruction's lex
 
     @return new LEX-object or NULL in case of failure.
   */
-  LEX *parse_expr(THD *thd, sp_head *sp, LEX *lex);
+  LEX *parse_expr(THD *thd, LEX *lex);
 
   SQL_I_List<Item_trigger_field>* get_instr_trig_field_list() override
   {

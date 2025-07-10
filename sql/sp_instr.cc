@@ -505,7 +505,7 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
     {
       thd->clear_error();
       free_lex(thd);
-      LEX *lex= instr->parse_expr(thd, thd->spcont->m_sp, m_lex);
+      LEX *lex= instr->parse_expr(thd, m_lex);
 
       if (!lex) return true;
 
@@ -840,7 +840,7 @@ bool sp_lex_instr::setup_memroot_for_reparsing(sp_head *sphead,
 }
 
 
-LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
+LEX* sp_lex_instr::parse_expr(THD *thd, LEX *sp_instr_lex)
 {
   String sql_query;
 
@@ -868,6 +868,9 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   if (m_cur_trigger_stmt_items.elements)
     saved_ptr_to_next_trg_items_list=
       m_cur_trigger_stmt_items.first->next_trig_field_list;
+
+  sp_pcontext *spcont= sp_instr_lex ? sp_instr_lex->spcont : m_ctx;
+  sp_head *sp= spcont->top_context()->sp();
 
   /*
     Clean up items owned by this SP instruction.
@@ -979,7 +982,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   }
 
   thd->lex->sphead= sp;
-  thd->lex->spcont= m_ctx;
+  thd->lex->spcont= spcont;
 
   sql_digest_state *parent_digest= thd->m_digest;
   PSI_statement_locker *parent_locker= thd->m_statement_psi;

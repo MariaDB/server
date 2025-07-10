@@ -916,9 +916,9 @@ private:
 class sp_pcontext_top: public sp_pcontext
 {
 public:
-  sp_pcontext_top(const sp_head *sp);
+  sp_pcontext_top(sp_head *sp);
 
-  const sp_head *sp() const
+  sp_head *sp() const
   {
     return m_sp;
   }
@@ -1015,7 +1015,7 @@ private:
     such as cursors. See Sp_rcontext_handler_package_body::get_pcursor() for
     an example.
   */
-  const sp_head *m_sp;
+  sp_head *m_sp;
   // An array of member cursors. Used by packages.
   Dynamic_array<sp_pcursor> m_member_cursors;
 };

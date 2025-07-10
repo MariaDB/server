@@ -3,3 +3,5 @@
 --echo #
 
 --source include/sp/sp-cursor-package-body-metadata-change-01.inc
+--source include/sp/sp-cursor-package-body-metadata-change-02.inc
+--source include/sp/sp-cursor-package-body-metadata-change-03.inc
