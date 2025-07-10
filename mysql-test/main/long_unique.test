@@ -404,6 +404,7 @@ show create table t1;
 insert into t1 value(concat(repeat('s',3000),'1'));
 --error ER_DUP_ENTRY
 insert into t1 value(concat(repeat('s',3000),'2'));
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 
