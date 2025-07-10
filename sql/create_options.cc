@@ -204,7 +204,7 @@ static bool set_one_value(ha_create_table_option *opt, THD *thd,
                                      suppress_warning));
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   my_error(ER_UNKNOWN_ERROR, MYF(0));
   DBUG_RETURN(1);
 }
