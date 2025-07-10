@@ -12426,11 +12426,11 @@ int spider_mbase_handler::execute_sql_for_sh(SPIDER_CONN *conn, char *db,
      /* required when calling udf */
      (error_num = conn->db_conn->select_db(db)))
   )
-    DBUG_RETURN(error_num);
+    return error_num;
   if ((error_num = conn->db_conn->exec_query(exec_sql->ptr(),
                                              exec_sql->length(), quick_mode)))
-    DBUG_RETURN(error_num);
-  DBUG_RETURN(0);
+    return error_num;
+  return 0;
 }
 
 int spider_mbase_handler::execute_sql(

@@ -92,10 +92,19 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   int dbton_id = -1;
   SPIDER_CONN *common_conn= NULL;
   SPIDER_TRX *trx;
+  /* Do not create if the query has already been optimized. This
+    happens for example during 2nd ps execution when spider fails to
+    create sh during the 1st execution because there's a subquery in
+    the original query. */
+  if (!select_lex->first_cond_optimization)
+    return NULL;
   if (spider_param_disable_select_handler(thd))
     return NULL;
   for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
   {
+    /* Do not support temporary tables */
+    if (!tl->table)
+      return NULL;
     /* We do not support partitioned table yet, and there's no point
       in supporting partitioned table with only on partition which gbh
       does */
@@ -118,7 +127,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
                                   thd))
     return NULL;
   if (!(table_holder= spider_create_table_holder(n_tables)))
-    DBUG_RETURN(NULL);
+    return NULL;
   for (TABLE_LIST *tl= from; tl; tl= tl->next_local)
   {
     spider = (ha_spider *) tl->table->file;
