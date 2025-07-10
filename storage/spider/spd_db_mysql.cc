@@ -12391,6 +12391,24 @@ int spider_mbase_handler::set_sql_for_exec(
   DBUG_RETURN(0);
 }
 
+int spider_mbase_handler::execute_sql_for_sh(SPIDER_CONN *conn, char *db,
+                                             int quick_mode,  int *need_mon)
+{
+  int error_num;
+  pthread_mutex_assert_owner(&conn->mta_conn_mutex);
+  if (
+    !conn->in_before_query &&
+    ((error_num = spider_db_before_query(conn, need_mon)) ||
+     /* required when calling udf */
+     (error_num = conn->db_conn->select_db(db)))
+  )
+    return error_num;
+  if ((error_num = conn->db_conn->exec_query(exec_sql->ptr(),
+                                             exec_sql->length(), quick_mode)))
+    return error_num;
+  return 0;
+}
+
 int spider_mbase_handler::execute_sql(
   ulong sql_type,
   SPIDER_CONN *conn,
