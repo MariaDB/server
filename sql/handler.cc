@@ -1629,6 +1629,12 @@ uint ha_count_rw_2pc(THD *thd, bool all)
 /**
   Check if we can skip the two-phase commit.
 
+  @param thd           Thread handler
+  @param ha_list       List of all engines participating on the commit
+  @param all           True if this is final commit (not statement commit)
+  @param no_rollback   Set to 1 if one of the engines doing writes does
+                       not support rollback
+
   A helper function to evaluate if two-phase commit is mandatory.
   As a side effect, propagates the read-only/read-write flags
   of the statement transaction to its enclosing normal transaction.
@@ -1647,16 +1653,21 @@ uint ha_count_rw_2pc(THD *thd, bool all)
 
 uint
 ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
-                                    bool all)
+                                    bool all, bool *no_rollback)
 {
   /* The number of storage engines that have actual changes. */
   unsigned rw_ha_count= 0;
   Ha_trx_info *ha_info;
 
+  *no_rollback= false;
   for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write())
+    {
       ++rw_ha_count;
+      if (ha_info->is_trx_no_rollback())
+        *no_rollback= true;
+    }
 
     if (! all)
     {
@@ -1679,7 +1690,18 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
         information up, and the need for two-phase commit has been
         already established. Break the loop prematurely.
       */
-      break;
+      if (*no_rollback == 0)
+      {
+        while ((ha_info= ha_info->next()))
+        {
+          if (ha_info->is_trx_read_write() && ha_info->is_trx_no_rollback())
+          {
+            *no_rollback= 1;
+            break;
+          }
+        }
+        break;
+      }
     }
   }
   return rw_ha_count;
@@ -1815,7 +1837,9 @@ int ha_commit_trans(THD *thd, bool all)
   if (is_real_trans)                          /* not a statement commit */
     thd->stmt_map.close_transient_cursors();
 
-  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool no_rollback;
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
+                                                        &no_rollback);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
   MDL_request mdl_backup;
@@ -1828,7 +1852,7 @@ int ha_commit_trans(THD *thd, bool all)
     calling ha_commit_trans() from spader_commit().
   */
 
-  if (rw_trans && !thd->backup_commit_lock)
+  if ((rw_trans || no_rollback) && !thd->backup_commit_lock)
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -1951,6 +1975,8 @@ int ha_commit_trans(THD *thd, bool all)
     }
 #endif /* WITH_WSREP */
     error= ha_commit_one_phase(thd, all);
+    if (error)
+      goto err;
 #ifdef WITH_WSREP
     // Here in case of error we must return 2 for inconsistency
     if (run_wsrep_hooks && !error)
@@ -2163,7 +2189,9 @@ int ha_commit_one_phase(THD *thd, bool all)
 static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
                             bool is_real_trans)
 {
-  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool no_rollback;
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
+                                                        &no_rollback);
   bool rw_trans= is_real_trans &&
     (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
 
@@ -2191,16 +2219,16 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 
   if (ha_info)
   {
-    int err;
+    int err= 0;
 
     if (has_binlog_hton(ha_info))
     {
-      if ((err= binlog_commit(thd, all,
-                             is_ro_1pc_trans(thd, ha_info, all,
-                                             is_real_trans))))
+      if ((err= binlog_commit(thd, all, is_ro_1pc_trans(thd, ha_info, all,
+                                                        is_real_trans))))
       {
         my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
         error= 1;
+        goto err;
       }
     }
 #ifdef WITH_WSREP
@@ -2243,7 +2271,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
   }
-
+ err:
   DBUG_RETURN(error);
 }
 
@@ -3365,12 +3393,16 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
 
 handler *handler::clone(const char *name, MEM_ROOT *mem_root)
 {
+  int error= 0;
   handler *new_handler= get_new_handler(table->s, mem_root, ht);
 
   if (!new_handler)
     return NULL;
   if (new_handler->set_ha_share_ref(ha_share))
+  {
+    error= ER_OUT_OF_RESOURCES;
     goto err;
+  }
 
   /*
     TODO: Implement a more efficient way to have more than one index open for
@@ -3379,8 +3411,10 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
     This is not critical as the engines already have the table open
     and should be able to use the original instance of the table.
   */
-  if (new_handler->ha_open(table, name, table->db_stat,
-                           HA_OPEN_IGNORE_IF_LOCKED, mem_root))
+  if ((error= new_handler->ha_open(table, name,
+                                   table->db_stat & HA_READ_ONLY ?
+                                   O_RDONLY : O_RDWR,
+                                   HA_OPEN_IGNORE_IF_LOCKED, mem_root)))
     goto err;
 
   new_handler->handler_stats= handler_stats;
@@ -3389,6 +3423,7 @@ handler *handler::clone(const char *name, MEM_ROOT *mem_root)
   return new_handler;
 
 err:
+  new_handler->print_error(error, MYF(0));
   delete new_handler;
   return NULL;
 }
@@ -5448,6 +5483,9 @@ void handler::mark_trx_read_write_internal()
     */
     if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
+    /* Mark if we are using a table that cannot do rollback */
+    if (ht->flags & HTON_NO_ROLLBACK)
+      ha_info->set_trx_no_rollback();
   }
 }
 
@@ -5773,6 +5811,9 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
                                   HA_CREATE_USED_CHECKSUM |
                                   HA_CREATE_USED_MAX_ROWS) ||
       (table->s->row_type != create_info->row_type))
+    DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+  if (create_info->sequence)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   uint table_changes= (ha_alter_info->handler_flags &
@@ -8233,7 +8274,8 @@ int handler::ha_write_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
                       { error= write_row(buf); })
-  DBUG_PRINT("dml", ("INSERT: %s = %d", dbug_print_row(table, buf, false), error));
+  DBUG_PRINT("dml", ("INSERT: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
 
   MYSQL_INSERT_ROW_DONE(error);
   if (!error && !((error= table->hlindexes_on_insert())))
@@ -8283,8 +8325,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
-  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d", dbug_print_row(table, old_data, false),
-                     dbug_print_row(table, new_data, false), error));
+  DBUG_PRINT("dml", ("UPDATE: %s => %s = %d",
+                     dbug_format_row(table, old_data, false).c_ptr_safe(),
+                     dbug_format_row(table, new_data, false).c_ptr_safe(),
+                     error));
 
   MYSQL_UPDATE_ROW_DONE(error);
   if (likely(!error) && !(error= table->hlindexes_on_update()))
@@ -8362,7 +8406,8 @@ int handler::ha_delete_row(const uchar *buf)
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, active_index, error,
     { error= delete_row(buf);})
-  DBUG_PRINT("dml", ("DELETE: %s = %d", dbug_print_row(table, buf, false), error));
+  DBUG_PRINT("dml", ("DELETE: %s = %d",
+                     dbug_format_row(table, buf, false).c_ptr_safe(), error));
   MYSQL_DELETE_ROW_DONE(error);
   if (likely(!error) && !(error= table->hlindexes_on_delete(buf)))
   {
@@ -8704,16 +8749,6 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   VERSIONING functions
 ******************************************************************************/
 
-bool Vers_parse_info::is_start(const LEX_CSTRING &name) const
-{
-  DBUG_ASSERT(name.str);
-  return as_row.start && as_row.start.streq(name);
-}
-bool Vers_parse_info::is_end(const LEX_CSTRING &name) const
-{
-  DBUG_ASSERT(name.str);
-  return as_row.end && as_row.end.streq(name);
-}
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
   return f.flags & VERS_ROW_START;

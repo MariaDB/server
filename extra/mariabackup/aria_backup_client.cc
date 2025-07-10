@@ -955,6 +955,7 @@ void Backup::set_post_copy_table_hook(const post_copy_table_hook_t &hook) {
 
 bool prepare(const char *target_dir) {
 	maria_data_root= (char *)target_dir;
+        maria_tmpdir= &mysql_tmpdir_list;
 
 	if (maria_init())
 		die("Can't init Aria engine (%d)", errno);
@@ -989,8 +990,8 @@ bool prepare(const char *target_dir) {
         logs.find_logs_after_last(target_dir);
         last_logno= logs.last(); // Update last_logno if extra logs were found
 
-	if (init_pagecache(maria_pagecache, 1024L*1024L, 0, 0,
-		static_cast<uint>(maria_block_size), 0, MY_WME) == 0)
+	if (multi_init_pagecache(&maria_pagecaches, 1, 1024L*1024L, 0, 0,
+		static_cast<uint>(maria_block_size), 0, MY_WME))
 		die("Got error in Aria init_pagecache() (errno: %d)", errno);
 
 	if (init_pagecache(maria_log_pagecache, 1024L*1024L,

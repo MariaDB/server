@@ -35,7 +35,7 @@ SOFTWARE.
   implementation for now.
 */
 #define DEFAULT_IMPLEMENTATION
-#if __GNUC__ > 7
+#if __GNUC__ > 7 && defined(__GLIBC__)
 #ifdef __x86_64__
 #ifdef HAVE_IMMINTRIN_H
 #include <immintrin.h>

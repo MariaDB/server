@@ -156,6 +156,16 @@ select g.variable_name,g.variable_value-i.variable_value from information_schema
 variable_name	g.variable_value-i.variable_value
 ARIA_PAGECACHE_READS	426
 drop table t1, t2;
+flush tables;
+flush status;
+select g.variable_name,g.variable_value-i.variable_value from information_schema.global_status as g,initial as i where g.variable_name like "Aria_pagecache_read%" and g.variable_name=i.variable_name order by g.variable_name desc;
+variable_name	g.variable_value-i.variable_value
+ARIA_PAGECACHE_READS	426
+flush global status;
+show status like "Aria_pagecache_read%";
+Variable_name	Value
+Aria_pagecache_read_requests	0
+Aria_pagecache_reads	0
 drop temporary table initial;
 show status like "key_read%";
 Variable_name	Value

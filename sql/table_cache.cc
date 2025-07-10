@@ -901,7 +901,7 @@ retry:
   {
     mysql_mutex_unlock(&element->LOCK_table_share);
     lf_hash_search_unpin(thd->tdc_hash_pins);
-    VALGRIND_YIELD;
+    std::this_thread::yield();
     goto retry;
   }
   lf_hash_search_unpin(thd->tdc_hash_pins);

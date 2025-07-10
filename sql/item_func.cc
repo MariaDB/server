@@ -849,11 +849,21 @@ String *Item_func_hybrid_field_type::val_str_from_int_op(String *str)
   return str;
 }
 
+#ifdef _M_ARM64
+/* MSVC on ARM incorrectly optimizes the code in val_real_from_int_op() */
+#pragma optimize("", off)
+#endif
+
 double Item_func_hybrid_field_type::val_real_from_int_op()
 {
   longlong result= int_op();
   return unsigned_flag ? (double) ((ulonglong) result) : (double) result;
 }
+
+#ifdef _M_ARM64
+#pragma optimize("", on)
+#endif
+
 
 my_decimal *
 Item_func_hybrid_field_type::val_decimal_from_int_op(my_decimal *dec)
@@ -7090,6 +7100,16 @@ longlong Item_func_cursor_rowcount::val_int()
 /*****************************************************************************
   SEQUENCE functions
 *****************************************************************************/
+bool Item_func_nextval::check_access_and_fix_fields(THD *thd, Item **ref,
+                                                    privilege_t want_access)
+{
+  table_list->sequence= false;
+  bool error= check_single_table_access(thd, want_access, table_list, false);
+  table_list->sequence= true;
+  if (error && table_list->belong_to_view)
+    table_list->replace_view_error_with_generic(thd);
+  return error || Item_longlong_func::fix_fields(thd, ref);
+}
 
 longlong Item_func_nextval::val_int()
 {

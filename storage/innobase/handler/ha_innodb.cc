@@ -153,11 +153,6 @@ void close_thread_tables(THD* thd);
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
-#ifdef HAVE_URING
-/** The Linux kernel version if io_uring() is considered unsafe */
-const char *io_uring_may_be_unsafe;
-#endif
-
 #define INSIDE_HA_INNOBASE_CC
 
 #define EQ_CURRENT_THD(thd) ((thd) == current_thd)
@@ -243,11 +238,11 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
-    log_sys.latch.rd_unlock();
     const lsn_t lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
     purge_sys.wake_if_not_active();
@@ -1136,7 +1131,7 @@ innobase_rollback_to_savepoint_can_release_mdl(
 					be rolled back to savepoint */
 
 /** Request notification of log writes */
-static void innodb_log_flush_request(void *cookie);
+static void innodb_log_flush_request(void *cookie) noexcept;
 
 /** Requests for log flushes */
 struct log_flush_request
@@ -2184,6 +2179,11 @@ convert_error_code_to_mysql(
 		return(HA_ERR_RECORD_FILE_FULL);
 
 	case DB_TEMP_FILE_WRITE_FAIL:
+		/* This error can happen during
+		copy_data_between_tables() or bulk insert operation */
+		innodb_transaction_abort(thd,
+					 innobase_rollback_on_timeout,
+					 error);
 		my_error(ER_GET_ERRMSG, MYF(0),
                          DB_TEMP_FILE_WRITE_FAIL,
                          ut_strerr(DB_TEMP_FILE_WRITE_FAIL),
@@ -2352,30 +2352,6 @@ dtype_get_mblen(
 	} else {
 		*mbminlen = *mbmaxlen = 0;
 	}
-}
-
-/**********************************************************************
-Check if the length of the identifier exceeds the maximum allowed.
-return true when length of identifier is too long. */
-my_bool
-innobase_check_identifier_length(
-/*=============================*/
-	const char*	id)	/* in: FK identifier to check excluding the
-				database portion. */
-{
-	int		well_formed_error = 0;
-	CHARSET_INFO	*cs = system_charset_info;
-	DBUG_ENTER("innobase_check_identifier_length");
-
-	size_t len = my_well_formed_length(
-		cs, id, id + strlen(id),
-		NAME_CHAR_LEN, &well_formed_error);
-
-	if (well_formed_error || len == NAME_CHAR_LEN) {
-		my_error(ER_TOO_LONG_IDENT, MYF(0), id);
-		DBUG_RETURN(true);
-	}
-	DBUG_RETURN(false);
 }
 
 /******************************************************************//**
@@ -3660,7 +3636,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
-	m_prebuilt->trx->bulk_insert = false;
+	m_prebuilt->trx->bulk_insert &= TRX_DDL_BULK;
 }
 
 /*********************************************************************//**
@@ -4084,15 +4060,7 @@ skip_buffering_tweak:
   cases, we ignore the setting of innodb_use_native_aio. */
   srv_use_native_aio= FALSE;
 #endif
-#ifdef HAVE_URING
-  if (srv_use_native_aio && io_uring_may_be_unsafe)
-    sql_print_warning("innodb_use_native_aio may cause "
-                      "hangs with this kernel %s; see "
-                      "https://jira.mariadb.org/browse/MDEV-26674",
-                      io_uring_may_be_unsafe);
-#endif
 
-  srv_lock_table_size= 5 * buf_pool.curr_size();
   DBUG_RETURN(0);
 }
 
@@ -4526,7 +4494,7 @@ static bool end_of_statement(trx_t *trx) noexcept
   undo_no_t savept= 0;
   trx->rollback(&savept);
   /* MariaDB will roll back the entire transaction. */
-  trx->bulk_insert= false;
+  trx->bulk_insert&= TRX_DDL_BULK;
   trx->last_stmt_start= 0;
   return true;
 }
@@ -4771,11 +4739,13 @@ void log_flush_notify(lsn_t flush_lsn)
 We put the request in a queue, so that we can notify upper layer about
 checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
-static void innodb_log_flush_request(void *cookie)
+static void innodb_log_flush_request(void *cookie) noexcept
 {
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
+  log_sys.latch.wr_unlock();
 
   if (flush_lsn >= lsn)
     /* All log is already persistent. */;
@@ -12321,6 +12291,40 @@ LEX_CSTRING innodb_convert_name(CHARSET_INFO *cs, LEX_CSTRING name, char *buf)
                                      buf, MAX_TABLE_NAME_LEN, &errors)};
 }
 
+/** Find an auto-generated foreign key constraint identifier.
+@param table   InnoDB table
+@return the next number to assign to a constraint */
+ulint dict_table_get_foreign_id(const dict_table_t &table) noexcept
+{
+  ulint id= 0;
+
+  for (const dict_foreign_t *foreign : table.foreign_set)
+  {
+    const char *s= foreign->sql_id();
+    char *endp;
+    ulint f= strtoul(s, &endp, 10);
+    if (!*endp && f > id)
+      id= f;
+  }
+
+  return id + 1;
+}
+
+/** Generate a foreign key constraint name for an anonymous constraint.
+@param id_nr    sequence to allocate identifiers from
+@param name     table name
+@param foreign  foreign key */
+void dict_create_add_foreign_id(ulint *id_nr, const char *name,
+                                dict_foreign_t *foreign) noexcept
+{
+  if (!foreign->id)
+  {
+    size_t len= snprintf(nullptr, 0, "%s\377%zu", name, *id_nr);
+    foreign->id= static_cast<char*>(mem_heap_alloc(foreign->heap, len + 1));
+    snprintf(foreign->id, len + 1, "%s\377%zu", name, (*id_nr)++);
+  }
+}
+
 /** Create InnoDB foreign keys from MySQL alter_info. Collect all
 dict_foreign_t items into local_fk_set and then add into system table.
 @return		DB_SUCCESS or specific error code */
@@ -12358,12 +12362,6 @@ create_table_info_t::create_foreign_keys()
 		dict_table_t* alter_table;
 		char* n = dict_table_lookup(d, t, &alter_table, heap);
 
-		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
-		in the format databasename/tablename_ibfk_[number], where
-		[number] is local to the table; look for the highest [number]
-		for alter_table, so that we can assign to new constraints
-		higher numbers. */
-
 		/* If we are altering a temporary table, the table name after
 		ALTER TABLE does not correspond to the internal table name, and
 		alter_table=nullptr. But, we do not support FOREIGN KEY
@@ -12371,8 +12369,7 @@ create_table_info_t::create_foreign_keys()
 
 		if (alter_table) {
 			n = alter_table->name.m_name;
-			number = 1 + dict_table_get_highest_foreign_id(
-				alter_table);
+			number = dict_table_get_foreign_id(*alter_table);
 		}
 
 		char* bufend = innobase_convert_name(
@@ -12484,33 +12481,17 @@ create_table_info_t::create_foreign_keys()
 			return (DB_CANNOT_ADD_CONSTRAINT);
 		}
 
-		if (fk->constraint_name.str) {
-			ulint db_len;
-
-			/* Catenate 'databasename/' to the constraint name
-			specified by the user: we conceive the constraint as
-			belonging to the same MySQL 'database' as the table
-			itself. We store the name to foreign->id. */
-
-			db_len = dict_get_db_name_len(table->name.m_name);
-
-			foreign->id = static_cast<char*>(mem_heap_alloc(
-				foreign->heap,
-				db_len + fk->constraint_name.length + 2));
-
-			memcpy(foreign->id, table->name.m_name, db_len);
-			foreign->id[db_len] = '/';
-			strcpy(foreign->id + db_len + 1,
-			       fk->constraint_name.str);
-		}
-
-		if (foreign->id == NULL) {
-			error = dict_create_add_foreign_id(
-				&number, table->name.m_name, foreign);
-			if (error != DB_SUCCESS) {
-				dict_foreign_free(foreign);
-				return (error);
-			}
+		if (size_t fk_len = fk->constraint_name.length) {
+			/* Prepend the table name to the constraint name. */
+			size_t s = strlen(table->name.m_name) + 2 + fk_len;
+			foreign->id = static_cast<char*>(
+				mem_heap_alloc(foreign->heap, s));
+			snprintf(foreign->id, s, "%s\377%.*s",
+				 table->name.m_name, int(fk_len),
+				 fk->constraint_name.str);
+		} else {
+			dict_create_add_foreign_id(&number, table->name.m_name,
+                                                   foreign);
 		}
 
 		std::pair<dict_foreign_set::iterator, bool> ret
@@ -14292,18 +14273,24 @@ ha_innobase::rename_table(
 		stats.close();
 	}
 
-	if (error == DB_DUPLICATE_KEY) {
+	switch (error) {
+	case DB_SUCCESS:
+		DBUG_RETURN(0);
+	case DB_DUPLICATE_KEY:
 		/* We are not able to deal with handler::get_dup_key()
 		during DDL operations, because the duplicate key would
 		exist in metadata tables, not in the user table. */
 		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
 		DBUG_RETURN(HA_ERR_GENERIC);
-	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
+	case DB_LOCK_WAIT_TIMEOUT:
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 		DBUG_RETURN(HA_ERR_GENERIC);
+	case DB_FOREIGN_DUPLICATE_KEY:
+		my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", "");
+		DBUG_RETURN(HA_ERR_GENERIC);
+	default:
+		DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
 
 /*********************************************************************//**
@@ -14607,13 +14594,14 @@ innobase_get_mysql_key_number_for_index(
 	if (index->table != ib_table) {
 		i = 0;
 		ind = dict_table_get_first_index(index->table);
+		const bool auto_gen_clust = dict_index_is_auto_gen_clust(ind);
 
 		while (index != ind) {
 			ind = dict_table_get_next_index(ind);
 			i++;
 		}
 
-		if (dict_index_is_auto_gen_clust(index)) {
+		if (auto_gen_clust) {
 			ut_a(i > 0);
 			i--;
 		}
@@ -14879,12 +14867,12 @@ stats_fetch:
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		ut_ad(ib_table->stat_initialized());
-
 #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
 		if (xbegin()) {
 			if (ib_table->stats_mutex_is_locked())
 				xabort();
+
+			ut_ad(ib_table->stat_initialized());
 
 			n_rows = ib_table->stat_n_rows;
 
@@ -14899,6 +14887,8 @@ stats_fetch:
 #endif
 		{
 			ib_table->stats_shared_lock();
+
+			ut_ad(ib_table->stat_initialized());
 
 			n_rows = ib_table->stat_n_rows;
 
@@ -15206,6 +15196,117 @@ ha_innobase::optimize(
 	return try_alter ? HA_ADMIN_TRY_ALTER : HA_ADMIN_OK;
 }
 
+/** Does the following validation check for the sequence table
+1) Check whether the InnoDB table has no_rollback flags
+2) Should have only one primary index
+3) Root index page must be leaf page
+4) There should be only one record in leaf page
+5) There shouldn't be delete marked record in leaf page
+6) DB_TRX_ID, DB_ROLL_PTR in the record should be 0 and 1U << 55
+@param thd   Thread
+@param table InnoDB table
+@retval true if validation succeeds or false if validation fails */
+static bool innobase_sequence_table_check(THD *thd, dict_table_t *table)
+{
+  fil_space_t *space= table->space;
+  dict_index_t *clust_index= dict_table_get_first_index(table);
+  mtr_t mtr;
+  bool corruption= false;
+  const rec_t *rec= nullptr;
+  buf_block_t *root_block= nullptr;
+
+  if (UT_LIST_GET_LEN(table->indexes) != 1)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s does have more than one "
+                        "indexes.", table->name.m_name);
+    corruption= true;
+    goto func_exit;
+  }
+
+  if (!clust_index->is_gen_clust())
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s does not have generated "
+                        "clustered index.", table->name.m_name);
+    corruption= true;
+    goto func_exit;
+  }
+
+  mtr.start();
+  mtr.set_named_space(space);
+  root_block= buf_page_get_gen(page_id_t(space->id, clust_index->page),
+                               space->zip_size(), RW_S_LATCH, nullptr, BUF_GET,
+                               &mtr);
+  DBUG_EXECUTE_IF("fail_root_page", root_block= nullptr;);
+  if (!root_block)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s is corrupted.",
+                        table->name.m_name);
+    corruption= true;
+    goto err_exit;
+  }
+
+  if (!page_is_leaf(root_block->page.frame))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Non leaf page exists for sequence table %s.",
+                        table->name.m_name);
+    corruption= true;
+    goto err_exit;
+  }
+
+  if (page_get_n_recs(root_block->page.frame) != 1)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Should have only one record in sequence "
+                        "table %s. But it has %u records.", table->name.m_name,
+                        page_get_n_recs(root_block->page.frame));
+    corruption= true;
+    goto err_exit;
+  }
+
+  rec= page_rec_get_next(page_get_infimum_rec(root_block->page.frame));
+
+  if (rec_get_deleted_flag(rec, dict_table_is_comp(table)))
+  {
+    corruption= true;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Encountered delete marked record in sequence "
+                        "table %s.", table->name.m_name);
+     goto err_exit;
+  }
+
+  if (trx_read_trx_id(rec + clust_index->trx_id_offset) != 0 ||
+      trx_read_roll_ptr(rec + clust_index->trx_id_offset + DATA_TRX_ID_LEN) !=
+        roll_ptr_t{1} << ROLL_PTR_INSERT_FLAG_POS)
+  {
+    corruption= true;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Record in sequence table %s is corrupted.",
+                        table->name.m_name);
+    goto err_exit;
+  }
+
+  if (!table->no_rollback())
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
+			"InnoDB: Sequence table %s has ROLLBACK enabled.",
+                        table->name.m_name);
+    corruption= true;
+  }
+err_exit:
+  mtr.commit();
+func_exit:
+  if (corruption)
+  {
+    dict_set_corrupted(clust_index, "Table corruption");
+    return false;
+  }
+  return true;
+}
+
 /*******************************************************************//**
 Tries to check that an InnoDB table is not corrupted. If corruption is
 noticed, prints to stderr information about it. In case of corruption
@@ -15274,6 +15375,11 @@ ha_innobase::check(
 			table->s->table_name.str);
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
+	} else if (table->s->table_type == TABLE_TYPE_SEQUENCE) {
+		DBUG_RETURN(
+		  innobase_sequence_table_check(thd, m_prebuilt->table)
+		  ? HA_ADMIN_OK
+		  : HA_ADMIN_CORRUPT);
 	}
 
 	m_prebuilt->trx->op_info = "checking table";
@@ -15540,14 +15646,13 @@ get_foreign_key_info(
 	size_t			len;
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
-	const char*		ptr;
+	const char*		ptr = foreign->sql_id();
 	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
- 		return NULL;
- 	}
+		return NULL;
+	}
 
-	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(
 		thd, 0, ptr, strlen(ptr), 1);
 
@@ -15808,7 +15913,7 @@ ha_innobase::extra(
 	stmt_boundary:
 		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		(void)check_trx_exists(ha_thd());
@@ -15874,15 +15979,15 @@ ha_innobase::extra(
 			break;
 		}
 		m_prebuilt->table->skip_alter_undo = 0;
-		if (dberr_t err= trx->bulk_insert_apply()) {
-			m_prebuilt->table->skip_alter_undo = 0;
+		if (dberr_t err= trx->bulk_insert_apply<TRX_DDL_BULK>()) {
+			trx->rollback();
 			return convert_error_code_to_mysql(
 				 err, m_prebuilt->table->flags,
 				 trx->mysql_thd);
 		}
 
 		trx->end_bulk_insert(*m_prebuilt->table);
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DML_BULK;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
 			/* During copy_data_between_tables(), InnoDB only
@@ -15899,6 +16004,13 @@ ha_innobase::extra(
 			during CREATE...SELECT, which is the other caller of
 			handler::extra(HA_EXTRA_BEGIN_ALTER_COPY). */
 			log_buffer_flush_to_disk();
+		}
+		break;
+	case HA_EXTRA_ABORT_ALTER_COPY:
+		if (m_prebuilt->table->skip_alter_undo) {
+			trx = check_trx_exists(ha_thd());
+			m_prebuilt->table->skip_alter_undo = 0;
+			trx->rollback();
 		}
 		break;
 	default:/* Do nothing */
@@ -15995,7 +16107,8 @@ ha_innobase::start_stmt(
 			break;
 		}
 
-		trx->bulk_insert = false;
+		ut_ad(trx->bulk_insert != TRX_DDL_BULK);
+		trx->bulk_insert = TRX_NO_BULK;
 		trx->last_stmt_start = trx->undo_no;
 	}
 
@@ -16206,7 +16319,7 @@ ha_innobase::external_lock(
 		if (!trx->bulk_insert) {
 			break;
 		}
-		trx->bulk_insert = false;
+		trx->bulk_insert &= TRX_DDL_BULK;
 		trx->last_stmt_start = trx->undo_no;
 	}
 
@@ -18428,11 +18541,16 @@ checkpoint_now_set(THD* thd, st_mysql_sys_var*, void*, const void *save)
   const auto size= log_sys.is_encrypted()
     ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  lsn_t lsn;
-  while (!thd_kill_level(thd) &&
-         log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
-         (lsn= log_sys.get_lsn(std::memory_order_acquire)))
+  while (!thd_kill_level(thd))
+  {
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    lsn_t cp= log_sys.last_checkpoint_lsn.load(std::memory_order_relaxed),
+      lsn= log_sys.get_lsn();
+    log_sys.latch.wr_unlock();
+    if (cp + size >= lsn)
+      break;
     log_make_checkpoint();
+  }
 
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -18683,33 +18801,21 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (!resizing || !log_sys.resize_running(thd))
           break;
-        if (resizing > log_sys.get_lsn())
+        log_sys.latch.wr_lock(SRW_LOCK_CALL);
+        while (resizing > log_sys.get_lsn())
         {
           ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
-          log_sys.latch.wr_lock(SRW_LOCK_CALL);
-          while (resizing > log_sys.get_lsn())
-          {
-            mtr_t mtr;
-            mtr.start();
-            mtr.commit_files(log_sys.last_checkpoint_lsn);
-          }
-          log_sys.latch.wr_unlock();
+          mtr_t mtr;
+          mtr.start();
+          mtr.commit_files(log_sys.last_checkpoint_lsn);
         }
+        log_sys.latch.wr_unlock();
       }
     }
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
-static void innodb_log_spin_wait_delay_update(THD *, st_mysql_sys_var*,
-                                              void *, const void *save)
-{
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
-  mtr_t::spin_wait_delay= *static_cast<const unsigned*>(save);
-  mtr_t::finisher_update();
-  log_sys.latch.wr_unlock();
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,
@@ -19545,11 +19651,12 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   nullptr, innodb_log_file_size_update,
   96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
-static MYSQL_SYSVAR_UINT(log_spin_wait_delay, mtr_t::spin_wait_delay,
-  PLUGIN_VAR_OPCMDARG,
-  "Delay between log buffer spin lock polls (0 to use a blocking latch)",
-  nullptr, innodb_log_spin_wait_delay_update,
-  0, 0, 6000, 0);
+static uint innodb_log_spin_wait_delay;
+
+static MYSQL_SYSVAR_UINT(log_spin_wait_delay, innodb_log_spin_wait_delay,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Deprecated parameter with no effect",
+  nullptr, nullptr, 0, 0, 6000, 0);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19653,37 +19760,10 @@ static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   AUTOINC_OLD_STYLE_LOCKING,	/* Minimum value */
   AUTOINC_NO_LOCKING, 0);	/* Maximum value */
 
-#ifdef HAVE_URING
-# include <sys/utsname.h>
-static utsname uname_for_io_uring;
-#else
-static
-#endif
-bool innodb_use_native_aio_default()
-{
-#ifdef HAVE_URING
-  utsname &u= uname_for_io_uring;
-  if (!uname(&u) && u.release[0] == '5' && u.release[1] == '.' &&
-      u.release[2] == '1' && u.release[3] >= '1' && u.release[3] <= '5' &&
-      u.release[4] == '.')
-  {
-    if (u.release[3] == '5') {
-      const char *s= strstr(u.version, "5.15.");
-      if (s || (s= strstr(u.release, "5.15.")))
-        if ((s[5] >= '3' || s[6] >= '0'))
-          return true; /* 5.15.3 and later should be fine */
-    }
-    io_uring_may_be_unsafe= u.release;
-    return false; /* working around io_uring hangs (MDEV-26674) */
-  }
-#endif
-  return true;
-}
-
 static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use native AIO if supported on this platform",
-  NULL, NULL, innodb_use_native_aio_default());
+  NULL, NULL, TRUE);
 
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,

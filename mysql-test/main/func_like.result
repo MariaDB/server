@@ -424,3 +424,22 @@ Warnings:
 Note	1003	select 1 like `test`.`t1`.`c1` | `test`.`t1`.`c2` AS `1 LIKE c1|c2`,1 like `test`.`t1`.`c1` & `test`.`t1`.`c2` AS `1 LIKE c1&c2`,1 like `test`.`t1`.`c2` >> `test`.`t1`.`c1` AS `1 LIKE c2>>c1`,2 like `test`.`t1`.`c2` << `test`.`t1`.`c1` AS `2 LIKE c2<<c1`,1 like `test`.`t1`.`c1` or `test`.`t1`.`c2` <> 0 AS `1 LIKE c1||c2`,2 like `test`.`t1`.`c1` + `test`.`t1`.`c2` AS `2 LIKE c1+c2`,-1 like `test`.`t1`.`c1` - `test`.`t1`.`c2` AS `-1 LIKE c1-c2`,2 like `test`.`t1`.`c1` * `test`.`t1`.`c2` AS `2 LIKE c1*c2`,0.5000 like `test`.`t1`.`c1` / `test`.`t1`.`c2` AS `0.5000 LIKE c1/c2`,0 like `test`.`t1`.`c1` DIV `test`.`t1`.`c2` AS `0 LIKE c1 DIV c2`,0 like `test`.`t1`.`c1` MOD `test`.`t1`.`c2` AS `0 LIKE c1 MOD c2` from `test`.`t1` order by `test`.`t1`.`c2`
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-36211 Incorrect query result for binary_column NOT LIKE binary_column
+#
+CREATE TABLE t1 (c1 BLOB NOT NULL);
+INSERT INTO t1 (c1) VALUES (1);
+SELECT c1 FROM t1 WHERE c1 NOT LIKE c1;
+c1
+SELECT c1 FROM t1 WHERE c1 LIKE c1;
+c1
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c1 BLOB);
+INSERT INTO t1 (c1) VALUES (1);
+SELECT c1 FROM t1 WHERE c1 NOT LIKE c1;
+c1
+SELECT c1 FROM t1 WHERE c1 LIKE c1;
+c1
+1
+DROP TABLE t1;

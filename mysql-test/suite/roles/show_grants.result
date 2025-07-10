@@ -26,6 +26,7 @@ GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
 root@localhost	test_role1	YES	NO
 root@localhost	test_role2	YES	NO
 test_role1	test_role2	NO	NULL
+change_user test_user,,;
 select * from information_schema.applicable_roles;
 GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
 test_role1	test_role2	NO	NULL
@@ -138,6 +139,7 @@ show grants for CURRENT_ROLE();
 Grants for test_role2
 GRANT SELECT ON `mysql`.* TO `test_role2`
 GRANT USAGE ON *.* TO `test_role2`
+change_user root,,;
 drop user 'test_user'@'localhost';
 revoke select on mysql.* from test_role2;
 drop role test_role1;

@@ -2912,7 +2912,7 @@ ANALYZE
         ],
         "subqueries": [
           {
-            "expression_cache": {
+            "subquery_cache": {
               "state": "disabled",
               "r_loops": 0,
               "query_block": {

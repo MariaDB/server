@@ -2524,6 +2524,8 @@ SELECT * FROM t1;
 a
 1
 1
+1
+1
 drop table t1,t2;
 set optimizer_switch=@save968720_optimizer_switch;
 #

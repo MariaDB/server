@@ -89,6 +89,11 @@
 #define PAGECACHE_DEBUG_LOG  "my_pagecache_debug.log"
 #define _VARARGS(X) X
 
+/* For debugging of pagecache */
+#ifdef EXTRA_DEBUG_BITMAP
+static my_bool pagecache_extra_debug= 1;
+#endif
+
 /*
   In key cache we have external raw locking here we use
   SERIALIZED_READ_FROM_CACHE to avoid problem of reading
@@ -654,7 +659,7 @@ static my_bool pagecache_fwrite(PAGECACHE *pagecache,
     debug either of the above issues.
   */
 
-  if (pagecache->extra_debug)
+  if (pagecache_extra_debug)
   {
     char buff[80];
     uint len= my_sprintf(buff,
@@ -795,6 +800,7 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
   pagecache->disk_blocks= -1;
   if (! pagecache->inited)
   {
+    my_hash_clear(&pagecache->files_in_flush);
     if (mysql_mutex_init(key_PAGECACHE_cache_lock,
                          &pagecache->cache_lock, MY_MUTEX_INIT_FAST) ||
         my_hash_init(PSI_INSTRUMENT_ME, &pagecache->files_in_flush,
@@ -938,6 +944,7 @@ err:
     my_free(pagecache->block_root);
     pagecache->block_root= NULL;
   }
+  my_hash_free(&pagecache->files_in_flush);
   my_errno= error;
   pagecache->can_be_used= 0;
   DBUG_RETURN(0);
@@ -4913,6 +4920,7 @@ static int flush_cached_blocks(PAGECACHE *pagecache,
    @retval PCFLUSH_PINNED Pinned blocks was met and skipped.
    @retval PCFLUSH_PINNED_AND_ERROR PCFLUSH_ERROR and PCFLUSH_PINNED.
 */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
                                       PAGECACHE_FILE *file,
@@ -5233,8 +5241,6 @@ int flush_pagecache_blocks_with_filter(PAGECACHE *pagecache,
   DBUG_ENTER("flush_pagecache_blocks_with_filter");
   DBUG_PRINT("enter", ("pagecache: %p  fd: %di", pagecache, file->file));
 
-  if (pagecache->disk_blocks <= 0)
-    DBUG_RETURN(0);
   pagecache_pthread_mutex_lock(&pagecache->cache_lock);
   inc_counter_for_resize_op(pagecache);
   res= flush_pagecache_blocks_int(pagecache, file, type, filter, filter_arg);
@@ -5242,6 +5248,7 @@ int flush_pagecache_blocks_with_filter(PAGECACHE *pagecache,
   pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
   DBUG_RETURN(res);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /*
@@ -5290,11 +5297,14 @@ int reset_pagecache_counters(const char *name __attribute__((unused)),
    are not interesting for a checkpoint record.
    The caller has the intention of doing checkpoints.
 
-   @param       pagecache   pointer to the page cache
-   @param[out]  str         pointer to where the allocated buffer, and
-                            its size, will be put
-   @param[out]  min_rec_lsn pointer to where the minimum rec_lsn of all
-                            relevant dirty pages will be put
+   @param       pagecache     pointer to the page cache
+   @param[out]  str           pointer to where the allocated buffer, and
+                              its size, will be put
+   @param[in|out] min_rec_lsn pointer to where the minimum rec_lsn of all
+                              relevant dirty pages will be put.
+                              Note the original value is used as current
+                              min value!
+   @param list_size           Number of dirty_pages
    @return Operation status
      @retval 0      OK
      @retval 1      Error
@@ -5302,16 +5312,17 @@ int reset_pagecache_counters(const char *name __attribute__((unused)),
 
 my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
                                                   LEX_STRING *str,
-                                                  LSN *min_rec_lsn)
+                                                  LSN *min_rec_lsn,
+                                                  uint *dirty_pages)
 {
   my_bool error= 0;
-  size_t stored_list_size= 0;
+  uint stored_list_size= 0;
   uint file_hash;
+  LSN minimum_rec_lsn= *min_rec_lsn;
   char *ptr;
-  LSN minimum_rec_lsn= LSN_MAX;
-  DBUG_ENTER("pagecache_collect_changed_blocks_with_LSN");
+  DBUG_ENTER("pagecache_collect_changed_blocks_with_lsn");
 
-  DBUG_ASSERT(NULL == str->str);
+  DBUG_ASSERT(!str->str);
   /*
     We lock the entire cache but will be quick, just reading/writing a few MBs
     of memory at most.
@@ -5379,20 +5390,18 @@ my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
   }
 
   compile_time_assert(sizeof(pagecache->blocks) <= 8);
-  str->length= 8 + /* number of dirty pages */
-    (2 + /* table id */
-     1 + /* data or index file */
-     5 + /* pageno */
-     LSN_STORE_SIZE /* rec_lsn */
-     ) * stored_list_size;
-  if (NULL == (str->str= my_malloc(PSI_INSTRUMENT_ME, str->length, MYF(MY_WME))))
-    goto err;
-  ptr= str->str;
-  int8store(ptr, (ulonglong)stored_list_size);
-  ptr+= 8;
-  DBUG_PRINT("info", ("found %zu dirty pages", stored_list_size));
   if (stored_list_size == 0)
     goto end;
+
+  str->length= ((2 + /* table id */
+                 1 + /* data or index file */
+                 5 + /* pageno */
+                 LSN_STORE_SIZE /* rec_lsn */
+                 ) * stored_list_size);
+  if (!(str->str= my_malloc(PSI_INSTRUMENT_ME, str->length, MYF(MY_WME))))
+    goto err;
+  ptr= str->str;
+  DBUG_PRINT("info", ("found %u dirty pages", stored_list_size));
   for (file_hash= 0; file_hash < pagecache->changed_blocks_hash_size; file_hash++)
   {
     PAGECACHE_BLOCK_LINK *block;
@@ -5426,9 +5435,11 @@ my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
 end:
   pagecache_pthread_mutex_unlock(&pagecache->cache_lock);
   *min_rec_lsn= minimum_rec_lsn;
+  *dirty_pages= stored_list_size;
   DBUG_RETURN(error);
 
 err:
+  stored_list_size= 0;
   error= 1;
   goto end;
 }

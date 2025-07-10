@@ -47,8 +47,8 @@ static int send_user_stats(THD* thd, HASH *all_user_stats, TABLE *table)
     table->field[j++]->store((longlong)user_stats->total_connections,TRUE);
     table->field[j++]->store((longlong)user_stats->concurrent_connections, TRUE);
     table->field[j++]->store((longlong)user_stats->connected_time, TRUE);
-    table->field[j++]->store((double)user_stats->busy_time);
-    table->field[j++]->store((double)user_stats->cpu_time);
+    table->field[j++]->store((double)user_stats->busy_time/1e6);
+    table->field[j++]->store((double)user_stats->cpu_time/1e6);
     table->field[j++]->store((longlong)user_stats->bytes_received, TRUE);
     table->field[j++]->store((longlong)user_stats->bytes_sent, TRUE);
     table->field[j++]->store((longlong)user_stats->binlog_bytes_written, TRUE);

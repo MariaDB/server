@@ -296,6 +296,7 @@ JS
         "chosen_access_method": 
         {
             "type": "range",
+            "index": "PRIMARY",
             "rows_read": 5,
             "rows_out": 2.490196078,
             "cost": 0.00948507,

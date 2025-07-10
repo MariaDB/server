@@ -1,0 +1,42 @@
+#
+# MDEV-36235 Incorrect result for BETWEEN over unique blob prefix
+#
+CREATE TABLE t1 (c1 VARBINARY(10), UNIQUE (c1));
+INSERT INTO t1 (c1) VALUES (-2),(-1),(1),(2);
+SELECT c1 FROM t1 WHERE 'a' BETWEEN 0 AND (c1);
+c1
+1
+2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+SELECT c1 FROM t1 IGNORE KEY(c1) WHERE 'a' BETWEEN 0 AND (c1);
+c1
+1
+2
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+SELECT c1 FROM t1 WHERE '#' BETWEEN c1 AND 0;
+c1
+-1
+-2
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+SELECT c1 FROM t1 IGNORE KEY(c1) WHERE '#' BETWEEN c1 AND 0;
+c1
+-2
+-1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+Warning	1292	Truncated incorrect DECIMAL value: '#'
+DROP TABLE t1;

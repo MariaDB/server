@@ -184,7 +184,7 @@ struct st_maria_decode_tree     /* Decode huff-table */
 
 typedef struct s3_info S3_INFO;
 
-extern ulong maria_block_size, maria_checkpoint_frequency;
+extern uint maria_block_size, maria_checkpoint_frequency;
 extern ulong maria_concurrent_insert;
 extern my_bool maria_flush, maria_single_user, maria_page_checksums;
 extern my_off_t maria_max_temp_length;
@@ -208,6 +208,7 @@ extern int maria_close(MARIA_HA *file);
 extern int maria_delete(MARIA_HA *file, const uchar *buff);
 extern MARIA_HA *maria_open(const char *name, int mode,
                             uint wait_if_locked, S3_INFO *s3);
+extern void ma_change_pagecache(MARIA_HA *info);
 extern int maria_panic(enum ha_panic_function function);
 extern int maria_rfirst(MARIA_HA *file, uchar *buf, int inx);
 extern int maria_rkey(MARIA_HA *file, uchar *buf, int inx,
@@ -354,7 +355,7 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
 typedef struct st_sort_key_blocks MA_SORT_KEY_BLOCKS;
 typedef struct st_sort_ftbuf MA_SORT_FT_BUF;
 
-extern PAGECACHE maria_pagecache_var, *maria_pagecache;
+extern PAGECACHES maria_pagecaches;
 int maria_assign_to_pagecache(MARIA_HA *info, ulonglong key_map,
 			      PAGECACHE *key_cache);
 void maria_change_pagecache(PAGECACHE *old_key_cache,
@@ -1272,7 +1273,7 @@ extern uchar maria_zero_string[];
 extern my_bool maria_inited, maria_in_ha_maria, maria_recovery_changed_data;
 extern my_bool maria_recovery_verbose, maria_checkpoint_disabled;
 extern my_bool maria_assert_if_crashed_table, aria_readonly;
-extern ulong maria_checkpoint_min_log_activity;
+extern uint maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
 extern int (*maria_create_trn_hook)(MARIA_HA *);
 extern my_bool (*ma_killed)(MARIA_HA *);
@@ -1786,7 +1787,7 @@ static inline check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr,
   return ma_check_index_cond_real(info, keynr, record);
 }
 
-
+extern void ma_update_pagecache_stats();
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 

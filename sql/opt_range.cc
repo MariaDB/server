@@ -1532,14 +1532,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
 
   if (!(file= head->file->clone(head->s->normalized_path.str, local_alloc)))
   {
-    /* 
-      Manually set the error flag. Note: there seems to be quite a few
-      places where a failure could cause the server to "hang" the client by
-      sending no response to a query. ATM those are not real errors because 
-      the storage engine calls in question happen to never fail with the 
-      existing storage engines. 
-    */
-    my_error(ER_OUT_OF_RESOURCES, MYF(0)); /* purecov: inspected */
+    /* clone() has already generated an error message */
     /* Caller will free the memory */
     goto failure;  /* purecov: inspected */
   }
@@ -8639,56 +8632,58 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
 
 /*
   Build conjunction of all SEL_TREEs for a simple predicate applying equalities
- 
+
   SYNOPSIS
     get_full_func_mm_tree()
       param       PARAM from SQL_SELECT::test_quick_select
       field_item  field in the predicate
-      value       constant in the predicate (or a field already read from 
+      value       constant in the predicate (or a field already read from
                   a table in the case of dynamic range access)
                   (for BETWEEN it contains the number of the field argument,
-                   for IN it's always 0) 
+                   for IN it's always 0)
       inv         TRUE <> NOT cond_func is considered
                   (makes sense only when cond_func is BETWEEN or IN)
 
   DESCRIPTION
-    For a simple SARGable predicate of the form (f op c), where f is a field and
-    c is a constant, the function builds a conjunction of all SEL_TREES that can
-    be obtained by the substitution of f for all different fields equal to f.
+    For a simple SARGable predicate of the form (f op c), where f is a field
+    and c is a constant, the function builds a conjunction of all SEL_TREES that
+    can be obtained by the substitution of f for all different fields equal to f.
 
-  NOTES  
+  NOTES
     If the WHERE condition contains a predicate (fi op c),
     then not only SELL_TREE for this predicate is built, but
     the trees for the results of substitution of fi for
     each fj belonging to the same multiple equality as fi
     are built as well.
-    E.g. for WHERE t1.a=t2.a AND t2.a > 10 
+    E.g. for WHERE t1.a=t2.a AND t2.a > 10
     a SEL_TREE for t2.a > 10 will be built for quick select from t2
-    and   
+    and
     a SEL_TREE for t1.a > 10 will be built for quick select from t1.
 
-    A BETWEEN predicate of the form (fi [NOT] BETWEEN c1 AND c2) is treated
-    in a similar way: we build a conjuction of trees for the results
-    of all substitutions of fi for equal fj.
+    A BETWEEN predicate of the form (fi [NOT] BETWEEN c1 AND c2), where fi
+    is some field, is treated in a similar way: we build a conjuction of
+    trees for the results of all substitutions of fi equal fj.
+
     Yet a predicate of the form (c BETWEEN f1i AND f2i) is processed
     differently. It is considered as a conjuction of two SARGable
-    predicates (f1i <= c) and (f2i <=c) and the function get_full_func_mm_tree
-    is called for each of them separately producing trees for 
-       AND j (f1j <=c ) and AND j (f2j <= c) 
+    predicates (f1i <= c) and (c <= f2i) and the function get_full_func_mm_tree
+    is called for each of them separately producing trees for
+       AND j (f1j <= c) and AND j (c <= f2j)
     After this these two trees are united in one conjunctive tree.
     It's easy to see that the same tree is obtained for
-       AND j,k (f1j <=c AND f2k<=c)
-    which is equivalent to 
+       AND j,k (f1j <= c AND c <= f2k)
+    which is equivalent to
        AND j,k (c BETWEEN f1j AND f2k).
+
     The validity of the processing of the predicate (c NOT BETWEEN f1i AND f2i)
     which equivalent to (f1i > c OR f2i < c) is not so obvious. Here the
-    function get_full_func_mm_tree is called for (f1i > c) and (f2i < c)
-    producing trees for AND j (f1j > c) and AND j (f2j < c). Then this two
-    trees are united in one OR-tree. The expression 
+    function get_full_func_mm_tree is called for (f1i > c) and called for
+    (f2i < c) producing trees for AND j (f1j > c) and AND j (f2j < c). Then
+    this two trees are united in one OR-tree. The expression
       (AND j (f1j > c) OR AND j (f2j < c)
     is equivalent to the expression
-      AND j,k (f1j > c OR f2k < c) 
-    which is just a translation of 
+      AND j,k (f1j > c OR f2k < c)
+    which is just a translation of
       AND j,k (c NOT BETWEEN f1j AND f2k)
 
     In the cases when one of the items f1, f2 is a constant c1 we do not create
@@ -8701,9 +8696,9 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
     As to IN predicates only ones of the form (f IN (c1,...,cn)),
     where f1 is a field and c1,...,cn are constant, are considered as
     SARGable. We never try to narrow the index scan using predicates of
-    the form (c IN (c1,...,f,...,cn)). 
-      
-  RETURN 
+    the form (c IN (c1,...,f,...,cn)).
+
+  RETURN
     Pointer to the tree representing the built conjunction of SEL_TREEs
 */
 
@@ -8911,6 +8906,19 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 }
 
 
+bool
+Item_func_between::can_optimize_range_const(Item_field *field_item) const
+{
+  const Type_handler *fi_handler= field_item->type_handler_for_comparison();
+  Type_handler_hybrid_field_type cmp(fi_handler);
+  if (cmp.aggregate_for_comparison(args[0]->type_handler_for_comparison()) ||
+      cmp.type_handler() != m_comparator.type_handler())
+      return false;  // Cannot optimize range because of type mismatch.
+
+  return true;
+}
+
+
 SEL_TREE *
 Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
@@ -8936,6 +8944,8 @@ Item_func_between::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     if (arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
     {
       Item_field *field_item= (Item_field*) (arguments()[i]->real_item());
+      if (!can_optimize_range_const(field_item))
+        continue;
       SEL_TREE *tmp= get_full_func_mm_tree(param, field_item,
                                            (Item*)(intptr) i);
       if (negated)

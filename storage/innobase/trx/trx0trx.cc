@@ -140,8 +140,6 @@ trx_init(
 
 	trx->will_lock = false;
 
-	trx->bulk_insert = false;
-
 	trx->apply_online_log = false;
 
 	ut_d(trx->start_file = 0);
@@ -523,6 +521,7 @@ TRANSACTIONAL_TARGET void trx_free_at_shutdown(trx_t *trx)
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	ut_d(trx->apply_online_log = false);
+	trx->bulk_insert = 0;
 	trx->commit_state();
 	trx->release_locks();
 	trx->mod_tables.clear();
@@ -1519,6 +1518,7 @@ bool trx_t::commit_cleanup() noexcept
   *detailed_error= '\0';
   mod_tables.clear();
 
+  bulk_insert= TRX_NO_BULK;
   check_foreigns= true;
   check_unique_secondary= true;
   assert_freed();

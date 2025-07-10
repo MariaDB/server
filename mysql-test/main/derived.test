@@ -1195,6 +1195,114 @@ drop table t1,t2,t3;
 --echo #
 
 --echo #
+--echo # MDEV-24588: Fix crash with unnamed column in derived table.
+--echo # Assertion `item->name.str && item->name.str[0]` in
+--echo # `TABLE_LIST::create_field_translation` fails when a SELECT
+--echo # query includes a derived table containing unnamed column
+--echo # (eg: `SELECT '' from t`).
+--echo #
+
+--echo # Tests from the bug report
+
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+
+# this should pass withiout assertion fail in dbg or should not crash mariadb server
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM t) AS a) FROM t;
+
+# The PREPARE command itself should succeed without crashing
+SET sql_mode='';
+PREPARE p FROM 'SELECT SHA(pk) IN (SELECT * FROM (SELECT \'\' FROM t) AS a) FROM t;';
+
+EXECUTE p;
+EXECUTE p;
+
+DEALLOCATE PREPARE p;
+
+--echo # Tests on derived tables
+
+SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SELECT * FROM (SELECT '', 1 FROM t) AS a;
+SELECT * FROM (SELECT 1, 2, '' FROM t) AS a;
+SELECT * FROM (SELECT pk, '' FROM t) AS a;
+SELECT '/', '/';
+
+SELECT * FROM (SELECT pk, '', '' as c1 FROM t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '', '' from t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '/', '/' FROM t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '/', '/') AS a;
+
+DROP TABLE t;
+
+--echo # Tests on views
+
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+
+CREATE VIEW v_t AS SELECT * FROM t;
+SHOW CREATE VIEW v_t;
+
+SELECT SHA(pk) IN (SELECT * FROM (SELECT '' FROM v_t) AS a) FROM v_t;
+
+SELECT * FROM (SELECT pk, '', '' as c1 FROM v_t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '', '' from v_t) AS a;
+--error ER_DUP_FIELDNAME
+SELECT * FROM (SELECT '/', '/' from v_t) AS a;
+
+CREATE VIEW v1 AS SELECT '/', '/';
+SHOW CREATE VIEW v1;
+
+DROP VIEW v_t, v1;
+DROP TABLE t;
+
+--echo # Tests on views created using SELECT statements that contain derived columns
+
+CREATE TABLE t (pk INT PRIMARY KEY);
+INSERT INTO t VALUES (1), (2), (3);
+
+CREATE VIEW v1_t AS SELECT '' FROM t;
+SHOW CREATE VIEW v1_t;
+
+SELECT * FROM v1_t;
+
+CREATE VIEW v2_t AS SELECT * FROM (SELECT '' FROM t) AS a;
+SHOW CREATE VIEW v2_t;
+
+--error ER_VIEW_INVALID
+SELECT * FROM v2_t;
+
+CREATE VIEW v3_t AS SELECT * FROM (SELECT '' as c1 FROM t) AS a;
+SHOW CREATE VIEW v3_t;
+
+SELECT * FROM v3_t;
+
+CREATE VIEW v4_t AS SELECT * FROM (SELECT 1, '' FROM t) AS a;
+SHOW CREATE VIEW v4_t;
+
+--error ER_VIEW_INVALID
+SELECT * from v4_t;
+
+CREATE VIEW v5_t AS SELECT '';
+SHOW CREATE VIEW v5_t;
+
+SELECT * FROM v5_t;
+
+CREATE VIEW v6_t AS SELECT * FROM (SELECT '') AS a;
+SHOW CREATE VIEW v6_t;
+
+--error ER_VIEW_INVALID
+SELECT * FROM v6_t;
+
+DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
+DROP TABLE t;
+
+--echo # End of 10.11 tests
+
+--echo #
 --echo # Test of "Derived tables and union can now create distinct keys"
 --echo #
 

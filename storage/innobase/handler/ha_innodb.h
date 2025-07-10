@@ -946,3 +946,15 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** Find an auto-generated foreign key constraint identifier.
+@param table   InnoDB table
+@return the next number to assign to a constraint */
+ulint dict_table_get_foreign_id(const dict_table_t &table) noexcept;
+
+/** Generate a foreign key constraint name for an anonymous constraint.
+@param id_nr    sequence to allocate identifiers from
+@param name     table name
+@param foreign  foreign key */
+void dict_create_add_foreign_id(ulint *id_nr, const char *name,
+                                dict_foreign_t *foreign) noexcept;

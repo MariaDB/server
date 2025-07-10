@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2024 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2025 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -172,7 +172,6 @@ class Wsrep_schema
 
 extern Wsrep_schema* wsrep_schema;
 
-extern LEX_CSTRING WSREP_LEX_SCHEMA;
 extern LEX_CSTRING WSREP_LEX_STREAMING;
 extern LEX_CSTRING WSREP_LEX_CLUSTER;
 extern LEX_CSTRING WSREP_LEX_MEMBERS;

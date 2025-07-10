@@ -361,13 +361,13 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
   while (recpos < (uint) share->stored_rec_length)
   {
     Field **field, *found= 0;
-    minpos= share->reclength;
+    minpos= share->stored_rec_length;
     length= 0;
 
     for (field= table_arg->field; *field; field++)
     {
       if ((fieldpos= (*field)->offset(record)) >= recpos &&
-          fieldpos <= minpos)
+          fieldpos < minpos)
       {
         /* skip null fields */
         if (!(temp_length= (*field)->pack_length_in_rec()))
