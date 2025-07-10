@@ -1,0 +1,7 @@
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: Error converting input string from swe7 to UTF-8 charset");
+set names swe7;
+select generate_embedding_openai("сту", 'text-embedding-ada-002');
+generate_embedding_openai("???", 'text-embedding-ada-002')
+NULL
+Warnings:
+Warning	1	GENERATE_EMBEDDING_OPENAI: Error converting input string from swe7 to UTF-8 charset

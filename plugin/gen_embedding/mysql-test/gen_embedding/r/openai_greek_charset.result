@@ -1,0 +1,8 @@
+set names greek;
+set character_set_results=utf8;
+set generate_embedding_openai_host="https://api.openai.com/v1/embeddings";
+set @model="text-embedding-ada-002";
+select vec_totext(generate_embedding_openai(@text, @model)) is null as is_null;
+is_null
+0
+set names default;
