@@ -97,7 +97,7 @@ send CALL gen_load();
 
 --connection default
 --echo *** Doing backup...
---exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --no-lock
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --no-lock --innodb_log_checkpoint_now=0
 --echo *** Doing prepare...
 --exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir
 
