@@ -4836,7 +4836,7 @@ Wait for enough log to be copied.
 */
 static bool backup_wait_for_commit_lsn()
 {
-  lsn_t lsn= get_current_lsn(mysql_connection, opt_no_lock);
+  lsn_t lsn= get_current_lsn(mysql_connection);
   mysql_mutex_lock(&recv_sys.mutex);
   ut_ad(!metadata_to_lsn);
   ut_ad(!metadata_last_lsn);
@@ -4988,7 +4988,7 @@ private:
 		DBUG_EXECUTE_FOR_KEY("wait_innodb_redo_before_copy",
 			node->space->name(),
 			backup_wait_for_lsn(
-				get_current_lsn(mysql_connection, true)););
+				get_current_lsn(mysql_connection)););
 		/* copy the datafile */
 		if(xtrabackup_copy_datafile(m_backup_datasinks.m_data,
 					    m_backup_datasinks.m_meta,
@@ -5177,8 +5177,7 @@ class BackupStages {
 				}
 			}
 
-			ulonglong server_lsn_after_lock = get_current_lsn(mysql_connection,
-									  opt_no_lock);
+			ulonglong server_lsn_after_lock = get_current_lsn(mysql_connection);
 			// Copy the rest of non-stats-lognon-InnoDB-Aria-RocksDB tables
 			// Do not execute BACKUP LOCK under BLOCK_DDL stage
 			if (!m_common_backup.scan(m_copied_common_tables, &m_copied_common_tables,

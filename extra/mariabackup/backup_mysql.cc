@@ -2064,7 +2064,7 @@ mdl_unlock_all()
   spaceid_to_tablename.clear();
 }
 
-ulonglong get_current_lsn(MYSQL *connection, bool no_lock)
+ulonglong get_current_lsn(MYSQL *connection)
 {
 	static const char lsn_prefix[] = "\nLog sequence number ";
 	ulonglong lsn = 0;
@@ -2082,12 +2082,10 @@ ulonglong get_current_lsn(MYSQL *connection, bool no_lock)
 		}
 		mysql_free_result(res);
 	}
-	if (no_lock)
-		return lsn;
 	msg("Innodb LSN: %llu, Flushing Logs", lsn);
         /* Make sure that current LSN is written and flushed to disk. */
 	xb_mysql_query(connection, "FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS",
-                       false);
+                       false, false);
 	msg("Flushed Logs");
 	return lsn;
 }

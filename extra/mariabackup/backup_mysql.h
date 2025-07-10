@@ -96,6 +96,6 @@ write_galera_info(ds_ctxt *datasink, MYSQL *connection);
 bool
 write_slave_info(ds_ctxt *datasink, MYSQL *connection);
 
-ulonglong get_current_lsn(MYSQL *connection, bool no_lock);
+ulonglong get_current_lsn(MYSQL *connection);
 
 #endif
