@@ -4919,11 +4919,11 @@ private:
 
   int create_lookup_handler();
   void alloc_lookup_buffer();
-  int check_duplicate_long_entries(const uchar *new_rec);
-  int check_duplicate_long_entries_update(const uchar *new_rec);
   int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
   /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
+  int ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec);
+  int ha_check_inserver_constraints(const uchar *old_data, const uchar* new_data);
 
 protected:
   /*
