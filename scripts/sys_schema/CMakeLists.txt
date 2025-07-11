@@ -157,11 +157,9 @@ ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_setup_show_enabled_instruments.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_truncate_all_tables.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/statement_performance_analyzer.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/table_exists.sql
-${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_transaction.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_random.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_utility.sql
-${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_encode.sql
-${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_raw.sql
+${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_sql.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_i18n.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/after_setup.sql
 )
@@ -172,11 +170,9 @@ SET(files
   ${CMAKE_CURRENT_SOURCE_DIR}/tables/sys_config_data_57.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_insert_set_user.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_update_set_user.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_transaction.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_random.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_utility.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_encode.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_raw.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/packages/dbms_sql.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/packages/utl_i18n.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/after_setup.sql)
 ENDIF()
