@@ -7820,7 +7820,13 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
       (error= ha_check_inserver_constraints(old_data, new_data)))
-    return error;
+  {
+    int e;
+    increment_statistics(&SSV::ha_update_count);
+    TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, MAX_KEY, e,
+      { e= update_row(new_data, old_data);})
+    return e ? e : error;
+  }
 
   rows_changed++;
   if (row_logging)
