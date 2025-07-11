@@ -7413,6 +7413,8 @@ static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
 int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
   int result;
+  /* Skip just written row in the case of HA_CHECK_UNIQUE_AFTER_WRITE */
+  bool lax= (ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) > 0;
   KEY *key_info= table->key_info + key_no;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
@@ -7452,6 +7454,11 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   {
     if (!long_unique_fields_differ(key_info, lookup_buffer))
     {
+      if (lax)
+      {
+        lax= false;
+        continue;
+      }
       result= HA_ERR_FOUND_DUPP_KEY;
       table->file->lookup_errkey= key_no;
       lookup_handler->position(table->record[0]);
@@ -7527,7 +7534,8 @@ int handler::ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec)
       {
         if (int res= check_duplicate_long_entry_key(new_rec, i))
         {
-          if (!old_rec && table->next_number_field)
+          if (!old_rec && table->next_number_field &&
+              !(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE))
             if (int err= update_auto_increment())
               return err;
           return res;
@@ -7548,7 +7556,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   if (table->versioned() && !table->vers_end_field()->is_max())
     return 0;
 
-  const bool is_update= old_data != NULL;
+  const bool after_write= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
+  const bool is_update= !after_write && old_data;
   uchar *record_buffer= lookup_buffer + table_share->max_unique_length
                                       + table_share->null_fields;
 
@@ -7603,17 +7612,22 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                                        key_part_map((1 << (key_parts - 1)) - 1),
                                        HA_READ_AFTER_KEY);
 
-    if (!error && is_update)
+    if (!error)
     {
-      /* In case of update it could happen that the nearest neighbour is
-         a record we are updating. It means, that there are no overlaps
-         from this side.
-      */
-      DBUG_ASSERT(lookup_handler != this);
-      DBUG_ASSERT(ref_length == lookup_handler->ref_length);
+      if (is_update)
+      {
+        /* In case of update it could happen that the nearest neighbour is
+           a record we are updating. It means, that there are no overlaps
+           from this side.
+        */
+        DBUG_ASSERT(lookup_handler != this);
+        DBUG_ASSERT(ref_length == lookup_handler->ref_length);
 
-      lookup_handler->position(record_buffer);
-      if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+        lookup_handler->position(record_buffer);
+        if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+          error= lookup_handler->ha_index_next(record_buffer);
+      }
+      else if (after_write)
         error= lookup_handler->ha_index_next(record_buffer);
     }
 
@@ -7738,7 +7752,8 @@ int handler::ha_write_row(const uchar *buf)
                   });
   DBUG_ASSERT(table_share->tmp_table || m_lock_type == F_WRLCK);
 
-  if ((error= ha_check_inserver_constraints(NULL, buf)))
+  if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(NULL, buf)))
     goto err;
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
@@ -7753,6 +7768,25 @@ int handler::ha_write_row(const uchar *buf)
   MYSQL_INSERT_ROW_DONE(error);
   if (error)
     goto err;
+
+  if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(NULL, buf)))
+  {
+    if (lookup_handler != this) // INSERT IGNORE or REPLACE or ODKU
+    {
+      position(buf);
+      int e= rnd_pos(lookup_buffer, ref);
+      if (!e)
+      {
+        increment_statistics(&SSV::ha_delete_count);
+        TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, e,
+          { e= delete_row(buf);})
+      }
+      if (e)
+        error= e;
+    }
+    goto err;
+  }
 
   rows_changed++;
   if (row_logging)
@@ -7782,7 +7816,8 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
-  if ((error= ha_check_inserver_constraints(old_data, new_data)))
+  if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(old_data, new_data)))
     return error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
@@ -7799,6 +7834,35 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   MYSQL_UPDATE_ROW_DONE(error);
   if (error)
     return error;
+
+  if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(old_data, new_data)))
+  {
+    int e= 0;
+    if (ha_thd()->lex->ignore)
+    {
+      /* hack: modifying PK is not supported for now, see  MDEV-37233 */
+      if (table->s->primary_key != MAX_KEY)
+      {
+        KEY *key= table->key_info + table->s->primary_key;
+        KEY_PART_INFO *kp= key->key_part;
+        KEY_PART_INFO *end= kp + key->user_defined_key_parts;
+        for (; kp < end; kp++)
+          if (bitmap_is_set(table->write_set, kp->fieldnr-1))
+          {
+            my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE that "
+              "modifies a primary key of a table with a UNIQUE constraint "
+              "%s is not currently supported", MYF(0),
+              table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
+            return HA_ERR_UNSUPPORTED;
+          }
+      }
+      increment_statistics(&SSV::ha_update_count);
+      TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, MAX_KEY, e,
+        { e= update_row(new_data, old_data);})
+    }
+    return e ? e : error;
+  }
 
   rows_changed++;
   if (row_logging)
