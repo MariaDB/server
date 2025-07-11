@@ -774,4 +774,12 @@ alter table t1 add unique(a), add key(a);
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-37203 UBSAN: applying zero offset to null pointer in strings/ctype-uca.inl | my_uca_strnncollsp_onelevel_utf8mb4 | handler::check_duplicate_long_entries_update
+--echo #
+create table t (a int,b text unique key);
+insert into t (a) values (1);
+update t set a=2;
+drop table t;
+
 --echo # End of 10.6 tests
