@@ -652,17 +652,10 @@
       <ProgressText Action="CreateDatabase">Running mariadb-install-db.exe</ProgressText>
     </UI>
 
-    <!-- Error injection script activated by TEST_FAIL=1 passed to msiexec (to see how good custom action rollback works)  -->
-    <Property Id="FailureProgram">
-      <![CDATA[
-         Function Main()
-         Main = 3
-         End Function
-         ]]>
-    </Property>
+    <!-- Error injection activated by TESTFAIL=1 passed to msiexec (to see how good custom action rollback works)  -->
     <CustomAction Id="FakeFailure"
-     VBScriptCall="Main"
-     Property="FailureProgram"
+     BinaryKey="wixca.dll"
+     DllEntry="FakeFailure"
      Execute="deferred" />
 
     <CustomAction Id='ErrorDataDir'
