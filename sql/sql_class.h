@@ -33,6 +33,7 @@
 #include "rpl_tblmap.h"
 #include "mdl.h"
 #include "backtrace.h"
+#include "integer_cursor.h"
 #include "field.h"                              // Create_field
 #include "opt_trace_context.h"
 #include "probes_mysql.h"
@@ -3090,6 +3091,7 @@ class THD: public THD_count, /* this must be first */
            public MDL_context_owner,
            public Open_tables_state,
            public Sp_caches,
+           public Dbms_sql,
            public Backtrace,
            public Statement_rcontext
 {

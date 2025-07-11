@@ -724,6 +724,17 @@ character_set_client	utf8mb3
 collation_connection	utf8mb3_general_ci
 Database Collation	utf8mb3_general_ci
 Db	sys
+Name	dbms_sql
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of sql routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
 Name	dbms_utility
 Type	PACKAGE
 Definer	root@localhost
@@ -731,6 +742,17 @@ Modified	0000-00-00 00:00:00
 Created	0000-00-00 00:00:00
 Security_type	INVOKER
 Comment	Collection of utility routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	UTL_I18N
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of routines to manipulate RAW data
 character_set_client	utf8mb3
 collation_connection	utf8mb3_general_ci
 Database Collation	utf8mb3_general_ci
@@ -758,7 +780,29 @@ character_set_client	utf8mb3
 collation_connection	utf8mb3_general_ci
 Database Collation	utf8mb3_general_ci
 Db	sys
+Name	dbms_sql
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
 Name	dbms_utility
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	UTL_I18N
 Type	PACKAGE BODY
 Definer	root@localhost
 Modified	0000-00-00 00:00:00
@@ -861,6 +905,17 @@ character_set_client	utf8mb3
 collation_connection	utf8mb3_general_ci
 Database Collation	utf8mb3_general_ci
 Db	sys
+Name	dbms_sql
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of sql routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
 Name	dbms_utility
 Type	PACKAGE
 Definer	root@localhost
@@ -868,6 +923,17 @@ Modified	0000-00-00 00:00:00
 Created	0000-00-00 00:00:00
 Security_type	INVOKER
 Comment	Collection of utility routines
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	UTL_I18N
+Type	PACKAGE
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	Collection of routines to manipulate RAW data
 character_set_client	utf8mb3
 collation_connection	utf8mb3_general_ci
 Database Collation	utf8mb3_general_ci
@@ -895,7 +961,29 @@ character_set_client	utf8mb3
 collation_connection	utf8mb3_general_ci
 Database Collation	utf8mb3_general_ci
 Db	sys
+Name	dbms_sql
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
 Name	dbms_utility
+Type	PACKAGE BODY
+Definer	root@localhost
+Modified	0000-00-00 00:00:00
+Created	0000-00-00 00:00:00
+Security_type	INVOKER
+Comment	
+character_set_client	utf8mb3
+collation_connection	utf8mb3_general_ci
+Database Collation	utf8mb3_general_ci
+Db	sys
+Name	UTL_I18N
 Type	PACKAGE BODY
 Definer	root@localhost
 Modified	0000-00-00 00:00:00

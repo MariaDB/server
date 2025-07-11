@@ -1899,8 +1899,42 @@ String *Item_func_transliterate::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   char buff0[MAX_FIELD_WIDTH];
+  char buff1[MAX_FIELD_WIDTH];
   String tmp0(buff0,sizeof(buff0),&my_charset_bin);
+  String tmp1(buff1,sizeof(buff1),&my_charset_bin);
   String *name= args[1]->val_str(&tmp0);
+
+  // Check if name is NULL
+  if (!name)
+  {
+    null_value= true;
+    return nullptr;
+  }
+
+  // Check if name is empty or contains only whitespace
+  const char *name_str= name->ptr();
+  size_t name_len= name->length();
+  bool only_whitespace= true;
+  for (size_t i= 0; i < name_len; i++)
+  {
+    if (!my_isspace(&my_charset_bin, name_str[i]))
+    {
+      only_whitespace= false;
+      break;
+    }
+  }
+
+  if (name_len == 0 || only_whitespace)
+  {
+    my_printf_error(ER_STD_INVALID_ARGUMENT,
+      ER(ER_STD_INVALID_ARGUMENT),
+      MYF(0),
+      "This features was not implemented.",
+      func_name());
+    null_value= true;
+    return nullptr;
+  }
+
   char *name_ptr= const_cast<char *>(name->ptr());
   for ( ; *name_ptr; ++name_ptr) *name_ptr= tolower(*name_ptr);
   const String *hwkatakana_fwkatakana_mode= new String("hwkatakana_fwkatakana",
@@ -1911,13 +1945,25 @@ String *Item_func_transliterate::val_str(String *str)
     name->charset());
   const String *kana_hwkatakana_mode= new String("kana_hwkatakana", 15,
     name->charset());
-  String *source= args[0]->val_str(&tmp0);
+  String *source= args[0]->val_str(&tmp1);
 
   if (!source)
   {
   err:
     null_value= true;
     return nullptr;
+  }
+
+  if (source->length() == 0)
+  {
+    str->length(0);
+    str->set_charset(collation.collation);
+    null_value= false;
+    delete hwkatakana_fwkatakana_mode;
+    delete fwkatakana_hwkatakana_mode;
+    delete kana_hiragana_mode;
+    delete kana_hwkatakana_mode;
+    return str;
   }
 
   if (args[0]->collation.collation != &my_charset_sjis_japanese_ci &&
