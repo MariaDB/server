@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="780.0" height="162.0" viewBox="90.0 110.0 780.0 162.0" version="1.1">
+<rect x="90.0" y="110.0" width="780.0" height="162.0" fill="rgb(255,255,255)"/>
+<g id="s151171803">
+<polygon id="s151171803" points="120.0,140.0 200.00003,140.0 199.99985,200.0 120.00001,199.99997 " fill="none" stroke-width="0.0" stroke="rgb(0,0,0)"/>
+<g id="t151171803">
+<text x="132.00002" y="176.38867" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="56.0">C files</text>
+</g>
+</g>
+<g id="s151458168">
+<polygon id="s151458168" points="220.00002,140.0 360.0,140.0 359.99988,200.0 220.00002,199.99998 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t151458168">
+<text x="230.5" y="176.38867" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="119.0">Preprocessor</text>
+</g>
+</g>
+<g id="s170209361">
+<polygon id="s170209361" points="400.0,140.0 480.0,140.0 479.99997,200.0 400.0,199.99998 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t170209361">
+<text x="410.5" y="176.38867" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="59.0">Parser</text>
+</g>
+</g>
+<g id="s104100022">
+<polygon id="s104100022" points="660.0,140.0 760.0,140.0 759.99994,199.99985 660.0,200.0 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t104100022">
+<text x="693.0" y="163.11719" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="34.0">MIR</text>
+<text x="665.0" y="189.66016" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="90.0">Generator</text>
+</g>
+</g>
+<g id="s24093111">
+<polygon id="s24093111" points="520.0,140.0 620.0,140.0 619.9999,200.0 520.0,199.99998 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t24093111">
+<text x="535.0" y="163.11719" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="70.0">Context</text>
+<text x="533.5" y="189.66016" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="73.0">Checker</text>
+</g>
+</g>
+<g id="s173526308">
+<polygon id="s173526308" points="780.0,140.0 840.0,140.0 839.9998,199.9999 780.0,200.0 " fill="none" stroke-width="0.0" stroke="rgb(0,0,0)"/>
+<g id="t173526308">
+<text x="793.0" y="163.11719" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="34.0">MIR</text>
+<text x="787.0" y="189.66016" font-family="Helvetica" fill="rgb(0,0,0)" font-size="20" textLength="46.0">Code</text>
+</g>
+</g>
+<g id="s96174221">
+<polygon id="s96174221" points="340.0,200.0 420.0,200.0 420.0,240.0 340.0,239.99997 " fill="none" stroke-width="0.0" stroke="rgb(0,0,0)"/>
+<g id="t96174221">
+<text x="357.5" y="223.87207" font-family="Helvetica" fill="rgb(0,0,0)" font-size="14" textLength="45.0">Tokens</text>
+</g>
+</g>
+<g id="s202302018">
+<polygon id="s202302018" points="460.00003,200.0 540.0,200.0 540.0,240.0 460.00003,240.0 " fill="none" stroke-width="0.0" stroke="rgb(0,0,0)"/>
+<g id="t202302018">
+<text x="487.5" y="223.87207" font-family="Helvetica" fill="rgb(0,0,0)" font-size="14" textLength="25.0">AST</text>
+</g>
+</g>
+<g id="s206742099">
+<polygon id="s206742099" points="580.0,200.0 700.0,200.0 700.0,240.0 580.0,240.0 " fill="none" stroke-width="0.0" stroke="rgb(0,0,0)"/>
+<g id="t206742099">
+<text x="590.0" y="223.87207" font-family="Helvetica" fill="rgb(0,0,0)" font-size="14" textLength="100.0">Augmented AST</text>
+</g>
+</g>
+<g id="la198612880">
+<path id="s198612880" d="M 199.99994,170.0 220.00002,170.0 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<path id="s36992220" d="M 210.82191,177.7306 220.00002,170.0 210.82191,162.26938 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t198612880"/>
+</g>
+<g id="la99391625">
+<path id="s99391625" d="M 359.99994,170.0 400.0,170.0 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<path id="s169408997" d="M 390.8219,177.7306 400.0,170.0 390.8219,162.26938 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t99391625"/>
+</g>
+<g id="la254599310">
+<path id="s254599310" d="M 480.0,170.0 520.0,170.0 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<path id="s82074810" d="M 510.8219,177.7306 520.0,170.0 510.8219,162.26938 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t254599310"/>
+</g>
+<g id="la240849071">
+<path id="s240849071" d="M 619.99994,170.0 660.0,170.0 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<path id="s190338923" d="M 650.8219,177.7306 660.0,170.0 650.8219,162.26938 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t240849071"/>
+</g>
+<g id="la37067964">
+<path id="s37067964" d="M 760.0,169.99992 780.0,169.99998 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<path id="s117572296" d="M 770.8219,177.73058 780.0,169.99998 770.8219,162.26935 " fill="none" stroke-width="2.0" stroke="rgb(0,0,0)"/>
+<g id="t37067964"/>
+</g>
+</svg>

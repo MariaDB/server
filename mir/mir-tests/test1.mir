@@ -1,0 +1,18 @@
+# Test for CSE based on availability
+m1:    module
+cse:   func i64, i64:i
+       local i64:l, i64:j, i64:k
+       mov j, 0
+       mov k, 0
+       mul l, 2, i
+       bgt L1, i, 0
+       mul j, 2, i
+       jmp L2
+L1:
+       mul k, 2, i
+L2:
+       add i, l, j
+       add i, i, k
+       ret i
+       endfunc
+       endmodule

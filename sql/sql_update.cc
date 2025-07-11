@@ -49,6 +49,335 @@
 #include "wsrep_mysqld.h"
 #endif
 
+#include "mir.h"
+#include "mir-gen.h"
+#include "mir_code_update.h"
+
+my_bool mir_jit_enabled= 1;
+
+static
+int process_triggers_after(TABLE* table, THD* thd, List<Item>* fields)
+{
+  return table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                              TRG_ACTION_AFTER, true,
+                                              nullptr,
+                                              fields);
+}
+
+static
+int process_batch_update(TABLE* table, ha_rows* limit,
+                         ha_rows* updated, ha_rows* dup_key_found) 
+{
+  int error = 0;
+  /*
+    Typically a batched handler can execute the batched jobs when:
+    1) When specifically told to do so
+    2) When it is not a good idea to batch anymore
+    3) When it is necessary to send batch for other reasons
+        (One such reason is when READ's must be performed)
+
+    1) is covered by exec_bulk_update calls.
+    2) and 3) is handled by the bulk_update_row method.
+    
+    bulk_update_row can execute the updates including the one
+    defined in the bulk_update_row or not including the row
+    in the call. This is up to the handler implementation and can
+    vary from call to call.
+
+    The dup_key_found reports the number of duplicate keys found
+    in those updates actually executed. It only reports those if
+    the extra call with HA_EXTRA_IGNORE_DUP_KEY have been issued.
+    If this hasn't been issued it returns an error code and can
+    ignore this number. Thus any handler that implements batching
+    for UPDATE IGNORE must also handle this extra call properly.
+
+    If a duplicate key is found on the record included in this
+    call then it should be included in the count of dup_key_found
+    and error should be set to 0 (only if these errors are ignored).
+  */
+  DBUG_PRINT("info", ("Batched update"));
+  error= table->file->ha_bulk_update_row(table->record[1],
+                                         table->record[0],
+                                         dup_key_found);
+  (*limit)+= (*dup_key_found);
+  (*updated)-= (*dup_key_found);
+
+  return error;
+}
+
+static
+int cut_fields_for_portion_of_time(THD *thd, TABLE *table,
+                                   const vers_select_conds_t &period_conds)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  Field *start_field= table->field[table->s->period.start_fieldno];
+  Field *end_field= table->field[table->s->period.end_fieldno];
+
+  int res= 0;
+  if (lcond)
+  {
+    res= period_conds.start.item->save_in_field(start_field, true);
+    start_field->set_has_explicit_value();
+  }
+
+  if (likely(!res) && rcond)
+  {
+    res= period_conds.end.item->save_in_field(end_field, true);
+    end_field->set_has_explicit_value();
+  }
+
+  return res;
+}
+
+static
+int process_cut_fields_for_portion_of_time(TABLE* table)
+{
+  return cut_fields_for_portion_of_time(
+    table->in_use, 
+    table,
+    table->pos_in_table_list->period_conditions
+  );
+}
+
+static
+int process_update_row(TABLE* table)
+{
+  return table->file->ha_update_row(table->record[1],
+                                    table->record[0]);
+}
+
+static
+int process_triggers_before(THD *thd, TABLE *table,
+                           List<Item> *fields,
+                           List<Item> *values
+                          )
+{
+  bool trg_skip_row = false;
+  if (table->triggers->process_triggers(thd, TRG_EVENT_UPDATE, TRG_ACTION_BEFORE,
+                                  true, &trg_skip_row, fields) ||
+      not_null_fields_have_null_values(table))
+  {
+    return 1;
+  }
+
+  /*
+    Re-calculate virtual fields to cater for cases when base columns are
+    updated by the triggers.
+  */
+
+  if (table->vfield && fields->elements &&
+    no_need_to_skip_a_row(&trg_skip_row))
+  {
+    Item *fld= (Item_field*) fields->head();
+    Item_field *item_field= fld->field_for_view_update();
+    if (item_field)
+    {
+      DBUG_ASSERT(table == item_field->field->table);
+      return table->update_virtual_fields(table->file,
+                                            VCOL_UPDATE_FOR_WRITE);
+    }
+  }
+
+  if (trg_skip_row) 
+    return HA_ERR_SKIP_ROW;
+
+  return 0;
+}
+
+static
+void process_vers_update_end(TABLE* table) 
+{
+  table->vers_update_end();
+}
+
+static
+int process_vers_insert_history(TABLE* table, ha_rows* rows_inserted)
+{
+  store_record(table, record[2]);
+  table->mark_columns_per_binlog_row_image();
+  int error= vers_insert_history_row(table);
+  restore_record(table, record[2]);
+  if (likely(!error))
+    (*rows_inserted)++;
+  
+  return error;
+}
+
+static
+int process_check_view_conds(TABLE* table, ha_rows* found, bool* ignore)
+{
+  int res= table->pos_in_table_list->view_check_option(table->in_use, *ignore);
+
+  if (res != VIEW_CHECK_OK)
+    (*found)--;
+
+  return res;
+}
+
+static
+int period_make_inserts(TABLE* table, THD* thd, ha_rows* rows_inserted)
+{
+  store_record(table, record[2]);
+  restore_record(table, record[1]);
+  int error= table->insert_portion_of_time(
+    thd,
+    table->pos_in_table_list->period_conditions,
+    rows_inserted
+  );
+  restore_record(table, record[2]);
+
+  return error;
+}
+
+static
+int process_fill_record(THD* thd, TABLE* table,
+                        List<Item> *fields,
+                        List<Item> *values)
+{
+  return fill_record(thd, table, *fields, *values, false, true);
+}
+
+static
+int process_dec_limit_update(TABLE* table, ha_rows* limit, ha_rows* dup_key_found, 
+                             ha_rows* updated, int will_batch)
+{
+  int error = 0;
+  if (--(*limit))
+    return 0;
+  
+  /*
+    We have reached end-of-file in most common situations where no
+    batching has occurred and if batching was supposed to occur but
+    no updates were made and finally when the batch execution was
+    performed without error and without finding any duplicate keys.
+    If the batched updates were performed with errors we need to
+    check and if no error but duplicate key's found we need to
+    continue since those are not counted for in limit.
+  */
+  if (will_batch &&
+        ((error= table->file->exec_bulk_update(dup_key_found)) ||
+          *dup_key_found))
+  {
+    if (error)
+      return error;
+      
+    (*limit)= (*dup_key_found); //limit is 0 when we get here so need to +
+    (*updated)-= (*dup_key_found);
+  }
+  else
+    return -1; // Simulate end of file
+  
+    return 0;
+}
+
+static
+int update_row(Ctx_update* ctx, const int can_compare_record)
+{
+    int error = 0;
+    if (ctx->has_period)
+    {
+      error = process_cut_fields_for_portion_of_time(ctx->table);
+      if (error) 
+        return error;
+    }
+    
+
+    if (fill_record(ctx->thd, ctx->table, *(ctx->fields), *(ctx->values), false, true))
+        return 1;
+      
+    (*ctx->found)++;
+    
+    bool need_update= !can_compare_record || compare_record(ctx->table);
+  
+    if (ctx->is_triggers_before)
+    {
+        error = process_triggers_before(ctx->thd, ctx->table, ctx->fields, ctx->values);
+        if (error)
+            return error;
+    }
+    
+    // ^^ Before need_update ^^
+
+    if (need_update)
+    {
+      if (ctx->is_versioned)
+        process_vers_update_end(ctx->table);
+
+      if (ctx->is_check_view_conds)
+      {
+        error = process_check_view_conds(ctx->table, ctx->found, ctx->ignore);
+        if (error) 
+          return error;
+      }
+
+      if (ctx->will_batch) 
+          error = process_batch_update(ctx->table, ctx->limit, ctx->updated, ctx->dup_key_found);
+      else 
+          error = process_update_row(ctx->table);
+
+      bool record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
+      if (record_was_same) 
+        error= 0;
+      else if (error)
+        return error;
+      else
+        (*ctx->updated)++;
+
+      (*ctx->updated_or_same)++;
+      if (ctx->has_period && !record_was_same)
+      {
+        error = period_make_inserts(ctx->table, ctx->thd, ctx->rows_inserted);
+        if (error)
+            return error;
+      }
+    } else 
+      (*ctx->updated_or_same)++;
+    // need_update end
+
+    if (ctx->is_vers_insert_history)
+    {
+      error = process_vers_insert_history(ctx->table, ctx->rows_inserted);
+      if (error) 
+          return error;
+    }
+
+    if (ctx->is_triggers_after)
+    {
+      error = process_triggers_after(ctx->table, ctx->thd, ctx->fields);
+      if (error) 
+          return error;
+    }
+
+    if (ctx->using_limit) 
+    {
+      error = process_dec_limit_update(
+        ctx->table, ctx->limit, ctx->dup_key_found, ctx->updated, 
+        ctx->will_batch);
+      if (error) 
+        return error;
+    }
+
+    return 0;
+}
+
+static void replace_placeholder(std::string& s,
+                        const std::string& from = "$1",
+                        int value = 1)
+{
+  const std::string to = std::to_string(value);
+  size_t pos = 0;
+  while ((pos = s.find(from, pos)) != std::string::npos) {
+    s.replace(pos, from.size(), to);
+    pos += to.size();
+  }
+}
+
+
+
 /**
    True if the table's input and output record buffers are comparable using
    compare_record(TABLE*).
@@ -307,33 +636,119 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   DBUG_VOID_RETURN;
 }
 
-
-static
-int cut_fields_for_portion_of_time(THD *thd, TABLE *table,
-                                   const vers_select_conds_t &period_conds)
+// Compiles the update JIT code and returns a function pointer to the compiled code.
+// Compiled function optimized for the specific context of the update operation. 
+static update_row_jit_func_t compile_jit_mir(Ctx_update& ctx_update)
 {
-  bool lcond= period_conds.field_start->val_datetime_packed(thd)
-              < period_conds.start.item->val_datetime_packed(thd);
-  bool rcond= period_conds.field_end->val_datetime_packed(thd)
-              > period_conds.end.item->val_datetime_packed(thd);
+  DBUG_ENTER("compile_jit_mir");
+  
+  MIR_context_t ctx = MIR_init();
 
-  Field *start_field= table->field[table->s->period.start_fieldno];
-  Field *end_field= table->field[table->s->period.end_fieldno];
+  auto mir_code_update = std::string(mir_code_update_template);
 
-  int res= 0;
-  if (lcond)
-  {
-    res= period_conds.start.item->save_in_field(start_field, true);
-    start_field->set_has_explicit_value();
-  }
+  // HERE IS REPLACEMENTS
+  replace_placeholder(mir_code_update, "$1", ctx_update.has_period);
+  replace_placeholder(mir_code_update, "$2", ctx_update.is_triggers_before);
+  replace_placeholder(mir_code_update, "$3", ctx_update.is_versioned);
+  replace_placeholder(mir_code_update, "$4", ctx_update.is_check_view_conds);
+  replace_placeholder(mir_code_update, "$5", ctx_update.will_batch);
+  replace_placeholder(mir_code_update, "$6", ctx_update.is_vers_insert_history);
+  replace_placeholder(mir_code_update, "$7", ctx_update.is_triggers_after);
+  replace_placeholder(mir_code_update, "$8", ctx_update.using_limit);
+  replace_placeholder(mir_code_update, "$9", HA_ERR_RECORD_IS_THE_SAME);
+  // ********************
 
-  if (likely(!res) && rcond)
-  {
-    res= period_conds.end.item->save_in_field(end_field, true);
-    end_field->set_has_explicit_value();
-  }
 
-  return res;
+  MIR_scan_string(ctx, mir_code_update.c_str());
+
+  MIR_module_t m = DLIST_TAIL(MIR_module_t, *MIR_get_module_list(ctx));
+  MIR_item_t func = DLIST_TAIL(MIR_item_t, m->items);
+
+
+  MIR_load_external(
+  ctx, 
+  "process_triggers_before", 
+  reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_triggers_before))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_fill_record", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_fill_record))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_cut_fields_for_portion_of_time", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_cut_fields_for_portion_of_time))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_batch_update", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_batch_update))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_update_row", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_update_row))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_triggers_after", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_triggers_after))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_vers_update_end", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_vers_update_end))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_vers_insert_history", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_vers_insert_history))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_check_view_conds", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_check_view_conds))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "period_make_inserts", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+period_make_inserts))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "compare_record", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+compare_record))
+  );
+
+  MIR_load_external(
+    ctx, 
+    "process_dec_limit_update", 
+    reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(+process_dec_limit_update))
+  );
+
+  MIR_load_module(ctx, m);
+  MIR_gen_init (ctx); 
+
+  // optimizations, all removed branches, final code
+  // FILE *f_debug = fopen("<FILEPATH>", "w");
+  // MIR_gen_set_debug_file(ctx, f_debug);
+
+  MIR_link(ctx, MIR_set_gen_interface, NULL);
+
+  DBUG_RETURN(
+    reinterpret_cast<update_row_jit_func_t>(MIR_gen(ctx, func))
+  ); 
 }
 
 /**
@@ -362,7 +777,6 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   bool          will_batch= FALSE;
   bool		can_compare_record;
   bool          binlogged= 0;
-  int           res;
   int		error, loc_error;
   ha_rows       dup_key_found;
   bool          need_sort= TRUE;
@@ -395,6 +809,21 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   // For System Versioning (may need to insert new fields to a table).
   ha_rows rows_inserted= 0;
 
+  Ctx_update ctx{
+        .thd= thd,
+        .fields= fields,
+        .values= values,
+        .limit = &limit,
+        .updated = &updated,
+        .found = &found,
+        .ignore = &ignore,
+        .rows_inserted = &rows_inserted,
+        .dup_key_found = &dup_key_found,
+        .updated_or_same = &updated_or_same,
+      };
+
+  update_row_jit_func_t jitted_update_func;
+
   DBUG_ENTER("Sql_cmd_update::update_single_table");
 
   THD_STAGE_INFO(thd, stage_init_update);
@@ -410,6 +839,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     DBUG_RETURN(1);
 
   table= table_list->table;
+  ctx.table= table;
 
   if (!table_list->single_table_updatable())
   {
@@ -969,6 +1399,25 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+
+  ctx.has_period= table_list->has_period();
+  ctx.will_batch= will_batch;
+  ctx.is_triggers_after= 
+    table->triggers && 
+    table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER);
+  ctx.is_triggers_before= 
+    table->triggers && 
+    table->triggers->has_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE);
+  ctx.is_versioned = table->versioned(VERS_TIMESTAMP) &&
+    thd->lex->sql_command == SQLCOM_DELETE;
+  ctx.is_vers_insert_history = has_vers_fields && table->versioned(VERS_TIMESTAMP);
+  ctx.is_check_view_conds = table_list->check_option || table->check_constraints;
+  ctx.using_limit = using_limit;
+  ctx.can_compare_record = can_compare_record;
+
+  if (mir_jit_enabled) 
+    jitted_update_func= compile_jit_mir(ctx);
+
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -981,130 +1430,30 @@ update_begin:
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
 
-      if (table_list->has_period())
-        cut_fields_for_portion_of_time(thd, table,
-                                       table_list->period_conditions);
-
-      bool trg_skip_row= false;
-      if (fill_record_n_invoke_before_triggers(thd, table, *fields, *values, 0,
-                                               TRG_EVENT_UPDATE,
-                                               &trg_skip_row))
-        break; /* purecov: inspected */
-      if (trg_skip_row)
-      {
-        updated_or_same++;
-        thd->get_stmt_da()->inc_current_row_for_warning();
-
-        continue;
-      }
-
-      found++;
-
-      bool record_was_same= false;
-      bool need_update= !can_compare_record || compare_record(table);
-
-      if (need_update)
-      {
-        if (table->versioned(VERS_TIMESTAMP) &&
-            thd->lex->sql_command == SQLCOM_DELETE)
-          table->vers_update_end();
-
-        if ((res= table_list->view_check_option(thd, ignore)) !=
-            VIEW_CHECK_OK)
-        {
-          found--;
-          if (res == VIEW_CHECK_SKIP)
-            continue;
-          else if (res == VIEW_CHECK_ERROR)
-          {
-            error= 1;
-            break;
-          }
-        }
-        if (will_batch)
-        {
-          /*
-            Typically a batched handler can execute the batched jobs when:
-            1) When specifically told to do so
-            2) When it is not a good idea to batch anymore
-            3) When it is necessary to send batch for other reasons
-               (One such reason is when READ's must be performed)
-
-            1) is covered by exec_bulk_update calls.
-            2) and 3) is handled by the bulk_update_row method.
-            
-            bulk_update_row can execute the updates including the one
-            defined in the bulk_update_row or not including the row
-            in the call. This is up to the handler implementation and can
-            vary from call to call.
-
-            The dup_key_found reports the number of duplicate keys found
-            in those updates actually executed. It only reports those if
-            the extra call with HA_EXTRA_IGNORE_DUP_KEY have been issued.
-            If this hasn't been issued it returns an error code and can
-            ignore this number. Thus any handler that implements batching
-            for UPDATE IGNORE must also handle this extra call properly.
-
-            If a duplicate key is found on the record included in this
-            call then it should be included in the count of dup_key_found
-            and error should be set to 0 (only if these errors are ignored).
-          */
-          DBUG_PRINT("info", ("Batched update"));
-          error= table->file->ha_bulk_update_row(table->record[1],
-                                                 table->record[0],
-                                                 &dup_key_found);
-          limit+= dup_key_found;
-          updated-= dup_key_found;
-        }
-        else
-        {
-          /* Non-batched update */
-          error= table->file->ha_update_row(table->record[1],
-                                            table->record[0]);
-        }
-
-        record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
-        if (unlikely(record_was_same))
-        {
-          error= 0;
-          updated_or_same++;
-        }
-        else if (likely(!error))
-        {
-          if (has_vers_fields && table->versioned(VERS_TRX_ID))
-            rows_inserted++;
-          updated++;
-          updated_or_same++;
-        }
-
-        if (likely(!error) && !record_was_same && table_list->has_period())
-        {
-          store_record(table, record[2]);
-          restore_record(table, record[1]);
-          error= table->insert_portion_of_time(thd,
-                                               table_list->period_conditions,
-                                               &rows_inserted);
-          restore_record(table, record[2]);
-        }
-
-        if (unlikely(error) &&
-            (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
-        {
-          goto error;
-        }
-      }
+      if (mir_jit_enabled)
+        error = jitted_update_func(
+          ctx.table, ctx.thd, ctx.fields, ctx.values, ctx.limit, ctx.updated,
+          ctx.dup_key_found, ctx.rows_inserted, ctx.found, ctx.updated_or_same,
+          ctx.ignore, can_compare_record, HA_ERR_RECORD_IS_THE_SAME, will_batch);
       else
-        updated_or_same++;
+        error = update_row(&ctx, can_compare_record);
 
-      if (likely(!error) && has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      if (unlikely(error)) 
       {
-        store_record(table, record[2]);
-        table->mark_columns_per_binlog_row_image();
-        error= vers_insert_history_row(table);
-        restore_record(table, record[2]);
-        if (unlikely(error))
+        if (error == HA_ERR_SKIP_ROW)
         {
-error:
+          updated_or_same++;
+          thd->get_stmt_da()->inc_current_row_for_warning();
+          continue;
+        }
+
+        if (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL))
+        {
+          if (error == VIEW_CHECK_SKIP)
+            continue;
+          
+          if (error == -1) // end of file
+            break;
           /*
             If (ignore && error is ignorable) we don't have to
             do anything; otherwise...
@@ -1119,62 +1468,8 @@ error:
           error= 1;
           break;
         }
-        rows_inserted++;
-      }
-
-      if (table->triggers &&
-          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                     TRG_ACTION_AFTER, true,
-                                                     nullptr,
-                                                     fields)))
-      {
-        error= 1;
-
-        break;
-      }
-
-      if (!--limit && using_limit)
-      {
-        /*
-          We have reached end-of-file in most common situations where no
-          batching has occurred and if batching was supposed to occur but
-          no updates were made and finally when the batch execution was
-          performed without error and without finding any duplicate keys.
-          If the batched updates were performed with errors we need to
-          check and if no error but duplicate key's found we need to
-          continue since those are not counted for in limit.
-        */
-        if (will_batch &&
-            ((error= table->file->exec_bulk_update(&dup_key_found)) ||
-             dup_key_found))
-        {
- 	  if (error)
-          {
-            /* purecov: begin inspected */
-            /*
-              The handler should not report error of duplicate keys if they
-              are ignored. This is a requirement on batching handlers.
-            */
-            prepare_record_for_error_message(error, table);
-            table->file->print_error(error,MYF(0));
-            error= 1;
-            break;
-            /* purecov: end */
-          }
-          /*
-            Either an error was found and we are ignoring errors or there
-            were duplicate keys found. In both cases we need to correct
-            the counters and continue the loop.
-          */
-          limit= dup_key_found; //limit is 0 when we get here so need to +
-          updated-= dup_key_found;
-        }
-        else
-        {
-	  error= -1;				// Simulate end of file
-	  break;
-        }
-      }
+      } else if (has_vers_fields && table->versioned(VERS_TRX_ID))
+          rows_inserted++;
     }
     /*
       Don't try unlocking the row if skip_record reported an error since in
@@ -1194,6 +1489,7 @@ error:
       break;
     }
   }
+
   ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
