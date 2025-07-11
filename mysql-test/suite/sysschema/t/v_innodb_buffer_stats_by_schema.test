@@ -8,16 +8,21 @@
 # Ensure structure changes don't slip in
 DESC sys.innodb_buffer_stats_by_schema;
 
-# Make sure view select does not error, but ignore results
---disable_result_log
-SELECT * FROM sys.innodb_buffer_stats_by_schema;
---enable_result_log
+# Create an Empty table
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 
+# Make sure view select does not error, and
+# is_hashed & is_old is 0 for empty table
+SELECT * FROM sys.innodb_buffer_stats_by_schema
+where object_schema = 'test';
 
 # Ensure structure changes don't slip in
 DESC sys.x$innodb_buffer_stats_by_schema;
 
-# Make sure view select does not error, but ignore results
---disable_result_log
-SELECT * FROM sys.x$innodb_buffer_stats_by_schema;
---enable_result_log
+# Make sure view select does not error, and
+# is_hashed & is_old is 0 for empty table
+SELECT * FROM sys.x$innodb_buffer_stats_by_schema
+where object_schema = 'test';
+
+# Drop the table
+DROP TABLE t1;
