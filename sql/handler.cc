@@ -7392,7 +7392,7 @@ static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
   do
   {
     Field *field= keypart->field;
-    if (field->is_null() != field->is_null(off))
+    if (field->is_null() || field->is_null(off))
       return true;
     else if (f_is_blob(keypart->key_type) && keypart->length)
     {

@@ -835,4 +835,11 @@ t1	CREATE TABLE `t1` (
   KEY `a_2` (`a`(1000))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+#
+# MDEV-37203 UBSAN: applying zero offset to null pointer in strings/ctype-uca.inl | my_uca_strnncollsp_onelevel_utf8mb4 | handler::check_duplicate_long_entries_update
+#
+create table t (a int,b text unique key);
+insert into t (a) values (1);
+update t set a=2;
+drop table t;
 # End of 10.6 tests
