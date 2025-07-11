@@ -47,8 +47,7 @@
     <Property Id="UTF8" Secure="yes"/>
     <!-- Whether to data on uninstall (default yes, after asking user consent) -->
     <Property Id="CLEANUPDATA" Secure="yes" Value="1"/>
-    <!-- Force per machine installation -->
-    <Property Id="ALLUSERS" Secure="yes" Value="1"/>
+    <!-- Per machine installation is forced by InstallScope in the Package element -->
     <!-- Disable advertised shortcuts weirdness -->
     <Property Id="DISABLEADVTSHORTCUTS" Secure="yes" Value="1"/>
 
@@ -410,6 +409,8 @@
     <DirectoryRef Id='INSTALLDIR'>
       <Directory Id="DATADIR" Name="data">
       </Directory>
+    </DirectoryRef>
+    <DirectoryRef Id='TARGETDIR'>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="ShortcutFolder" Name="@CPACK_WIX_PACKAGE_NAME@">
         </Directory>
