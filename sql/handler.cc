@@ -7545,7 +7545,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   if (table->versioned() && !table->vers_end_field()->is_max())
     return 0;
 
-  const bool is_update= old_data != NULL;
+  const bool after_write= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
+  const bool is_update= !after_write && old_data;
   uchar *record_buffer= lookup_buffer + table_share->max_unique_length
                                       + table_share->null_fields;
 
@@ -7600,17 +7601,22 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                                        key_part_map((1 << (key_parts - 1)) - 1),
                                        HA_READ_AFTER_KEY);
 
-    if (!error && is_update)
+    if (!error)
     {
-      /* In case of update it could happen that the nearest neighbour is
-         a record we are updating. It means, that there are no overlaps
-         from this side.
-      */
-      DBUG_ASSERT(lookup_handler != this);
-      DBUG_ASSERT(ref_length == lookup_handler->ref_length);
+      if (is_update)
+      {
+        /* In case of update it could happen that the nearest neighbour is
+           a record we are updating. It means, that there are no overlaps
+           from this side.
+        */
+        DBUG_ASSERT(lookup_handler != this);
+        DBUG_ASSERT(ref_length == lookup_handler->ref_length);
 
-      lookup_handler->position(record_buffer);
-      if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+        lookup_handler->position(record_buffer);
+        if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+          error= lookup_handler->ha_index_next(record_buffer);
+      }
+      else if (after_write)
         error= lookup_handler->ha_index_next(record_buffer);
     }
 
