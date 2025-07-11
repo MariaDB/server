@@ -7410,7 +7410,8 @@ static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
    Check if there is a conflicting unique hash key
 */
 
-int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
+int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no,
+                                            int lax)
 {
   int result;
   KEY *key_info= table->key_info + key_no;
@@ -7445,7 +7446,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
     }
     do
     {
-      if (!long_unique_fields_differ(key_info, lookup_buffer))
+      if (!long_unique_fields_differ(key_info, lookup_buffer) && !(lax--))
         result= HA_ERR_FOUND_DUPP_KEY;
       else
         result= lookup_handler->ha_index_next_same(table->record[0], ptr,
@@ -7512,6 +7513,7 @@ int handler::ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec)
   DBUG_ASSERT(inited == NONE || lookup_handler != this);
   DBUG_ASSERT(new_rec == table->record[0]);
   DBUG_ASSERT(!old_rec || old_rec == table->record[1]);
+  int after_insert= !old_rec && ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
   lookup_errkey= (uint)-1;
   for (uint i= 0; i < table->s->keys; i++)
   {
@@ -7520,9 +7522,9 @@ int handler::ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec)
     {
       if (!old_rec || long_unique_fields_differ(keyinfo, old_rec))
       {
-        if (int res= check_duplicate_long_entry_key(new_rec, i))
+        if (int res= check_duplicate_long_entry_key(new_rec, i, after_insert))
         {
-          if (!old_rec && table->next_number_field)
+          if (!old_rec && table->next_number_field && !after_insert)
             if (int err= update_auto_increment())
               return err;
           return res;
@@ -7733,7 +7735,8 @@ int handler::ha_write_row(const uchar *buf)
                   });
   DBUG_ASSERT(table_share->tmp_table || m_lock_type == F_WRLCK);
 
-  if ((error= ha_check_inserver_constraints(NULL, buf)))
+  if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(NULL, buf)))
     goto err;
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
@@ -7747,6 +7750,10 @@ int handler::ha_write_row(const uchar *buf)
 
   MYSQL_INSERT_ROW_DONE(error);
   if (error)
+    goto err;
+
+  if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(NULL, buf)))
     goto err;
 
   rows_changed++;
