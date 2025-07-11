@@ -3277,6 +3277,7 @@ struct gtid_report_ctx
   my_bool contains_err;
 };
 
+/** Iteration block for Binlog_gtid_state_validator::report() */
 static my_bool report_audit_findings(void *entry, void *report_ctx_arg)
 {
   struct Binlog_gtid_state_validator::audit_elem *audit_el=
@@ -3415,7 +3416,7 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       bounds of this window.
     */
 
-    if (!m_has_start && is_gtid_at_or_before(&m_stop, gtid))
+    if (!m_has_start && m_has_stop && is_gtid_at_or_before(&m_stop, gtid))
     {
       /*
         Start GTID was not provided, so we want to include everything from here
@@ -3423,6 +3424,12 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       */
       m_is_active= TRUE;
       should_exclude= FALSE;
+      if (gtid->seq_no == m_stop.seq_no)
+      {
+        m_has_passed= TRUE;
+        DBUG_PRINT("gtid-event-filter",
+                   ("Window: End %d-%d-%llu", PARAM_GTID(m_stop)));
+      }
     }
     else if ((m_has_start && is_gtid_at_or_after(&m_start, gtid)) &&
              (!m_has_stop || is_gtid_at_or_before(&m_stop, gtid)))
@@ -3430,8 +3437,7 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       m_is_active= TRUE;
 
       DBUG_PRINT("gtid-event-filter",
-                 ("Window: Begin (%d-%d-%llu, %d-%d-%llu]",
-                  PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+                 ("Window: Begin %d-%d-%llu", PARAM_GTID(m_start)));
 
       /*
         As the start of the range is exclusive, if this gtid is the start of
@@ -3446,8 +3452,7 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
       {
         m_has_passed= TRUE;
         DBUG_PRINT("gtid-event-filter",
-                   ("Window: End (%d-%d-%llu, %d-%d-%llu]",
-                    PARAM_GTID(m_start), PARAM_GTID(m_stop)));
+                   ("Window: End %d-%d-%llu", PARAM_GTID(m_stop)));
       }
     }
   } /* if (!m_is_active && !m_has_passed) */
@@ -3485,6 +3490,17 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
 my_bool Window_gtid_event_filter::has_finished()
 {
   return m_has_stop ? m_has_passed : FALSE;
+}
+
+bool Window_gtid_event_filter::verify_final_state()
+{
+  bool is_not_final= m_has_stop && !m_has_passed;
+  if (is_not_final)
+    Binlog_gtid_state_validator::warn(stderr,
+      "Did not reach stop position %u-%u-%llu before end of input",
+      PARAM_GTID(m_stop)
+    );
+  return is_not_final;
 }
 
 void free_u32_gtid_filter_element(void *p)
@@ -3567,6 +3583,30 @@ my_bool Id_delegating_gtid_event_filter<T>::has_finished()
   */
   return m_num_stateful_filters &&
          m_num_completed_filters == m_num_stateful_filters;
+}
+
+/**
+  Iteration block for Id_delegating_gtid_event_filter::verify_final_state()
+*/
+static my_bool
+verify_subfilter_final_state(void *entry, void *is_any_not_final)
+{
+  if (entry && static_cast<gtid_filter_element<decltype(rpl_gtid::domain_id)> *
+                           >(entry)->filter->verify_final_state())
+    *static_cast<bool *>(is_any_not_final)= true;
+  return false; // do not terminate early
+}
+
+template <typename T>
+bool Id_delegating_gtid_event_filter<T>::verify_final_state()
+{
+  if (has_finished()) // fast happy path
+    return false;
+  // If a user-defined filters is not deactivated, it may not be complete.
+  bool is_any_not_final= false;
+  my_hash_iterate(&m_filters_by_id_hash,
+    verify_subfilter_final_state, &is_any_not_final);
+  return is_any_not_final;
 }
 
 template <typename T>
@@ -4028,4 +4068,19 @@ my_bool Intersecting_gtid_event_filter::has_finished()
       return TRUE;
   }
   return FALSE;
+}
+
+bool Intersecting_gtid_event_filter::verify_final_state()
+{
+  bool is_any_not_final= false;
+  Gtid_event_filter *subfilter;
+  for (size_t i= 0; i < m_filters.elements; ++i)
+  {
+    subfilter=
+      *reinterpret_cast<Gtid_event_filter **>(dynamic_array_ptr(&m_filters, i));
+    DBUG_ASSERT(subfilter);
+    if (subfilter->verify_final_state())
+      is_any_not_final= true;
+  }
+  return is_any_not_final;
 }

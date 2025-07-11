@@ -3711,7 +3711,8 @@ int main(int argc, char** argv)
   }
 
   /*
-    Emit a warning if we finished processing input before reaching the stop
+    Emit warning(s) (in Gtid_event_filter::verify_completed_state() for GTID(s))
+    if we finished processing input before reaching the stop
     boundaries indicated by --stop-datetime or --stop-position.
   */
   if (stop_datetime != MY_TIME_T_MAX &&
@@ -3722,6 +3723,8 @@ int main(int argc, char** argv)
       stop_position > last_processed_ev.position)
     warning("Did not reach stop position %llu before end of input",
             stop_position);
+  if (position_gtid_filter)
+    position_gtid_filter->verify_final_state();
 
   /*
     If enable flashback, need to print the events from the end to the
