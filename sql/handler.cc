@@ -7410,10 +7410,10 @@ static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
    Check if there is a conflicting unique hash key
 */
 
-int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no,
-                                            int lax)
+int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
   int result;
+  int lax= (ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) > 0;
   KEY *key_info= table->key_info + key_no;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
@@ -7513,7 +7513,6 @@ int handler::ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec)
   DBUG_ASSERT(inited == NONE || lookup_handler != this);
   DBUG_ASSERT(new_rec == table->record[0]);
   DBUG_ASSERT(!old_rec || old_rec == table->record[1]);
-  int after_insert= !old_rec && ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
   lookup_errkey= (uint)-1;
   for (uint i= 0; i < table->s->keys; i++)
   {
@@ -7522,9 +7521,10 @@ int handler::ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec)
     {
       if (!old_rec || long_unique_fields_differ(keyinfo, old_rec))
       {
-        if (int res= check_duplicate_long_entry_key(new_rec, i, after_insert))
+        if (int res= check_duplicate_long_entry_key(new_rec, i))
         {
-          if (!old_rec && table->next_number_field && !after_insert)
+          if (!old_rec && table->next_number_field &&
+              !(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE))
             if (int err= update_auto_increment())
               return err;
           return res;
@@ -7784,7 +7784,8 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
-  if ((error= ha_check_inserver_constraints(old_data, new_data)))
+  if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(old_data, new_data)))
     return error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
@@ -7800,6 +7801,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   MYSQL_UPDATE_ROW_DONE(error);
   if (error)
+    return error;
+
+  if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(old_data, new_data)))
     return error;
 
   rows_changed++;

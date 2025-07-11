@@ -4921,7 +4921,7 @@ private:
 
   int create_lookup_handler();
   void alloc_lookup_buffer();
-  int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no, int lax);
+  int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
   /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
   int ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec);
