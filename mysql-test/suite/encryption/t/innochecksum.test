@@ -300,4 +300,21 @@ if (0 && $have_debug) { # these messages sometimes fail to appear
 --move_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
 
 --source include/start_mysqld.inc
+
+--echo # Trigger AHI
+--disable_query_log
+--disable_result_log
+
+SELECT STRAIGHT_JOIN COUNT(t6a.a)
+FROM t6 AS t6a, t6 AS t6b
+WHERE t6a.a = t6b.a;
+
+--enable_result_log
+--enable_query_log
+
+--echo # Validate is_hashed > 0 and is_old > 0
+SELECT SUM(pages_hashed)>0, SUM(pages_old)>0
+FROM sys.innodb_buffer_stats_by_table;
+
+--echo # Cleanup
 DROP TABLE t1, t2, t3, t4, t5, t6;
