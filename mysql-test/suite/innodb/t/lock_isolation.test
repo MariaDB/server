@@ -174,7 +174,6 @@ ROLLBACK;
 --reap
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 COMMIT;
---disconnect con_weird
 
 --connection consistent
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
@@ -246,12 +245,55 @@ UPDATE t SET b=4 WHERE a=1;
 --connection consistent
 --error ER_CHECKREAD
 SELECT * FROM t WHERE a=1 FOR UPDATE;
---disconnect consistent
 --disconnect disable_purging
 
 --connection default
 SET DEBUG_SYNC="RESET";
 DROP TABLE t;
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+BEGIN; INSERT INTO t1 SET a=1;
+--connection con_weird
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN; INSERT INTO t2 SET a=1;
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN; INSERT INTO t2 SET a=2;
+--connection default
+COMMIT;
+--connection con_weird
+SELECT * FROM t1;
+COMMIT;
+--connection consistent
+--disable_ps2_protocol
+--error ER_CHECKREAD
+SELECT * FROM t1;
+--enable_ps2_protocol
+COMMIT;
+--connection default
+BEGIN; INSERT INTO t1 SET a=2;
+--connection con_weird
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION WITH CONSISTENT SNAPSHOT; INSERT INTO t2 SET a=3;
+--connection consistent
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION WITH CONSISTENT SNAPSHOT; INSERT INTO t2 SET a=2;
+--connection default
+COMMIT;
+--connection con_weird
+SELECT * FROM t1;
+COMMIT;
+--disconnect con_weird
+--connection consistent
+--disable_ps2_protocol
+--error ER_CHECKREAD
+SELECT * FROM t1;
+--enable_ps2_protocol
+COMMIT;
+--disconnect consistent
+--connection default
+DROP TABLE t1,t2;
 
 --source include/wait_until_count_sessions.inc
 --echo # End of 10.6 tests
