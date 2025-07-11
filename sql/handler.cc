@@ -7754,7 +7754,22 @@ int handler::ha_write_row(const uchar *buf)
 
   if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
       (error= ha_check_inserver_constraints(NULL, buf)))
+  {
+    if (lookup_handler != this) // INSERT IGNORE or REPLACE or ODKU
+    {
+      position(buf);
+      int e= rnd_pos(lookup_buffer, ref);
+      if (!e)
+      {
+        increment_statistics(&SSV::ha_delete_count);
+        TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, e,
+          { e= delete_row(buf);})
+      }
+      if (e)
+        error= e;
+    }
     goto err;
+  }
 
   rows_changed++;
   if (row_logging)

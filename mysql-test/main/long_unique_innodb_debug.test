@@ -73,4 +73,34 @@ select * from t1;
 set debug_sync='RESET';
 drop table t1;
 
+--echo ## INSERT IGNORE
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+insert t1 values(10, 'a');
+delete from t1;
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send insert ignore t1 values(15, 'a'), (16, 'b')
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+set session innodb_lock_wait_timeout = 1;
+set transaction isolation level read committed;
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
 --echo # End of 10.6 tests
