@@ -1,0 +1,12 @@
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 INT, KEY(f1, f3), key(f3)) STATS_PERSISTENT=1,ENGINE=INNODB;
+INSERT INTO t1 SELECT seq, seq, NULL from seq_1_to_16384;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SHOW KEYS FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	f1	1	f1	A	16341	NULL	NULL		BTREE			NO
+t1	1	f1	2	f3	A	16341	NULL	NULL	YES	BTREE			NO
+t1	1	f3	1	f3	A	16341	NULL	NULL	YES	BTREE			NO
+DROP TABLE t1;
