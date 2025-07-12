@@ -238,28 +238,6 @@ static ulint fts_optimize_time_limit;
 /** It's defined in fts0fts.cc  */
 extern const char* fts_common_tables[];
 
-/** SQL Statement for changing state of rows to be deleted from FTS Index. */
-static	const char* fts_init_delete_sql =
-	"BEGIN\n"
-	"\n"
-	"INSERT INTO $BEING_DELETED\n"
-		"SELECT doc_id FROM $DELETED;\n"
-	"\n"
-	"INSERT INTO $BEING_DELETED_CACHE\n"
-		"SELECT doc_id FROM $DELETED_CACHE;\n";
-
-static const char* fts_delete_doc_ids_sql =
-	"BEGIN\n"
-	"\n"
-	"DELETE FROM $DELETED WHERE doc_id = :doc_id1;\n"
-	"DELETE FROM $DELETED_CACHE WHERE doc_id = :doc_id2;\n";
-
-static const char* fts_end_delete_sql =
-	"BEGIN\n"
-	"\n"
-	"DELETE FROM $BEING_DELETED;\n"
-	"DELETE FROM $BEING_DELETED_CACHE;\n";
-
 /**********************************************************************//**
 Initialize fts_zip_t. */
 static
@@ -360,208 +338,162 @@ fts_word_init(
 	return(word);
 }
 
-/**********************************************************************//**
-Read the FTS INDEX row.
-@return fts_node_t instance */
-static
-fts_node_t*
-fts_optimize_read_node(
-/*===================*/
-	fts_word_t*	word,		/*!< in: */
-	que_node_t*	exp)		/*!< in: */
+/** Read the node from auxiliary table record
+@param index auxiliary table index
+@param word     word
+@param rec      auxiliary table record
+@param offsets  offsets to table record
+@param heap     memory heap to store external data */
+static fts_node_t *fts_optimize_read_node(dict_index_t *index, fts_word_t *word,
+                                          const rec_t *rec,
+                                          const rec_offs *offsets,
+                                          mem_heap_t *heap)
 {
-	int		i;
-	fts_node_t*	node = static_cast<fts_node_t*>(
-		ib_vector_push(word->nodes, NULL));
-
-	/* Start from 1 since the first node has been read by the caller */
-	for (i = 1; exp; exp = que_node_get_next(exp), ++i) {
-
-		dfield_t*	dfield = que_node_get_val(exp);
-		byte*		data = static_cast<byte*>(
-			dfield_get_data(dfield));
-		ulint		len = dfield_get_len(dfield);
-
-		ut_a(len != UNIV_SQL_NULL);
-
-		/* Note: The column numbers below must match the SELECT */
-		switch (i) {
-		case 1: /* DOC_COUNT */
-			node->doc_count = mach_read_from_4(data);
-			break;
-
-		case 2: /* FIRST_DOC_ID */
-			node->first_doc_id = fts_read_doc_id(data);
-			break;
-
-		case 3: /* LAST_DOC_ID */
-			node->last_doc_id = fts_read_doc_id(data);
-			break;
-
-		case 4: /* ILIST */
-			node->ilist_size_alloc = node->ilist_size = len;
-			node->ilist = static_cast<byte*>(ut_malloc_nokey(len));
-			memcpy(node->ilist, data, len);
-			break;
-
-		default:
-			ut_error;
-		}
-	}
-
-	/* Make sure all columns were read. */
-	ut_a(i == 5);
-
-	return(node);
+  ut_ad(dict_index_is_clust(index));
+  /* Start from 1 since the first node has been read by the caller */
+  fts_node_t *node= static_cast<fts_node_t*>(ib_vector_push(word->nodes, NULL));
+  ulint len;
+  const byte *data= nullptr;
+  for (uint32_t i= 1; i < index->n_fields; i++)
+  {
+    switch(i) {
+    case 1:
+      /* FIRST DOC ID */
+      data= rec_get_nth_field(rec, offsets, i, &len);
+      ut_ad(len == 8);
+      node->first_doc_id= fts_read_doc_id(data);
+      break;
+    case 4:
+      /* Last doc id */
+      data= rec_get_nth_field(rec, offsets, i, &len);
+      ut_ad(len == 8);
+      node->last_doc_id= fts_read_doc_id(data);
+      break;
+    case 5:
+      /* Doc count */
+      data= rec_get_nth_field(rec, offsets, i, &len);
+      ut_ad(len == 4);
+      node->doc_count= mach_read_from_4(data);
+      break;
+    case 6:
+      /* Ilist */
+      if (rec_offs_nth_extern(offsets, 6))
+        data= btr_rec_copy_externally_stored_field(rec, offsets, 0, 6, &len,
+                                                     heap);
+      else data = rec_get_nth_field(rec, offsets, 6, &len);
+      node->ilist_size_alloc= node->ilist_size= len;
+      node->ilist = static_cast<byte*>(ut_malloc_nokey(len));
+      memcpy(node->ilist, data, len);
+    }
+  }
+  return node;
 }
 
-/**********************************************************************//**
-Callback function to fetch the rows in an FTS INDEX record.
-@return always returns non-NULL */
-ibool
-fts_optimize_index_fetch_node(
-/*==========================*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: pointer to ib_vector_t */
+bool fts_optimize_index_fetch_node(dict_index_t *index, const rec_t *rec,
+                                   const rec_offs *offsets, void *user_arg)
 {
-	fts_word_t*	word;
-	sel_node_t*	sel_node = static_cast<sel_node_t*>(row);
-	fts_fetch_t*	fetch = static_cast<fts_fetch_t*>(user_arg);
-	ib_vector_t*	words = static_cast<ib_vector_t*>(fetch->read_arg);
-	que_node_t*	exp = sel_node->select_list;
-	dfield_t*	dfield = que_node_get_val(exp);
-	void*		data = dfield_get_data(dfield);
-	ulint		dfield_len = dfield_get_len(dfield);
-	fts_node_t*	node;
-	bool		is_word_init = false;
+  ut_ad(dict_index_is_clust(index));
+  fts_fetch_t *fetch = static_cast<fts_fetch_t*>(user_arg);
+  ib_vector_t *words = static_cast<ib_vector_t*>(fetch->read_arg);
+  bool is_word_init = false;
+  fts_word_t *word;
 
-	ut_a(dfield_len <= FTS_MAX_WORD_LEN);
+  ulint len= 0;
+  /* Word */
+  const byte *data= rec_get_nth_field(rec, offsets, 0, &len);
 
-	if (ib_vector_size(words) == 0) {
+  if (ib_vector_size(words) == 0)
+  {
+    word = static_cast<fts_word_t*>(ib_vector_push(words, NULL));
+    fts_word_init(word, (byte*) data, len);
+    is_word_init = true;
+  }
 
-		word = static_cast<fts_word_t*>(ib_vector_push(words, NULL));
-		fts_word_init(word, (byte*) data, dfield_len);
-		is_word_init = true;
-	}
+  word = static_cast<fts_word_t*>(ib_vector_last(words));
+  if (len != word->text.f_len ||
+      memcmp(word->text.f_str, data, len))
+  {
+    word = static_cast<fts_word_t*>(ib_vector_push(words, NULL));
+    fts_word_init(word, (byte*) data, len);
+    is_word_init = true;
+  }
 
-	word = static_cast<fts_word_t*>(ib_vector_last(words));
+  fts_node_t *node= fts_optimize_read_node(index, word, rec, offsets,
+                                           fetch->heap);
+  fetch->total_memory += node->ilist_size;
+  if (is_word_init)
+    fetch->total_memory += sizeof(fts_word_t)
+      + sizeof(ib_alloc_t) + sizeof(ib_vector_t) + len
+      + sizeof(fts_node_t) * FTS_WORD_NODES_INIT_SIZE;
+  else if (ib_vector_size(words) > FTS_WORD_NODES_INIT_SIZE)
+    fetch->total_memory += sizeof(fts_node_t);
 
-	if (dfield_len != word->text.f_len
-	    || memcmp(word->text.f_str, data, dfield_len)) {
-
-		word = static_cast<fts_word_t*>(ib_vector_push(words, NULL));
-		fts_word_init(word, (byte*) data, dfield_len);
-		is_word_init = true;
-	}
-
-	node = fts_optimize_read_node(word, que_node_get_next(exp));
-
-	fetch->total_memory += node->ilist_size;
-	if (is_word_init) {
-		fetch->total_memory += sizeof(fts_word_t)
-			+ sizeof(ib_alloc_t) + sizeof(ib_vector_t) + dfield_len
-			+ sizeof(fts_node_t) * FTS_WORD_NODES_INIT_SIZE;
-	} else if (ib_vector_size(words) > FTS_WORD_NODES_INIT_SIZE) {
-		fetch->total_memory += sizeof(fts_node_t);
-	}
-
-	if (fetch->total_memory >= fts_result_cache_limit) {
-		return(FALSE);
-	}
-
-	return(TRUE);
+  return fetch->total_memory < fts_result_cache_limit;
 }
 
-/**********************************************************************//**
-Read the rows from the FTS inde.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_index_fetch_nodes(
-/*==================*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		graph,		/*!< in: prepared statement */
-	fts_table_t*	fts_table,	/*!< in: table of the FTS INDEX */
-	const fts_string_t*
-			word,		/*!< in: the word to fetch */
-	fts_fetch_t*	fetch)		/*!< in: fetch callback.*/
+dberr_t fts_index_fetch_nodes_low(
+  dict_table_t *aux_table, const fts_string_t *word, fts_fetch_t *fetch,
+  FTSQueryRunner *sqlRunner)
 {
-	pars_info_t*	info;
-	dberr_t		error;
-	char		table_name[MAX_FULL_NAME_LEN];
+  dberr_t err= sqlRunner->prepare_for_read(aux_table);
+  if (err == DB_SUCCESS)
+  {
+    ut_ad(UT_LIST_GET_LEN(aux_table->indexes) == 1);
+    dict_index_t *index= dict_table_get_first_index(aux_table);
+    sqlRunner->build_tuple(index, 1, 1);
 
-	trx->op_info = "fetching FTS index nodes";
+    ulint len= word->f_len;
+    fts_match_key match_op= MATCH_PREFIX;
+    if (word->f_str[word->f_len - 1] == '%')
+    {
+      len-= 1;
+      match_op= MATCH_PATTERN;
+    }
 
-	if (*graph) {
-		info = (*graph)->info;
-	} else {
-		ulint	selected;
+    sqlRunner->assign_aux_table_fields(word->f_str, len);
+    /* SELECT WORD, FIRST_DOC_ID, LAST_DOC_ID, DOC_COUNT, ILIST
+    FROM FTS_AUX_TABLE WHERE WORD >= word */
+    err= sqlRunner->record_executor(index, READ, match_op, PAGE_CUR_GE,
+                                    fetch->callback, fetch);
+    if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+      err= DB_SUCCESS;
+  }
+  return err;
+}
 
-		info = pars_info_create();
+dberr_t fts_index_fetch_nodes(trx_t *trx, fts_table_t *fts_table,
+                              const fts_string_t *word, fts_fetch_t *fetch)
+{
+  ulint selected= fts_select_index(fts_table->charset,
+                                   word->f_str, word->f_len);
+  fts_table->suffix = fts_get_suffix(selected);
 
-		ut_a(fts_table->type == FTS_INDEX_TABLE);
-
-		selected = fts_select_index(fts_table->charset,
-					    word->f_str, word->f_len);
-
-		fts_table->suffix = fts_get_suffix(selected);
-
-		fts_get_table_name(fts_table, table_name);
-
-		pars_info_bind_id(info, "table_name", table_name);
-	}
-
-	pars_info_bind_function(info, "my_func", fetch->read_record, fetch);
-	pars_info_bind_varchar_literal(info, "word", word->f_str, word->f_len);
-
-	if (!*graph) {
-
-		*graph = fts_parse_sql(
-			fts_table,
-			info,
-			"DECLARE FUNCTION my_func;\n"
-			"DECLARE CURSOR c IS"
-			" SELECT word, doc_count, first_doc_id, last_doc_id,"
-			" ilist\n"
-			" FROM $table_name\n"
-			" WHERE word LIKE :word\n"
-			" ORDER BY first_doc_id;\n"
-			"BEGIN\n"
-			"\n"
-			"OPEN c;\n"
-			"WHILE 1 = 1 LOOP\n"
-			"  FETCH c INTO my_func();\n"
-			"  IF c % NOTFOUND THEN\n"
-			"    EXIT;\n"
-			"  END IF;\n"
-			"END LOOP;\n"
-			"CLOSE c;");
-	}
-
-	for (;;) {
-		error = fts_eval_sql(trx, *graph);
-
-		if (UNIV_LIKELY(error == DB_SUCCESS)) {
-			fts_sql_commit(trx);
-
-			break;				/* Exit the loop. */
-		} else {
-			fts_sql_rollback(trx);
-
-			if (error == DB_LOCK_WAIT_TIMEOUT) {
-				ib::warn() << "lock wait timeout reading"
-					" FTS index. Retrying!";
-
-				trx->error_state = DB_SUCCESS;
-			} else {
-				ib::error() << "(" << error
-					<< ") while reading FTS index.";
-
-				break;			/* Exit the loop. */
-			}
-		}
-	}
-
-	return(error);
+  dberr_t err= DB_SUCCESS;
+  FTSQueryRunner sqlRunner(trx);
+  fetch->heap= sqlRunner.heap();
+  dict_table_t *aux_table= sqlRunner.open_table(fts_table, &err);
+  if (aux_table)
+  {
+retry:
+    err= fts_index_fetch_nodes_low(aux_table, word, fetch, &sqlRunner);
+    if (UNIV_LIKELY(err == DB_SUCCESS))
+      fts_sql_commit(trx);
+    else
+    {
+      fts_sql_rollback(trx);
+      if (err == DB_LOCK_WAIT_TIMEOUT)
+      {
+        ib::warn() << "lock wait timeout reading FTS index. Retrying!";
+	trx->error_state = DB_SUCCESS;
+        goto retry;
+      }
+      else
+	ib::error() << "(" << err << ") while reading FTS index.";
+    }
+    aux_table->release();
+  }
+  fetch->heap= nullptr;
+  return err;
 }
 
 /**********************************************************************//**
@@ -665,86 +597,70 @@ fts_zip_read_word(
 	return(zip->status == Z_OK || zip->status == Z_STREAM_END ? ptr : NULL);
 }
 
-/**********************************************************************//**
-Callback function to fetch and compress the word in an FTS
-INDEX record.
-@return FALSE on EOF */
-static
-ibool
-fts_fetch_index_words(
-/*==================*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: pointer to ib_vector_t */
+/** Callback function to fetch and compress the word in an FTS AUXILIARY table
+@param index   auxiliary index
+@param rec     auxiliary index record
+@param offsets offsets to the record
+@param user_arg compressed list which will have words from auxiliary table
+@retval true if number of words is lesser than maximum words to be compressed
+or else false */
+static bool fts_fetch_index_words(dict_index_t *index, const rec_t *rec,
+                                  const rec_offs *offsets, void *user_arg)
 {
-	sel_node_t*	sel_node = static_cast<sel_node_t*>(row);
-	fts_zip_t*	zip = static_cast<fts_zip_t*>(user_arg);
-	que_node_t*	exp = sel_node->select_list;
-	dfield_t*	dfield = que_node_get_val(exp);
+  ut_ad(dict_index_is_clust(index));
+  fts_zip_t *zip = static_cast<fts_zip_t*>(user_arg);
+  ulint rec_len;
+  const byte *data= rec_get_nth_field(rec, offsets, 0, &rec_len);
+  ut_a(rec_len <= FTS_MAX_WORD_LEN);
+  uint16_t len= (uint16_t) rec_len;
+  /* Skip the duplicate words. */
+  if (zip->word.f_len == len && !memcmp(zip->word.f_str, data, len))
+    return true;
+  memcpy(zip->word.f_str, data, len);
+  zip->word.f_len = len;
+  ut_a(zip->zp->avail_in == 0);
+  ut_a(zip->zp->next_in == NULL);
 
-	ut_a(dfield_get_len(dfield) <= FTS_MAX_WORD_LEN);
+  /* The string is prefixed by len. */
+  /* FIXME: This is not byte order agnostic (InnoDB data files
+  with FULLTEXT INDEX are not portable between little-endian and
+  big-endian systems!) */
+  zip->zp->next_in = reinterpret_cast<byte*>(&len);
+  zip->zp->avail_in = sizeof(len);
 
-	uint16		len = uint16(dfield_get_len(dfield));
-	void*		data = dfield_get_data(dfield);
+  /* Compress the word, create output blocks as necessary. */
+  while (zip->zp->avail_in > 0)
+  {
+    /* No space left in output buffer, create a new one. */
+    if (zip->zp->avail_out == 0)
+    {
+      byte *block= static_cast<byte*>(ut_malloc_nokey(zip->block_sz));
+      ib_vector_push(zip->blocks, &block);
+      zip->zp->next_out = block;
+      zip->zp->avail_out = static_cast<uInt>(zip->block_sz);
+    }
 
-	/* Skip the duplicate words. */
-	if (zip->word.f_len == len && !memcmp(zip->word.f_str, data, len)) {
-		return(TRUE);
-	}
-
-	memcpy(zip->word.f_str, data, len);
-	zip->word.f_len = len;
-
-	ut_a(zip->zp->avail_in == 0);
-	ut_a(zip->zp->next_in == NULL);
-
-	/* The string is prefixed by len. */
-	/* FIXME: This is not byte order agnostic (InnoDB data files
-	with FULLTEXT INDEX are not portable between little-endian and
-	big-endian systems!) */
-	zip->zp->next_in = reinterpret_cast<byte*>(&len);
-	zip->zp->avail_in = sizeof(len);
-
-	/* Compress the word, create output blocks as necessary. */
-	while (zip->zp->avail_in > 0) {
-
-		/* No space left in output buffer, create a new one. */
-		if (zip->zp->avail_out == 0) {
-			byte*		block;
-
-			block = static_cast<byte*>(
-				ut_malloc_nokey(zip->block_sz));
-
-			ib_vector_push(zip->blocks, &block);
-
-			zip->zp->next_out = block;
-			zip->zp->avail_out = static_cast<uInt>(zip->block_sz);
-		}
-
-		switch (zip->status = deflate(zip->zp, Z_NO_FLUSH)) {
-		case Z_OK:
-			if (zip->zp->avail_in == 0) {
-				zip->zp->next_in = static_cast<byte*>(data);
-				zip->zp->avail_in = uInt(len);
-				ut_a(len <= FTS_MAX_WORD_LEN);
-				len = 0;
-			}
-			continue;
-
-		case Z_STREAM_END:
-		case Z_BUF_ERROR:
-		case Z_STREAM_ERROR:
-		default:
-			ut_error;
-		}
-	}
-
-	/* All data should have been compressed. */
-	ut_a(zip->zp->avail_in == 0);
-	zip->zp->next_in = NULL;
-
-	++zip->n_words;
-
-	return(zip->n_words >= zip->max_words ? FALSE : TRUE);
+    switch (zip->status = deflate(zip->zp, Z_NO_FLUSH)) {
+    case Z_OK:
+      if (zip->zp->avail_in == 0)
+      {
+        zip->zp->next_in = const_cast<byte*>(data);
+        zip->zp->avail_in = uInt(len);
+        ut_a(len <= FTS_MAX_WORD_LEN);
+	len = 0;
+      }
+      continue;
+    case Z_STREAM_END:
+    case Z_BUF_ERROR:
+    case Z_STREAM_ERROR:
+    default: ut_error;
+    }
+  }
+  /* All data should have been compressed. */
+  ut_a(zip->zp->avail_in == 0);
+  zip->zp->next_in = NULL;
+  ++zip->n_words;
+  return zip->n_words < zip->max_words;
 }
 
 /**********************************************************************//**
@@ -789,241 +705,148 @@ fts_zip_deflate_end(
 	memset(zip->zp, 0, sizeof(*zip->zp));
 }
 
-/**********************************************************************//**
-Read the words from the FTS INDEX.
+/** Read the words from the FTS INDEX.
+@param optim optimize scratch pad
+@param word  query word
+@param n_words max words to be read
 @return DB_SUCCESS if all OK, DB_TABLE_NOT_FOUND if no more indexes
-        to search else error code */
+to search else error code */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_index_fetch_words(
-/*==================*/
-	fts_optimize_t*		optim,	/*!< in: optimize scratch pad */
-	const fts_string_t*	word,	/*!< in: get words greater than this
-					 word */
-	ulint			n_words)/*!< in: max words to read */
+dberr_t fts_index_fetch_words(fts_optimize_t *optim, const fts_string_t *word,
+                              ulint n_words)
 {
-	pars_info_t*	info;
-	que_t*		graph;
-	ulint		selected;
-	fts_zip_t*	zip = NULL;
-	dberr_t		error = DB_SUCCESS;
-	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
-	ibool		inited = FALSE;
+  dberr_t  error= DB_SUCCESS;
+  mem_heap_t *heap= static_cast<mem_heap_t*>(optim->self_heap->arg);
+  bool inited= true;
+  optim->trx->op_info = "fetching FTS index words";
 
-	optim->trx->op_info = "fetching FTS index words";
+  if (optim->zip == NULL)
+    optim->zip = fts_zip_create(heap, FTS_ZIP_BLOCK_SIZE, n_words);
+  else fts_zip_initialize(optim->zip);
 
-	if (optim->zip == NULL) {
-		optim->zip = fts_zip_create(heap, FTS_ZIP_BLOCK_SIZE, n_words);
-	} else {
-		fts_zip_initialize(optim->zip);
-	}
+  fts_zip_t *zip= optim->zip;
+  dberr_t err= DB_SUCCESS;
+  FTSQueryRunner sqlRunner(optim->trx);
+  for (ulint selected=
+         fts_select_index(optim->fts_index_table.charset, word->f_str,
+                          word->f_len);
+       selected < FTS_NUM_AUX_INDEX; selected++)
+  {
+    optim->fts_index_table.suffix= fts_get_suffix(selected);
+    dict_table_t *aux_table= sqlRunner.open_table(&optim->fts_index_table,
+                                                  &err);
+    if (aux_table)
+    {
+retry:
+      err= sqlRunner.prepare_for_read(aux_table);
+      if (err == DB_SUCCESS)
+      {
+        ut_ad(UT_LIST_GET_LEN(aux_table->indexes) == 1);
+        dict_index_t *clust_index= dict_table_get_first_index(aux_table);
+        sqlRunner.build_tuple(clust_index, 1, 1);
+        sqlRunner.assign_aux_table_fields(word->f_str, word->f_len);
+        int ret;
+        if (!inited && ((ret= deflateInit(zip->zp, 9)) != Z_OK))
+        {
+	  ib::error() << "ZLib deflateInit() failed: " << ret;
+          err= DB_ERROR;
+	  break;
+        }
+        else
+        {
+          inited= true;
+          /*  Executes the following query
+          SELECT word FROM FTS_AUX_TABLE WHERE word > :word */
+          err= sqlRunner.record_executor(clust_index, READ, MATCH_ALL,
+                                         PAGE_CUR_G, &fts_fetch_index_words,
+                                         &zip);
+        }
+      }
 
-	for (selected = fts_select_index(
-		     optim->fts_index_table.charset, word->f_str, word->f_len);
-	     selected < FTS_NUM_AUX_INDEX;
-	     selected++) {
+      if (UNIV_LIKELY(err == DB_SUCCESS));
+      else if (error == DB_LOCK_WAIT_TIMEOUT)
+      {
+        ib::warn() << "Lock wait timeout reading document. Retrying!";
+        /* We need to reset the ZLib state. */
+	inited= false;
+	deflateEnd(zip->zp);
+	fts_zip_init(zip);
+        optim->trx->error_state = DB_SUCCESS;
+        /* Retry the same auxiliary table again */
+        goto retry;
+      }
+      else ib::error() << "(" << err << ") while reading document.";
+    }
+    aux_table->release();
 
-		char	table_name[MAX_FULL_NAME_LEN];
-
-		optim->fts_index_table.suffix = fts_get_suffix(selected);
-
-		info = pars_info_create();
-
-		pars_info_bind_function(
-			info, "my_func", fts_fetch_index_words, optim->zip);
-
-		pars_info_bind_varchar_literal(
-			info, "word", word->f_str, word->f_len);
-
-		fts_get_table_name(&optim->fts_index_table, table_name);
-		pars_info_bind_id(info, "table_name", table_name);
-
-		graph = fts_parse_sql(
-			&optim->fts_index_table,
-			info,
-			"DECLARE FUNCTION my_func;\n"
-			"DECLARE CURSOR c IS"
-			" SELECT word\n"
-			" FROM $table_name\n"
-			" WHERE word > :word\n"
-			" ORDER BY word;\n"
-			"BEGIN\n"
-			"\n"
-			"OPEN c;\n"
-			"WHILE 1 = 1 LOOP\n"
-			"  FETCH c INTO my_func();\n"
-			"  IF c % NOTFOUND THEN\n"
-			"    EXIT;\n"
-			"  END IF;\n"
-			"END LOOP;\n"
-			"CLOSE c;");
-
-		zip = optim->zip;
-
-		for (;;) {
-			int	err;
-
-			if (!inited && ((err = deflateInit(zip->zp, 9))
-					!= Z_OK)) {
-				ib::error() << "ZLib deflateInit() failed: "
-					<< err;
-
-				error = DB_ERROR;
-				break;
-			} else {
-				inited = TRUE;
-				error = fts_eval_sql(optim->trx, graph);
-			}
-
-			if (UNIV_LIKELY(error == DB_SUCCESS)) {
-				//FIXME fts_sql_commit(optim->trx);
-				break;
-			} else {
-				//FIXME fts_sql_rollback(optim->trx);
-
-				if (error == DB_LOCK_WAIT_TIMEOUT) {
-					ib::warn() << "Lock wait timeout"
-						" reading document. Retrying!";
-
-					/* We need to reset the ZLib state. */
-					inited = FALSE;
-					deflateEnd(zip->zp);
-					fts_zip_init(zip);
-
-					optim->trx->error_state = DB_SUCCESS;
-				} else {
-					ib::error() << "(" << error
-						<< ") while reading document.";
-
-					break;	/* Exit the loop. */
-				}
-			}
-		}
-
-		que_graph_free(graph);
-
-		/* Check if max word to fetch is exceeded */
-		if (optim->zip->n_words >= n_words) {
-			break;
-		}
-	}
-
-	if (error == DB_SUCCESS && zip->status == Z_OK && zip->n_words > 0) {
-
-		/* All data should have been read. */
-		ut_a(zip->zp->avail_in == 0);
-
-		fts_zip_deflate_end(zip);
-	} else {
-		deflateEnd(zip->zp);
-	}
-
-	return(error);
+    /* Check if max word to fetch is exceeded */
+    if (zip->n_words >= n_words) goto func_exit;
+  }
+func_exit:
+  if (err == DB_SUCCESS && zip->status == Z_OK && zip->n_words > 0)
+  {
+    /* All data should have been read. */
+    ut_a(zip->zp->avail_in == 0);
+    fts_zip_deflate_end(zip);
+  }
+  else deflateEnd(zip->zp);
+  return err;
 }
 
-/**********************************************************************//**
-Callback function to fetch the doc id from the record.
+/** Callback function to fetch the doc id from the record.
 @return always returns TRUE */
-static
-ibool
-fts_fetch_doc_ids(
-/*==============*/
-	void*	row,		/*!< in: sel_node_t* */
-	void*	user_arg)	/*!< in: pointer to ib_vector_t */
+static bool fts_fetch_doc_ids(dict_index_t *index, const rec_t *rec,
+                              const rec_offs *offsets, void *user_arg)
 {
-	que_node_t*	exp;
-	int		i = 0;
-	sel_node_t*	sel_node = static_cast<sel_node_t*>(row);
-	fts_doc_ids_t*	fts_doc_ids = static_cast<fts_doc_ids_t*>(user_arg);
-	doc_id_t*	update = static_cast<doc_id_t*>(
-		ib_vector_push(fts_doc_ids->doc_ids, NULL));
-
-	for (exp = sel_node->select_list;
-	     exp;
-	     exp = que_node_get_next(exp), ++i) {
-
-		dfield_t*	dfield = que_node_get_val(exp);
-		void*		data = dfield_get_data(dfield);
-		ulint		len = dfield_get_len(dfield);
-
-		ut_a(len != UNIV_SQL_NULL);
-
-		/* Note: The column numbers below must match the SELECT. */
-		switch (i) {
-		case 0: /* DOC_ID */
-			*update = fts_read_doc_id(
-				static_cast<byte*>(data));
-			break;
-
-		default:
-			ut_error;
-		}
-	}
-
-	return(TRUE);
+  ut_ad(dict_index_is_clust(index));
+  fts_doc_ids_t *fts_doc_ids= static_cast<fts_doc_ids_t*>(user_arg);
+  doc_id_t *update=
+    static_cast<doc_id_t*>(ib_vector_push(fts_doc_ids->doc_ids, NULL));
+  ulint len;
+  const byte *data= rec_get_nth_field(rec, offsets, 0, &len);
+  *update= mach_read_from_8(data);
+  return true;
 }
 
-/**********************************************************************//**
-Read the rows from a FTS common auxiliary table.
+/** Read the rows from a FTS common auxiliary table.
+@param trx        transaction
+@param fts_table  Fulltext table information
+@param doc_ids    For collecting doc_ids
 @return DB_SUCCESS or error code */
-dberr_t
-fts_table_fetch_doc_ids(
-/*====================*/
-	trx_t*		trx,		/*!< in: transaction */
-	fts_table_t*	fts_table,	/*!< in: table */
-	fts_doc_ids_t*	doc_ids)	/*!< in: For collecting doc ids */
+dberr_t fts_table_fetch_doc_ids(trx_t *trx, fts_table_t *fts_table,
+                                fts_doc_ids_t *doc_ids)
 {
-	dberr_t		error;
-	que_t*		graph;
-	pars_info_t*	info = pars_info_create();
-	ibool		alloc_bk_trx = FALSE;
-	char		table_name[MAX_FULL_NAME_LEN];
+  dberr_t err= DB_SUCCESS;
+  bool alloc_trx= false;
+  if (!trx)
+  {
+    trx= trx_create();
+    alloc_trx= true;
+  }
 
-	ut_a(fts_table->suffix != NULL);
-	ut_a(fts_table->type == FTS_COMMON_TABLE);
+  FTSQueryRunner sqlRunner(trx);
+  dict_table_t *fts_aux= sqlRunner.open_table(fts_table, &err);
+  if (!fts_aux) goto func_exit;
 
-	if (!trx) {
-		trx = trx_create();
-		alloc_bk_trx = TRUE;
-	}
-
-	trx->op_info = "fetching FTS doc ids";
-
-	pars_info_bind_function(info, "my_func", fts_fetch_doc_ids, doc_ids);
-
-	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		fts_table,
-		info,
-		"DECLARE FUNCTION my_func;\n"
-		"DECLARE CURSOR c IS"
-		" SELECT doc_id FROM $table_name;\n"
-		"BEGIN\n"
-		"\n"
-		"OPEN c;\n"
-		"WHILE 1 = 1 LOOP\n"
-		"  FETCH c INTO my_func();\n"
-		"  IF c % NOTFOUND THEN\n"
-		"    EXIT;\n"
-		"  END IF;\n"
-		"END LOOP;\n"
-		"CLOSE c;");
-
-	error = fts_eval_sql(trx, graph);
-	fts_sql_commit(trx);
-	que_graph_free(graph);
-
-	if (error == DB_SUCCESS) {
-		fts_doc_ids_sort(doc_ids->doc_ids);
-	}
-
-	if (alloc_bk_trx) {
-		trx->free();
-	}
-
-	return(error);
+  err= sqlRunner.prepare_for_read(fts_aux);
+  if (err == DB_SUCCESS)
+  {
+    ut_ad(UT_LIST_GET_LEN(fts_aux->indexes) == 1);
+    dict_index_t *clust_index= dict_table_get_first_index(fts_aux);
+    err= sqlRunner.record_executor(clust_index, READ, MATCH_ALL,
+                                   PAGE_CUR_GE, &fts_fetch_doc_ids, doc_ids);
+  }
+  if (err == DB_END_OF_INDEX) err= DB_SUCCESS;
+  if (alloc_trx)
+  {
+    if (err == DB_SUCCESS) fts_sql_commit(trx);
+    else fts_sql_rollback(trx);
+  }
+  if (err == DB_SUCCESS) fts_doc_ids_sort(doc_ids->doc_ids);
+func_exit:
+  if (alloc_trx) { trx->free(); }
+  if (fts_aux) fts_aux->release();
+  return err;
 }
 
 /**********************************************************************//**
@@ -1423,87 +1246,70 @@ fts_optimize_word(
 	return(nodes);
 }
 
-/**********************************************************************//**
-Update the FTS index table. This is a delete followed by an insert.
+/** Update the FTS index table. This is a delete followed by an insert.
+@param trx transaction to update the aux tables
+@param fts_table table of FTS index
+@param word word data to write
+@param node node to write into aux table
 @return DB_SUCCESS or error code */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_write_word(
-/*====================*/
-	trx_t*		trx,		/*!< in: transaction */
-	fts_table_t*	fts_table,	/*!< in: table of FTS index */
-	fts_string_t*	word,		/*!< in: word data to write */
-	ib_vector_t*	nodes)		/*!< in: the nodes to write */
+dberr_t fts_optimize_write_word(trx_t *trx, fts_table_t *fts_table,
+                                fts_string_t *word, ib_vector_t *nodes)
 {
-	ulint		i;
-	pars_info_t*	info;
-	que_t*		graph;
-	ulint		selected;
-	dberr_t		error = DB_SUCCESS;
-	char		table_name[MAX_FULL_NAME_LEN];
+  FTSQueryRunner sqlRunner(trx);
+  ulint selected = fts_select_index(fts_table->charset, word->f_str,
+                                    word->f_len);
+  fts_table->suffix = fts_get_suffix(selected);
+  dberr_t err= DB_SUCCESS;
+  dict_table_t *aux_table= sqlRunner.open_table(fts_table, &err);
+  if (!aux_table) goto free_node;
 
-	info = pars_info_create();
+  err= sqlRunner.prepare_for_write(aux_table);
+  if (err == DB_SUCCESS)
+  {
+    ut_ad(UT_LIST_GET_LEN(aux_table->indexes) == 1);
+    dict_index_t *clust_index= dict_table_get_first_index(aux_table);
+    sqlRunner.build_tuple(clust_index, 1, 1);
+    sqlRunner.assign_aux_table_fields(word->f_str, word->f_len, nullptr);
+    /* DELETE FROM FTS_AUX WHERE WORD= :word */
+    err= sqlRunner.record_executor(clust_index, REMOVE, MATCH_UNIQUE);
+  }
 
-	ut_ad(fts_table->charset);
+  if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+    err= DB_SUCCESS;
 
-	pars_info_bind_varchar_literal(
-		info, "word", word->f_str, word->f_len);
+  if (UNIV_UNLIKELY(err != DB_SUCCESS))
+    ib::error() << "(" << err << ") during optimize,"
+                   " when deleting a word from the FTS index.";
+free_node:
+  /* Even if the operation needs to be rolled back and redone,
+  we iterate over the nodes in order to free the ilist. */
+  for (uint32_t i = 0; i < ib_vector_size(nodes); ++i)
+  {
+    fts_node_t* node = (fts_node_t*) ib_vector_get(nodes, i);
+    /* Skip empty node. */
+    if (node->ilist == NULL)
+    {
+      ut_ad(node->ilist_size == 0);
+      continue;
+    }
 
-	selected = fts_select_index(fts_table->charset,
-				    word->f_str, word->f_len);
+    if (err == DB_SUCCESS)
+    {
+      /* INSERT INTO FTS_AUX TABLE (word, first_doc_id, last_doc_id,
+                                    doc_count, ilist) */
+      err = fts_write_node(aux_table, word, node, &sqlRunner);
 
-	fts_table->suffix = fts_get_suffix(selected);
-	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, "table_name", table_name);
-
-	graph = fts_parse_sql(
-		fts_table,
-		info,
-		"BEGIN DELETE FROM $table_name WHERE word = :word;");
-
-	error = fts_eval_sql(trx, graph);
-
-	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-		ib::error() << "(" << error << ") during optimize,"
-			" when deleting a word from the FTS index.";
-	}
-
-	que_graph_free(graph);
-	graph = NULL;
-
-	/* Even if the operation needs to be rolled back and redone,
-	we iterate over the nodes in order to free the ilist. */
-	for (i = 0; i < ib_vector_size(nodes); ++i) {
-
-		fts_node_t* node = (fts_node_t*) ib_vector_get(nodes, i);
-
-		if (error == DB_SUCCESS) {
-			/* Skip empty node. */
-			if (node->ilist == NULL) {
-				ut_ad(node->ilist_size == 0);
-				continue;
-			}
-
-			error = fts_write_node(
-				trx, &graph, fts_table, word, node);
-
-			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-				ib::error() << "(" << error << ")"
-					" during optimize, while adding a"
-					" word to the FTS index.";
-			}
-		}
-
-		ut_free(node->ilist);
-		node->ilist = NULL;
-		node->ilist_size = node->ilist_size_alloc = 0;
-	}
-
-	if (graph != NULL) {
-		que_graph_free(graph);
-	}
-
-	return(error);
+      if (UNIV_UNLIKELY(err != DB_SUCCESS))
+        ib::error() << "(" << err << ") during optimize, while adding a"
+		    << " word to the FTS index.";
+    }
+    ut_free(node->ilist);
+    node->ilist = NULL;
+    node->ilist_size = node->ilist_size_alloc = 0;
+  }
+  if (aux_table) aux_table->release();
+  return err;
 }
 
 /**********************************************************************//**
@@ -1781,7 +1587,6 @@ fts_optimize_words(
 	fts_string_t*	word)	/*!< in: the starting word to optimize */
 {
 	fts_fetch_t	fetch;
-	que_t*		graph = NULL;
 	CHARSET_INFO*	charset = optim->fts_index_table.charset;
 
 	ut_a(!optim->done);
@@ -1791,26 +1596,41 @@ fts_optimize_words(
 		optim->trx, &optim->fts_common_table);
 
 	const time_t start_time = time(NULL);
-
+        std::map<ulint, dict_table_t*> aux_tables;
+        trx_t *trx = optim->trx;
+        dict_table_t *aux_table= nullptr;
+        FTSQueryRunner sqlRunner(trx);
 	/* Setup the callback to use for fetching the word ilist etc. */
 	fetch.read_arg = optim->words;
-	fetch.read_record = fts_optimize_index_fetch_node;
+        fetch.callback = &fts_optimize_index_fetch_node;
+        fetch.heap= sqlRunner.heap();
 
 	while (!optim->done) {
-		dberr_t	error;
-		trx_t*	trx = optim->trx;
+                dberr_t error = DB_SUCCESS;
 		ulint	selected;
-
 		ut_a(ib_vector_size(optim->words) == 0);
-
 		selected = fts_select_index(charset, word->f_str, word->f_len);
 
-		/* Read the index records to optimize. */
-		fetch.total_memory = 0;
-		error = fts_index_fetch_nodes(
-			trx, &graph, &optim->fts_index_table, word,
-			&fetch);
-		ut_ad(fetch.total_memory < fts_result_cache_limit);
+		auto it = aux_tables.find(selected);
+		if (it == aux_tables.end()) {
+			optim->fts_index_table.suffix =
+				fts_get_suffix(selected);
+			aux_table =
+				sqlRunner.open_table(&optim->fts_index_table,
+						     &error);
+			if (aux_table) {
+				aux_tables[selected] = aux_table;
+                        }
+                }
+		else aux_table = it->second;
+
+		if (error == DB_SUCCESS) {
+			/* Read the index records to optimize. */
+			fetch.total_memory = 0;
+			error = fts_index_fetch_nodes_low(aux_table, word,
+							  &fetch, &sqlRunner);
+			ut_ad(fetch.total_memory < fts_result_cache_limit);
+		}
 
 		if (error == DB_SUCCESS) {
 			/* There must be some nodes to read. */
@@ -1833,13 +1653,6 @@ fts_optimize_words(
 			if (!optim->done) {
 				if (!fts_zip_read_word(optim->zip, word)) {
 					optim->done = TRUE;
-				} else if (selected
-					   != fts_select_index(
-						charset, word->f_str,
-						word->f_len)
-					  && graph) {
-					que_graph_free(graph);
-					graph = NULL;
 				}
 			}
 		} else if (error == DB_LOCK_WAIT_TIMEOUT) {
@@ -1855,9 +1668,9 @@ fts_optimize_words(
 			optim->done = TRUE;		/* Exit the loop. */
 		}
 	}
-
-	if (graph != NULL) {
-		que_graph_free(graph);
+	/* Release all aux tables */
+	for (auto it : aux_tables) {
+		it.second->release();
 	}
 }
 
@@ -2022,114 +1835,117 @@ fts_optimize_index(
 	return(error);
 }
 
-/**********************************************************************//**
-Delete the document ids in the delete, and delete cache tables.
+/** Delete the document ids in the delete, and delete cache tables.
+@param optim Optimize instance for fulltext index
 @return DB_SUCCESS if all OK */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_purge_deleted_doc_ids(
-/*===============================*/
-	fts_optimize_t*	optim)	/*!< in: optimize instance */
+dberr_t fts_optimize_purge_deleted_doc_ids(fts_optimize_t *optim)
 {
-	ulint		i;
-	pars_info_t*	info;
-	que_t*		graph;
-	doc_id_t*	update;
-	doc_id_t	write_doc_id;
-	dberr_t		error = DB_SUCCESS;
-	char		deleted[MAX_FULL_NAME_LEN];
-	char		deleted_cache[MAX_FULL_NAME_LEN];
+  dberr_t err= DB_SUCCESS;
+  doc_id_t *update= static_cast<doc_id_t*>(
+    ib_vector_get(optim->to_delete->doc_ids, 0));
+  doc_id_t write_doc_id;
+  /* Convert to "storage" byte order. */
+  fts_write_doc_id((byte*) &write_doc_id, *update);
 
-	info = pars_info_create();
+  FTSQueryRunner sqlRunner(optim->trx);
+  optim->fts_common_table.suffix= fts_common_tables[3];
+  dict_table_t *fts_deleted_cache= nullptr;
+  dict_table_t *fts_deleted=
+    sqlRunner.open_table(&optim->fts_common_table, &err);
+  ut_ad(UT_LIST_GET_LEN(fts_deleted->indexes) == 1);
+  dict_index_t *deleted_cache_idx= nullptr;
 
-	ut_a(ib_vector_size(optim->to_delete->doc_ids) > 0);
+  if (fts_deleted == nullptr) goto func_exit;
 
-	update = static_cast<doc_id_t*>(
-		ib_vector_get(optim->to_delete->doc_ids, 0));
+  err= sqlRunner.prepare_for_write(fts_deleted);
+  if (err) goto func_exit;
 
-	/* Convert to "storage" byte order. */
-	fts_write_doc_id((byte*) &write_doc_id, *update);
+  optim->fts_common_table.suffix= fts_common_tables[4];
+  fts_deleted_cache= sqlRunner.open_table(&optim->fts_common_table, &err);
+  if (!fts_deleted_cache) goto func_exit;
 
-	/* This is required for the SQL parser to work. It must be able
-	to find the following variables. So we do it twice. */
-	fts_bind_doc_id(info, "doc_id1", &write_doc_id);
-	fts_bind_doc_id(info, "doc_id2", &write_doc_id);
+  err= sqlRunner.prepare_for_write(fts_deleted_cache);
+  if (err) goto func_exit;
 
-	/* Make sure the following two names are consistent with the name
-	used in the fts_delete_doc_ids_sql */
-	optim->fts_common_table.suffix = fts_common_tables[3];
-	fts_get_table_name(&optim->fts_common_table, deleted);
-	pars_info_bind_id(info, fts_common_tables[3], deleted);
+  ut_ad(UT_LIST_GET_LEN(fts_deleted_cache->indexes) == 1);
+  deleted_cache_idx= dict_table_get_first_index(fts_deleted_cache);
+  sqlRunner.build_tuple(deleted_cache_idx, 1, 1);
 
-	optim->fts_common_table.suffix = fts_common_tables[4];
-	fts_get_table_name(&optim->fts_common_table, deleted_cache);
-	pars_info_bind_id(info, fts_common_tables[4], deleted_cache);
+  for (ulint i = 0; i < ib_vector_size(optim->to_delete->doc_ids);
+       ++i)
+  {
+    update= static_cast<doc_id_t*>(
+      ib_vector_get(optim->to_delete->doc_ids, i));
+    /* Convert to "storage" byte order. */
+    fts_write_doc_id((byte*) &write_doc_id, *update);
+    sqlRunner.assign_common_table_fields(&write_doc_id);
 
-	graph = fts_parse_sql(NULL, info, fts_delete_doc_ids_sql);
+    /* DELETE FROM FTS_DELETED_CACHE WHERE DOC_ID= :doc_id */
+    err= sqlRunner.record_executor(deleted_cache_idx, REMOVE);
+    if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+      err= DB_SUCCESS;
 
-	/* Delete the doc ids that were copied at the start. */
-	for (i = 0; i < ib_vector_size(optim->to_delete->doc_ids); ++i) {
-
-		update = static_cast<doc_id_t*>(ib_vector_get(
-			optim->to_delete->doc_ids, i));
-
-		/* Convert to "storage" byte order. */
-		fts_write_doc_id((byte*) &write_doc_id, *update);
-
-		fts_bind_doc_id(info, "doc_id1", &write_doc_id);
-
-		fts_bind_doc_id(info, "doc_id2", &write_doc_id);
-
-		error = fts_eval_sql(optim->trx, graph);
-
-		// FIXME: Check whether delete actually succeeded!
-		if (error != DB_SUCCESS) {
-
-			fts_sql_rollback(optim->trx);
-			break;
-		}
-	}
-
-	que_graph_free(graph);
-
-	return(error);
+    if (err == DB_SUCCESS)
+    {
+      /* DELETE FROM FTS_DELETED WHERE DOC_ID= :doc_id */
+      err= sqlRunner.record_executor(dict_table_get_first_index(fts_deleted),
+                                     REMOVE);
+      if (err == DB_RECORD_NOT_FOUND || err == DB_END_OF_INDEX)
+        err= DB_SUCCESS;
+    }
+    if (err) break;
+  }
+func_exit:
+  if (fts_deleted_cache) fts_deleted_cache->release();
+  if (fts_deleted) fts_deleted->release();
+  return err;
 }
 
-/**********************************************************************//**
-Delete the document ids in the pending delete, and delete tables.
+/** Delete the document ids in the pending delete, and delete tables.
+@param optim optimize instance of fulltext index
 @return DB_SUCCESS if all OK */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-fts_optimize_purge_deleted_doc_id_snapshot(
-/*=======================================*/
-	fts_optimize_t*	optim)	/*!< in: optimize instance */
+dberr_t fts_optimize_purge_deleted_doc_id_snapshot(fts_optimize_t *optim)
 {
-	dberr_t		error;
-	que_t*		graph;
-	pars_info_t*	info;
-	char		being_deleted[MAX_FULL_NAME_LEN];
-	char		being_deleted_cache[MAX_FULL_NAME_LEN];
+  FTSQueryRunner sqlRunner(optim->trx);
+  dberr_t err= DB_SUCCESS;
+  dict_table_t *fts_deleted_cache= nullptr;
 
-	info = pars_info_create();
+  optim->fts_common_table.suffix = fts_common_tables[0];
+  dict_table_t *fts_deleted= sqlRunner.open_table(&optim->fts_common_table,
+                                                  &err);
+  if (!fts_deleted) goto func_exit;
 
-	/* Make sure the following two names are consistent with the name
-	used in the fts_end_delete_sql */
-	optim->fts_common_table.suffix = fts_common_tables[0];
-	fts_get_table_name(&optim->fts_common_table, being_deleted);
-	pars_info_bind_id(info, fts_common_tables[0], being_deleted);
+  err= sqlRunner.prepare_for_write(fts_deleted);
+  if (err) goto func_exit;
 
-	optim->fts_common_table.suffix = fts_common_tables[1];
-	fts_get_table_name(&optim->fts_common_table, being_deleted_cache);
-	pars_info_bind_id(info, fts_common_tables[1], being_deleted_cache);
+  ut_ad(UT_LIST_GET_LEN(fts_deleted->indexes) == 1);
+  /* DELETE FROM FTS_DELETED */
+  err= sqlRunner.record_executor(dict_table_get_first_index(fts_deleted),
+                                 REMOVE, MATCH_ALL);
 
-	/* Delete the doc ids that were copied to delete pending state at
-	the start of optimize. */
-	graph = fts_parse_sql(NULL, info, fts_end_delete_sql);
+  if (err == DB_END_OF_INDEX || err == DB_SUCCESS)
+  {
+    optim->fts_common_table.suffix= fts_common_tables[4];
+    fts_deleted_cache= sqlRunner.open_table(&optim->fts_common_table, &err);
+    if (!fts_deleted_cache) goto func_exit;
 
-	error = fts_eval_sql(optim->trx, graph);
-	que_graph_free(graph);
+    err= sqlRunner.prepare_for_write(fts_deleted_cache);
+    if (err) goto func_exit;
 
-	return(error);
+    ut_ad(UT_LIST_GET_LEN(fts_deleted_cache->indexes) == 1);
+    /* DELETE FROM FTS_DELETED_CACHE */
+    err= sqlRunner.record_executor(
+      dict_table_get_first_index(fts_deleted_cache), REMOVE, MATCH_ALL);
+
+    if (err == DB_END_OF_INDEX || err == DB_SUCCESS)
+      err= DB_SUCCESS;
+  }
+func_exit:
+  if (fts_deleted_cache) fts_deleted_cache->release();
+  if (fts_deleted) fts_deleted->release();
+  return err;
 }
 
 /**********************************************************************//**
@@ -2151,61 +1967,116 @@ fts_optimize_being_deleted_count(
 	return(fts_get_rows_count(&fts_table));
 }
 
-/*********************************************************************//**
-Copy the deleted doc ids that will be purged during this optimize run
-to the being deleted FTS auxiliary tables. The transaction is committed
-upon successfull copy and rolled back on DB_DUPLICATE_KEY error.
+/* Read doc_id from the given record.
+@param index    DELETED or DELETED CACHE index
+@param rec      record belongs to DELETED or DELETED cache
+@param offsets  record offsets
+@param user_arg vector of document ids
+@return true always */
+static
+bool fts_read_ulint(dict_index_t *index, const rec_t *rec,
+                    const rec_offs* offsets, void *user_arg)
+{
+  ut_ad(dict_index_is_clust(index));
+  std::vector<doc_id_t> *doc_ids=
+    static_cast<std::vector<doc_id_t>*>(user_arg);
+  ulint len;
+  const byte *data= rec_get_nth_field(rec, offsets, 0, &len);
+  doc_id_t doc_id= mach_read_from_8(data);
+  doc_ids->push_back(doc_id);
+  return true;
+}
+
+/** Copy the record from FROM to TO common table
+@param from       DELETED or DELETED_CACHE table
+@param to         BEING_DELETED or BEING_DELETED_CACHE table
+@param sqlRunner  executor for FTS internal query
+@return error code or DB_SUCCESS */
+static
+dberr_t fts_copy_doc_ids(dict_table_t *from, dict_table_t *to,
+                         FTSQueryRunner *sqlRunner)
+{
+  std::vector<doc_id_t> doc_ids;
+  dberr_t error= sqlRunner->prepare_for_read(from);
+  if (error == DB_SUCCESS)
+  {
+    ut_ad(UT_LIST_GET_LEN(from->indexes) == 1);
+    dict_index_t *from_index= dict_table_get_first_index(from);
+    error= sqlRunner->record_executor(from_index, READ, MATCH_ALL,
+                                      PAGE_CUR_GE, &fts_read_ulint, &doc_ids);
+  }
+  if (error == DB_SUCCESS)
+    error= sqlRunner->prepare_for_write(to);
+  if (error == DB_SUCCESS)
+  {
+    dict_index_t *to_index= dict_table_get_first_index(to);
+    sqlRunner->build_tuple(to_index);
+    for (doc_id_t it : doc_ids)
+    {
+      sqlRunner->assign_common_table_fields(&it);
+      error= sqlRunner->write_record(to);
+      if (error) return error;
+    }
+  }
+  return error;
+}
+
+/** Copy the deleted doc ids that will be purged during this
+optimize run to the being deleted FTS auxiliary tables. The transaction
+is committed upon successfull copy and rolled back on DB_DUPLICATE_KEY error.
+@param optim optimize table instance
 @return DB_SUCCESS if all OK */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
-fts_optimize_create_deleted_doc_id_snapshot(
-/*========================================*/
-	fts_optimize_t*	optim)	/*!< in: optimize instance */
+fts_optimize_create_deleted_doc_id_snapshot(fts_optimize_t *optim)
 {
-	dberr_t		error;
-	que_t*		graph;
-	pars_info_t*	info;
-	char		being_deleted[MAX_FULL_NAME_LEN];
-	char		deleted[MAX_FULL_NAME_LEN];
-	char		being_deleted_cache[MAX_FULL_NAME_LEN];
-	char		deleted_cache[MAX_FULL_NAME_LEN];
+  dberr_t error= DB_SUCCESS;
+  FTSQueryRunner sqlRunner(optim->trx);
+  dict_table_t *deleted= nullptr;
+  dict_table_t *deleted_cache= nullptr;
+  dict_table_t *being_deleted= nullptr;
+  dict_table_t *being_deleted_cache= nullptr;
+  std::vector<doc_id_t> doc_ids;
+  dberr_t err= DB_SUCCESS;
+  /* Read all rows from DELETED table */
+  optim->fts_common_table.suffix = fts_common_tables[3];
+  deleted= sqlRunner.open_table(&optim->fts_common_table, &err);
+  if (deleted)
+  {
+    /* Write into BEING_DELETED table */
+    optim->fts_common_table.suffix = fts_common_tables[0];
+    being_deleted= sqlRunner.open_table(&optim->fts_common_table, &err);
+    if (being_deleted == nullptr) goto err_exit;
+  }
+  if (error == DB_SUCCESS)
+    error= fts_copy_doc_ids(deleted, being_deleted, &sqlRunner);
 
-	info = pars_info_create();
+  if (error) goto err_exit;
 
-	/* Make sure the following four names are consistent with the name
-	used in the fts_init_delete_sql */
-	optim->fts_common_table.suffix = fts_common_tables[0];
-	fts_get_table_name(&optim->fts_common_table, being_deleted);
-	pars_info_bind_id(info, fts_common_tables[0], being_deleted);
+  /* Read all rows from DELETED_CACHE table */
+  optim->fts_common_table.suffix = fts_common_tables[4];
+  deleted_cache= sqlRunner.open_table(&optim->fts_common_table, &err);
+  if (error == DB_SUCCESS)
+  {
+    optim->fts_common_table.suffix = fts_common_tables[1];
+    being_deleted_cache= sqlRunner.open_table(&optim->fts_common_table, &err);
+  }
+  /* Write these rows into BEING_DELETED_CACHE table */
+  if (error == DB_SUCCESS)
+    error= fts_copy_doc_ids(deleted_cache, being_deleted_cache,
+                            &sqlRunner);
+err_exit:
+  if (error != DB_SUCCESS)
+    fts_sql_rollback(optim->trx);
+  else fts_sql_commit(optim->trx);
+  optim->del_list_regenerated = TRUE;
 
-	optim->fts_common_table.suffix = fts_common_tables[3];
-	fts_get_table_name(&optim->fts_common_table, deleted);
-	pars_info_bind_id(info, fts_common_tables[3], deleted);
+  if (deleted) deleted->release();
+  if (being_deleted) being_deleted->release();
+  if (deleted_cache) deleted_cache->release();
+  if (being_deleted_cache) being_deleted_cache->release();
 
-	optim->fts_common_table.suffix = fts_common_tables[1];
-	fts_get_table_name(&optim->fts_common_table, being_deleted_cache);
-	pars_info_bind_id(info, fts_common_tables[1], being_deleted_cache);
-
-	optim->fts_common_table.suffix = fts_common_tables[4];
-	fts_get_table_name(&optim->fts_common_table, deleted_cache);
-	pars_info_bind_id(info, fts_common_tables[4], deleted_cache);
-
-	/* Move doc_ids that are to be deleted to state being deleted. */
-	graph = fts_parse_sql(NULL, info, fts_init_delete_sql);
-
-	error = fts_eval_sql(optim->trx, graph);
-
-	que_graph_free(graph);
-
-	if (error != DB_SUCCESS) {
-		fts_sql_rollback(optim->trx);
-	} else {
-		fts_sql_commit(optim->trx);
-	}
-
-	optim->del_list_regenerated = TRUE;
-
-	return(error);
+  return error;
 }
 
 /*********************************************************************//**

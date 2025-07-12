@@ -454,3 +454,48 @@ row_sel_field_store_in_mysql_format_func(
 #endif /* UNIV_DEBUG */
         const byte*     data,   /*!< in: data to store */
         ulint           len);    /*!< in: length of the data */
+
+/** Helper class to cache clust_rec and old_vers */
+class Row_sel_get_clust_rec_for_mysql
+{
+  const rec_t *cached_clust_rec;
+  rec_t *cached_old_vers;
+  lsn_t cached_lsn;
+  page_id_t cached_page_id;
+
+#ifdef UNIV_DEBUG
+  void check_eq(const dict_index_t *index, const rec_offs *offsets) const
+  {
+    rec_offs vers_offs[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS];
+    rec_offs_init(vers_offs);
+    mem_heap_t *heap= nullptr;
+
+    ut_ad(rec_offs_validate(cached_clust_rec, index, offsets));
+    ut_ad(index->first_user_field() <= rec_offs_n_fields(offsets));
+    ut_ad(vers_offs == rec_get_offsets(cached_old_vers, index, vers_offs,
+                                       index->n_core_fields,
+                                       index->db_trx_id(), &heap));
+    ut_ad(!heap);
+    for (auto n= index->db_trx_id(); n--; )
+    {
+      const dict_col_t *col= dict_index_get_nth_col(index, n);
+      ulint len1, len2;
+      const byte *b1= rec_get_nth_field(cached_clust_rec, offsets, n, &len1);
+      const byte *b2= rec_get_nth_field(cached_old_vers, vers_offs, n, &len2);
+      ut_ad(!cmp_data(col->mtype, col->prtype, false, b1, len1, b2, len2));
+    }
+  }
+#endif
+
+public:
+  Row_sel_get_clust_rec_for_mysql() :
+    cached_clust_rec(NULL), cached_old_vers(NULL), cached_lsn(0),
+    cached_page_id(page_id_t(0,0)) {}
+
+  dberr_t operator()(btr_pcur_t *clust_pcur, btr_pcur_t *pcur,
+                     dtuple_t *clust_ref, lock_mode select_lock_type,
+                     trx_t *trx, dict_index_t *sec_index,
+                     const rec_t *rec, que_thr_t *thr, const rec_t **out_rec,
+                     rec_offs **offsets, mem_heap_t **offset_heap,
+                     mem_heap_t **old_vers_heap, dtuple_t **vrow, mtr_t *mtr);
+};
