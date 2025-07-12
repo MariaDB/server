@@ -3004,6 +3004,16 @@ my_bool init_key_info(THD *thd, Alter_info *alter_info,
 
   for (Key &key: alter_info->key_list)
   {
+    /*
+      Option 2:
+      Extend this check to see if the key is already initialiezd (check
+      key.length) and continue to the next iteration when so. This seemed
+      to pass MTR tests, but skips logic that may otherwise be needed.
+
+    if (key.type == Key::FOREIGN_KEY || key.length)
+      continue;
+
+    */
     if (key.type == Key::FOREIGN_KEY)
       continue;
 
@@ -3012,6 +3022,23 @@ my_bool init_key_info(THD *thd, Alter_info *alter_info,
       DBUG_RETURN(true);
 
     bool is_hash_field_needed= false;
+    /*
+      Option 1*:
+      DBUG_ASSERT would complement option 1 to ensure we don't call into
+      init_key_info with keys that are already initialized.
+
+    DBUG_ASSERT(!key.length);
+
+    */
+
+    /*
+      Option 3:
+      Reset the length of the key because we will be accumulating the lengths
+      of all key parts together, and it may already be initialized. This
+      option preserves the logic to be as close as possible to the original
+      code.
+    */
+    key.length= 0;
     for (Key_part_spec &kp: key.columns)
     {
       if (init_key_part_spec(thd, alter_info, file, key, kp,
@@ -3347,6 +3374,14 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   Key *key, *key2;
   uint tmp, key_number;
 
+  /*
+    Option 1:
+    If we are in the context of ALTER TABLE ... CONVERT PARTITION .. TO TABLE
+    the keys are already initialized (I think), can we skip init_key_info? I
+    tried a simple solution here to check alter_info->partition_flags for
+    ALTER_PARTITION_CONVERT_ flags, but it resulted in
+    ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF.
+  */
   if (init_key_info(thd, alter_info, create_info, file))
     DBUG_RETURN(TRUE);
 
