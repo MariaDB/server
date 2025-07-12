@@ -380,3 +380,4 @@ truncate user_session;
 set debug_sync = reset;
 connection node_1;
 drop table user_session,user;
+call mtr.add_suppression("WSREP: Foreign key check table:.*");

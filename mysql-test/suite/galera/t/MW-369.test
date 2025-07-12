@@ -333,6 +333,7 @@ INSERT INTO pg VALUES (2, 0);
 # Commit succeeds
 --connection node_1
 --reap
+call mtr.add_suppression("WSREP: Foreign key check table:.*");
 
 --connection node_2
 SELECT * FROM pg;
