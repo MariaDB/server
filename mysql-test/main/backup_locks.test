@@ -8,6 +8,7 @@
 --source include/not_embedded.inc
 --source include/no_view_protocol.inc
 
+
 --echo #
 --echo # Test lock taken
 --echo #

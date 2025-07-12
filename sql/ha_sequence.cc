@@ -84,6 +84,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
   DBUG_ENTER("ha_sequence::open");
   DBUG_ASSERT(table->s == table_share && file);
 
+  sql_print_information("ha_sequence::open");
   file->table= table;
   if (likely(!(error= file->open(name, mode, flags))))
   {
@@ -144,6 +145,7 @@ handler *ha_sequence::clone(const char *name, MEM_ROOT *mem_root)
 {
   ha_sequence *new_handler;
   DBUG_ENTER("ha_sequence::clone");
+  sql_print_information("ha_sequence::clone");
   if (!(new_handler= new (mem_root) ha_sequence(ht, table_share)))
     DBUG_RETURN(NULL);
 
@@ -216,6 +218,8 @@ int ha_sequence::write_row(const uchar *buf)
     Log to binary log even if this function has been called before
     (The function ends by setting row_logging to 0)
   */
+  sql_print_information("write_row sequence initialized state: %d ",
+                        sequence->initialized);
   row_logging= row_logging_init;
   if (unlikely(sequence->initialized == SEQUENCE::SEQ_IN_PREPARE))
   {
@@ -259,6 +263,7 @@ int ha_sequence::write_row(const uchar *buf)
                                              lock_wait_timeout))
         DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
+    sql_print_information("write_row read_fields ");
     tmp_seq.read_fields(table);
     if (tmp_seq.check_and_adjust(0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
@@ -295,6 +300,7 @@ int ha_sequence::write_row(const uchar *buf)
 
   if (likely(!(error= file->update_first_row(buf))))
   {
+    sql_print_information("write_row update_first_row");
     Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
     if (!sequence_locked)
       sequence->copy(&tmp_seq);
@@ -376,6 +382,7 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
 int ha_sequence::discard_or_import_tablespace(my_bool discard)
 {
   int error= file->discard_or_import_tablespace(discard);
+  sql_print_information("ha_sequence::discard_or_import_tablespace");
   if (!error && !discard)
   {
     /* Doing import table space. Read the imported values */
