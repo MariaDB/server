@@ -610,6 +610,11 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
     right_item->update_used_tables();
+    /*
+      We've just pushed right_item down into the child select. It may only
+      have references to outside.
+    */
+    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
     eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)
