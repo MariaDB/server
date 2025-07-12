@@ -3998,6 +3998,16 @@ bool THD::wsrep_parallel_slave_wait_for_prior_commit()
   return false;
 }
 
+void wsrep_parallel_slave_wakeup_subsequent_commits(void *thd_ptr)
+{
+  THD *thd = (THD*)thd_ptr;
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+      thd->wait_for_commit_ptr)
+  {
+    thd->wait_for_commit_ptr->wakeup_subsequent_commits(0);
+  }
+}
+
 /***** callbacks for wsrep service ************/
 
 my_bool get_wsrep_recovery()
