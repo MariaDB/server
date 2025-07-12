@@ -3678,6 +3678,15 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
     (tables->updating && tables->lock_type >= TL_FIRST_WRITE)
     || thd->lex->default_used;
 
+#ifdef WITH_WSREP
+  if (WSREP(thd) && !thd->wsrep_applier &&
+      wsrep_is_active(thd) &&
+      (sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA) &&
+      tables->lock_type == TL_READ) {
+    maybe_need_prelocking= true;
+  }
+#endif
+
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
       ! has_prelocking_list && maybe_need_prelocking)
   {
@@ -4805,6 +4814,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   Query_arena *arena, backup;
   TABLE *table= table_list->table;
   bool error= FALSE;
+  bool override_fk_ignore_table= FALSE;
 
   if (!table->file->referenced_by_foreign_key())
     DBUG_RETURN(FALSE);
@@ -4820,6 +4830,41 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   }
 
   *need_prelocking= TRUE;
+
+#ifdef WITH_WSREP
+    /*
+      MDL is enough for read-only FK checks, we don't need the table,
+      but on galera applier node lock_type is set to TL_FIRST_WRITE and not
+      TL_READ, which is due to Write_rows_log_event event logged for INSERT
+      is used to record insert, update and delete
+      (Write_rows_log_event::get_trg_event_map()), and therefore all child
+      tables will be opened and MDL locks will be taken on applier node, while
+      opening  of multiple child tables is ignored on write node by setting
+      open_strategy= OPEN_STUB in init_one_table_for_prelocking().
+      This difference in write and applier node can result in MDL deadlock.
+
+      Tables with foreign keys: t1<-t2<-t3<-t4
+      Conflicting transactions: INSERT t1 and DROP TABLE t4
+
+      Wsrep certification keys taken on write node:
+      - for INSERT t1: t1 and t2
+      - for DROP TABLE t4: t4
+
+      On applier node MDL deadlock happened between two transaction because
+      MDL locks for INSERT t1 were taken on t1, t2, t3 and t4, which conflicted
+      with MDL lock on t4 taken by DROP TABLE t4.
+
+      The Wsrep certification keys does helps in resolving in transactions
+      getting MDL deadlock. But to generate Wsrep certification keys it needs
+      to open and take MDL locks on all child tables. So that conflicting
+      transactions can be prioritize and scheduled.
+    */
+    if (WSREP(thd) && !thd->wsrep_applier &&
+        wsrep_is_active(thd) &&
+        (sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA)) {
+      override_fk_ignore_table= TRUE;
+    }
+#endif // WITH_WSREP
 
   while ((fk= fk_list_it++))
   {
@@ -4844,13 +4889,15 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
         TABLE_LIST::PRELOCK_FK,
         table_list->belong_to_view, op,
         &prelocking_ctx->query_tables_last,
-        table_list->for_insert_data);
+        table_list->for_insert_data,
+	override_fk_ignore_table);
 
 #ifdef WITH_WSREP
     /*
       Append table level shared key for the referenced/foreign table for:
         - statement that updates existing rows (UPDATE, multi-update)
         - statement that deletes existing rows (DELETE, DELETE_MULTI)
+        - statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
       This is done to avoid potential MDL conflicts with concurrent DDLs.
     */
     if (wsrep_foreign_key_append(thd, fk))
@@ -4895,8 +4942,10 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
   TABLE *table= table_list->table;
   /* We rely on a caller to check that table is going to be changed. */
   DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE ||
+              ((sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA)
+	       && table_list->lock_type == TL_READ) ||
               thd->lex->default_used);
-
+ 
   if (table_list->trg_event_map)
   {
     if (table->triggers)
