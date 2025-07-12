@@ -1198,7 +1198,20 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
 		fail = !check_if_skip_table(spacename.c_str());
-                error= "create";
+		if (!opt_no_lock && fail &&
+		    check_if_fts_table(spacename.c_str())) {
+			/* Ignore the FTS internal table because InnoDB does
+			create intermediate table and their associative FTS
+			internal table when table is being rebuilt during
+			prepare phase. Also, backup_set_alter_copy_lock()
+			downgrades the MDL_BACKUP_DDL before prepare phase
+			of alter. This leads to the FTS internal table being
+			created in the late phase of backup.
+			mariabackup --prepare should be able to handle
+			this case. */
+			fail = false;
+		}
+	        error= "create";
 		break;
 	case FILE_MODIFY:
 		break;
@@ -5061,7 +5074,7 @@ class BackupStages {
 
 		bool stage_start(Backup_datasinks &backup_datasinks,
 		                 CorruptedPages &corrupted_pages) {
-			msg("BACKUP STAGE START");
+			msg("Starting BACKUP STAGE START");
 			if (!opt_no_lock) {
 				if (opt_safe_slave_backup) {
 					if (!wait_for_safe_slave(mysql_connection)) {
@@ -5075,6 +5088,7 @@ class BackupStages {
 					msg("Error on BACKUP STAGE START query execution");
 					return(false);
 				}
+				msg("Acquired locks for BACKUP STAGE START");
 			}
 
                         InnodbDataCopier innodb_data_copier(backup_datasinks,
@@ -5105,14 +5119,18 @@ class BackupStages {
 
 			DBUG_MARIABACKUP_EVENT_LOCK("after_aria_background", {});
 
+			msg("Finished BACKUP STAGE START");
 			return true;
 		}
 
 		bool stage_flush() {
-			msg("BACKUP STAGE FLUSH");
-			if (!opt_no_lock && !lock_for_backup_stage_flush(m_bs_con)) {
-				msg("Error on BACKUP STAGE FLUSH query execution");
-				return false;
+			msg("Starting BACKUP STAGE FLUSH");
+			if (!opt_no_lock) {
+				if (!lock_for_backup_stage_flush(m_bs_con)) {
+					msg("Error on BACKUP STAGE FLUSH query execution");
+					return false;
+				}
+				msg("Acquired locks for BACKUP STAGE FLUSH");
 			}
 			auto tables_in_use = get_tables_in_use(mysql_connection);
 			// Copy non-stats-log non-in-use tables of non-InnoDB-Aria-RocksDB engines
@@ -5160,17 +5178,20 @@ class BackupStages {
 					xb_mysql_query(mysql_connection,
 						"SET debug_sync='now WAIT_FOR copy_started'", false, true);
 				);
-
+			msg("Finished BACKUP STAGE FLUSH");
 			return true;
 		}
 
 		bool stage_block_ddl(Backup_datasinks &backup_datasinks,
                                      CorruptedPages &corrupted_pages) {
+			msg("Started BACKUP STAGE BLOCK_DDL");
 			if (!opt_no_lock) {
 				if (!lock_for_backup_stage_block_ddl(m_bs_con)) {
-					msg("BACKUP STAGE BLOCK_DDL");
+					msg("Error on BACKUP STAGE BLOCK_DDL "
+					    "query execution");
 					return false;
 				}
+				msg("Acquired locks for BACKUP STAGE BLOCK_DDL");
 				if (have_galera_enabled)
 				{
 					xb_mysql_query(mysql_connection, "SET SESSION wsrep_sync_wait=0", false);
@@ -5232,14 +5253,18 @@ class BackupStages {
 
 			DBUG_MARIABACKUP_EVENT_LOCK("after_stage_block_ddl", {});
 
+			msg("Finished BACKUP STAGE BLOCK_DDL");
 			return true;
 		}
 
 		bool stage_block_commit(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE BLOCK_COMMIT");
-			if (!opt_no_lock && !lock_for_backup_stage_commit(m_bs_con)) {
-				msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
-				return false;
+			msg("Starting BACKUP STAGE BLOCK_COMMIT");
+			if (!opt_no_lock) {
+				if (!lock_for_backup_stage_commit(m_bs_con)) {
+					msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
+					return false;
+				}
+				msg("Acquired locks for BACKUP STAGE BLOCK_COMMIT");
 			}
 
 			// Copy log tables tail
@@ -5339,11 +5364,13 @@ class BackupStages {
 						"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
 			}
 
-			return backup_datasinks.backup_low();
+			bool res= backup_datasinks.backup_low();
+			msg("Finishing BACKUP STAGE BLOCK_COMMIT");
+			return res;
 		}
 
 		bool stage_end(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE END");
+			msg("Starting BACKUP STAGE END");
 			/* release all locks */
 			if (!opt_no_lock) {
 				unlock_all(m_bs_con);
