@@ -68,6 +68,8 @@ Slave_reporting_capability::report(loglevel level, int err_code,
 
   my_vsnprintf(pbuff, pbuffsize, msg, args);
 
+  if (level == ERROR_LEVEL)
+    (*error_handler_hook)(err_code, pbuff, MY_WME);
   mysql_mutex_unlock(&err_lock);
   va_end(args);
   err_thread_id= current_thd->thread_id;
