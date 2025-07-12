@@ -289,11 +289,9 @@ end:
   maria_end();
   my_end(verbose ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(error ? 2 : 0);
-#ifndef _lint
-  return 0;					/* No compiler warning */
-#endif
 }
 
+ATTRIBUTE_NORETURN
 static void my_exit(int error)
 {
   free_defaults(default_argv);
