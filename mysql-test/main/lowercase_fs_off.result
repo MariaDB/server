@@ -254,6 +254,7 @@ test
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
+No archive files found to remove
 drop procedure test.pr;
 drop database TEST;
 create table t1 (a int);
