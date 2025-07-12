@@ -1644,6 +1644,11 @@ static void write_item(Json_writer *writer, Item *item)
   String str(item_buf, sizeof(item_buf), &my_charset_bin);
   str.length(0);
 
+  if (item->is_bool_literal())
+  {
+    writer->add_bool(item->val_int() ? true : false);
+    return;
+  }
   ulonglong save_option_bits= thd->variables.option_bits;
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
 

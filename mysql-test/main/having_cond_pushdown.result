@@ -5652,7 +5652,7 @@ EXPLAIN
               "access_type": "ALL",
               "rows": 2,
               "filtered": 100,
-              "attached_condition": "t1.a = (subquery#2) and (1 or (subquery#2) > t1.b)"
+              "attached_condition": "t1.a = (subquery#2) and (true or (subquery#2) > t1.b)"
             }
           }
         ],
