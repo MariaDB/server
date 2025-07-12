@@ -52,6 +52,10 @@ void my_timestamp_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec)
 /* For ColumnStore */
 void my_timestamp_from_binary(struct timeval *tm, const uchar *ptr, uint dec);
 uint my_timestamp_binary_length(uint dec);
+
+void my_interval_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec);
+void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec);
+
 /** End of MySQL routines and macros **/
 
 #endif /* COMPAT56_H_INCLUDED */
