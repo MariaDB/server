@@ -549,4 +549,34 @@ DROP TABLE t1;
 
 --echo # End of 10.4 tests
 
+--echo #
+--echo # MDEV-30711: Crash in add_keyuses_for_splitting() when joining with a derived table
+--echo #
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (a int, index(a));
+insert into t2 values (1),(3);
+
+create view v1 as
+select
+  nullif(tbl2.COL1,123) as COL10
+from
+  t1 left join
+  (select 1 as COL1, a from t2) tbl2 on t1.a=tbl2.a;
+
+create table t10 (grp_id int, a int, index(grp_id));
+insert into t10 select A.seq, B.seq from seq_1_to_100 A, seq_1_to_100 B;
+analyze table t10;
+
+explain
+select * from
+  v1,
+  (select grp_id, count(*) from t10 group by grp_id) T
+where
+  T.grp_id=v1.COL10;
+
+drop table t1,t2, t10;
+drop view v1;
+
+--echo # End of 10.11 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
