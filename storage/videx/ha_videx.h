@@ -105,34 +105,15 @@ public:
 
 	void column_bitmaps_signal() override;
 
-	/** Opens dictionary table object using table name. For partition, we need to
-		try alternative lower/upper case names to support moving data files across
-		platforms.
-		@param[in]	table_name	name of the table/partition
-		@param[in]	norm_name	normalized name of the table/partition
-		@param[in]	is_partition	if this is a partition of a table
-		@param[in]	ignore_err	error to ignore for loading dictionary object
-		@return dictionary table object or NULL if not found */
-	static dict_table_t* open_dict_table(
-		const char*		table_name,
-		const char*		norm_name,
-		bool			is_partition,
-		dict_err_ignore_t	ignore_err);
-
 	int open(const char *name, int mode, uint test_if_locked) override;
-
-	/** Fetch or recalculate InnoDB table statistics */
-	dberr_t statistics_init(dict_table_t *table, bool recalc);
 
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;
 
-	// !!! There is a NOT_USED signal in ha_innodb.h
 	IO_AND_CPU_COST scan_time() override;
-	double rnd_pos_time(ha_rows rows) override;
-
-	double read_time(uint index, uint ranges, ha_rows rows) override;
+	
+	IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
 
 	int write_row(const uchar * buf) override;
 
@@ -147,8 +128,6 @@ public:
 	void unlock_row() override;
 
 	int index_next(uchar * buf) override;
-
-	// int index_next_same(uchar * buf, const uchar * key, uint keylen) override;
 
 	int index_prev(uchar * buf) override;
 
@@ -254,7 +233,23 @@ public:
 		@param[in] idx_cond Index condition to be checked
 		@return idx_cond if pushed; NULL if not pushed */
 	Item* idx_cond_push(uint keyno, Item* idx_cond) override;
+  
+	int info_low(uint flag, bool is_analyze);
 
-protected:
-	int info_low(uint flag, bool is_analyze); // virtual in mysql version, but not in mariadb
+	/** The multi range read session object */
+	DsMrr_impl m_ds_mrr;
+	
+	/** Thread handle of the user currently using the handler;
+	this is set in external_lock function */
+	THD *m_user_thd;
+
+	/** Flags that specificy the handler instance (table) capability. */
+	Table_flags m_int_table_flags;
+
+	/** this is set to 1 when we are starting a table scan but have
+	not yet fetched any row, else false */
+	bool m_start_of_scan;
+	
+	/** If mysql has locked with external_lock() */
+	bool m_mysql_has_locked;
 };

@@ -162,7 +162,7 @@ ha_videx::ha_videx(
 			  // | HA_CAN_FULLTEXT_EXT
 			  // | HA_CAN_FULLTEXT_HINTS
 			  | HA_CAN_EXPORT
-        | HA_ONLINE_ANALYZE
+        	  | HA_ONLINE_ANALYZE
 			  | HA_CAN_RTREEKEYS
 			  | HA_CAN_TABLES_WITHOUT_ROLLBACK
 			  | HA_CAN_ONLINE_BACKUPS
@@ -170,7 +170,7 @@ ha_videx::ha_videx(
 			  | HA_CAN_SKIP_LOCKED
 		  ),
 	m_start_of_scan(),
-        m_mysql_has_locked()
+    m_mysql_has_locked()
 {}
 
 ulonglong ha_videx::table_version() const
@@ -195,10 +195,7 @@ handler::Table_flags ha_videx::table_flags() const
 	THD*			thd = ha_thd();
 	handler::Table_flags	flags = m_int_table_flags;
 
-	/* enforce primary key when a table is created, but not when
-	an existing (hlindex?) table is auto-discovered */
-	if (srv_force_primary_key && // TODO:
-	    thd_sql_command(thd) == SQLCOM_CREATE_TABLE) {
+	if (thd_sql_command(thd) == SQLCOM_CREATE_TABLE) {
 		flags|= HA_REQUIRE_PRIMARY_KEY;
 	}
 
@@ -249,7 +246,7 @@ uint ha_videx::max_supported_key_length() const // ✅
 
 uint ha_videx::max_supported_key_part_length() const // ✅
 {
-	return(REC_VERSION_56_MAX_INDEX_COL_LEN);
+	return(3072);
 }
 
 const key_map* ha_videx::keys_to_use_for_scanning() // ✅
@@ -262,16 +259,6 @@ void ha_videx::column_bitmaps_signal()
   DBUG_ENTER("ha_videx::column_bitmaps_signal");
   // TODO:
   DBUG_VOID_RETURN;
-}
-
-static dict_table_t* open_dict_table(
-		const char*		table_name,
-		const char*		norm_name,
-		bool			is_partition,
-		dict_err_ignore_t	ignore_err)
-{
-  // TODO:
-  return(NULL);
 }
 
 /**
@@ -300,9 +287,9 @@ int ha_videx::open(const char *name, int mode, uint test_if_locked)
 
 	ref_length = table->key_info[table_share->primary_key].key_length;
 
-	stats.blocks_size = 16384;
+	stats.block_size = 16384;
 
-	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLES | HA_STATUS_CONST);
+	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 
 	DBUG_RETURN(0);
 }
@@ -340,22 +327,13 @@ handler* ha_videx::clone(
 IO_AND_CPU_COST ha_videx::scan_time()
 {
 	DBUG_ENTER("ha_videx::scan_time");
-	// TODO:
-	DBUG_RETURN(IO_AND_CPU_COST(0, 0));
+	return handler::scan_time();
 }
 
-double ha_videx::rnd_pos_time(ha_rows rows)
+IO_AND_CPU_COST ha_videx::rnd_pos_time(ha_rows rows)
 {
 	DBUG_ENTER("ha_videx::rnd_pos_time");
-	// TODO:
-	DBUG_RETURN(0);
-}
-
-double ha_videx::read_time(uint index, uint ranges, ha_rows rows)
-{
-	DBUG_ENTER("ha_videx::read_time");
-	// TODO:
-	DBUG_RETURN(0);
+	return handler::rnd_pos_time(rows);
 }
 
 /**
@@ -940,11 +918,11 @@ class Item* ha_videx::idx_cond_push(
 	DBUG_ASSERT(keyno != MAX_KEY);
 	DBUG_ASSERT(idx_cond != NULL);
 
-	/* We can only evaluate the condition if all columns are stored.*/
-	dict_index_t* idx  = innobase_get_index(keyno);
-	if (idx && dict_index_has_virtual(idx)) {
-		DBUG_RETURN(idx_cond);
-	}
+	// /* We can only evaluate the condition if all columns are stored.*/
+	// dict_index_t* idx  = innobase_get_index(keyno);
+	// if (idx && dict_index_has_virtual(idx)) {
+	// 	DBUG_RETURN(idx_cond);
+	// }
 
 	pushed_idx_cond = idx_cond;
 	pushed_idx_cond_keyno = keyno;
@@ -1027,13 +1005,12 @@ static MYSQL_THDVAR_INT(
 	NULL, NULL, 0, -1, 1, 0);
 
 static struct st_mysql_sys_var* videx_system_variables[]= {
-	MYSQL_SYSVAR(enum_var),
-	MYSQL_SYSVAR(ulong_var),
-	MYSQL_SYSVAR(int_var),
-	MYSQL_SYSVAR(double_var),
-	MYSQL_SYSVAR(double_thdvar),
-	MYSQL_SYSVAR(deprecated_var),
-	MYSQL_SYSVAR(varopt_default),
+	MYSQL_SYSVAR(enum_var), // enum variable 
+	MYSQL_SYSVAR(ulong_var), // ulong variable
+	MYSQL_SYSVAR(int_var), // int variable
+	MYSQL_SYSVAR(double_var), // double variable
+	MYSQL_SYSVAR(double_thdvar), // double variable for thread
+	MYSQL_SYSVAR(deprecated_var), // deprecated variable
 	NULL
 };
 
@@ -1061,7 +1038,11 @@ static struct st_mysql_show_var func_status[]=
 struct st_mysql_daemon unusable_videx=
 { MYSQL_DAEMON_INTERFACE_VERSION };
 
+#ifdef STATIC_VIDEX
+mariadb_declare_plugin(videx_static)
+#else
 maria_declare_plugin(videx)
+#endif
 {
 	MYSQL_STORAGE_ENGINE_PLUGIN,
 	&videx_storage_engine,
