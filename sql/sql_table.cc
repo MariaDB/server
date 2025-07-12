@@ -3724,6 +3724,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         auto_increment_key= sql_field;
       }
 
+      /* For SPATIAL, FULLTEXT and HASH indexes (anything other than B-tree),
+         ignore the ASC/DESC attribute of columns. */
+      if ((key_info->algorithm > HA_KEY_ALG_BTREE) ||
+          (key_info->flags & (HA_SPATIAL|HA_FULLTEXT)))
+        column->asc= true; // ignore DESC
+
       key_part_info->fieldnr= field;
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
