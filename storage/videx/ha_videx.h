@@ -134,23 +134,15 @@ public:
 
 	int delete_row(const uchar * buf) override;
 
-	bool was_semi_consistent_read() override;
+	bool was_semi_consistent_read() override; // ???
 
-	void try_semi_consistent_read(bool yes) override;
+	void try_semi_consistent_read(bool yes) override; // ???
 
 	void unlock_row() override;
 
-	int index_read(
-		uchar*			buf,
-		const uchar*		key,
-		uint			key_len,
-		ha_rkey_function	find_flag) override;
-
-  int index_read_last(uchar * buf, const uchar * key, uint key_len) override;
-
   int index_next(uchar * buf) override;
 
-  int index_next_same(uchar * buf, const uchar * key, uint keylen) override;
+  // int index_next_same(uchar * buf, const uchar * key, uint keylen) override;
 
   int index_prev(uchar * buf) override;
 
@@ -176,7 +168,10 @@ public:
   
   int external_lock(THD *thd, int lock_type) override;
 
-  int start_stmt(THD *thd, thr_lock_type lock_type) override;
+	THR_LOCK_DATA** store_lock(
+		THD*			thd,
+		THR_LOCK_DATA**		to,
+		thr_lock_type		lock_type) override;
  
   ha_rows records_in_range(
     uint                    inx,
@@ -185,31 +180,16 @@ public:
     page_range*             pages) override;
 
   ha_rows estimate_rows_upper_bound() override;
-
-  void update_create_info(HA_CREATE_INFO* create_info) override;
-
-	int create(
-		const char*		name,
-		TABLE*			form,
-		HA_CREATE_INFO*		create_info,
-		bool			file_per_table,
-		trx_t*			trx);
-
 	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info) override;
 
-  int truncate() override;
+  // int truncate() override;
 
   int delete_table(const char *name) override;
 
   int rename_table(const char* from, const char* to) override;
-
-	THR_LOCK_DATA** store_lock(
-		THD*			thd,
-		THR_LOCK_DATA**		to,
-		thr_lock_type		lock_type) override;
 
 	/** Initialize multi range read @see DsMrr_impl::dsmrr_init
 	@param seq
@@ -248,11 +228,27 @@ public:
                 ha_rows                 limit,
 		Cost_estimate*		cost) override;
 
+    /** Initialize multi range read and get information.
+	@see DsMrr_impl::dsmrr_info
+	@param keyno
+	@param seq
+	@param seq_init_param
+	@param n_ranges
+	@param bufsz
+	@param flags
+	@param cost */
+	ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+    uint key_parts, uint* bufsz, uint* flags,
+    Cost_estimate* cost) override;
+
+	int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size) override;
+	
 	/** Attempt to push down an index condition.
 	@param[in] keyno MySQL key number
 	@param[in] idx_cond Index condition to be checked
 	@return idx_cond if pushed; NULL if not pushed */
 	Item* idx_cond_push(uint keyno, Item* idx_cond) override;
 
+protected:
   int info_low(uint flag, bool is_analyze); // virtual in mysql version, but not in mariadb
 };
