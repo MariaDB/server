@@ -2402,8 +2402,8 @@ KEY (c2)
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Packed
 Character set:       utf8mb3_general_ci (33)
-Data records:                    0  Deleted blocks:                 0
-Recordlength:                   94
+Data records:                      0  Deleted blocks:                      0
+Recordlength:                     94
 
 table description:
 Key Start Len Index   Type
@@ -2690,8 +2690,8 @@ KEY (d)
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Fixed length
 Character set:       latin1_swedish_ci (8)
-Data records:                    0  Deleted blocks:                 0
-Recordlength:                   13
+Data records:                      0  Deleted blocks:                      0
+Recordlength:                     13
 
 table description:
 Key Start Len Index   Type
