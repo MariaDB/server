@@ -4159,3 +4159,10 @@ bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk)
 
   return false;
 }
+
+bool wsrep_is_recovering_from_sst()
+{
+  return Wsrep_server_state::is_inited() &&
+         Wsrep_server_state::instance().state() ==
+             Wsrep_server_state::s_initializing;
+}

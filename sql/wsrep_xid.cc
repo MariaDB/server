@@ -26,6 +26,9 @@
 #include <algorithm> /* std::sort() */
 #include <string>    /* std::string */
 #include <sstream>   /* std::stringstream */
+
+XID* wsrep_recovery_commit_xid = nullptr;
+
 /*
  * WSREPXid
  */
