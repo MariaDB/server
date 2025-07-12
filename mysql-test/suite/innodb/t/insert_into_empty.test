@@ -653,4 +653,17 @@ XA PREPARE 'a';
 XA COMMIT 'a';
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-36787  Error 153: No savepoint with that name
+--echo #       upon ROLLBACK TO SAVEPOINT, assertion failure
+--echo #
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+START TRANSACTION;
+SELECT * FROM t1;
+SAVEPOINT A;
+--error ER_WARN_DATA_OUT_OF_RANGE
+CREATE TEMPORARY TABLE tmp (a TINYINT) ENGINE=InnoDB AS SELECT 256 AS a;
+ROLLBACK TO SAVEPOINT A;
+DROP TABLE t1;
 --echo # End of 10.11 tests
