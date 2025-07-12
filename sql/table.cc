@@ -5831,10 +5831,9 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mysql_mutex_assert_owner(&tdc->LOCK_table_share);
   DBUG_ASSERT(tdc->flushed);
+  DBUG_ASSERT(mdl_context->m_wait.get_status() == MDL_wait::EMPTY);
 
   tdc->m_flush_tickets.push_front(&ticket);
-
-  mdl_context->m_wait.reset_status();
 
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
@@ -5852,6 +5851,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   mysql_cond_broadcast(&tdc->COND_release);
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
+  mdl_context->m_wait.reset_status();
 
   /*
     In cases when our wait was aborted by KILL statement,

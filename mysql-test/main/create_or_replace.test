@@ -239,6 +239,7 @@ select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.meta
 --error ER_DUP_FIELDNAME
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 show tables;
+--sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
 --sorted_result
 select LOCK_MODE,LOCK_TYPE, TABLE_SCHEMA,TABLE_NAME from information_schema.metadata_lock_info;
