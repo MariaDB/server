@@ -3,6 +3,7 @@ call mtr.add_suppression("InnoDB: File '.*test/t[123]\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t[13]\\.ibd'");
 call mtr.add_suppression("InnoDB: Failed to read page 6 from file '.*test/t2\\.ibd'");
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=\\d+, page number=[36]\\] in file .*test.t[123]\\.ibd looks corrupted; key_version=");
+call mtr.add_suppression("InnoDB: Failed to read page 6 from file '.*test/t2\\.ibd': Table is encrypted but decrypt failed\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption in an InnoDB type table");
 call mtr.add_suppression("\\[ERROR\\] mariadbd.*: Index for table 't2' is corrupt; try to repair it");
 SET GLOBAL innodb_file_per_table = ON;
