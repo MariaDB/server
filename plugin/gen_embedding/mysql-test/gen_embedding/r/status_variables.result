@@ -1,0 +1,10 @@
+FLUSH GLOBAL STATUS;
+Variable_name	Value
+Generate_embedding_openai_successful_curl_requests	0
+Generate_embedding_openai_total_curl_requests	0
+Variable_name	Value
+Generate_embedding_openai_successful_curl_requests	1
+Generate_embedding_openai_total_curl_requests	1
+Variable_name	Value
+Generate_embedding_openai_successful_curl_requests	1
+Generate_embedding_openai_total_curl_requests	2
