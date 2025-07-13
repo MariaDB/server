@@ -193,7 +193,7 @@ class Item_func_gen_embedding: public Item_str_func
     slist1 = NULL;
     response = read_data_stream.str();
 
-    api_response.copy(response.c_str(), response.length(), &cs_openai);
+    api_response.copy(response.c_str(), response.length(), &my_charset_utf8mb4_general_ci);
     return 0;
 cleanup:
     curl_easy_cleanup(hnd);
