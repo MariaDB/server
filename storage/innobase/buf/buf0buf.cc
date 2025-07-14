@@ -2730,7 +2730,6 @@ loop:
 		transactional_shared_lock_guard<page_hash_latch> g{hash_lock};
 		if (buf_pool.is_uncompressed(block)
 		    && page_id == block->page.id()) {
-			ut_ad(!block->page.in_zip_hash);
 			state = block->page.state();
 			/* Ignore guesses that point to read-fixed blocks.
 			We can only avoid a race condition by
@@ -2738,6 +2737,7 @@ loop:
 			if ((state >= buf_page_t::FREED
 			     && state < buf_page_t::READ_FIX)
 			    || state >= buf_page_t::WRITE_FIX) {
+				ut_ad(!block->page.in_zip_hash);
 				state = block->page.fix();
 				goto got_block;
 			}
