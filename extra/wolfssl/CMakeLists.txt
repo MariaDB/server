@@ -134,6 +134,8 @@ if(MSVC)
   remove_definitions(-DHAVE_CONFIG_H)
   target_compile_definitions(wolfssl PRIVATE
     WOLFSSL_HAVE_MIN WOLFSSL_HAVE_MAX)
+  # Workaround https://github.com/wolfSSL/wolfssl/issues/9004
+  target_compile_definitions(wolfssl PRIVATE WOLFSSL_NO_SOCK SOCKET_INVALID=-1)
 endif()
 
 CONFIGURE_FILE(user_settings.h.in user_settings.h)
