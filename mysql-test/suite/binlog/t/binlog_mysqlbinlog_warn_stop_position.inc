@@ -50,7 +50,6 @@ if (!$read_from_remote_server)
 --echo #
 --echo #  Case 1.c) With one binlog file, a --stop-position past the end of the
 --echo # file should(!) result in a warning
---let $binlog_f1_over_eof= `SELECT $binlog_f1_end + 1`
 --echo # MYSQL_BINLOG $PARAM_READ_FROM_REMOTE_OUT --short-form --stop-position=binlog_f1_over_eof binlog_f1_full --result-file=$binlog_out_relpath 2>&1
 --replace_result $binlog_f1_over_eof <BINLOG_F1_OVER_EOF>
 --exec $MYSQL_BINLOG $PARAM_READ_FROM_REMOTE --short-form --stop-position=$binlog_f1_over_eof $binlog_f1_full --result-file=$binlog_out 2>&1
@@ -65,7 +64,6 @@ if (!$read_from_remote_server)
 --exec $MYSQL_BINLOG $PARAM_READ_FROM_REMOTE --stop-position=$binlog_f2_mid $binlog_f1_full $binlog_f2_full --result-file=$binlog_out 2>&1
 
 --let $server_id= `SELECT @@GLOBAL.server_id`
---let $domain_id= `SELECT @@GLOBAL.gtid_domain_id`
 --let $assert_file= $binlog_out
 --let $assert_text= Ensure all intended GTIDs are present
 --let $assert_select= GTID $domain_id-$server_id-
@@ -86,7 +84,6 @@ if (!$read_from_remote_server)
 --exec $MYSQL_BINLOG $PARAM_READ_FROM_REMOTE --stop-position=$binlog_f2_end $binlog_f1_full $binlog_f2_full --result-file=$binlog_out 2>&1
 
 --let $server_id= `SELECT @@GLOBAL.server_id`
---let $domain_id= `SELECT @@GLOBAL.gtid_domain_id`
 --let $assert_text= Ensure a GTID exists for each transaction
 --let $assert_select= GTID $domain_id-$server_id-
 --let $assert_count= 8
@@ -102,13 +99,11 @@ if (!$read_from_remote_server)
 --echo # the eof of binlog 2 should:
 --echo #    1) provide a warning that the stop position was not reached
 --echo #    2) not prevent b2 from outputting its entire binary log
---let $binlog_f2_over_eof= `SELECT $binlog_f2_end + 1`
 --echo # MYSQL_BINLOG $PARAM_READ_FROM_REMOTE_OUT --stop-position=binlog_f2_over_eof binlog_f1_full binlog_f2_full --result-file=$binlog_out_relpath 2>&1
 --replace_result $binlog_f2_over_eof <BINLOG_F2_OVER_EOF>
 --exec $MYSQL_BINLOG $PARAM_READ_FROM_REMOTE --stop-position=$binlog_f2_over_eof $binlog_f1_full $binlog_f2_full --result-file=$binlog_out 2>&1
 
 --let $server_id= `SELECT @@GLOBAL.server_id`
---let $domain_id= `SELECT @@GLOBAL.gtid_domain_id`
 --let $assert_text= Ensure a GTID exists for each transaction
 --let $assert_select= GTID $domain_id-$server_id-
 --let $assert_count= 8
