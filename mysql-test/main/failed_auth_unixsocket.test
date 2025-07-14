@@ -20,9 +20,12 @@ let $replace=Access denied for user '$USER';
 connect (fail,localhost,$USER);
 --enable_query_log
 
---replace_result $replace "Access denied for user 'USER'"
+--disable_query_log
+--disable_result_log
 --error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
 change_user $USER;
+--enable_result_log
+--enable_query_log
 
 replace mysql.global_priv select * from global_priv_backup;
 flush privileges;
