@@ -15,6 +15,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 #include "tpool_structs.h"
 #include "tpool.h"
+#include "my_valgrind.h"
 #include "mysql/service_my_print_error.h"
 #include "mysqld_error.h"
 
@@ -172,6 +173,10 @@ private:
       {
         iocb->m_err= 0;
         iocb->m_ret_len= res;
+#if __has_feature(memory_sanitizer)
+        if (iocb->m_opcode == aio_opcode::AIO_PREAD)
+          MEM_MAKE_DEFINED(iocb->m_buffer, res);
+#endif
       }
 
       io_uring_cqe_seen(&aio->uring_, cqe);
