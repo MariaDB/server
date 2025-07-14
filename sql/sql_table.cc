@@ -1039,7 +1039,7 @@ end:
 int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length, bool is_trans)
 {
-  int error= 0;
+  int error= 0;                                // No logging of query
   if (mysql_bin_log.is_open())
   {
     int errcode= 0;
@@ -5889,6 +5889,11 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
        src_table->table->s->db_type() != local_create_info.db_type)) ||
      !src_table->table->s->table_creation_was_logged);
 #endif
+
+  /*
+    If src table was a temporary table that was not replicated we have to write the
+    full table definition to the binary log.
+  */
   force_generated_create|= !src_table->table->s->table_creation_was_logged;
 
   if (thd->is_binlog_format_row() || force_generated_create)
@@ -5934,29 +5939,40 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         }
         if (!table->table)
         {
-          TABLE_LIST::enum_open_strategy save_open_strategy;
-          int open_res;
-          /* Force the newly created table to be opened */
-          save_open_strategy= table->open_strategy;
-          table->open_strategy= TABLE_LIST::OPEN_NORMAL;
-
-          /*
-            In order for show_create_table() to work we need to open
-            destination table if it is not already open (i.e. if it
-            has not existed before). We don't need acquire metadata
-            lock in order to do this as we already hold exclusive
-            lock on this table. The table will be closed by
-            close_thread_table() at the end of this branch.
-          */
-          open_res= open_table(thd, table, &ot_ctx);
-          /* Restore */
-          table->open_strategy= save_open_strategy;
-          if (open_res)
+          if (local_create_info.table)
           {
-            res= 1;
-            goto err;
+            /*
+              The table was a temporary table or a generated table. Use the src as
+              the table definition.
+            */
+            table->table= local_create_info.table;
           }
-          new_table= TRUE;
+          else
+          {
+            TABLE_LIST::enum_open_strategy save_open_strategy;
+            int open_res;
+            /* Force the newly created table to be opened */
+            save_open_strategy= table->open_strategy;
+            table->open_strategy= TABLE_LIST::OPEN_NORMAL;
+
+            /*
+              In order for show_create_table() to work we need to open
+              destination table if it is not already open (i.e. if it
+              has not existed before). We don't need acquire metadata
+              lock in order to do this as we already hold exclusive
+              lock on this table. The table will be closed by
+              close_thread_table() at the end of this branch.
+            */
+            open_res= open_table(thd, table, &ot_ctx);
+            /* Restore */
+            table->open_strategy= save_open_strategy;
+            if (open_res)
+            {
+              res= 1;
+              goto err;
+            }
+            new_table= TRUE;
+          }
         }
         /*
           We have to re-test if the table was a view as the view may not
@@ -5989,6 +6005,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             res= 1;
             goto err;
           }
+          if (local_create_info.table && thd->tmp_table_binlog_handled)
+            local_create_info.table->s->table_creation_was_logged= 1;
 
           if (new_table)
           {
@@ -6017,8 +6035,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     if (create_info->tmp_table())
     {
       thd->transaction->stmt.mark_created_temp_table();
-      if (!res && local_create_info.table &&
-          thd->variables.binlog_format == BINLOG_FORMAT_STMT)
+      if (!res && local_create_info.table && thd->binlog_create_tmp_table())
       {
         /*
           Remember that tmp table creation was logged so that we know if
