@@ -8629,12 +8629,14 @@ int spider_create_sts_crd_threads(
 ) {
   int error_num;
   DBUG_ENTER("spider_create_sts_crd_threads");
+#ifdef HAVE_PSI_INTERFACE
   PSI_mutex_key mutex_bg= is_sts ? spd_key_mutex_bg_stss :
     spd_key_mutex_bg_crds;
   PSI_cond_key cond_bg= is_sts ? spd_key_cond_bg_stss :
     spd_key_cond_bg_crds;
   PSI_cond_key cond_bg_syncs= is_sts ? spd_key_cond_bg_sts_syncs :
     spd_key_cond_bg_crd_syncs;
+#endif
   if (mysql_mutex_init(mutex_bg,
     &spider_thread->mutex, MY_MUTEX_INIT_FAST))
   {
