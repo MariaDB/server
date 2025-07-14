@@ -605,13 +605,19 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   THD *thd= in_use;
   Item *left_item= spl_field->producing_item->build_clone(thd);
   Item *right_item= key_field->val->build_clone(thd);
-  Item_func_eq *eq_item= 0;
+  Item_bool_func *eq_item= 0;
   if (left_item && right_item)
   {
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
     right_item->update_used_tables();
-    eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
+
+    //  Item_func::EQUAL_FUNC is null-safe, others can use Item_func_eq()
+    if (key_field->cond->type() == Item::FUNC_ITEM &&
+        ((Item_func*)key_field->cond)->functype() == Item_func::EQUAL_FUNC)
+      eq_item= new (thd->mem_root) Item_func_equal(thd, left_item, right_item);
+    else
+      eq_item= new (thd->mem_root) Item_func_eq(thd, left_item, right_item);
   }
   if (!eq_item)
     return;

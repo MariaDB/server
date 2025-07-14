@@ -989,7 +989,7 @@ explain $query;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	range	t2_IDX	t2_IDX	4	NULL	1	Using index condition
 1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	1	Using where
-2	LATERAL DERIVED	t1	ref	t1_IDX	t1_IDX	9	test.t2.a,test.t2.b	1	
+2	LATERAL DERIVED	t1	ref	t1_IDX	t1_IDX	9	test.t2.a,test.t2.b	1	Using index condition
 $query;
 a	b	name	total_amt
 1	NULL	A	10
@@ -998,4 +998,242 @@ set statement optimizer_switch='split_materialized=off' for $query;
 a	b	name	total_amt
 1	NULL	A	10
 DROP TABLE t1,t2;
+#
+# MDEV-37230 Incorrect handling of NULL join conditions when using
+#   split-materialized
+#
+create table t1
+(
+a int not null,
+b int,
+c int,
+d int,
+amount decimal,
+key t1_ix1 (a,b)
+) engine=innodb;
+insert into t1 values (0, NULL, 0, NULL, 10.0000), (1, 1, 1, 1, 10.0000),
+(2, 2, 2, 2, 20.0000), (3, 3, 3, 3, 30.0000), (4, 4, 4, 4, 40.0000),
+(5, 5, 5, 5, NULL), (6, 6, 6, 6, NULL), (7, 7, 7, 7, 70.0000),
+(8, 8, 8, 8, 80.0000);
+create table t2
+(
+a int NOT NULL,
+b int,
+name varchar(50),
+key t2_ix1 (a,b)
+) engine=innodb;
+insert into t2 values (0, NULL, 'a'), (1, NULL, 'A'), (2, 2, 'B'), (3,3, 'C'),
+(4,4, 'D'), (5,5, NULL), (6,6, NULL), (7,7, 'E'), (8,8, 'F'), (9,9, 'G'),
+(10,10,'H'), (11,11, NULL), (12,12, NULL);
+create table t3
+(
+a int not null,
+b int,
+description varchar(50),
+key t3_ix1 (a,b)
+);
+insert into t3 values (1, 1, 'bar'),(2,2,'buz'),(0,NULL, 'gold');
+insert into t3 select seq, seq, 'junk' from seq_3_to_13;
+analyze table t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+set optimizer_switch='default';
+set statement optimizer_switch='split_materialized=on'  for explain format=json select * from t1
+join t2 on t1.a = t2.a and t1.b <=> t2.b
+join
+(
+select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b <=> t1.b and dt.b <=> t2.b
+where dt.a < 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["t1_ix1"],
+          "key": "t1_ix1",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.a < 1"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["t2_ix1"],
+          "key": "t2_ix1",
+          "key_length": "9",
+          "used_key_parts": ["a", "b"],
+          "ref": ["test.t1.a", "test.t1.b"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.b <=> t2.b"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "9",
+          "used_key_parts": ["a", "b"],
+          "ref": ["test.t1.a", "test.t1.b"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.b <=> t1.b and dt.b <=> t2.b",
+          "materialized": {
+            "lateral": 1,
+            "query_block": {
+              "select_id": 3,
+              "cost": "REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ref",
+                    "possible_keys": ["t3_ix1"],
+                    "key": "t3_ix1",
+                    "key_length": "9",
+                    "used_key_parts": ["a", "b"],
+                    "ref": ["test.t1.a", "test.t1.b"],
+                    "loops": 1,
+                    "rows": 1,
+                    "cost": "REPLACED",
+                    "filtered": 100,
+                    "index_condition": "t3.a < 1 and t3.b <=> t1.b and t3.b <=> t2.b and t3.a = t2.a"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set statement optimizer_switch='split_materialized=on'  for select * from t1
+join t2 on t1.a = t2.a and t1.b <=> t2.b
+join
+(
+select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b <=> t1.b and dt.b <=> t2.b
+where dt.a < 1;
+a	b	c	d	amount	a	b	name	a	b	description
+0	NULL	0	NULL	10	0	NULL	a	0	NULL	gold
+set statement optimizer_switch='split_materialized=off' for explain format=json select * from t1
+join t2 on t1.a = t2.a and t1.b <=> t2.b
+join
+(
+select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b <=> t1.b and dt.b <=> t2.b
+where dt.a < 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["t1_ix1"],
+          "key": "t1_ix1",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.a < 1"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["t2_ix1"],
+          "key": "t2_ix1",
+          "key_length": "9",
+          "used_key_parts": ["a", "b"],
+          "ref": ["test.t1.a", "test.t1.b"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "index_condition": "t1.b <=> t2.b"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "9",
+          "used_key_parts": ["a", "b"],
+          "ref": ["test.t1.a", "test.t1.b"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.b <=> t1.b and dt.b <=> t2.b",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "range",
+                    "possible_keys": ["t3_ix1"],
+                    "key": "t3_ix1",
+                    "key_length": "4",
+                    "used_key_parts": ["a"],
+                    "loops": 1,
+                    "rows": 1,
+                    "cost": "REPLACED",
+                    "filtered": 100,
+                    "index_condition": "t3.a < 1"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set statement optimizer_switch='split_materialized=off' for select * from t1
+join t2 on t1.a = t2.a and t1.b <=> t2.b
+join
+(
+select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b <=> t1.b and dt.b <=> t2.b
+where dt.a < 1;
+a	b	c	d	amount	a	b	name	a	b	description
+0	NULL	0	NULL	10	0	NULL	a	0	NULL	gold
+drop table t1, t2, t3;
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
