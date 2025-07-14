@@ -5969,7 +5969,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       slave_rows_error_report(ERROR_LEVEL, thd->is_error() ? 0 : error,
                               rgi, thd, table, get_type_str(),
                               RPL_LOG_NAME, log_pos);
-    if (thd->slave_thread)
+    if (IF_WSREP(thd->slave_thread ||
+                     (WSREP(thd) && wsrep_thd_is_applying(thd)),
+                 thd->slave_thread))
       free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   }
 
