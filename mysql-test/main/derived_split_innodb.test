@@ -603,5 +603,61 @@ evalp set statement optimizer_switch='split_materialized=off' for $query;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-37057 Wrong result with LATERAL DERIVED
+--echo #   null safe equality error
+--echo #
+
+create table t1
+(
+  a int not null,
+  b int,
+  c int,
+  d int,
+  amount decimal,
+  key t1_ix1 (a,b)
+) engine=innodb;
+
+insert into t1 values (0, NULL, 0, NULL, 10.0000), (1, 1, 1, 1, 10.0000),
+(2, 2, 2, 2, 20.0000), (3, 3, 3, 3, 30.0000), (4, 4, 4, 4, 40.0000),
+(5, 5, 5, 5, NULL), (6, 6, 6, 6, NULL), (7, 7, 7, 7, 70.0000),
+(8, 8, 8, 8, 80.0000);
+
+create table t2
+(
+  a int NOT NULL,
+  b int,
+  name varchar(50),
+  key t2_ix1 (a,b)
+) engine=innodb;
+
+insert into t2 values (0, NULL, 'a'), (1, NULL, 'A'), (2, 2, 'B'), (3,3, 'C'),
+(4,4, 'D'), (5,5, NULL), (6,6, NULL), (7,7, 'E'), (8,8, 'F'), (9,9, 'G'),
+(10,10,'H'), (11,11, NULL), (12,12, NULL);
+
+create table t3
+(
+  a int not null,
+  b int,
+  description varchar(50),
+  key t3_ix1 (a,b)
+);
+insert into t3 values (1, 1, 'bar'),(2,2,'buz'),(0,NULL, 'gold');
+insert into t3 select seq, seq, 'junk' from seq_3_to_13;
+
+let $q=
+select * from t1
+join t2 on t1.a = t2.a and t1.b <=> t2.b
+join
+(
+  select a, b, description from t3 group by a, b
+) dt on dt.a = t1.a and dt.b <=> t1.b and dt.b <=> t2.b
+where dt.a < 1;
+
+eval set statement optimizer_switch='split_materialized=on'  for $q;
+eval set statement optimizer_switch='split_materialized=off' for $q;
+
+drop table t1, t2, t3;
+
 # End of 11.4 tests;
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
