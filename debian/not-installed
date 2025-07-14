@@ -48,6 +48,8 @@ usr/share/mariadb/mariadb-test/lsan.supp
 usr/share/mariadb/mariadb-test/unstable-tests
 usr/share/mariadb/Mongo2.jar
 usr/share/mariadb/Mongo3.jar
+usr/share/mariadb/mroonga/deb/*
+usr/share/mariadb/mroonga/rpm/*
 usr/share/mariadb/mysqld_multi.server
 usr/share/mariadb/mysql.server # Debian packaging uses mariadb-server.mariadb.init
 usr/share/mariadb/policy/apparmor/README # In MariaDB we don't want to use AppArmor at the moment
