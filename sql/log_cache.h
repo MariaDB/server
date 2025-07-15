@@ -110,6 +110,33 @@ public:
     DBUG_ASSERT(empty());
   }
 
+  void reset_for_engine_binlog()
+  {
+    bool cache_was_empty= empty();
+    truncate(cache_log.pos_in_file);
+    cache_log.pos_in_file= 0;
+    cache_log.request_pos= cache_log.write_pos= cache_log.buffer;
+    cache_log.write_end= cache_log.buffer + cache_log.buffer_length;
+    checksum_opt= BINLOG_CHECKSUM_ALG_OFF;
+    if (!cache_was_empty)
+      compute_statistics();
+    status= 0;
+    incident= FALSE;
+    before_stmt_pos= MY_OFF_T_UNDEF;
+    DBUG_ASSERT(empty());
+  }
+
+  void reset_cache_for_engine(my_off_t pos,
+         int (*fct)(struct st_io_cache *, const uchar *, size_t))
+  {
+    /* Bit fiddly here as we're abusing the IO_CACHE a bit for oob handling. */
+    cache_log.pos_in_file= pos;
+    cache_log.request_pos= cache_log.write_pos= cache_log.buffer;
+    cache_log.write_end=
+      (cache_log.buffer + cache_log.buffer_length - (pos & (IO_SIZE-1)));
+    cache_log.write_function= fct;
+  }
+
   my_off_t get_byte_position() const
   {
     return my_b_tell(&cache_log);

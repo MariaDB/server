@@ -1845,7 +1845,7 @@ read_more_data:
     enum chunk_reader_status res= fetch_current_page();
     if (res == CHUNK_READER_EOF)
     {
-      if (s.in_record)
+      if (s.in_record && s.file_no <= stop_file_no)
         return read_error_corruption(s.file_no, s.page_no, "binlog tablespace "
                                      "truncated in the middle of record");
       else
