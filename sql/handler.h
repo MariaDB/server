@@ -1567,11 +1567,32 @@ struct handlerton
     must be binlogged transactionally during COMMIT. The engine_data points to
     a pointer location that the engine can set to maintain its own context
     for the out-of-band data.
+
+    Optionally savepoints can be set at the point at the start of the write
+    (ie. before any written data), when stmt_start_data and/or savepoint_data
+    are non-NULL. Such a point can later be rolled back to by calling
+    binlog_savepoint_rollback(). (Only) if stmt_start_data or savepoint_data
+    is non-null can data_len be null (to set savepoint(s) and do nothing else).
    */
   bool (*binlog_oob_data_ordered)(THD *thd, const unsigned char *data,
-                                  size_t data_len, void **engine_data);
+                                  size_t data_len, void **engine_data,
+                                  void **stmt_start_data,
+                                  void **savepoint_data);
   bool (*binlog_oob_data)(THD *thd, const unsigned char *data,
                           size_t data_len, void **engine_data);
+  /*
+    Rollback to a prior point in out-of-band binlogged partial transaction
+    data, for savepoint support. The stmt_start_data and/or savepoint_data,
+    if non-NULL, correspond to the point set by an earlier binlog_oob_data()
+    call.
+
+    Exactly one of stmt_start_data or savepoint_data will be non-NULL,
+    corresponding to either rolling back to the start of the current statement,
+    or to an earlier set savepoint.
+  */
+  void (*binlog_savepoint_rollback)(THD *thd, void **engine_data,
+                                    void **stmt_start_data,
+                                    void **savepoint_data);
   /*
     Call to reset (for new transactions) the engine_data from
     binlog_oob_data(). Can also change the pointer to point to different data
