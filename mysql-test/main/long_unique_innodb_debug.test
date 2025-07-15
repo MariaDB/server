@@ -1,6 +1,11 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
 
+# FIXME: New test files are not recommended as they may increase test suite run
+# time (at least when server needs restart or on --force-restart).
+# There is main.debug_sync, have_innodb.inc will not do any harm there (and I had
+# added it there in some of my bug fixes in my branch).
+
 --echo #
 --echo # MDEV-37199 UNIQUE KEY USING HASH accepting duplicate records
 --echo #
@@ -24,13 +29,51 @@ set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_i
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
 --echo # Insert secondary index key ('a', 5) in the GAP between Infimum and ('a', 10)
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 insert t1 values(5, 'a');
 set debug_sync="now SIGNAL do_insert";
 --connection con1
 --error ER_DUP_ENTRY
 --reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## INSERT, row-level locking proof
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+--echo # Keep a Read View open to prevent purge
+start transaction;
+select * from t1;
+
+--connect con1,localhost,root
+--echo # Create delete marked secondary index Record ('a', 10)
+insert t1 values(10, 'a');
+delete from t1;
+--echo # Insert secondary index key ('a', 15) in the GAP between ('a', 10) and Supremum
+set transaction isolation level read committed;
+set debug_sync="ha_write_row_end SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send insert t1 values(15, 'a')
+
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+--echo # Insert secondary index key ('a', 5) in the GAP between Infimum and ('a', 10)
+set session innodb_lock_wait_timeout= 1;
+set transaction isolation level read committed;
+--error ER_LOCK_WAIT_TIMEOUT
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+
+--connection con1
+--reap
+
 --connection default
 select * from t1;
 commit;
@@ -57,7 +100,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update t1 set col2='a' where col1=5
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";
@@ -88,7 +130,6 @@ set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_i
 --send insert ignore t1 values(15, 'a'), (16, 'b')
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 insert t1 values(5, 'a');
 set debug_sync="now SIGNAL do_insert";
@@ -121,7 +162,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update ignore t1 set col2=chr(92+col1) where col1<=9
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";
@@ -153,7 +193,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update t1 set col2='a', col1=4 where col1=5
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";
@@ -187,7 +226,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update ignore t1 set col2=chr(92+col1), col1=col1-1 where col1<=9
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";

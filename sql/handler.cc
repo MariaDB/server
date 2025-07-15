@@ -7413,7 +7413,8 @@ static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
 int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
   int result;
-  int lax= (ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) > 0;
+  /* Skip just written row in the case of HA_CHECK_UNIQUE_AFTER_WRITE */
+  bool lax= (ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) > 0;
   KEY *key_info= table->key_info + key_no;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
@@ -7435,33 +7436,43 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   store_record(table, file->lookup_buffer);
   result= lookup_handler->ha_index_read_map(table->record[0], ptr,
                                             HA_WHOLE_KEY, HA_READ_KEY_EXACT);
-  if (!result)
+  if (result)
   {
-    // restore pointers after swap_values in TABLE::update_virtual_fields()
-    for (Field **vf= table->vfield; *vf; vf++)
-    {
-      if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
-          bitmap_is_set(table->read_set, (*vf)->field_index))
-        ((Field_blob*)*vf)->swap_value_and_read_value();
-    }
-    do
-    {
-      if (!long_unique_fields_differ(key_info, lookup_buffer) && !(lax--))
-        result= HA_ERR_FOUND_DUPP_KEY;
-      else
-        result= lookup_handler->ha_index_next_same(table->record[0], ptr,
-                                                   key_info->key_length);
-    }
-    while (!result);
+    if (result == HA_ERR_KEY_NOT_FOUND)
+      result= 0;
+    goto end;
   }
-  if (result == HA_ERR_KEY_NOT_FOUND || result == HA_ERR_END_OF_FILE)
+
+  // restore pointers after swap_values in TABLE::update_virtual_fields()
+  for (Field **vf= table->vfield; *vf; vf++)
+  {
+    if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
+        bitmap_is_set(table->read_set, (*vf)->field_index))
+      ((Field_blob*)*vf)->swap_value_and_read_value();
+  }
+  do
+  {
+    if (lax)
+    {
+      lax= false;
+      continue;
+    }
+    if (!long_unique_fields_differ(key_info, lookup_buffer))
+    {
+      result= HA_ERR_FOUND_DUPP_KEY;
+      table->file->lookup_errkey= key_no;
+      lookup_handler->position(table->record[0]);
+      memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
+      goto end;
+    }
+  }
+  while (!(result= lookup_handler->ha_index_next_same(table->record[0], ptr,
+                                                      key_info->key_length)));
+
+  if (result == HA_ERR_END_OF_FILE)
     result= 0;
-  else if (result == HA_ERR_FOUND_DUPP_KEY)
-  {
-    table->file->lookup_errkey= key_no;
-    lookup_handler->position(table->record[0]);
-    memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
-  }
+
+end:
   restore_record(table, file->lookup_buffer);
   table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();
@@ -7784,9 +7795,11 @@ int handler::ha_write_row(const uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
   }
 
+#ifdef WITH_WSREP
   if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
       ht->flags & HTON_WSREP_REPLICATION && !error)
     error= wsrep_after_row(ha_thd());
+#endif /* WITH_WSREP */
 
 err:
   DEBUG_SYNC_C("ha_write_row_end");

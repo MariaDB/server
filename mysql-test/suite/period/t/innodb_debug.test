@@ -22,7 +22,6 @@ set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_i
 --send insert t1 values(10, date'2010-09-09', date'2010-11-10')
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 insert t1 values(10, date'2010-10-10', date'2010-11-12');
 set debug_sync="now SIGNAL do_insert";
@@ -57,7 +56,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update t1 set e=e + interval 2 month where s=date'2010-09-09'
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set s=date'2010-10-10' where e=date'2010-12-12';
 set debug_sync="now SIGNAL do_insert";
@@ -90,7 +88,6 @@ set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_i
 --send insert ignore t1 values(10, date'2010-09-09', date'2010-11-10'),(11, date'2010-09-09', date'2010-11-10')
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 insert t1 values(10, date'2010-10-10', date'2010-11-12');
 set debug_sync="now SIGNAL do_insert";
@@ -124,7 +121,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update ignore t1 set e=e + interval 2 month where s=date'2010-09-09'
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set s=date'2010-10-10' where e=date'2010-12-12';
 set debug_sync="now SIGNAL do_insert";
@@ -158,7 +154,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update t1 set e=e + interval 2 month where s=date'2010-09-09'
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set s=date'2010-10-10' where e=date'2010-12-12';
 set debug_sync="now SIGNAL do_insert";
@@ -193,7 +188,6 @@ set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_
 --send update ignore t1 set e=e + interval 2 month where s=date'2010-09-09'
 --connect con2,localhost,root
 set debug_sync="now WAIT_FOR checked_duplicate";
-set session innodb_lock_wait_timeout = 1;
 set transaction isolation level read committed;
 update t1 set s=date'2010-10-10' where e=date'2010-12-12';
 set debug_sync="now SIGNAL do_insert";
