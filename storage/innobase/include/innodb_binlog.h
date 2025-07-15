@@ -235,9 +235,13 @@ extern bool binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
                               fsp_binlog_page_entry * &block, uint32_t &page_no,
                               uint32_t &page_offset, uint64_t file_no);
 extern bool innodb_binlog_oob_ordered(THD *thd, const unsigned char *data,
-                                      size_t data_len, void **engine_data);
+                                      size_t data_len, void **engine_data,
+                                      void **stm_start_data,
+                                      void **savepoint_data);
 extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
+void ibb_savepoint_rollback(THD *thd, void **engine_data,
+                            void **stmt_start_data, void **savepoint_data);
 extern void innodb_reset_oob(THD *thd, void **engine_data);
 extern void innodb_free_oob(THD *thd, void *engine_data);
 extern handler_binlog_reader *innodb_get_binlog_reader(bool wait_durable);
