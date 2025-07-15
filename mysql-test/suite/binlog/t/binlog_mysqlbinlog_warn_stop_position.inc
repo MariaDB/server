@@ -52,6 +52,7 @@ if (!$read_from_remote_server)
 --echo # file should(!) result in a warning
 --echo # MYSQL_BINLOG $PARAM_READ_FROM_REMOTE_OUT --short-form --stop-position=binlog_f1_over_eof binlog_f1_full --result-file=$binlog_out_relpath 2>&1
 --replace_result $binlog_f1_over_eof <BINLOG_F1_OVER_EOF>
+--sorted_result
 --exec $MYSQL_BINLOG $PARAM_READ_FROM_REMOTE --short-form --stop-position=$binlog_f1_over_eof $binlog_f1_full --result-file=$binlog_out 2>&1
 
 --echo #
@@ -101,6 +102,7 @@ if (!$read_from_remote_server)
 --echo #    2) not prevent b2 from outputting its entire binary log
 --echo # MYSQL_BINLOG $PARAM_READ_FROM_REMOTE_OUT --stop-position=binlog_f2_over_eof binlog_f1_full binlog_f2_full --result-file=$binlog_out_relpath 2>&1
 --replace_result $binlog_f2_over_eof <BINLOG_F2_OVER_EOF>
+--sorted_result
 --exec $MYSQL_BINLOG $PARAM_READ_FROM_REMOTE --stop-position=$binlog_f2_over_eof $binlog_f1_full $binlog_f2_full --result-file=$binlog_out 2>&1
 
 --let $server_id= `SELECT @@GLOBAL.server_id`
