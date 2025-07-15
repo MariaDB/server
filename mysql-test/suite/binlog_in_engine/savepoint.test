@@ -1,0 +1,126 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+CREATE TABLE t1 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=InnoDB;
+# ToDo CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=MyISAM;
+CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=InnoDB;
+
+# Add different amounts of data, to test various cases where event
+# groups fit or do not fit in case, are binlogged / not binlogged as
+# oob data.
+--let $i = 0
+while ($i <= 6) {
+  if ($i == 0) {
+    SET @b= REPEAT('$', 0);
+  }
+  if ($i == 1) {
+    SET @b= REPEAT('$', 10);
+  }
+  if ($i == 2) {
+    SET @b= REPEAT('$', 100);
+  }
+  if ($i == 3) {
+    SET @b= REPEAT('$', 642);
+  }
+  if ($i == 4) {
+    SET @b= REPEAT('$', 3930);
+  }
+  if ($i == 5) {
+    SET @b= REPEAT('$', 16000);
+  }
+  if ($i == 6) {
+    SET @b= REPEAT('$', 40000);
+  }
+  BEGIN;
+  eval INSERT INTO t1 VALUES ($i, 1, @b);
+  SAVEPOINT s1;
+  eval INSERT INTO t1 VALUES ($i, 2, @b);
+  SAVEPOINT s2;
+  eval INSERT INTO t1 VALUES ($i, 3, @b);
+  SAVEPOINT s3;
+  eval INSERT INTO t1 VALUES ($i, 4, @b);
+  ROLLBACK TO s2;
+  eval INSERT INTO t1 VALUES ($i, 5, @b);
+  ROLLBACK TO s2;
+  eval INSERT INTO t1 VALUES ($i, 6, @b);
+  SAVEPOINT s4;
+  eval INSERT INTO t1 VALUES ($i, 7, @b);
+  SAVEPOINT s5;
+  ROLLBACK TO s5;
+  eval INSERT INTO t1 VALUES ($i, 8, @b);
+  COMMIT;
+  eval SELECT a, length(b) FROM t1 WHERE i=$i ORDER BY a;
+
+  BEGIN;
+  eval INSERT INTO t1 VALUES ($i, 10, @b);
+  SAVEPOINT s10;
+  eval INSERT INTO t1 VALUES ($i, 11, @b);
+  eval INSERT INTO t2 VALUES ($i, 12, @b);
+  ROLLBACK TO s10;
+  COMMIT;
+
+  eval SELECT a, length(b) FROM t1 WHERE i=$i AND a>=10 ORDER BY a;
+  eval SELECT a, length(b) FROM t2 WHERE i=$i ORDER BY a;
+
+  # Test a full rollback.
+  BEGIN;
+  eval UPDATE t1 SET a=a+1000 WHERE i=$i;
+  eval UPDATE t1 SET b='x' WHERE i=$i;
+  ROLLBACK;
+
+  # Test a statement that fails and is rolled back but the remaining
+  # transaction is committed.
+  BEGIN;
+  eval INSERT INTO t1
+       VALUES ($i, 101, @b), ($i, 102, @b), ($i, 103, @b), ($i, 104, @b), ($i, 105, @b);
+  --error ER_DUP_ENTRY
+  eval UPDATE t1 SET a=a-104 WHERE i=$i AND a > 100;
+  eval UPDATE t1 SET a=a+10 WHERE i=$i AND a > 100;
+  COMMIT;
+  eval SELECT a, length(b) FROM t1 WHERE i=$i AND a >= 100 ORDER BY a;
+
+  inc $i;
+}
+
+# Seeing the events generated useful for debugging, but hard to maintain the
+# .result file over time, better to check slave data vs. master.
+#--let $binlog_file= binlog-000000.ibb
+#--let $binlog_start= 4096
+#--source include/show_binlog_events.inc
+
+--let $master_checksum1= query_get_value(CHECKSUM TABLE t1, Checksum, 1)
+--let $master_checksum2= query_get_value(CHECKSUM TABLE t2, Checksum, 1)
+
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--let $slave_checksum1= query_get_value(CHECKSUM TABLE t1, Checksum, 1)
+--let slave_checksum2= query_get_value(CHECKSUM TABLE t2, Checksum, 1)
+
+--let $ok= 1
+if ($master_checksum1 != $slave_checksum1) {
+  --let $ok= 0
+}
+if ($master_checksum2 != $slave_checksum2) {
+  --let $ok= 0
+}
+if (!$ok) {
+  --connection master
+  --echo *** Data on master: ***
+  SELECT i, a, length(b) FROM t1 ORDER BY i, a;
+  SELECT i, a, length(b) FROM t2 ORDER BY i, a;
+  --connection slave
+  --echo *** Data on slave: ***
+  SELECT i, a, length(b) FROM t1 ORDER BY i, a;
+  SELECT i, a, length(b) FROM t2 ORDER BY i, a;
+  --die Slave data differs from master. Master checksums $master_checksum1 $master_checksum2, but slave $slave_checksum1 $slave_checksum2
+}
+if ($ok) {
+  --echo *** Slave data checksums with master, all ok. ***
+}
+
+--connection master
+DROP TABLE t1, t2;
+--source include/rpl_end.inc
