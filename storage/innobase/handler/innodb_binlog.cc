@@ -97,6 +97,7 @@ mysql_pfs_key_t binlog_prealloc_thread_key;
 
 /* Structure holding context for out-of-band chunks of binlogged event group. */
 struct binlog_oob_context {
+  struct savepoint;
   /*
     Structure used to encapsulate the data to be binlogged in an out-of-band
     chunk, for use by fsp_binlog_write_rec().
@@ -128,6 +129,10 @@ struct binlog_oob_context {
   bool binlog_node(uint32_t node, uint64_t new_idx,
                    uint32_t left_node, uint32_t right_node,
                    chunk_data_oob *oob_data, LF_PINS *pins, mtr_t *mtr);
+  bool create_stmt_start_point();
+  savepoint *create_savepoint();
+  void rollback_to_savepoint(savepoint *savepoint);
+  void rollback_to_stmt_start();
 
   /*
     Pending binlog write for the ibb_pending_lsn_fifo.
@@ -140,6 +145,8 @@ struct binlog_oob_context {
   uint64_t first_node_file_no;
   uint64_t first_node_offset;
   LF_PINS *lf_pins;
+  savepoint *stmt_start_point;
+  savepoint *savepoint_stack;
   uint32_t node_list_len;
   uint32_t node_list_alloc_len;
   /*
@@ -161,6 +168,15 @@ struct binlog_oob_context {
     uint64_t node_index;
     uint32_t height;
   } node_list [];
+
+  /* Saved oob state for implementing ROLLBACK TO SAVEPOINT. */
+  struct savepoint {
+    /* Maintain a stack of pending savepoints. */
+    savepoint *next;
+    uint32_t node_list_len;
+    uint32_t alloc_len;
+    struct node_info node_list[];
+  };
 };
 
 
@@ -2141,6 +2157,8 @@ alloc_oob_context(uint32 list_length= 10)
       ut_free(c);
       return nullptr;
     }
+    c->stmt_start_point= nullptr;
+    c->savepoint_stack= nullptr;
     c->pending_file_no= ~(uint64_t)0;
     c->node_list_alloc_len= list_length;
     c->node_list_len= 0;
@@ -2174,6 +2192,14 @@ innodb_binlog_write_cache(IO_CACHE *cache,
 static inline void
 reset_oob_context(binlog_oob_context *c)
 {
+  if (c->stmt_start_point)
+    c->stmt_start_point->node_list_len= 0;
+  while (c->savepoint_stack != nullptr)
+  {
+    binlog_oob_context::savepoint *next_savepoint= c->savepoint_stack->next;
+    ut_free(c->savepoint_stack);
+    c->savepoint_stack= next_savepoint;
+  }
   c->pending_file_no= ~(uint64_t)0;
   if (c->pending_refcount)
   {
@@ -2189,6 +2215,7 @@ free_oob_context(binlog_oob_context *c)
 {
   ut_ad(!c->pending_refcount /* Should not have pending until free */);
   reset_oob_context(c);  /* Defensive programming, should be redundant */
+  ut_free(c->stmt_start_point);
   lf_hash_put_pins(c->lf_pins);
   ut_free(c);
 }
@@ -2275,13 +2302,33 @@ ensure_oob_context(void **engine_data, uint32_t needed_len)
 */
 bool
 innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
-                          void **engine_data)
+                          void **engine_data, void **stm_start_data,
+                          void **savepoint_data)
 {
   binlog_oob_context *c= (binlog_oob_context *)*engine_data;
   if (!c)
     *engine_data= c= alloc_oob_context();
   if (UNIV_UNLIKELY(!c))
     return true;
+
+  if (stm_start_data)
+  {
+    if (c->create_stmt_start_point())
+      return true;
+    *stm_start_data= nullptr;  /* We do not need to store any data there. */
+    if (data_len == 0 && !savepoint_data)
+      return false;
+  }
+  if (savepoint_data)
+  {
+    binlog_oob_context::savepoint *sv= c->create_savepoint();
+    if (!sv)
+      return true;
+    *((binlog_oob_context::savepoint **)savepoint_data)= sv;
+    if (data_len == 0)
+      return false;
+  }
+  ut_ad(data_len > 0);
 
   mtr_t mtr;
   uint32_t i= c->node_list_len;
@@ -2415,6 +2462,102 @@ binlog_oob_context::chunk_data_oob::copy_data(byte *p, uint32_t max_len)
   memcpy(p, main_data + (sofar - header_len), size2);
   sofar+= size2;
   return {size + size2, sofar == header_len + main_len};
+}
+
+
+bool
+binlog_oob_context::create_stmt_start_point()
+{
+  if (!stmt_start_point || node_list_len > stmt_start_point->alloc_len)
+  {
+    ut_free(stmt_start_point);
+    size_t size= sizeof(savepoint) + node_list_len * sizeof(node_info);
+    stmt_start_point= (savepoint *) ut_malloc(size, mem_key_binlog);
+    if (!stmt_start_point)
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), size);
+      return true;
+    }
+    stmt_start_point->alloc_len= node_list_len;
+  }
+  stmt_start_point->node_list_len= node_list_len;
+  memcpy(stmt_start_point->node_list, node_list,
+         node_list_len * sizeof(node_info));
+  return false;
+}
+
+
+binlog_oob_context::savepoint *
+binlog_oob_context::create_savepoint()
+{
+  size_t size= sizeof(savepoint) + node_list_len * sizeof(node_info);
+  savepoint *s= (savepoint *) ut_malloc(size, mem_key_binlog);
+  if (!s)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), size);
+    return nullptr;
+  }
+  s->next= savepoint_stack;
+  s->node_list_len= node_list_len;
+  memcpy(s->node_list, node_list, node_list_len * sizeof(node_info));
+  savepoint_stack= s;
+  return s;
+}
+
+
+void
+binlog_oob_context::rollback_to_savepoint(savepoint *savepoint)
+{
+  ut_a(node_list_alloc_len >= savepoint->node_list_len);
+  node_list_len= savepoint->node_list_len;
+  memcpy(node_list, savepoint->node_list,
+         savepoint->node_list_len * sizeof(node_info));
+
+  /* Remove any later savepoints from the stack. */
+  for (;;)
+  {
+    struct savepoint *s= savepoint_stack;
+    ut_ad(s != nullptr /* Should always find the savepoint on the stack. */);
+    if (UNIV_UNLIKELY(!s))
+      break;
+    if (s == savepoint)
+      break;
+    savepoint_stack= s->next;
+    ut_free(s);
+  }
+}
+
+
+void
+binlog_oob_context::rollback_to_stmt_start()
+{
+  ut_a(node_list_alloc_len >= stmt_start_point->node_list_len);
+  node_list_len= stmt_start_point->node_list_len;
+  memcpy(node_list, stmt_start_point->node_list,
+         stmt_start_point->node_list_len * sizeof(node_info));
+}
+
+
+void
+ibb_savepoint_rollback(THD *thd, void **engine_data,
+                       void **stmt_start_data, void **savepoint_data)
+{
+  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  ut_a(c != nullptr);
+
+  if (stmt_start_data)
+  {
+    ut_ad(savepoint_data == nullptr);
+    c->rollback_to_stmt_start();
+  }
+
+  if (savepoint_data)
+  {
+    ut_ad(stmt_start_data == nullptr);
+    binlog_oob_context::savepoint *savepoint=
+      (binlog_oob_context::savepoint *)*savepoint_data;
+    c->rollback_to_savepoint(savepoint);
+  }
 }
 
 

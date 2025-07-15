@@ -4098,6 +4098,7 @@ static int innodb_init(void* p)
         innobase_hton->binlog_group_commit_ordered= ibb_group_commit;
         innobase_hton->binlog_oob_data_ordered= innodb_binlog_oob_ordered;
         innobase_hton->binlog_oob_data= innodb_binlog_oob;
+        innobase_hton->binlog_savepoint_rollback= ibb_savepoint_rollback;
         innobase_hton->binlog_oob_reset= innodb_reset_oob;
         innobase_hton->binlog_oob_free= innodb_free_oob;
         innobase_hton->get_binlog_reader= innodb_get_binlog_reader;

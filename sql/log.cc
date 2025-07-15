@@ -164,6 +164,19 @@ static SHOW_VAR binlog_status_vars_detail[]=
   {NullS, NullS, SHOW_LONG}
 };
 
+
+/*
+  This struct, for --binlog-storage-engine=ENGINE, keeps track of savepoints
+  set in the current transaction that are still within the in-memory trx
+  cache (not yet spilled as out-of-band data into the binlog).
+*/
+struct binlog_savepoint_info {
+  binlog_savepoint_info *next;
+  void *engine_ptr;
+  my_off_t cache_offset;
+};
+
+
 /*
   Variables for the binlog background thread.
   Protected by the MYSQL_BIN_LOG::LOCK_binlog_background_thread mutex.
@@ -376,6 +389,9 @@ public:
       stmt_cache(precompute_checksums),
       trx_cache(precompute_checksums),
       last_commit_pos_offset(0),
+      stmt_start_engine_ptr(nullptr),
+      cache_savepoint_list(nullptr),
+      cache_savepoint_next_ptr(&cache_savepoint_list),
       engine_binlog_info {0, 0, 0},
       using_xa(FALSE), xa_xid(0)
   {
@@ -406,17 +422,25 @@ public:
       stmt_cache.reset();
     if (do_trx)
     {
-      trx_cache.reset();
-      using_xa= FALSE;
       if (opt_binlog_engine_hton)
+      {
+        trx_cache.reset_for_engine_binlog();
         last_commit_pos_file.engine_file_no= ~(uint64_t)0;
+      }
       else
+      {
+        trx_cache.reset();
         last_commit_pos_file.legacy_name[0]= 0;
+      }
       last_commit_pos_offset= 0;
+      using_xa= FALSE;
     }
     if (likely(opt_binlog_engine_hton) &&
         likely(opt_binlog_engine_hton->binlog_oob_data))
     {
+      stmt_start_engine_ptr= nullptr;
+      cache_savepoint_list= nullptr;
+      cache_savepoint_next_ptr= &cache_savepoint_list;
       /*
         Use a custom write_function to spill to the engine-implemented binlog.
         And re-use the IO_CACHE::append_read_pos as a handle for our
@@ -462,6 +486,14 @@ public:
   } last_commit_pos_file;
   uint64_t last_commit_pos_offset;
 
+  /* Engine data pointer for start-of-statement savepoint. */
+  void *stmt_start_engine_ptr;
+  /*
+    List of pending savepoints still in the trx cache (for engine-implemented
+    binlogging).
+  */
+  binlog_savepoint_info *cache_savepoint_list;
+  binlog_savepoint_info **cache_savepoint_next_ptr;
   /* Context for engine-implemented binlogging. */
   handler_binlog_event_group_info engine_binlog_info;
 
@@ -1691,11 +1723,11 @@ int LOGGER::set_handlers(ulonglong slow_log_printer,
  */
 
 static void
-binlog_trans_log_savepos(THD *thd, my_off_t *pos)
+binlog_trans_log_savepos(THD *thd, binlog_cache_mngr *cache_mngr, my_off_t *pos)
 {
   DBUG_ENTER("binlog_trans_log_savepos");
+//  DBUG_ASSERT(!opt_binlog_engine_hton);
   DBUG_ASSERT(pos != NULL);
-  binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
   DBUG_ASSERT((WSREP(thd) && wsrep_emulate_bin_log) || mysql_bin_log.is_open());
   *pos= cache_mngr->trx_cache.get_byte_position();
   DBUG_PRINT("return", ("*pos: %lu", (ulong) *pos));
@@ -1719,9 +1751,10 @@ binlog_trans_log_savepos(THD *thd, my_off_t *pos)
 
  */
 static void
-binlog_trans_log_truncate(THD *thd, my_off_t pos)
+binlog_trans_log_truncate(THD *thd, binlog_savepoint_info *sv)
 {
   DBUG_ENTER("binlog_trans_log_truncate");
+  my_off_t pos= sv->cache_offset;
   DBUG_PRINT("enter", ("pos: %lu", (ulong) pos));
 
   DBUG_ASSERT(thd->binlog_get_cache_mngr() != NULL);
@@ -1729,7 +1762,61 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   DBUG_ASSERT(pos != ~(my_off_t) 0);
 
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
-  cache_mngr->trx_cache.restore_savepoint(pos);
+  binlog_cache_data *trx_cache= &cache_mngr->trx_cache;
+  if (!opt_binlog_engine_hton)
+  {
+    trx_cache->restore_savepoint(pos);
+    DBUG_VOID_RETURN;
+  }
+
+  /*
+    If the savepoint is still in the trx cache, then we can simply truncate
+    the cache.
+    If the savepoint was spilled as oob data, then we need to call into the
+    engine binlog to have it discard the to-be-rolled-back binlog data.
+  */
+  IO_CACHE *cache= &trx_cache->cache_log;
+  if (pos >= cache->pos_in_file)
+  {
+    trx_cache->restore_savepoint(pos);
+    trx_cache->cache_log.write_function= binlog_spill_to_engine;
+    /* Remove any later in-cache savepoints. */
+    binlog_savepoint_info *sp= cache_mngr->cache_savepoint_list;
+    while (sp)
+    {
+      if (sp == sv)
+      {
+        sp->next= nullptr;  /* Drop the tail of the list. */
+        cache_mngr->cache_savepoint_next_ptr= &sp->next;
+        break;
+      }
+      sp= sp->next;
+    }
+    /*
+      If the savepoint is at the start of the cache, then it might have been
+      already spilled to the engine binlog, then rolled back to (which would
+      leave the cache truncated to the point of that savepoint).
+
+      But otherwise, the savepoint is pending to be spilled to engine if
+      needed, and should be found in the list.
+    */
+    DBUG_ASSERT(pos == cache->pos_in_file || sp != nullptr);
+
+    DBUG_VOID_RETURN;
+  }
+
+  /*
+    Truncate what's in the cache, then call into the engine to rollback to
+    the prior set savepoint.
+  */
+  trx_cache->restore_savepoint(cache->pos_in_file);
+  trx_cache->reset_cache_for_engine(pos, binlog_spill_to_engine);
+  /* No pending savepoints in-cache anymore. */
+  cache_mngr->cache_savepoint_next_ptr= &cache_mngr->cache_savepoint_list;
+  cache_mngr->cache_savepoint_list= nullptr;
+  cache_mngr->engine_binlog_info.out_of_band_offset= sv->cache_offset;
+  (*opt_binlog_engine_hton->binlog_savepoint_rollback)
+    (thd, &cache_mngr->engine_binlog_info.engine_ptr, nullptr, &sv->engine_ptr);
   DBUG_VOID_RETURN;
 }
 
@@ -1743,7 +1830,7 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
 int binlog_init(void *p)
 {
   binlog_hton= (handlerton *)p;
-  binlog_hton->savepoint_offset= sizeof(my_off_t);
+  binlog_hton->savepoint_offset= sizeof(binlog_savepoint_info);
   binlog_hton->close_connection= binlog_close_connection;
   binlog_hton->savepoint_set= binlog_savepoint_set;
   binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
@@ -2120,8 +2207,36 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
     If rolling back a statement in a transaction, we truncate the
     transaction cache to remove the statement.
   */
-  else
+  else if (!opt_binlog_engine_hton)
     trx_cache.restore_prev_position();
+  else
+  {
+    IO_CACHE *cache= &trx_cache.cache_log;
+    my_off_t stmt_pos= trx_cache.get_prev_position();
+    /* Drop any pending savepoints in the cache beyond statement start. */
+    binlog_savepoint_info **sp_ptr= &cache_mngr->cache_savepoint_list;
+    for (;;)
+    {
+      binlog_savepoint_info *sp= *sp_ptr;
+      if (!sp || sp->cache_offset > stmt_pos)
+        break;
+      sp_ptr= &sp->next;
+    }
+    *sp_ptr= nullptr;
+    cache_mngr->cache_savepoint_next_ptr= sp_ptr;
+    if (stmt_pos >= cache->pos_in_file)
+      trx_cache.restore_prev_position();
+    else
+    {
+      trx_cache.set_prev_position(cache->pos_in_file);
+      trx_cache.restore_prev_position();
+      trx_cache.reset_cache_for_engine(stmt_pos, binlog_spill_to_engine);
+      cache_mngr->engine_binlog_info.out_of_band_offset= stmt_pos;
+      (*opt_binlog_engine_hton->binlog_savepoint_rollback)
+        (thd, &cache_mngr->engine_binlog_info.engine_ptr,
+         &cache_mngr->stmt_start_engine_ptr, nullptr);
+    }
+  }
 
   DBUG_ASSERT(trx_cache.pending() == NULL);
   DBUG_RETURN(error);
@@ -2656,8 +2771,26 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
     or "RELEASE S" without the preceding "SAVEPOINT S" in the binary
     log.
   */
-  if (likely(!(error= mysql_bin_log.write(&qinfo))))
-    binlog_trans_log_savepos(thd, (my_off_t*) sv);
+  if (unlikely((error= mysql_bin_log.write(&qinfo)) != 0))
+    DBUG_RETURN(error);
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+  binlog_savepoint_info *sp_info= (binlog_savepoint_info*)sv;
+  binlog_trans_log_savepos(thd, cache_mngr, &sp_info->cache_offset);
+  if (opt_binlog_engine_hton)
+  {
+    /*
+      Add the savepoint to the list of pending savepoints in the trx cache.
+      If the savepoint gets spilled to the binlog as oob data, then we need
+      to create an (engine) binlog savepoint from it so that the engine can
+      roll back the oob data if needed.
+      As long as the savepoint is in the cache, we can simply roll it back
+      by truncating the cache.
+    */
+    *cache_mngr->cache_savepoint_next_ptr= sp_info;
+    cache_mngr->cache_savepoint_next_ptr= &sp_info->next;
+    sp_info->next= nullptr;
+    sp_info->engine_ptr= nullptr;
+  }
 
   DBUG_RETURN(error);
 }
@@ -2689,7 +2822,7 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     DBUG_RETURN(mysql_bin_log.write(&qinfo));
   }
 
-  binlog_trans_log_truncate(thd, *(my_off_t*)sv);
+  binlog_trans_log_truncate(thd, (binlog_savepoint_info *)sv);
 
   /*
     When a SAVEPOINT is executed inside a stored function/trigger we force the
@@ -6580,7 +6713,7 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
   {
     len-= (len % cache->buffer_length);
     if (!len)
-      return false;
+      return 0;
   }
 
   /* ToDo: If len > the cache size (32k default), then split up the write in multiple oob writes to the engine. This can happen if there is a large single write to the IO_CACHE. Maybe the split could happen also in the engine, depending if I want to split the size here to the binlog_cache_size which is known here, or if I want to split it to an engine imposed max size. But since the commit record size is determined by the upper layer here, I think it makes sense to determine the oob record size here also. */
@@ -6588,14 +6721,113 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
   void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+
+  my_off_t spill_end= cache->pos_in_file + len;
+  size_t sofar= 0;
+  void **stmt_start_ptr= nullptr;
+  void **savepoint_ptr= nullptr;
+
+  /*
+    If there are any pending savepoints (or a start-of-statement point) in the
+    cache data that we're now spilling to the engine binlog, set an engine
+    savepoint for each of them so that we can roll back such spilled data,
+    if required.
+  */
+  if (data == cache->write_buffer)
+  {
+    my_off_t spill_start= cache->pos_in_file;
+    my_off_t stmt_pos= mngr->trx_cache.get_prev_position();
+    bool do_stmt_pos= stmt_pos != MY_OFF_T_UNDEF &&
+      stmt_pos >= spill_start && stmt_pos < spill_end;
+    binlog_savepoint_info *sp= mngr->cache_savepoint_list;
+    for (;;)
+    {
+      /*
+        Find the next spill point.
+        It maybe be the next savepoint in the list, it may be the saved
+        start-of-statement point, or (if they coincide) it may be both.
+      */
+      my_off_t spill_pos;
+      void **next_stmt_start_ptr;
+      void **next_savepoint_ptr;
+      binlog_savepoint_info *next_sp;
+      if (do_stmt_pos && sp && stmt_pos == sp->cache_offset)
+      {
+        /* Double savepoint and start-of-statement point. */
+        spill_pos= stmt_pos;
+        next_stmt_start_ptr= &mngr->stmt_start_engine_ptr;
+        next_savepoint_ptr= &sp->engine_ptr;
+        next_sp= sp->next;
+      }
+      else if (do_stmt_pos && (!sp || stmt_pos < sp->cache_offset))
+      {
+        /* Spill the start-of-statement point next. */
+        spill_pos= stmt_pos;
+        next_stmt_start_ptr= &mngr->stmt_start_engine_ptr;
+        next_savepoint_ptr= nullptr;
+        next_sp= sp;
+        do_stmt_pos= false;
+      }
+      else if (sp)
+      {
+        /* Spill the next savepoint now. */
+        spill_pos= sp->cache_offset;
+        next_stmt_start_ptr= nullptr;
+        next_savepoint_ptr= &sp->engine_ptr;
+        next_sp= sp->next;
+      }
+      else
+        break;
+      DBUG_ASSERT(spill_pos >= spill_start);
+      if (spill_pos >= spill_end)
+        break;
+      DBUG_ASSERT(spill_start + sofar <= spill_pos);
+      size_t part_len= spill_pos - (spill_start + sofar);
+      if (part_len > 0 || stmt_start_ptr || savepoint_ptr)
+      {
+        mysql_mutex_lock(&LOCK_commit_ordered);
+        int res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)
+          (mngr->thd, data + sofar, part_len,
+           engine_ptr, stmt_start_ptr, savepoint_ptr);
+        mysql_mutex_unlock(&LOCK_commit_ordered);
+        if (likely(!res))
+          res= (*opt_binlog_engine_hton->binlog_oob_data)
+            (mngr->thd, data + sofar, part_len, engine_ptr);
+        if (unlikely(res))
+          return res;
+        sofar+= part_len;
+      }
+      stmt_start_ptr= next_stmt_start_ptr;
+      savepoint_ptr= next_savepoint_ptr;
+      sp= next_sp;
+    }
+    mngr->cache_savepoint_list= sp;  /* Remove any points spilled from cache. */
+    if (likely(sp == nullptr))
+      mngr->cache_savepoint_next_ptr= &mngr->cache_savepoint_list;
+    /*
+      We currently always spill the entire cache contents, which should mean
+      that at this point the remaining list of pending savepoints in the cache
+      is always empty.
+      Let's assert that this is so. However, if we ever want to partially
+      spill the cache and thus have remaining entries at this point, that is
+      fine, it is supported by the code and then this assertion can just be
+      removed.
+    */
+    DBUG_ASSERT(sp == nullptr);
+  }
+
+
+  DBUG_ASSERT(sofar < len);
   mysql_mutex_lock(&LOCK_commit_ordered);
-  bool res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)(mngr->thd, data,
-                                                               len, engine_ptr);
+  int res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)
+    (mngr->thd, data + sofar, len - sofar, engine_ptr,
+     stmt_start_ptr, savepoint_ptr);
   mysql_mutex_unlock(&LOCK_commit_ordered);
-  res|= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data,
-                                                   len, engine_ptr);
+  if (likely(!res))
+    res= (*opt_binlog_engine_hton->binlog_oob_data)
+      (mngr->thd, data + sofar, len - sofar, engine_ptr);
   mngr->engine_binlog_info.out_of_band_offset+= len;
-  cache->pos_in_file+= len;
+  cache->pos_in_file= spill_end;
 
   return res;
 }
@@ -6830,17 +7062,9 @@ THD::binlog_start_trans_and_stmt()
 }
 
 void THD::binlog_set_stmt_begin() {
-  binlog_cache_mngr *cache_mngr= binlog_get_cache_mngr();
-
-  /*
-    The call to binlog_trans_log_savepos() might create the cache_mngr
-    structure, if it didn't exist before, so we save the position
-    into an auto variable and then write it into the transaction
-    data for the binary log (i.e., cache_mngr).
-  */
   my_off_t pos= 0;
-  binlog_trans_log_savepos(this, &pos);
-  cache_mngr= binlog_get_cache_mngr();
+  binlog_cache_mngr *cache_mngr= binlog_setup_trx_data();
+  binlog_trans_log_savepos(this, cache_mngr, &pos);
   cache_mngr->trx_cache.set_prev_position(pos);
 }
 
@@ -13795,7 +14019,7 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
       Set an implicit savepoint in order to be able to truncate a trx-cache.
     */
     my_off_t pos= 0;
-    binlog_trans_log_savepos(thd, &pos);
+    binlog_trans_log_savepos(thd, cache_mngr, &pos);
     cache_mngr->trx_cache.set_prev_position(pos);
 
     /*
