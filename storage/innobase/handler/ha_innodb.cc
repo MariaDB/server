@@ -16509,12 +16509,12 @@ ha_innobase::store_lock(
 			break;
 		case ISO_SERIALIZABLE:
 			auto trx_state = trx->state;
-			if (trx_state == TRX_STATE_NOT_STARTED) {
+			if (trx_state != TRX_STATE_NOT_STARTED) {
+				ut_ad(trx_state == TRX_STATE_ACTIVE);
+			} else if (trx->snapshot_isolation) {
 				trx->will_lock = true;
 				trx_start_if_not_started(trx, false);
 				trx->read_view.open(trx);
-			} else {
-				ut_ad(trx_state == TRX_STATE_ACTIVE);
 			}
 		}
 	}
