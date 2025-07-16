@@ -19,7 +19,7 @@
 #include <tap.h>
 
 volatile uint32 bad;
-pthread_mutex_t mutex;
+mysql_mutex_t mutex;
 
 void do_tests();
 
@@ -57,7 +57,7 @@ int main(int argc __attribute__((unused)), char **argv)
   if (argv[1] && *argv[1])
     DBUG_SET_INITIAL(argv[1]);
 
-  pthread_mutex_init(&mutex, 0);
+  mysql_mutex_init(PSI_NOT_INSTRUMENTED, &mutex, 0);
 
 #define CYCLES 30000
 #define THREADS 30
@@ -66,7 +66,7 @@ int main(int argc __attribute__((unused)), char **argv)
 
   do_tests();
 
-  pthread_mutex_destroy(&mutex);
+  mysql_mutex_destroy(&mutex);
   my_end(0);
   return exit_status();
 }
