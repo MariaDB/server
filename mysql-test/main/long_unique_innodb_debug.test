@@ -5,6 +5,7 @@
 --echo # MDEV-37199 UNIQUE KEY USING HASH accepting duplicate records
 --echo #
 
+--disable_view_protocol
 --echo ## INSERT
 create table t1 (
   col1 int primary key,
@@ -235,5 +236,6 @@ select * from t1;
 --disconnect con2
 set debug_sync='RESET';
 drop table t1;
+--enable_view_protocol
 
 --echo # End of 10.6 tests
