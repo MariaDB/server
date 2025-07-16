@@ -1,0 +1,11 @@
+[NULLS_EQUAL]
+--innodb_stats_method=nulls_equal
+--use_stat_tables=never
+
+[NULLS_UNEQUAL]
+--innodb_stats_method=nulls_unequal
+--use_stat_tables=never
+
+[NULLS_IGNORED]
+--innodb_stats_method=nulls_ignored
+--use_stat_tables=never
