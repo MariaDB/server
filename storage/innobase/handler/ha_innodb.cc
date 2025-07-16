@@ -5071,7 +5071,7 @@ ha_innobase::table_flags() const
 	called before prebuilt is inited. */
 
 	if (thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
-		return(flags);
+		return(flags | HA_CHECK_UNIQUE_AFTER_WRITE);
 	}
 
 	return(flags | HA_BINLOG_STMT_CAPABLE);
