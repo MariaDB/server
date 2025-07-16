@@ -114,7 +114,7 @@ static void test_ssux_lock()
   }
 }
 
-static sux_lock<ssux_lock_impl<true>> sux;
+static sux_lock<ssux_lock_impl<false>> sux;
 
 static void test_sux_lock()
 {

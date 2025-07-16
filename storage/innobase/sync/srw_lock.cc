@@ -380,6 +380,9 @@ template void ssux_lock_impl<false>::wr_wait(uint32_t) noexcept;
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::rd_wait() noexcept
 {
+  if (!spinloop && rd_lock_try())
+    return;
+
   const unsigned delay= srw_pause_delay();
 
   if (spinloop)
@@ -392,14 +395,14 @@ void ssux_lock_impl<spinloop>::rd_wait() noexcept
     }
   }
 
-  /* Subscribe to writer.wake() or write.wake_all() calls by
+  /* Subscribe to writer.wake() or write.wake_all() calls of
   concurrently executing rd_wait() or writer.wr_unlock(). */
   uint32_t wl= writer.WAITER +
     writer.lock.fetch_add(writer.WAITER, std::memory_order_acquire);
 
   for (;;)
   {
-    if (UNIV_LIKELY(writer.HOLDER & wl))
+    if (writer.HOLDER & wl)
       writer.wait(wl);
     uint32_t lk= rd_lock_try_low();
     if (!lk)
