@@ -1548,6 +1548,8 @@ struct handlerton
 
   /* Optional implementation of binlog in the engine. */
   bool (*binlog_init)(size_t binlog_size, const char *directory);
+  /* Dynamically changing the binlog max size. */
+  void (*set_binlog_max_size)(size_t binlog_size);
   /* Binlog an event group that doesn't go through commit_ordered. */
   bool (*binlog_write_direct_ordered)(IO_CACHE *cache,
                               handler_binlog_event_group_info *binlog_info,

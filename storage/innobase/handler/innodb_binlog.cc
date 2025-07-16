@@ -1262,13 +1262,8 @@ binlog_sync_initial()
 }
 
 
-/*
-  Open the InnoDB binlog implementation.
-  This is called from server binlog layer if the user configured the binlog to
-  use the innodb implementation (with --binlog-storage-engine=innodb).
-*/
-bool
-innodb_binlog_init(size_t binlog_size, const char *directory)
+void
+ibb_set_max_size(size_t binlog_size)
 {
   uint64_t pages= binlog_size >> ibb_page_size_shift;
   if (UNIV_LIKELY(pages > (uint64_t)UINT32_MAX)) {
@@ -1283,7 +1278,18 @@ innodb_binlog_init(size_t binlog_size, const char *directory)
                       (pages << ibb_page_size_shift));
   }
   innodb_binlog_size_in_pages= (uint32_t)pages;
+}
 
+
+/*
+  Open the InnoDB binlog implementation.
+  This is called from server binlog layer if the user configured the binlog to
+  use the innodb implementation (with --binlog-storage-engine=innodb).
+*/
+bool
+innodb_binlog_init(size_t binlog_size, const char *directory)
+{
+  ibb_set_max_size(binlog_size);
   if (!directory || !directory[0])
     directory= ".";
   else if (strlen(directory) + BINLOG_NAME_MAX_LEN > OS_FILE_MAX_PATH)

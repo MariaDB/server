@@ -225,6 +225,7 @@ extern bool is_binlog_name(const char *name, uint64_t *out_idx);
 extern int get_binlog_header(const char *binlog_path, byte *page_buf,
                              lsn_t &out_lsn, bool &out_empty) noexcept;
 extern void innodb_binlog_startup_init();
+extern void ibb_set_max_size(size_t binlog_size);
 extern bool innodb_binlog_init(size_t binlog_size, const char *directory);
 extern void innodb_binlog_close(bool shutdown);
 extern bool ibb_write_header_page(mtr_t *mtr, uint64_t file_no,

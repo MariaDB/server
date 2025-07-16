@@ -247,6 +247,18 @@ SELECT @@GLOBAL.gtid_binlog_state;
 --source include/restart_mysqld.inc
 SELECT @@GLOBAL.gtid_binlog_state;
 
+
+# Test dynamically changing the max binlog size.
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+--let $binlog_size= 1048576
+eval SET GLOBAL max_binlog_size= $binlog_size;
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000033.ibb
+--source include/wait_for_engine_binlog.inc
+SHOW BINARY LOGS;
+SET GLOBAL max_binlog_size= @old_max_size;
+
+
 DROP TABLE t1;
 
 # No need to restore @@GLOBAL.slave_connections_needed_for_purge, as we

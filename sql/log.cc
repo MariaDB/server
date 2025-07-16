@@ -10762,6 +10762,8 @@ void MYSQL_BIN_LOG::set_max_size(ulong max_size_arg)
   mysql_mutex_lock(&LOCK_log);
   if (is_open())
     max_size= max_size_arg;
+  if (opt_binlog_engine_hton)
+    (*opt_binlog_engine_hton->set_binlog_max_size)((size_t)max_size_arg);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_VOID_RETURN;
 }
