@@ -4092,6 +4092,7 @@ static int innodb_init(void* p)
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
         innobase_hton->binlog_init= innodb_binlog_init;
+        innobase_hton->set_binlog_max_size= ibb_set_max_size;
         innobase_hton->binlog_write_direct_ordered=
           innobase_binlog_write_direct_ordered;
         innobase_hton->binlog_write_direct= innobase_binlog_write_direct;
