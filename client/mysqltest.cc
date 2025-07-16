@@ -699,11 +699,6 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql);
 
 
 /**
-  Expression evaluation support for mysqltest.
-  Provides arithmetic and logical operations with $() syntax.
-*/
-
-/**
   A simplified string class for the expression evaluator, inspired by the
   server's `Binary_string` class.
 */
@@ -714,16 +709,16 @@ private:
   uint32 m_length, m_alloced_length;
   bool m_is_alloced;
 
+
   void free_buffer()
   {
-    if (m_is_alloced)
+    if (m_is_alloced && m_str)
     {
       my_free(m_str);
-      m_str= NULL;
       m_is_alloced= false;
-      m_length= 0;
-      m_alloced_length= 0;
     }
+    m_str= NULL;
+    m_alloced_length= m_length= 0;
   }
 
 public:
@@ -734,13 +729,41 @@ public:
     m_is_alloced= false;
   }
 
-  My_string(const char* str, size_t len)
+
+  My_string(size_t length_arg)
   {
     m_str= NULL;
     m_length= m_alloced_length= 0;
     m_is_alloced= false;
-    copy(str, len);
+    (void) real_alloc(length_arg);
   }
+
+
+  My_string(const char *str, size_t len)
+  {
+    m_str= (char*) str;
+    m_length= (uint32) len;
+    m_alloced_length= 0;
+    m_is_alloced= false;
+  }
+
+
+  My_string(char *str, size_t len)
+  {
+    m_str= str;
+    m_length= m_alloced_length= (uint32)len;
+    m_is_alloced= false;
+  }
+
+  
+  My_string(const My_string &str)
+  {
+    m_str= str.m_str;
+    m_length= str.m_length;
+    m_alloced_length= str.m_alloced_length;
+    m_is_alloced= false;
+  }
+
 
   ~My_string()
   {
@@ -755,8 +778,8 @@ public:
       free_buffer();
       m_str= other.m_str;
       m_length= other.m_length;
+      DBUG_ASSERT(other.m_alloced_length < UINT_MAX32);
       m_alloced_length= other.m_alloced_length;
-      m_is_alloced= false;
     }
     return *this;
   }
@@ -775,32 +798,83 @@ public:
     return m_str[i]; 
   }
 
-
-  // TODO what if we want to shrink the string?
-  void copy(const char* new_str, size_t new_len)
+  
+  bool alloc(size_t arg_length)
   {
-    if (m_alloced_length < new_len + 1)
+    if (arg_length <= m_alloced_length && m_alloced_length)
+      return false;
+    return real_alloc(arg_length);
+  }
+
+
+  bool real_alloc(size_t length)
+  {
+    size_t arg_length= ALIGN_SIZE(length + 1);
+    DBUG_ASSERT(arg_length > length);
+    if (arg_length <= length)
+      return true;
+    DBUG_ASSERT(length < UINT_MAX32);
+    m_length= 0;
+    if (m_alloced_length < arg_length)
     {
       free_buffer();
-      m_alloced_length= (uint32) (new_len + 1);
-      m_str= (char*)my_malloc(PSI_NOT_INSTRUMENTED, m_alloced_length,
-                              MYF(MY_WME | MY_FAE));
-      if (!m_str)
-        die("Out of memory in My_string::copy");
+      if (!(m_str= (char*)my_malloc(PSI_NOT_INSTRUMENTED, arg_length, MYF(MY_WME))))
+        return true;
+      m_alloced_length= (uint32) arg_length;
       m_is_alloced= true;
     }
+    m_str[0]= '\0';
+    return false;
+  }
 
-    if (new_str && new_len > 0)
-      memcpy(m_str, new_str, new_len);
-    m_str[new_len]= '\0';
-    m_length= (uint32) new_len;
+
+  bool copy(const char* str, size_t arg_length)
+  {
+    DBUG_ASSERT(arg_length < UINT_MAX32);
+    if (alloc(arg_length + 1))
+      return true;
+    if (m_str == str && arg_length == uint32(m_length))
+    {
+      /*
+        This can happen in some cases. This code is here mainly to avoid
+        warnings from valgrind, but can also be an indication of error.
+      */
+      DBUG_PRINT("warning", ("Copying string on itself: %p  %zu",
+                             str, arg_length));
+    }
+    else if ((m_length= uint32(arg_length)))
+      memcpy(m_str, str, arg_length);
+    m_str[arg_length]= '\0';
+    return false;
+  }
+
+
+  void shrink(size_t arg_length)
+  {
+    if (m_is_alloced && ALIGN_SIZE(arg_length + 1) < m_alloced_length)
+    {
+      /* my_realloc() can't fail as new buffer is less than the original one */
+      m_str= (char*) my_realloc(PSI_NOT_INSTRUMENTED, m_str, arg_length,
+                                MYF(MY_WME));
+      m_alloced_length= (uint32) arg_length;
+    }
   }
 };
 
 
-enum Expression_value_type {
+/*
+  Expression evaluation support for mysqltest.
+  Provides arithmetic and logical operations with $() syntax.
+*/
+enum Expression_value_type
+{
   EXPR_INT,
+  EXPR_BOOL,
+  EXPR_DOUBLE, // TODO: add double support
+  EXPR_HEX,
   EXPR_STRING,
+  EXPR_BINARY,
+  EXPR_DATE, // TODO: add date support
   EXPR_NULL
 };
 
@@ -809,34 +883,54 @@ struct Expression_value
 {
   Expression_value_type type;
   int int_val;
+  bool is_numeric;
   My_string str_val;
 
   Expression_value()
   {
     type= EXPR_NULL;
-    int_val= 0;
+    is_numeric= false;
   }
 
-  void set_int(int value)
+  void set_int(int value, int base= 10)
   {
-    if (value < INT_MIN || INT_MAX < value)
-      die("Range error: value out of range for int type");
-
-    type= EXPR_INT;
     int_val= value;
+    is_numeric= true;
+
+    switch (base)
+    {
+      case 2:  type= EXPR_BINARY; break;
+      case 16: type= EXPR_HEX; break;
+      default: type= EXPR_INT; break;
+    }
   }
 
   void set_string(const char *value, size_t len)
   {
     type= EXPR_STRING;
-    int_val= 0;
+    is_numeric= false;
     str_val.copy(value, len);
   }
 
   void set_bool(bool value)
   {
-    type= EXPR_INT;
+    type= EXPR_BOOL;
+    is_numeric= true;
     int_val= value ? 1 : 0;
+  }
+
+  operator int() const 
+  {
+    if (is_numeric)
+      return int_val;
+    return atoi(str_val.c_str());
+  }
+   
+  operator bool() const 
+  {
+    if (is_numeric)
+      return int_val != 0;
+    return str_val.length() > 0;
   }
 
   Expression_value& operator=(const Expression_value& other)
@@ -845,6 +939,7 @@ struct Expression_value
     {
       type= other.type;
       int_val= other.int_val;
+      is_numeric= other.is_numeric;
       if (other.type == EXPR_STRING)
       {
         str_val.copy(other.str_val.c_str(), other.str_val.length());
@@ -857,27 +952,56 @@ struct Expression_value
   {
     // My_string memory is kept allocated for reuse
     type= EXPR_NULL;
-    int_val= 0;
+    is_numeric= false;
   }
 
   void init(const char* token_start, size_t token_len)
   {
     char *endptr;
-    errno= 0; // Clear errno before the call
-    long parsed_int= strtol(token_start, &endptr, 10);
+    long parsed_int;
+    int base= 0;
+
+    // Check for boolean literals (case insensitive)
+    if (token_len == 4 && strncasecmp(token_start, "true", 4) == 0)
+    {
+      set_bool(true);
+      return;
+    }
+
+    if (token_len == 5 && strncasecmp(token_start, "false", 5) == 0)
+    {
+      set_bool(false);
+      return;
+    }
+
+    // Check for special prefixes (0x, 0b)
+    if (token_len >= 3 && token_start[0] == '0')
+    {
+      if (token_start[1] == 'x')
+      {
+        base= 16;
+      }
+      else if (token_start[1] == 'b')
+      {
+        base= 2;
+        token_start+= 2; // Skip "0b" prefix for strtol
+        token_len-= 2;
+      }
+    }
+
+    errno= 0;
+    parsed_int= strtol(token_start, &endptr, base);
     if (errno == ERANGE || parsed_int < INT_MIN || INT_MAX < parsed_int)
-      // TODO: die or treat as string?
       die("Range error: value out of range for int type");
 
     // If the entire token was parsed as an integer, set the type to integer
     if (endptr == token_start + token_len)
     {
-      set_int((int) parsed_int);
+      set_int((int) parsed_int, base);
+      return;
     }
-    else
-    {
-      set_string(token_start, token_len);
-    }
+
+    set_string(token_start, token_len);
   }
 };
 
@@ -1368,12 +1492,11 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 	escaped= 0;
 	dynstr_append_mem(query_eval, p, 1);
       }
-      // Sorry for the interruption, I'm working here.
-      else if (*(p + 1) == '(')
+      else if (p < query_end && *(p + 1) == '(')
       {
-        const char* expr_start = p + 2;
-        int paren_level = 1;
-        const char* expr_end = expr_start;
+        const char* expr_start= p + 2;
+        int paren_level= 1;
+        const char* expr_end= expr_start;
 
         // Find the matching closing parenthesis
         while (*expr_end && paren_level > 0)
@@ -1391,7 +1514,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
         init_dynamic_string(&sub_expr_eval, "", 256, 1024);
         do_eval(&sub_expr_eval, expr_start, expr_end, FALSE);
 
-        const char* eval_ptr = sub_expr_eval.str;
+        const char* eval_ptr= sub_expr_eval.str;
         Expression_value result_val;
         expr(&result_val, &eval_ptr);
 
@@ -1401,7 +1524,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
         if (*eval_ptr != '\0')
           die("Syntax error in sub-expression '%.*s'", (int)sub_expr_eval.length, sub_expr_eval.str);
 
-        if (result_val.type == EXPR_INT)
+        if (result_val.is_numeric)
         {
           char result_buf[22];
           my_snprintf(result_buf, sizeof(result_buf), "%d", result_val.int_val);
@@ -1417,7 +1540,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
         }
 
         dynstr_free(&sub_expr_eval);
-        p = expr_end;
+        p= expr_end;
       }
       else
       {
@@ -5364,7 +5487,7 @@ static void unary(Expression_value *result, const char **s)
   if (match(s, "!"))
   {
     unary(result, s);
-    if (result->type != EXPR_INT)
+    if (!result->is_numeric)
       die("Type error: logical NOT requires an integer operand");
     result->set_int(!result->int_val);
     return;
@@ -5372,7 +5495,7 @@ static void unary(Expression_value *result, const char **s)
   if (match(s, "-"))
   {
     unary(result, s);
-    if (result->type != EXPR_INT)
+    if (!result->is_numeric)
       die("Type error: unary minus requires an integer operand");
     result->set_int(-result->int_val);
     return;
@@ -5392,7 +5515,7 @@ static void factor(Expression_value *result, const char **s)
     {
       rhs.reset();
       unary(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '*' requires integer operands");
       result->set_int(result->int_val * rhs.int_val);
     }
@@ -5400,7 +5523,7 @@ static void factor(Expression_value *result, const char **s)
     {
       rhs.reset();
       unary(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '/' requires integer operands");
       if (rhs.int_val == 0)
         die("Evaluation error: Division by zero");
@@ -5410,7 +5533,7 @@ static void factor(Expression_value *result, const char **s)
     {
       rhs.reset();
       unary(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '%%' requires integer operands");
       if (rhs.int_val == 0)
         die("Evaluation error: Modulo by zero");
@@ -5433,7 +5556,7 @@ static void term(Expression_value *result, const char **s)
     {
       rhs.reset();
       factor(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '+' requires integer operands");
       result->set_int(result->int_val + rhs.int_val);
     }
@@ -5441,7 +5564,7 @@ static void term(Expression_value *result, const char **s)
     {
       rhs.reset();
       factor(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '-' requires integer operands");
       result->set_int(result->int_val - rhs.int_val);
     }
@@ -5462,7 +5585,7 @@ static void comparison(Expression_value *result, const char **s)
     {
       rhs.reset();
       term(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '<=' requires integer operands");
       result->set_bool(result->int_val <= rhs.int_val);
     }
@@ -5470,7 +5593,7 @@ static void comparison(Expression_value *result, const char **s)
     {
       rhs.reset();
       term(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '>=' requires integer operands");
       result->set_bool(result->int_val >= rhs.int_val);
     }
@@ -5478,7 +5601,7 @@ static void comparison(Expression_value *result, const char **s)
     {
       rhs.reset();
       term(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '<' requires integer operands");
       result->set_bool(result->int_val < rhs.int_val);
     }
@@ -5486,7 +5609,7 @@ static void comparison(Expression_value *result, const char **s)
     {
       rhs.reset();
       term(&rhs, s);
-      if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+      if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '>' requires integer operands");
       result->set_bool(result->int_val > rhs.int_val);
     }
@@ -5507,18 +5630,16 @@ static void equality(Expression_value *result, const char **s)
     {
       rhs.reset();
       comparison(&rhs, s);
-      if (result->type == EXPR_INT && rhs.type == EXPR_INT)
+      if (result->is_numeric && rhs.is_numeric)
         result->set_bool(result->int_val == rhs.int_val);
       else
-      {
         result->set_bool(!strcmp(result->str_val.c_str(), rhs.str_val.c_str()));
-      }
     }
     else if (match(s, "!="))
     {
       rhs.reset();
       comparison(&rhs, s);
-      if (result->type == EXPR_INT && rhs.type == EXPR_INT)
+      if (result->is_numeric && rhs.is_numeric)
         result->set_bool(result->int_val != rhs.int_val);
       else
         result->set_bool(strcmp(result->str_val.c_str(), rhs.str_val.c_str()));
@@ -5538,7 +5659,7 @@ static void logical_and(Expression_value *result, const char **s)
   {
     rhs.reset();
     equality(&rhs, s);
-    if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+    if (!result->is_numeric || !rhs.is_numeric)
       die("Type error: operator '&&' requires integer operands");
     result->set_bool(result->int_val && rhs.int_val);
   }
@@ -5554,7 +5675,7 @@ static void logical_or(Expression_value *result, const char **s)
   {
     rhs.reset();
     logical_and(&rhs, s);
-    if (result->type != EXPR_INT || rhs.type != EXPR_INT)
+    if (!result->is_numeric || !rhs.is_numeric)
       die("Type error: operator '||' requires integer operands");
     result->set_bool(result->int_val || rhs.int_val);
   }
@@ -7109,8 +7230,8 @@ void do_block(enum block_cmd cmd, struct st_command* command)
 
   if (*expr_start == '$' && *(expr_start + 1) == '(')
   {
-    const char *paren_scanner = expr_start + 2;
-    int paren_level = 1;
+    const char *paren_scanner= expr_start + 2;
+    int paren_level= 1;
     while (*paren_scanner && paren_level > 0)
     {
       if (*paren_scanner == '(') paren_level++;
@@ -7118,7 +7239,7 @@ void do_block(enum block_cmd cmd, struct st_command* command)
       paren_scanner++;
     }
 
-    const char *end_ptr = expr_end;
+    const char *end_ptr= expr_end;
     while(end_ptr > expr_start && my_isspace(charset_info, *(end_ptr - 1)))
       end_ptr--;
 

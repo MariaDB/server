@@ -67,6 +67,62 @@ Multiple variables: 10 * 20 / 10 = 20
 Spaced comparison works
 No space comparison works
 Mixed spacing works
+# Basic hex and binary parsing
+0x10 -> 16
+0xFF -> 255  
+0x0 -> 0
+0b1010 -> 10
+0b1111 -> 15
+0b0 -> 0
+# Hex arithmetic operations
+0x10 + 0x20 -> 48
+0xFF - 0x0F -> 240
+0x10 * 0x2 -> 32
+0x20 / 0x4 -> 8
+0x17 % 0x5 -> 3
+# Binary arithmetic operations
+0b1010 + 0b0101 -> 15
+0b1111 - 0b0011 -> 12
+0b110 * 0b10 -> 12
+0b1000 / 0b10 -> 4
+0b1011 % 0b11 -> 2
+# Mixed base arithmetic (hex + binary + decimal)
+0x10 + 0b1000 + 8 -> 32
+0xFF - 0b11111111 -> 0
+0x20 * 0b10 + 5 -> 74
+(0x64 + 0b1100) / 4 -> 28
+# Hex vs decimal comparisons
+0x10 == 16 -> 1
+0xFF > 200 -> 1
+0x20 <= 32 -> 1
+0xA != 11 -> 1
+# Binary vs decimal comparisons  
+0b1010 == 10 -> 1
+0b1111 > 14 -> 1
+0b1000 <= 8 -> 1
+0b101 != 6 -> 1
+# Hex vs binary comparisons
+0xFF == 0b11111111 -> 1
+0x10 > 0b1111 -> 1
+0xA <= 0b1010 -> 1
+0x5 != 0b101 -> 0
+# Boolean literals
+true -> 1
+false -> 0
+TRUE -> 1
+FALSE -> 0
+# Boolean operations
+true && false -> 0
+true || false -> 1
+!true -> 0
+!false -> 1
+# Boolean comparisons
+true == 1 -> 1
+false == 0 -> 1
+true != false -> 1
+# Complex expressions with multiple bases
+0x10 + 0b1000 == 0x18 -> 1
+0x20 / 0b100 + 0b11 == 11 -> 1
 # String comparisons with spaces
 "hello' world" == hello world = 0
 hello world != goodbye world = 1
@@ -158,6 +214,11 @@ if (hello world == hello world) evaluates to true
 While loop iteration: 3
 While loop iteration: 2
 While loop iteration: 1
+0x10 is greater than 0b1111
+Boolean and hex comparison works
+Counter: 0
+Counter: 1
+Counter: 2
 # Test case: Empty unquoted string (illegal)
 mysqltest: At line 1: Syntax error: invalid expression
 # Test case: Empty unquoted string with only spaces (illegal)
@@ -168,7 +229,4 @@ mysqltest: At line 1: Unmatched parenthesis in expression starting at '$((1 + 2)
 mysqltest: At line 1: Evaluation error: Division by zero
 # Test case: Modulo by zero
 mysqltest: At line 1: Evaluation error: Modulo by zero
-#
-# Empty value handling (commented out for now)
-# TODO: should we add support for empty unquoted string
 # Expression evaluation tests completed successfully
