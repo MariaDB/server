@@ -1491,53 +1491,18 @@ public:
     hash_chain &cell_get(ulint fold) const
     { return array[calc_hash(fold, n_cells)]; }
 
+    /** Append a block descriptor to a hash bucket chain
+    that will be locked here. */
+    void lock_and_append(hash_chain &chain, buf_page_t *bpage) noexcept;
+
     /** Append a block descriptor to a hash bucket chain. */
-    void append(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(!bpage->in_page_hash);
-      ut_ad(!bpage->hash);
-      ut_d(bpage->in_page_hash= true);
-      buf_page_t **prev= &chain.first;
-      while (*prev)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    void append(hash_chain &chain, buf_page_t *bpage) noexcept;
 
     /** Remove a block descriptor from a hash bucket chain. */
-    void remove(hash_chain &chain, buf_page_t *bpage) noexcept
-    {
-      ut_ad(bpage->in_page_hash);
-      buf_page_t **prev= &chain.first;
-      while (*prev != bpage)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage->hash;
-      ut_d(bpage->in_page_hash= false);
-      bpage->hash= nullptr;
-    }
-
+    inline void remove(hash_chain &chain, buf_page_t *bpage) noexcept;
     /** Replace a block descriptor with another. */
-    void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
-      noexcept
-    {
-      ut_ad(old->in_page_hash);
-      ut_ad(bpage->in_page_hash);
-      ut_d(old->in_page_hash= false);
-      ut_ad(bpage->hash == old->hash);
-      old->hash= nullptr;
-      buf_page_t **prev= &chain.first;
-      while (*prev != old)
-      {
-        ut_ad((*prev)->in_page_hash);
-        prev= &(*prev)->hash;
-      }
-      *prev= bpage;
-    }
+    inline void replace(hash_chain &chain, buf_page_t *old, buf_page_t *bpage)
+      noexcept;
 
     /** Look up a page in a hash bucket chain. */
     inline buf_page_t *get(const page_id_t id, const hash_chain &chain) const

@@ -187,11 +187,7 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
     bpage->init(READ_BUF_FIX, page_id);
     bpage->lock.x_lock(true);
 
-    {
-      transactional_lock_guard<page_hash_latch> g
-        {buf_pool.page_hash.lock_get(chain)};
-      buf_pool.page_hash.append(chain, bpage);
-    }
+    buf_pool.page_hash.lock_and_append(chain, bpage);
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
@@ -561,7 +557,6 @@ function must be written such that it cannot end up waiting for these
 latches!
 @param[in]	page_id		page id; see NOTE 3 above
 @return number of page read requests issued */
-TRANSACTIONAL_TARGET
 ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
 {
   /* check if readahead is disabled.
