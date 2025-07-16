@@ -985,12 +985,15 @@ MY_ATTRIBUTE((warn_unused_result))
 @return number of pages written or hole-punched */
 uint32_t fil_space_t::flush_freed(bool writable) noexcept
 {
+  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
+  mysql_mutex_assert_not_owner(&buf_pool.mutex);
+
   const bool punch_hole= chain.start->punch_hole == 1;
   if (!punch_hole && !srv_immediate_scrub_data_uncompressed)
     return 0;
-
-  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
-  mysql_mutex_assert_not_owner(&buf_pool.mutex);
+  if (srv_is_undo_tablespace(id))
+    /* innodb_undo_log_truncate=ON can take care of these better */
+    return 0;
 
   for (;;)
   {
