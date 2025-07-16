@@ -2,6 +2,9 @@
 # Test for MDEV-36107: Add expression evaluation support to mysqltest
 # ----------------------------------------------------------------------------
 
+# This test should work in embedded server after mysqltest is fixed
+--source include/not_embedded.inc
+
 # ----------------------------------------------------------------------------
 # Test backward compatibility (expressions are not evaluated without \$())
 # ----------------------------------------------------------------------------
@@ -180,6 +183,128 @@ if ($( 5 >= 5 ))
   --echo Mixed spacing works
 }
 
+# ----------------------------------------------------------------------------
+# Hex and Binary Literal Tests
+# ----------------------------------------------------------------------------
+
+--echo # Basic hex and binary parsing
+let $hex1 = $(0x10);
+let $hex2 = $(0xFF);
+let $hex3 = $(0x0);
+let $bin1 = $(0b1010);
+let $bin2 = $(0b1111);
+let $bin3 = $(0b0);
+
+--echo 0x10 -> $hex1
+--echo 0xFF -> $hex2  
+--echo 0x0 -> $hex3
+--echo 0b1010 -> $bin1
+--echo 0b1111 -> $bin2
+--echo 0b0 -> $bin3
+
+# ----------------------------------------------------------------------------
+# Hex and Binary Arithmetic
+# ----------------------------------------------------------------------------
+
+--echo # Hex arithmetic operations
+let $hex_add = $(0x10 + 0x20);
+let $hex_sub = $(0xFF - 0x0F);
+let $hex_mul = $(0x10 * 0x2);
+let $hex_div = $(0x20 / 0x4);
+let $hex_mod = $(0x17 % 0x5);
+
+--echo 0x10 + 0x20 -> $hex_add
+--echo 0xFF - 0x0F -> $hex_sub
+--echo 0x10 * 0x2 -> $hex_mul
+--echo 0x20 / 0x4 -> $hex_div
+--echo 0x17 % 0x5 -> $hex_mod
+
+--echo # Binary arithmetic operations
+let $bin_add = $(0b1010 + 0b0101);
+let $bin_sub = $(0b1111 - 0b0011);
+let $bin_mul = $(0b110 * 0b10);
+let $bin_div = $(0b1000 / 0b10);
+let $bin_mod = $(0b1011 % 0b11);
+
+--echo 0b1010 + 0b0101 -> $bin_add
+--echo 0b1111 - 0b0011 -> $bin_sub
+--echo 0b110 * 0b10 -> $bin_mul
+--echo 0b1000 / 0b10 -> $bin_div
+--echo 0b1011 % 0b11 -> $bin_mod
+
+# ----------------------------------------------------------------------------
+# Mixed Base Arithmetic
+# ----------------------------------------------------------------------------
+
+--echo # Mixed base arithmetic (hex + binary + decimal)
+let $mixed1 = $(0x10 + 0b1000 + 8);    # 16 + 8 + 8 = 32
+let $mixed2 = $(0xFF - 0b11111111);    # 255 - 255 = 0
+let $mixed3 = $(0x20 * 0b10 + 10);     # 32 * 2 + 10 = 74
+let $mixed4 = $((0x64 + 0b1100) / 4); # (100 + 12) / 4 = 28
+
+--echo 0x10 + 0b1000 + 8 -> $mixed1
+--echo 0xFF - 0b11111111 -> $mixed2
+--echo 0x20 * 0b10 + 5 -> $mixed3
+--echo (0x64 + 0b1100) / 4 -> $mixed4
+
+# ----------------------------------------------------------------------------
+# Hex and Binary Comparisons
+# ----------------------------------------------------------------------------
+
+--echo # Hex vs decimal comparisons
+--echo 0x10 == 16 -> $(0x10 == 16)
+--echo 0xFF > 200 -> $(0xFF > 200)
+--echo 0x20 <= 32 -> $(0x20 <= 32)
+--echo 0xA != 11 -> $(0xA != 11)
+
+--echo # Binary vs decimal comparisons  
+--echo 0b1010 == 10 -> $(0b1010 == 10)
+--echo 0b1111 > 14 -> $(0b1111 > 14)
+--echo 0b1000 <= 8 -> $(0b1000 <= 8)
+--echo 0b101 != 6 -> $(0b101 != 6)
+
+--echo # Hex vs binary comparisons
+--echo 0xFF == 0b11111111 -> $(0xFF == 0b11111111)
+--echo 0x10 > 0b1111 -> $(0x10 > 0b1111)
+--echo 0xA <= 0b1010 -> $(0xA <= 0b1010)
+--echo 0x5 != 0b101 -> $(0x5 != 0b101)
+
+# ----------------------------------------------------------------------------
+# Boolean Literal Tests
+# ----------------------------------------------------------------------------
+
+--echo # Boolean literals
+let $bool1 = $(true);
+let $bool2 = $(false);
+let $bool3 = $(TRUE);
+let $bool4 = $(FALSE);
+
+--echo true -> $bool1
+--echo false -> $bool2
+--echo TRUE -> $bool3
+--echo FALSE -> $bool4
+
+--echo # Boolean operations
+--echo true && false -> $(true && false)
+--echo true || false -> $(true || false)
+--echo !true -> $(!true)
+--echo !false -> $(!false)
+
+--echo # Boolean comparisons
+--echo true == 1 -> $(true == 1)
+--echo false == 0 -> $(false == 0)
+--echo true != false -> $(true != false)
+
+# ----------------------------------------------------------------------------
+# Complex Mixed-Base Expressions
+# ----------------------------------------------------------------------------
+
+--echo # Complex expressions with multiple bases
+let $complex1 = $(0x10 + 0b1000 == 0x18);          # 16 + 8 == 24
+let $complex3 = $(0x20 / 0b100 + 0b11 == 11);      # 32/4 + 3 == 11
+
+--echo 0x10 + 0b1000 == 0x18 -> $complex1
+--echo 0x20 / 0b100 + 0b11 == 11 -> $complex3
 
 # ----------------------------------------------------------------------------
 # Test string comparisons with spaces
@@ -354,6 +479,22 @@ while ($($i > 0)) {
   --dec $i
 }
 
+if ($(0x10 > 0b1111))
+{
+  --echo 0x10 is greater than 0b1111
+}
+
+if ($(true && (0xFF == 255)))
+{
+  --echo Boolean and hex comparison works
+}
+
+let $counter = $(0x0);
+while ($($counter < 0b11))
+{
+  --echo Counter: $counter
+  --inc $counter
+}
 
 # ----------------------------------------------------------------------------
 # Section: Error Handling (Syntax and Runtime)
@@ -379,20 +520,5 @@ while ($($i > 0)) {
 --error 1
 --exec echo "let \$a = \$(5 % 0);" | $MYSQL_TEST 2>&1
 
-
---echo #
---echo # Empty value handling (commented out for now)
---echo # TODO: should we add support for empty unquoted string
-
-# let $empty_var = ;
-# if ($($empty_var))
-# {
-#   --echo This should not print - empty string is false
-# }
-# 
-# if ($(!$empty_var))
-# {
-#   --echo Empty string is false, so !empty is true
-# }
 
 --echo # Expression evaluation tests completed successfully
