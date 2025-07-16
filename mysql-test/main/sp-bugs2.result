@@ -42,4 +42,21 @@ t1test(1)
 wrbyviwb
 drop function t1test;
 drop table t1;
+#
+# MDEV-36814 MariaDB 10.11.9 Signal 11 crash on second Stored Procedure call
+#
+set names utf8;
+create table t1 (a varchar(1000));
+create procedure p1(in p_a varchar(1000)) insert into t1 values (p_a);//
+create procedure p2(in s varchar(10))
+begin
+if s = '1' then set @startDate = now(); end if;
+if s = '2' then set @startDate = '2025-05-23'; end if;
+call p1(concat(s, @startDate, ' and '));
+end;//
+call p2('1');
+call p2('2');
+drop table t1;
+drop procedure p1;
+drop procedure p2;
 # End of 10.11 tests
