@@ -1,0 +1,18 @@
+name: Check BuildBot
+
+on:
+  pull_request:
+    types:
+      - opened
+
+jobs:
+  auto-comment:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: PR Comment
+        run: |
+          gh pr comment $PRNUM --body "Hi ${{ github.event.pull_request.user.login }}, some Buildbot tests are recorded as GitHub status builder here, however for the complete list of test results see this [BuildBot URL specific to this PR](https://buildbot.mariadb.org/#/grid?branch=refs/pull/${PRNUM}/head). The most recent push to this pull request is on the left."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PRNUM: ${{ github.event.pull_request.number }}
