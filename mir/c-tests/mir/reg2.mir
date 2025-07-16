@@ -1,0 +1,15 @@
+M0:	module
+f:	func
+	global i64:b:r5
+	mov	b, 0
+	ret
+	endfunc
+p:	proto
+main:	func	i32
+	global i64:a:r5
+	mov a, 42
+        call p, f
+        ret	a
+	endfunc
+	export	main
+	endmodule

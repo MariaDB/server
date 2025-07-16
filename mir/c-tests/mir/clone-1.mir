@@ -1,0 +1,17 @@
+M0:	module
+a:     bss 8
+main:	func	i64
+	local	i64:r
+	bf L2, a
+	mov r, 0
+L0:
+	bf L1, r
+	mov r, 1
+L1:
+	ret r
+L2:
+	mov r, 1
+	jmp L0
+	endfunc
+	export	main
+	endmodule

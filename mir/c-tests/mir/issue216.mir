@@ -1,0 +1,18 @@
+M0:	module
+proto0:	proto	i32, blk0:0(I0_foo)
+f:	func	i32, blk0:0(I0_foo)
+	local	i64:fp
+# 1 arg, 1 local
+	alloca	fp, 0
+	ret	0
+	endfunc
+	export	f
+main:	func	i32
+	local	i64:fp, i64:i_0
+# 0 args, 2 locals
+	alloca	fp, 0
+	call	proto0, f, i_0, blk0:(fp)
+	ret	i_0
+	endfunc
+	export	main
+	endmodule
