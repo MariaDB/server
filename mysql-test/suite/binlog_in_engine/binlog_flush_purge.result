@@ -164,4 +164,14 @@ SELECT @@GLOBAL.gtid_binlog_state;
 SELECT @@GLOBAL.gtid_binlog_state;
 @@GLOBAL.gtid_binlog_state
 0-1-2508,1-1-1003
+SET @old_max_size= @@GLOBAL.max_binlog_size;
+SET GLOBAL max_binlog_size= 1048576;
+FLUSH BINARY LOGS;
+SHOW BINARY LOGS;
+Log_name	File_size
+binlog-000030.ibb	8192
+binlog-000031.ibb	8192
+binlog-000032.ibb	262144
+binlog-000033.ibb	1048576
+SET GLOBAL max_binlog_size= @old_max_size;
 DROP TABLE t1;
