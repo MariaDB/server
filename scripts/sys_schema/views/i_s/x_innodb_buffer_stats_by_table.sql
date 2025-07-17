@@ -52,7 +52,8 @@ VIEW x$innodb_buffer_stats_by_table (
 ) AS
 SELECT IF(LOCATE('.', ibp.table_name) = 0, 'InnoDB System', REPLACE(SUBSTRING_INDEX(ibp.table_name, '.', 1), '`', '')) AS object_schema,
        REPLACE(SUBSTRING_INDEX(ibp.table_name, '.', -1), '`', '') AS object_name,
-       SUM(IF(ibp.compressed_size = 0, 16384, compressed_size)) AS allocated,
+       SUM(IF(ibp.compressed_size = 0, (SELECT CAST(GLOBAL_VALUE AS UNSIGNED) FROM information_schema.SYSTEM_VARIABLES
+                                        WHERE VARIABLE_NAME='INNODB_PAGE_SIZE'), compressed_size)) AS allocated,
        SUM(ibp.data_size) AS data,
        COUNT(ibp.page_number) AS pages,
        COUNT(IF(ibp.is_hashed, 1, NULL)) AS pages_hashed,
@@ -61,6 +62,7 @@ SELECT IF(LOCATE('.', ibp.table_name) = 0, 'InnoDB System', REPLACE(SUBSTRING_IN
   FROM information_schema.innodb_buffer_page ibp 
  WHERE table_name IS NOT NULL
  GROUP BY object_schema, object_name
- ORDER BY SUM(IF(ibp.compressed_size = 0, 16384, compressed_size)) DESC;
+ ORDER BY SUM(IF(ibp.compressed_size = 0, (SELECT CAST(GLOBAL_VALUE AS UNSIGNED) FROM information_schema.SYSTEM_VARIABLES
+                                          WHERE VARIABLE_NAME='INNODB_PAGE_SIZE'), compressed_size)) DESC;
 END$$
 DELIMITER ;

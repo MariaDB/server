@@ -35,4 +35,11 @@ CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 # Run innochecksum on t6
 # Restore the original tables
 # restart
+# Trigger AHI
+# Validate is_hashed > 0 and is_old > 0
+SELECT SUM(pages_hashed)>0, SUM(pages_old)>0
+FROM sys.innodb_buffer_stats_by_table;
+SUM(pages_hashed)>0	SUM(pages_old)>0
+1	1
+# Cleanup
 DROP TABLE t1, t2, t3, t4, t5, t6;

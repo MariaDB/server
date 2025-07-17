@@ -1,0 +1,2 @@
+--innodb-adaptive-hash-index=ON
+--innodb-buffer-pool-size=64M
