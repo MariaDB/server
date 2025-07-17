@@ -33411,8 +33411,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     double new_cost;
     if (test_if_cheaper_ordering(FALSE, NULL, order, table,
                                  table->keys_in_use_for_order_by, -1, limit,
-                                 &key, &direction, &limit, &new_cost) &&
-        !is_key_used(table, key, table->write_set))
+                                 &key, &direction, &limit, &new_cost))
     {
       *need_sort= FALSE;
       *scanned_limit= limit;
