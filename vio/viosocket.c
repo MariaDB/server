@@ -599,6 +599,10 @@ int vio_close(Vio *vio)
     vio->mysql_socket= MYSQL_INVALID_SOCKET;
 
     DBUG_ASSERT(mysql_socket_getfd(mysql_socket) >= 0);
+
+    /* Send buffered data, if there are any. */
+    mysql_socket_shutdown(mysql_socket, IF_WIN(SD_SEND,SHUT_WR));
+
     if (mysql_socket_close(mysql_socket))
     {
       DBUG_PRINT("vio_error", ("close() failed, error: %d",socket_errno));
