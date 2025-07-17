@@ -1760,6 +1760,11 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         buf_flush_relocate_on_flush_list(b, &block->page);
         mysql_mutex_unlock(&flush_list_mutex);
       }
+      else
+      {
+        ut_d(if (auto om= b->oldest_modification()) ut_ad(om == 2));
+        b->oldest_modification_.store(0, std::memory_order_relaxed);
+      }
     }
 
     /* relocate LRU list */
@@ -2091,10 +2096,11 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
     while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
     {
+      ut_ad(!b->oldest_modification());
+      ut_ad(b->state() == buf_page_t::NOT_USED);
       UT_LIST_REMOVE(withdrawn, b);
       UT_LIST_ADD_LAST(free, b);
       ut_d(b->in_free_list= true);
-      ut_ad(b->state() == buf_page_t::NOT_USED);
       b->lock.init();
     }
 
