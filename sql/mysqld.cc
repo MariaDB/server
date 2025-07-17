@@ -2860,7 +2860,7 @@ void unlink_thd(THD *thd)
 }
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 /*
   If server is started as service, the service routine will set
   the callback function.
