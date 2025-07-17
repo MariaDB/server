@@ -40,7 +40,7 @@ jobs:
           git config submodule.wsrep-lib.update none
           mkdir bld
           cd bld
-          cmake .. -DWITH_SSL=bundled
+          cmake .. -DWITH_SSL=bundled -DWITH_EMBEDDED_SERVER=1
           cmake --build . --config RelWithDebinfo --verbose -- -m
 
       - name: Test MTR
