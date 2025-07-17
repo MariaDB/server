@@ -321,7 +321,8 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     UPDATE/DELETE.
 */
 
-bool substitute_indexed_vcols_for_table(TABLE *table, Item *item)
+bool substitute_indexed_vcols_for_table(TABLE *table, Item *item,
+                                        ORDER *order, SELECT_LEX *select_lex)
 {
   Vcol_subst_context ctx(table->in_use);
   if (collect_indexed_vcols_for_table(table, &ctx.vcol_fields))
@@ -332,6 +333,10 @@ bool substitute_indexed_vcols_for_table(TABLE *table, Item *item)
 
   if (item)
     subst_vcols_in_item(&ctx, item, "WHERE");
+
+  ctx.subst_count= 0;           /* used in subst_vcol_in_order */
+  if (order)
+    subst_vcols_in_order(&ctx, order, select_lex->join, false);
 
   if (table->in_use->is_error())
     return true; // Out of memory

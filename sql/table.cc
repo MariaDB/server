@@ -9313,9 +9313,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       }
       else
       {
-        /*
-          Compute vcol if it is not stored and marked in the read set.
-        */
+        /* Compute vcol if it is not stored */
         update= !vcol_info->is_stored();
       }
       swap_values= 1;
