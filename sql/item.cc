@@ -5098,6 +5098,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
+  current_thd->lex->default_used= true;
   state= DEFAULT_VALUE;
   /*
     When Item_param is set to DEFAULT_VALUE:
@@ -5253,6 +5254,11 @@ static Field *make_default_field(THD *thd, Field *field_arg)
   {
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
+      return nullptr;
+
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    if (def_field->table->pos_in_table_list &&
+        def_field->default_value->check_access(thd))
       return nullptr;
 
     if (should_mark_column(thd->column_usage))

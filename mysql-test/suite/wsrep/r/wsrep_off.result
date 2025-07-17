@@ -1,0 +1,6 @@
+SET GLOBAL wsrep_on=ON;
+ERROR HY000: Galera replication not supported
+REPAIR TABLE performance_schema.setup_objects;
+Table	Op	Msg_type	Msg_text
+performance_schema.setup_objects	repair	note	The storage engine for the table doesn't support repair
+SET GLOBAL wsrep_on=OFF;
