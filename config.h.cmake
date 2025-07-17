@@ -549,7 +549,6 @@ this is the case with Microsoft Windows VirtualFree(MEM_DECOMMIT) */
 #ifndef EMBEDDED_LIBRARY
 #cmakedefine WSREP_INTERFACE_VERSION "@WSREP_INTERFACE_VERSION@"
 #cmakedefine WITH_WSREP 1
-#cmakedefine WSREP_PROC_INFO 1
 #endif
 
 #if !defined(__STDC_FORMAT_MACROS)

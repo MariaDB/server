@@ -5553,7 +5553,6 @@ public:
   uint32                    wsrep_rand;
   rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
