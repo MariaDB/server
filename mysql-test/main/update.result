@@ -287,7 +287,7 @@ update t1 set a=9999 order by a limit 1;
 update t1 set b=9999 order by a limit 1;
 show status like 'handler_read%';
 Variable_name	Value
-Handler_read_first	1
+Handler_read_first	2
 Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
@@ -295,7 +295,7 @@ Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	2
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	9
+Handler_read_rnd_next	0
 flush status;
 delete from t1 order by a limit 1;
 show status like 'handler_read%';
