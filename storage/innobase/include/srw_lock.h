@@ -261,7 +261,7 @@ public:
     return false;
   }
 
-  void rd_lock() noexcept { if (!rd_lock_try()) rd_wait(); }
+  void rd_lock() noexcept { if (!spinloop || !rd_lock_try()) rd_wait(); }
   void u_lock() noexcept
   {
     writer.wr_lock();
@@ -429,7 +429,7 @@ typedef srw_spin_lock_low srw_spin_lock;
 class ssux_lock
 {
   PSI_rwlock *pfs_psi;
-  ssux_lock_impl<true> lock;
+  ssux_lock_impl<false> lock;
 
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line) noexcept;
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line) noexcept;
