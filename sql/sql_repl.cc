@@ -2565,7 +2565,6 @@ static int init_binlog_sender(binlog_send_info *info,
   String slave_until_gtid_str(str_buf2, sizeof(str_buf2), system_charset_info);
   connect_gtid_state.length(0);
 
-  /* ToDo: Need more complex logic here. I want to be able to at least switch from legacy to innodb binlog without having to RESET MASTER. So we need to be able to start reading from legacy and then switch over to the binlog in innodb. Also, we might want to pass the init GTID position in so that the binlog reader can find the place to start by itself? But probably still want to allocate the reader here like this. */
   if (opt_binlog_engine_hton &&
       !(info->engine_binlog_reader=
         (*opt_binlog_engine_hton->get_binlog_reader)(true)))
