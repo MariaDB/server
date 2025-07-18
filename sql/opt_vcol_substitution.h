@@ -25,5 +25,6 @@ bool substitute_indexed_vcols_for_join(JOIN *join);
   Do substitution for one table and condition. This is for single-table
   UPDATE/DELETE.
 */
-bool substitute_indexed_vcols_for_table(TABLE *table, Item *item);
+bool substitute_indexed_vcols_for_table(TABLE *table, Item *item,
+                                        ORDER *order, SELECT_LEX *select_lex);
 
