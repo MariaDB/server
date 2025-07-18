@@ -1365,8 +1365,16 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
-  if (init_result_field(thd, max_length, maybe_null(), &null_value, &name))
-    return TRUE;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  bool ret= init_result_field(thd, max_length, maybe_null(),
+                              &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  if(ret)
+    return true;
 
   for (uint i= 0 ; i < arg_count ; i++)
   {
