@@ -167,9 +167,9 @@ The following specify which files/extra groups are read (specified before remain
  often use statements updating a great number of rows, you
  can increase this to get more performance.
  --binlog-storage-engine=name 
- Store the binlog transactionally in a supporting storage
- engine instead of as separate files. Currently only
- InnoDB is supported.
+ Use a more efficient binlog implementation integrated
+ with the storage engine. Only available for supporting
+ engines
  --block-encryption-mode=name 
  Default block encryption mode for AES_ENCRYPT() and
  AES_DECRYPT() functions. One of: aes-128-ecb, aes-192-ecb,
@@ -1655,7 +1655,7 @@ binlog-row-image FULL
 binlog-row-metadata NO_LOG
 binlog-space-limit 0
 binlog-stmt-cache-size 32768
-binlog-storage-engine 
+binlog-storage-engine (No default value)
 block-encryption-mode aes-128-ecb
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE

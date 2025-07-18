@@ -11,6 +11,7 @@
 CHANGE MASTER TO master_use_gtid=Slave_pos;
 
 --connection master
+SELECT @@GLOBAL.binlog_storage_engine;
 --let $master_datadir= `SELECT @@datadir`
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 
