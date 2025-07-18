@@ -22,7 +22,7 @@ jobs:
         run: |
           # We won't be able to successfully run mtr
           # unless we configure autocrlf.
-          git config --global core.autocrlf input
+          echo no more  hacks
 
       - uses: actions/checkout@v4
 

@@ -12,7 +12,6 @@
 *.java text
 
 # These files should be checked out as is
-*.result -text -whitespace
 *.dat -text -whitespace
 
 storage/connect/mysql-test/connect/std_data/*.txt -text
@@ -46,3 +45,9 @@ storage/innobase/include/univ.i linguist-language=C
 *.result linguist-language=MariaDB\ Test
 *.frm linguist-language=MariaDB\ Table
 *.h.pp linguist-language=C
+
+# Below is to work on Windows with git's default
+# core.autocrlf = true
+*.result text eol=unset
+*.inc text eol=lf
+*.test text eol=lf
