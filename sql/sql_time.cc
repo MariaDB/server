@@ -359,11 +359,7 @@ to_ascii(CHARSET_INFO *cs,
 }
 
 
-class TemporalAsciiBuffer: public LEX_CSTRING
-{
-  char cnv[32];
-public:
-  TemporalAsciiBuffer(const char *str, size_t length, CHARSET_INFO *cs)
+  TemporalAsciiBuffer::TemporalAsciiBuffer(const char *str, size_t length, CHARSET_INFO *cs)
   {
     if ((cs->state & MY_CS_NONASCII) != 0)
     {
@@ -376,7 +372,6 @@ public:
       LEX_CSTRING::length= length;
     }
   }
-};
 
 
 /* Character set-aware version of ascii_to_datetime_or_date_or_time() */

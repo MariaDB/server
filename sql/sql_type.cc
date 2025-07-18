@@ -401,38 +401,6 @@ my_decimal *Temporal::bad_to_decimal(my_decimal *to) const
   return NULL;
 }
 
-static size_t interval_default_length(enum interval_type type) {
-  switch(type) {
-  case INTERVAL_YEAR:
-  case INTERVAL_YEAR_MONTH:
-    return 4;
-
-  case INTERVAL_MONTH:
-    return 6;
-
-  case INTERVAL_DAY:
-  case INTERVAL_DAY_HOUR:
-  case INTERVAL_DAY_MINUTE:
-  case INTERVAL_DAY_SECOND:
-    return 7;
-
-  case INTERVAL_HOUR:
-  case INTERVAL_HOUR_MINUTE:
-  case INTERVAL_HOUR_SECOND:
-    return 8;
-
-  case INTERVAL_MINUTE:
-  case INTERVAL_MINUTE_SECOND:
-    return 10;
-
-  case INTERVAL_SECOND:
-    return 12;
-
-  default:
-    return 0;
-  }
-}
-
 
 void Temporal::make_from_str(THD *thd, Warn *warn,
                                    const char *str, size_t length,
@@ -3050,13 +3018,8 @@ bool Type_handler_datetime_common::
 bool Type_handler_interval_DDhhmmssff::
        Column_definition_fix_attributes(Column_definition *def) const
 {
-  def->pack_flag= f_set_interval_type(def->decimals >> 3);
-  def->decimals&= FIELDFLAG_MAX_DEC_INTERVAL;
-  def->pack_flag|= f_set_decimals_interval(def->decimals);
+  def->pack_flag= f_set_interval_type(def->decimals);
   interval_type itype= (enum interval_type) f_get_interval_type(def->pack_flag);
-
-  if (def->length == 0)
-    def->length= interval_default_length(itype);
 
   return def->fix_attributes_interval(itype);
 }
@@ -8755,9 +8718,8 @@ Field *Type_handler_datetime2::
       attr->unireg_check,
       name,
       (enum interval_type)f_get_interval_type(attr->pack_flag),
-      attr->length,
-      f_decimals_interval(attr->pack_flag)
-      );
+      attr->length &15,
+attr->length>>4      );
   }
 
 Field *Type_handler_null::

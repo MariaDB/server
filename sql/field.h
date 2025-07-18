@@ -4098,8 +4098,8 @@ public:
 class Field_interval : public Field_temporal {
 protected:
   enum interval_type m_interval_type;
-  uint interval_length;
-  decimal_digits_t dec;
+  uint8 start_prec;
+  uint8 end_prec;
 
 public:
   Field_interval(uchar *ptr_arg, uint32 len_arg,
@@ -4107,16 +4107,16 @@ public:
                  utype unireg_check_arg,
                  const LEX_CSTRING *field_name_arg,
                  enum interval_type interval_type_val,
-                 uint leading_precision_val,
-                 decimal_digits_t dec_val)
+                 uint8 start_prec_val,
+                 uint8 end_prec_val)
     : Field_temporal(ptr_arg, len_arg, null_ptr_arg,
                      null_bit_arg, unireg_check_arg,
                      field_name_arg),
       m_interval_type(interval_type_val),
-      interval_length(leading_precision_val),
-      dec(dec_val)
+      start_prec(start_prec_val),
+      end_prec(end_prec_val)
   {
-    field_length= calc_interval_display_width(m_interval_type, interval_length, dec);
+    field_length= calc_interval_display_width(m_interval_type, start_prec, end_prec);
   }
   int store(const char *, size_t, CHARSET_INFO *) override;
   int store(longlong, bool) override { return 1; }
@@ -4125,7 +4125,7 @@ public:
   int store_time_dec(const MYSQL_TIME *, uint) override { return 1; }
   void store_TIMEVAL(const my_timeval &tm)
   {
-    my_interval_to_binary(&tm, ptr, dec);
+    my_interval_to_binary(&tm, ptr);
   }
 
   longlong val_int() override { return 0; }
@@ -6117,8 +6117,8 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define FIELDFLAG_HEX_ESCAPE		0x10000U
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
+#define FIELDFLAG_INTERVAL_SHIFT        8
 #define FIELDFLAG_MAX_DEC               63U
-#define FIELDFLAG_MAX_DEC_INTERVAL      7U
 
 #define FIELDFLAG_DEC_MASK              0x3F00U
 
@@ -6130,7 +6130,6 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define f_is_packed(x)		((x) & FIELDFLAG_PACK)
 #define f_packtype(x)		(((x) >> FIELDFLAG_PACK_SHIFT) & 15)
 #define f_decimals(x)		((uint8) (((x) >> FIELDFLAG_DEC_SHIFT) & FIELDFLAG_MAX_DEC))
-#define f_decimals_interval(x)  ((uint8) (((x) >> FIELDFLAG_DEC_SHIFT) & FIELDFLAG_MAX_DEC_INTERVAL))
 #define f_is_alpha(x)		(!f_is_num(x))
 #define f_is_binary(x)          ((x) & FIELDFLAG_BINARY) // 4.0- compatibility
 #define f_is_enum(x)            (((x) & (FIELDFLAG_INTERVAL | FIELDFLAG_NUMBER)) == FIELDFLAG_INTERVAL)
@@ -6143,9 +6142,8 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 #define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
-#define f_set_interval_type(x)  ((((x) & 0x1U) << 1) | (((x) & 0xEU) << 10))
-#define f_get_interval_type(x)  (((((x) >> 1) & 0x1U) | (((x) >> 10) & 0xEU)))
-#define f_set_decimals_interval(x)	((x)  << FIELDFLAG_DEC_SHIFT)
+#define f_set_interval_type(x)  ((uint) (((x) << FIELDFLAG_INTERVAL_SHIFT)))
+#define f_get_interval_type(x)  (((x) >> FIELDFLAG_INTERVAL_SHIFT) & 15)
 
 inline
 ulonglong TABLE::vers_end_id() const

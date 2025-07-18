@@ -1,4 +1,4 @@
-/* Copyright (C) 2025 Google Summer of Code 2025
+/* Copyright (C) 2025
 
 This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -31,10 +31,11 @@ Interval::Interval()
 
 
 Interval::Interval(const char *str, size_t length,
-                   enum interval_type itype, bool allow_fractional)
+                   enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec)
 {
-  if (str_to_interval(str, length, this, itype, allow_fractional) != 0)
-    throw std::invalid_argument("Invalid interval format");
+  TemporalAsciiBuffer tmp(str, length, cs);
+  if (str_to_interval(tmp.str, tmp.length, this, itype,start_prec,end_prec) != 0)
+    my_error(ER_INVALID_DEFAULT_PARAM, MYF(0), tmp.str);
 }
 
 
@@ -48,16 +49,16 @@ static my_bool parse_number(ulong *dest, const char **str, const char *end)
     *dest= (*dest) * 10 + (*(*str) - '0');
     (*str)++;
   }
-
+`
   return (*str == start);
 }
 
 int str_to_interval(const char *str, size_t length, Interval *to,
-                    enum interval_type itype, bool allow_fractional)
+                    enum interval_type itype, uint8 start_prec, uint8 end_prec)
 {
   const char *p= str;
   const char *end= str + length;
-  ulong values[6]= {0};
+  ulong values[6] = {0}; // Stores the values of temporal components: YEAR, MONTH, DAY, HOUR, MINUTE, SECOND
   uint num_components= 0;
   uint parsed_components= 0;
 
@@ -123,27 +124,7 @@ int str_to_interval(const char *str, size_t length, Interval *to,
     }
     parsed_components++;
 
-    if (i == num_components - 1 &&
-        itype != INTERVAL_YEAR && itype != INTERVAL_MONTH &&
-        allow_fractional && p < end && *p == '.')
-    {
-      p++;
-      uint digits= 0;
-
-      while (p < end && my_isdigit(&my_charset_latin1, *p) && digits < 6)
-      {
-        to->second_part= to->second_part * 10 + (*p - '0');
-        digits++;
-        p++;
-      }
-
-      while (digits < 6)
-      {
-        to->second_part*= 10;
-        digits++;
-      }
     }
-  }
 
   switch (itype) {
   case INTERVAL_YEAR:
@@ -201,10 +182,75 @@ int str_to_interval(const char *str, size_t length, Interval *to,
     return 1;
   }
 
-  return (parsed_components > 0) ? 0 : 1;
+  return (parsed_components > 0) ?is_valid_interval(itype,start_prec,end_prec,to)?  0:1 : 1;
 }
 
-int interval_to_timeval(const Interval *iv, my_timeval *tm, uint dec, THD *thd)
+
+static uint8_t count_digits(ulong value) {
+    return (value == 0) ? 1 : static_cast<uint8_t>(log10(value)) + 1;
+}
+
+uint8_t is_valid_interval(interval_type itype,
+                          uint8_t start_prec,
+                          uint8_t end_prec,
+                          const Interval *ival) {
+    switch (itype) {
+    case INTERVAL_YEAR:
+        return count_digits(ival->year) <= start_prec;
+
+    case INTERVAL_MONTH:
+        return count_digits(ival->month) <= start_prec;
+
+    case INTERVAL_DAY:
+        return count_digits(ival->day) <= start_prec;
+
+    case INTERVAL_HOUR:
+        return count_digits(ival->hour) <= start_prec;
+
+    case INTERVAL_MINUTE:
+        return count_digits(ival->minute) <= start_prec;
+
+    case INTERVAL_SECOND:
+        return count_digits(ival->second) <= start_prec;
+
+    case INTERVAL_YEAR_MONTH:
+        return count_digits(ival->year) <= start_prec &&
+               count_digits(ival->month) <= end_prec;
+
+    case INTERVAL_DAY_HOUR:
+        return count_digits(ival->day) <= start_prec &&
+               count_digits(ival->hour) <= end_prec;
+
+    case INTERVAL_HOUR_MINUTE:
+        return count_digits(ival->hour) <= start_prec &&
+               count_digits(ival->minute) <= end_prec;
+
+    case INTERVAL_MINUTE_SECOND:
+        return count_digits(ival->minute) <= start_prec &&
+               count_digits(ival->second) <= end_prec;
+
+    case INTERVAL_DAY_MINUTE:
+        return count_digits(ival->day) <= start_prec &&
+               ival->hour <= 59 &&
+               count_digits(ival->minute) <= end_prec;
+
+    case INTERVAL_DAY_SECOND:
+        return count_digits(ival->day) <= start_prec &&
+               ival->hour <= 59 &&
+               ival->minute <= 59 &&
+               count_digits(ival->second) <= end_prec;
+
+    case INTERVAL_HOUR_SECOND:
+        return count_digits(ival->hour) <= start_prec &&
+               ival->minute <= 59 &&
+               count_digits(ival->second) <= end_prec;
+
+    default:
+        return 0;
+    }
+}
+
+int interval_to_timeval(const Interval *iv, my_timeval *tm, THD *thd)
 {
   longlong total_days= 0;
   total_days+= static_cast<longlong>(iv->year) * 365;
@@ -228,41 +274,13 @@ int interval_to_timeval(const Interval *iv, my_timeval *tm, uint dec, THD *thd)
     }
   }
 
-  if (dec < 6)
-  {
-    uint factor= log_10_int[6 - dec];
-    uint remainder= microseconds % factor;
-
-    if (remainder)
-    {
-      time_round_mode_t mode= Datetime::default_round_mode(thd);
-      uint half= factor / 2;
-
-      if (mode == TIME_FRAC_ROUND)
-      {
-        if (remainder >= half)
-          microseconds+= factor - remainder;
-        else
-          microseconds-= remainder;
-      }
-      else
-        microseconds-= remainder;
-
-      if (microseconds >= 1000000)
-      {
-        microseconds-= 1000000;
-        total_seconds+= 1;
-      }
-    }
-  }
-
   tm->tv_sec= total_seconds;
   tm->tv_usec= microseconds;
   return 0;
 }
 
 size_t interval_to_string(const Interval *iv, enum interval_type itype,
-                          uint decimals, char *buf, size_t buf_len)
+              char *buf, size_t buf_len)
 {
   char *pos= buf;
   char *end= buf + buf_len;
@@ -297,13 +315,6 @@ size_t interval_to_string(const Interval *iv, enum interval_type itype,
                    (unsigned long long)iv->minute);
     break;
   case INTERVAL_SECOND:
-    if (decimals)
-    {
-      pos+= snprintf(pos, end - pos, "%llu.%0*llu",
-                     (unsigned long long)iv->second, decimals,
-                     (unsigned long long)iv->second_part);
-    }
-    else
       pos+= snprintf(pos, end - pos, "%llu",
                      (unsigned long long)iv->second);
     break;
@@ -319,25 +330,12 @@ size_t interval_to_string(const Interval *iv, enum interval_type itype,
                    (unsigned long long)iv->minute);
     break;
   case INTERVAL_DAY_SECOND:
-    if (decimals)
-    {
-      pos+= snprintf(pos, end - pos,
-                     "%llu %02llu:%02llu:%02llu.%0*llu",
-                     (unsigned long long)iv->day,
-                     (unsigned long long)iv->hour,
-                     (unsigned long long)iv->minute,
-                     (unsigned long long)iv->second, decimals,
-                     (unsigned long long)iv->second_part);
-    }
-    else
-    {
       pos+= snprintf(pos, end - pos,
                      "%llu %02llu:%02llu:%02llu",
                      (unsigned long long)iv->day,
                      (unsigned long long)iv->hour,
                      (unsigned long long)iv->minute,
                      (unsigned long long)iv->second);
-    }
     break;
   case INTERVAL_HOUR_MINUTE:
     pos+= snprintf(pos, end - pos, "%llu:%02llu",
@@ -345,37 +343,15 @@ size_t interval_to_string(const Interval *iv, enum interval_type itype,
                    (unsigned long long)iv->minute);
     break;
   case INTERVAL_HOUR_SECOND:
-    if (decimals)
-    {
-      pos+= snprintf(pos, end - pos,
-                     "%llu:%02llu:%02llu.%0*llu",
-                     (unsigned long long)iv->hour,
-                     (unsigned long long)iv->minute,
-                     (unsigned long long)iv->second, decimals,
-                     (unsigned long long)iv->second_part);
-    }
-    else
-    {
       pos+= snprintf(pos, end - pos, "%llu:%02llu:%02llu",
                      (unsigned long long)iv->hour,
                      (unsigned long long)iv->minute,
                      (unsigned long long)iv->second);
-    }
     break;
   case INTERVAL_MINUTE_SECOND:
-    if (decimals)
-    {
-      pos+= snprintf(pos, end - pos, "%llu:%02llu.%0*llu",
-                     (unsigned long long)iv->minute,
-                     (unsigned long long)iv->second, decimals,
-                     (unsigned long long)iv->second_part);
-    }
-    else
-    {
       pos+= snprintf(pos, end - pos, "%llu:%02llu",
                      (unsigned long long)iv->minute,
                      (unsigned long long)iv->second);
-    }
     break;
   default:
     pos+= snprintf(pos, end - pos,
@@ -393,55 +369,34 @@ size_t interval_to_string(const Interval *iv, enum interval_type itype,
 }
 
 void timeval_to_interval(const my_timeval &tm, Interval *iv,
-                         enum interval_type itype, decimal_digits_t dec)
+                         enum interval_type itype)
 {
   *iv= Interval();
 
   if (tm.tv_sec == 0 && tm.tv_usec == 0)
     return;
 
-  longlong total_microseconds= tm.tv_sec;
-  total_microseconds*= 1000000LL;
-  total_microseconds+= static_cast<longlong>(tm.tv_usec);
 
-  if (total_microseconds < 0)
-  {
-    total_microseconds= -total_microseconds;
-    iv->neg= true;
-  }
 
-  if (dec < 6)
-  {
-    longlong factor= 1;
-    for (int i= 0; i < 6 - dec; ++i)
-      factor*= 10;
-    total_microseconds= (total_microseconds + factor / 2) / factor * factor;
-  }
-
-  longlong seconds= total_microseconds / 1000000LL;
-  longlong microsecond_part= total_microseconds % 1000000LL;
+  longlong seconds= tm.tv_sec;
 
   switch (itype) {
   case INTERVAL_YEAR:
   case INTERVAL_MONTH:
   case INTERVAL_YEAR_MONTH: {
     longlong days= seconds / 86400LL;
-    longlong months= days / 30;  // Approximate 1 month = 30 days
 
     if (itype == INTERVAL_YEAR)
-      iv->year= static_cast<ulong>(months / 12);
+      iv->year= static_cast<ulong>(days / 365);
     else if (itype == INTERVAL_MONTH)
-      iv->month= static_cast<ulong>(months);
+      iv->month= static_cast<ulong>(days / 30);
     else if (itype == INTERVAL_YEAR_MONTH)
     {
-      iv->year= static_cast<ulong>(months / 12);
-      iv->month= static_cast<ulong>(months % 12);
+      iv->year= static_cast<ulong>(days / 365);
+      iv->month= static_cast<ulong>((days % 365) / 30);
     }
     break;
   }
-  case INTERVAL_WEEK:
-    iv->day= static_cast<ulong>(seconds / (86400LL * 7));
-    break;
   case INTERVAL_DAY:
     iv->day= static_cast<ulong>(seconds / 86400LL);
     break;
@@ -453,11 +408,6 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     break;
   case INTERVAL_SECOND:
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(microsecond_part);
-    break;
-  case INTERVAL_MICROSECOND:
-    iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(microsecond_part);
     break;
   case INTERVAL_DAY_HOUR:
     iv->day= static_cast<ulong>(seconds / 86400LL);
@@ -479,7 +429,6 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     iv->minute= static_cast<ulonglong>(seconds / 60LL);
     seconds%= 60LL;
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(microsecond_part);
     break;
   case INTERVAL_HOUR_MINUTE:
     iv->hour= static_cast<ulong>(seconds / 3600LL);
@@ -492,13 +441,11 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     iv->minute= static_cast<ulonglong>(seconds / 60LL);
     seconds%= 60LL;
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(microsecond_part);
     break;
   case INTERVAL_MINUTE_SECOND:
     iv->minute= static_cast<ulonglong>(seconds / 60LL);
     seconds%= 60LL;
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(microsecond_part);
     break;
   default:
     break;
@@ -507,17 +454,52 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
 
 uint calc_interval_display_width(interval_type itype,
                                  uint leading_precision,
-                                 uint fractional_precision)
+                                 uint trailing_precision)
 {
   if (itype >= INTERVAL_LAST)
     return 0;
 
-  uint width= INTERVAL_MAX_WIDTH[itype] + leading_precision;
-
-  if (fractional_precision > 0)
-  {
-    width += 1 + fractional_precision;
-  }
+  uint width= INTERVAL_MAX_WIDTH[itype] + leading_precision + trailing_precision;
 
   return width;
+}
+
+uint8 interval_default_length(enum interval_type type) {
+  /*
+   * For single interval types, the return value indicates the default number of digits accepted.
+   * For range interval types, the return value is an 8-bit value that combines two 4-bit numbers:
+   *   - The low 4 bits represent the default number of digits for the starting timestamp.
+   *   - The high 4 bits represent the default number of digits for the ending timestamp.
+   */
+  switch(type) {
+  case INTERVAL_YEAR:
+    return 4;
+  case INTERVAL_YEAR_MONTH:
+    return 100; // 6 (month) | 4 (year)
+  case INTERVAL_MONTH:
+    return 6;
+  case INTERVAL_DAY:
+    return 7;
+  case INTERVAL_DAY_HOUR:
+    return 135; // 8 (hour) | 7 (day)
+  case INTERVAL_DAY_MINUTE:
+    return 167; // 10 (minute) | 7 (day)
+  case INTERVAL_DAY_SECOND:
+    return 199;  // 12 (second) | 7 (day)
+  case INTERVAL_HOUR:
+    return 8;
+  case INTERVAL_HOUR_MINUTE:
+    return 168; // 10 (minute) | 2 (hour)
+  case INTERVAL_HOUR_SECOND:
+    return 200; // 12 (second) | 2 (hour)
+  case INTERVAL_MINUTE:
+    return 10;
+  case INTERVAL_MINUTE_SECOND:
+    return 202; // 12 (second) | 10 (minute)
+  case INTERVAL_SECOND:
+    return 12;
+
+  default:
+    return 0;
+  }
 }

@@ -7426,8 +7426,118 @@ longlong Field_datetimef::val_datetime_packed(THD *thd)
   TIME_from_longlong_datetime_packed(&ltime, tmp);
   return pack_time(&ltime);
 }
+<<<<<<< HEAD
+=======
+/***************************************************************************
+** Interval type
+** In string context: YYYY-MM-DD HH:MM:SS.ffffff
+** In number context: TODO
+** Stored as a 5 byte unsigned int.
+****************************************************************************/
+int Field_interval::store(longlong nr, bool unsigned_val)
+{
+  return 1;
+}
+>>>>>>> 691a9f2f413 (-I made the changes requested on the PR.)
 
 
+<<<<<<< HEAD
+=======
+int Field_interval::store_decimal(const my_decimal *d)
+{
+  return 1;
+}
+
+int Field_interval::store_time_dec(const MYSQL_TIME *ltime, uint dec)
+{
+  return 1;
+}
+
+longlong Field_interval::val_int()
+{
+  return 0;
+}
+
+double Field_interval::val_real()
+{
+  return 0.0;
+}
+
+my_decimal *Field_interval::val_decimal(my_decimal *decimal_value)
+{
+  return nullptr;
+}
+
+bool Field_interval::val_native(Native *to)
+{
+  return false;
+}
+
+uint Field_interval::pack_length() const
+{
+  return sizeof(INTERVAL);
+}
+
+void Field_interval::sql_type(String &str) const
+{
+  // Empty body
+}
+
+int Field_interval::cmp(const uchar *a_ptr, const uchar *b_ptr) const
+{
+  return 0;
+}
+
+bool Field_interval::validate_value_in_record(THD *thd, const uchar *record) const
+{
+  return false;
+}
+
+uint Field_interval::size_of() const
+{
+  return sizeof(*this);
+}
+
+void Field_interval::sort_string(uchar *to, uint length)
+{
+  // Empty body
+}
+
+int Field_interval::reset()
+{
+  my_timeval x;
+  x.tv_sec= x.tv_usec= 0;
+  my_interval_to_binary(&x,ptr);
+  return 0;
+}
+int Field_interval::store(const char *from, size_t len, CHARSET_INFO *cs)
+{
+  THD *thd = get_thd();
+  ErrConvString str(from, len, cs);
+  Interval interval(from, len, m_interval_type, cs, start_prec, end_prec);
+  my_timeval tm;
+  interval_to_timeval(&interval, &tm, thd);
+  store_TIMEVAL(tm);
+  return 0;
+}
+
+String *Field_interval::val_str(String *val_buffer, String *val_ptr) {
+  my_timeval tm;
+  my_interval_from_binary(&tm, ptr);
+
+  Interval iv;
+  timeval_to_interval(tm, &iv, m_interval_type);
+
+  val_buffer->alloc(field_length + 1);
+  char *buf = (char *)val_buffer->ptr();
+
+  size_t len = interval_to_string(&iv, m_interval_type, buf, field_length + 1);
+  val_buffer->length(len);
+  val_buffer->set_charset(&my_charset_numeric);
+
+  return val_buffer;
+}
+>>>>>>> 691a9f2f413 (-I made the changes requested on the PR.)
 /****************************************************************************
 ** string type
 ** A string may be varchar or binary
@@ -10947,14 +11057,27 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 
 bool Column_definition::fix_attributes_interval(interval_type itype)
 {
-  if (decimals > MAX_DATETIME_PRECISION)
-  {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
-             MAX_DATETIME_PRECISION);
-    return true;
-  }
+  /*
+   * the length field stores precision information for interval types:
+   *   - For single-part intervals, it contains the precision of the starting field.
+   *   - For range intervals, it encodes two precision values:
+   *        • Bits 7-4 : Ending timestamp
+   *        • Bits 3-0 : Starting timestamp
+   */
+  uint8 intv_length= interval_default_length(itype);
 
-  //length= calc_interval_display_width(itype, length, decimals);
+  if (!(length & 15))
+    length|= intv_length & 15;
+  else if ((length & 15) > (intv_length & 15))
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
+             intv_length & 15);
+
+  if (!(length >> 4))
+    length|= intv_length & 240;
+  else if ((length >> 4) > (intv_length >> 4))
+    my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
+             intv_length >> 4);
+
   return false;
 }
 

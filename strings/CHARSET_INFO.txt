@@ -1,4 +1,4 @@
-
+	
 CHARSET_INFO
 ============
 A structure containing data for charset+collation pair implementation. 

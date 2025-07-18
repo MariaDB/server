@@ -1,4 +1,4 @@
-/* Copyright (C) 2025 Google Summer of Code 2025
+/* Copyright (C) 2025
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,13 +30,13 @@ constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
   /* MINUTE                */ 1,  // [-]M
   /* SECOND                */ 1,  // [-]S
   /* MICROSECOND           */ 1,  // [-]U (not supported)
-  /* YEAR_MONTH            */ 4,  // [-]Y-MM
-  /* DAY_HOUR              */ 4,  // [-]D HH
-  /* DAY_MINUTE            */ 7,  // [-]D HH:MM
-  /* DAY_SECOND            */ 10, // [-]D HH:MM:SS
-  /* HOUR_MINUTE           */ 4,  // [-]H:MM
-  /* HOUR_SECOND           */ 7,  // [-]H:MM:SS
-  /* MINUTE_SECOND         */ 4,  // [-]M:SS
+  /* YEAR_MONTH            */ 2,  // [-]Y-MM
+  /* DAY_HOUR              */ 2,  // [-]D HH
+  /* DAY_MINUTE            */ 5,  // [-]D HH:MM
+  /* DAY_SECOND            */ 8, // [-]D HH:MM:SS
+  /* HOUR_MINUTE           */ 2,  // [-]H:MM
+  /* HOUR_SECOND           */ 5,  // [-]H:MM:SS
+  /* MINUTE_SECOND         */ 2,  // [-]M:SS
   /* DAY_MICROSECOND       */ 10, // (not supported)
   /* HOUR_MICROSECOND      */ 7,  // (not supported)
   /* MINUTE_MICROSECOND    */ 4,  // (not supported)
@@ -52,19 +52,23 @@ class Interval : public INTERVAL {
 public:
   Interval();
   Interval(const char *str, size_t length,
-           enum interval_type itype, bool allow_fractional = true);
-
+                     enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec);
 };
 
-int str_to_interval(const char *str, size_t size, Interval *interval,
-                    enum interval_type itype, bool allow_fractional);
+int str_to_interval(const char *str, size_t length, Interval *to,
+                    enum interval_type itype, uint8 start_prec, uint8 end_prec);
 
-int interval_to_timeval(const Interval* iv, my_timeval* tm,
-                        uint dec, THD *thd);
+uint8_t is_valid_interval(interval_type itype,
+                          uint8_t start_prec,
+                          uint8_t end_prec,
+                          const Interval *ival);
 
-void timeval_to_interval(const my_timeval &tm, Interval *iv, enum interval_type itype, decimal_digits_t dec);
+int interval_to_timeval(const Interval* iv, my_timeval* tm, THD *thd);
+
+void timeval_to_interval(const my_timeval &tm, Interval *iv, enum interval_type itype);
 
 size_t interval_to_string(const Interval *iv, enum interval_type itype,
-                          uint decimals, char *buf, size_t buf_len);
+                              char *buf, size_t buf_len);
 
+uint8 interval_default_length(enum interval_type type);
 #endif  // SQL_INTERVAL_H
