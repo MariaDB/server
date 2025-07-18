@@ -4095,6 +4095,78 @@ public:
   Binlog_type_info binlog_type_info() const override;
 };
 
+class Field_interval : public Field_temporal {
+protected:
+  enum interval_type m_interval_type;
+  uint8 start_prec;
+  uint8 end_prec;
+
+public:
+  Field_interval(uchar *ptr_arg, uint32 len_arg,
+                 uchar *null_ptr_arg, uchar null_bit_arg,
+                 utype unireg_check_arg,
+                 const LEX_CSTRING *field_name_arg,
+                 enum interval_type interval_type_val,
+                 uint8 start_prec_val,
+                 uint8 end_prec_val)
+    : Field_temporal(ptr_arg, len_arg, null_ptr_arg,
+                     null_bit_arg, unireg_check_arg,
+                     field_name_arg),
+      m_interval_type(interval_type_val),
+      start_prec(start_prec_val),
+      end_prec(end_prec_val)
+  {
+    field_length= calc_interval_display_width(m_interval_type, start_prec, end_prec);
+  }
+  int store(const char *, size_t, CHARSET_INFO *) override;
+  int store(longlong, bool) override { return 1; }
+  int store(double) override { return 1; }
+  int store_decimal(const my_decimal *) override { return 1; }
+  int store_time_dec(const MYSQL_TIME *, uint) override { return 1; }
+  void store_TIMEVAL(const my_timeval &tm)
+  {
+    my_interval_to_binary(&tm, ptr);
+  }
+
+  longlong val_int() override { return 0; }
+  double val_real() override { return 0.0; }
+  String *val_str(String *, String *) override;
+  my_decimal *val_decimal(my_decimal *) override { return nullptr; }
+  bool val_native(Native *) override { return false; }
+
+  const Type_handler *type_handler() const override {
+    return &type_handler_interval_DDhhmmssff;
+  }
+  enum_field_types type() const override { return MYSQL_TYPE_INTERVAL; }
+  uint pack_length() const override { return sizeof(INTERVAL); }
+
+  void sql_type(String &str) const override {
+  }
+
+  int cmp(const uchar *, const uchar *) const override { return 0; }
+
+  void make_send_field(Send_field *field) override
+  {
+    Field::make_send_field(field);
+  }
+
+  bool validate_value_in_record(THD *, const uchar *) const override {
+    return false;
+  }
+
+  enum_conv_type rpl_conv_type_from(const Conv_source &,
+                                  const Relay_log_info *,
+                                  const Conv_param &) const override {
+    enum_conv_type conv_type = CONV_TYPE_IMPOSSIBLE;
+    return conv_type;
+  }
+
+  uint size_of() const override { return sizeof(*this); }
+
+  void sort_string(uchar *, uint) override {}
+
+  int reset() override;
+};
 
 static inline Field_timestamp *
 new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
@@ -5566,6 +5638,7 @@ public:
   bool fix_attributes_int(uint default_length);
   bool fix_attributes_decimal();
   bool fix_attributes_temporal_with_time(uint int_part_length);
+  bool fix_attributes_interval(interval_type itype);
   bool fix_attributes_bit();
 
   bool check(THD *thd);
@@ -6044,6 +6117,7 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define FIELDFLAG_HEX_ESCAPE		0x10000U
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
+#define FIELDFLAG_INTERVAL_SHIFT        8
 #define FIELDFLAG_MAX_DEC               63U
 
 #define FIELDFLAG_DEC_MASK              0x3F00U
@@ -6068,6 +6142,8 @@ bool check_expression(Virtual_column_info *vcol, const Lex_ident_column &name,
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 #define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
+#define f_set_interval_type(x)  ((uint) (((x) << FIELDFLAG_INTERVAL_SHIFT)))
+#define f_get_interval_type(x)  (((x) >> FIELDFLAG_INTERVAL_SHIFT) & 15)
 
 inline
 ulonglong TABLE::vers_end_id() const

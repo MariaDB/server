@@ -473,4 +473,30 @@ void my_timestamp_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
   }
 }
 
+/**
+  Convert MariaDBxx binary interval representation to in-memory representation.
+
+  @param  OUT tm  The variable to convert to.
+  @param      ptr The pointer to read the value from.
+  @param      dec Precision.
+*/
+void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr)
+{
+  tm->tv_sec= mi_uint5korr(ptr);
+  tm->tv_usec= 0;
+}
+
+
+/**
+  Convert MariaDBxx in-memory interval representation to on-disk representation.
+
+  @param        tm   The value to convert.
+  @param  OUT   ptr  The pointer to store the value to.
+  @param        dec  Precision.
+*/
+void my_interval_to_binary(const struct my_timeval *tm, uchar *ptr)
+{
+  mi_int5store(ptr, tm->tv_sec);
+}
+
 /****************************************/

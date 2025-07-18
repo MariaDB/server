@@ -143,6 +143,7 @@ SET (SQL_SOURCE
                ddl_log.cc ddl_log.h
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc
                sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc
+               sql_interval.cc
                uniques.cc
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc
                event_data_objects.cc
