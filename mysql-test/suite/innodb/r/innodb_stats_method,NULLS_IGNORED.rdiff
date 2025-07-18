@@ -1,0 +1,25 @@
+--- innodb_stats_method.result
++++ innodb_stats_method,NULLS_IGNORED.result
+@@ -7,16 +7,16 @@
+ SELECT stat_name, stat_value, stat_description
+ FROM mysql.innodb_index_stats WHERE database_name="test" and table_name="t1";
+ stat_name	stat_value	stat_description
+-n_diff_pfx01	16341	DB_ROW_ID NULLS_UNEQUAL
++n_diff_pfx01	16341	DB_ROW_ID NULLS_IGNORED
+ n_leaf_pages	37	Number of leaf pages in the index
+ size	97	Number of pages in the index
+-n_diff_pfx01	16384	f1 NULLS_UNEQUAL
+-n_diff_pfx02	16384	f1,f3 NULLS_UNEQUAL
+-n_diff_pfx03	16384	f1,f3,DB_ROW_ID NULLS_UNEQUAL
++n_diff_pfx01	16384	f1 NULLS_IGNORED
++n_diff_pfx02	16384	f1,f3 NULLS_IGNORED
++n_diff_pfx03	16384	f1,f3,DB_ROW_ID NULLS_IGNORED
+ n_leaf_pages	1	Number of leaf pages in the index
+ size	19	Number of pages in the index
+-n_diff_pfx01	16384	f3 NULLS_UNEQUAL
+-n_diff_pfx02	16384	f3,DB_ROW_ID NULLS_UNEQUAL
++n_diff_pfx01	16384	f3 NULLS_IGNORED
++n_diff_pfx02	16384	f3,DB_ROW_ID NULLS_IGNORED
+ n_leaf_pages	1	Number of leaf pages in the index
+ size	15	Number of pages in the index
+ SHOW KEYS FROM t1;

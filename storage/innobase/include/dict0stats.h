@@ -97,9 +97,11 @@ dict_stats_persistent_storage_check(bool dict_already_locked= false) noexcept;
 
 /** Save the persistent statistics of a table or an index.
 @param table            table whose stats to save
+@param stats_method	innodb_stats_method value
 @param only_for_index   the index ID to save statistics for (0=all)
 @return DB_SUCCESS or error code */
-dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id= 0);
+dberr_t dict_stats_save(dict_table_t* table, unsigned stats_method,
+                        index_id_t index_id= 0);
 
 /** Read the stored persistent statistics of a table. */
 dberr_t dict_stats_fetch_from_ps(dict_table_t *table);
@@ -116,9 +118,11 @@ dberr_t dict_stats_update_transient(dict_table_t *table) noexcept;
 Calculate new estimates for table and index statistics. This function
 is slower than dict_stats_update_transient().
 @param table    table for which the persistent statistics are being updated
-@return DB_SUCCESS or error code
-@retval DB_SUCCESS_LOCKED_REC if the table under bulk insert operation */
-dberr_t dict_stats_update_persistent(dict_table_t *table) noexcept;
+@return std::pair<error_code, <innodb_stats_method>
+Here error code can be DB_SUCCESS or DB_SUCCESS_LOCKED_REC if the table
+under bulk insert operation or error code */
+std::pair<dberr_t, unsigned>
+dict_stats_update_persistent(dict_table_t *table) noexcept;
 
 /**
 Try to calculate and save new estimates for persistent statistics.
