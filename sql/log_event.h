@@ -1343,7 +1343,7 @@ public:
     return thd ? thd->db.str : 0;
   }
 #else
-  Log_event() : temp_buf(0), when(0), flags(0) {}
+  Log_event() : temp_buf(0), when(0), server_id(0), flags(0) {}
   ha_checksum crc;
   /* print*() functions are used by mysqlbinlog */
   virtual bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
