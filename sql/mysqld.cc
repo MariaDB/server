@@ -667,6 +667,12 @@ Rpl_filter* cur_rpl_filter;
 Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
 
+/**
+  Filter used by the binlog dump thread to determine which events to transmit to replicas or clients.
+  This is separate from binlog_filter, which controls which events are written to the binary log.
+*/
+Rpl_filter* binlog_dump_filter;
+
 struct system_variables global_system_variables;
 /**
   Following is just for options parsing, used with a difference against
@@ -2045,6 +2051,7 @@ static void clean_up(bool print_message)
   delete type_handler_data;
   delete binlog_filter;
   delete global_rpl_filter;
+  delete binlog_dump_filter;
   end_ssl();
 #ifndef EMBEDDED_LIBRARY
   vio_end();
@@ -3961,7 +3968,8 @@ static int init_common_variables()
 
   global_rpl_filter= new Rpl_filter;
   binlog_filter= new Rpl_filter;
-  if (!global_rpl_filter || !binlog_filter)
+  binlog_dump_filter= new Rpl_filter;
+  if (!global_rpl_filter || !binlog_filter || !binlog_dump_filter)
   {
     sql_perror("Could not allocate replication and binlog filters");
     exit(1);
@@ -6615,6 +6623,47 @@ struct my_option my_long_options[]=
   {"binlog-ignore-db", OPT_BINLOG_IGNORE_DB,
    "Tells the master that updates to the given database should not be logged to the binary log",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"binlog-dump-do-db", OPT_BINLOG_DUMP_DO_DB,
+   "Tells the primary's binlog dump threads to only transmit binary log events "
+   "that update databases whose names appear in this comma-separated list. "
+   "Applies for all replicas that connect to this server. "
+   "Note: Unlike binlog_do_db, this does not prevent transactions from being written "
+   "to the local binary log file",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"binlog-dump-ignore-db", OPT_BINLOG_DUMP_IGNORE_DB,
+   "Tells the primary's binlog dump threads to only transmit binary log events "
+   "that update databases whose names do not appear in this comma-separated list. "
+   "Applies for all replicas that connect to this server. "
+   "Note: Unlike binlog_ignore_db, this does not prevent transactions from being written "
+   "to the local binary log file",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"binlog-dump-do-table", OPT_BINLOG_DUMP_DO_TABLE,
+   "Tells the primary's binlog dump threads to only transmit binary log events "
+   "that update tables whose names appear in this comma-separated list. "
+   "Applies for all replicas that connect to this server. "
+   "Note: Unlike binlog_do_table, this does not prevent transactions from being written "
+   "to the local binary log file",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"binlog-dump-ignore-table", OPT_BINLOG_DUMP_IGNORE_TABLE,
+   "Tells the primary's binlog dump threads to not transmit any binary log events "
+   "that update tables whose names appear in this comma-separated list, even if other "
+   "tables might be updated by the same statement. Applies for all replicas that connect "
+   "to this server. Note: Unlike binlog_ignore_table, this does not prevent transactions "
+   "from being written to the local binary log file",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"binlog-dump-wild-do-table", OPT_BINLOG_DUMP_WILD_DO_TABLE,
+   "Tells the primary's binlog dump threads to only transmit binary log events "
+   "for statements where any of the updated tables match the specified database and "
+   "table name patterns (wildcards allowed). Applies for all replicas that connect "
+   "to this server. Note: Unlike binlog_wild_do_table, this does not prevent transactions "
+   "from being written to the local binary log file",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"binlog-dump-wild-ignore-table", OPT_BINLOG_DUMP_WILD_IGNORE_TABLE,
+   "Tells the primary's binlog dump threads to not transmit binary log events "
+   "for tables that match the given wildcard pattern. Applies for all replicas that "
+   "connect to this server. Note: Unlike binlog_wild_ignore_table, this does not prevent "
+   "transactions from being written to the local binary log file",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"bootstrap", OPT_BOOTSTRAP, "Used by MariaDB installation scripts", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -8376,6 +8425,60 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case (int)OPT_BINLOG_DO_DB:
   {
     binlog_filter->add_do_db(argument);
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_DO_DB:
+  {
+    if (binlog_dump_filter->add_do_db(argument))
+    {
+      sql_print_error("Could not add do db rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_IGNORE_DB:
+  {
+    if (binlog_dump_filter->add_ignore_db(argument))
+    {
+      sql_print_error("Could not add ignore db rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_DO_TABLE:
+  {
+    if (binlog_dump_filter->add_do_table(argument))
+    {
+      sql_print_error("Could not add do table rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_IGNORE_TABLE:
+  {
+    if (binlog_dump_filter->add_ignore_table(argument))
+    {
+      sql_print_error("Could not add ignore table rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_WILD_DO_TABLE:
+  {
+    if (binlog_dump_filter->add_wild_do_table(argument))
+    {
+      sql_print_error("Could not add wild do table rule '%s'", argument);
+      return 1;
+    }
+    break;
+  }
+  case (int)OPT_BINLOG_DUMP_WILD_IGNORE_TABLE:
+  {
+    if (binlog_dump_filter->add_wild_ignore_table(argument))
+    {
+      sql_print_error("Could not add wild ignore table rule '%s'", argument);
+      return 1;
+    }
     break;
   }
   case (int)OPT_REPLICATE_DO_TABLE:
