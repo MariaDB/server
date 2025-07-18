@@ -15,6 +15,26 @@ SELECT COUNT(*), SUM(a), SUM(b), SUM(LENGTH(c)) FROM t1;
 COUNT(*)	SUM(a)	SUM(b)	SUM(LENGTH(c))
 2552	33150	128776	5000383
 connection master;
+*** Test trx cache larger than binlog size is correctly split into multiple pieces when spilled as oob data ***
 connection master;
-DROP TABLE t1;
+CREATE TABLE t2 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+SET @old_binlog_size= @@GLOBAL.max_binlog_size;
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression("Requested max_binlog_size is smaller than the minimum size supported by InnoDB");
+SET GLOBAL max_binlog_size= 4096;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+INSERT INTO t2 VALUES (10001, REPEAT('x', 1024*1024));
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+COUNT(*)	SUM(a)	SUM(LENGTH(b))
+2602	50033150	4993
+include/save_master_gtid.inc
+SET GLOBAL max_binlog_size= @old_binlog_size;
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+COUNT(*)	SUM(a)	SUM(LENGTH(b))
+2602	50033150	4993
+connection master;
+DROP TABLE t1, t2;
 include/rpl_end.inc

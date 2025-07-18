@@ -76,8 +76,28 @@ while ($i > 0) {
 }
 --enable_query_log
 
+
+--echo *** Test trx cache larger than binlog size is correctly split into multiple pieces when spilled as oob data ***
+--connection master
+CREATE TABLE t2 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+SET @old_binlog_size= @@GLOBAL.max_binlog_size;
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression("Requested max_binlog_size is smaller than the minimum size supported by InnoDB");
+SET GLOBAL max_binlog_size= 4096;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+INSERT INTO t2 VALUES (10001, REPEAT('x', 1024*1024));
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+--source include/save_master_gtid.inc
+SET GLOBAL max_binlog_size= @old_binlog_size;
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT COUNT(*), SUM(a), SUM(LENGTH(b)) FROM t1;
+
+
 # Cleanup.
 --connection master
-DROP TABLE t1;
+DROP TABLE t1, t2;
 --exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 --start-position=0-1-1 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.txt
 --source include/rpl_end.inc
