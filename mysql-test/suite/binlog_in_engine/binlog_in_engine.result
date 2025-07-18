@@ -1,4 +1,7 @@
 include/reset_master.inc
+SELECT @@GLOBAL.binlog_storage_engine;
+@@GLOBAL.binlog_storage_engine
+innodb
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 BEGIN;

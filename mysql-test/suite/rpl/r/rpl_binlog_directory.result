@@ -5,6 +5,9 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=Slave_pos;
 connection master;
+SELECT @@GLOBAL.binlog_storage_engine;
+@@GLOBAL.binlog_storage_engine
+NULL
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1, 10);
 include/rpl_stop_server.inc [server_number=1]
