@@ -1438,6 +1438,9 @@ static int mysql_test_update(Prepared_statement *stmt,
   uint table_count= 0;
   TABLE_LIST *update_source_table;
   SELECT_LEX *select= stmt->lex->first_select_lex();
+  Item_field *item;
+  List_iterator_fast<Item> fi(select->item_list);
+  List_iterator_fast<Item> vi(stmt->lex->value_list);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   privilege_t want_privilege(NO_ACL);
 #endif
@@ -1510,6 +1513,13 @@ static int mysql_test_update(Prepared_statement *stmt,
                    0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
+  /* Associate each value with it's target column*/
+  while ((item= (Item_field *)fi++))
+  {
+    Item *value= vi++;
+    if (value->associate_with_target_field(thd, item))
+      goto error;
+  }
   /* TODO: here we should send types of placeholders to the client. */
   DBUG_RETURN(0);
 error:
