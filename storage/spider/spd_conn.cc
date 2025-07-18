@@ -36,6 +36,7 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 #include "spd_err.h"
+#include "spd_pushdown.h"
 
 #ifdef SPIDER_HAS_NEXT_THREAD_ID
 #define SPIDER_set_next_thread_id(A)
