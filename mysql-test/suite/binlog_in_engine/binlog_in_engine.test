@@ -8,6 +8,8 @@
 
 --source include/reset_master.inc
 
+SELECT @@GLOBAL.binlog_storage_engine;
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 --let $gtid_pos= `SELECT @@last_gtid`
 INSERT INTO t1 VALUES (1);
