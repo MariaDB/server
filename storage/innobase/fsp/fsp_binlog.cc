@@ -1088,7 +1088,6 @@ binlog_write_up_to_now() noexcept
   do
   {
     active2= active;
-    /* ToDo: What kind of locking or std::memory_order is needed for page_no? */
     page_no= binlog_cur_page_no;
     active= active_binlog_file_no.load(std::memory_order_relaxed);
   } while (UNIV_UNLIKELY(active != active2));
@@ -1307,7 +1306,6 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
 
 	os_file_create_subdirs_if_needed(name);
 
-	/* ToDo: Do we need here an mtr.log_file_op(FILE_CREATE) like in fil_ibd_create(()? */
 	fh = os_file_create(
 		innodb_data_file_key, name,
 		OS_FILE_CREATE, OS_DATA_FILE, srv_read_only_mode, &ret);
@@ -1316,8 +1314,6 @@ dberr_t fsp_binlog_tablespace_create(uint64_t file_no, uint32_t size_in_pages,
 		os_file_close(fh);
 		return DB_ERROR;
 	}
-
-	/* ToDo: Enryption? */
 
 	/* We created the binlog file and now write it full of zeros */
 	if (!os_file_set_size(name, fh,
@@ -1361,7 +1357,6 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
   const uint32_t page_end= page_size - BINLOG_PAGE_DATA_END;
   uint32_t page_no= binlog_cur_page_no;
   uint32_t page_offset= binlog_cur_page_offset;
-  /* ToDo: What is the lifetime of what's pointed to by binlog_cur_block, is there some locking needed around it or something? */
   fsp_binlog_page_entry *block= nullptr;
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t pending_prev_end_offset= 0;
@@ -1392,13 +1387,10 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
         ut_ad(!pending_prev_end_offset);
         pending_prev_end_offset= page_no << page_size_shift;
         mysql_mutex_lock(&active_binlog_mutex);
-        /* ToDo: Make this wait killable?. */
-        /* ToDo2: Handle not stalling infinitely if the new tablespace cannot be created due to eg. I/O error. Or should we in this case loop and repeatedly retry the create? */
         while (last_created_binlog_file_no <= file_no) {
           my_cond_wait(&active_binlog_cond, &active_binlog_mutex.m_mutex);
         }
 
-        // ToDo: assert that a single write doesn't span more than two binlog files.
         ++file_no;
         file_size_in_pages= binlog_page_fifo->size_in_pages(file_no);
         binlog_cur_durable_offset[file_no & 3].store(0, std::memory_order_relaxed);
