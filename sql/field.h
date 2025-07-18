@@ -4165,7 +4165,7 @@ public:
 
   void sort_string(uchar *, uint) override {}
 
-  int reset() override { return 0; }
+  int reset() override;
 };
 
 static inline Field_timestamp *

@@ -49,7 +49,6 @@ static my_bool parse_number(ulong *dest, const char **str, const char *end)
     *dest= (*dest) * 10 + (*(*str) - '0');
     (*str)++;
   }
-`
   return (*str == start);
 }
 
