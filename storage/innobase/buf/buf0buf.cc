@@ -1823,6 +1823,12 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
     goto next;
   }
 
+  if (block)
+    buf_LRU_block_free_non_file_page(block);
+
+  if (!UT_LIST_GET_LEN(LRU) && n_blocks_to_withdraw)
+    return SHRINK_ABORT;
+
   if (UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) < usable_size() / 20)
     return SHRINK_ABORT;
 
