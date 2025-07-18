@@ -77,6 +77,51 @@ c
 5
 6
 drop table t1, t2, t3, t4;
+# single partition
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+WRAPPER=mysql REMOTE_SERVER=srv
+PARTITION BY RANGE (c) (
+PARTITION p VALUES LESS THAN MAXVALUE REMOTE_TABLE=t2
+);
+insert into t1 values (1), (2), (3);
+explain
+select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1;
+c
+1
+2
+3
+drop table t1, t2;
+# multiple partitions
+create table t3 (c int);
+create table t2 (c int);
+create table t1 (c int) ENGINE=Spider
+WRAPPER=mysql REMOTE_SERVER=srv
+PARTITION BY RANGE (c) (
+PARTITION p1 VALUES LESS THAN (3) REMOTE_TABLE=t2,
+PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_TABLE=t3
+);
+insert into t1 values (1), (2), (3);
+## single read partition: sh
+explain
+select * from t1 partition (p2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select * from t1 partition (p2);
+c
+3
+## single read partition after pruning: gbh (see also MDEV-20250)
+explain
+select * from t1 where c > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+select * from t1 where c > 2;
+c
+3
+drop table t1, t2, t3;
 #
 # MDEV-37110 Spider select handler: implement one that handles
 # testcases showcasing problems with the gbh
