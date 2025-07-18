@@ -1,5 +1,4 @@
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
-drop table if exists t1, t2;
 create table t1 (a int) engine=innodb;
 xa start 'test1';
 insert t1 values (10);
@@ -595,6 +594,26 @@ formatID	gtrid_length	bqual_length	data
 xa rollback '4';
 ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
 set @@global.read_only=@sav_read_only;
-#
 # End of 10.5 tests
 #
+# MDEV-24981 LOAD INDEX may cause rollback of prepared XA transaction
+#
+create table t1 (f1 integer primary key) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+xa start 'a';
+insert into t1 values (1);
+xa end 'a';
+xa prepare 'a';
+load index into cache t1 key(primary);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+xa commit 'a';
+select count(*) from t1;
+count(*)
+1
+drop table t1;
+# End of 10.11 tests
