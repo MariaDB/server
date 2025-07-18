@@ -8127,7 +8127,6 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
           DBUG_RETURN(res);
         }
         file= &log_file;
-        /* ToDo: Isn't this a race bug? Seems we can get a stale my_org_b_tell here since we're taking it outside of the mutex, which could leave to double accounting another binlog write. */
         my_org_b_tell= my_b_tell(file);
         mysql_mutex_lock(&LOCK_log);
         prev_binlog_id= current_binlog_id;
@@ -8280,14 +8279,11 @@ err:
 
           ToDo: If semi-sync is enabled, obtain the binlog coords from the
           engine to be waited for later at after-commit.
-
-          ToDo2: Do we still need this chainining of mutexes?
         */
         mysql_mutex_lock(&LOCK_after_binlog_sync);
         mysql_mutex_unlock(&LOCK_log);
         mysql_mutex_lock(&LOCK_commit_ordered);
         mysql_mutex_unlock(&LOCK_after_binlog_sync);
-        /* ToDo: Is this correct? How do we guarantee here correct gtid allocation order? By chained LOCK_log and LOCK_commit_ordered ? */
         commit_gtid= thd->get_last_commit_gtid();
         if (unlikely((*opt_binlog_engine_hton->binlog_write_direct_ordered)
                      (file, engine_context, commit_gtid)))
@@ -10068,13 +10064,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
                                : leader->thd;
           char buf[FN_REFLEN];
           const char *filename= buf;
-          /*
-            ToDo: When we want to support semi-sync in the --binlog-in-engine
-            case, we need to do this report_binlog_update() later, after
-            commit_ordered() has been called, as that is where each
-            transaction gets written to the binlog and where the binlog
-            position gets put into the cache_mngr.
-          */
           if (opt_binlog_engine_hton)
             (*opt_binlog_engine_hton->get_filename)
               (buf, current->cache_mngr->last_commit_pos_file.engine_file_no);
@@ -10400,7 +10389,6 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
       engine can pick it out and binlog it at the start.
     */
     mngr->engine_binlog_info.gtid_offset= my_b_tell(cache);
-    /* ToDo: This gets written with a checksum! Which is wrong, need some way to mark that GTID is being written to a cache... */
     if (write_gtid_event(entry->thd, cache, is_prepared_xa(entry->thd),
                          false,
                          entry->using_trx_cache, commit_id,
@@ -13786,7 +13774,6 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   mysql_mutex_unlock(&LOCK_global_system_variables);
   if (opt_binlog_engine_hton && value)
   {
-    /* ToDo: Should this be an error instead? Or an SQL-level warning at least. */
     sql_print_information("Value of binlog_checksum forced to NONE since binlog_storage_engine is enabled, and InnoDB uses its own superior checksumming of pages");
     value= 0;
   }

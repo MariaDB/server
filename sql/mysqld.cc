@@ -6633,13 +6633,6 @@ struct my_option my_long_options[]=
   {"binlog-ignore-db", OPT_BINLOG_IGNORE_DB,
    "Tells the master that updates to the given database should not be logged to the binary log.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  /* ToDo: A read-only sysvar to show the value of @@binlog_storage_engine. I don't think the complexity of dynamically setting it is worth trying to implement that, not at first at least. */
-  {"binlog-storage-engine", 0,
-   "Store the binlog transactionally in a supporting storage engine instead "
-   "of as separate files. Currently only InnoDB is supported.",
-   &opt_binlog_storage_engine,
-   &opt_binlog_storage_engine,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DISABLE_GRANT_OPTIONS
   {"bootstrap", OPT_BOOTSTRAP, "Used by mysql installation scripts.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
