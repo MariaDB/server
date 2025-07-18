@@ -39,6 +39,7 @@
 #include "spd_malloc.h"
 #include "spd_sys_table.h"
 #include "spd_table.h"
+#include "spd_pushdown.h"
 
 extern struct charset_info_st *spd_charset_utf8mb3_bin;
 extern bool volatile *spd_abort_loop;

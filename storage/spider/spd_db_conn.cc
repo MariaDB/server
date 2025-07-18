@@ -41,6 +41,7 @@
 #include "spd_direct_sql.h"
 #include "spd_ping_table.h"
 #include "spd_copy_tables.h"
+#include "spd_pushdown.h"
 #include "spd_malloc.h"
 
 extern handlerton *spider_hton_ptr;
