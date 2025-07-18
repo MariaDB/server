@@ -1271,8 +1271,8 @@ ibb_set_max_size(size_t binlog_size)
     sql_print_warning("Requested max_binlog_size is larger than the maximum "
                       "InnoDB tablespace size, truncated to %llu",
                       (pages << ibb_page_size_shift));
-  } else if (pages < 2) {  /* Minimum one data page and one index page. */
-    pages= 2;
+  } else if (pages < 4) {
+    pages= 4;
     sql_print_warning("Requested max_binlog_size is smaller than the minimum "
                       "size supported by InnoDB, truncated to %llu",
                       (pages << ibb_page_size_shift));
