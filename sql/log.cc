@@ -137,6 +137,8 @@ static ulonglong binlog_status_group_commit_trigger_lock_wait;
 static ulonglong binlog_status_group_commit_trigger_timeout;
 static char binlog_snapshot_file[FN_REFLEN];
 static ulonglong binlog_snapshot_position;
+static constexpr size_t BINLOG_SPILL_MAX= 512 * 1024;
+static size_t binlog_max_spill_size;
 
 static const char *fatal_log_error=
   "Could not use %s for logging (error %d). "
@@ -4447,6 +4449,7 @@ err:
 bool
 MYSQL_BIN_LOG::open_engine(handlerton *hton, ulong max_size, const char *dir)
 {
+  binlog_max_spill_size= std::min((size_t)(max_size / 2), BINLOG_SPILL_MAX);
   bool err= (*hton->binlog_init)((size_t)max_size, dir);
   if (!err)
     log_state= LOG_OPENED;
@@ -6716,12 +6719,11 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
       return 0;
   }
 
-  /* ToDo: If len > the cache size (32k default), then split up the write in multiple oob writes to the engine. This can happen if there is a large single write to the IO_CACHE. Maybe the split could happen also in the engine, depending if I want to split the size here to the binlog_cache_size which is known here, or if I want to split it to an engine imposed max size. But since the commit record size is determined by the upper layer here, I think it makes sense to determine the oob record size here also. */
-
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
   void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
+  size_t max_len= std::min(binlog_max_spill_size, (size_t)binlog_cache_size);
   my_off_t spill_end= cache->pos_in_file + len;
   size_t sofar= 0;
   void **stmt_start_ptr= nullptr;
@@ -6746,6 +6748,7 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
         Find the next spill point.
         It maybe be the next savepoint in the list, it may be the saved
         start-of-statement point, or (if they coincide) it may be both.
+        It may also be the next max_len boundary, if len > max_len.
       */
       my_off_t spill_pos;
       void **next_stmt_start_ptr;
@@ -6766,7 +6769,6 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
         next_stmt_start_ptr= &mngr->stmt_start_engine_ptr;
         next_savepoint_ptr= nullptr;
         next_sp= sp;
-        do_stmt_pos= false;
       }
       else if (sp)
       {
@@ -6785,6 +6787,15 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
       size_t part_len= spill_pos - (spill_start + sofar);
       if (part_len > 0 || stmt_start_ptr || savepoint_ptr)
       {
+        if (part_len > max_len)
+        {
+          /* Split this spill into smaller pieces. */
+          part_len= max_len;
+          next_stmt_start_ptr= nullptr;
+          next_savepoint_ptr= nullptr;
+          next_sp= sp;
+        }
+
         mysql_mutex_lock(&LOCK_commit_ordered);
         int res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)
           (mngr->thd, data + sofar, part_len,
@@ -6797,9 +6808,12 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
           return res;
         sofar+= part_len;
       }
+
       stmt_start_ptr= next_stmt_start_ptr;
       savepoint_ptr= next_savepoint_ptr;
       sp= next_sp;
+      if (stmt_start_ptr)
+        do_stmt_pos= false;             /* Start-of-statement gets done now */
     }
     mngr->cache_savepoint_list= sp;  /* Remove any points spilled from cache. */
     if (likely(sp == nullptr))
@@ -6816,20 +6830,31 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
     DBUG_ASSERT(sp == nullptr);
   }
 
-
   DBUG_ASSERT(sofar < len);
-  mysql_mutex_lock(&LOCK_commit_ordered);
-  int res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)
-    (mngr->thd, data + sofar, len - sofar, engine_ptr,
-     stmt_start_ptr, savepoint_ptr);
-  mysql_mutex_unlock(&LOCK_commit_ordered);
-  if (likely(!res))
-    res= (*opt_binlog_engine_hton->binlog_oob_data)
-      (mngr->thd, data + sofar, len - sofar, engine_ptr);
+  do
+  {
+    size_t part_len= len - sofar;
+    if (part_len > max_len)
+      part_len= max_len;
+    mysql_mutex_lock(&LOCK_commit_ordered);
+    int res= (*opt_binlog_engine_hton->binlog_oob_data_ordered)
+      (mngr->thd, data + sofar, part_len, engine_ptr,
+       stmt_start_ptr, savepoint_ptr);
+    mysql_mutex_unlock(&LOCK_commit_ordered);
+    if (likely(!res))
+      res= (*opt_binlog_engine_hton->binlog_oob_data)
+        (mngr->thd, data + sofar, part_len, engine_ptr);
+    if (unlikely(res))
+      return res;
+    stmt_start_ptr= nullptr;
+    savepoint_ptr= nullptr;
+    sofar+= part_len;
+  } while (sofar < len);
+
   mngr->engine_binlog_info.out_of_band_offset+= len;
   cache->pos_in_file= spill_end;
 
-  return res;
+  return false;
 }
 
 
@@ -10694,7 +10719,11 @@ void MYSQL_BIN_LOG::set_max_size(ulong max_size_arg)
   if (is_open())
     max_size= max_size_arg;
   if (opt_binlog_engine_hton)
+  {
     (*opt_binlog_engine_hton->set_binlog_max_size)((size_t)max_size_arg);
+    binlog_max_spill_size=
+      std::min((size_t)(max_size_arg / 2), BINLOG_SPILL_MAX);
+  }
   mysql_mutex_unlock(&LOCK_log);
   DBUG_VOID_RETURN;
 }
