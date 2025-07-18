@@ -1,7 +1,7 @@
 #
 # WL#1756
 #
--- source include/have_innodb.inc
+--source include/have_innodb.inc
 --source include/not_embedded.inc
 
 # Save the initial number of concurrent sessions
@@ -12,10 +12,6 @@ call mtr.add_suppression("Deadlock found when trying to get lock; try restarting
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
 
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 create table t1 (a int) engine=innodb;
 xa start 'test1';
 insert t1 values (10);
@@ -752,7 +748,21 @@ xa rollback '4';
 
 set @@global.read_only=@sav_read_only;
 
+--echo # End of 10.5 tests
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-24981 LOAD INDEX may cause rollback of prepared XA transaction
 --echo #
+create table t1 (f1 integer primary key) engine=innodb;
+show create table t1;
+xa start 'a';
+insert into t1 values (1);
+xa end 'a';
+xa prepare 'a';
+--error ER_XAER_RMFAIL
+load index into cache t1 key(primary);
+xa commit 'a';
+select count(*) from t1;
+drop table t1;
+
+--echo # End of 10.11 tests

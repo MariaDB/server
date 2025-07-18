@@ -565,6 +565,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Disable_wsrep_on_guard wsrep_on_guard(thd, disable_wsrep_on);
 #endif /* WITH_WSREP */
 
+  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+    DBUG_RETURN(TRUE);
+
   fill_check_table_metadata_fields(thd, &field_list);
 
   if (protocol->send_result_set_metadata(&field_list,
