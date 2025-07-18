@@ -697,6 +697,326 @@ void display_optimizer_trace(struct st_connection *con,
 
 static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql);
 
+
+/**
+  A simplified string class for the expression evaluator, inspired by the
+  server's `Binary_string` class.
+*/
+class My_string
+{
+private:
+  char* m_str;
+  uint32 m_length, m_alloced_length;
+  bool m_is_alloced;
+
+
+  void free_buffer()
+  {
+    if (m_is_alloced && m_str)
+    {
+      my_free(m_str);
+      m_is_alloced= false;
+    }
+    m_str= NULL;
+    m_alloced_length= m_length= 0;
+  }
+
+public:
+  My_string()
+  {
+    m_str= NULL;
+    m_length= m_alloced_length= 0;
+    m_is_alloced= false;
+  }
+
+
+  My_string(size_t length_arg)
+  {
+    m_str= NULL;
+    m_length= m_alloced_length= 0;
+    m_is_alloced= false;
+    (void) real_alloc(length_arg);
+  }
+
+
+  My_string(const char *str, size_t len)
+  {
+    m_str= (char*) str;
+    m_length= (uint32) len;
+    m_alloced_length= 0;
+    m_is_alloced= false;
+  }
+
+
+  My_string(char *str, size_t len)
+  {
+    m_str= str;
+    m_length= m_alloced_length= (uint32)len;
+    m_is_alloced= false;
+  }
+
+  
+  My_string(const My_string &str)
+  {
+    m_str= str.m_str;
+    m_length= str.m_length;
+    m_alloced_length= str.m_alloced_length;
+    m_is_alloced= false;
+  }
+
+
+  ~My_string()
+  {
+    free_buffer();
+  }
+
+
+  My_string& operator=(const My_string& other)
+  {
+    if (this != &other)
+    {
+      free_buffer();
+      m_str= other.m_str;
+      m_length= other.m_length;
+      DBUG_ASSERT(other.m_alloced_length < UINT_MAX32);
+      m_alloced_length= other.m_alloced_length;
+    }
+    return *this;
+  }
+
+
+  inline const char* c_str() const { return m_str ? m_str : ""; }
+  inline uint32 length() const { return m_length; }
+  inline void length(size_t len) { m_length=(uint32)len ; }
+  inline bool is_empty() const { return (m_length == 0); }
+  inline const char *ptr() const { return m_str; }
+  inline const char *end() const { return m_str + m_length; }
+  inline char& operator [] (size_t i) const 
+  { 
+    if (!m_str)
+      die("Attempting to access null string in My_string::operator[]");
+    return m_str[i]; 
+  }
+
+  
+  bool alloc(size_t arg_length)
+  {
+    if (arg_length <= m_alloced_length && m_alloced_length)
+      return false;
+    return real_alloc(arg_length);
+  }
+
+
+  bool real_alloc(size_t length)
+  {
+    size_t arg_length= ALIGN_SIZE(length + 1);
+    DBUG_ASSERT(arg_length > length);
+    if (arg_length <= length)
+      return true;
+    DBUG_ASSERT(length < UINT_MAX32);
+    m_length= 0;
+    if (m_alloced_length < arg_length)
+    {
+      free_buffer();
+      if (!(m_str= (char*)my_malloc(PSI_NOT_INSTRUMENTED, arg_length, MYF(MY_WME))))
+        return true;
+      m_alloced_length= (uint32) arg_length;
+      m_is_alloced= true;
+    }
+    m_str[0]= '\0';
+    return false;
+  }
+
+
+  bool copy(const char* str, size_t arg_length)
+  {
+    DBUG_ASSERT(arg_length < UINT_MAX32);
+    if (alloc(arg_length + 1))
+      return true;
+    if (m_str == str && arg_length == uint32(m_length))
+    {
+      /*
+        This can happen in some cases. This code is here mainly to avoid
+        warnings from valgrind, but can also be an indication of error.
+      */
+      DBUG_PRINT("warning", ("Copying string on itself: %p  %zu",
+                             str, arg_length));
+    }
+    else if ((m_length= uint32(arg_length)))
+      memcpy(m_str, str, arg_length);
+    m_str[arg_length]= '\0';
+    return false;
+  }
+
+
+  void shrink(size_t arg_length)
+  {
+    if (m_is_alloced && ALIGN_SIZE(arg_length + 1) < m_alloced_length)
+    {
+      /* my_realloc() can't fail as new buffer is less than the original one */
+      m_str= (char*) my_realloc(PSI_NOT_INSTRUMENTED, m_str, arg_length,
+                                MYF(MY_WME));
+      m_alloced_length= (uint32) arg_length;
+    }
+  }
+};
+
+
+/*
+  Expression evaluation support for mysqltest.
+  Provides arithmetic and logical operations with $() syntax.
+*/
+enum Expression_value_type
+{
+  EXPR_INT,
+  EXPR_BOOL,
+  EXPR_DOUBLE, // TODO: add double support
+  EXPR_HEX,
+  EXPR_STRING,
+  EXPR_BINARY,
+  EXPR_DATE, // TODO: add date support
+  EXPR_NULL
+};
+
+
+struct Expression_value
+{
+  Expression_value_type type;
+  int int_val;
+  bool is_numeric;
+  My_string str_val;
+
+  Expression_value()
+  {
+    type= EXPR_NULL;
+    is_numeric= false;
+  }
+
+  void set_int(int value, int base= 10)
+  {
+    int_val= value;
+    is_numeric= true;
+
+    switch (base)
+    {
+      case 2:  type= EXPR_BINARY; break;
+      case 16: type= EXPR_HEX; break;
+      default: type= EXPR_INT; break;
+    }
+  }
+
+  void set_string(const char *value, size_t len)
+  {
+    type= EXPR_STRING;
+    is_numeric= false;
+    str_val.copy(value, len);
+  }
+
+  void set_bool(bool value)
+  {
+    type= EXPR_BOOL;
+    is_numeric= true;
+    int_val= value ? 1 : 0;
+  }
+
+  operator int() const 
+  {
+    if (is_numeric)
+      return int_val;
+    return atoi(str_val.c_str());
+  }
+   
+  operator bool() const 
+  {
+    if (is_numeric)
+      return int_val != 0;
+    return str_val.length() > 0;
+  }
+
+  Expression_value& operator=(const Expression_value& other)
+  {
+    if (this != &other)
+    {
+      type= other.type;
+      int_val= other.int_val;
+      is_numeric= other.is_numeric;
+      if (other.type == EXPR_STRING)
+      {
+        str_val.copy(other.str_val.c_str(), other.str_val.length());
+      }
+    }
+    return *this;
+  }
+
+  void reset()
+  {
+    // My_string memory is kept allocated for reuse
+    type= EXPR_NULL;
+    is_numeric= false;
+  }
+
+  void init(const char* token_start, size_t token_len)
+  {
+    char *endptr;
+    long parsed_int;
+    int base= 0;
+
+    // Check for boolean literals (case insensitive)
+    if (token_len == 4 && strncasecmp(token_start, "true", 4) == 0)
+    {
+      set_bool(true);
+      return;
+    }
+
+    if (token_len == 5 && strncasecmp(token_start, "false", 5) == 0)
+    {
+      set_bool(false);
+      return;
+    }
+
+    // Check for special prefixes (0x, 0b)
+    if (token_len >= 3 && token_start[0] == '0')
+    {
+      if (token_start[1] == 'x')
+      {
+        base= 16;
+      }
+      else if (token_start[1] == 'b')
+      {
+        base= 2;
+        token_start+= 2; // Skip "0b" prefix for strtol
+        token_len-= 2;
+      }
+    }
+
+    errno= 0;
+    parsed_int= strtol(token_start, &endptr, base);
+    if (errno == ERANGE || parsed_int < INT_MIN || INT_MAX < parsed_int)
+      die("Range error: value out of range for int type");
+
+    // If the entire token was parsed as an integer, set the type to integer
+    if (endptr == token_start + token_len)
+    {
+      set_int((int) parsed_int, base);
+      return;
+    }
+
+    set_string(token_start, token_len);
+  }
+};
+
+/* For expression parsing */
+static void expr(Expression_value *result, const char **s);
+static void logical_or(Expression_value *result, const char **s);
+static void logical_and(Expression_value *result, const char **s);
+static void equality(Expression_value *result, const char **s);
+static void comparison(Expression_value *result, const char **s);
+static void term(Expression_value *result, const char **s);
+static void factor(Expression_value *result, const char **s);
+static void unary(Expression_value *result, const char **s);
+static void primary(Expression_value *result, const char **s);
+
+
 class LogFile {
   FILE* m_file;
   char m_file_name[FN_REFLEN];
@@ -1171,6 +1491,56 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
       {
 	escaped= 0;
 	dynstr_append_mem(query_eval, p, 1);
+      }
+      else if (p < query_end && *(p + 1) == '(')
+      {
+        const char* expr_start= p + 2;
+        int paren_level= 1;
+        const char* expr_end= expr_start;
+
+        // Find the matching closing parenthesis
+        while (*expr_end && paren_level > 0)
+        {
+          if (*expr_end == '(') paren_level++;
+          if (*expr_end == ')') paren_level--;
+          expr_end++;
+        }
+        if (paren_level != 0)
+          die("Unmatched parenthesis in expression starting at '%.*s'", 10, p);
+        expr_end--; // Go back to the ')'
+
+        // Recursively evaluate the content of the expression
+        DYNAMIC_STRING sub_expr_eval;
+        init_dynamic_string(&sub_expr_eval, "", 256, 1024);
+        do_eval(&sub_expr_eval, expr_start, expr_end, FALSE);
+
+        const char* eval_ptr= sub_expr_eval.str;
+        Expression_value result_val;
+        expr(&result_val, &eval_ptr);
+
+        while(*eval_ptr && my_isspace(charset_info, *eval_ptr))
+          eval_ptr++;
+
+        if (*eval_ptr != '\0')
+          die("Syntax error in sub-expression '%.*s'", (int)sub_expr_eval.length, sub_expr_eval.str);
+
+        if (result_val.is_numeric)
+        {
+          char result_buf[22];
+          my_snprintf(result_buf, sizeof(result_buf), "%d", result_val.int_val);
+          dynstr_append_mem(query_eval, result_buf, strlen(result_buf));
+        }
+        else if (result_val.type == EXPR_STRING)
+        {
+          dynstr_append_mem(query_eval, result_val.str_val.c_str(), result_val.str_val.length());
+        }
+        else
+        {
+          dynstr_append_mem(query_eval, "", 0);
+        }
+
+        dynstr_free(&sub_expr_eval);
+        p= expr_end;
       }
       else
       {
@@ -5041,6 +5411,283 @@ int do_save_master_pos()
 }
 
 
+static int match(const char **s, const char *op)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+  size_t len= strlen(op);
+  if (strncmp(*s, op, len) == 0)
+  {
+    *s += len;
+    return 1;
+  }
+  return 0;
+}
+
+
+/*
+  TODO: Workaround for the fact there is no quote character
+  in the expression parser
+*/
+static bool is_operator_char(char c)
+{
+  return strchr("!*%/+-<>=&|()", c) != NULL;
+}
+
+
+static void primary(Expression_value *result, const char **s)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+
+  if (match(s, "("))
+  {
+    expr(result, s);
+    if (!match(s, ")"))
+      die("Syntax error: Expected ')' in expression");
+    return;
+  }
+
+  const char *start= *s;
+  const char *end= start;
+  char quote_char= 0;
+
+  if (*start == '\'' || *start == '"')
+  {
+    quote_char= *start;
+    start++;
+    end= start;
+    while (*end && (*end != quote_char || (*(end - 1) == '\\')))
+      end++;
+
+    if (*end != quote_char)
+      die("Syntax error: Unmatched quote in expression");
+
+    result->set_string(start, end - start);
+    *s= end + 1;
+  }
+  else
+  {
+    while (*end && !is_operator_char(*end))
+      end++;
+
+    // Skip trailing spaces
+    while (start < end && my_isspace(charset_info, *(end - 1)))
+      end--;
+
+    if (end == start)
+      die("Syntax error: invalid expression");
+
+    result->init(start, end - start);
+    *s= end;
+  }
+}
+
+
+static void unary(Expression_value *result, const char **s)
+{
+  if (match(s, "!"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: logical NOT requires an integer operand");
+    result->set_int(!result->int_val);
+    return;
+  }
+  if (match(s, "-"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: unary minus requires an integer operand");
+    result->set_int(-result->int_val);
+    return;
+  }
+  primary(result, s);
+}
+
+
+static void factor(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  unary(result, s);
+  while (true)
+  {
+    if (match(s, "*"))
+    {
+      rhs.reset();
+      unary(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '*' requires integer operands");
+      result->set_int(result->int_val * rhs.int_val);
+    }
+    else if (match(s, "/"))
+    {
+      rhs.reset();
+      unary(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '/' requires integer operands");
+      if (rhs.int_val == 0)
+        die("Evaluation error: Division by zero");
+      result->set_int(result->int_val / rhs.int_val);
+    }
+    else if (match(s, "%"))
+    {
+      rhs.reset();
+      unary(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '%%' requires integer operands");
+      if (rhs.int_val == 0)
+        die("Evaluation error: Modulo by zero");
+      result->set_int(result->int_val % rhs.int_val);
+    }
+    else
+      break;
+  }
+}
+
+
+static void term(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  factor(result, s);
+  while (true)
+  {
+    if (match(s, "+"))
+    {
+      rhs.reset();
+      factor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '+' requires integer operands");
+      result->set_int(result->int_val + rhs.int_val);
+    }
+    else if (match(s, "-"))
+    {
+      rhs.reset();
+      factor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '-' requires integer operands");
+      result->set_int(result->int_val - rhs.int_val);
+    }
+    else
+      break;
+  }
+}
+
+
+static void comparison(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  term(result, s);
+  while (true)
+  {
+    if (match(s, "<="))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<=' requires integer operands");
+      result->set_bool(result->int_val <= rhs.int_val);
+    }
+    else if (match(s, ">="))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>=' requires integer operands");
+      result->set_bool(result->int_val >= rhs.int_val);
+    }
+    else if (match(s, "<"))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<' requires integer operands");
+      result->set_bool(result->int_val < rhs.int_val);
+    }
+    else if (match(s, ">"))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>' requires integer operands");
+      result->set_bool(result->int_val > rhs.int_val);
+    }
+    else
+      break;
+  }
+}
+
+
+static void equality(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  comparison(result, s);
+  while (true)
+  {
+    if (match(s, "=="))
+    {
+      rhs.reset();
+      comparison(&rhs, s);
+      if (result->is_numeric && rhs.is_numeric)
+        result->set_bool(result->int_val == rhs.int_val);
+      else
+        result->set_bool(!strcmp(result->str_val.c_str(), rhs.str_val.c_str()));
+    }
+    else if (match(s, "!="))
+    {
+      rhs.reset();
+      comparison(&rhs, s);
+      if (result->is_numeric && rhs.is_numeric)
+        result->set_bool(result->int_val != rhs.int_val);
+      else
+        result->set_bool(strcmp(result->str_val.c_str(), rhs.str_val.c_str()));
+    }
+    else
+      break;
+  }
+}
+
+
+static void logical_and(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+
+  equality(result, s);
+  while (match(s, "&&"))
+  {
+    rhs.reset();
+    equality(&rhs, s);
+    if (!result->is_numeric || !rhs.is_numeric)
+      die("Type error: operator '&&' requires integer operands");
+    result->set_bool(result->int_val && rhs.int_val);
+  }
+}
+
+
+static void logical_or(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+
+  logical_and(result, s);
+  while (match(s, "||"))
+  {
+    rhs.reset();
+    logical_and(&rhs, s);
+    if (!result->is_numeric || !rhs.is_numeric)
+      die("Type error: operator '||' requires integer operands");
+    result->set_bool(result->int_val || rhs.int_val);
+  }
+}
+
+
+static void expr(Expression_value *result, const char **s)
+{
+  logical_or(result, s);
+}
+
+
 /*
   Assign the variable <var_name> with <var_val>
 
@@ -6581,6 +7228,64 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   if (*p && *p != '{')
     die("Missing '{' after %s. Found \"%s\"", cmd_name, p);
 
+  if (*expr_start == '$' && *(expr_start + 1) == '(')
+  {
+    const char *paren_scanner= expr_start + 2;
+    int paren_level= 1;
+    while (*paren_scanner && paren_level > 0)
+    {
+      if (*paren_scanner == '(') paren_level++;
+      if (*paren_scanner == ')') paren_level--;
+      paren_scanner++;
+    }
+
+    const char *end_ptr= expr_end;
+    while(end_ptr > expr_start && my_isspace(charset_info, *(end_ptr - 1)))
+      end_ptr--;
+
+    // if the $(...) is the entire condition, evaluate it
+    if (paren_scanner == end_ptr)
+    {
+      DYNAMIC_STRING evaluated_expr;
+      init_dynamic_string(&evaluated_expr, "", 64, 256);
+
+      do_eval(&evaluated_expr, expr_start, expr_end, FALSE);
+
+      char* result_str= evaluated_expr.str;
+      while (*result_str && my_isspace(charset_info, *result_str))
+        result_str++;
+
+      /*
+        Setup the next block on the stack
+        This logic is borrowed from the end of this function
+        Any non-empty string which does not begin with 0 is TRUE
+      */
+      cur_block++;
+      cur_block->cmd= cmd;
+      cur_block->ok= (*result_str && *result_str != '0');
+
+      if (not_expr)
+        cur_block->ok= !cur_block->ok;
+
+      if (cur_block->ok)
+      {
+        cur_block->delim[0]= '\0';
+      }
+      else
+      {
+        /* Remember "old" delimiter if entering a false if block */
+        if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                                  delimiter))
+          die("Delimiter too long, truncated");
+      }
+
+      DBUG_PRINT("info", ("OK: %d", cur_block->ok));
+
+      dynstr_free(&evaluated_expr);
+      DBUG_VOID_RETURN;
+    }
+  }
+  
   var_init(&v,0,0,0,0);
 
   /* If expression starts with a variable, it may be a compare condition */
