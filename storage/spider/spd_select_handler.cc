@@ -91,10 +91,12 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   int dbton_id = -1;
   SPIDER_CONN *common_conn= NULL;
   SPIDER_TRX *trx;
-  /* Do not create if the query has already been optimized. This
+  /*
+    Do not create if the query has already been optimized. This
     happens for example during 2nd ps execution when spider fails to
     create sh during the 1st execution because there's a subquery in
-    the original query. */
+    the original query.
+  */
   if (!select_lex->first_cond_optimization)
     return NULL;
   if (spider_param_disable_select_handler(thd))
@@ -104,9 +106,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     /* Do not support temporary tables */
     if (!tl->table)
       return NULL;
-    /* We do not support partitioned table yet, and there's no point
-      in supporting partitioned table with only on partition which gbh
-      does */
+    /* TODO: support partition table with one (read) partition */
     if (tl->table->part_info)
       return NULL;
     /* One of the join tables is not a spider table */
@@ -131,38 +131,44 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   {
     spider = (ha_spider *) tl->table->file;
     spider_add_table_holder(spider, table_holder);
-    /* As in dml_init, wide_handler->lock_mode == -2 is a relic from
+    /*
+      As in dml_init, wide_handler->lock_mode == -2 is a relic from
       MDEV-19002. Needed to add the likes of "lock in share mode" to
       INSERT ... SELECT, as promised by the selupd_lock_mode
-      variable */
+      variable
+    */
     if (spider->wide_handler->lock_mode == -2)
       spider->wide_handler->lock_mode = spider_param_selupd_lock_mode(
         thd, spider->share->selupd_lock_mode);
     if (spider_check_trx_and_get_conn(thd, spider))
       goto free_table_holder;
-    /* only create if the first remote server is ok (here we use the
-      assumption that link_idx ==
-      spider->conns[link_idx]->link_idx)
-      TODO: verify this assumption */
-    if (spider->share->link_statuses[LINK_IDX] != SPIDER_LINK_STATUS_OK)
+    /* Only create if the first connection is ok */
+    if (spider->share->link_statuses[spider->conn_link_idx[LINK_IDX]] !=
+        SPIDER_LINK_STATUS_OK)
       goto free_table_holder;
     /* only create if all tables have common first connection. */
     if (!common_conn)
       common_conn= spider->conns[LINK_IDX];
     else if (common_conn != spider->conns[LINK_IDX])
       goto free_table_holder;
-    /* Sync dbton_hdl->first_link_idx with the chosen connection so
+    /*
+      Sync dbton_hdl->first_link_idx with the chosen connection so
       that translation of table names is correct. NOTE: in spider gbh
       this is done in spider_fields::set_first_link_idx, after a
-      connection is randomly chosen by spider_fields::choose_a_conn */
+      connection is randomly chosen by spider_fields::choose_a_conn
+    */
     spider->dbton_handler[dbton_id]->first_link_idx= LINK_IDX;
   }
-  /* So that spider executes a query setting sql_mode according to
-    the spider system variable sync_sql_mode.
+
+  /*
+    So that spider executes various "setup" queries according to the
+    various spider system variables.
+
     TODO: in gbh this is part of
-    spider_internal_start_trx_for_connection called from
-    dml_init(). Check whether other statements in those subroutines
-    need to be preserved as well. */
+    spider_internal_start_trx_for_connection called from dml_init().
+    Check whether other statements (e.g. xa start) in those
+    subroutines need to be preserved as well.
+  */
   if ((spider_check_and_set_sql_log_off(
          thd, common_conn, &spider->need_mons[LINK_IDX])) ||
       (spider_check_and_set_wait_timeout(
@@ -182,8 +188,10 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
   {
     /* So that spider executes queries that start a transaction. */
     spider_conn_queue_start_transaction(common_conn);
-    /* So that spider executes a commit query on the connection, see
-      spider_tree_first(trx->join_trx_top) in spider_commit() */
+    /*
+      So that spider executes a commit query on the connection, see
+      spider_tree_first(trx->join_trx_top) in spider_commit()
+    */
     common_conn->join_trx = 1;
     if (trx->join_trx_top)
       spider_tree_insert(trx->join_trx_top, common_conn);
@@ -209,27 +217,38 @@ free_table_holder:
 int spider_select_handler::init_scan()
 {
   Query query= {select_lex->get_item_list(), 0,
-    /* TODO: consider handling high_priority, sql_calc_found_rows
-      etc. see st_select_lex::print */
+    /*
+      TODO: consider handling high_priority, sql_calc_found_rows
+      etc. see st_select_lex::print
+    */
     select_lex->options & SELECT_DISTINCT ? true : false,
     select_lex->get_table_list(), select_lex->where,
-    /* TODO: do we need to reference join here? Can we get GROUP BY /
-      ORDER BY from select_lex directly */
+    /*
+      TODO: do we need to reference join here? Can we get GROUP BY /
+      ORDER BY from select_lex directly?
+    */
     select_lex->join->group_list, select_lex->join->order,
     select_lex->having, &select_lex->master_unit()->lim};
   ha_spider *spider= fields->get_first_table_holder()->spider;
-  /* TODO: dbton_id should come from fields->get_next_dbton_id(), and
-    link_idx might be nonzero if the common backends is not the first */
+  /*
+    TODO: dbton_id should come from fields->get_next_dbton_id(), and
+    link_idx might be nonzero if the common backends is not the first
+    link
+  */
   SPIDER_CONN *conn= spider->conns[LINK_IDX];
   spider_db_handler *dbton_hdl= spider->dbton_handler[conn->dbton_id];
-  /* Reset select_column_mode so that previous insertions would not
+  /*
+    Reset select_column_mode so that previous insertions would not
     affect. TODO: the default value is 1 even though it is reset to 0
-    in gbh as well. */
+    in gbh as well.
+  */
   spider->select_column_mode= 0;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   spider_set_result_list_param(spider);
-  /* TODO: we need to extract result_list init to a separate
-    function, see also spider_prepare_init_scan. */
+  /*
+    TODO: we need to extract result_list init to a separate
+    function, see also spider_prepare_init_scan.
+  */
   result_list->keyread = FALSE;
   /* Use original limit and offset for now */
   if (select_lex->limit_params.explicit_limit)
