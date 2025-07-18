@@ -20,6 +20,8 @@
 #include "partition_element.h"
 /* for spider_set_result_list_param */
 #include "spd_table.h"
+#include "partition_info.h"
+#include "ha_partition.h"
 
 extern handlerton *spider_hton_ptr;
 constexpr int LINK_IDX= 0;
@@ -80,13 +82,28 @@ static bool spider_sh_can_handle_query(SELECT_LEX *select_lex,
   return true;
 }
 
+/*
+  Get the spider handler from a table. If the table is partitioned,
+  get its first read partition handler.
+*/
+static ha_spider *spider_sh_get_spider(TABLE* table)
+{
+  if (table->part_info)
+  {
+    uint part= bitmap_get_first_set(&table->part_info->read_partitions);
+    ha_partition *partition= (ha_partition *) table->file;
+    return (ha_spider *) partition->get_child_handlers()[part];
+  }
+  return (ha_spider *) table->file;
+}
+
 select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
                                              SELECT_LEX_UNIT *)
 {
   SPIDER_TABLE_HOLDER *table_holder;
   uint n_tables= 0;
   spider_fields *fields;
-  ha_spider *spider;
+  ha_spider *spider, *first_spider;
   TABLE_LIST *from= select_lex->get_table_list();
   int dbton_id = -1;
   SPIDER_CONN *common_conn= NULL;
@@ -103,33 +120,38 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     return NULL;
   for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
   {
+    TABLE *table= tl->table;
     /* Do not support temporary tables */
-    if (!tl->table)
+    if (!table)
       return NULL;
-    /* TODO: support partition table with one (read) partition */
-    if (tl->table->part_info)
+    /*
+      Do not support partitioned table with more than one (read)
+      partition
+    */
+    if (table->part_info &&
+        bitmap_bits_set(&table->part_info->read_partitions) != 1)
       return NULL;
     /* One of the join tables is not a spider table */
-    if (tl->table->file->partition_ht() != spider_hton_ptr)
+    if (table->file->partition_ht() != spider_hton_ptr)
       return NULL;
-    spider = (ha_spider *) tl->table->file;
+    spider= spider_sh_get_spider(table);
     /* needed for table holder (see spider_add_table_holder()) */
     spider->idx_for_direct_join = n_tables;
-    /* only create if all tables have common first backend. */
+    /* Only create if all tables have common first backend. */
+    uint all_link_idx= spider->conn_link_idx[LINK_IDX];
     if (dbton_id == -1)
-      dbton_id= spider->share->use_sql_dbton_ids[0];
-    else if (dbton_id != (int) spider->share->use_sql_dbton_ids[0])
+      dbton_id= spider->share->use_sql_dbton_ids[all_link_idx];
+    else if (dbton_id != (int) spider->share->use_sql_dbton_ids[all_link_idx])
       return NULL;
   }
-  if (!spider_sh_can_handle_query(select_lex,
-                                  ((ha_spider *) from->table->file)->share,
-                                  thd))
+  first_spider= spider_sh_get_spider(from->table);
+  if (!spider_sh_can_handle_query(select_lex, first_spider->share, thd))
     return NULL;
   if (!(table_holder= spider_create_table_holder(n_tables)))
     return NULL;
   for (TABLE_LIST *tl= from; tl; tl= tl->next_local)
   {
-    spider = (ha_spider *) tl->table->file;
+    spider= spider_sh_get_spider(tl->table);
     spider_add_table_holder(spider, table_holder);
     /*
       As in dml_init, wide_handler->lock_mode == -2 is a relic from
@@ -183,7 +205,7 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
        spider_check_and_set_trx_isolation(
          common_conn, &spider->need_mons[LINK_IDX])))
     goto free_table_holder;
-  trx= ((ha_spider *) from->table->file)->wide_handler->trx;
+  trx= first_spider->wide_handler->trx;
   if (!common_conn->join_trx && !trx->trx_xa)
   {
     /* So that spider executes queries that start a transaction. */
