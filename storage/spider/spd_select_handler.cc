@@ -3,8 +3,7 @@
 #include "sql_select.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
-/* TODO: remove this include */
-#include "spd_group_by_handler.h"
+#include "spd_pushdown.h"
 #include "spd_select_handler.h"
 /* needed by ha_spider.h for SPIDER_PARTITION_HANDLER */
 #include "spd_include.h"
