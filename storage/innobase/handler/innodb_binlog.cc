@@ -673,8 +673,20 @@ bool binlog_recovery::init_recovery(bool space_id, uint32_t page_no,
       return false;
     }
     if (num_binlogs == 1)
-      return init_recovery_from(file_no2 + (space_id != (file_no2 & 1)), lsn2,
-                                page_no, offset, start_lsn, buf, size);
+    {
+      uint64_t start_file_no= file_no2;
+      /*
+        Only one binlog file found.
+
+        This first recovery record may apply to the previous file (which has
+        then presumably been purged since the last checkpoint). Or it may
+        apply to this file, or only to the following file.
+      */
+      if (space_id != (file_no2 & 1) && start_lsn >= lsn2)
+        ++start_file_no;
+      return init_recovery_from(start_file_no, lsn2, page_no, offset,
+                                start_lsn, buf, size);
+    }
 
     int res1= get_header(file_no1, lsn1, is_empty1);
 
@@ -1406,7 +1418,6 @@ scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
 static bool
 binlog_page_empty(const byte *page)
 {
-  /* ToDo: Here we also need to see if there is a full state record at the start of the file. If not, we have to delete the file and ignore it, it is an incomplete file. Or can we rely on the innodb crash recovery to make file creation atomic and we will never see a partially pre-allocated file? Also if the gtid state is larger than mtr max size (if there is such max?), or if we crash in the middle of pre-allocation? */
   return page[BINLOG_PAGE_DATA] == 0;
 }
 
@@ -2084,7 +2095,6 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no)
   if (UNIV_UNLIKELY(!page_buf))
     return -1;
 
-  /* ToDo: Handle encryption. */
   int res= crc32_pread_page(file, page_buf.get(), page_no, MYF(MY_WME));
   if (UNIV_UNLIKELY(res <= 0))
     return -1;
@@ -3635,7 +3645,6 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
   mtr.commit();
   innodb_binlog_post_commit(&mtr,
                             (binlog_oob_context *)binlog_info->engine_ptr);
-  /* ToDo: Presumably innodb_binlog_write_cache() should be able to fail in some cases? Then return any such error to the caller. */
   return false;
 }
 
@@ -3883,7 +3892,6 @@ purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
     1c. Any file_no in use by an active dump thread
     1d. Any file_no containing oob data referenced by file_no from (1c)
     1e. User specified file_no (from PURGE BINARY LOGS TO, if any).
-    1f. (ToDo): Any file_no that was still active at the last checkpoint.
 
   2. Unix timestamp specifying the minimal value that should not be purged,
   optional (used by PURGE BINARY LOGS BEFORE and --binlog-expire-log-seconds).
