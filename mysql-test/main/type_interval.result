@@ -332,3 +332,22 @@ CALL sp_valid_18('1000000000:59:59');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 CALL sp_valid_19('1000 232');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_1;
+DROP PROCEDURE sp_valid_2;
+DROP PROCEDURE sp_valid_3;
+DROP PROCEDURE sp_valid_4;
+DROP PROCEDURE sp_valid_5;
+DROP PROCEDURE sp_valid_6;
+DROP PROCEDURE sp_valid_7;
+DROP PROCEDURE sp_valid_8;
+DROP PROCEDURE sp_valid_9;
+DROP PROCEDURE sp_valid_10;
+DROP PROCEDURE sp_valid_11;
+DROP PROCEDURE sp_valid_12;
+DROP PROCEDURE sp_valid_13;
+DROP PROCEDURE sp_valid_14;
+DROP PROCEDURE sp_valid_15;
+DROP PROCEDURE sp_valid_16;
+DROP PROCEDURE sp_valid_17;
+DROP PROCEDURE sp_valid_18;
+DROP PROCEDURE sp_valid_19;
