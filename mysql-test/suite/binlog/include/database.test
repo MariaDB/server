@@ -44,11 +44,7 @@ CREATE TABLE t2(c1 INT);
 let $prefix= `SELECT UUID()`;
 --echo # Create a file in the database directory
 --replace_result $prefix FAKE_FILE
---disable_cursor_protocol
---disable_ps2_protocol
 eval SELECT 'hello' INTO OUTFILE 'fake_file.$prefix';
---enable_ps2_protocol
---enable_cursor_protocol
 
 --echo
 --echo # 'DROP DATABASE' will fail if there is any other file in the the

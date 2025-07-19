@@ -685,12 +685,6 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
                         key->flags, key->user_defined_key_parts,
                         key->key_part));
 
-    /* For SPATIAL, FULLTEXT and HASH indexes (anything other than B-tree),
-       ignore the ASC/DESC attribute of columns. */
-    const uchar ha_reverse_sort=
-      key->algorithm > HA_KEY_ALG_BTREE || key->flags & (HA_FULLTEXT|HA_SPATIAL)
-      ? 0 : HA_REVERSE_SORT;
-
     for (key_part=key->key_part,key_part_end=key_part+key->user_defined_key_parts ;
 	 key_part != key_part_end ;
 	 key_part++)
@@ -703,14 +697,17 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
       int2store(pos,key_part->fieldnr+1+FIELD_NAME_USED);
       offset= (uint) (key_part->offset+data_offset+1);
       int2store(pos+2, offset);
-      key_part->key_part_flag &= ha_reverse_sort;
+      key_part->key_part_flag &= HA_REVERSE_SORT;
+      /* DESC can be set only for BTREE indexes */
+      DBUG_ASSERT(key_part->key_part_flag == 0 ||
+                  (key->algorithm <= HA_KEY_ALG_BTREE && !(key->flags & (HA_FULLTEXT|HA_SPATIAL))));
       pos[4]= (uchar)(key_part->key_part_flag);
       int2store(pos+5,key_part->key_type);
       int2store(pos+7,key_part->length);
       pos+=9;
     }
   }
-	/* Save keynames */
+  /* Save keynames */
   keyname_pos=pos;
   *pos++=(uchar) NAMES_SEP_CHAR;
   for (key=keyinfo ; key != end ; key++)

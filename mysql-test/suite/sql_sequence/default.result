@@ -292,6 +292,15 @@ a	b
 10	j
 DROP TABLE t1;
 DROP SEQUENCE s1;
-#
 # End of 10.3 tests
-#
+# in UPDATE
+create sequence s1 cache 0;
+create table t1 (id int unsigned default nextval(s1));
+insert t1 values ();
+update t1 set id=default;
+prepare stmt from "update t1 set id=?";
+execute stmt using default;
+deallocate prepare stmt;
+drop table t1;
+drop sequence s1;
+# End of 10.6 tests

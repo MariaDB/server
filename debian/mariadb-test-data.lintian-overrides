@@ -1,6 +1,3 @@
-# These should be moved, see https://jira.mariadb.org/browse/MDEV-21654
-arch-dependent-file-in-usr-share [usr/share/mariadb/mariadb-test/suite/plugins/pam/pam_mariadb_mtr.so]
-arch-independent-package-contains-binary-or-object [usr/share/mariadb/mariadb-test/suite/plugins/pam/pam_mariadb_mtr.so]
 # Mainly for support for *BSD family. Not right way to do but this is test package and not for production
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mariadb/mariadb-test/std_data/checkDBI_DBD-MariaDB.pl]
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mariadb/mariadb-test/suite/engines/rr_trx/run_stress_tx_rr.pl]

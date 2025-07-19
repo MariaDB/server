@@ -1,0 +1,11 @@
+#
+# MDEV-35580 Server using WolfSSL shows different name than OpenSSL for some ciphers
+#
+connect c,localhost,root,,,,,SSL;
+show status like 'ssl_cipher';
+Variable_name	Value
+Ssl_cipher	TLS_AES_256_GCM_SHA384
+show status like 'ssl_version';
+Variable_name	Value
+Ssl_version	TLSv1.3
+# End of 10.11 tests

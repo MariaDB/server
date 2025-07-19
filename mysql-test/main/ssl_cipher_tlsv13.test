@@ -1,0 +1,11 @@
+--source include/have_ssl_communication.inc
+--source include/have_tlsv13.inc
+--echo #
+--echo # MDEV-35580 Server using WolfSSL shows different name than OpenSSL for some ciphers
+--echo #
+connect c,localhost,root,,,,,SSL;
+
+show status like 'ssl_cipher';
+show status like 'ssl_version';
+
+--echo # End of 10.11 tests

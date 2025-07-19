@@ -1,6 +1,11 @@
 include/master-slave.inc
 [connection master]
 ==== Create a big file ====
+SET @@sql_log_bin= 0;
+create table t1 (id int not null primary key auto_increment);
+select * into outfile '$MYSQLTEST_VARDIR/tmp/bug30435_5k.txt' from t1;
+DROP TABLE t1;
+SET @@sql_log_bin= 1;
 ==== Load our big file into a table ====
 create table t2 (id int not null primary key auto_increment);
 select @@session.read_buffer_size - @@session.max_allowed_packet > 0 ;

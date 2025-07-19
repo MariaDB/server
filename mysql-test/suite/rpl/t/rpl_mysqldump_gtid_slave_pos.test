@@ -73,7 +73,6 @@ select @@global.gtid_slave_pos as "after initial slave got in sync";
 --echo # 3. A
 # Two dumps prepared to be restored in the following loop
 --exec $MYSQL_DUMP_SLAVE --dump-slave  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_2.sql
---source include/stop_slave.inc
 
 --exec $MYSQL_DUMP_SLAVE --master-data  --gtid mysql gtid_slave_pos > $MYSQLTEST_VARDIR/tmp/dump_1.sql
 

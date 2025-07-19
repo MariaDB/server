@@ -1,4 +1,6 @@
 --source include/not_embedded.inc
+# MDEV-37169 - msan unknown failure
+--source include/not_msan.inc
 --source include/mysql_upgrade_preparation.inc
 --source include/have_innodb.inc
 

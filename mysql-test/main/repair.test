@@ -4,6 +4,8 @@
 
 --source include/have_sequence.inc
 --source include/default_charset.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
 
 call mtr.add_suppression("character set is multi-byte");
 
@@ -269,3 +271,24 @@ set myisam_repair_threads = default;
 drop table t1;
 
 --echo # End of 10.2 tests
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+USE test;
+CREATE TEMPORARY TABLE t(c INT NOT NULL) ENGINE=CSV;
+INSERT INTO t VALUES(1);
+REPAIR TABLE t;
+DELETE FROM t;
+
+--echo #
+--echo # MDEV-23207 Assertion `tl->table == __null' failed in THD::open_temporary_table
+--echo #
+create table t1 (pk int primary key) engine=innodb partition by hash(pk) partitions 10;
+create table t2 (c int) engine=innodb;
+create temporary table t3 (c int);
+repair table t1, t2, t3;
+drop tables t1, t2;
+
+--echo # End of 10.11 tests
+

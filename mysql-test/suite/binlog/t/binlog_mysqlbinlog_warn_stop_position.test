@@ -64,6 +64,10 @@ if ($binlog_f2_mid > $binlog_f1_end)
   --die Mid point chosen to end in binlog 2 does not exist in earlier binlog
 }
 
+--let $domain_id= `SELECT @@GLOBAL.gtid_domain_id`
+--let $binlog_f1_over_eof= `SELECT $binlog_f1_end + 1`
+--let $binlog_f2_over_eof= `SELECT $binlog_f2_end + 1`
+
 --echo #
 --echo #
 --echo # Test using --read-from-remote-server

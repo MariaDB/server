@@ -596,11 +596,7 @@ CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = cast('' as 
 REPLACE INTO v1 SET f2 = 1;
 SELECT * from t1;
 drop view v1;
---disable_cursor_protocol
---disable_ps2_protocol
 SELECT 0,0 INTO OUTFILE 't1.txt';
---enable_ps2_protocol
---enable_cursor_protocol
 CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CHECK OPTION;
 --error ER_TRUNCATED_WRONG_VALUE
 LOAD DATA INFILE 't1.txt' INTO TABLE v1;

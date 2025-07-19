@@ -4633,10 +4633,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
     if (!table->schema_table)
     {
       if (thd->transaction->xid_state.check_has_uncommitted_xa())
-      {
-	thd->transaction->xid_state.er_xaer_rmfail();
         DBUG_RETURN(true);
-      }
       else
         break;
     }

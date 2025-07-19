@@ -19,7 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <mutex>
 #include <atomic>
 #include <tpool_structs.h>
-#ifdef LINUX_NATIVE_AIO
+#ifdef HAVE_LIBAIO
 #include <libaio.h>
 #endif
 #ifdef HAVE_URING
@@ -128,12 +128,21 @@ constexpr size_t MAX_AIO_USERDATA_LEN= 4 * sizeof(void*);
 struct aiocb
 #ifdef _WIN32
   :OVERLAPPED
-#elif defined LINUX_NATIVE_AIO
-  :iocb
-#elif defined HAVE_URING
-  :iovec
 #endif
 {
+#if defined HAVE_LIBAIO || defined HAVE_URING
+  union {
+# ifdef HAVE_LIBAIO
+    /** The context between io_submit() and io_getevents();
+    must be the first data member! */
+    iocb m_iocb;
+# endif
+# ifdef HAVE_URING
+    /** The context between io_uring_submit() and io_uring_wait_cqe() */
+    iovec m_iovec;
+# endif
+  };
+#endif
   native_file_handle m_fh;
   aio_opcode m_opcode;
   unsigned long long m_offset;
@@ -173,6 +182,7 @@ public:
   virtual int bind(native_file_handle &fd)= 0;
   /** "Unind" file to AIO handler (used on Windows only) */
   virtual int unbind(const native_file_handle &fd)= 0;
+  virtual const char *get_implementation() const=0;
   virtual ~aio(){};
 protected:
   static void synchronous(aiocb *cb);
@@ -202,12 +212,22 @@ class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
 
+enum aio_implementation
+{
+  OS_IO_DEFAULT
+#ifdef __linux__
+  , OS_IO_URING
+  , OS_IO_LIBAIO
+#endif
+};
+
 class thread_pool
 {
 protected:
   /* AIO handler */
-  std::unique_ptr<aio> m_aio;
-  virtual aio *create_native_aio(int max_io)= 0;
+  std::unique_ptr<aio> m_aio{};
+  aio_implementation m_aio_impl= OS_IO_DEFAULT;
+  virtual aio *create_native_aio(int max_io, aio_implementation)= 0;
 
 public:
   /**
@@ -217,10 +237,7 @@ public:
   void (*m_worker_init_callback)(void)= [] {};
   void (*m_worker_destroy_callback)(void)= [] {};
 
-  thread_pool()
-      : m_aio()
-  {
-  }
+  thread_pool()= default;
   virtual void submit_task(task *t)= 0;
   virtual timer* create_timer(callback_func func, void *data=nullptr) = 0;
   void set_thread_callbacks(void (*init)(), void (*destroy)())
@@ -230,10 +247,13 @@ public:
     m_worker_init_callback= init;
     m_worker_destroy_callback= destroy;
   }
-  int configure_aio(bool use_native_aio, int max_io)
+  int configure_aio(bool use_native_aio, int max_io, aio_implementation impl)
   {
     if (use_native_aio)
-      m_aio.reset(create_native_aio(max_io));
+    {
+      m_aio.reset(create_native_aio(max_io, impl));
+      m_aio_impl= impl;
+    }
     else
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
@@ -244,7 +264,7 @@ public:
     assert(m_aio);
     if (use_native_aio)
     {
-      auto new_aio = create_native_aio(max_io);
+      auto new_aio= create_native_aio(max_io, m_aio_impl);
       if (!new_aio)
         return -1;
       m_aio.reset(new_aio);
@@ -255,6 +275,10 @@ public:
   void disable_aio()
   {
     m_aio.reset();
+  }
+  const char *get_aio_implementation() const
+  {
+    return m_aio->get_implementation();
   }
 
   /**
@@ -281,6 +305,19 @@ public:
   virtual void wait_end() {};
   virtual ~thread_pool() {}
 };
+
+/** Return true if compiled with native AIO support.*/
+constexpr bool supports_native_aio()
+{
+#ifdef _WIN32
+  return true;
+#elif defined(__linux__) && (defined(HAVE_LIBAIO) || defined(HAVE_URING))
+  return true;
+#else
+  return false;
+#endif
+}
+
 const int DEFAULT_MIN_POOL_THREADS= 1;
 const int DEFAULT_MAX_POOL_THREADS= 500;
 extern thread_pool *

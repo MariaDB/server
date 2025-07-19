@@ -5563,6 +5563,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
+  bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
@@ -5963,6 +5964,18 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+
+  /**
+    @brief
+    Return true if current statement uses cursor protocol for execution.
+
+    @details
+    Cursor protocol execution is determined by checking if lex->result is a
+    Select_materialize object, which is exclusively used by the server for
+    cursor result set materialization.
+  */
+  bool is_cursor_execution() const;
+
   /*
     Return true if we are in stored procedure, not in a function or
     trigger.

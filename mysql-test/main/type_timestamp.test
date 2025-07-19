@@ -742,11 +742,7 @@ FLUSH TABLES;
 # 0xFF       - record flags
 # 0x77777777 - TIMESTAMP integer part
 # 0xFFFFFF   - TIMESTAMP bad fractional part
---disable_cursor_protocol
---disable_ps2_protocol
 --eval SELECT CONCAT(0xFF,0x77777777,0xFFFFFF) INTO OUTFILE '$MYSQLD_DATADIR/test/t1.MYD' FIELDS TERMINATED BY '' ESCAPED BY '' LINES TERMINATED BY ''
---enable_ps2_protocol
---enable_cursor_protocol
 --eval SELECT HEX(LOAD_FILE('$MYSQLD_DATADIR/test/t1.MYD')) AS MYD
 --enable_query_log
 SELECT a, CAST(a AS DATETIME) AS dt0, CAST(a AS DATETIME(6)) AS dt6 FROM t1;

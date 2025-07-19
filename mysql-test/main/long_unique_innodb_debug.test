@@ -1,0 +1,241 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-37199 UNIQUE KEY USING HASH accepting duplicate records
+--echo #
+
+--disable_view_protocol
+--echo ## INSERT
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+--echo # Keep a Read View open to prevent purge
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+--echo # Create delete marked secondary index Record ('a', 10)
+insert t1 values(10, 'a');
+delete from t1;
+--echo # Insert secondary index key ('a', 15) in the GAP between ('a', 10) and Supremum
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send insert t1 values(15, 'a')
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+--echo # Insert secondary index key ('a', 5) in the GAP between Infimum and ('a', 10)
+set transaction isolation level read committed;
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--error ER_DUP_ENTRY
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## INSERT, row-level locking proof
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+--echo # Keep a Read View open to prevent purge
+start transaction;
+select * from t1;
+
+--connect con1,localhost,root
+--echo # Create delete marked secondary index Record ('a', 10)
+insert t1 values(10, 'a');
+delete from t1;
+--echo # Insert secondary index key ('a', 15) in the GAP between ('a', 10) and Supremum
+set transaction isolation level read committed;
+set debug_sync="ha_write_row_end SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send insert t1 values(15, 'a')
+
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+--echo # Insert secondary index key ('a', 5) in the GAP between Infimum and ('a', 10)
+set session innodb_lock_wait_timeout= 1;
+set transaction isolation level read committed;
+--error ER_LOCK_WAIT_TIMEOUT
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+
+--connection con1
+--reap
+
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## UPDATE
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send update t1 set col2='a' where col1=5
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--error ER_DUP_ENTRY
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## INSERT IGNORE
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+insert t1 values(10, 'a');
+delete from t1;
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send insert ignore t1 values(15, 'a'), (16, 'b')
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## UPDATE IGNORE
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+insert into t1 values( 9, 'd');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send update ignore t1 set col2=chr(92+col1) where col1<=9
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## UPDATE modifying PK
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send update t1 set col2='a', col1=4 where col1=5
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--error ER_DUP_ENTRY
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+
+--echo ## UPDATE IGNORE modifying PK
+create table t1 (
+  col1 int primary key,
+  col2 varchar(3000),
+  unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+--connect con1,localhost,root
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+insert into t1 values( 9, 'd');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+--send update ignore t1 set col2=chr(92+col1), col1=col1-1 where col1<=9
+--connect con2,localhost,root
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+--connection con1
+--error ER_NOT_SUPPORTED_YET
+--reap
+--connection default
+select * from t1;
+commit;
+select * from t1;
+--disconnect con1
+--disconnect con2
+set debug_sync='RESET';
+drop table t1;
+--enable_view_protocol
+
+--echo # End of 10.6 tests

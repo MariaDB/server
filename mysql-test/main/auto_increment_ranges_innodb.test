@@ -11,11 +11,7 @@ set default_storage_engine=innodb;
 #
 create table t1 (pk int auto_increment primary key, f varchar(20));
 insert t1 (f) values ('a'), ('b'), ('c'), ('d');
---disable_cursor_protocol
---disable_ps2_protocol
 select null, f into outfile 'load.data' from t1 limit 1;
---enable_ps2_protocol
---enable_cursor_protocol
 load data infile 'load.data' into table t1;
 insert t1 (f) values ('<===');
 select * from t1;

@@ -870,6 +870,8 @@ retry:
     else if (table)
       table->acquire();
   }
+  else if (!dict_locked)
+    dict_sys.unfreeze();
 
   return table;
 }

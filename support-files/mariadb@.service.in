@@ -88,7 +88,7 @@
 #   User=%I
 #   ProtectHome=false
 #   ExecStartPre=
-#   ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE \
+#   ExecStartPre=@scriptdir@/mariadb-install-db $MYSQLD_MULTI_INSTANCE \
 #       --auth-root-authentication-method=socket --auth-root-socket-user=%I
 #   Environment=MYSQLD_MULTI_INSTANCE="--defaults-file=/home/%I/my%I.cnf \
 #       --datadir=/home/%I/mysqldatadir --skip-networking --socket=@mysql-%I"
@@ -197,8 +197,8 @@ ProtectSystem=full
 # Prevent accessing /home, /root and /run/user
 ProtectHome=true
 
-# Needed to create system tables etc.
-ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
+# Needed to create system tables etc. --rpm to not do pam permission changes.
+ExecStartPre=@scriptdir@/mariadb-install-db $MYSQLD_MULTI_INSTANCE --rpm
 
 # Start main service
 # A few variables are here:

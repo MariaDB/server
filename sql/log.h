@@ -1211,6 +1211,7 @@ public:
 };
 
 
+int check_if_log_table(const TABLE_LIST *table);
 int check_if_log_table(const TABLE_LIST *table, bool check_if_opened,
                        const char *errmsg);
 

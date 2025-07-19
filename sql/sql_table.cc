@@ -3507,8 +3507,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
-    bool is_hash_field_needed= key->key_create_info.algorithm
-                               == HA_KEY_ALG_LONG_HASH;
     if (key->type == Key::IGNORE_KEY)
     {
       /* ignore redundant keys */
@@ -3518,6 +3516,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       if (!key)
 	break;
     }
+
+    bool is_hash_field_needed= key->key_create_info.algorithm
+                               == HA_KEY_ALG_LONG_HASH;
 
     if (key_check_without_overlaps(thd, create_info, alter_info, *key))
       DBUG_RETURN(true);
@@ -3722,6 +3723,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
          auto_increment--;                        // Field is used
         auto_increment_key= sql_field;
       }
+
+      /* For SPATIAL, FULLTEXT and HASH indexes (anything other than B-tree),
+         ignore the ASC/DESC attribute of columns. */
+      if ((key_info->algorithm > HA_KEY_ALG_BTREE) ||
+          (key_info->flags & (HA_SPATIAL|HA_FULLTEXT)))
+        column->asc= true; // ignore DESC
 
       key_part_info->fieldnr= field;
       key_part_info->offset=  (uint16) sql_field->offset;
@@ -4628,6 +4635,12 @@ int create_table_impl(THD *thd,
       goto err;
     }
 
+    TABLE_LIST table_list;
+    table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
+    int log_table= check_if_log_table(&table_list);
+    if (log_table && create_info->check_if_valid_log_table())
+      goto err;
+
     handlerton *db_type;
     if (!internal_tmp_table &&
         ha_table_exists(thd, &db, &table_name,
@@ -4644,12 +4657,13 @@ int create_table_impl(THD *thd,
       {
         (void) delete_statistics_for_table(thd, &db, &table_name);
 
-        TABLE_LIST table_list;
-        table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
         table_list.table= create_info->table;
 
-        if (check_if_log_table(&table_list, TRUE, "CREATE OR REPLACE"))
+        if (log_table && logger.is_log_table_enabled(log_table))
+        {
+          my_error(ER_BAD_LOG_STATEMENT, MYF(0), "CREATE OR REPLACE");
           goto err;
+        }
         
         /*
           Rollback the empty transaction started in mysql_create_table()
@@ -5932,6 +5946,8 @@ int mysql_discard_or_import_tablespace(THD *thd,
 {
   Alter_table_prelocking_strategy alter_prelocking_strategy;
   int error;
+  TABLE *table;
+  enum_mdl_type mdl_downgrade= MDL_NOT_INITIALIZED;
   DBUG_ENTER("mysql_discard_or_import_tablespace");
 
   mysql_audit_alter_table(thd, table_list);
@@ -5964,7 +5980,21 @@ int mysql_discard_or_import_tablespace(THD *thd,
     DBUG_RETURN(-1);
   }
 
-  error= table_list->table->file->ha_discard_or_import_tablespace(discard);
+  table= table_list->table;
+  DBUG_ASSERT(table->mdl_ticket || table->s->tmp_table);
+  if (table->mdl_ticket && table->mdl_ticket->get_type() < MDL_EXCLUSIVE)
+  {
+    DBUG_ASSERT(thd->locked_tables_mode);
+    mdl_downgrade= table->mdl_ticket->get_type();
+    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
+                                             thd->variables.lock_wait_timeout))
+    {
+      error= 1;
+      goto err;
+    }
+  }
+
+  error= table->file->ha_discard_or_import_tablespace(discard);
 
   THD_STAGE_INFO(thd, stage_end);
 
@@ -5989,6 +6019,9 @@ int mysql_discard_or_import_tablespace(THD *thd,
 
 err:
   thd->tablespace_op=FALSE;
+
+  if (mdl_downgrade > MDL_NOT_INITIALIZED)
+    table->mdl_ticket->downgrade_lock(mdl_downgrade);
 
   if (likely(error == 0))
   {
@@ -8644,7 +8677,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
         else
         {
-          if ((def->default_value= alter->default_value))
+          if ((def->default_value= alter->default_value) ||
+              !(def->flags & NOT_NULL_FLAG))
             def->flags&= ~NO_DEFAULT_VALUE_FLAG;
           else
             def->flags|= NO_DEFAULT_VALUE_FLAG;
@@ -10561,7 +10595,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     it is the case.
     TODO: this design is obsolete and will be removed.
   */
-  int table_kind= check_if_log_table(table_list, FALSE, NullS);
+  int table_kind= check_if_log_table(table_list);
   const bool used_engine= create_info->used_fields & HA_CREATE_USED_ENGINE;
 
   if (table_kind)
@@ -10576,17 +10610,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     /* Disable alter of log tables to unsupported engine */
     if ((used_engine) &&
         (!create_info->db_type || /* unknown engine */
-         !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
-    {
-    unsupported:
-      my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
-               hton_name(create_info->db_type)->str);
+         create_info->check_if_valid_log_table()))
       DBUG_RETURN(true);
-    }
-
-    if (create_info->db_type == maria_hton &&
-        create_info->transactional != HA_CHOICE_NO)
-      goto unsupported;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (alter_info->partition_flags & ALTER_PARTITION_INFO)
@@ -11441,7 +11466,8 @@ do_continue:;
     thd->count_cuted_fields= CHECK_FIELD_EXPRESSION;
     altered_table.reset_default_fields();
     if (altered_table.default_field &&
-        altered_table.update_default_fields(true))
+        (altered_table.check_sequence_privileges(thd) ||
+         altered_table.update_default_fields(true)))
     {
       cleanup_table_after_inplace_alter(&altered_table);
       goto err_new_table_cleanup;
@@ -13119,6 +13145,23 @@ bool check_engine(THD *thd, const char *db_name,
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
+#ifdef WITH_WSREP
+    /*  @@enforce_storage_engine is local, if user has used
+	ENGINE=XXX we can't allow it in cluster in this
+	case as enf_engine != new _engine. This is because
+        original stmt is replicated including ENGINE=XXX and
+        here */
+    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+        WSREP(thd))
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "ENFORCE_STORAGE_ENGINE");
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_OPTION_PREVENTS_STATEMENT,
+                          "Do not use ENGINE=x when @@enforce_storage_engine is set");
+
+      DBUG_RETURN(TRUE);
+    }
+#endif
     *new_engine= enf_engine;
   }
 

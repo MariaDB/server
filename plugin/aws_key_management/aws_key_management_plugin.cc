@@ -551,7 +551,7 @@ static int generate_and_save_datakey(uint keyid, uint version)
     return(-1);
   }
   unsigned int len= (unsigned int)byteBuffer.GetLength();
-  if (write(fd, byteBuffer.GetUnderlyingData(), len) != len)
+  if ((unsigned int)write(fd, byteBuffer.GetUnderlyingData(), len) != len)
   {
     my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: can't write to %s", ME_ERROR_LOG_ONLY, filename);
     close(fd);
