@@ -786,6 +786,12 @@ struct rpl_group_info
     counting one event group twice.
   */
   bool did_mark_start_commit;
+  /*
+    Copy of thd->transaction->all.modified_non_trans_table at the end of
+    an event group. Used to catch problems where table definitions are
+    non-transactional on the slave, breaking optimistic mode.
+  */
+  bool modified_nontrans_table;
   /* Copy of flags2 from GTID event. */
   uchar gtid_ev_flags2;
   /* Copy of flags3 from GTID event. */

@@ -1549,6 +1549,9 @@ handle_rpl_parallel_thread(void *arg)
       if (likely(!rgi->worker_error) && !skip_event_group)
       {
         ++rgi->retry_event_count;
+        if (group_ending)
+          rgi->modified_nontrans_table=
+            thd->transaction->all.modified_non_trans_table;
 #ifndef DBUG_OFF
         err= 0;
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
@@ -1612,8 +1615,34 @@ handle_rpl_parallel_thread(void *arg)
       }
       if (end_of_group)
       {
+        rpl_group_info::enum_speculation speculation= rgi->speculation;
+
         in_event_group= false;
         finish_event_group(rpt, event_gtid_sub_id, entry, rgi);
+        if (unlikely(rgi->modified_nontrans_table) &&
+            speculation == rpl_group_info::SPECULATE_OPTIMISTIC)
+        {
+          /*
+            We give this error here after finish_event_group() to try to let
+            the current event group complete before stopping replication with
+            an error, to have a better chance of the replication position
+            being still valid.
+          */
+          sql_print_error("Slave SQL: Modifying non-transactional table(s) "
+                          "in GTID %u-%u-%llu not allowed in "
+                          "optimistic/aggressive parallel replication mode. "
+                          "Either ensure tables on slave use a transactional "
+                          "storage engine (eg. InnoDB) whenever the master "
+                          "does, or disable optimistic/aggressive parallel "
+                          "replication mode", rgi->current_gtid.domain_id,
+                          rgi->current_gtid.server_id,
+                          rgi->current_gtid.seq_no);
+          if (!rgi->worker_error)
+          {
+            slave_output_error_info(rgi, thd);
+            signal_error_to_sql_driver_thread(thd, rgi, 1);
+          }
+        }
         rpt->loc_free_rgi(rgi);
         thd->rgi_slave= group_rgi= rgi= NULL;
         skip_event_group= false;
