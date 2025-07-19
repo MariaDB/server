@@ -810,7 +810,6 @@ typedef struct st_spider_lgtm_tblhnd_share
   ulonglong          auto_increment_value;
 } SPIDER_LGTM_TBLHND_SHARE;
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 typedef struct st_spider_patition_handler
 {
   bool               clone_bitmap_init;
@@ -820,7 +819,6 @@ typedef struct st_spider_patition_handler
   ha_spider          *owner;
   ha_spider          **handlers;
 } SPIDER_PARTITION_HANDLER;
-#endif
 
 typedef struct st_spider_wide_share
 {
@@ -873,9 +871,7 @@ typedef struct st_spider_wide_handler
   uchar              *rnd_write_bitmap;
   SPIDER_CONDITION   *condition;
   void               *owner;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
-#endif
   List<Item>         *direct_update_fields;
   List<Item>         *direct_update_values;
   TABLE_SHARE        *top_share;
@@ -1022,9 +1018,7 @@ typedef struct st_spider_share
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   my_hash_value_type table_name_hash_value;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   my_hash_value_type table_path_hash_value;
-#endif
 
   volatile bool      init;
   volatile bool      init_error;
@@ -1037,9 +1031,7 @@ typedef struct st_spider_share
   volatile time_t    bg_sts_try_time;
   volatile double    bg_sts_interval;
   volatile int       bg_sts_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   volatile int       bg_sts_sync;
-#endif
   volatile bool      bg_sts_init;
   volatile bool      bg_sts_kill;
   volatile bool      bg_sts_thd_wait;
@@ -1054,9 +1046,7 @@ typedef struct st_spider_share
   volatile time_t    bg_crd_try_time;
   volatile double    bg_crd_interval;
   volatile int       bg_crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   volatile int       bg_crd_sync;
-#endif
   volatile bool      bg_crd_init;
   volatile bool      bg_crd_kill;
   volatile bool      bg_crd_thd_wait;
@@ -1114,9 +1104,7 @@ typedef struct st_spider_share
 #endif
   double             sts_interval;
   int                sts_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int                sts_sync;
-#endif
   int                store_last_sts;
   int                load_sts_at_startup;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -1124,9 +1112,7 @@ typedef struct st_spider_share
 #endif
   double             crd_interval;
   int                crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int                crd_sync;
-#endif
   int                store_last_crd;
   int                load_crd_at_startup;
   int                crd_type;
