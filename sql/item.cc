@@ -5900,6 +5900,48 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   return TRUE;
 }
 
+/**
+  @brief  check to see if we need to wrap this in an Item_outer_ref
+
+  @description
+    If an outer field is resolved in a grouping select then it
+    is replaced for an Item_outer_ref object. Otherwise an
+    Item_field object is used.
+    The new Item_outer_ref object is saved in the inner_refs_list of
+    the outer select. Here it is only created. It can be fixed only
+    after the original field has been fixed and this is done in the
+    fix_inner_refs() function.
+    Called only from Item_field::fix_outer_field, where *reference type
+    will be applicable.
+  @returns
+    false  normal execution
+    true   error
+*/
+static inline bool inner_refs_check(THD *thd,
+                             Name_resolution_context *last_checked_context,
+                             Name_resolution_context *context,
+                             SELECT_LEX *select,
+                             enum_parsing_place place,
+                             Item **reference)
+{
+  Item::Type ref_type= (*reference)->type();
+  if (!last_checked_context->select_lex->having_fix_field &&
+      select->group_list.elements &&
+      (place == SELECT_LIST || place == IN_HAVING))
+  {
+    DBUG_ASSERT(ref_type == Item::REF_ITEM || ref_type == Item::FIELD_ITEM);
+    Item_outer_ref *rf;
+    if (!(rf= new (thd->mem_root)
+                  Item_outer_ref(thd, context,(Item_ident*) (*reference))))
+      return true;
+    thd->change_item_tree(reference, rf);
+    if (select->inner_refs_list.push_back(rf, thd->mem_root))
+      return true;
+    rf->in_sum_func= thd->lex->in_sum_func;
+  }
+  return false;
+}
+
 
 /**
   Resolve the name of an outer select column reference.
@@ -6071,27 +6113,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             prev_subselect_item->const_item_cache= 0;
           }
           set_field(*from_field);
-          if (!last_checked_context->select_lex->having_fix_field &&
-              select->group_list.elements &&
-              (place == SELECT_LIST || place == IN_HAVING))
-          {
-            Item_outer_ref *rf;
-            /*
-              If an outer field is resolved in a grouping select then it
-              is replaced for an Item_outer_ref object. Otherwise an
-              Item_field object is used.
-              The new Item_outer_ref object is saved in the inner_refs_list of
-              the outer select. Here it is only created. It can be fixed only
-              after the original field has been fixed and this is done in the
-              fix_inner_refs() function.
-            */
-            ;
-            if (!(rf= new (thd->mem_root) Item_outer_ref(thd, context, this)))
-              return -1;
-            thd->change_item_tree(reference, rf);
-            select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= thd->lex->in_sum_func;
-          }
+          if (inner_refs_check(thd, last_checked_context, context, select,
+                               place, reference))
+            return -1;
           /*
             A reference is resolved to a nest level that's outer or the same as
             the nest level of the enclosing set function : adjust the value of
@@ -6125,6 +6149,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
                              0), false);
+
+          if (inner_refs_check(thd, last_checked_context, context, select,
+                               place, reference))
+            return -1;
+
           if (thd->lex->in_sum_func &&
               last_checked_context->select_lex->parent_lex ==
               context->select_lex->parent_lex &&
