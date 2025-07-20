@@ -1842,8 +1842,6 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
-      if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
-        table->file->prepare_for_insert(1);
     }
   }
   if (unlikely(error))
@@ -2075,6 +2073,8 @@ multi_update::initialize_tables(JOIN *join)
     List<Item> temp_fields;
     ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
+
+    table->file->prepare_for_insert(1);
 
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
