@@ -7863,9 +7863,13 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
             return HA_ERR_UNSUPPORTED;
           }
       }
+      table->move_fields(table->field, table->record[1], table->record[0]);
+      std::swap(table->record[0], table->record[1]);
       increment_statistics(&SSV::ha_update_count);
       TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, MAX_KEY, e,
         { e= update_row(new_data, old_data);})
+      table->move_fields(table->field, table->record[1], table->record[0]);
+      std::swap(table->record[0], table->record[1]);
     }
     return e ? e : error;
   }
