@@ -7414,7 +7414,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
   int result;
   /* Skip just written row in the case of HA_CHECK_UNIQUE_AFTER_WRITE */
-  bool lax= (ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) > 0;
+  bool skip_self= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
   KEY *key_info= table->key_info + key_no;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
@@ -7425,6 +7425,9 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 
   if (key_info->key_part->field->is_real_null())
     DBUG_RETURN(0);
+
+  if (skip_self)
+    position(table->record[0]);
 
   key_copy(ptr, new_rec, key_info, key_info->key_length, false);
 
@@ -7454,14 +7457,14 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   {
     if (!long_unique_fields_differ(key_info, lookup_buffer))
     {
-      if (lax)
+      lookup_handler->position(table->record[0]);
+      if (skip_self && !memcmp(ref, lookup_handler->ref, ref_length))
       {
-        lax= false;
+        skip_self= false; // cannot happen twice, so let's save a memcpy
         continue;
       }
       result= HA_ERR_FOUND_DUPP_KEY;
       table->file->lookup_errkey= key_no;
-      lookup_handler->position(table->record[0]);
       memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
       goto end;
     }

@@ -134,3 +134,16 @@ disconnect con2;
 # MDEV-20131 Assertion `!pk->has_virtual()' failed
 create table t1 (a text, primary key(a(1871))) engine=innodb;
 ERROR 42000: Specified key was too long; max key length is 1536 bytes
+# End of 10.4 tests
+#
+# MDEV-37268 ER_NOT_KEYFILE or assertion failure upon REPLACE into table with unique hash under READ-COMMITTED
+#
+create table t1 (id int not null primary key, f varchar(100), unique(f) using hash) engine=innodb;
+insert t1 values (1,'x');
+set transaction isolation level read committed;
+replace t1 values (2,'x');
+select * from t1;
+id	f
+2	x
+drop table t1;
+# End of 10.6 tests
