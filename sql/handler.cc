@@ -7774,16 +7774,19 @@ int handler::ha_write_row(const uchar *buf)
   {
     if (lookup_handler != this) // INSERT IGNORE or REPLACE or ODKU
     {
+      int olderror= error;
+      if ((error= rnd_init(0)))
+        goto err;
       position(buf);
-      int e= rnd_pos(lookup_buffer, ref);
-      if (!e)
-      {
-        increment_statistics(&SSV::ha_delete_count);
-        TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, e,
-          { e= delete_row(buf);})
-      }
-      if (e)
-        error= e;
+      if ((error= rnd_pos(lookup_buffer, ref)))
+        goto err;
+
+      increment_statistics(&SSV::ha_delete_count);
+      TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, error,
+                    { error= delete_row(buf);})
+      rnd_end();
+      if (!error)
+        error= olderror;
     }
     goto err;
   }
