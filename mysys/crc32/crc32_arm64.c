@@ -58,7 +58,8 @@ my_crc32_t crc32c_aarch64_available(void)
 }
 
 #  else /* __APPLE__ */
-#  if defined(__FreeBSD__) || defined(__OpenBSD__)
+#   include <sys/auxv.h>
+#   if defined(__FreeBSD__) || defined(__OpenBSD__)
 static unsigned long getauxval(unsigned int key)
 {
   unsigned long val;
