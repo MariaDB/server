@@ -7440,11 +7440,7 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   result= lookup_handler->ha_index_read_map(table->record[0], ptr,
                                             HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (result)
-  {
-    if (result == HA_ERR_KEY_NOT_FOUND)
-      result= 0;
     goto end;
-  }
 
   // restore pointers after swap_values in TABLE::update_virtual_fields()
   for (Field **vf= table->vfield; *vf; vf++)
@@ -7472,10 +7468,10 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   while (!(result= lookup_handler->ha_index_next_same(table->record[0], ptr,
                                                       key_info->key_length)));
 
-  if (result == HA_ERR_END_OF_FILE)
+end:
+  if (result == HA_ERR_END_OF_FILE || result == HA_ERR_KEY_NOT_FOUND)
     result= 0;
 
-end:
   restore_record(table, file->lookup_buffer);
   table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();

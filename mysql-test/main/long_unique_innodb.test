@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 #
 # MDEV-371 Unique indexes for blobs
@@ -156,4 +157,10 @@ replace t1 values (2,'x');
 select * from t1;
 drop table t1;
 
+create table t1 (id int, f longtext, primary key (id), unique(f)) engine=innodb partition by key (id) partitions 9;
+insert t1 (id) values (1),(2);
+set transaction isolation level read committed;
+update ignore t1 set f = 'x';
+select * from t1;
+drop table t1;
 --echo # End of 10.6 tests
