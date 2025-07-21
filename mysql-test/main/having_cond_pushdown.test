@@ -1601,3 +1601,31 @@ SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
 DROP TABLE t1;
 
 --echo End of 10.5 tests
+
+--echo #
+--echo # MDEV-19269 Pushdown into IN subquery is not made on the second
+--echo # execution of stmt
+--echo #
+
+create table t1 (a int, b int);
+create table t2 (x int, y int);
+
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2),(2,3);
+
+prepare stmt from "
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1
+WHERE a = b 
+      AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE @a=1 GROUP BY t2.x);";
+
+set @a=2; 
+execute stmt;
+set @a=1;
+--echo # we expect to see having_condition in both the below statements
+execute stmt;
+execute stmt;
+
+drop table t1, t2;
+
+--echo End of 10.11 tests
