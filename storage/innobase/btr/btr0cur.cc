@@ -65,6 +65,7 @@ Created 10/16/1994 Heikki Tuuri
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
 #include "log.h"
+#include "mariadb_stats.h"
 
 /** Modification types for the B-tree operation.
     Note that the order must be DELETE, BOTH, INSERT !!
@@ -2257,7 +2258,7 @@ Prefetch siblings of the leaf for the pessimistic operation.
 @param block	leaf page
 @param index    index of the page */
 static void btr_cur_prefetch_siblings(const buf_block_t *block,
-                                      const dict_index_t *index)
+                                      const dict_index_t *index) noexcept
 {
   ut_ad(page_is_leaf(block->page.frame));
 
@@ -2266,15 +2267,23 @@ static void btr_cur_prefetch_siblings(const buf_block_t *block,
   uint32_t next= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
 
   fil_space_t *space= index->table->space;
+  page_id_t id{space->id, 0};
 
-  if (prev == FIL_NULL);
-  else if (space->acquire())
-    buf_read_page_background(space, page_id_t(space->id, prev),
-                             block->zip_size());
-  if (next == FIL_NULL);
-  else if (space->acquire())
-    buf_read_page_background(space, page_id_t(space->id, next),
-                             block->zip_size());
+  ha_handler_stats *stats= mariadb_stats;
+
+  if (prev != FIL_NULL)
+  {
+    id.set_page_no(prev);
+    if (space->acquire())
+      buf_read_page_background(id, space, stats);
+  }
+
+  if (next != FIL_NULL)
+  {
+    id.set_page_no(next);
+    if (space->acquire())
+      buf_read_page_background(id, space, stats);
+  }
 }
 
 /*************************************************************//**
