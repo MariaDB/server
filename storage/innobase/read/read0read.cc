@@ -239,7 +239,7 @@ void ReadView::open(trx_t *trx)
       m_open.store(true, std::memory_order_relaxed);
     else
     {
-      m_mutex.wr_lock();
+      m_mutex.wr_lock(false);
       snapshot(trx);
       m_open.store(true, std::memory_order_relaxed);
       m_mutex.wr_unlock();

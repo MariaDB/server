@@ -1962,7 +1962,7 @@ err_exit:
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
 
-				rseg->latch.wr_lock(SRW_LOCK_CALL);
+				rseg->latch.wr_lock(SRW_LOCK_CALL_ false);
 				err = trx_undo_free_last_page(undo, &mtr);
 				rseg->latch.wr_unlock();
 
@@ -2084,7 +2084,7 @@ purge_sys_t::view_guard::get(const page_id_t id, mtr_t *mtr)
       return block;
     }
   }
-  block= buf_pool.page_fix(id);
+  block= buf_pool.page_fix(id, nullptr, buf_pool_t::FIX_WAIT_READ_BLOCKING);
   if (block)
   {
     mtr->memo_push(block, MTR_MEMO_BUF_FIX);

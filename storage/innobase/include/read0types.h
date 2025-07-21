@@ -235,7 +235,7 @@ public:
   */
   void print_limits(FILE *file) const
   {
-    m_mutex.wr_lock();
+    m_mutex.wr_lock(false);
     if (is_open())
       fprintf(file, "Trx read view will not see trx with"
                     " id >= " TRX_ID_FMT ", sees < " TRX_ID_FMT "\n",
@@ -257,7 +257,7 @@ public:
   */
   void append_to(ReadViewBase *to) const
   {
-    m_mutex.wr_lock();
+    m_mutex.wr_lock(false);
     if (is_open())
       to->append(*this);
     m_mutex.wr_unlock();

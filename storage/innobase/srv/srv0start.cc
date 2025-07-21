@@ -189,7 +189,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 	assumption does not hold. */
 	ut_d(os_aio_wait_until_no_pending_writes(false));
 
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 	log_sys.set_capacity();
 
 	std::string logfile0{get_log_file_path("ib_logfile101")};
@@ -549,7 +549,7 @@ ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
 
   mtr.start();
 
-  dict_hdr->page.lock.x_lock();
+  dict_hdr->page.lock.x_lock(true);
   mtr.memo_push(dict_hdr, MTR_MEMO_PAGE_X_FIX);
 
   if (srv_undo_tablespaces == 0)
@@ -1089,7 +1089,7 @@ ATTRIBUTE_COLD static lsn_t srv_prepare_to_delete_redo_log_file() noexcept
   DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
   DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   const bool latest_format{log_sys.is_latest()};
   lsn_t flushed_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
 
@@ -1235,7 +1235,7 @@ static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 
 inline lsn_t log_t::init_lsn() noexcept
 {
-  latch.wr_lock(SRW_LOCK_CALL);
+  latch.wr_lock(SRW_LOCK_CALL_ false);
   ut_ad(!write_lsn_offset);
   write_lsn_offset= 0;
   const lsn_t lsn{base_lsn.load(std::memory_order_relaxed)};

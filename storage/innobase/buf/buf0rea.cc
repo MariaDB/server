@@ -87,7 +87,7 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
     block->initialise(page_id, zip_size & ~1, READ_BUF_FIX);
     /* x_unlock() will be invoked
     in buf_page_t::read_complete() by the io-handler thread. */
-    block->page.lock.x_lock(true);
+    block->page.lock.x_lock(true, true);
   }
 
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
@@ -186,7 +186,7 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
 
     bpage->lock.init();
     bpage->init(READ_BUF_FIX, page_id);
-    bpage->lock.x_lock(true);
+    bpage->lock.x_lock(true, true);
 
     {
       transactional_lock_guard<page_hash_latch> g

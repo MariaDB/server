@@ -175,7 +175,7 @@ static void btr_search_check_free_space_in_heap(const dict_index_t *index)
   buf_block_t *block= buf_block_alloc();
   auto part= btr_search_sys.get_part(*index);
 
-  part->latch.wr_lock(SRW_LOCK_CALL);
+  part->latch.wr_lock(SRW_LOCK_CALL_ false);
 
   if (!btr_search_enabled || part->heap->free_block)
     buf_block_free(block);
@@ -199,7 +199,7 @@ ATTRIBUTE_COLD void btr_search_lazy_free(dict_index_t *index)
 {
   ut_ad(index->freed());
   dict_table_t *table= index->table;
-  table->autoinc_mutex.wr_lock();
+  table->autoinc_mutex.wr_lock(false);
 
   /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
   UT_LIST_REMOVE(table->freed_indexes, index);
@@ -698,7 +698,7 @@ btr_search_update_hash_ref(
 	ut_ad(block->page.id().space() == index->table->space_id);
 	ut_ad(index == cursor->index());
 	auto part = btr_search_sys.get_part(*index);
-	part->latch.wr_lock(SRW_LOCK_CALL);
+	part->latch.wr_lock(SRW_LOCK_CALL_ false);
 	ut_ad(!block->index || block->index == index);
 
 	if (block->index
@@ -997,7 +997,7 @@ btr_search_guess_on_hash(
 	auto part = btr_search_sys.get_part(*index);
 	const rec_t* rec;
 
-	part->latch.rd_lock(SRW_LOCK_CALL);
+	part->latch.rd_lock(SRW_LOCK_CALL_ false);
 
 	if (!btr_search_enabled) {
 		goto ahi_release_and_fail;
@@ -1136,14 +1136,14 @@ retry:
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
 
-	part->latch.rd_lock(SRW_LOCK_CALL);
+	part->latch.rd_lock(SRW_LOCK_CALL_ false);
 
 	dict_index_t* index = block->index;
 	bool is_freed = index && index->freed();
 
 	if (is_freed) {
 		part->latch.rd_unlock();
-		part->latch.wr_lock(SRW_LOCK_CALL);
+		part->latch.wr_lock(SRW_LOCK_CALL_ false);
 		if (index != block->index) {
 			part->latch.wr_unlock();
 			goto retry;
@@ -1266,7 +1266,7 @@ next_rec:
 
 all_deleted:
 	if (!is_freed) {
-		part->latch.wr_lock(SRW_LOCK_CALL);
+		part->latch.wr_lock(SRW_LOCK_CALL_ false);
 
 		if (UNIV_UNLIKELY(!block->index)) {
 			/* Someone else has meanwhile dropped the
@@ -1392,7 +1392,7 @@ btr_search_build_page_hash_index(
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
 	ut_ad(block->page.id().page_no() >= 3);
 
-	ahi_latch->rd_lock(SRW_LOCK_CALL);
+	ahi_latch->rd_lock(SRW_LOCK_CALL_ false);
 
 	const bool enabled = btr_search_enabled;
 	const bool rebuild = enabled && block->index
@@ -1505,7 +1505,7 @@ btr_search_build_page_hash_index(
 
 	btr_search_check_free_space_in_heap(index);
 
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 
 	if (!btr_search_enabled) {
 		goto exit_func;
@@ -1639,7 +1639,7 @@ drop_exit:
 		return;
 	}
 
-	ahi_latch->rd_lock(SRW_LOCK_CALL);
+	ahi_latch->rd_lock(SRW_LOCK_CALL_ false);
 
 	if (index->freed()) {
 		ahi_latch->rd_unlock();
@@ -1725,7 +1725,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 
 	auto part = btr_search_sys.get_part(*index);
 
-	part->latch.wr_lock(SRW_LOCK_CALL);
+	part->latch.wr_lock(SRW_LOCK_CALL_ false);
 	assert_block_ahi_valid(block);
 
 	if (block->index && btr_search_enabled) {
@@ -1784,7 +1784,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 	}
 
 	ut_a(cursor->index() == index);
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 
 	if (!block->index || !btr_search_enabled) {
 
@@ -1911,7 +1911,7 @@ drop:
 	} else {
 		if (left_side) {
 			locked = true;
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -1930,7 +1930,7 @@ drop:
 
 		if (!locked) {
 			locked = true;
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -1955,7 +1955,7 @@ check_next_rec:
 		if (!left_side) {
 			if (!locked) {
 				locked = true;
-				ahi_latch->wr_lock(SRW_LOCK_CALL);
+				ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 
 				if (!btr_search_enabled || !block->index) {
 					goto function_exit;
@@ -1975,7 +1975,7 @@ check_next_rec:
 	if (ins_fold != next_fold) {
 		if (!locked) {
 			locked = true;
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -2234,7 +2234,7 @@ bool btr_search_check_marked_free_index(const buf_block_t *block)
   const index_id_t index_id= btr_page_get_index_id(block->page.frame);
   auto part= btr_search_sys.get_part(index_id, block->page.id().space());
 
-  part->latch.rd_lock(SRW_LOCK_CALL);
+  part->latch.rd_lock(SRW_LOCK_CALL_ false);
 
   bool is_freed= block->index && block->index->freed();
 

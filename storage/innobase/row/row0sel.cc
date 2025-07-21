@@ -1191,7 +1191,7 @@ sel_set_rtr_rec_lock(
 	ut_ad(page_align(first_rec) == cur_block->page.frame);
 	ut_ad(match->valid);
 
-	match->block->page.lock.x_lock();
+	match->block->page.lock.x_lock(spin_control::skip_spin());
 retry:
 	cur_block = btr_pcur_get_block(pcur);
 	ut_ad(match->block->page.lock.have_x()

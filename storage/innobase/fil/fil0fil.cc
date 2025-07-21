@@ -927,7 +927,7 @@ bool fil_space_free(uint32_t id, bool x_latched) noexcept
 		}
 
 		if (!recv_recovery_is_on()) {
-			log_sys.latch.wr_lock(SRW_LOCK_CALL);
+			log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 
 			if (space->max_lsn) {
 				ut_d(space->max_lsn = 0);
@@ -1751,7 +1751,7 @@ void fil_close_tablespace(uint32_t id) noexcept
 	while (buf_flush_list_space(space));
 
 	space->x_unlock();
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 	if (space->max_lsn != 0) {
 		ut_d(space->max_lsn = 0);
 		fil_system.named_spaces.remove(*space);
@@ -1998,7 +1998,7 @@ fil_ibd_create(
 
 	mtr.start();
 	mtr.log_file_op(FILE_CREATE, space_id, path);
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 	auto lsn= mtr.commit_files();
 	log_sys.latch.wr_unlock();
 	mtr.flag_wr_unlock();

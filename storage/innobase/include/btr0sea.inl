@@ -87,7 +87,7 @@ btr_search_info_update(
 static inline void btr_search_x_lock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		btr_search_sys.parts[i].latch.wr_lock(SRW_LOCK_CALL);
+		btr_search_sys.parts[i].latch.wr_lock(SRW_LOCK_CALL_ false);
 	}
 }
 
@@ -103,7 +103,7 @@ static inline void btr_search_x_unlock_all()
 static inline void btr_search_s_lock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		btr_search_sys.parts[i].latch.rd_lock(SRW_LOCK_CALL);
+		btr_search_sys.parts[i].latch.rd_lock(SRW_LOCK_CALL_ false);
 	}
 }
 

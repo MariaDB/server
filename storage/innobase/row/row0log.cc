@@ -351,7 +351,7 @@ start_log:
 			index->lock.s_unlock();
 			dberr_t error= row_log_apply(
 				log->alter_trx, index, nullptr, nullptr);
-			index->lock.s_lock(SRW_LOCK_CALL);
+			index->lock.s_lock(SRW_LOCK_CALL_ true);
 			if (error != DB_SUCCESS) {
 				/* Mark all newly added indexes
 				as corrupted */
@@ -1444,7 +1444,7 @@ row_log_table_apply_convert_mrec(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			ut_ad(rec_offs_any_extern(offsets));
-			index->lock.x_lock(SRW_LOCK_CALL);
+			index->lock.x_lock(SRW_LOCK_CALL_ true);
 
 			data = btr_rec_copy_externally_stored_field(
 				mrec, offsets,
@@ -2750,7 +2750,7 @@ all_done:
 
 			mrec = NULL;
 process_next_block:
-			index->lock.x_lock(SRW_LOCK_CALL);
+			index->lock.x_lock(SRW_LOCK_CALL_ true);
 			has_index_lock = true;
 
 			index->online_log->head.bytes = 0;
@@ -2782,7 +2782,7 @@ interrupted:
 	error = DB_INTERRUPTED;
 func_exit:
 	if (!has_index_lock) {
-		index->lock.x_lock(SRW_LOCK_CALL);
+		index->lock.x_lock(SRW_LOCK_CALL_ true);
 	}
 
 	mem_heap_free(offsets_heap);
@@ -2824,7 +2824,7 @@ row_log_table_apply(
 		clust_index->online_log->n_rows = new_table->stat_n_rows;
 	}
 
-	clust_index->lock.x_lock(SRW_LOCK_CALL);
+	clust_index->lock.x_lock(SRW_LOCK_CALL_ true);
 
 	if (!clust_index->online_log) {
 		ut_ad(dict_index_get_online_status(clust_index)
@@ -3642,7 +3642,7 @@ all_done:
 
 			mrec = NULL;
 process_next_block:
-			index->lock.x_lock(SRW_LOCK_CALL);
+			index->lock.x_lock(SRW_LOCK_CALL_ true);
 			has_index_lock = true;
 
 			index->online_log->head.bytes = 0;
@@ -3674,7 +3674,7 @@ interrupted:
 	error = DB_INTERRUPTED;
 func_exit:
 	if (!has_index_lock) {
-		index->lock.x_lock(SRW_LOCK_CALL);
+		index->lock.x_lock(SRW_LOCK_CALL_ true);
 	}
 
 	switch (error) {
@@ -3730,7 +3730,7 @@ row_log_apply(
 
 	log_free_check();
 
-	index->lock.x_lock(SRW_LOCK_CALL);
+	index->lock.x_lock(SRW_LOCK_CALL_ true);
 
 	if (index->online_log && !index->table->corrupted) {
 		error = row_log_apply_ops(trx, index, &dup, stage);
@@ -3847,7 +3847,7 @@ static void row_log_mark_other_online_index_abort(dict_table_t *table)
         index->online_status <= ONLINE_INDEX_CREATION &&
         !index->is_corrupted())
     {
-      index->lock.x_lock(SRW_LOCK_CALL);
+      index->lock.x_lock(SRW_LOCK_CALL_ true);
       row_log_abort_sec(index);
       index->type|= DICT_CORRUPT;
       index->lock.x_unlock();
@@ -3855,7 +3855,7 @@ static void row_log_mark_other_online_index_abort(dict_table_t *table)
     }
   }
 
-  clust_index->lock.x_lock(SRW_LOCK_CALL);
+  clust_index->lock.x_lock(SRW_LOCK_CALL_ true);
   clust_index->online_log= nullptr;
   clust_index->lock.x_unlock();
   table->drop_aborted= TRUE;
@@ -3905,7 +3905,7 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
   mtr.commit();
 
   dict_table_t *table= clust_index->table;
-  clust_index->lock.s_lock(SRW_LOCK_CALL);
+  clust_index->lock.s_lock(SRW_LOCK_CALL_ true);
   if (clust_index->online_log &&
       !clust_index->online_log_is_dummy() &&
       clust_index->online_status <= ONLINE_INDEX_CREATION)
@@ -3936,7 +3936,7 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
     for (dict_index_t *index= clust_index;
          (index= dict_table_get_next_index(index)) != nullptr; )
     {
-      index->lock.s_lock(SRW_LOCK_CALL);
+      index->lock.s_lock(SRW_LOCK_CALL_ true);
       if (index->online_log &&
           index->online_status <= ONLINE_INDEX_CREATION &&
           !index->is_corrupted())
@@ -3970,7 +3970,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
 
   dict_table_t *table= clust_index->table;
 
-  clust_index->lock.s_lock(SRW_LOCK_CALL);
+  clust_index->lock.s_lock(SRW_LOCK_CALL_ true);
   bool table_rebuild=
     (clust_index->online_log
      && !clust_index->online_log_is_dummy()
@@ -4003,7 +4003,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
     rec_offs_make_valid(copy_rec, clust_index, true, offsets);
     mtr.commit();
 
-    clust_index->lock.s_lock(SRW_LOCK_CALL);
+    clust_index->lock.s_lock(SRW_LOCK_CALL_ true);
     /* Recheck whether clustered index online log has been cleared */
     if (clust_index->online_log)
     {
@@ -4052,7 +4052,7 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
   dict_index_t *index= dict_table_get_next_index(clust_index);
   while (index)
   {
-    index->lock.s_lock(SRW_LOCK_CALL);
+    index->lock.s_lock(SRW_LOCK_CALL_ true);
     if (index->online_log &&
         index->online_status <= ONLINE_INDEX_CREATION &&
         !index->is_corrupted())

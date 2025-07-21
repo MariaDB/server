@@ -418,7 +418,7 @@ rtr_pcur_getnext_from_path(
 			}
 
 			if (rw_latch == RW_NO_LATCH) {
-				block->page.lock.s_lock();
+				block->page.lock.s_lock(true);
 			}
 
 			lock_prdt_lock(block, &prdt, index, LOCK_S,
@@ -843,7 +843,7 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     }
 
     if (rw_latch == RW_NO_LATCH && height != 0)
-      block->page.lock.s_lock();
+      block->page.lock.s_lock(true);
 
     lock_prdt_lock(block, &prdt, index, LOCK_S, LOCK_PREDICATE, thr);
 
@@ -883,7 +883,7 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
       {
         ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK |
                                          MTR_MEMO_SX_LOCK));
-        block->page.lock.s_lock();
+        block->page.lock.s_lock(spin_control::skip_spin());
       }
 
       /* Store the parent cursor location */

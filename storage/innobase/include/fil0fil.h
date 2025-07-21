@@ -981,7 +981,7 @@ public:
   /** Acquire the allocation latch in exclusive mode */
   void x_lock() noexcept
   {
-    latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock(SRW_LOCK_CALL_ false);
     ut_ad(!latch_owner);
     latch_owner= pthread_self();
   }
@@ -993,7 +993,7 @@ public:
     latch.wr_unlock();
   }
   /** Acquire the allocation latch in shared mode */
-  void s_lock() noexcept { latch.rd_lock(SRW_LOCK_CALL); }
+  void s_lock() noexcept { latch.rd_lock(SRW_LOCK_CALL_ false); }
   /** Release the allocation latch from shared mode */
   void s_unlock() noexcept { latch.rd_unlock(); }
 

@@ -421,7 +421,7 @@ public:
   {
     if (!also_end_view)
       wait_FTS(true);
-    latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock(SRW_LOCK_CALL_ false);
     trx_sys.clone_oldest_view(&view);
     if (also_end_view)
       (end_view= view).
@@ -483,10 +483,10 @@ purge_sys_t::view_guard::view_guard(purge_sys_t::view_guard::guard latch) :
 {
   switch (latch) {
   case VIEW:
-    purge_sys.latch.rd_lock(SRW_LOCK_CALL);
+    purge_sys.latch.rd_lock(SRW_LOCK_CALL_ false);
     break;
   case END_VIEW:
-    purge_sys.end_latch.rd_lock();
+    purge_sys.end_latch.rd_lock(false);
     break;
   case PURGE:
     /* the access is within a purge batch; purge_coordinator_task
@@ -513,7 +513,7 @@ const ReadViewBase &purge_sys_t::view_guard::view() const
 { return latch == END_VIEW ? purge_sys.end_view : purge_sys.view; }
 
 purge_sys_t::end_view_guard::end_view_guard()
-{ purge_sys.end_latch.rd_lock(); }
+{ purge_sys.end_latch.rd_lock(false); }
 
 purge_sys_t::end_view_guard::~end_view_guard()
 { purge_sys.end_latch.rd_unlock(); }

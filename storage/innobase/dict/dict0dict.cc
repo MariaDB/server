@@ -959,7 +959,7 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexc
   if (latch_ex_wait_start.compare_exchange_strong
       (old, now, std::memory_order_relaxed, std::memory_order_relaxed))
   {
-    latch.wr_lock(SRW_LOCK_ARGS(file, line));
+    latch.wr_lock(SRW_LOCK_ARGS_(file, line) false);
     latch_ex_wait_start.store(0, std::memory_order_relaxed);
     return;
   }
@@ -978,7 +978,7 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexc
   if (waited > threshold / 4)
     ib::warn() << "A long wait (" << waited
                << " seconds) was observed for dict_sys.latch";
-  latch.wr_lock(SRW_LOCK_ARGS(file, line));
+  latch.wr_lock(SRW_LOCK_ARGS_(file, line) false);
 }
 
 #ifdef UNIV_PFS_RWLOCK
@@ -1308,7 +1308,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     return this;
   dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
 
-  table->autoinc_mutex.wr_lock();
+  table->autoinc_mutex.wr_lock(false);
   UT_LIST_REMOVE(table->indexes, this);
   UT_LIST_ADD_LAST(table->freed_indexes, this);
   dict_index_t *index= clone();
@@ -1923,7 +1923,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep) noexcept
 		table->fts = nullptr;
 	}
 
-	table->autoinc_mutex.wr_lock();
+	table->autoinc_mutex.wr_lock(false);
 
 	ulint freed = UT_LIST_GET_LEN(table->freed_indexes);
 
@@ -2143,7 +2143,7 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	if (index->n_ahi_pages()) {
-		table->autoinc_mutex.wr_lock();
+		table->autoinc_mutex.wr_lock(false);
 		index->set_freed();
 		UT_LIST_ADD_LAST(table->freed_indexes, index);
 		table->autoinc_mutex.wr_unlock();
@@ -4093,7 +4093,7 @@ dict_set_merge_threshold_list_debug(
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
-			index->lock.x_lock(SRW_LOCK_CALL);
+			index->lock.x_lock(SRW_LOCK_CALL_ true);
 			index->merge_threshold = merge_threshold_all
 				& ((1U << 6) - 1);
 			index->lock.x_unlock();

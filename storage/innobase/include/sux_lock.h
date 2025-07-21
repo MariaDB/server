@@ -23,6 +23,25 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # include <unordered_set>
 #endif
 
+class spin_control
+{
+  /** number of threads that are waiting for I/O while holding latches */
+  static std::atomic<unsigned> blocked;
+
+  /** whether the current thread incremented the blocked count */
+  const bool blocking;
+
+public:
+  spin_control(bool blocking) : blocking(blocking && !skip_spin())
+  { if (blocking) blocked.fetch_add(1, std::memory_order_relaxed); }
+  ~spin_control()
+  { if (blocking) blocked.fetch_sub(1, std::memory_order_relaxed); }
+
+  /** @return whether spin loops should be avoided */
+  static bool skip_spin() noexcept
+  { return blocked.load(std::memory_order_relaxed); }
+};
+
 /** A "fat" rw-lock that supports
 S (shared), U (update, or shared-exclusive), and X (exclusive) modes
 as well as recursive U and X latch acquisition
@@ -134,7 +153,7 @@ private:
   void s_lock_register()
   {
     const pthread_t id= pthread_self();
-    readers_lock.wr_lock();
+    readers_lock.wr_lock(false);
     auto r= readers.load(std::memory_order_relaxed);
     if (!r)
     {
@@ -171,7 +190,7 @@ public:
   {
     if (auto r= readers.load(std::memory_order_relaxed))
     {
-      readers_lock.wr_lock();
+      readers_lock.wr_lock(false);
       bool found= r->find(pthread_self()) != r->end();
       readers_lock.wr_unlock();
       return found;
@@ -183,21 +202,21 @@ public:
 #endif
 
   /** Acquire a shared lock */
-  inline void s_lock();
-  inline void s_lock(const char *file, unsigned line);
+  inline void s_lock(bool nospin);
+  inline void s_lock(const char *file, unsigned line, bool nospin);
   /** Acquire a shared lock, skipping any spin loop */
   inline void s_lock_nospin() noexcept;
   /** Acquire an update lock */
-  inline void u_lock();
-  inline void u_lock(const char *file, unsigned line);
+  inline void u_lock(bool nospin);
+  inline void u_lock(const char *file, unsigned line, bool nospin);
   /** Acquire an exclusive lock */
-  inline void x_lock(bool for_io= false);
-  inline void x_lock(const char *file, unsigned line);
+  inline void x_lock(bool nospin, bool for_io= false);
+  inline void x_lock(const char *file, unsigned line, bool nospin);
   /** Acquire a recursive exclusive lock */
   void x_lock_recursive() { writer_recurse<false>(); }
   /** Upgrade an update lock */
-  inline void u_x_upgrade();
-  inline void u_x_upgrade(const char *file, unsigned line);
+  inline void u_x_upgrade(bool nospin);
+  inline void u_x_upgrade(const char *file, unsigned line, bool nospin);
   /** @return whether a shared lock was upgraded to exclusive */
   bool s_x_upgrade_try()
   {
@@ -207,7 +226,7 @@ public:
       return false;
     claim_ownership();
     s_unlock();
-    lock.u_wr_upgrade();
+    lock.u_wr_upgrade(true);
     recursive= RECURSIVE_X;
     return true;
   }
@@ -218,7 +237,7 @@ public:
     if (s_x_upgrade_try())
       return true;
     s_unlock();
-    x_lock();
+    x_lock(true);
     return false;
   }
 
@@ -243,7 +262,7 @@ public:
 
   /** Acquire an exclusive lock or upgrade an update lock
   @return whether U locks were upgraded to X */
-  inline bool x_lock_upgraded();
+  inline bool x_lock_upgraded(bool nospin);
 
   /** @return whether a shared lock was acquired */
   bool s_lock_try()
@@ -269,7 +288,7 @@ public:
     const pthread_t id= pthread_self();
     auto r= readers.load(std::memory_order_relaxed);
     ut_ad(r);
-    readers_lock.wr_lock();
+    readers_lock.wr_lock(false);
     auto i= r->find(id);
     ut_ad(i != r->end());
     r->erase(i);
@@ -360,14 +379,15 @@ inline void sux_lock<ssux_lock>::u_lock(const char *file, unsigned line)
 }
 
 template<>
-inline void sux_lock<ssux_lock>::x_lock(const char *file, unsigned line)
+inline void sux_lock<ssux_lock>::x_lock(const char *file, unsigned line,
+                                        bool nospin)
 {
   pthread_t id= pthread_self();
   if (writer.load(std::memory_order_relaxed) == id)
     writer_recurse<false>();
   else
   {
-    lock.wr_lock(file, line);
+    lock.wr_lock(file, line, nospin);
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);
@@ -375,10 +395,11 @@ inline void sux_lock<ssux_lock>::x_lock(const char *file, unsigned line)
 }
 
 template<>
-inline void sux_lock<ssux_lock>::u_x_upgrade(const char *file, unsigned line)
+inline void sux_lock<ssux_lock>::u_x_upgrade(const char *file, unsigned line,
+                                             bool nospin)
 {
   ut_ad(have_u_not_x());
-  lock.u_wr_upgrade(file, line);
+  lock.u_wr_upgrade(file, line, nospin);
   recursive/= RECURSIVE_U;
 }
 #endif
@@ -392,38 +413,39 @@ template<> inline void index_lock::operator=(const sux_lock&)
 template<> inline void block_lock::s_lock_nospin() noexcept
 {
   ut_ad(!have_any());
-  lock.rd_lock_nospin();
+  lock.rd_lock(true);
   ut_d(s_lock_register());
 }
 
-template<typename ssux> inline void sux_lock<ssux>::s_lock()
+template<typename ssux> inline void sux_lock<ssux>::s_lock(bool nospin)
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  lock.rd_lock();
+  lock.rd_lock(nospin);
   ut_d(s_lock_register());
 }
 
 template<typename ssux>
-inline void sux_lock<ssux>::lock_shared() { s_lock(); }
+inline void sux_lock<ssux>::lock_shared() { s_lock(false); }
 template<typename ssux>
 inline void sux_lock<ssux>::unlock_shared() { s_unlock(); }
 
-template<typename ssux> inline void sux_lock<ssux>::u_lock()
+template<typename ssux> inline void sux_lock<ssux>::u_lock(bool nospin)
 {
   pthread_t id= pthread_self();
   if (writer.load(std::memory_order_relaxed) == id)
     writer_recurse<true>();
   else
   {
-    lock.u_lock();
+    lock.u_lock(nospin);
     ut_ad(!recursive);
     recursive= RECURSIVE_U;
     set_first_owner(id);
   }
 }
 
-template<typename ssux> inline void sux_lock<ssux>::x_lock(bool for_io)
+template<typename ssux>
+inline void sux_lock<ssux>::x_lock(bool nospin, bool for_io)
 {
   pthread_t id= pthread_self();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -433,21 +455,22 @@ template<typename ssux> inline void sux_lock<ssux>::x_lock(bool for_io)
   }
   else
   {
-    lock.wr_lock();
+    lock.wr_lock(nospin);
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(for_io ? FOR_IO : id);
   }
 }
 
-template<typename ssux> inline void sux_lock<ssux>::u_x_upgrade()
+template<typename ssux> inline void sux_lock<ssux>::u_x_upgrade(bool nospin)
 {
   ut_ad(have_u_not_x());
-  lock.u_wr_upgrade();
+  lock.u_wr_upgrade(nospin);
   recursive/= RECURSIVE_U;
 }
 
-template<typename ssux> inline bool sux_lock<ssux>::x_lock_upgraded()
+template<typename ssux>
+inline bool sux_lock<ssux>::x_lock_upgraded(bool nospin)
 {
   pthread_t id= pthread_self();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -460,13 +483,13 @@ template<typename ssux> inline bool sux_lock<ssux>::x_lock_upgraded()
       return false;
     }
     /* Upgrade the lock. */
-    lock.u_wr_upgrade();
+    lock.u_wr_upgrade(nospin);
     recursive/= RECURSIVE_U;
     return true;
   }
   else
   {
-    lock.wr_lock();
+    lock.wr_lock(nospin);
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);

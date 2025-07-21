@@ -1320,6 +1320,9 @@ public:
     FIX_ALSO_FREED= -1,
     /** Fetch, waiting for page read completion */
     FIX_WAIT_READ,
+    /** Fetch, waiting for page read completion;
+    the caller may be holding page or index latches */
+    FIX_WAIT_READ_BLOCKING,
     /** Fetch, but avoid any waits for */
     FIX_NOWAIT
   };
@@ -1330,7 +1333,7 @@ public:
   is accessible (it could be corrupted and have been evicted again).
   If the caller is holding other page latches so that waiting for this
   page latch could lead to lock order inversion (latching order violation),
-  the mode c=FIX_WAIT_READ must not be used.
+  the modes c=FIX_WAIT_READ or c=FIX_WAIT_READ_BLOCKING must not be used.
   @param id        page identifier
   @param err       error code (will only be assigned when returning nullptr)
   @param c         how to handle conflicts
@@ -1339,9 +1342,6 @@ public:
   @retval nullptr  if the undo page was corrupted or freed */
   buf_block_t *page_fix(const page_id_t id, dberr_t *err,
                         page_fix_conflicts c) noexcept;
-
-  buf_block_t *page_fix(const page_id_t id) noexcept
-  { return page_fix(id, nullptr, FIX_WAIT_READ); }
 
   /** Validate a block descriptor.
   @param b     block descriptor that may be invalid after shrink()

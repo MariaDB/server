@@ -5888,7 +5888,7 @@ static my_bool lock_validate_table_locks(void *el, void*)
 {
   rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
   lock_sys.assert_locked();
-  element->mutex.wr_lock();
+  element->mutex.wr_lock(false);
   if (element->trx)
   {
     check_trx_state(element->trx);
@@ -6115,7 +6115,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(void *el, void *a)
 {
   auto element= static_cast<rw_trx_hash_element_t*>(el);
   auto arg= static_cast<lock_rec_other_trx_holds_expl_arg*>(a);
-  element->mutex.wr_lock();
+  element->mutex.wr_lock(false);
   if (element->trx)
   {
     element->trx->mutex_lock();
@@ -6914,7 +6914,7 @@ static my_bool lock_table_locks_lookup(void *el, void *t)
   auto element= static_cast<rw_trx_hash_element_t*>(el);
   const dict_table_t *table= static_cast<const dict_table_t*>(t);
   lock_sys.assert_locked();
-  element->mutex.wr_lock();
+  element->mutex.wr_lock(false);
   if (element->trx)
   {
     element->trx->mutex_lock();

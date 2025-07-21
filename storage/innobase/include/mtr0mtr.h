@@ -258,8 +258,8 @@ struct mtr_t {
 #endif
     index_lock *lock)
   {
-    lock->s_lock(SRW_LOCK_ARGS(file, line));
     memo_push(lock, MTR_MEMO_S_LOCK);
+    lock->s_lock(SRW_LOCK_ARGS_(file, line) spin_control::skip_spin());
   }
 
   /** Acquire an exclusive rw-latch. */
@@ -269,8 +269,8 @@ struct mtr_t {
 #endif
     index_lock *lock)
   {
-    lock->x_lock(SRW_LOCK_ARGS(file, line));
     memo_push(lock, MTR_MEMO_X_LOCK);
+    lock->x_lock(SRW_LOCK_ARGS_(file, line) spin_control::skip_spin());
   }
 
   /** Acquire an update latch. */
@@ -280,8 +280,8 @@ struct mtr_t {
 #endif
     index_lock *lock)
   {
-    lock->u_lock(SRW_LOCK_ARGS(file, line));
     memo_push(lock, MTR_MEMO_SX_LOCK);
+    lock->u_lock(SRW_LOCK_ARGS_(file, line) spin_control::skip_spin());
   }
 
   /** Acquire an exclusive tablespace latch.

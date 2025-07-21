@@ -370,7 +370,7 @@ TRANSACTIONAL_INLINE inline ulint dict_index_t::n_ahi_pages() const
     return ref_count;
   }
 #endif
-  latch->rd_lock(SRW_LOCK_CALL);
+  latch->rd_lock(SRW_LOCK_CALL_ false);
   ulint ref_count= search_info->ref_count;
   latch->rd_unlock();
   return ref_count;

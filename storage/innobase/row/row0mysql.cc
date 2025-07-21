@@ -74,7 +74,7 @@ static void row_mysql_delay_if_needed() noexcept
   if (UNIV_UNLIKELY(delay != 0))
   {
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    log_sys.latch.rd_lock(SRW_LOCK_CALL_ false);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
     const lsn_t lsn= log_sys.get_flushed_lsn();

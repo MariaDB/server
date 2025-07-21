@@ -794,7 +794,7 @@ static rec_offs *btr_page_get_parent(rec_offs *offsets, mem_heap_t *heap,
           /* btr_cur_t::search_leaf(BTR_MODIFY_TREE) only U-latches the
           root page initially. */
           ut_ad(block->page.id().page_no() == index->page);
-          block->page.lock.u_x_upgrade();
+          block->page.lock.u_x_upgrade(spin_control::skip_spin());
           mtr->page_lock_upgrade(*block);
         }
         return offsets;

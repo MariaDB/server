@@ -2187,7 +2187,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
     return;
   }
 
-  block->page.lock.x_lock();
+  block->page.lock.x_lock(false);
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
     btr_search_drop_page_hash_index(block, false);
@@ -2453,7 +2453,7 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
   buf_relocate(b, &block->page);
 
   /* X-latch the block for the duration of the decompression. */
-  block->page.lock.x_lock();
+  block->page.lock.x_lock(true);
 
   buf_flush_relocate_on_flush_list(b, &block->page);
   mysql_mutex_unlock(&flush_list_mutex);
@@ -2568,6 +2568,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           continue;
         }
 
+        spin_control s{c == FIX_WAIT_READ_BLOCKING};
         b->read_wait(stats);
         b->lock.s_unlock();
       }
@@ -2904,25 +2905,28 @@ wait_for_unzip:
 	invalidate it (invoke buf_page_t::set_corrupt_id() and set the
 	state to FREED). Therefore, after acquiring the page latch we
 	must recheck the state. */
-
-	switch (rw_latch) {
-	case RW_NO_LATCH:
+	if (UNIV_UNLIKELY(rw_latch == RW_NO_LATCH)) {
 		mtr->memo_push(block, MTR_MEMO_BUF_FIX);
 		return block;
-	case RW_S_LATCH:
-		block->page.lock.s_lock();
-		break;
-	case RW_SX_LATCH:
-		block->page.lock.u_lock();
-		ut_ad(!block->page.is_io_fixed());
-		break;
-	default:
-		ut_ad(rw_latch == RW_X_LATCH);
-		if (block->page.lock.x_lock_upgraded()) {
-			ut_ad(block->page.id() == page_id);
-			block->unfix();
-			mtr->page_lock_upgrade(*block);
-			return block;
+	} else {
+		const bool nospin{spin_control::skip_spin()};
+
+		switch (rw_latch) {
+		case RW_S_LATCH:
+			block->page.lock.s_lock(nospin);
+			break;
+		case RW_SX_LATCH:
+			block->page.lock.u_lock(nospin);
+			ut_ad(!block->page.is_io_fixed());
+			break;
+		default:
+			ut_ad(rw_latch == RW_X_LATCH);
+			if (block->page.lock.x_lock_upgraded(nospin)) {
+				ut_ad(block->page.id() == page_id);
+				block->unfix();
+				mtr->page_lock_upgrade(*block);
+				return block;
+			}
 		}
 	}
 
@@ -2994,7 +2998,7 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
   }
   else if (block->page.lock.have_u_not_x())
   {
-    block->page.lock.u_x_upgrade();
+    block->page.lock.u_x_upgrade(spin_control::skip_spin());
     block->page.unfix();
     mtr->page_lock_upgrade(*block);
     ut_ad(modify_clock == block->modify_clock);
@@ -3125,7 +3129,7 @@ retry:
 #endif
         mysql_mutex_unlock(&buf_pool.mutex);
 
-        bpage->lock.x_lock();
+        bpage->lock.x_lock(true);
         const page_id_t id{bpage->id()};
         if (UNIV_UNLIKELY(id != page_id))
         {
@@ -3171,7 +3175,7 @@ retry:
 
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_relocate(bpage, &free_block->page);
-        free_block->page.lock.x_lock();
+        free_block->page.lock.x_lock(true);
         buf_flush_relocate_on_flush_list(bpage, &free_block->page);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -3219,7 +3223,7 @@ retry:
   bpage= &free_block->page;
 
   ut_ad(bpage->state() == buf_page_t::MEMORY);
-  bpage->lock.x_lock();
+  bpage->lock.x_lock(true);
 
   /* The block must be put to the LRU list */
   buf_LRU_add_block(bpage, false);

@@ -670,7 +670,7 @@ public:
   void mutex_lock()
   {
     ut_ad(!mutex_is_owner());
-    mutex.wr_lock();
+    mutex.wr_lock(false);
     assert(!mutex_owner.exchange(pthread_self(),
                                  std::memory_order_relaxed));
   }

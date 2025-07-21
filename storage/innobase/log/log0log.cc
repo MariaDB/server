@@ -508,7 +508,7 @@ void log_t::close_file(bool really_close) noexcept
 /** @return the current log sequence number (may be stale) */
 lsn_t log_get_lsn() noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   lsn_t lsn= log_sys.get_lsn();
   log_sys.latch.wr_unlock();
   return lsn;
@@ -527,7 +527,7 @@ static void log_resize_acquire() noexcept
            group_commit_lock::ACQUIRED);
   }
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 }
 
 /** Release the latches that protect the log. */
@@ -953,7 +953,7 @@ void log_t::persist(lsn_t lsn) noexcept
 ATTRIBUTE_NOINLINE
 static void log_write_persist(lsn_t lsn) noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   log_sys.persist(lsn);
   log_sys.latch.wr_unlock();
 }
@@ -1190,7 +1190,7 @@ repeat:
       group_commit_lock::ACQUIRED)
   {
     ut_ad(!recv_no_log_write || srv_operation != SRV_OPERATION_NORMAL);
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
     pending_write_lsn= write_lock.release(log_sys.writer());
   }
 
@@ -1254,7 +1254,7 @@ void log_t::clear_mmap() noexcept
 #ifdef HAVE_PMEM
   if (!is_opened())
   {
-    ut_d(latch.wr_lock(SRW_LOCK_CALL));
+    ut_d(latch.wr_lock(SRW_LOCK_CALL_ false));
     ut_ad(!resize_in_progress());
     ut_ad(get_lsn() == get_flushed_lsn(std::memory_order_relaxed));
     ut_d(latch.wr_unlock());
@@ -1312,7 +1312,7 @@ ATTRIBUTE_COLD static void log_checkpoint_margin() noexcept
 {
   while (log_sys.check_for_checkpoint())
   {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
     ut_ad(!recv_no_log_write);
 
     if (!log_sys.check_for_checkpoint())
@@ -1494,7 +1494,7 @@ wait_suspend_loop:
 			? SIZE_OF_FILE_CHECKPOINT + 8
 			: SIZE_OF_FILE_CHECKPOINT;
 
-		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 
 		lsn = log_sys.get_lsn();
 
@@ -1545,7 +1545,7 @@ log_print(
 /*======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 
 	const lsn_t lsn= log_sys.get_lsn();
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);

@@ -6017,7 +6017,7 @@ static bool innobase_instant_try(
 	/* Acquire the ahi latch to avoid a race condition
 	between ahi access and instant alter table */
 	srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 #endif /* BTR_CUR_HASH_ADAPT */
 	const bool metadata_changed = ctx->instant_column();
 #ifdef BTR_CUR_HASH_ADAPT
@@ -7312,7 +7312,7 @@ error_handling_drop_uncached_1:
 
 		if (ctx->online) {
 			/* Allocate a log for online table rebuild. */
-			clust_index->lock.x_lock(SRW_LOCK_CALL);
+			clust_index->lock.x_lock(SRW_LOCK_CALL_ true);
 			bool ok = row_log_allocate(
 				ctx->prebuilt->trx,
 				clust_index, ctx->new_table,
@@ -7393,7 +7393,7 @@ error_handling_drop_uncached:
 				/* No need to allocate a modification log. */
 				DBUG_ASSERT(!index->online_log);
 			} else {
-				index->lock.x_lock(SRW_LOCK_CALL);
+				index->lock.x_lock(SRW_LOCK_CALL_ true);
 
 				bool ok = row_log_allocate(
 					ctx->prebuilt->trx,
@@ -9082,7 +9082,7 @@ innobase_online_rebuild_log_free(
 {
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 	ut_ad(dict_sys.locked());
-	clust_index->lock.x_lock(SRW_LOCK_CALL);
+	clust_index->lock.x_lock(SRW_LOCK_CALL_ true);
 
 	if (clust_index->online_log) {
 		ut_ad(dict_index_get_online_status(clust_index)
@@ -9272,7 +9272,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
       const uint save_timeout= innodb_lock_wait_timeout;
       innodb_lock_wait_timeout= ~0U; /* infinite  */
       dict_index_t *old_clust_index= ctx->old_table->indexes.start;
-      old_clust_index->lock.x_lock(SRW_LOCK_CALL);
+      old_clust_index->lock.x_lock(SRW_LOCK_CALL_ true);
       old_clust_index->online_log= nullptr;
       old_clust_index->lock.x_unlock();
       if (fts_exist)
@@ -11557,7 +11557,7 @@ lock_fail:
 				ut_ad(!(index->type &
 					(DICT_FTS | DICT_SPATIAL)));
 
-				index->lock.x_lock(SRW_LOCK_CALL);
+				index->lock.x_lock(SRW_LOCK_CALL_ true);
 				if (!index->online_log) {
 					/* online log would've cleared
 					when we detect the error in
@@ -11597,7 +11597,7 @@ err_index:
 					m_prebuilt->trx, index, altered_table,
 					ctx->m_stage);
 
-				index->lock.x_lock(SRW_LOCK_CALL);
+				index->lock.x_lock(SRW_LOCK_CALL_ true);
 
 				if (error != DB_SUCCESS) {
 					goto err_index;

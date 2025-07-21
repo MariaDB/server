@@ -85,7 +85,7 @@ static void test_ssux_lock()
     {
       ssux.u_lock();
       assert(!critical);
-      ssux.u_wr_upgrade();
+      ssux.u_wr_upgrade(false);
       assert(!critical);
       critical= true;
       critical= false;

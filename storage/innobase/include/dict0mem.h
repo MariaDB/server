@@ -2108,13 +2108,13 @@ struct dict_table_t {
   }
   void lock_mutex_destroy() { lock_latch.destroy(); }
   /** Acquire exclusive lock_latch */
-  void lock_mutex_lock() { lock_latch.wr_lock(ut_d(SRW_LOCK_CALL)); }
+  void lock_mutex_lock() { lock_latch.wr_lock(ut_d(SRW_LOCK_CALL_) false); }
   /** Try to acquire exclusive lock_latch */
   bool lock_mutex_trylock() { return lock_latch.wr_lock_try(); }
   /** Release exclusive lock_latch */
   void lock_mutex_unlock() { lock_latch.wr_unlock(); }
   /** Acquire shared lock_latch */
-  void lock_shared_lock() { lock_latch.rd_lock(ut_d(SRW_LOCK_CALL)); }
+  void lock_shared_lock() { lock_latch.rd_lock(ut_d(SRW_LOCK_CALL_) false); }
   /** Release shared lock_latch */
   void lock_shared_unlock() { lock_latch.rd_unlock(); }
 

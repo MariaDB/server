@@ -3882,7 +3882,7 @@ static dberr_t fseg_inode_free(uint32_t page_no, uint16_t offset)
 
     mtr.start();
     mtr.x_lock_space(space);
-    iblock->page.lock.x_lock();
+    iblock->page.lock.x_lock(true);
     mtr.memo_push(iblock, MTR_MEMO_PAGE_X_FIX);
   }
   /* These are all leaked undo log segments. That means there is no
@@ -5657,7 +5657,7 @@ dberr_t IndexDefragmenter::defragment(SpaceDefragmenter *space_defrag) noexcept
   mtr_t mtr;
   mtr.start();
   dberr_t err= DB_SUCCESS;
-  m_index.lock.x_lock(SRW_LOCK_CALL);
+  m_index.lock.x_lock(SRW_LOCK_CALL_ true);
   fil_space_t *const space= fil_system.sys_space;
   mtr.x_lock_space(space);
   m_root= btr_root_block_get(&m_index, RW_S_LATCH, &mtr, &err);

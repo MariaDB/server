@@ -848,7 +848,7 @@ void PageBulk::latch()
 #ifdef BTR_CUR_HASH_ADAPT
   ut_ad(!m_block->index);
 #endif
-  m_block->page.lock.x_lock();
+  m_block->page.lock.x_lock(true);
   ut_ad(m_block->page.buf_fix_count());
   m_mtr.memo_push(m_block, MTR_MEMO_PAGE_X_FIX);
 

@@ -1457,7 +1457,7 @@ public:
   /** Unlock the data dictionary cache. */
   void unlock() noexcept { latch.wr_unlock(); }
   /** Acquire a shared lock on the dictionary cache. */
-  void freeze() noexcept { latch.rd_lock(); }
+  void freeze() noexcept { latch.rd_lock(false); }
   /** Release a shared lock on the dictionary cache. */
   void unfreeze() noexcept { latch.rd_unlock(); }
 #endif

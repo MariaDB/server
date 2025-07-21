@@ -907,7 +907,7 @@ func_exit:
 
 		page_zip_set_size(&bpage->zip, 0);
 
-		b->lock.x_lock();
+		b->lock.x_lock(true);
 		hash_lock.unlock();
 	} else if (!zip) {
 		hash_lock.unlock();

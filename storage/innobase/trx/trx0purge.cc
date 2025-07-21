@@ -153,7 +153,7 @@ TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
   else
 #endif
   {
-    latch.rd_lock(SRW_LOCK_CALL);
+    latch.rd_lock(SRW_LOCK_CALL_ false);
     purgeable= view.changes_visible(trx_id);
     latch.rd_unlock();
   }
@@ -302,9 +302,9 @@ static void trx_purge_free_segment(buf_block_t *rseg_hdr, buf_block_t *block,
     This does not matter when using multiple innodb_undo_tablespaces;
     innodb_undo_log_truncate=ON will be able to reclaim the space. */
     mtr.start();
-    rseg_hdr->page.lock.x_lock();
+    rseg_hdr->page.lock.x_lock(true);
     ut_ad(rseg_hdr->page.id() == rseg_hdr_id);
-    block->page.lock.x_lock();
+    block->page.lock.x_lock(true);
     ut_ad(block->page.id() == id);
     mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
     mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
@@ -522,7 +522,7 @@ skip_purge_free:
   rseg.history_size--;
   freed= true;
   mtr.start();
-  rseg_hdr->page.lock.x_lock();
+  rseg_hdr->page.lock.x_lock(true);
   ut_ad(rseg_hdr->page.id() == rseg.page_id());
   mtr.memo_push(rseg_hdr, MTR_MEMO_PAGE_X_FIX);
 
@@ -550,7 +550,7 @@ dberr_t purge_sys_t::iterator::free_history() const
     {
       ut_ad(rseg.is_persistent());
       log_free_check();
-      rseg.latch.wr_lock(SRW_LOCK_CALL);
+      rseg.latch.wr_lock(SRW_LOCK_CALL_ false);
       dberr_t err= free_history_rseg(rseg);
       rseg.latch.wr_unlock();
       if (err)
@@ -573,7 +573,7 @@ inline void trx_sys_t::undo_truncate_start(fil_space_t &space)
     if (rseg.space == &space)
     {
       /* Prevent a race with purge_sys_t::iterator::free_history_rseg() */
-      rseg.latch.rd_lock(SRW_LOCK_CALL);
+      rseg.latch.rd_lock(SRW_LOCK_CALL_ false);
       /* Once set, this rseg will not be allocated to subsequent
       transactions, but we will wait for existing active
       transactions to finish. */
@@ -788,10 +788,11 @@ buf_block_t *purge_sys_t::get_page(page_id_t id)
 
   if (!undo_page)
   {
-    undo_page= buf_pool.page_fix(id); // batch_cleanup() will unfix()
+    undo_page= buf_pool.page_fix(id, nullptr, buf_pool_t::FIX_WAIT_READ);
     if (!undo_page)
       pages.erase(id);
     else
+      /* batch_cleanup() will unfix() */
       h= undo_page;
   }
 

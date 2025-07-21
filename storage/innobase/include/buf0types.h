@@ -212,9 +212,9 @@ class page_hash_latch
 {
   srw_spin_lock_low lk;
 public:
-  void lock_shared() noexcept { lk.rd_lock(); }
+  void lock_shared() noexcept { lk.rd_lock(false); }
   void unlock_shared() noexcept { lk.rd_unlock(); }
-  void lock() noexcept { lk.wr_lock(); }
+  void lock() noexcept { lk.wr_lock(false); }
   void unlock() noexcept { lk.wr_unlock(); }
   bool is_write_locked() const noexcept { return lk.is_write_locked(); }
   bool is_locked() const noexcept { return lk.is_locked(); }
@@ -226,9 +226,9 @@ class page_hash_latch
 {
   srw_spin_mutex lk;
 public:
-  void lock_shared() noexcept { lock(); }
+  void lock_shared() noexcept { lock(false); }
   void unlock_shared() noexcept { unlock(); }
-  void lock() noexcept { lk.wr_lock(); }
+  void lock() noexcept { lk.wr_lock(false); }
   void unlock() noexcept { lk.wr_unlock(); }
   bool is_locked() const noexcept { return lk.is_locked(); }
   bool is_write_locked() const noexcept { return is_locked(); }

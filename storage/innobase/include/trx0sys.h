@@ -509,7 +509,7 @@ class rw_trx_hash_t
   {
     rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
     debug_iterator_arg *arg= static_cast<debug_iterator_arg*>(a);
-    element->mutex.wr_lock();
+    element->mutex.wr_lock(false);
     if (element->trx)
       validate_element(element->trx);
     element->mutex.wr_unlock();
@@ -619,7 +619,7 @@ public:
       If the element was removed before the mutex acquisition, element->trx
       will be equal to nullptr. */
       DEBUG_SYNC_C("before_trx_hash_find_element_mutex_enter");
-      element->mutex.wr_lock();
+      element->mutex.wr_lock(false);
       /* element_trx can't point to reused object now. If transaction was
       deregistered before element->mutex acquisition, element->trx is nullptr.
       It can't be deregistered while element->mutex is held. */
@@ -688,7 +688,7 @@ public:
   void erase(trx_t *trx)
   {
     ut_d(validate_element(trx));
-    trx->rw_trx_hash_element->mutex.wr_lock();
+    trx->rw_trx_hash_element->mutex.wr_lock(false);
     trx->rw_trx_hash_element->trx= nullptr;
     trx->rw_trx_hash_element->mutex.wr_unlock();
     int res= lf_hash_delete(&hash, get_pins(trx),

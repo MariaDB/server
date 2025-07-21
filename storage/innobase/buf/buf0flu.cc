@@ -1861,7 +1861,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
     if (!log_write_through)
       ut_a(log.flush());
-    latch.wr_lock(SRW_LOCK_CALL);
+    latch.wr_lock(SRW_LOCK_CALL_ false);
     ut_ad(checkpoint_pending);
     checkpoint_pending= false;
     resizing= resize_lsn.load(std::memory_order_relaxed);
@@ -2013,7 +2013,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   ut_ad(flush_lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
   log_sys.latch.wr_unlock();
   log_write_up_to(flush_lsn, true);
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   if (log_sys.last_checkpoint_lsn >= oldest_lsn)
     goto do_nothing;
 
@@ -2053,7 +2053,7 @@ static bool log_checkpoint() noexcept
 
   fil_flush_file_spaces();
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   const lsn_t end_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
@@ -2239,7 +2239,7 @@ static void buf_flush_sync_for_checkpoint(lsn_t lsn) noexcept
   os_aio_wait_until_no_pending_writes(false);
   fil_flush_file_spaces();
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   const lsn_t newest_lsn= log_sys.get_lsn();
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_t measure= buf_pool.get_oldest_modification(0);
@@ -2838,7 +2838,7 @@ void buf_flush_sync() noexcept
 
   thd_wait_begin(nullptr, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 
   for (lsn_t lsn= log_sys.get_lsn();;)
   {
@@ -2850,7 +2850,7 @@ void buf_flush_sync() noexcept
       my_cond_wait(&buf_pool.done_flush_list,
                    &buf_pool.flush_list_mutex.m_mutex);
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
     lsn_t new_lsn= log_sys.get_lsn();
     if (lsn == new_lsn)
       break;

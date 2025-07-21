@@ -108,7 +108,7 @@ private:
 #endif
 
   /** Wait until the mutex has been acquired */
-  void wait_and_lock() noexcept;
+  void wait_and_lock(bool nospin) noexcept;
   /** Wait for lock!=lk */
   inline void wait(uint32_t lk) noexcept;
   /** Wake up one wait() thread */
@@ -149,7 +149,8 @@ public:
                                         std::memory_order_relaxed);
   }
 
-  void wr_lock() noexcept { if (!wr_lock_try()) wait_and_lock(); }
+  void wr_lock(bool nospin) noexcept
+  { if (!wr_lock_try()) wait_and_lock(nospin); }
   void wr_unlock() noexcept
   {
     const uint32_t lk=
@@ -199,7 +200,15 @@ class ssux_lock_impl
   inline void wait(uint32_t lk) noexcept;
 
   /** Wait for readers!=lk|WRITER */
-  void wr_wait(uint32_t lk) noexcept;
+  void wr_wait_nospin(uint32_t lk) noexcept;
+  void wr_wait_spin(uint32_t lk) noexcept;
+  void wr_wait(uint32_t lk, bool nospin) noexcept
+  {
+    if (spinloop && !nospin)
+      wr_wait_spin(lk);
+    else
+      wr_wait_nospin(lk);
+  }
   /** Wake up wait() on the last rd_unlock() */
   void wake() noexcept;
 public:
@@ -264,14 +273,11 @@ public:
     return false;
   }
 
-  inline void rd_lock() noexcept;
-  void u_lock() noexcept
+  void rd_lock(bool nospin) noexcept;
+  void u_lock(bool nospin) noexcept { writer.wr_lock(nospin); }
+  void wr_lock(bool nospin) noexcept
   {
-    writer.wr_lock();
-  }
-  void wr_lock() noexcept
-  {
-    writer.wr_lock();
+    writer.wr_lock(nospin);
 #if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
     /* On IA-32 and AMD64, a fetch_XXX() that needs to return the
     previous value of the word state can only be implemented
@@ -283,21 +289,21 @@ public:
     fetch_add() or fetch_sub() is equivalent. */
     static_assert(WRITER == 1U << 31, "compatibility");
     if (uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire))
-      wr_wait(lk);
+      wr_wait(lk, nospin);
 #else
     if (uint32_t lk= readers.fetch_or(WRITER, std::memory_order_acquire))
-      wr_wait(lk);
+      wr_wait(lk, nospin);
 #endif
   }
 
   bool rd_u_upgrade_try() noexcept { return writer.wr_lock_try(); }
 
-  void u_wr_upgrade() noexcept
+  void u_wr_upgrade(bool nospin) noexcept
   {
     DBUG_ASSERT(writer.is_locked());
     uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire);
     if (lk)
-      wr_wait(lk);
+      wr_wait(lk, nospin);
   }
   void wr_u_downgrade() noexcept
   {
@@ -347,10 +353,8 @@ public:
   void unlock() noexcept { wr_unlock(); }
 };
 
-template<> inline void ssux_lock_impl<false>::rd_lock() noexcept
+template<> inline void ssux_lock_impl<false>::rd_lock(bool) noexcept
 { rd_lock_nospin(); }
-template<> inline void ssux_lock_impl<true>::rd_lock() noexcept
-{ if (!rd_lock_try()) rd_lock_spin(); }
 
 #if defined _WIN32 || defined SUX_LOCK_GENERIC
 /** Slim read-write lock */
@@ -425,13 +429,17 @@ typedef ssux_lock_impl<true> srw_spin_lock_low;
 #ifndef UNIV_PFS_RWLOCK
 # define SRW_LOCK_INIT(key) init()
 # define SRW_LOCK_ARGS(file, line) /* nothing */
+# define SRW_LOCK_ARGS_(file, line) /* nothing */
 # define SRW_LOCK_CALL /* nothing */
+# define SRW_LOCK_CALL_ /* nothing */
 typedef srw_lock_low srw_lock;
 typedef srw_spin_lock_low srw_spin_lock;
 #else
 # define SRW_LOCK_INIT(key) init(key)
 # define SRW_LOCK_ARGS(file, line) file, line
+# define SRW_LOCK_ARGS_(file, line) file, line,
 # define SRW_LOCK_CALL __FILE__, __LINE__
+# define SRW_LOCK_CALL_ __FILE__, __LINE__,
 
 /** Slim shared-update-exclusive lock with PERFORMANCE_SCHEMA instrumentation */
 class ssux_lock
@@ -439,10 +447,14 @@ class ssux_lock
   PSI_rwlock *pfs_psi;
   ssux_lock_impl<true> lock;
 
-  ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line) noexcept;
-  ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line) noexcept;
-  ATTRIBUTE_NOINLINE void psi_u_lock(const char *file, unsigned line) noexcept;
-  ATTRIBUTE_NOINLINE void psi_u_wr_upgrade(const char *file, unsigned line) noexcept;
+  ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line,
+                                      bool nospin) noexcept;
+  ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line,
+                                      bool nospin) noexcept;
+  ATTRIBUTE_NOINLINE void psi_u_lock(const char *file, unsigned line,
+                                     bool nospin) noexcept;
+  ATTRIBUTE_NOINLINE void psi_u_wr_upgrade(const char *file, unsigned line,
+                                           bool nospin) noexcept;
 public:
   void init(mysql_pfs_key_t key) noexcept
   {
@@ -497,12 +509,12 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
-  void u_wr_upgrade(const char *file, unsigned line) noexcept
+  void u_wr_upgrade(const char *file, unsigned line, bool nospin) noexcept
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_u_wr_upgrade(file, line);
+      psi_u_wr_upgrade(file, line, nospin);
     else
-      lock.u_wr_upgrade();
+      lock.u_wr_upgrade(nospin);
   }
   bool rd_lock_try() noexcept { return lock.rd_lock_try(); }
   bool u_lock_try() noexcept { return lock.u_lock_try(); }
@@ -612,13 +624,13 @@ public:
 #endif
 
   /** Acquire an exclusive lock */
-  void wr_lock(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept;
+  void wr_lock(SRW_LOCK_ARGS_(const char *file, unsigned line) bool) noexcept;
   /** @return whether an exclusive lock was acquired */
   bool wr_lock_try() noexcept;
   /** Release after wr_lock() */
   void wr_unlock() noexcept;
   /** Acquire a shared lock */
-  void rd_lock(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept;
+  void rd_lock(SRW_LOCK_ARGS_(const char *file, unsigned line) bool) noexcept;
   /** @return whether a shared lock was acquired */
   bool rd_lock_try() noexcept;
   /** Release after rd_lock() */

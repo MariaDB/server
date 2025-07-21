@@ -991,6 +991,7 @@ static int btr_latch_prev(rw_lock_type_t rw_latch,
   buf_block_t *prev= buf_pool.page_fix(page_id, err, buf_pool_t::FIX_NOWAIT);
   if (UNIV_UNLIKELY(!prev))
     return 0;
+  bool nospin= false;
   if (prev == reinterpret_cast<buf_block_t*>(-1))
   {
     /* The block existed in buf_pool.page_hash, but not in a state that is
@@ -1005,15 +1006,18 @@ static int btr_latch_prev(rw_lock_type_t rw_latch,
     else
       block->page.lock.x_unlock();
 
-    prev= buf_pool.page_fix(page_id, err, buf_pool_t::FIX_WAIT_READ);
+    prev= buf_pool.page_fix(page_id, err, mtr->get_savepoint() > 1
+                            ? buf_pool_t::FIX_WAIT_READ_BLOCKING
+                            : buf_pool_t::FIX_WAIT_READ);
 
+    nospin= spin_control::skip_spin();
     if (!prev)
     {
       ut_ad(*err != DB_SUCCESS);
       if (rw_latch == RW_S_LATCH)
-        block->page.lock.s_lock();
+        block->page.lock.s_lock(nospin);
       else
-        block->page.lock.x_lock();
+        block->page.lock.x_lock(nospin);
       return 0;
     }
     else if (rw_latch == RW_S_LATCH)
@@ -1031,19 +1035,20 @@ static int btr_latch_prev(rw_lock_type_t rw_latch,
     mtr->memo_push(prev, mtr_memo_type_t(rw_latch));
   else
   {
+    nospin= spin_control::skip_spin();
     if (rw_latch == RW_S_LATCH)
     {
       block->page.lock.s_unlock();
     wait_for_s:
-      prev->page.lock.s_lock();
-      block->page.lock.s_lock();
+      prev->page.lock.s_lock(nospin);
+      block->page.lock.s_lock(nospin);
     }
     else
     {
       block->page.lock.x_unlock();
     wait_for_x:
-      prev->page.lock.x_lock();
-      block->page.lock.x_lock();
+      prev->page.lock.x_lock(nospin);
+      block->page.lock.x_lock(nospin);
     }
 
     ut_ad(block == mtr->at_savepoint(mtr->get_savepoint() - 1));
@@ -1271,7 +1276,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
           if (!block->page.lock.s_x_upgrade_try())
           {
             block->page.lock.s_unlock();
-            block->page.lock.x_lock();
+            block->page.lock.x_lock(true);
             /* Dropping the index tree (and freeing the root page)
             should be impossible while we hold index()->lock. */
             ut_ad(!block->page.is_freed());
@@ -1300,7 +1305,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
         static_assert(int{BTR_MODIFY_ROOT_AND_LEAF} == int{RW_SX_LATCH}, "");
         rw_latch= RW_X_LATCH;
         mtr->lock_register(block_savepoint, MTR_MEMO_PAGE_X_FIX);
-        block->page.lock.u_x_upgrade();
+        block->page.lock.u_x_upgrade(spin_control::skip_spin());
         break;
       case RW_X_LATCH:
         if (latch_mode == BTR_MODIFY_TREE)
@@ -1601,7 +1606,7 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
     return;
   ut_ad(slot.type == MTR_MEMO_SX_LOCK);
   index_lock *lock= static_cast<index_lock*>(slot.object);
-  lock->u_x_upgrade(SRW_LOCK_CALL);
+  lock->u_x_upgrade(SRW_LOCK_CALL_ spin_control::skip_spin());
   slot.type= MTR_MEMO_X_LOCK;
 }
 
@@ -3278,7 +3283,7 @@ btr_cur_update_in_place(
 				btr_search_update_hash_on_delete(cursor);
 			}
 
-			ahi_latch->wr_lock(SRW_LOCK_CALL);
+			ahi_latch->wr_lock(SRW_LOCK_CALL_ false);
 		}
 
 		assert_block_ahi_valid(block);
@@ -5934,7 +5939,7 @@ btr_store_big_rec_extern_fields(
 			mtr.set_log_mode_sub(*btr_mtr);
 
 			rec_block->page.fix();
-			rec_block->page.lock.x_lock();
+			rec_block->page.lock.x_lock(true);
 
 			mtr.memo_push(rec_block, MTR_MEMO_PAGE_X_FIX);
 #ifdef BTR_CUR_HASH_ADAPT
@@ -6308,7 +6313,7 @@ skip_free:
 		exclusively latched by local_mtr. To satisfy some design
 		constraints, we must recursively latch it in mtr as well. */
 		block->fix();
-		block->page.lock.x_lock();
+		block->page.lock.x_lock(true);
 
 		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 #ifdef BTR_CUR_HASH_ADAPT

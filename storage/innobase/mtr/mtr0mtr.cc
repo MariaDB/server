@@ -252,7 +252,7 @@ static void insert_imported(buf_block_t *block)
 {
   if (block->page.oldest_modification() <= 1)
   {
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
     /* For unlogged mtrs (MTR_LOG_NO_REDO), we use the current system LSN. The
     mtr that generated the LSN is either already committed or in mtr_t::commit.
     Shared latch and relaxed atomics should be fine here as it is guaranteed
@@ -549,7 +549,7 @@ void mtr_t::commit_shrink(fil_space_t &space, uint32_t size)
 
   log_write_and_flush_prepare();
   m_latch_ex= true;
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 
   const lsn_t start_lsn= do_write().first;
   ut_d(m_log.erase());
@@ -664,7 +664,7 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   log_write_and_flush_prepare();
 
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
 
   size_t size= m_log.size() + 5;
 
@@ -887,7 +887,7 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
     if (!late)
     {
       /* Wait for all threads to back off. */
-      latch.wr_lock(SRW_LOCK_CALL);
+      latch.wr_lock(SRW_LOCK_CALL_ false);
       goto got_ex;
     }
 
@@ -938,13 +938,13 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool late, bool ex) noexcept
     log_write_up_to(lsn, false);
     if (ex)
     {
-      latch.wr_lock(SRW_LOCK_CALL);
+      latch.wr_lock(SRW_LOCK_CALL_ false);
       return;
     }
   }
 
 done:
-  latch.rd_lock(SRW_LOCK_CALL);
+  latch.rd_lock(SRW_LOCK_CALL_ false);
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -1092,7 +1092,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   }
 
   if (!m_latch_ex)
-    log_sys.latch.rd_lock(SRW_LOCK_CALL);
+    log_sys.latch.rd_lock(SRW_LOCK_CALL_ false);
 
   if (UNIV_UNLIKELY(m_user_space && !m_user_space->max_lsn &&
                     !srv_is_undo_tablespace((m_user_space->id))))
@@ -1101,7 +1101,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
     {
       m_latch_ex= true;
       log_sys.latch.rd_unlock();
-      log_sys.latch.wr_lock(SRW_LOCK_CALL);
+      log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
       if (UNIV_UNLIKELY(m_user_space->max_lsn != 0))
         goto func_exit;
     }
@@ -1126,7 +1126,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     if (!resize_flush_buf)
     {
       ut_ad(is_mmap());
-      resize_wrap_mutex.wr_lock();
+      resize_wrap_mutex.wr_lock(false);
       const size_t resize_capacity{resize_target - START_OFFSET};
       {
         const lsn_t resizing{resize_in_progress()};
@@ -1373,36 +1373,38 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
   ut_d(const auto state= block->page.state());
   ut_ad(state > buf_page_t::FREED);
   ut_ad(state > buf_page_t::WRITE_FIX || state < buf_page_t::READ_FIX);
-  switch (rw_latch) {
-  case RW_NO_LATCH:
+  if (rw_latch == RW_NO_LATCH)
     fix_type= MTR_MEMO_BUF_FIX;
-    goto done;
-  case RW_S_LATCH:
-    fix_type= MTR_MEMO_PAGE_S_FIX;
-    block->page.lock.s_lock();
-    break;
-  case RW_SX_LATCH:
-    fix_type= MTR_MEMO_PAGE_SX_FIX;
-    block->page.lock.u_lock();
-    ut_ad(!block->page.is_io_fixed());
-    break;
+  else
+  {
+    const bool nospin{spin_control::skip_spin()};
+    switch (rw_latch) {
+    case RW_S_LATCH:
+      fix_type= MTR_MEMO_PAGE_S_FIX;
+      block->page.lock.s_lock(nospin);
+      break;
+    case RW_SX_LATCH:
+      fix_type= MTR_MEMO_PAGE_SX_FIX;
+      block->page.lock.u_lock(nospin);
+      ut_ad(!block->page.is_io_fixed());
+      break;
   default:
-    ut_ad(rw_latch == RW_X_LATCH);
-    fix_type= MTR_MEMO_PAGE_X_FIX;
-    if (block->page.lock.x_lock_upgraded())
-    {
-      block->unfix();
-      page_lock_upgrade(*block);
-      return;
+      ut_ad(rw_latch == RW_X_LATCH);
+      fix_type= MTR_MEMO_PAGE_X_FIX;
+      if (block->page.lock.x_lock_upgraded(nospin))
+      {
+        block->unfix();
+        page_lock_upgrade(*block);
+        return;
+      }
+      ut_ad(!block->page.is_io_fixed());
     }
-    ut_ad(!block->page.is_io_fixed());
-  }
 
 #ifdef BTR_CUR_HASH_ADAPT
-  btr_search_drop_page_hash_index(block, true);
+    btr_search_drop_page_hash_index(block, true);
 #endif
+  }
 
-done:
   ut_ad(state < buf_page_t::UNFIXED ||
         page_id_t(page_get_space_id(block->page.frame),
                   page_get_page_no(block->page.frame)) == block->page.id());
@@ -1423,19 +1425,21 @@ void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
   static_assert(int{MTR_MEMO_PAGE_SX_FIX} == int{RW_SX_LATCH}, "");
   slot.type= mtr_memo_type_t(rw_latch);
 
+  const bool nospin{spin_control::skip_spin()};
+
   switch (rw_latch) {
   default:
     ut_ad("invalid state" == 0);
     break;
   case RW_S_LATCH:
-    block->page.lock.s_lock();
+    block->page.lock.s_lock(nospin);
     break;
   case RW_SX_LATCH:
-    block->page.lock.u_lock();
+    block->page.lock.u_lock(nospin);
     ut_ad(!block->page.is_io_fixed());
     break;
   case RW_X_LATCH:
-    block->page.lock.x_lock();
+    block->page.lock.x_lock(nospin);
     ut_ad(!block->page.is_io_fixed());
   }
 
@@ -1671,14 +1675,14 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       }
     }
     else if (slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX) &&
-               block->page.id() == id)
+             block->page.id() == id)
     {
       ut_ad(!block->page.is_freed());
       ut_ad(!freed);
       freed= block;
       if (!(slot.type & MTR_MEMO_PAGE_X_FIX))
       {
-        ut_d(bool upgraded=) block->page.lock.x_lock_upgraded();
+        ut_d(bool upgraded=) block->page.lock.x_lock_upgraded(true);
         ut_ad(upgraded);
       }
       if (id.space() >= SRV_TMP_SPACE_ID)

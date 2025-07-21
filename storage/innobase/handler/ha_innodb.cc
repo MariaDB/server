@@ -238,7 +238,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
     const lsn_t lsn= log_sys.get_lsn();
@@ -4727,7 +4727,7 @@ checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
 static void innodb_log_flush_request(void *cookie) noexcept
 {
-  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL_ false);
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
   /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
   const lsn_t lsn= log_sys.get_lsn();
@@ -5710,7 +5710,7 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
 {
   ut_ad(!table->is_temporary());
   const unsigned col_no= innodb_col_no(&field);
-  table->autoinc_mutex.wr_lock();
+  table->autoinc_mutex.wr_lock(false);
   table->persistent_autoinc=
     uint16_t(dict_table_get_nth_col_pos(table, col_no, nullptr) + 1) &
     dict_index_t::MAX_N_FIELDS;
@@ -7658,7 +7658,7 @@ ha_innobase::innobase_lock_autoinc(void)
 	switch (innobase_autoinc_lock_mode) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
-		m_prebuilt->table->autoinc_mutex.wr_lock();
+		m_prebuilt->table->autoinc_mutex.wr_lock(false);
 		break;
 
 	case AUTOINC_NEW_STYLE_LOCKING:
@@ -7672,7 +7672,7 @@ ha_innobase::innobase_lock_autoinc(void)
 		case SQLCOM_REPLACE:
 		case SQLCOM_END: // RBR event
 			/* Acquire the AUTOINC mutex. */
-			m_prebuilt->table->autoinc_mutex.wr_lock();
+			m_prebuilt->table->autoinc_mutex.wr_lock(false);
 			/* We need to check that another transaction isn't
 			already holding the AUTOINC lock on the table. */
 			if (!m_prebuilt->table->n_waiting_or_granted_auto_inc_locks) {
@@ -7691,7 +7691,7 @@ ha_innobase::innobase_lock_autoinc(void)
 		if (error == DB_SUCCESS) {
 
 			/* Acquire the AUTOINC mutex. */
-			m_prebuilt->table->autoinc_mutex.wr_lock();
+			m_prebuilt->table->autoinc_mutex.wr_lock(false);
 		}
 		break;
 
@@ -11993,7 +11993,7 @@ innobase_parse_hint_from_comment(
 
 			/* x-lock index is needed to exclude concurrent
 			pessimistic tree operations */
-			index->lock.x_lock(SRW_LOCK_CALL);
+			index->lock.x_lock(SRW_LOCK_CALL_ true);
 			index->merge_threshold = merge_threshold_table
 				& ((1U << 6) - 1);
 			index->lock.x_unlock();
@@ -12013,7 +12013,7 @@ innobase_parse_hint_from_comment(
 
 				/* x-lock index is needed to exclude concurrent
 				pessimistic tree operations */
-				index->lock.x_lock(SRW_LOCK_CALL);
+				index->lock.x_lock(SRW_LOCK_CALL_ true);
 				index->merge_threshold
 					= merge_threshold_index[i]
 					& ((1U << 6) - 1);
@@ -13268,7 +13268,7 @@ void create_table_info_t::create_table_update_dict(dict_table_t *table,
     if (autoinc == 0)
       autoinc= 1;
 
-    table->autoinc_mutex.wr_lock();
+    table->autoinc_mutex.wr_lock(false);
     dict_table_autoinc_initialize(table, autoinc);
 
     if (!table->is_temporary())
@@ -16801,7 +16801,7 @@ ha_innobase::innobase_peek_autoinc(void)
 
 	innodb_table = m_prebuilt->table;
 
-	innodb_table->autoinc_mutex.wr_lock();
+	innodb_table->autoinc_mutex.wr_lock(false);
 
 	auto_inc = dict_table_autoinc_read(innodb_table);
 

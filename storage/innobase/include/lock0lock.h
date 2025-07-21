@@ -654,7 +654,7 @@ class lock_sys_t
     /** Try to acquire a lock */
     bool try_acquire() { return lock.wr_lock_try(); }
     /** Acquire a lock */
-    void acquire() { lock.wr_lock(); }
+    void acquire() { lock.wr_lock(false); }
     /** Release a lock */
     void release() { lock.wr_unlock(); }
     /** @return whether any lock may be held by any thread */
@@ -795,7 +795,7 @@ public:
   void wr_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
-    latch.wr_lock();
+    latch.wr_lock(false);
   }
   /** Release exclusive lock_sys.latch */
   void wr_unlock() noexcept { latch.wr_unlock(); }
@@ -803,7 +803,7 @@ public:
   void rd_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
-    latch.rd_lock();
+    latch.rd_lock(false);
   }
   /** Release shared lock_sys.latch */
   void rd_unlock() noexcept { latch.rd_unlock(); }
