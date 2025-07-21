@@ -14782,7 +14782,7 @@ ha_innobase::info_low(
 	char		path[FN_REFLEN];
 	os_file_stat_t	stat_info;
 
-	DBUG_ENTER("info");
+	DBUG_ENTER("ha_innobase::info");
 
 	DEBUG_SYNC_C("ha_innobase_info_low");
 

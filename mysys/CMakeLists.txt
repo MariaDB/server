@@ -134,7 +134,7 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       ENDIF()
       SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32_arm64.c PROPERTIES
-        COMPILE_FLAGS "-march=armv8-a+crc+crypto")
+        COMPILE_FLAGS "-march=armv8-a+crc+crypto -Wno-unused-function")
     ENDIF()
   ENDIF()
 ENDIF()
