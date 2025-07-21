@@ -1461,7 +1461,7 @@ int mhnsw_read_next(TABLE *table)
       result->found.links[i]= node;
     }
     ctx->release(false, table->s);      // release shared ctx
-    result->ctx= trx;                   // replace it with trx
+    result->ctx= trx->dup(false);       // replace it with trx
     result->ctx_version= trx->version;
     std::swap(trx, ctx);        // free shared ctx in this scope, keep trx
   }
