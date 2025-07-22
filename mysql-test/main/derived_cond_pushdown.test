@@ -4315,3 +4315,20 @@ drop view v1,v2;
 drop table t1,t2;
 
 --echo # End of 10.7 tests
+
+--echo #
+--echo # MDEV-29360 Crash when pushing condition with always false IS NULL
+--echo #   into derived contains constant TRUE/FALSE as subformula
+--echo #
+
+CREATE TABLE t1 (id int NOT NULL);
+INSERT INTO t1 VALUES (0),(1),(3);
+CREATE TABLE t2 SELECT * FROM t1;
+CREATE TABLE t3 SELECT * FROM t1;
+
+SELECT * FROM (SELECT id  FROM t1 GROUP BY id) dt1, (SELECT id FROM t2) dt2, t3
+  WHERE dt2.id = t3.id AND dt1.id BETWEEN 0 AND (dt2.id IS NULL);
+
+DROP TABLE t1,t2,t3;
+
+--echo # End of 10.11 tests
