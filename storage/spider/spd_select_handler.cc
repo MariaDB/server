@@ -208,9 +208,6 @@ free_table_holder:
 
 int spider_select_handler::init_scan()
 {
-  /*
-    longlong unused;
-   */
   Query query= {select_lex->get_item_list(), 0,
     /* TODO: consider handling high_priority, sql_calc_found_rows
       etc. see st_select_lex::print */
@@ -225,10 +222,6 @@ int spider_select_handler::init_scan()
     link_idx might be nonzero if the common backends is not the first */
   SPIDER_CONN *conn= spider->conns[LINK_IDX];
   spider_db_handler *dbton_hdl= spider->dbton_handler[conn->dbton_id];
-  /*
-    spider_prepare_init_scan(query, NULL, fields, spider,
-                             spider->wide_handler->trx, unused, thd);
-   */
   /* Reset select_column_mode so that previous insertions would not
     affect. TODO: the default value is 1 even though it is reset to 0
     in gbh as well. */
