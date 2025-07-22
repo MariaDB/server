@@ -45,34 +45,50 @@ typedef struct spider_conn_holder
   spider_conn_holder *next;
 } SPIDER_CONN_HOLDER;
 
-/* Record information of a local (spider) table, for use of the spider
-group by handler. */
+/*
+  Record information of a local (spider) table, for use of the spider
+  gbh and sh.
+*/
 typedef struct spider_table_holder
 {
   TABLE *table;
   ha_spider *spider;
-  /* alias of the table, in the form of tk, where k is the index of
-  the table from `query->from' indexed by next_local. */
+  /*
+    alias of the table, in the form of tk, where k is the index of the
+    table from `query->from' indexed by next_local.
+  */
   spider_string *alias;
 } SPIDER_TABLE_HOLDER;
 
-/* For use of the spider group by handler. */
+/*
+  A monolithic class for use of the spider gbh and sh.
+
+  It stores information of backends, tables, and connections used for
+  the direct execution.
+*/
 class spider_fields
 {
+  /* Number of available backends. */
   uint dbton_count;
   uint current_dbton_num;
+  /* Array of available backends. */
   uint dbton_ids[SPIDER_DBTON_SIZE];
-  /* Number of tables in `query->from'. */
+  /* Number of SELECT tables. */
   uint table_count;
-  /* All tables in `query->from', in the same order by next_local. */
+  /* All SELECT tables, in the same order by next_local. */
   SPIDER_TABLE_HOLDER *table_holder;
   SPIDER_LINK_IDX_CHAIN *first_link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *last_link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *current_link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *first_ok_link_idx_chain;
+  /*
+    Connections used for the gbh direct execution. Only one would
+    remain after a call to choose_conn()
+  */
   SPIDER_CONN_HOLDER *first_conn_holder;
   SPIDER_CONN_HOLDER *last_conn_holder;
   SPIDER_CONN_HOLDER *current_conn_holder;
+  /* Pointer to the current field in the temp table */
   Field **current_field_ptr;
 public:
   spider_fields();
