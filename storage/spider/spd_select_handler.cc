@@ -24,6 +24,7 @@
 #include "ha_partition.h"
 
 extern handlerton *spider_hton_ptr;
+/* We only consider the 0th connection */
 constexpr int LINK_IDX= 0;
 
 spider_select_handler::spider_select_handler(THD *thd, SELECT_LEX *select_lex,
@@ -38,24 +39,25 @@ spider_select_handler::~spider_select_handler()
   delete fields;
 }
 
-static bool spider_sh_cannot_handle_item(Item *item, SPIDER_SHARE *share,
-                                         THD *thd)
+/* Returns whether the spider sh can handle an item for execution */
+static bool spider_sh_check_item(Item *item, SPIDER_SHARE *share, THD *thd)
 {
   enum Item::Type type= item->type();
   if (type == Item::SUBSELECT_ITEM)
-    return true;
+    return false;
   if (!spider_param_use_pushdown_udf(thd, share->use_pushdown_udf) &&
       type == Item::FUNC_ITEM)
   {
     enum Item_func::Functype ftype= ((Item_func *) item)->functype();
     if (ftype == Item_func::UDF_FUNC || ftype == Item_func::FUNC_SP)
-      return true;
+      return false;
   }
-  return false;
+  return true;
 }
 
-static bool spider_sh_can_handle_query(SELECT_LEX *select_lex,
-                                       SPIDER_SHARE *share, THD *thd)
+/* Check whether the spider sh can handle a SELECT query */
+static bool spider_sh_check_query(SELECT_LEX *select_lex, SPIDER_SHARE *share,
+                                  THD *thd)
 {
   List<Item> items;
   List_iterator_fast<Item> it(*select_lex->get_item_list());
@@ -77,9 +79,9 @@ static bool spider_sh_can_handle_query(SELECT_LEX *select_lex,
     select_lex->having->walk(&Item::collect_item_processor, 1, (void *) &items);
   it.init(items);
   while (Item *item= it++)
-    if (spider_sh_cannot_handle_item(item, share, thd))
-      return false;
-  return true;
+    if (!spider_sh_check_item(item, share, thd))
+      return true;
+  return false;
 }
 
 /*
@@ -97,62 +99,84 @@ static ha_spider *spider_sh_get_spider(TABLE* table)
   return (ha_spider *) table->file;
 }
 
-select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
-                                             SELECT_LEX_UNIT *)
+/* Initial check whether spider sh can handle tables */
+static bool spider_sh_check_tables(TABLE_LIST *from, uint *n_tables)
 {
-  SPIDER_TABLE_HOLDER *table_holder;
-  uint n_tables= 0;
-  spider_fields *fields;
-  ha_spider *spider, *first_spider;
-  TABLE_LIST *from= select_lex->get_table_list();
-  int dbton_id = -1;
-  SPIDER_CONN *common_conn= NULL;
-  SPIDER_TRX *trx;
-  /*
-    Do not create if the query has already been optimized. This
-    happens for example during 2nd ps execution when spider fails to
-    create sh during the 1st execution because there's a subquery in
-    the original query.
-  */
-  if (!select_lex->first_cond_optimization)
-    return NULL;
-  if (spider_param_disable_select_handler(thd))
-    return NULL;
-  for (TABLE_LIST *tl= from; tl; n_tables++, tl= tl->next_local)
+  for (TABLE_LIST *tl= from; tl; (*n_tables)++, tl= tl->next_local)
   {
     TABLE *table= tl->table;
     /* Do not support temporary tables */
     if (!table)
-      return NULL;
+      return true;
     /*
       Do not support partitioned table with more than one (read)
       partition
     */
     if (table->part_info &&
         bitmap_bits_set(&table->part_info->read_partitions) != 1)
-      return NULL;
+      return true;
     /* One of the join tables is not a spider table */
     if (table->file->partition_ht() != spider_hton_ptr)
-      return NULL;
-    spider= spider_sh_get_spider(table);
+      return true;
+    ha_spider* spider= spider_sh_get_spider(table);
     /* needed for table holder (see spider_add_table_holder()) */
-    spider->idx_for_direct_join = n_tables;
-    /* Only create if all tables have common first backend. */
-    uint all_link_idx= spider->conn_link_idx[LINK_IDX];
-    if (dbton_id == -1)
-      dbton_id= spider->share->use_sql_dbton_ids[all_link_idx];
-    else if (dbton_id != (int) spider->share->use_sql_dbton_ids[all_link_idx])
-      return NULL;
+    spider->idx_for_direct_join= *n_tables;
   }
-  first_spider= spider_sh_get_spider(from->table);
-  if (!spider_sh_can_handle_query(select_lex, first_spider->share, thd))
-    return NULL;
-  if (!(table_holder= spider_create_table_holder(n_tables)))
-    return NULL;
+  return false;
+}
+
+/* Check whether spider sh can handle table connections. */
+static bool spider_sh_check_conns(TABLE_LIST *from, THD *thd,
+                                  SPIDER_CONN **conn, int *dbton_id)
+{
+  *dbton_id= -1;
+  *conn= NULL;
   for (TABLE_LIST *tl= from; tl; tl= tl->next_local)
   {
-    spider= spider_sh_get_spider(tl->table);
-    spider_add_table_holder(spider, table_holder);
+    ha_spider *spider= spider_sh_get_spider(tl->table);
+    if (spider_check_trx_and_get_conn(thd, spider))
+      return true;
+    uint all_link_idx= spider->conn_link_idx[LINK_IDX];
+    /*
+      Only create if all tables have common backend for the first
+      connection.
+
+      TODO: expand this to find connections across tables using a
+      common backend which is not necessarily that of the first
+      connection of each table.
+    */
+    if (*dbton_id == -1)
+      *dbton_id= spider->share->use_sql_dbton_ids[all_link_idx];
+    else if (*dbton_id != (int) spider->share->use_sql_dbton_ids[all_link_idx])
+      return true;
+    /* Only create if the first connection is ok */
+    if (spider->share->link_statuses[all_link_idx] != SPIDER_LINK_STATUS_OK)
+      return true;
+    /* only create if all tables have common first connection. */
+    if (!*conn)
+      *conn= spider->conns[LINK_IDX];
+    else if (*conn != spider->conns[LINK_IDX])
+      return true;
+  }
+  /*
+    This assertion holds because for any j and
+    i = spider->conn_link_idx[j]
+    spider->share->use_sql_dbton_ids[i] == spider->conns[j]->dbton_id
+  */
+  assert(*dbton_id == (int) (*conn)->dbton_id);
+  return false;
+}
+
+/* Setup table attributes for spider sh */
+static void spider_sh_setup_tables(TABLE_LIST *from,
+                                   SPIDER_TABLE_HOLDER *table_holders,
+                                   THD *thd)
+{
+  for (TABLE_LIST *tl= from; tl; tl= tl->next_local)
+  {
+    ha_spider *spider= spider_sh_get_spider(tl->table);
+
+    spider_add_table_holder(spider, table_holders);
     /*
       As in dml_init, wide_handler->lock_mode == -2 is a relic from
       MDEV-19002. Needed to add the likes of "lock in share mode" to
@@ -160,28 +184,24 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
       variable
     */
     if (spider->wide_handler->lock_mode == -2)
-      spider->wide_handler->lock_mode = spider_param_selupd_lock_mode(
-        thd, spider->share->selupd_lock_mode);
-    if (spider_check_trx_and_get_conn(thd, spider))
-      goto free_table_holder;
-    /* Only create if the first connection is ok */
-    if (spider->share->link_statuses[spider->conn_link_idx[LINK_IDX]] !=
-        SPIDER_LINK_STATUS_OK)
-      goto free_table_holder;
-    /* only create if all tables have common first connection. */
-    if (!common_conn)
-      common_conn= spider->conns[LINK_IDX];
-    else if (common_conn != spider->conns[LINK_IDX])
-      goto free_table_holder;
+      spider->wide_handler->lock_mode=
+          spider_param_selupd_lock_mode(thd, spider->share->selupd_lock_mode);
     /*
       Sync dbton_hdl->first_link_idx with the chosen connection so
       that translation of table names is correct. NOTE: in spider gbh
       this is done in spider_fields::set_first_link_idx, after a
       connection is randomly chosen by spider_fields::choose_a_conn
     */
-    spider->dbton_handler[dbton_id]->first_link_idx= LINK_IDX;
+    spider->dbton_handler[spider->conns[LINK_IDX]->dbton_id]->first_link_idx=
+      LINK_IDX;
   }
+}
 
+/* Set up connection attributes for spider sh */
+static bool spider_sh_setup_connection(THD *thd, SPIDER_CONN *conn,
+                                       ha_spider *spider)
+{
+  SPIDER_TRX *trx;
   /*
     So that spider executes various "setup" queries according to the
     various spider system variables.
@@ -192,87 +212,117 @@ select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
     subroutines need to be preserved as well.
   */
   if ((spider_check_and_set_sql_log_off(
-         thd, common_conn, &spider->need_mons[LINK_IDX])) ||
+         thd, conn, &spider->need_mons[LINK_IDX])) ||
       (spider_check_and_set_wait_timeout(
-        thd, common_conn, &spider->need_mons[LINK_IDX])) ||
+        thd, conn, &spider->need_mons[LINK_IDX])) ||
       (spider_param_sync_sql_mode(thd) &&
        (spider_check_and_set_sql_mode(
-         thd, common_conn, &spider->need_mons[LINK_IDX]))) ||
+         thd, conn, &spider->need_mons[LINK_IDX]))) ||
       (spider_param_sync_autocommit(thd) &&
        (spider_check_and_set_autocommit(
-         thd, common_conn, &spider->need_mons[LINK_IDX]))) ||
+         thd, conn, &spider->need_mons[LINK_IDX]))) ||
       (spider_param_sync_trx_isolation(thd) &&
        spider_check_and_set_trx_isolation(
-         common_conn, &spider->need_mons[LINK_IDX])))
-    goto free_table_holder;
-  trx= first_spider->wide_handler->trx;
-  if (!common_conn->join_trx && !trx->trx_xa)
+         conn, &spider->need_mons[LINK_IDX])))
+    return true;
+  trx= spider->wide_handler->trx;
+  if (!conn->join_trx && !trx->trx_xa)
   {
     /* So that spider executes queries that start a transaction. */
-    spider_conn_queue_start_transaction(common_conn);
+    spider_conn_queue_start_transaction(conn);
     /*
       So that spider executes a commit query on the connection, see
       spider_tree_first(trx->join_trx_top) in spider_commit()
     */
-    common_conn->join_trx = 1;
+    conn->join_trx = 1;
     if (trx->join_trx_top)
-      spider_tree_insert(trx->join_trx_top, common_conn);
+      spider_tree_insert(trx->join_trx_top, conn);
     else
     {
-      common_conn->p_small= NULL;
-      common_conn->p_big= NULL;
-      common_conn->c_small= NULL;
-      common_conn->c_big= NULL;
-      trx->join_trx_top= common_conn;
+      conn->p_small= NULL;
+      conn->p_big= NULL;
+      conn->c_small= NULL;
+      conn->c_big= NULL;
+      trx->join_trx_top= conn;
     }
   }
+  return false;
+}
 
-  fields= new spider_fields();
-  fields->set_table_holder(table_holder, n_tables);
+/* Set up the spider_fields object for spider sh */
+static spider_fields* spider_sh_setup_fields(
+  SPIDER_TABLE_HOLDER *table_holders, uint n_tables, int dbton_id)
+{
+  spider_fields *fields= new spider_fields();
+  fields->set_table_holder(table_holders, n_tables);
   fields->add_dbton_id(dbton_id);
+  return fields;
+}
+
+/* Create and return a spider select handler if possible */
+select_handler *spider_create_select_handler(THD *thd, SELECT_LEX *select_lex,
+                                             SELECT_LEX_UNIT *)
+{
+  SPIDER_TABLE_HOLDER *table_holders;
+  uint n_tables= 0;
+  spider_fields *fields;
+  ha_spider *first_spider;
+  TABLE_LIST *from= select_lex->get_table_list();
+  SPIDER_CONN *conn;
+  int dbton_id;
+
+  /*
+    Conduct checks that a spider sh can be created. TODO: communicate
+    in some way the reason for non-creation
+  */
+  if (spider_param_disable_select_handler(thd))
+    return NULL;
+  /*
+    Do not create if the query has already been optimized. This
+    happens for example during 2nd ps execution when spider fails to
+    create sh during the 1st execution because there's a subquery in
+    the original query.
+  */
+  if (!select_lex->first_cond_optimization)
+    return NULL;
+  if (spider_sh_check_tables(from, &n_tables))
+    return NULL;
+  first_spider= spider_sh_get_spider(from->table);
+  if (spider_sh_check_query(select_lex, first_spider->share, thd))
+    return NULL;
+  if (spider_sh_check_conns(from, thd, &conn, &dbton_id))
+    return NULL;
+
+  /* Set up and create the spider sh */
+  if (!(table_holders= spider_create_table_holder(n_tables)))
+    return NULL;
+  spider_sh_setup_tables(from, table_holders, thd);
+  if (spider_sh_setup_connection(thd, conn, first_spider))
+    goto free_table_holder;
+  fields= spider_sh_setup_fields(table_holders, n_tables, dbton_id);
   return new spider_select_handler(thd, select_lex, fields);
+
 free_table_holder:
-  spider_free(spider_current_trx, table_holder, MYF(0));
+  spider_free(spider_current_trx, table_holders, MYF(0));
   return NULL;
 }
 
-int spider_select_handler::init_scan()
+/* Set up result list for spider sh init_scan */
+static void spider_sh_setup_result_list(ha_spider *spider,
+                                        SELECT_LEX *select_lex)
 {
-  Query query= {select_lex->get_item_list(), 0,
-    /*
-      TODO: consider handling high_priority, sql_calc_found_rows
-      etc. see st_select_lex::print
-    */
-    select_lex->options & SELECT_DISTINCT ? true : false,
-    select_lex->get_table_list(), select_lex->where,
-    /*
-      TODO: do we need to reference join here? Can we get GROUP BY /
-      ORDER BY from select_lex directly?
-    */
-    select_lex->join->group_list, select_lex->join->order,
-    select_lex->having, &select_lex->master_unit()->lim};
-  ha_spider *spider= fields->get_first_table_holder()->spider;
-  /*
-    TODO: dbton_id should come from fields->get_next_dbton_id(), and
-    link_idx might be nonzero if the common backends is not the first
-    link
-  */
-  SPIDER_CONN *conn= spider->conns[LINK_IDX];
-  spider_db_handler *dbton_hdl= spider->dbton_handler[conn->dbton_id];
-  /*
-    Reset select_column_mode so that previous insertions would not
-    affect. TODO: the default value is 1 even though it is reset to 0
-    in gbh as well.
-  */
-  spider->select_column_mode= 0;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  spider_set_result_list_param(spider);
   /*
-    TODO: we need to extract result_list init to a separate
-    function, see also spider_prepare_init_scan.
+    Set result_list attributes which otherwise could be unintialised
+    values. These attributes are needed for spider_db_store_results()
   */
+  spider_set_result_list_param(spider);
   result_list->keyread = FALSE;
-  /* Use original limit and offset for now */
+  /*
+    Use original limit and offset for now.
+
+    TODO: consider result paging
+  */
   if (select_lex->limit_params.explicit_limit)
   {
     result_list->limit_num= select_lex->get_limit();
@@ -283,10 +333,14 @@ int spider_select_handler::init_scan()
     result_list->limit_num= 9223372036854775807LL;
     result_list->internal_offset= 0;
   }
-  /* build query string */
-  spider_make_query(query, fields, spider, table);
+}
 
-  /* send query */
+/* Execute query with spider sh */
+static int spider_sh_execute_query(ha_spider *spider,
+                                   int *store_error, TABLE *table)
+{
+  SPIDER_CONN *conn= spider->conns[LINK_IDX];
+  spider_db_handler *dbton_hdl= spider->dbton_handler[conn->dbton_id];
   dbton_hdl->set_sql_for_exec(
     SPIDER_SQL_TYPE_SELECT_SQL, LINK_IDX, NULL);
   spider_lock_before_query(conn, &spider->need_mons[LINK_IDX]);
@@ -299,7 +353,7 @@ int spider_select_handler::init_scan()
     if ((error = spider->check_error_mode_eof(error)) ==
         HA_ERR_END_OF_FILE)
     {
-      store_error= HA_ERR_END_OF_FILE;
+      *store_error= HA_ERR_END_OF_FILE;
       error= 0;
     }
     return error;
@@ -314,8 +368,35 @@ int spider_select_handler::init_scan()
   return 0;
 }
 
+int spider_select_handler::init_scan()
+{
+  Query query= {select_lex->get_item_list(), 0,
+    /*
+      TODO: consider handling high_priority, sql_calc_found_rows
+      etc. see st_select_lex::print
+    */
+    select_lex->options & SELECT_DISTINCT ? true : false,
+    select_lex->get_table_list(), select_lex->where,
+    select_lex->join->group_list, select_lex->join->order,
+    select_lex->having, &select_lex->master_unit()->lim};
+  ha_spider *spider= fields->get_first_table_holder()->spider;
+  /*
+    Reset select_column_mode so that previous insertions would not
+    affect.
+  */
+  spider->select_column_mode= 0;
+  spider_sh_setup_result_list(spider, select_lex);
+
+  /* build query string */
+  spider_make_query(query, fields, spider, table);
+
+  /* send query */
+  return spider_sh_execute_query(spider, &store_error, table);
+}
+
 int spider_select_handler::next_row()
 {
+  /* TODO: may need to execute the query again (result paging) */
   ha_spider *spider= fields->get_first_table_holder()->spider;
   SPIDER_RESULT_LIST *result_list= &spider->result_list;
   if (store_error)
