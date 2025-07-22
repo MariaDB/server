@@ -15,5 +15,21 @@ FLUSH TABLE t1 FOR EXPORT;
 NOT FOUND /repairman/ in t1.ibd
 UNLOCK TABLES;
 DROP TABLE t1;
+#
+# MDEV-37183 innodb_immediate_scrub_data_uncompressed=ON may break
+# crash recovery
+#
+SET GLOBAL innodb_limit_optimistic_insert_debug=0;
+CREATE TABLE t(a VARCHAR(1) PRIMARY KEY,INDEX(a DESC)) ENGINE=InnoDB;
+INSERT INTO t VALUES('2'),('1'),(''),('6'),('4'),('3');
+SET GLOBAL innodb_limit_optimistic_insert_debug=3;
+INSERT INTO t VALUES('8');
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+SELECT COUNT(*) FROM t;
+COUNT(*)
+7
+DROP TABLE t;
 SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG=@save_debug;
 SET GLOBAL INNODB_IMMEDIATE_SCRUB_DATA_UNCOMPRESSED=@save_scrub;

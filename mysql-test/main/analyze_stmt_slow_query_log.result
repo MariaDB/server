@@ -10,6 +10,7 @@ a
 1
 2
 drop table t1;
+FLUSH SLOW LOGS;
 # explain: id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 # explain: 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
 # explain: id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra

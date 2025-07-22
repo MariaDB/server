@@ -601,8 +601,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   my_init_dynamic_array(key_memory_sp_head_main_root, &m_instr,
                         sizeof(sp_instr *), 16, 8, MYF(0));
   my_hash_init(key_memory_sp_head_main_root, &m_sptabs,
-               Lex_ident_routine::charset_info(),
-               0, 0, 0, sp_table_key, 0, 0);
+               table_alias_charset, 0, 0, 0, sp_table_key, 0, 0);
   my_hash_init(key_memory_sp_head_main_root, &m_sroutines,
                Lex_ident_routine::charset_info(),
                0, 0, 0, sp_sroutine_key, 0, 0);

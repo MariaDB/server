@@ -1,0 +1,23 @@
+if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'mroonga' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip needs mroonga plugin
+}
+
+--echo #
+--echo # MDEV-34425 mroonga files are not copied by mariabackup
+--echo #
+
+CREATE TABLE t(c TEXT, FULLTEXT(c)) ENGINE=Mroonga;
+INSERT INTO t VALUES('Once upon a time'),('There was a wicked witch'),('Who ate everybody up');
+echo # mariadb-backup backup;
+let $targetdir=$MYSQL_TMP_DIR/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+SELECT * FROM t WHERE MATCH(c) AGAINST('wicked');
+DROP TABLE t;
+rmdir $targetdir;
+
+--echo # End 10.11 tests

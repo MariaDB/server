@@ -22,3 +22,27 @@ if ($sys_errno == 127)
   skip no socat;
 }
 remove_file $MYSQL_TMP_DIR/mysql_in;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-36701 command line client doesn't check session_track information
+--echo #
+# test old behavior (make sure session tracking didn't break it)
+# and new one, that didn't work before
+write_file $MYSQL_TMP_DIR/mysql_in;
+create database db1;
+use db1;
+drop database db1;
+create database db1;
+execute immediate "use db1";
+execute immediate "drop database db1";
+exit
+EOF
+let TERM=dumb;
+replace_regex /id is \d+/id is X/ /Server version: .*/Server version: Y/ / \(\d+\.\d+ sec\)//;
+error 0,127;
+exec socat -t10 EXEC:"$MYSQL",pty STDIO < $MYSQL_TMP_DIR/mysql_in;
+remove_file $MYSQL_TMP_DIR/mysql_in;
+
+--echo # End of 10.11 tests

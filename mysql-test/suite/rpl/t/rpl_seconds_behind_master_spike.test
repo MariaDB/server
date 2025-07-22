@@ -18,6 +18,8 @@
 #
 # References:
 #   MDEV-16091: Seconds_Behind_Master spikes to millions of seconds
+#   MDEV-25999: Unrealistic "Seconds behind master" value
+#   MDEV-36840: Seconds_Behind_Master Spike at Log Rotation on Parallel Replica
 #
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
@@ -31,12 +33,6 @@
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 
---source include/stop_slave.inc
-SET @save_dbug= @@GLOBAL.debug_dbug;
-SET @@global.debug_dbug="+d,pause_sql_thread_on_relay_fde_after_trans";
-SET @@global.debug_dbug="+d,negate_clock_diff_with_master";
---source include/start_slave.inc
-
 --let $sleep_time=2
 --echo # Future events must be logged at least $sleep_time seconds after
 --echo # the slave starts
@@ -46,33 +42,38 @@ SET @@global.debug_dbug="+d,negate_clock_diff_with_master";
 --echo # Write events to ensure slave will be consistent with master
 create table t1 (a int);
 insert into t1 values (1);
---let $t_master_events_logged= `SELECT UNIX_TIMESTAMP()`
+--sync_slave_with_master
+let $wait_condition= SELECT STATE LIKE '%waiting for more updates'
+  FROM information_schema.PROCESSLIST WHERE COMMAND = 'Slave_SQL';
+--source include/wait_condition.inc
 
+--echo # Enable breakpoints
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug=
+  '+d,pause_sql_thread_on_fde,negate_clock_diff_with_master';
+
+--connection master
 --echo # Flush logs on master forces slave to generate a Format description
 --echo # event in its relay log
 flush logs;
 
 --connection slave
 --echo # On the next FDE, the slave should have the master CREATE/INSERT events
+--sleep $sleep_time
 SET DEBUG_SYNC='now WAIT_FOR paused_on_fde';
 select count(*)=1 from t1;
 
 --echo # The relay log FDE has been processed - here we check to ensure it was
 --echo # not considered in Seconds_Behind_Master calculation
---connection slave1
-let $sbm= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1);
---let $t_now= `SELECT UNIX_TIMESTAMP()`
+# `Seconds_Behind_Master` must remains 0.
+# * MDEV-16091: `Seconds_Behind_Master` should not point at the FDE's timestamp,
+#   which is the time of `start_slave.inc`.
+# * MDEV-25999 & MDEV-36840: For a new event stream, `Seconds_Behind_Master`
+#   should not point at anything at all, because FDEs are not user content.
+--let $status_items= Seconds_Behind_Master
+--source include/show_slave_status.inc
 
-# Ensure Seconds_Behind_Master does not point beyond when we have proven the
-# events we have proven to have executed. The extra second is needed as a
-# buffer because the recorded times are not exact with when the events were
-# recorded on the master.
-if(`select $sbm > $t_now - $t_master_events_logged + 1`)
-{
-    die "A relay log event was incorrectly used to set Seconds_Behind_Master";
-}
-
---echo # Safely resume slave SQL thread
+--echo # Safely resume slave SQL (worker) thread
 
 --let $dbug_wait_state="debug sync point: now"
 --echo # Prove SQL thread is in state $dbug_wait_state

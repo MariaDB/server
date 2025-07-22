@@ -3430,7 +3430,7 @@ CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END
 NULL
 SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					c0	246	4	3	Y	32896	1	63
+def					c0	246	4	3	N	32897	1	63
 def					c1	246	4	3	Y	32896	1	63
 c0	c1
 1.1	1.1
@@ -3795,8 +3795,8 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `f0` decimal(1,0) DEFAULT NULL,
-  `f1` decimal(1,0) DEFAULT NULL
+  `f0` decimal(1,0) NOT NULL,
+  `f1` decimal(1,0) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 SET sql_mode=DEFAULT;
@@ -4366,3 +4366,146 @@ LEAST( CAST( 0 AS CHAR ), OLD_PASSWORD( 1 ) )
 #
 # End of 10.6 tests
 #
+#
+# MDEV-36581: COALESCE() returns nullable column while IFNULL() does not
+#
+CREATE OR REPLACE VIEW test_coalesce_vs_ifnull AS
+SELECT
+COALESCE(operation_date, '1970-01-01 00:00:00') AS coalesced_date,
+IFNULL(operation_date, '1970-01-01 00:00:00') AS ifnull_date
+FROM (
+SELECT NULL AS operation_date
+) AS t;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'test_coalesce_vs_ifnull';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+coalesced_date	NO	varchar(19)
+ifnull_date	NO	varchar(19)
+DROP VIEW test_coalesce_vs_ifnull;
+CREATE VIEW v2 as SELECT COALESCE(c, NULL) AS c_col, IFNULL(c, 10) AS i_col FROM (SELECT NULL AS c) AS t;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'v2';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+c_col	YES	binary(0)
+i_col	NO	varchar(2)
+DROP VIEW v2;
+CREATE VIEW v3 as SELECT COALESCE(c, 10, NULL) AS c_col, IFNULL(c, 10) AS i_col FROM (SELECT NULL AS c) AS t;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'v3';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+c_col	NO	varchar(2)
+i_col	NO	varchar(2)
+DROP VIEW v3;
+CREATE VIEW v4 AS SELECT COALESCE(c, NULL, NULL) as c_col FROM (SELECT NULL AS c) AS t;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'v4';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+c_col	YES	binary(0)
+DROP VIEW v4;
+CREATE VIEW v5 AS SELECT COALESCE(c, COALESCE(NULL, 10), NULL) as c_col FROM (SELECT NULL AS c) AS t;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'v5';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+c_col	NO	varchar(2)
+DROP VIEW v5;
+CREATE TABLE t (c1 INT, c2 DOUBLE, c3 VARCHAR(5), c4 DATE);
+INSERT INTO t values (1, 2.3, 'four', '2025-05-06');
+SELECT COALESCE(c1, 10) AS coalesced_c1, IFNULL(c1, 10) AS ifnull_c1 FROM t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_c1	3	11	1	N	32897	0	63
+def					ifnull_c1	3	11	1	N	32897	0	63
+coalesced_c1	ifnull_c1
+1	1
+SELECT COALESCE(c1, NULL) AS coalesced_c1, IFNULL(c1, NULL) AS ifnull_c1 FROM t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_c1	3	11	1	Y	32896	0	63
+def					ifnull_c1	3	11	1	Y	32896	0	63
+coalesced_c1	ifnull_c1
+1	1
+SELECT COALESCE(c2, NULL) AS coalesced_c2, IFNULL(c2, NULL) as ifnull_c2 FROM t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_c2	5	22	3	Y	32896	31	63
+def					ifnull_c2	5	22	3	Y	32896	31	63
+coalesced_c2	ifnull_c2
+2.3	2.3
+SELECT COALESCE(c3, 'two') as coalesced_c1, COALESCE(c4, '2025-07-08') AS coalesced_date FROM t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_c1	253	5	4	N	1	39	8
+def					coalesced_date	253	10	10	N	1	39	8
+coalesced_c1	coalesced_date
+four	2025-05-06
+INSERT INTO t values (2, 3.4, NULL, NULL);
+SELECT COALESCE(c3, 'two') AS coalesced_c3, IFNULL(c3, 'three') AS ifnull_c3 FROM t WHERE c1 = 2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_c3	253	5	3	N	1	39	8
+def					ifnull_c3	253	5	5	N	1	39	8
+coalesced_c3	ifnull_c3
+two	three
+SELECT COALESCE(c3, 'four', NULL) AS coalesced_c3, COALESCE(COALESCE(c3, NULL), NULL) AS coalesced_c3_null FROM t WHERE c1 = 2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_c3	253	5	4	N	1	39	8
+def					coalesced_c3_null	253	5	0	Y	0	39	8
+coalesced_c3	coalesced_c3_null
+four	NULL
+SELECT COALESCE(c4, COALESCE('2025-05-06', NULL)) AS coalesced_date FROM t WHERE c1 = 2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					coalesced_date	253	10	10	N	1	39	8
+coalesced_date
+2025-05-06
+DROP TABLE t;
+SET sql_mode='';
+CREATE TABLE t1 (a UUID, b VARCHAR(32) NOT NULL);
+INSERT INTO t1 VALUES (NULL, '1');
+CREATE TABLE t2 AS SELECT COALESCE(a, b), IFNULL(a, b) FROM t1;
+Warnings:
+Warning	1292	Incorrect uuid value: '1'
+Warning	1292	Incorrect uuid value: '1'
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a, b)` uuid DEFAULT NULL,
+  `IFNULL(a, b)` uuid DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't2';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+COALESCE(a, b)	YES	uuid
+IFNULL(a, b)	YES	uuid
+DROP TABLE t1, t2;
+CREATE TABLE t (c1 INET6, c2 INET4);
+INSERT INTO t VALUES ('::', '0.0.0.0'), (NULL, NULL);
+CREATE TABLE t1 AS
+SELECT
+COALESCE(c1, '::1') AS inet6_c1_c, IFNULL(c1, '::1') AS inet6_c1_i,
+COALESCE(c2, '0.0.0.0') AS inet4_c2_c, IFNULL(c2, '0.0.0.0') AS inet4_c2_i
+FROM t;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+inet6_c1_c	NO	inet6
+inet6_c1_i	NO	inet6
+inet4_c2_c	NO	inet4
+inet4_c2_i	NO	inet4
+CREATE TABLE t2 AS
+SELECT
+COALESCE(c1, 'ipv6') AS inet6_c1_c, IFNULL(c1, 'ipv6') AS inet6_c1_i,
+COALESCE(c2, 'ipv4') AS inet4_c2_c, IFNULL(c2, 'ipv4') AS inet4_c2_i
+FROM t;
+Warnings:
+Warning	1292	Incorrect inet6 value: 'ipv6'
+Warning	1292	Incorrect inet6 value: 'ipv6'
+Warning	1292	Incorrect inet4 value: 'ipv4'
+Warning	1292	Incorrect inet4 value: 'ipv4'
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't2';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+inet6_c1_c	YES	inet6
+inet6_c1_i	YES	inet6
+inet4_c2_c	YES	inet4
+inet4_c2_i	YES	inet4
+CREATE TABLE t3 AS SELECT COALESCE(c1, '::1') AS inet4_c1_c, IFNULL(c1, '::1') as inet6_c1_i FROM t WHERE c1 IS NULL;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't3';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+inet4_c1_c	NO	inet6
+inet6_c1_i	NO	inet6
+CREATE TABLE t4 AS SELECT COALESCE(c1, 'foo') AS inet4_c1_c, IFNULL(c1, 'bar') as inet6_c1_i FROM t WHERE c1 IS NOT NULL;
+SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't3';
+COLUMN_NAME	IS_NULLABLE	COLUMN_TYPE
+inet4_c1_c	NO	inet6
+inet6_c1_i	NO	inet6
+DROP TABLE t, t1, t2, t3, t4;
+# End of 10.11 tests

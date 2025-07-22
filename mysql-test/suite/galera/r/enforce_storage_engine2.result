@@ -7,18 +7,16 @@ connection node_1;
 connection node_1;
 CREATE TABLE t1(i INT) ENGINE=INNODB;
 CREATE TABLE t2(i INT) ENGINE=MYISAM;
-Warnings:
-Note	1266	Using storage engine InnoDB for table 't2'
-Note	1266	Using storage engine InnoDB for table 't2'
+ERROR HY000: The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
 connection node_2;
 SHOW TABLES;
 Tables_in_test
 t1
-t2
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
+<<<<<<< HEAD
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -26,4 +24,8 @@ t2	CREATE TABLE `t2` (
   `i` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
+=======
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+>>>>>>> bb-11.4-serg
 # End of tests

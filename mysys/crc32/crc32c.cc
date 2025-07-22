@@ -455,10 +455,12 @@ static int arch_ppc_probe(void) {
 
   return arch_ppc_crc32;
 }
-# elif defined __FreeBSD__
-#  include <machine/cpu.h>
+# elif defined(__FreeBSD__) || defined(__OpenBSD__)
 #  include <sys/auxv.h>
-#  include <sys/elf_common.h>
+#  ifdef __FreeBSD__
+#    include <machine/cpu.h>
+#    include <sys/elf_common.h>
+#  endif
 static int arch_ppc_probe(void) {
   unsigned long cpufeatures;
   arch_ppc_crc32 = 0;
@@ -470,12 +472,12 @@ static int arch_ppc_probe(void) {
 
   return arch_ppc_crc32;
 }
-# elif defined(_AIX) || defined(__OpenBSD__)
+# elif defined(_AIX)
 static int arch_ppc_probe(void) {
   arch_ppc_crc32 = 0;
 
 #  if defined(__powerpc64__)
-  // AIX 7.1+/OpenBSD has vector crypto features on all POWER 8+
+  // AIX 7.1+ has vector crypto features on all POWER 8+
   arch_ppc_crc32 = 1;
 #  endif /* __powerpc64__ */
 
