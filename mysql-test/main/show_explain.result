@@ -1046,9 +1046,8 @@ a
 1
 2
 SET debug_dbug=@old_debug;
-revoke all privileges on test.* from test2@localhost;
-drop user test2@localhost;
 disconnect con2;
+drop user test2@localhost;
 #
 # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
 # on its target thread

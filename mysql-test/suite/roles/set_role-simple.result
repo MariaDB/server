@@ -14,6 +14,7 @@ grant select on *.* to test_role1;
 select * from mysql.user where user='test_role1';
 Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
 	test_role1		Y	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N					0	0	0	0			N	Y		0.000000
+change_user test_user,,;
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
 show grants;
@@ -42,6 +43,7 @@ current_user()	current_role()
 test_user@localhost	NULL
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table `mysql`.`roles_mapping`
+change_user root,,;
 delete from mysql.user where user='test_role1';
 delete from mysql.roles_mapping where Role='test_role1';
 flush privileges;
@@ -56,4 +58,5 @@ Grants for user1@%
 GRANT USAGE ON *.* TO `user1`@`%`
 set role none;
 connection default;
+disconnect con1;
 drop user user1;

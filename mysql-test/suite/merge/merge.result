@@ -3675,33 +3675,22 @@ insert into tmp (b) values (1);
 insert into t1 (a) values (1);
 insert into t3 (b) values (1);
 insert into m1 (a) values ((select max(a) from m1));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from m2));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t1));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t2));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, m1));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, m2));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, t1));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from t3, t2));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, m1));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, m2));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, t1));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from tmp, t2));
-ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'
 insert into m1 (a) values ((select max(a) from tmp, v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'
+select count(*) from m1;
+count(*)
+15
 drop view v1;
 drop temporary table tmp;
 drop table t1, t2, t3, m1, m2;
@@ -3909,10 +3898,7 @@ f
 foo
 bar
 DROP TABLE mrg, t1;
-End of 10.5 tests
-#
-# End of 10.0 tests
-#
+# End of 10.5 tests
 #
 # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
 #

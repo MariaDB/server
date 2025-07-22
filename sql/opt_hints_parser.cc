@@ -71,6 +71,10 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
     if ("MRR"_Lex_ident_column.streq(str)) return TokenID::keyword_MRR;
     break;
 
+  case 5:
+    if ("MERGE"_Lex_ident_column.streq(str)) return TokenID::keyword_MERGE;
+    break;
+
   case 6:
     if ("NO_BKA"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_BKA;
     if ("NO_BNL"_Lex_ident_column.streq(str)) return TokenID::keyword_NO_BNL;
@@ -88,6 +92,8 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_SEMIJOIN;
     else if ("SUBQUERY"_Lex_ident_column.streq(str))
       return TokenID::keyword_SUBQUERY;
+    else if ("NO_MERGE"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_MERGE;
     break;
 
   case 9:
@@ -128,11 +134,25 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
   case 18:
     if ("MAX_EXECUTION_TIME"_Lex_ident_column.streq(str))
       return TokenID::keyword_MAX_EXECUTION_TIME;
+    if ("SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
+      return TokenID::keyword_SPLIT_MATERIALIZED;
     break;
 
   case 21:
     if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
+    if ("NO_SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_SPLIT_MATERIALIZED;
+    break;
+
+  case 26:
+    if ("DERIVED_CONDITION_PUSHDOWN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_DERIVED_CONDITION_PUSHDOWN;
+    break;
+
+  case 29:
+    if ("NO_DERIVED_CONDITION_PUSHDOWN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN;
     break;
   }
 
@@ -323,6 +343,30 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     break;
   case TokenID::keyword_NO_BKA:
     hint_type= BKA_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_DERIVED_CONDITION_PUSHDOWN:
+    hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN:
+    hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_MERGE:
+    hint_type= MERGE_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_MERGE:
+    hint_type= MERGE_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_SPLIT_MATERIALIZED:
+    hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_SPLIT_MATERIALIZED:
+    hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
     hint_state= false;
     break;
   default:

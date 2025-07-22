@@ -1,5 +1,4 @@
 --source include/innodb_row_format.inc
---source include/count_sessions.inc
 --connect(prevent_purge,localhost,root,,)
 start transaction with consistent snapshot;
 
@@ -23,4 +22,3 @@ CHECK TABLE t1;
 --disconnect con1
 --disconnect prevent_purge
 DROP TABLE t1;
---source include/wait_until_count_sessions.inc

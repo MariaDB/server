@@ -141,7 +141,6 @@ EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	EVENT_BODY	EVENT_DEFINITION	EVENT_
 def	events_test	three_event	ev_test@localhost	SQL	SELECT 123	RECURRING	NULL	20	SECOND	ENABLED	PRESERVE	three event
 def	events_test	two_event	ev_test@localhost	SQL	SELECT 123	RECURRING	NULL	20	SECOND	ENABLED	NOT PRESERVE	two event
 def	events_test2	five_event	root@localhost	SQL	SELECT 42	RECURRING	NULL	20	SECOND	ENABLED	NOT PRESERVE	
-connection ev_con1;
 disconnect ev_con1;
 connection default;
 DROP USER ev_test@localhost;

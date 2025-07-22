@@ -1,11 +1,6 @@
 
 --source include/have_innodb.inc
 
---disable_warnings
-drop table if exists t1,t2;
-drop procedure if exists p1;
---enable_warnings
-
 --echo #
 --echo #MDEV-6985: MariaDB crashes on stored procedure call
 --echo #
@@ -43,9 +38,6 @@ CALL p1();
 
 drop procedure p1;
 drop table t1,t2;
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
 
 --echo
 --echo #
@@ -199,6 +191,3 @@ CALL test_proc(1);
 
 DROP PROCEDURE IF EXISTS test_proc;
 DROP TABLE t1, t2;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

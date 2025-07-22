@@ -22,6 +22,8 @@ connection slave;
 connection master;
 "Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
 DROP USER 'repl_user';
+Warnings:
+Note	4227	Dropped users 'repl_user'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection slave;
 "Command: SHOW SLAVE IO/SQL THREAD --> SHOW REPLICA IO/SQL THREAD"
 STOP REPLICA IO_THREAD;

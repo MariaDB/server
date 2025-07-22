@@ -3,7 +3,6 @@ set local sql_mode="";
 SET NAMES binary;
 connect  master,localhost,root,,;
 connection master;
-drop table if exists t1;
 delete from mysql.user where user like 'mysqltest\_%';
 delete from mysql.db where user like 'mysqltest\_%';
 delete from mysql.tables_priv where user like 'mysqltest\_%';

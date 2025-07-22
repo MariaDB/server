@@ -3,18 +3,7 @@
 #
 --source include/have_debug_sync.inc
 --source include/have_metadata_lock_info.inc
-
-# We need InnoDB tables for some of the tests.
 --source include/have_innodb.inc
-
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
-
-# Clean up resources used in this test case.
---disable_warnings
-SET DEBUG_SYNC= 'RESET';
---enable_warnings
 
 #
 # Test the case of when a exclusive lock request waits for a
@@ -26,10 +15,6 @@ connect (con2,localhost,root,,test,,);
 connect (con3,localhost,root,,test,,);
 
 connection default;
-
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 
 create table t1 (i int);
 create table t2 (i int);
@@ -3115,12 +3100,6 @@ create table t2 (a int) stats_persistent=0, engine=innodb;
 insert into t1 values (1);
 insert into t2 values (1);
 
-connect (con1, localhost, root);
-# disable innodb purge thread, otherwise it might start purging t2,
-# and will take an mdl, affecting metadata_lock_info output.
-start transaction with consistent snapshot;
-connection default;
-
 SET DEBUG_SYNC= 'after_open_table_mdl_shared SIGNAL table_opened WAIT_FOR grlwait execute 2';
 --send update t1,t2 set t1.a=2,t2.a=3
 
@@ -3156,6 +3135,7 @@ FLUSH TABLES WITH READ LOCK;
 
 let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info;
 --source include/wait_condition.inc
+--source ../suite/innodb/include/wait_all_purged.inc
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 unlock tables;
@@ -3166,7 +3146,6 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 drop table t1,t2;
 disconnect con2;
-disconnect con1;
 
 --echo #
 --echo # Bug#50786 Assertion `thd->mdl_context.trans_sentinel() == __null' 
@@ -4015,7 +3994,3 @@ SET debug_sync='RESET';
 DROP TABLE t1;
 
 disconnect con1;
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc

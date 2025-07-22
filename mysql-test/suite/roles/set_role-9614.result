@@ -90,6 +90,8 @@ use bug_db;
 # Cleanup
 #
 connection default;
+disconnect john;
+disconnect usertestjohn;
 drop user john;
 drop user usertestjohn;
 drop role client;

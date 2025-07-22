@@ -1186,6 +1186,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
+        const char *error= "";
 	bool fail = false;
 	const std::string spacename{filename_to_spacename(name, len)};
 	switch (type) {
@@ -1193,6 +1194,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
 		fail = !check_if_skip_table(spacename.c_str());
+                error= "create";
 		break;
 	case FILE_MODIFY:
 		break;
@@ -1202,12 +1204,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
+                error= "rename";
 		break;
 	case FILE_DELETE:
 		fail = !check_if_skip_table(spacename.c_str())
 			&& !check_if_fts_table(spacename.c_str());
 		msg("DDL tracking : delete %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
+                error= "delete";
 		break;
 	default:
 		ut_ad(0);
@@ -1215,9 +1219,14 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	}
 
 	if (fail) {
-		ut_a(opt_no_lock);
-		die("DDL operation detected in the late phase of backup."
-			"Backup is inconsistent. Remove --no-lock option to fix.");
+          if (opt_no_lock)
+            die("DDL operation detected in the late phase of backup while "
+                "executing %s on %s. "
+                "Backup is inconsistent. Remove --no-lock option to fix.",
+                error, name);
+          die("Unexpected DDL operation detected in the late phase of backup "
+              "while executing %s on %s. Backup is inconsistent.",
+              error, name);
 	}
 }
 
@@ -1790,11 +1799,6 @@ uint xb_client_options_count = array_elements(xb_client_options);
 static const char *dbug_option;
 #endif
 
-#ifdef HAVE_URING
-extern const char *io_uring_may_be_unsafe;
-bool innodb_use_native_aio_default();
-#endif
-
 static my_bool innodb_log_checkpoint_now;
 
 struct my_option xb_server_options[] =
@@ -1942,12 +1946,7 @@ struct my_option xb_server_options[] =
    "Use native AIO if supported on this platform.",
    (G_PTR*) &srv_use_native_aio,
    (G_PTR*) &srv_use_native_aio, 0, GET_BOOL, NO_ARG,
-#ifdef HAVE_URING
-   innodb_use_native_aio_default(),
-#else
-   TRUE,
-#endif
-   0, 0, 0, 0, 0},
+   TRUE, 0, 0, 0, 0, 0},
   {"innodb_page_size", OPT_INNODB_PAGE_SIZE,
    "The universal page size of the database.",
    (G_PTR*) &innobase_page_size, (G_PTR*) &innobase_page_size, 0,
@@ -2527,12 +2526,8 @@ static bool innodb_init_param()
 		msg("InnoDB: Using Linux native AIO");
 	}
 #elif defined(HAVE_URING)
-	if (!srv_use_native_aio) {
-	} else if (io_uring_may_be_unsafe) {
-		msg("InnoDB: Using liburing on this kernel %s may cause hangs;"
-		    " see https://jira.mariadb.org/browse/MDEV-26674",
-		    io_uring_may_be_unsafe);
-	} else {
+
+	if (srv_use_native_aio) {
 		msg("InnoDB: Using liburing");
 	}
 #else
@@ -2672,7 +2667,7 @@ static bool innodb_init()
   }
 
   recv_sys.lsn= log_sys.next_checkpoint_lsn=
-    log_sys.get_lsn() - SIZE_OF_FILE_CHECKPOINT;
+    log_get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
   byte *b= &log_hdr_buf[log_t::START_OFFSET];

@@ -48,6 +48,9 @@ enum opt_hints_enum
   JOIN_SUFFIX_HINT_ENUM,
   JOIN_ORDER_HINT_ENUM,
   JOIN_FIXED_ORDER_HINT_ENUM,
+  DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
+  MERGE_HINT_ENUM,
+  SPLIT_MATERIALIZED_HINT_ENUM,
   MAX_HINT_ENUM // This one must be the last in the list
 };
 
@@ -112,7 +115,13 @@ public:
     keyword_JOIN_PREFIX,
     keyword_JOIN_SUFFIX,
     keyword_JOIN_ORDER,
-    keyword_JOIN_FIXED_ORDER
+    keyword_JOIN_FIXED_ORDER,
+    keyword_DERIVED_CONDITION_PUSHDOWN,
+    keyword_NO_DERIVED_CONDITION_PUSHDOWN,
+    keyword_MERGE,
+    keyword_NO_MERGE,
+    keyword_SPLIT_MATERIALIZED,
+    keyword_NO_SPLIT_MATERIALIZED
   };
 
   class Token: public Lex_cstring
@@ -363,7 +372,13 @@ private:
       return id == TokenID::keyword_BKA ||
              id == TokenID::keyword_BNL ||
              id == TokenID::keyword_NO_BKA ||
-             id == TokenID::keyword_NO_BNL;
+             id == TokenID::keyword_NO_BNL ||
+             id == TokenID::keyword_DERIVED_CONDITION_PUSHDOWN ||
+             id == TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN ||
+             id == TokenID::keyword_MERGE ||
+             id == TokenID::keyword_NO_MERGE ||
+             id == TokenID::keyword_SPLIT_MATERIALIZED ||
+             id == TokenID::keyword_NO_SPLIT_MATERIALIZED;
     }
   };
   class Table_level_hint_type: public TokenChoice<Parser,

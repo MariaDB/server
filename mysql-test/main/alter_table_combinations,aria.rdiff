@@ -5,7 +5,7 @@
    `a` int(11) DEFAULT NULL,
    `b` int(11) DEFAULT NULL,
 -  KEY `b` (`b`),
--  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`bb`)
+-  CONSTRAINT `1` FOREIGN KEY (`b`) REFERENCES `t1` (`bb`)
 +  KEY `b` (`b`)
  ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  ALTER TABLE t1 RENAME COLUMN bb TO b;
@@ -15,7 +15,7 @@
    `a` int(11) DEFAULT NULL,
    `c` int(11) DEFAULT NULL,
 -  KEY `b` (`c`),
--  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`b`)
+-  CONSTRAINT `1` FOREIGN KEY (`c`) REFERENCES `t1` (`b`)
 +  KEY `b` (`c`)
  ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  CREATE TABLE t4(a int);

@@ -1,0 +1,114 @@
+#
+# MDEV-36487  Fix ha_innobase::check() for sequences
+#
+call mtr.add_suppression("InnoDB: Table test/s2 contains 1 indexes .*");
+call mtr.add_suppression("Table test/s2 has a primary key in InnoDB .*");
+CREATE SEQUENCE s ENGINE=InnoDB;
+ALTER TABLE s SEQUENCE=0, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: SEQUENCE. Try ALGORITHM=COPY
+ALTER TABLE s SEQUENCE=0, ALGORITHM=COPY;
+FLUSH TABLES;
+CHECK TABLE s;
+Table	Op	Msg_type	Msg_text
+test.s	check	Warning	InnoDB: Sequence table test/s has ROLLBACK enabled.
+test.s	check	error	Corrupt
+ALTER TABLE s SEQUENCE=1;
+ERROR HY000: InnoDB: Table `test`.`s` is corrupted.
+DROP SEQUENCE s;
+CREATE SEQUENCE s ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+ALTER TABLE s2 ADD INDEX idx(start_value);
+FLUSH TABLES;
+CHECK TABLE s2;
+Table	Op	Msg_type	Msg_text
+test.s2	check	Warning	InnoDB: Table test/s2 contains 1 indexes inside InnoDB, which is different from the number of indexes 0 defined in the MariaDB 
+test.s2	check	Warning	InnoDB: Sequence table test/s2 does have more than one indexes.
+test.s2	check	error	Corrupt
+ALTER TABLE s2 SEQUENCE=1;
+ERROR HY000: InnoDB: Table `test`.`s2` is corrupted.
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+CREATE SEQUENCE s ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 VALUES (3,2,9223372036854775806,2,2,1000,0,0);
+ALTER TABLE s2 ADD PRIMARY KEY(start_value);
+FLUSH TABLES;
+CHECK TABLE s2;
+Table	Op	Msg_type	Msg_text
+test.s2	check	Warning	InnoDB: Table test/s2 has a primary key in InnoDB data dictionary, but not in MariaDB!
+test.s2	check	Warning	InnoDB: Table test/s2 contains 1 indexes inside InnoDB, which is different from the number of indexes 0 defined in the MariaDB 
+test.s2	check	Warning	InnoDB: Sequence table test/s2 does not have generated clustered index.
+test.s2	check	error	Corrupt
+ALTER TABLE s2 SEQUENCE=1;
+ERROR HY000: InnoDB: Table `test`.`s2` is corrupted.
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+CREATE SEQUENCE s ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+DELETE FROM s2;
+InnoDB		0 transactions not purged
+FLUSH TABLES;
+CHECK TABLE s2;
+Table	Op	Msg_type	Msg_text
+test.s2	check	Warning	InnoDB: Should have only one record in sequence table test/s2. But it has 0 records.
+test.s2	check	error	Corrupt
+ALTER TABLE s2 SEQUENCE=1;
+ERROR HY000: InnoDB: Table `test`.`s2` is corrupted.
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+CREATE SEQUENCE s ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+INSERT INTO s2 select seq, seq, seq, seq, seq, seq, 1, seq from
+seq_1_to_200;
+FLUSH TABLES;
+CHECK TABLE s2;
+Table	Op	Msg_type	Msg_text
+test.s2	check	Warning	InnoDB: Non leaf page exists for sequence table test/s2.
+test.s2	check	error	Corrupt
+ALTER TABLE s2 SEQUENCE=1;
+ERROR HY000: InnoDB: Table `test`.`s2` is corrupted.
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+CREATE SEQUENCE s ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s;
+ALTER TABLE s2 sequence=0;
+DELETE FROM s2;
+InnoDB		0 transactions not purged
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO s2 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+FLUSH TABLES;
+CHECK TABLE s2;
+Table	Op	Msg_type	Msg_text
+test.s2	check	Warning	InnoDB: Record in sequence table test/s2 is corrupted.
+test.s2	check	error	Corrupt
+ALTER TABLE s2 SEQUENCE=1;
+ERROR HY000: InnoDB: Table `test`.`s2` is corrupted.
+DROP SEQUENCE s;
+DROP SEQUENCE s2;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+CHECK TABLE s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	status	OK
+connection prevent_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO s1 VALUES (3,1,9223372036854775806,1,1,1000,0,0);
+SELECT * FROM s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	1000	0	0
+CHECK TABLE s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	status	OK
+select nextval(s1);
+nextval(s1)
+3
+disconnect prevent_purge;
+DROP SEQUENCE s1;

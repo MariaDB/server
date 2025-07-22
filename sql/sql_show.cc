@@ -4470,7 +4470,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
     break;
   }
 
-  if (lower_case_table_names && !rc)
+  if (lower_case_table_names == 1 && !rc)
   {
     if (lookup_field_values->db_value.str && lookup_field_values->db_value.str[0])
       lookup_field_values->db_value= thd->make_ident_casedn(
@@ -10539,6 +10539,13 @@ void init_fill_schema_files_row(TABLE* table)
   table->field[IS_FILES_STATUS]->store("NORMAL", 6, system_charset_info);
 }
 
+
+/*
+  gcc 7.5.0 uses a lot of stack at startup to resolve Column() expressions
+  Note, do not use PRAGMA_REENABLE_CHECK_STACK_FRAME later on in this file
+  as this causes compilation to fail.
+*/
+PRAGMA_DISABLE_CHECK_STACK_FRAME_EXTRA
 
 namespace Show {
 

@@ -236,7 +236,7 @@ int maria_recovery_from_log(void)
   trace_file= NULL; /* no trace file for being fast */
 #endif
   tprint(trace_file, "TRACE of the last Aria recovery from mysqld\n");
-  DBUG_ASSERT(maria_pagecache->inited);
+  DBUG_ASSERT(maria_pagecaches.initialized);
   res= maria_apply_log(LSN_IMPOSSIBLE, LSN_IMPOSSIBLE, 0, MARIA_LOG_APPLY,
                        trace_file, TRUE, TRUE, &warnings_count);
   if (!res)
@@ -277,6 +277,7 @@ int maria_recovery_from_log(void)
      @retval 0      OK
      @retval !=0    Error
 */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 int maria_apply_log(LSN from_lsn, LSN end_redo_lsn, LSN end_undo_lsn,
                     enum maria_apply_log_way apply,
@@ -564,6 +565,7 @@ end:
   */
   DBUG_RETURN(error);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /* very basic info about the record's header */

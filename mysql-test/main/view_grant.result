@@ -1,5 +1,3 @@
-drop database if exists mysqltest;
-drop view if exists v1,v2,v3;
 create user test@localhost;
 grant create view on test.* to test@localhost;
 show grants for test@localhost;
@@ -57,7 +55,7 @@ c
 select d from mysqltest.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 'v1'
 connection root;
-revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 create database mysqltest;
@@ -65,14 +63,13 @@ create table mysqltest.t1 (a int, b int);
 create algorithm=temptable view mysqltest.v1 (c,d) as select a+1,b+1 from mysqltest.t1;
 create user mysqltest_1@localhost;
 grant select (c) on mysqltest.v1 to mysqltest_1@localhost;
-connection user1;
+connect  user1,localhost,mysqltest_1,,mysqltest;
 select c from mysqltest.v1;
 c
 select d from mysqltest.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'd' in table 'v1'
 connection root;
 disconnect user1;
-revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 connection root;
@@ -193,11 +190,9 @@ show create view mysqltest.v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t2`.`a` + 1 AS `c`,`t2`.`b` + 1 AS `d` from `t2`	latin1	latin1_swedish_ci
 connection root;
-revoke all privileges on mysqltest.* from mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
-connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (10,2), (20,3), (30,4), (40,5), (50,10);
@@ -256,11 +251,9 @@ ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `
 update v3 set a=a+c;
 ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v3`
 connection root;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
-connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (1,2), (2,3), (3,4), (4,5), (5,10);
@@ -290,10 +283,8 @@ delete from v2 where c < 4;
 ERROR 42000: DELETE command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v2`
 connection root;
 disconnect user1;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int, primary key(a));
 insert into mysqltest.t1 values (1,2), (2,3);
@@ -324,10 +315,9 @@ ERROR 42000: INSERT command denied to user 'mysqltest_1'@'localhost' for table `
 insert into v2 select x,y from t2;
 ERROR 42000: INSERT command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v2`
 connection root;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
 connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int);
@@ -366,12 +356,10 @@ grant update,select(b) on mysqltest.t2 to mysqltest_1@localhost;
 connection user1;
 create view v4 as select b+1 from mysqltest.t2;
 connection root;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 drop view v1,v2,v4;
-disconnect user1;
-connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int);
 create user mysqltest_1@localhost;
@@ -379,11 +367,9 @@ grant all privileges on mysqltest.* to mysqltest_1@localhost;
 connect  user1,localhost,mysqltest_1,,mysqltest;
 create view v1 as select * from t1;
 connection root;
-revoke all privileges on mysqltest.* from mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
-connection root;
 create database mysqltest;
 create table mysqltest.t1 (a int, b int);
 create user mysqltest_1@localhost;
@@ -401,18 +387,15 @@ ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function
 grant select on mysqltest.t1 to mysqltest_1@localhost;
 select * from v1;
 a	b
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop view v1;
 drop database mysqltest;
-disconnect user1;
-connection root;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
 insert into t1 values (1);
 create table t2 (s1 int);
-drop function if exists f2;
 create function f2 () returns int begin declare v int; select s1 from t2
 into v; return v; end//
 create algorithm=TEMPTABLE view v1 as select f2() from t1;
@@ -440,21 +423,15 @@ ERROR HY000: View 'mysqltest.v4' references invalid table(s) or column(s) or fun
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 connection root;
-drop view v1, v2, v3, v4, v5;
-drop function f2;
-drop table t1, t2;
-use test;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
-connection root;
+use test;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
 insert into t1 values (1);
 create table t2 (s1 int);
-drop function if exists f2;
 create function f2 () returns int begin declare v int; select s1 from t2
 into v; return v; end//
 create user mysqltest_1@localhost;
@@ -481,15 +458,10 @@ f2()
 NULL
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
-drop view v1, v2, v3, v4, v5;
-drop function f2;
-drop table t1, t2;
-use test;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
-connection root;
+use test;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
@@ -520,13 +492,9 @@ a	b
 1	1
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
-drop table t1;
-use test;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
-connection root;
 create database mysqltest;
 use mysqltest;
 create table t1 (a int);
@@ -556,13 +524,10 @@ ERROR HY000: View 'mysqltest.v4' references invalid table(s) or column(s) or fun
 select * from v5;
 ERROR HY000: View 'mysqltest.v5' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 connection root;
-drop view v1, v2, v3, v4, v5;
-drop table t1;
-use test;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
+use test;
 create user 'test14256'@'%';
 grant all on test.* to 'test14256'@'%';
 connect  test14256,localhost,test14256,,test;
@@ -588,7 +553,6 @@ test14256@%	test14256@%	1
 connection root;
 disconnect test14256;
 drop user test14256;
-connection root;
 create database mysqltest;
 use mysqltest;
 CREATE TABLE t1 (i INT);
@@ -604,10 +568,10 @@ SHOW CREATE TABLE v1;
 ERROR 42000: SHOW VIEW command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`v1`
 UNLOCK TABLES;
 connection root;
-use test;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
-disconnect user1;
+use test;
 disconnect root;
 connection default;
 create definer=some_user@`` sql security invoker view v1 as select 1;
@@ -758,12 +722,6 @@ DROP VIEW test2.t3;
 DROP TABLE test2.t1, test1.t0;
 DROP DATABASE test2;
 DROP DATABASE test1;
-DROP VIEW IF EXISTS v1;
-DROP VIEW IF EXISTS v2;
-DROP VIEW IF EXISTS v3;
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP PROCEDURE IF EXISTS p1;
 CREATE SQL SECURITY DEFINER VIEW v1 AS SELECT CURRENT_USER() AS cu;
 CREATE FUNCTION f1() RETURNS VARCHAR(77) SQL SECURITY INVOKER
 RETURN CURRENT_USER();
@@ -831,6 +789,8 @@ CREATE VIEW v1 AS SELECT * FROM t1;
 connection root;
 GRANT SELECT ON db17254.v1 TO inv_17254@localhost;
 DROP USER def_17254@localhost;
+Warnings:
+Note	4227	Dropped users 'def_17254'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connect  inv,localhost,inv_17254,,db17254;
 connection inv;
 for a user without SET USER
@@ -860,8 +820,6 @@ ERROR HY000: The user specified as a definer ('def_17254'@'localhost') does not 
 DROP USER inv_17254@localhost;
 DROP DATABASE db17254;
 disconnect def;
-DROP DATABASE IF EXISTS mysqltest_db1;
-DROP DATABASE IF EXISTS mysqltest_db2;
 DROP USER mysqltest_u1;
 DROP USER mysqltest_u2;
 CREATE USER mysqltest_u1@localhost;
@@ -933,9 +891,9 @@ connection root;
 SHOW CREATE VIEW v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci
+disconnect u1;
 DROP USER u26813@localhost;
 DROP DATABASE db26813;
-disconnect u1;
 #
 # Bug#29908 A user can gain additional access through the ALTER VIEW.
 #
@@ -980,14 +938,12 @@ ALTER VIEW v2 AS SELECT f1 FROM t1;
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=UNDEFINED DEFINER=`u29908_1`@`localhost` SQL SECURITY INVOKER VIEW `v2` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci
+disconnect u1;
+disconnect u2;
 DROP USER u29908_1@localhost;
 DROP USER u29908_2@localhost;
 DROP DATABASE mysqltest_29908;
-disconnect u1;
-disconnect u2;
 #######################################################################
-DROP DATABASE IF EXISTS mysqltest1;
-DROP DATABASE IF EXISTS mysqltest2;
 CREATE DATABASE mysqltest1;
 CREATE DATABASE mysqltest2;
 CREATE TABLE mysqltest1.t1(c1 INT);
@@ -1356,10 +1312,8 @@ select * from information_schema.table_privileges;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mariadb.sys'@'localhost'	def	mysql	global_priv	SELECT	NO
 'mariadb.sys'@'localhost'	def	mysql	global_priv	DELETE	NO
-End of 5.0 tests.
+# End of 5.0 tests.
 connection default;
-DROP VIEW IF EXISTS v1;
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT);
 CREATE VIEW v1 AS SELECT * FROM t1;
 ALTER VIEW v1 AS SELECT * FROM t1;
@@ -1677,7 +1631,6 @@ USE test;
 #
 # Bug#47734: Assertion failed: ! is_set() when locking a view with non-existing definer
 #
-DROP VIEW IF EXISTS v1;
 CREATE DEFINER=`unknown`@`unknown` SQL SECURITY DEFINER VIEW v1 AS SELECT 1;
 Warnings:
 Note	1446	The user specified as a definer ('unknown'@'unknown') does not exist
@@ -1690,7 +1643,6 @@ DROP VIEW v1;
 #
 # Check that we correctly handle privileges for various combinations
 # of INVOKER and DEFINER-security views using each other.
-DROP DATABASE IF EXISTS mysqltest1;
 CREATE DATABASE mysqltest1;
 USE mysqltest1;
 CREATE TABLE t1 (i INT);
@@ -1803,8 +1755,6 @@ DROP USER 'mysqluser2'@'%';
 # Test for bug #11766767 - "59957: VIEW USING MERGE PERMISSIONS
 #                           IN MULTI-TABLE UPDATE".
 #
-drop database if exists mysqltest1;
-drop database if exists mysqltest2;
 #
 # Prepare playground. 
 create database mysqltest1;
@@ -1979,6 +1929,52 @@ connection default;
 DROP VIEW v1;
 DROP USER foo;
 DROP USER FOO;
+#
+# MDEV-36380: User has unauthorized access to a sequence through
+# a view with security invoker
+#
+create database db;
+use db;
+create sequence s;
+create sql security invoker view vin as select nextval(s);
+create sql security definer view vdn as select nextval(s);
+create sql security invoker view vil as select lastval(s);
+create sql security definer view vdl as select lastval(s);
+create sql security invoker view vis as select setval(s,20);
+create sql security definer view vds as select setval(s,30);
+create user u@localhost;
+grant select on db.vin to u@localhost;
+grant select on db.vdn to u@localhost;
+grant select on db.vil to u@localhost;
+grant select on db.vdl to u@localhost;
+grant select on db.vis to u@localhost;
+grant select on db.vds to u@localhost;
+connect  con1,localhost,u,,db;
+select nextval(s);
+ERROR 42000: SELECT, INSERT command denied to user 'u'@'localhost' for table `db`.`s`
+select * from vin;
+ERROR HY000: View 'db.vin' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from vdn;
+nextval(s)
+1
+select lastval(s);
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`s`
+select * from vil;
+ERROR HY000: View 'db.vil' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from vdl;
+lastval(s)
+1
+select setval(s,10);
+ERROR 42000: INSERT command denied to user 'u'@'localhost' for table `db`.`s`
+select * from vis;
+ERROR HY000: View 'db.vis' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+select * from vds;
+setval(s,30)
+30
+disconnect con1;
+connection default;
+drop database db;
+drop user u@localhost;
 # End of 10.5 tests
 # Check that a user without access to the schema 'foo' cannot query
 # a JSON_TABLE view in that schema.

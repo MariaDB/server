@@ -2864,6 +2864,7 @@ do_result_format_version(struct st_command *command)
   dynstr_append_mem(&ds_res, ds_version.str, ds_version.length);
   dynstr_append_mem(&ds_res, STRING_WITH_LEN("\n"));
   dynstr_free(&ds_version);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -4662,6 +4663,24 @@ void do_change_user(struct st_command *command)
       dynstr_set(&ds_db, mysql->db);
   }
 
+  /* Connection logging if enabled */
+  if (!disable_query_log)
+  {
+    DYNAMIC_STRING *ds= &ds_res;
+
+    dynstr_append_mem(ds, STRING_WITH_LEN("change_user "));
+    replace_dynstr_append(ds, ds_user.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_passwd.length)
+      replace_dynstr_append(ds, ds_passwd.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(","));
+
+    if (ds_db.length)
+      replace_dynstr_append(ds, ds_db.str);
+    dynstr_append_mem(ds, STRING_WITH_LEN(";\n"));
+  }
+
   DBUG_PRINT("info",("connection: '%s' user: '%s' password: '%s' database: '%s'",
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 
@@ -5810,8 +5829,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)

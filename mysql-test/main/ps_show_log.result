@@ -61,5 +61,6 @@ ERROR 42000: Access denied; you need (at least one of) the SLAVE MONITOR privile
 DEALLOCATE PREPARE stmt_1;
 include/rpl_end.inc
 connection default;
+disconnect con2;
 DROP USER u1;
 # End of 10.2 tests

@@ -21,6 +21,7 @@
 /* Classes in mysql */
 
 #include <atomic>
+#include <thread>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_array.h"
@@ -774,6 +775,7 @@ typedef struct system_variables
   ulong saved_lock_wait_timeout;
 #endif /* WITH_WSREP */
 
+  uint analyze_max_length;
   ulong auto_increment_increment, auto_increment_offset;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;
@@ -3434,7 +3436,6 @@ public:
             binlog_flush_pending_rows_event(stmt_end, TRUE));
   }
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
-  void binlog_remove_rows_events();
   uint has_pending_row_events();
   bool binlog_need_stmt_format(bool is_transactional) const
   {

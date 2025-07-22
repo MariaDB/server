@@ -970,7 +970,6 @@ UPDATE t1 SET y = 1 WHERE x = 1;
 COMMIT;
 
 disconnect con2;
---source include/wait_until_disconnected.inc
 connection default;
 COMMIT;
 DROP TABLE t1;

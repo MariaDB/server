@@ -219,4 +219,3 @@ connection default;
 #    It must reset all counters.
 TRUNCATE TABLE performance_schema.socket_summary_by_instance;
 # 6. Cleanup
-connection default;

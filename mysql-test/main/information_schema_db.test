@@ -66,6 +66,7 @@ call mbase.p1();
 --enable_result_log
 
 connection default;
+disconnect user1;
 use `inf%`;
 drop user mysqltest_1@localhost;
 drop table t1;
@@ -80,7 +81,6 @@ drop function func2;
 drop database `inf%`;
 drop procedure mbase.p1;
 drop database mbase;
-disconnect user1;
 
 --echo #
 --echo # Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
@@ -206,12 +206,8 @@ connection default;
 use test;
 drop view testdb_1.v1, v2, testdb_1.v3, v4;
 drop database testdb_1;
-connection testdb_1;
 disconnect testdb_1;
---source include/wait_until_disconnected.inc
-connection testdb_2;
 disconnect testdb_2;
---source include/wait_until_disconnected.inc
 connection default;
 drop user testdb_1@localhost;
 drop user testdb_2@localhost;
@@ -241,12 +237,9 @@ where table_name='v1';
 show create view testdb_1.v1;
 
 connection default;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-connection user1;
-disconnect user1;
---source include/wait_until_disconnected.inc
-connection default;
 
 set global sql_mode=default;
 

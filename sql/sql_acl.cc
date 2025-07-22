@@ -172,7 +172,7 @@ public:
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
-  const char *get_username() { return user.str; }
+  const char *get_username() const { return user.str; }
 };
 
 class ACL_USER_PARAM
@@ -205,6 +205,23 @@ public:
     DBUG_ASSERT(host.hostname[hostname_length] == '\0');
     return Lex_ident_host(host.hostname, hostname_length);
   }
+
+  void disable_new_connections()
+  {
+    dont_accept_conn= true;
+  }
+
+  bool dont_accept_new_connections() const
+  {
+    return dont_accept_conn;
+  }
+
+protected:
+  /*
+    Ephemeral state (meaning it is not stored anywhere in the Data Dictionary)
+    to disable establishing sessions in case the user is being dropped.
+  */
+  bool dont_accept_conn= false;
 };
 
 
@@ -2025,13 +2042,24 @@ class Grant_tables
   {
     DBUG_ENTER("Grant_tables::open_and_lock");
 
-    TABLE_LIST tables[USER_TABLE+1], *first= NULL;
+    TABLE_LIST *first= nullptr, *tables=
+      static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
+                                         (USER_TABLE + 1) * sizeof *tables,
+                                         MYF(MY_WME)));
+    int res= -1;
+
+    if (!tables)
+      DBUG_RETURN(res);
 
     if (build_table_list(thd, &first, which_tables, lock_type, tables))
-      DBUG_RETURN(-1);
+    {
+    func_exit:
+      my_free(tables);
+      DBUG_RETURN(res);
+    }
 
     uint counter;
-    int res= really_open(thd, first, &counter);
+    res= really_open(thd, first, &counter);
 
     /* if User_table_json wasn't found, let's try User_table_tabular */
     if (!res && (which_tables & Table_user) && !tables[USER_TABLE].table)
@@ -2057,12 +2085,15 @@ class Grant_tables
       }
     }
     if (res)
-      DBUG_RETURN(res);
+      goto func_exit;
 
     if (lock_tables(thd, first, counter,
                     MYSQL_LOCK_IGNORE_TIMEOUT |
                     MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
-      DBUG_RETURN(-1);
+    {
+      res= -1;
+      goto func_exit;
+    }
 
     p_user_table->set_table(tables[USER_TABLE].table);
     m_db_table.set_table(tables[DB_TABLE].table);
@@ -2072,7 +2103,7 @@ class Grant_tables
     m_procs_priv_table.set_table(tables[PROCS_PRIV_TABLE].table);
     m_proxies_priv_table.set_table(tables[PROXIES_PRIV_TABLE].table);
     m_roles_mapping_table.set_table(tables[ROLES_MAPPING_TABLE].table);
-    DBUG_RETURN(0);
+    goto func_exit;
   }
 
   inline const User_table& user_table() const
@@ -8509,19 +8540,13 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     /*
       If sequence is used as part of NEXT VALUE, PREVIOUS VALUE or SELECT,
-      we need to modify the requested access rights depending on how the
-      sequence is used.
+      the privilege will be checked in ::fix_fields().
+      Direct SELECT of a sequence table doesn't set t_ref->sequence, so
+      privileges will be checked normally, as for any table.
     */
     if (t_ref->sequence &&
         !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
-    {
-      /*
-        We want to have either SELECT or INSERT rights to sequences depending
-        on how they are accessed
-      */
-      orig_want_access= ((t_ref->lock_type >= TL_FIRST_WRITE) ?
-                         INSERT_ACL : SELECT_ACL);
-    }
+      continue;
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
@@ -11337,6 +11362,66 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   DBUG_RETURN(result);
 }
 
+
+/**
+  Callback function invoked for every active THD to find a first session
+  established by specified user
+
+  @param[in] thd   Thread context
+  @param arg       Account info for that checks presence of an active
+                   connection
+
+  @return true on matching, else false
+*/
+
+static my_bool count_threads_callback(THD *thd,
+                                      LEX_USER *arg)
+{
+  if (thd->security_ctx->user)
+  {
+    /*
+      Check that hostname (if given) and user name matches.
+    */
+    if (!strcmp(arg->host.str, thd->main_security_ctx.priv_host) &&
+        !strcmp(arg->user.str, thd->main_security_ctx.priv_user) &&
+        (thd->killed & ~KILL_HARD_BIT) != KILL_CONNECTION)
+      return true;
+  }
+  return false;
+}
+
+
+/**
+  Check presence of an active connection established on behalf the user
+
+  @param[in] user  User credential for that checks presence of an active
+                   connection
+
+  @return true on presence connection, else false
+*/
+
+static bool exist_active_sessions_for_user(LEX_USER *user)
+{
+  return server_threads.iterate(count_threads_callback, user);
+}
+
+
+/**
+  Find the specified user and mark it as not accepting incoming sessions
+
+  @param user_name  the user for that accept of incoming connections
+                    should be disabled
+*/
+
+static void disable_connections_for_user(LEX_USER *user)
+{
+  ACL_USER *found_user= find_user_exact(user->host, user->user);
+
+  if (found_user != nullptr)
+    found_user->disable_new_connections();
+}
+
+
 /*
   Drop a list of users and all their privileges.
 
@@ -11373,6 +11458,11 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
+  /*
+    String for storing a comma separated list of users that specified
+    at the DROP USER statement being processed and have active connections
+  */
+  String connected_users;
   while ((tmp_user_name= user_list++))
   {
     int rc;
@@ -11393,6 +11483,28 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
+    }
+
+    if (!handle_as_role)
+    {
+      if (exist_active_sessions_for_user(user_name))
+      {
+
+        if ((thd->variables.sql_mode & MODE_ORACLE))
+        {
+          append_user(thd, &wrong_users, user_name);
+          result= TRUE;
+          continue;
+        }
+        else
+          append_user(thd, &connected_users, user_name);
+      }
+
+      /*
+        Prevent new connections to be established on behalf the user
+        being dropped.
+      */
+      disable_connections_for_user(user_name);
     }
 
     if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
@@ -11422,6 +11534,12 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     append_user(thd, &wrong_users, user_name);
     result= TRUE;
   }
+
+  if (!connected_users.is_empty())
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP,
+                        ER_THD(thd, ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP),
+                        connected_users.c_ptr_safe());
 
   if (!handle_as_role)
   {
@@ -13909,7 +14027,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
 
-  if (user)
+  if (user && !user->dont_accept_new_connections())
     mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
 
   mysql_mutex_unlock(&acl_cache->lock);

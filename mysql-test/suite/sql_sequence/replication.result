@@ -285,7 +285,7 @@ create sequence s_db.s2;
 drop sequence s_db.s2;
 connection m_normal_2;
 select NEXT VALUE for s_db.s1;
-ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
+ERROR 42000: SELECT, INSERT command denied to user 'normal_2'@'localhost' for table `s_db`.`s1`
 create sequence s_db.s2;
 ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table `s_db`.`s2`
 connection m_normal_1;
@@ -1086,6 +1086,8 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 connection master;
 drop table t1,s1;
 connection master;
+disconnect m_normal_1;
+disconnect m_normal_2;
 drop database s_db;
 drop user normal_1@'%';
 drop user normal_2@'%';

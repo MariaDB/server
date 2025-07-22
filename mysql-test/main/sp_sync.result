@@ -1,5 +1,4 @@
-Tests of synchronization of stored procedure execution.
-SET DEBUG_SYNC= 'RESET';
+# Tests of synchronization of stored procedure execution.
 #
 # Bug #30977 Concurrent statement using stored function and
 #            DROP FUNCTION breaks SBR

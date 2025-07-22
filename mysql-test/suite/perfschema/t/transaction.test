@@ -702,9 +702,7 @@ CALL transaction_verifier(0, @con2_thread_id, 'transaction', 'ACTIVE', 0, '', ''
 
 --echo #
 --echo ## Drop connection
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
 --connection default
 
 --echo #

@@ -220,6 +220,7 @@ int main(int argc, char* const argv[] )
   pid_t own_pid= getpid();
   pid_t parent_pid= getppid();
   bool nocore = false;
+  int open_files_limit = 1024;
   struct sigaction sa,sa_abort;
 
   sa.sa_handler= handle_signal;
@@ -268,7 +269,14 @@ int main(int argc, char* const argv[] )
       }
       else if ( strncmp (arg, "--env ", 6) == 0 )
       {
-	putenv(strdup(arg+6));
+        putenv(strdup(arg+6));
+      }
+      else if ( strncmp(arg, "--open-files-limit=", 19) == 0 )
+      {
+        const char* start = arg + 19;
+        open_files_limit = atoi(start);
+        if (open_files_limit <= 0)
+          die("Invalid value '%s' passed to --open-files-limit", start);
       }
       else
         die("Unknown option: %s", arg);
@@ -318,11 +326,8 @@ int main(int argc, char* const argv[] )
     if (nocore)
       setlimit(RLIMIT_CORE, 0, 0);
 
-    /*
-      mysqld defaults depend on that. make test results stable and independent
-      from the environment
-    */
-    setlimit(RLIMIT_NOFILE, 1024, 1024);
+    // Set open files limit 
+    setlimit(RLIMIT_NOFILE, open_files_limit, open_files_limit);
 
     // Signal that child is ready
     buf= 37;

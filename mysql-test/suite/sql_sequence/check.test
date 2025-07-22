@@ -147,11 +147,16 @@ let $datadir=`select @@datadir`;
 CREATE SEQUENCE s engine=innodb;
 copy_file $datadir/test/s.frm $datadir/test/s1.frm;
 ALTER TABLE s sequence=0;
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
 delete from s;
 FLUSH TABLES;
 remove_file $datadir/test/s.frm;
 move_file $datadir/test/s1.frm $datadir/test/s.frm;
 CHECK TABLE s;
+--disconnect prevent_purge
 DROP SEQUENCE s;
 
 # Just one row, check ok

@@ -274,7 +274,9 @@ select * from federated.t1;
 
 # clean up test
 connection slave;
+disable_warnings;
 drop user test_fed@localhost;
+enable_warnings;
 drop database db_legitimate;
 drop database db_bogus;
 

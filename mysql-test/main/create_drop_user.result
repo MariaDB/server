@@ -41,3 +41,80 @@ Warnings:
 Note	1974	Can't drop user 'u1'@'%'; it doesn't exist
 DROP USER u2;
 ERROR HY000: Operation DROP USER failed for 'u2'@'%'
+#
+# MDEV-35617: DROP USER should leave no active session for that user
+#
+CREATE USER u1;
+CREATE USER u2;
+CREATE USER u3;
+GRANT ALL on test.* to u1;
+GRANT ALL on test.* to u2;
+GRANT ALL on test.* to u3;
+# Establish two connections on behalf the users u1, u3
+# A connection on behalf the user u2 isn't established intentionally
+connect  con1, localhost, u1, , test;
+connect  con3, localhost, u3, , test;
+# Drop the users u1, u2, u3. Since the users u1 and u3 have active
+# connections to the server, the warning about it will be output
+connection default;
+DROP USER u1, u2, u3;
+Warnings:
+Note	4227	Dropped users 'u1'@'%','u3'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
+# None of the users u1, u2, u3 should be present in the system
+SELECT user, host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+User	Host
+disconnect con1;
+disconnect con3;
+# Check behaviour of the DROP USER statement in
+# oracle compatibility mode
+SET @save_sql_mode = @@sql_mode;
+SET sql_mode="oracle";
+CREATE USER u1;
+CREATE USER u2;
+CREATE USER u3;
+GRANT ALL on test.* to u1;
+GRANT ALL on test.* to u2;
+GRANT ALL on test.* to u3;
+# Established two connections on behalf the users u1, u3;
+# A connection on behalf the user u2 isn't established intentionally
+connect  con1, localhost, u1, , test;
+connect  con3, localhost, u3, , test;
+connection default;
+# In oracle compatibility mode, DROP USER fails in case
+# there are connections on behalf the users being dropped.
+DROP USER u1, u2, u3;
+ERROR HY000: Operation DROP USER failed for 'u1'@'%','u3'@'%'
+# It is expected to see two users in output of the query: u1 and u3,
+# u2 should be dropped since it doesn't have active connection at the moment
+SELECT user, host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+User	Host
+u1	%
+u3	%
+SET sql_mode= @save_sql_mode;
+disconnect con1;
+disconnect con3;
+# Clean up
+# Clean up
+DROP USER u1, u3;
+CREATE USER u@localhost;
+CREATE USER u@'%';
+connect u,localhost,u;
+connection default;
+DROP USER u@'%';
+disconnect u;
+DROP USER u@localhost;
+CREATE USER u@localhost;
+SET sql_mode=oracle;
+connect u,localhost,u;
+connection default;
+DROP USER u@'%';
+ERROR HY000: Operation DROP USER failed for 'u'@'%'
+disconnect u;
+connect u,localhost,u;
+SELECT user(), current_user();
+user()	current_user()
+u@localhost	u@localhost
+disconnect u;
+connection default;
+# Clean up
+DROP USER u@localhost;

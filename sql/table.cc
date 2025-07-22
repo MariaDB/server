@@ -57,6 +57,7 @@
 #endif
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
+#include "opt_hints.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -316,12 +317,7 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
         name.streq(TRANSACTION_REG_NAME))
       return TABLE_CATEGORY_LOG;
 
-    return TABLE_CATEGORY_MYSQL;
-  }
-
 #ifdef WITH_WSREP
-  if (db.streq(WSREP_LEX_SCHEMA))
-  {
     if(name.streq(WSREP_LEX_STREAMING))
       return TABLE_CATEGORY_INFORMATION;
     if (name.streq(WSREP_LEX_CLUSTER))
@@ -330,8 +326,10 @@ TABLE_CATEGORY get_table_category(const Lex_ident_db &db,
       return TABLE_CATEGORY_INFORMATION;
     if (name.streq(WSREP_LEX_ALLOWLIST))
       return TABLE_CATEGORY_INFORMATION;
-  }
 #endif /* WITH_WSREP */
+
+    return TABLE_CATEGORY_MYSQL;
+  }
 
   return TABLE_CATEGORY_USER;
 }
@@ -1129,6 +1127,25 @@ Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
   return new (mem_root) Item_func_hash(thd, *field_list);
 }
 
+/*
+  Update index covering for a vcol field, by merging its existing
+  index covering with the intersection of all index coverings of leaf
+  fields of the vcol expr
+*/
+static void update_vcol_key_covering(Field *vcol_field)
+{
+  Item *item= vcol_field->vcol_info->expr;
+  /* Collect indexes that cover vcol's expression */
+  key_map part_of_key= vcol_field->table->s->keys_for_keyread;
+  item->walk(&Item::intersect_field_part_of_key, 1, &part_of_key);
+
+  vcol_field->vcol_direct_part_of_key= vcol_field->part_of_key;
+  /*
+    part_of_key includes indexes that cover vcol and also indexes that cover
+    vcol's expression
+  */
+  vcol_field->part_of_key.merge(part_of_key);
+}
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1268,6 +1285,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         goto end;
       }
       table->map= 0;
+      if (vcol)
+        update_vcol_key_covering(*field_ptr);
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
@@ -5451,9 +5470,10 @@ bool Lex_ident_db::check_name_with_error(const LEX_CSTRING &str)
 }
 
 
-bool check_column_name(const char *name)
+bool check_column_name(const Lex_cstring &ident)
 {
   // name length in symbols
+  const char *name= ident.str, *end= ident.str + ident.length;
   size_t name_length= 0;
   bool last_char_is_space= TRUE;
 
@@ -5463,9 +5483,7 @@ bool check_column_name(const char *name)
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (system_charset_info->use_mb())
     {
-      int len=my_ismbchar(system_charset_info, name, 
-                          name+system_charset_info->mbmaxlen);
-      if (len)
+      if (int len= my_ismbchar(system_charset_info, name,  end))
       {
         name += len;
         name_length++;
@@ -5482,12 +5500,6 @@ bool check_column_name(const char *name)
   }
   /* Error if empty or too long column name */
   return last_char_is_space || (name_length > NAME_CHAR_LEN);
-}
-
-
-bool check_period_name(const char *name)
-{
-  return check_column_name(name);
 }
 
 
@@ -5840,10 +5852,9 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mysql_mutex_assert_owner(&tdc->LOCK_table_share);
   DBUG_ASSERT(tdc->flushed);
+  DBUG_ASSERT(mdl_context->m_wait.get_status() == MDL_wait::EMPTY);
 
   tdc->m_flush_tickets.push_front(&ticket);
-
-  mdl_context->m_wait.reset_status();
 
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
@@ -5861,6 +5872,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   mysql_cond_broadcast(&tdc->COND_release);
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
+  mdl_context->m_wait.reset_status();
 
   /*
     In cases when our wait was aborted by KILL statement,
@@ -6200,7 +6212,6 @@ allocate:
 
   while ((item= it++))
   {
-    DBUG_ASSERT(item->name.str && item->name.str[0]);
     transl[field_count].name.str=    thd->strmake(item->name.str, item->name.length);
     transl[field_count].name.length= item->name.length;
     transl[field_count++].item= item;
@@ -6499,9 +6510,9 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   @pre This method can be called only if there is an error.
 */
 
-void TABLE_LIST::hide_view_error(THD *thd)
+void TABLE_LIST::replace_view_error_with_generic(THD *thd)
 {
-  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error()) || thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
@@ -9237,8 +9248,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
-  if (h->keyread_enabled())
-    DBUG_RETURN(0);
   /*
     TODO: this imposes memory leak until table flush when save_in_field()
           does expr_arena allocation. F.ex. case in
@@ -9281,8 +9290,22 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= (!vcol_info->is_stored() &&
-               bitmap_is_set(read_set, vf->field_index));
+      if (!bitmap_is_set(read_set, vf->field_index))
+        update= false;
+      else if (h->keyread_enabled())
+      {
+        /*
+          Compute vcol if it is not directly present in the index
+          but can be computed from index columns.
+        */
+        update= (!vf->vcol_direct_part_of_key.is_set(h->keyread) &&
+                 vf->part_of_key.is_set(h->keyread));
+      }
+      else
+      {
+        /* Compute vcol if it is not stored */
+        update= !vcol_info->is_stored();
+      }
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
@@ -10116,6 +10139,19 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     bool forced_no_merge_for_update_delete=
            belong_to_view ? belong_to_view->updating :
                            !unit->outer_select()->outer_select();
+
+    /*
+       In the case where a table merge operation moves a derived table from
+       one select to another, table hints may be adjusted already.
+    */
+    if (select_lex->opt_hints_qb &&    // QB hints initialized
+        !this->opt_hints_table)        // Table hints are not adjusted yet
+      select_lex->opt_hints_qb->fix_hints_for_derived_table(this);
+
+    bool is_derived_merge_allowed=
+        hint_table_state(thd, this, MERGE_HINT_ENUM,
+            optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE));
+
     if (!is_materialized_derived() && unit->can_be_merged() &&
         /*
           Following is special case of
@@ -10132,7 +10168,7 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
          (!first_select->group_list.elements &&
           !first_select->order_list.elements)) &&
         (is_view() ||
-         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)) &&
+         is_derived_merge_allowed) &&
           !thd->lex->can_not_use_merged() &&
         !(!is_view() && forced_no_merge_for_update_delete &&
           (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||

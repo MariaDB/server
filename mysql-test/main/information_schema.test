@@ -1,6 +1,6 @@
 # This test  uses grants, which can't get tested for embedded server
--- source include/not_embedded.inc
--- source include/have_perfschema.inc
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
 
 # check that CSV engine was compiled in, as the result of the test depends
 # on the presence of the log tables (which are CSV-based).
@@ -8,13 +8,9 @@
 
 # Without aria_used_for_temp_tables some I_S tables will be MyISAM,
 # while the test expects them to be Aria
--- source include/have_aria_used_for_temp_tables.inc
+--source include/have_aria_used_for_temp_tables.inc
 
--- source include/have_innodb.inc
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
+--source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 --source include/default_charset.inc
 
@@ -25,12 +21,6 @@ set local sql_mode="";
 
 # Test for information_schema.schemata &
 # show databases
-
---disable_warnings
-DROP TABLE IF EXISTS t0,t1,t2,t3,t4,t5;
-DROP VIEW IF EXISTS v1;
---enable_warnings
-
 
 show variables where variable_name like "skip_show_database";
 grant select, update, execute on test.* to mysqltest_2@localhost;
@@ -1647,7 +1637,6 @@ connection con1;
 --echo # Reaping 'flush tables'
 reap;
 disconnect con1;
---source include/wait_until_disconnected.inc
 connection default;
 drop table t1;
 drop view v1;
@@ -1886,22 +1875,11 @@ drop database db1;
 connection default;
 disconnect con1;
 
-# Wait till all disconnects are completed
---source include/wait_until_count_sessions.inc
-
 set global sql_mode=default;
 
 USE test;
 
---echo #
 --echo # End of 10.0 tests
---echo #
-
-
---echo #
---echo # Start of 10.1 tests
---echo #
-
 
 --echo #
 --echo # MDEV-13242 Wrong results for queries with row constructors and information_schema
@@ -1925,9 +1903,7 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name='aaaaaaaaa
 SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a',193);
 
 
---echo #
 --echo # End of 10.1 tests
---echo #
 
 --echo #
 --echo # MDEV-14836: Assertion `m_status == DA_ERROR' failed in
@@ -1976,9 +1952,7 @@ CREATE TABLE `a/~.b`.t1 (a INT);
 SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='a/~.b';
 DROP DATABASE `a/~.b`;
 
---echo #
 --echo # End of 10.2 Test
---echo #
 
 --echo #
 --echo # MDEV-21201:No records produced in information_schema query,
@@ -2114,9 +2088,7 @@ SET SQL_MODE=DEFAULT;
 --echo #
 select progress from information_schema.processlist limit 1;
 
---echo #
 --echo # End of 10.3 tests
---echo #
 
 --echo #
 --echo # MDEV-MDEV-31064 Changes of the procedure are not immediatly seen in queries to I_S.parameter from other connections
@@ -2136,13 +2108,7 @@ SELECT COUNT(*) FROM information_schema.parameters WHERE SPECIFIC_NAME = 'sp1';
 --connection default
 DROP PROCEDURE sp1;
 
---echo #
 --echo # End of 10.4 tests
---echo #
-
---echo #
---echo # Start of 10.5 tests
---echo #
 
 --echo #
 --echo # MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
@@ -2160,6 +2126,4 @@ SET SESSION sql_mode=DEFAULT;
 DROP VIEW i;
 DROP TABLE t1;
 
---echo #
 --echo # End of 10.5 tests
---echo #

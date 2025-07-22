@@ -92,6 +92,8 @@ UNINSTALL PLUGIN plg;
 Got one of the listed errors
 connection node_1;
 DROP USER 'userMW416'@'localhost';
+Warnings:
+Note	4226	Dropped users 'userMW416'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 SHOW DATABASES;
 Database
 information_schema

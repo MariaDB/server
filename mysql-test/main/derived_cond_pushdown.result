@@ -12926,9 +12926,8 @@ SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 EXPLAIN INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	144	Using where
-2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	12	Using temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	
 EXPLAIN FORMAT=JSON INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
@@ -12937,71 +12936,54 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 144,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "attached_condition": "t.f is not null",
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "<derived4>",
-                    "access_type": "ALL",
-                    "loops": 1,
-                    "rows": 12,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "materialized": {
-                      "query_block": {
-                        "select_id": 4,
-                        "cost": "COST_REPLACED",
-                        "nested_loop": [
-                          {
-                            "table": {
-                              "table_name": "t1",
-                              "access_type": "ALL",
-                              "loops": 1,
-                              "rows": 12,
-                              "cost": "COST_REPLACED",
-                              "filtered": 100
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
-                },
-                {
-                  "block-nl-join": {
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 12,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "cost": "COST_REPLACED",
+                "nested_loop": [
+                  {
                     "table": {
                       "table_name": "t1",
                       "access_type": "ALL",
-                      "loops": 12,
+                      "loops": 1,
                       "rows": 12,
                       "cost": "COST_REPLACED",
-                      "filtered": 100,
-                      "attached_condition": "t1.f is not null"
-                    },
-                    "buffer_type": "flat",
-                    "buffer_size": "64",
-                    "join_type": "BNL"
+                      "filtered": 100
+                    }
                   }
-                }
-              ]
+                ]
+              }
             }
           }
+        },
+        {
+          "block-nl-join": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 12,
+              "rows": 12,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t1.f is not null"
+            },
+            "buffer_type": "flat",
+            "buffer_size": "64",
+            "join_type": "BNL"
+          }
         }
-      }
-    ]
+      ]
+    }
   }
 }
 SELECT * FROM t1;
@@ -13031,72 +13013,55 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "cost": "COST_REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 8,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "attached_condition": "t.f is not null",
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "loops": 1,
-                    "rows": 8,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "attached_condition": "t1.f is not null"
-                  }
-                },
-                {
-                  "table": {
-                    "table_name": "<derived4>",
-                    "access_type": "ref",
-                    "possible_keys": ["key0"],
-                    "key": "key0",
-                    "key_length": "4",
-                    "used_key_parts": ["f"],
-                    "ref": ["test.t1.f"],
-                    "loops": 8,
-                    "rows": 1,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "materialized": {
-                      "query_block": {
-                        "select_id": 4,
-                        "cost": "COST_REPLACED",
-                        "nested_loop": [
-                          {
-                            "table": {
-                              "table_name": "t1",
-                              "access_type": "ALL",
-                              "loops": 1,
-                              "rows": 8,
-                              "cost": "COST_REPLACED",
-                              "filtered": 100,
-                              "attached_condition": "t1.f is not null"
-                            }
-                          }
-                        ]
-                      }
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "loops": 1,
+            "rows": 8,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t1.f is not null"
+          }
+        },
+        {
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ref",
+            "possible_keys": ["key0"],
+            "key": "key0",
+            "key_length": "4",
+            "used_key_parts": ["f"],
+            "ref": ["test.t1.f"],
+            "loops": 8,
+            "rows": 1,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "cost": "COST_REPLACED",
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t1",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "rows": 8,
+                      "cost": "COST_REPLACED",
+                      "filtered": 100,
+                      "attached_condition": "t1.f is not null"
                     }
                   }
-                }
-              ]
+                ]
+              }
             }
           }
         }
-      }
-    ]
+      ]
+    }
   }
 }
 SELECT * FROM t1;
@@ -23641,6 +23606,27 @@ FROM cte2
 GROUP BY 1 ;
 ( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
 1
+create table t1 (f int);
+create view v1 as select f, count(*) c from t1 group by f;
+#
+# MDEV-25012 Server crash in find_field_in_tables, Assertion `name' failed in find_field_in_table_ref
+#
+select * from v1 where export_set(1, default(f), 'x', aes_decrypt('secret', f));
+f	c
+show warnings;
+Level	Code	Message
+drop view v1;
+drop table t1;
+create table t(c3 longtext) ;
+with cte1 as
+(
+select default(c3) as a
+from t group by 1
+)
+select * from cte1
+where cte1.a >= 1;
+a
+drop table t;
 # End of 10.5 tests
 #
 # MDEV-28958: condition pushable into view after simplification

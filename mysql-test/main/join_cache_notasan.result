@@ -1,3 +1,4 @@
+call mtr.add_suppression("MemorySanitizer failed to allocate");
 #
 # MDEV-28217 Incorrect Join Execution When Controlling Join Buffer Size
 #

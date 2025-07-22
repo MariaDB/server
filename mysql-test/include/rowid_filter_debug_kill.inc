@@ -1,7 +1,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_sequence.inc
---source include/count_sessions.inc
 --source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
 
@@ -80,4 +79,3 @@ set debug_sync='RESET';
 
 
 drop table t2,t3;
---source include/wait_until_count_sessions.inc

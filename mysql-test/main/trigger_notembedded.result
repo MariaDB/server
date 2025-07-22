@@ -3,7 +3,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 CREATE USER mysqltest_dfn@localhost;
 CREATE USER mysqltest_inv@localhost;
@@ -169,6 +168,8 @@ def	mysqltest_db1	trg3	UPDATE	def	mysqltest_db1	t1	1	NULL	SET @a = 3	ROW	BEFORE	
 def	mysqltest_db1	trg4	UPDATE	def	mysqltest_db1	t1	1	NULL	SET @a = 4	ROW	AFTER	NULL	NULL	OLD	NEW	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	@hostname	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 def	mysqltest_db1	trg5	DELETE	def	mysqltest_db1	t1	1	NULL	SET @a = 5	ROW	BEFORE	NULL	NULL	OLD	NEW	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	@abcdef@@@hostname	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection default;
+disconnect wl2818_definer_con;
+disconnect wl2818_invoker_con;
 DROP USER mysqltest_dfn@localhost;
 DROP USER mysqltest_inv@localhost;
 DROP DATABASE mysqltest_db1;
@@ -177,7 +178,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 use mysqltest_db1;
 CREATE TABLE t1(col CHAR(20));
@@ -345,6 +345,7 @@ DELETE FROM t1;
 SELECT @mysqltest_var;
 @mysqltest_var
 Hello, world!
+disconnect bug15166_u1_con;
 DROP USER mysqltest_u1@localhost;
 DROP DATABASE mysqltest_db1;
 DELETE FROM mysql.user WHERE User LIKE 'mysqltest_%';
@@ -352,7 +353,6 @@ DELETE FROM mysql.db WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.tables_priv WHERE User LIKE 'mysqltest_%';
 DELETE FROM mysql.columns_priv WHERE User LIKE 'mysqltest_%';
 FLUSH PRIVILEGES;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 CREATE TABLE t1 (i1 INT);
@@ -509,7 +509,6 @@ DROP TABLE t1,t2;
 SET SESSION LOW_PRIORITY_UPDATES=DEFAULT;
 SET GLOBAL LOW_PRIORITY_UPDATES=DEFAULT;
 End of 5.0 tests.
-drop table if exists t1;
 create table t1 (i int);
 connect  flush,localhost,root,,test,,;
 connection default;
@@ -543,7 +542,6 @@ connection default;
 disconnect con1;
 DROP USER 'no_rights'@'localhost';
 DROP DATABASE db1;
-DROP DATABASE IF EXISTS mysqltest_db1;
 CREATE DATABASE mysqltest_db1;
 USE mysqltest_db1;
 CREATE USER mysqltest_u1@localhost;
@@ -564,12 +562,12 @@ connection default;
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_u1@localhost;
 UPDATE IGNORE t1, t2 SET t1.a1 = 2, t2.a1 = 3 WHERE t1.a1 = 1 AND t2.a1 = 2;
 ERROR 42000: TRIGGER command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t1`
-DROP DATABASE mysqltest_db1;
-DROP USER mysqltest_u1@localhost;
 disconnect con1;
 connection default;
+DROP DATABASE mysqltest_db1;
+DROP USER mysqltest_u1@localhost;
 USE test;
-End of 5.1 tests.
+# End of 5.1 tests.
 #
 # MDEV-34551: Column list in the trigger definition
 #

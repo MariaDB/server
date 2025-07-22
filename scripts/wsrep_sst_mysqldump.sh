@@ -201,6 +201,10 @@ else
     echo "$SET_START_POSITION" | $MYSQL || exit $?
 fi
 
+if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+    simulate_long_sst
+fi
+
 echo "done $STATE"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE completed on $WSREP_SST_OPT_ROLE"

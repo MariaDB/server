@@ -2513,42 +2513,41 @@ JOIN::optimize_inner()
       DBUG_RETURN(TRUE);
   }
 
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
+  TABLE_LIST *tbl;
+  List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+  while ((tbl= li++))
   {
-    TABLE_LIST *tbl;
-    List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
-    while ((tbl= li++))
+    const bool is_derived_pushdown_allowed= hint_table_state(
+      thd, tbl->table, DERIVED_CONDITION_PUSHDOWN_HINT_ENUM,
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED));
+    if (!is_derived_pushdown_allowed)
     {
-      /* 
+      /* Run optimize phase on this derived table/view. */
+      if (tbl->is_view_or_derived() &&
+          tbl->handle_derived(thd->lex, DT_OPTIMIZE))
+        DBUG_RETURN(1);
+      continue;
+    }
+
+    if (tbl->is_materialized_derived())
+    {
+      JOIN *join= tbl->get_unit()->first_select()->join;
+      if (join &&
+          join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
+          join->with_two_phase_optimization)
+        continue;
+      /*
         Do not push conditions from where into materialized inner tables
         of outer joins: this is not valid.
       */
-      if (tbl->is_materialized_derived())
+      if (!tbl->is_inner_table_of_outer_join())
       {
-        JOIN *join= tbl->get_unit()->first_select()->join;
-        if (join &&
-            join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
-            join->with_two_phase_optimization)
-          continue;
-        /*
-          Do not push conditions from where into materialized inner tables
-          of outer joins: this is not valid.
-        */
-        if (!tbl->is_inner_table_of_outer_join())
-	{
-          if (pushdown_cond_for_derived(thd, conds, tbl))
-	    DBUG_RETURN(1);
-        }
-	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
-	  DBUG_RETURN(1);
+        if (pushdown_cond_for_derived(thd, conds, tbl))
+          DBUG_RETURN(1);
       }
+      if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
+        DBUG_RETURN(1);
     }
-  }
-  else
-  {
-    /* Run optimize phase for all derived tables/views used in this SELECT. */
-    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
-      DBUG_RETURN(1);
   }
   {
     if (select_lex->where)
@@ -4885,11 +4884,6 @@ int JOIN::exec_inner()
         limit in order to produce the partial query result stored in the
         UNION temp table.
   */
-
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_exec(thd, "join_execution");
-  trace_exec.add_select_number(select_lex->select_number);
-  Json_writer_array trace_steps(thd, "steps");
 
   if (!select_lex->outer_select() &&                            // (1)
       select_lex != select_lex->master_unit()->fake_select_lex) // (2)
@@ -23907,6 +23901,8 @@ do_select(JOIN *join, Procedure *procedure)
         */
         clear_tables(join, &cleared_tables);
       }
+      if (join->tmp_table_param.copy_funcs.elements)
+        copy_fields(&join->tmp_table_param);
       if (!join->having || join->having->val_bool())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
@@ -25397,6 +25393,13 @@ test_if_quick_select(JOIN_TAB *tab)
     tab->table->file->ha_index_or_rnd_end();
 
   quick_select_return res;
+  Json_writer_object wrapper(tab->join->thd);
+  Json_writer_object range_fer(tab->join->thd,
+                               "range-checked-for-each-record");
+  range_fer.add_select_number(tab->join->select_lex->select_number);
+  range_fer.add("loop", tab->join->explain->time_tracker.get_loops());
+
+  Json_writer_array rows_est(tab->join->thd, "rows_estimation");
   res= tab->select->test_quick_select(tab->join->thd, tab->keys,
                                       (table_map) 0, HA_POS_ERROR, 0,
                                       FALSE, /*remove where parts*/FALSE,
@@ -28600,9 +28603,13 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
-    if (resolution == RESOLVED_BEHIND_ALIAS &&
-        order_item->fix_fields_if_needed_for_order_by(thd, order->item))
-      return TRUE;
+    if (resolution == RESOLVED_BEHIND_ALIAS)
+    {
+      if (order_item->fix_fields_if_needed_for_order_by(thd, order->item))
+        return TRUE;
+      // fix_fields may have replaced order->item, reset local variable.
+      order_item= *order->item;
+    }
 
     /* Lookup the current GROUP field in the FROM clause. */
     order_item_type= order_item->type();
@@ -32083,7 +32090,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
       */
       if (top_level ||
           item->is_explicit_name() ||
-          !check_column_name(item->name.str))
+          !check_column_name(item->name))
         item->print_item_w_name(str, query_type);
       else
         item->print(str, query_type);
@@ -33404,8 +33411,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     double new_cost;
     if (test_if_cheaper_ordering(FALSE, NULL, order, table,
                                  table->keys_in_use_for_order_by, -1, limit,
-                                 &key, &direction, &limit, &new_cost) &&
-        !is_key_used(table, key, table->write_set))
+                                 &key, &direction, &limit, &new_cost))
     {
       *need_sort= FALSE;
       *scanned_limit= limit;
@@ -34115,6 +34121,21 @@ void JOIN::init_join_cache_and_keyread()
           tuple.
       */
       table->mark_index_columns(table->file->keyread, table->read_set);
+      /*
+        Also mark in the read_set vcol fields whose "extra" index
+        coverings contain the keyread key, so that they are included
+        in filesort and satisfy an assertion later.
+      */
+      if (table->vfield)
+      {
+        for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
+        {
+          Field *vf= *vfield_ptr;
+          if (!vf->vcol_direct_part_of_key.is_set(table->file->keyread) &&
+              vf->part_of_key.is_set(table->file->keyread))
+            bitmap_set_bit(table->read_set, vf->field_index);
+        }
+      }
     }
     bool init_for_explain= false;
 
@@ -34502,39 +34523,38 @@ static void MYSQL_DML_START(THD *thd)
 }
 
 
-static void MYSQL_DML_DONE(THD *thd, int rc)
+static void MYSQL_DML_GET_STAT(THD * thd, ha_rows &found, ha_rows &changed)
 {
   switch (thd->lex->sql_command) {
-
   case SQLCOM_UPDATE:
-    MYSQL_UPDATE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_found()),
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_updated()));
-    break;
   case SQLCOM_UPDATE_MULTI:
-    MYSQL_MULTI_UPDATE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_found()),
-    (rc ? 0 :
-     ((multi_update*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_updated()));
+  case SQLCOM_DELETE_MULTI:
+    thd->lex->m_sql_cmd->get_dml_stat(found, changed);
     break;
   case SQLCOM_DELETE:
-    MYSQL_DELETE_DONE(rc, (rc ? 0 : (ulong) (thd->get_row_count_func())));
+    found= 0;
+    changed= (thd->get_row_count_func());
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
+
+
+static void MYSQL_DML_DONE(THD *thd, int rc, ha_rows found, ha_rows changed)
+{
+  switch (thd->lex->sql_command) {
+  case SQLCOM_UPDATE:
+    MYSQL_UPDATE_DONE(rc, found, changed);
+    break;
+  case SQLCOM_UPDATE_MULTI:
+    MYSQL_MULTI_UPDATE_DONE(rc, found, changed);
+    break;
+  case SQLCOM_DELETE:
+    MYSQL_DELETE_DONE(rc, changed);
     break;
   case SQLCOM_DELETE_MULTI:
-    MYSQL_MULTI_DELETE_DONE(
-    rc,
-    (rc ? 0 :
-     ((multi_delete*)(((Sql_cmd_dml*)(thd->lex->m_sql_cmd))->get_result()))
-     ->num_deleted()));
+    MYSQL_MULTI_DELETE_DONE(rc, changed);
     break;
   default:
     DBUG_ASSERT(0);
@@ -34623,6 +34643,7 @@ err:
 bool Sql_cmd_dml::execute(THD *thd)
 {
   lex = thd->lex;
+  ha_rows found= 0, changed= 0;
   bool res;
 
   SELECT_LEX_UNIT *unit = &lex->unit;
@@ -34673,6 +34694,8 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   if (res)
     goto err;
+  else
+    MYSQL_DML_GET_STAT(thd, found, changed);
 
   thd->push_final_warnings();
   res= unit->cleanup();
@@ -34682,13 +34705,13 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   THD_STAGE_INFO(thd, stage_end);
 
-  MYSQL_DML_DONE(thd, res);
+  MYSQL_DML_DONE(thd, 0, found, changed);
 
   return res;
 
 err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
-  MYSQL_DML_DONE(thd, 1);
+  MYSQL_DML_DONE(thd, 1, 0, 0);
   THD_STAGE_INFO(thd, stage_end);
   (void)unit->cleanup();
   if (is_prepared())

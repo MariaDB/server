@@ -152,4 +152,5 @@ revoke role2 from current_user;
 revoke role4 from current_user;
 grant role4 to current_user;
 drop role role1, role2, role3, role4, role5, role6;
+disconnect c1;
 drop user foo@localhost;

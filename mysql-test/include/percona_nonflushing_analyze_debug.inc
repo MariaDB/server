@@ -4,8 +4,6 @@
 # $percona_nonflushing_analyze_table - table to test
 #
 
---source include/count_sessions.inc
-
 --connect con1,localhost,root
 
 SET DEBUG_SYNC="handler_rnd_next_end SIGNAL idx_scan_in_progress WAIT_FOR finish_scan";
@@ -31,5 +29,3 @@ reap;
 --disconnect con1
 --connection default
 SET DEBUG_SYNC='reset';
-
---source include/wait_until_count_sessions.inc

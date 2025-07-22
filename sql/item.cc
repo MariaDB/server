@@ -1023,6 +1023,18 @@ bool Item_field::update_vcol_processor(void *arg)
   return 0;
 }
 
+/*
+   If Item_field itself is a vcol, the underlying field would have
+   already had its part_of_key fixed, so there is no need to recurse
+   further
+*/
+bool Item_field::intersect_field_part_of_key(void *arg)
+{
+  key_map *part_of_key= (key_map *) arg;
+  part_of_key->intersect(field->part_of_key);
+  return 0;
+}
+
 
 bool Item::check_cols(uint c)
 {
@@ -2605,7 +2617,7 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
   }
   else
   { 
-    if (!compare_collations(collation, dt.collation))
+    if (collation->eq_collation(dt.collation))
     {
       /* Do nothing */
     }
@@ -5415,6 +5427,7 @@ bool Item_param::assign_default(Field *field)
 
 double Item_copy_string::val_real()
 {
+  DBUG_ASSERT(copied_in);
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
@@ -5425,6 +5438,7 @@ double Item_copy_string::val_real()
 
 longlong Item_copy_string::val_int()
 {
+  DBUG_ASSERT(copied_in);
   int err;
   return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
                                                         str_value.length(), 10,
@@ -5434,6 +5448,7 @@ longlong Item_copy_string::val_int()
 
 int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 {
+  DBUG_ASSERT(copied_in);
   return save_str_value_in_field(field, &str_value);
 }
 
@@ -5444,11 +5459,15 @@ void Item_copy_string::copy()
   if (res && res != &str_value)
     str_value.copy(*res);
   null_value=item->null_value;
+#ifndef DBUG_OFF
+  copied_in= 1;
+#endif
 }
 
 /* ARGSUSED */
 String *Item_copy_string::val_str(String *str)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (String*) 0;
@@ -5458,6 +5477,7 @@ String *Item_copy_string::val_str(String *str)
 
 my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
 {
+  DBUG_ASSERT(copied_in);
   // Item_copy_string is used without fix_fields call
   if (null_value)
     return (my_decimal *) 0;
@@ -11287,8 +11307,8 @@ void dummy_error_processor(THD *thd, void *data)
 {}
 
 /**
-  Wrapper of hide_view_error call for Name_resolution_context error
-  processor.
+  Wrapper of replace_view_error_with_generic call for Name_resolution_context
+  error processor.
 
   @note
     hide view underlying tables details in error messages
@@ -11296,7 +11316,7 @@ void dummy_error_processor(THD *thd, void *data)
 
 void view_error_processor(THD *thd, void *data)
 {
-  ((TABLE_LIST *)data)->hide_view_error(thd);
+  ((TABLE_LIST *)data)->replace_view_error_with_generic(thd);
 }
 
 

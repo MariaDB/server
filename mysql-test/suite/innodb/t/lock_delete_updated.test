@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
@@ -33,4 +32,3 @@ connection default;
 SELECT count(*) FROM t;
 SET DEBUG_SYNC="reset";
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

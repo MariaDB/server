@@ -263,6 +263,7 @@ select count(*) > -1 from d_trx;
 count(*) > -1
 1
 connection default;
+disconnect select_only;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 drop database test;
 create database test;

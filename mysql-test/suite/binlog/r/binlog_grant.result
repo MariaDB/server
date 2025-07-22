@@ -142,6 +142,7 @@ connection user1;
 connection default;
 include/diff_tables.inc [t1,t2]
 #  Test cleanup
+disconnect user1;
 DROP TABLE t2,t1;
 DROP USER user1@localhost;
 #

@@ -320,6 +320,7 @@ aria_pagecache_age_threshold	#
 aria_pagecache_buffer_size	#
 aria_pagecache_division_limit	#
 aria_pagecache_file_hash_size	#
+aria_pagecache_segments	#
 aria_page_checksum	#
 aria_recover_options	#
 aria_repair_threads	#

@@ -44,5 +44,7 @@ i
 1
 connection node_1;
 DROP USER foo@localhost;
+Warnings:
+Note	4226	Dropped users 'foo'@'localhost' have active connections. Use KILL CONNECTION if they should not be used anymore.
 DROP TABLE t2;
 # End of tests

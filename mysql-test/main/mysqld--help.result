@@ -16,6 +16,10 @@ The following specify which files/extra groups are read (specified before remain
  --alter-algorithm[=name] 
  Unused. One of: DEFAULT, COPY, INPLACE, NOCOPY, INSTANT.
  Deprecated, will be removed in a future release.
+ --analyze-max-length=# 
+ Fields which length in bytes more than this are skipped
+ by ANALYZE TABLE PERSISTENT unless explicitly listed in
+ the FOR COLUMNS () clause
  --analyze-sample-percentage=# 
  Percentage of rows from the table ANALYZE TABLE will
  sample to collect table statistics. Set to 0 to let
@@ -712,6 +716,11 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --metadata-locks-instances=# 
+ Number of fast lanes to create for metadata locks. Can be
+ used to improve DML scalability by eliminating
+ MDL_lock::rwlock load. Use 1 to disable MDL fast lanes.
+ Supported MDL namespaces: BACKUP
  --mhnsw-default-distance=name 
  Distance function to build the vector index for. One of: 
  euclidean, cosine
@@ -1843,6 +1852,7 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+metadata-locks-instances 8
 mhnsw-default-distance euclidean
 mhnsw-default-m 6
 mhnsw-ef-search 20
@@ -2066,7 +2076,6 @@ thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
 thread-pool-stall-limit 500
-thread-stack 299008
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216
 tmp-table-size 16777216

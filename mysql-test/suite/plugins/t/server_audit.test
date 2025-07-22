@@ -1,7 +1,6 @@
 --source include/have_plugin_auth.inc
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
---source include/have_tlsv13.inc
 
 if (!$SERVER_AUDIT_SO) {
   skip No SERVER_AUDIT plugin;
@@ -22,6 +21,10 @@ set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
+
+--replace_regex /[1-9][0-9][0-9]+/FN_LEN/
+set global server_audit_file_path=REPEAT(REPEAT('new_file_name', 50), 50);
+
 set global server_audit_logging=on;
 
 --error ER_WRONG_VALUE_FOR_VAR
@@ -185,8 +188,6 @@ set global server_audit_logging= off;
 set global server_audit_incl_users='root';
 set global server_audit_logging= on;
 disconnect cn1;
-let $count_sessions=1;
-source include/wait_until_count_sessions.inc;
 
 drop user user1@localhost;
 
@@ -206,8 +207,6 @@ connect(plug_con,localhost,plug,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_con;
---sleep 2
---sleep 2
 DROP USER plug;
 DROP USER plug_dest;
 
@@ -218,7 +217,6 @@ connect (conssl1,localhost,ssl_user1,,sa_db,,,SSL);
 select variable_value > '' as 'have_ssl' from information_schema.session_status where variable_name='ssl_cipher';
 disconnect conssl1;
 connection default;
---sleep 2
 DROP USER ssl_user1@localhost;
 
 set global server_audit_query_log_limit= 15;

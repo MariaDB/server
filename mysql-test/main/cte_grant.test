@@ -1,16 +1,10 @@
 # Can't test with embedded server
 -- source include/not_embedded.inc
 
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
-
 connect (root,localhost,root,,test);
 connection root;
 
---disable_warnings
 create database mysqltest;
---enable_warnings
-
 create user mysqltest_1@localhost;
 connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
@@ -74,7 +68,7 @@ connection user1;
 select * from mysqltest.v3;
 	
 connection root;
-revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database mysqltest;
 

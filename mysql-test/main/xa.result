@@ -1,5 +1,5 @@
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
-drop table if exists t1, t2;
+call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 create table t1 (a int) engine=innodb;
 xa start 'test1';
 insert t1 values (10);
@@ -593,6 +593,4 @@ formatID	gtrid_length	bqual_length	data
 xa rollback '4';
 ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
 set @@global.read_only=@sav_read_only;
-#
 # End of 10.5 tests
-#

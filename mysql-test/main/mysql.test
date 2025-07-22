@@ -7,10 +7,6 @@
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
-
 #
 # Test the "delimiter" functionality
 # Bug#9879
@@ -796,7 +792,9 @@ create user ser@localhost identified by "ass";
 --echo MYSQL --ssl-verify-server-cert -e "\\s"
 --replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
 --exec $MYSQL -user -pass --ssl-verify-server-cert -e "\\s"
+--disable_warnings
 drop user ser@localhost;
+--enable_warnings
 
 --echo #
 --echo # MDEV-32473 --disable-ssl doesn't disable it

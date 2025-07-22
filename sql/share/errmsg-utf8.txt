@@ -12328,3 +12328,7 @@ ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
         eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"
+ER_INIT_SLAVE_ERROR
+        eng "Slave SQL thread aborted. Can't execute init_slave query due to error code %u: %s"
+ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
+        eng "Dropped users %s have active connections. Use KILL CONNECTION if they should not be used anymore."

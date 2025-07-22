@@ -6184,9 +6184,12 @@ opt_check_constraint:
         ;
 
 check_constraint:
-          CHECK_SYM '(' expr ')'
+          CHECK_SYM '('
+          { Lex->clause_that_disallows_subselect= "CHECK"; }
+          expr ')'
           {
-            Virtual_column_info *v= add_virtual_expression(thd, $3);
+            Virtual_column_info *v= add_virtual_expression(thd, $4);
+            Lex->clause_that_disallows_subselect= NULL;
             if (unlikely(!v))
               MYSQL_YYABORT;
             $$= v;
@@ -9545,7 +9548,7 @@ select_item:
             if ($4.str)
             {
               if (unlikely(Lex->sql_command == SQLCOM_CREATE_VIEW &&
-                          check_column_name($4.str)))
+                          check_column_name($4)))
                 my_yyabort_error((ER_WRONG_COLUMN_NAME, MYF(0), $4.str));
               $2->base_flags|= item_base_t::IS_EXPLICIT_NAME;
               $2->set_name(thd, $4);

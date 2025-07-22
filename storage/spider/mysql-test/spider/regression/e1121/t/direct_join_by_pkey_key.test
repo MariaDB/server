@@ -62,6 +62,7 @@ INSERT INTO tbl_b (bkey,akey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,4),(6,3),(
 --connection child2_1
 TRUNCATE TABLE mysql.general_log;
 
+--disable_view_protocol
 --connection master_1
 --disable_ps2_protocol
 SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
@@ -72,6 +73,7 @@ SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
 eval $CHILD2_1_SELECT_ARGUMENT1;
 eval $CHILD2_1_SELECT_TABLES;
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo
 --echo deinit

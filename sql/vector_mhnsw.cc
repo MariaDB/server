@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2024, MariaDB plc
+   Copyright (c) 2024, 2025, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -670,7 +670,7 @@ int MHNSW_Trx::do_commit(THD *thd, bool)
     trx_next= trx->next;
     if (trx->table_id)
     {
-      MDL_key *key= trx->table_id->get_key();
+      const MDL_key *key= trx->table_id->get_key();
       LEX_CSTRING db=  {key->db_name(), key->db_name_length()},
                   tbl= {key->name(), key->name_length()};
       TABLE_LIST tl;
@@ -753,6 +753,8 @@ MHNSW_Share *MHNSW_Share::get_from_share(TABLE_SHARE *share, TABLE *table)
   }
   if (ctx)
     ctx->refcnt++;
+  if (table) // hijack TABLE::used_stat_records
+    table->hlindex->used_stat_records= ctx->node_cache.size();
   share->unlock_share();
   return ctx;
 }
@@ -1144,8 +1146,9 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
 
   // WARNING! heuristic here
   const double est_heuristic= 8 * std::sqrt(ctx->max_neighbors(layer));
-  const uint est_size= static_cast<uint>(est_heuristic * std::pow(ef, ctx->ef_power));
-  VisitedSet visited(root, target, est_size);
+  double est_size= est_heuristic * std::pow(ef, ctx->ef_power);
+  set_if_smaller(est_size, graph->used_stat_records/1.3);
+  VisitedSet visited(root, target, static_cast<uint>(est_size));
 
   candidates.init(max_ef, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
@@ -1213,9 +1216,9 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
     }
   }
   set_if_bigger(ctx->diameter, max_distance); // not atomic, but it's ok
-  if (ef > 1 && visited.count*2 > est_size)
+  if (ef > 1 && visited.count > est_size)
   {
-    double ef_power= std::log(visited.count*2/est_heuristic) / std::log(ef);
+    double ef_power= std::log(visited.count/est_heuristic) / std::log(ef);
     set_if_bigger(ctx->ef_power, ef_power); // not atomic, but it's ok
   }
 

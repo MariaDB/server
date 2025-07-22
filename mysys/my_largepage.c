@@ -423,7 +423,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
-#ifdef _WIN32
+#ifndef _WIN32
 /**
   Special large pages allocator, with possibility to commit to allocating
   more memory later.
@@ -436,35 +436,8 @@ char *my_large_virtual_alloc(size_t *size)
 
   if (my_use_large_pages)
   {
-    size_t s= *size;
-    s= MY_ALIGN(s, (size_t) my_large_page_size);
-    ptr= VirtualAlloc(NULL, s, MEM_COMMIT | MEM_RESERVE | MEM_LARGE_PAGES,
-                      PAGE_READWRITE);
-    if (ptr)
-    {
-      *size= s;
-      DBUG_RETURN(ptr);
-    }
-  }
-
-  DBUG_RETURN(VirtualAlloc(NULL, *size, MEM_RESERVE, PAGE_READWRITE));
-}
-#elif defined HAVE_MMAP
-/**
-  Special large pages allocator, with possibility to commit to allocating
-  more memory later.
-  Every implementation returns a zero filled buffer here.
-*/
-char *my_large_mmap(size_t *size, int prot)
-{
-  char *ptr;
-  DBUG_ENTER("my_large_virtual_alloc");
-
-  if (my_use_large_pages)
-  {
     size_t large_page_size;
     int page_i= 0;
-    prot= PROT_READ | PROT_WRITE;
 
     while ((large_page_size= my_next_large_page_size(*size, &page_i)) != 0)
     {
@@ -488,7 +461,7 @@ char *my_large_mmap(size_t *size, int prot)
         OS_MAP_ANON;
 
       size_t aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
-      ptr= mmap(NULL, aligned_size, prot, mapflag, -1, 0);
+      ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
       if (ptr == (void*) -1)
       {
         ptr= NULL;
@@ -511,10 +484,7 @@ char *my_large_mmap(size_t *size, int prot)
     }
   }
 
-  ptr= mmap(NULL, *size, prot,
-# ifdef MAP_NORESERVE
-            MAP_NORESERVE |
-# endif
+  ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE,
             MAP_PRIVATE | OS_MAP_ANON, -1, 0);
   if (ptr == MAP_FAILED)
   {
@@ -523,16 +493,6 @@ char *my_large_mmap(size_t *size, int prot)
   }
 
   DBUG_RETURN(ptr);
-}
-
-/**
-  Special large pages allocator, with possibility to commit to allocating
-  more memory later.
-  Every implementation returns a zero filled buffer here.
-*/
-char *my_large_virtual_alloc(size_t *size)
-{
-  return my_large_mmap(size, PROT_READ | PROT_WRITE);
 }
 #endif
 

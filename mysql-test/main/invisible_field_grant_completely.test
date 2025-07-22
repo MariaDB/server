@@ -45,7 +45,6 @@ select * from t1;
 select invisible from t1;
 
 disconnect con1;
---source include/wait_until_disconnected.inc
 --echo
 --echo #Final Cleanup
 connection default;
