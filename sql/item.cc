@@ -9830,7 +9830,12 @@ bool Item_args::excl_dep_on_grouping_fields(st_select_lex *sel)
     if (args[i]->type() == Item::FUNC_ITEM &&
         ((Item_func *)args[i])->functype() == Item_func::UDF_FUNC)
       return false;
-    if (args[i]->const_item())
+    /*
+      Constant expression doesn't need to be checked.
+      BUT if it still reports to have references to tables, we must check that
+      only allowed columns are referred.
+    */
+    if (args[i]->const_item() && !args[i]->used_tables())
       continue;
     if (!args[i]->excl_dep_on_grouping_fields(sel))
       return false;
