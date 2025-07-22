@@ -666,6 +666,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
     bool queued_by_other;
     ulong binlog_id;
     bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
+    /* commit_ordered() will binlog transaction (--binlog-storage-engine). */
+    bool auto_binlog;
   };
 
   /*
