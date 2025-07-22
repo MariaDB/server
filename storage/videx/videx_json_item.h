@@ -23,6 +23,7 @@
 #ifndef VIDEX_JSON_ITEM_H
 #define VIDEX_JSON_ITEM_H
 
+#include <my_global.h>
 #include <iostream>
 #include <string>
 #include <map>
@@ -38,7 +39,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <memory>
-#include "sql_string.h"
+#include <sql_string.h>
 #include <fstream>
 
 typedef std::map<std::string, std::string> VidexStringMap;
@@ -89,14 +90,6 @@ public:
     void add_property(const std::string &key, const char *value) {
         if (value != NULL) {
             properties[key] = videx_escape_double_quotes(value);
-        } else {
-            properties[key] = "NULL";
-        }
-    }
-
-    void add_property(const std::string &key, const Simple_cstring &value) {
-        if (value.is_set() && value.ptr() != NULL) {
-            properties[key] = videx_escape_double_quotes(value.ptr(), value.length());
         } else {
             properties[key] = "NULL";
         }

@@ -40,7 +40,7 @@ IF (WITH_VIDEX_STORAGE_ENGINE AND NOT WITHOUT_VIDEX_STORAGE_ENGINE)
     # Build only the dynamic library
     MESSAGE(STATUS "Building VIDEX as dynamic plugin only")
     MYSQL_ADD_PLUGIN(videx
-        #     videx_json_item.cc
+            videx_json_item.cc
         #     videx_log_utils.cc
             ha_videx.cc
             STORAGE_ENGINE
@@ -51,7 +51,7 @@ IF (WITH_VIDEX_STORAGE_ENGINE AND NOT WITHOUT_VIDEX_STORAGE_ENGINE)
     # Default: Build both static and dynamic libraries
     MESSAGE(STATUS "Building VIDEX as static plugin (default)")
     MYSQL_ADD_PLUGIN(videx_static
-            # videx_json_item.cc
+            videx_json_item.cc
             # videx_log_utils.cc
             ha_videx.cc
             STORAGE_ENGINE
@@ -64,7 +64,7 @@ IF (WITH_VIDEX_STORAGE_ENGINE AND NOT WITHOUT_VIDEX_STORAGE_ENGINE)
     MESSAGE(STATUS "Building VIDEX as dynamic plugin")
     # Generate the dynamic library at the same time
     MYSQL_ADD_PLUGIN(videx
-        #     videx_json_item.cc
+            videx_json_item.cc
         #     videx_log_utils.cc
             ha_videx.cc
             STORAGE_ENGINE

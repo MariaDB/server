@@ -48,6 +48,7 @@
 #include <my_sys.h>
 #include "scope.h"
 #include <my_service_manager.h>
+#include "videx_json_item.h"
 
 /** @brief
 	videx_share is a class that will be shared among all open handlers.
@@ -64,8 +65,6 @@ public:
 		mysql_mutex_destroy(&mutex);
 	}
 };
-
-// namespace dd
 
 /** @brief
 	Class definition for the storage engine
@@ -246,6 +245,9 @@ public:
 	/** Flags that specificy the handler instance (table) capability. */
 	Table_flags m_int_table_flags;
 
+	/** Index into the server's primary key meta-data table->key_info{} */
+	uint m_primary_key;
+
 	/** this is set to 1 when we are starting a table scan but have
 	not yet fetched any row, else false */
 	bool m_start_of_scan;
@@ -253,3 +255,5 @@ public:
 	/** If mysql has locked with external_lock() */
 	bool m_mysql_has_locked;
 };
+
+typedef float rec_per_key_t;

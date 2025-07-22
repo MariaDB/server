@@ -25,53 +25,26 @@
 #include "ha_videx.h"
 #include "sql_class.h"
 
-static handler *videx_create_handler(handlerton *hton,
-									 TABLE_SHARE *table, 
-									 MEM_ROOT *mem_root);
+/**
+ * Sends a request to the Videx HTTP server and validates the response.
+ * If the response is successful (code=200), the passed-in &request will be filled.
+ *
+ * @param request The VidexJsonItem object containing the request data.
+ * @param res_json The VidexStringMap object to store the response data.
+ * @param thd Pointer to the current thread's THD object.
+ * @return 0 if the request is successful, 1 otherwise.
+ */
+int ask_from_videx_http(VidexJsonItem &request, VidexStringMap &res_json, THD* thd) {
+	return 1;
+}
+
+static handler *videx_create_handler(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
 
 handlerton *videx_hton;
 
 /**
 	@brief
 	Function we use in the creation of our hash to get key.
-*/
-
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key ex_key_mutex_videx_share_mutex;
-
-static PSI_mutex_info all_videx_mutexes[]=
-{
-	{ &ex_key_mutex_videx_share_mutex, "videx_share::mutex", 0}
-};
-
-static void init_videx_psi_keys()
-{
-	const char* category= "videx";
-	int count;
-
-	count= array_elements(all_videx_mutexes);
-	mysql_mutex_register(category, all_videx_mutexes, count);
-}
-#else
-static void init_videx_psi_keys() { }
-#endif
-
-/**
-	@brief
-	If frm_error() is called then we will use this to determine
-	the file extensions that exist for the storage engine. This is also
-	used by the default rename_table and delete_table method in
-	handler.cc and by the default discover_many method.
-
-	For engines that have two file name extensions (separate meta/index file
-	and data file), the order of elements is relevant. First element of engine
-	file name extensions array should be meta/index file extention. Second
-	element - data file extention. This order is assumed by
-	prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
-
-	@see
-	rename_table method in handler.cc and
-	delete_table method in handler.cc
 */
 
 static const char *ha_videx_exts[] = {
@@ -81,27 +54,23 @@ static const char *ha_videx_exts[] = {
 videx_share::videx_share()
 {
 	thr_lock_init(&lock);
-	mysql_mutex_init(ex_key_mutex_videx_share_mutex,
-					 &mutex, MY_MUTEX_INIT_FAST);
+	mysql_mutex_init(ex_key_mutex_videx_share_mutex, &mutex, MY_MUTEX_INIT_FAST);
 }
 
-static int videx_init_func(void *p)
+static int videx_init(void *p)
 {
-	DBUG_ENTER("videx_init_func");
+	DBUG_ENTER("videx_init");
 
-	init_videx_psi_keys();
+	videx_hton= static_cast<handlerton*>(p);
+	videx_hton_ptr= videx_hton;
 
-  videx_hton= (handlerton *)p;
-  videx_hton->create=  videx_create_handler;
-  videx_hton->flags= 
-    HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
-    HTON_NATIVE_SYS_VERSIONING |
-    HTON_WSREP_REPLICATION |
-    HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
-    HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE |
-    HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT;
-  videx_hton->tablefile_extensions= ha_videx_exts;
+	
+	videx_hton->create=  videx_create_handler;
+	videx_hton->flags= HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
+		HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION |
+			HTON_REQUIRES_CLOSE_AFTER_TRUNCATE | HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE | HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT;
 
+	videx_hton->tablefile_extensions= ha_videx_exts;
 	DBUG_RETURN(0);
 }
 
@@ -134,8 +103,8 @@ err:
 }
 
 static handler* videx_create_handler(handlerton *hton,
-									 TABLE_SHARE *table, 
-									 MEM_ROOT *mem_root) // ✅
+					TABLE_SHARE *table, 
+					MEM_ROOT *mem_root) // ✅
 {
 	return new (mem_root) ha_videx(hton, table);
 }
@@ -172,6 +141,8 @@ ha_videx::ha_videx(
 	m_start_of_scan(),
     m_mysql_has_locked()
 {}
+
+ha_videx::~ha_videx() = default;
 
 ulonglong ha_videx::table_version() const
 {
@@ -229,8 +200,8 @@ ulong ha_videx::index_flags( // ✅
 		? HA_CLUSTERED_INDEX : HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN;
 
 	flags |= HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
-              | HA_READ_RANGE
-              | HA_DO_INDEX_COND_PUSHDOWN;
+		| HA_READ_RANGE
+		| HA_DO_INDEX_COND_PUSHDOWN;
 	return(flags);
 }
 
@@ -256,9 +227,10 @@ const key_map* ha_videx::keys_to_use_for_scanning() // ✅
 
 void ha_videx::column_bitmaps_signal()
 {
-  DBUG_ENTER("ha_videx::column_bitmaps_signal");
-  // TODO:
-  DBUG_VOID_RETURN;
+	DBUG_ENTER("ha_videx::column_bitmaps_signal");
+	// TODO:
+	// indexed virtual columns
+	DBUG_VOID_RETURN;
 }
 
 /**
@@ -285,11 +257,19 @@ int ha_videx::open(const char *name, int mode, uint test_if_locked)
 		DBUG_RETURN(1);
 	thr_lock_data_init(&share->lock,&lock,NULL);
 
-	ref_length = table->key_info[table_share->primary_key].key_length;
+	m_primary_key = table->s->primary_key;
+
+	if (m_primary_key  >= MAX_KEY) {
+		ref_length = 6; // DATA_ROW_ID_LEN;
+	}
+	else {
+		ref_length = table->key_info[m_primary_key].key_length;
+	}
 
 	stats.block_size = 16384;
 
-	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST
+		| HA_STATUS_OPEN);
 
 	DBUG_RETURN(0);
 }
@@ -327,13 +307,14 @@ handler* ha_videx::clone(
 IO_AND_CPU_COST ha_videx::scan_time()
 {
 	DBUG_ENTER("ha_videx::scan_time");
-	return handler::scan_time();
+
+	DBUG_RETURN(handler::scan_time());
 }
 
 IO_AND_CPU_COST ha_videx::rnd_pos_time(ha_rows rows)
 {
 	DBUG_ENTER("ha_videx::rnd_pos_time");
-	return handler::rnd_pos_time(rows);
+	DBUG_RETURN(handler::rnd_pos_time(rows));
 }
 
 /**
@@ -643,7 +624,6 @@ void ha_videx::position(const uchar *record) // ✅
 */
 int ha_videx::info(uint flag) // ✅
 {
-	DBUG_ENTER("ha_videx::info");
 	return (info_low(flag, false));
 }
 
@@ -821,7 +801,8 @@ ha_rows ha_videx::estimate_rows_upper_bound()
 int ha_videx::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
-	// TODO:
+	DBUG_ENTER("ha_videx::create");
+	DBUG_PRINT("info", ("name: %s, table_arg: %p, create_info: %p", name, table_arg, create_info));
 	DBUG_RETURN(0);
 }
 
@@ -933,8 +914,452 @@ class Item* ha_videx::idx_cond_push(
 
 int ha_videx::info_low(uint flag, bool is_analyze)
 {
-	DBUG_ENTER("ha_videx::info_low");
-	// TODO:
+	// dict_table_t*	ib_table;
+	uint64_t	n_rows;
+	char		path[FN_REFLEN];
+	// os_file_stat_t	stat_info;
+
+	DBUG_ENTER("ha_videx::info");
+	DEBUG_SYNC_C("ha_innobase_info_low");
+
+	// construct request
+	VidexStringMap res_json;
+	VidexJsonItem request_item = construct_request(table->s->db.str, table->s->table_name.str, __PRETTY_FUNCTION__);
+	for (uint i = 0; i < table->s->keys; i++) {
+		KEY *key = &table->key_info[i];
+		VidexJsonItem * keyItem = request_item.create("key");
+		keyItem->add_property("name", key->name.str);
+		keyItem->add_property_nonan("key_length", key->key_length);
+		for (ulong j = 0; j < key->usable_key_parts; j++) {
+			if ((key->flags & HA_KEY_ALG_FULLTEXT) || (key->flags & HA_SPATIAL_legacy)) {
+				continue;
+			}
+			VidexJsonItem* field = keyItem->create("field");
+			field->add_property("name", key->key_part[j].field->field_name.str);
+			field->add_property_nonan("store_length", key->key_part[j].store_length);
+		}
+	}
+  
+	DBUG_PRINT("info", ("Request JSON: %s", request_item.to_json().c_str()));
+	std::cout << "Request JSON:" << std::endl;
+	std::cout << request_item.to_json() << std::endl;
+	std::cout << "=== END DEBUG OUTPUT ===" << std::endl;
+
+	THD* thd = ha_thd();
+	int error = ask_from_videx_http(request_item, res_json, thd);
+  	if (error) {
+  		std::cout << "ask_from_videx_http failed, using default values" << std::endl;
+  		// Set default values when HTTP request fails
+
+		// nation table
+  		res_json["nation #@# stat_n_rows"] = "25";
+		res_json["nation #@# data_file_length"] = "16384";
+		res_json["nation #@# index_file_length"] = "16384";
+  		res_json["nation #@# data_free_length"] = "0";
+		res_json["nation #@# rec_per_key #@# PRIMARY #@# N_NATIONKEY"] = "1";
+		res_json["nation #@# rec_per_key #@# NATION_FK1 #@# N_REGIONKEY"] = "5";
+		res_json["nation #@# rec_per_key #@# NATION_FK1 #@# N_NATIONKEY"] = "1";
+
+		// orders table
+		res_json["orders #@# stat_n_rows"] = "14907";
+		res_json["orders #@# data_file_length"] = "2637824";
+		res_json["orders #@# index_file_length"] = "245760";
+  		res_json["orders #@# data_free_length"] = "0";
+		res_json["orders #@# rec_per_key #@# PRIMARY #@# O_ORDERKEY"] = "1";
+		res_json["orders #@# rec_per_key #@# ORDERS_FK1 #@# O_CUSTKEY"] = "1";
+		res_json["orders #@# rec_per_key #@# ORDERS_FK1 #@# O_ORDERKEY"] = "1";
+
+		// customer table
+		res_json["customer #@# stat_n_rows"] = "1545";
+		res_json["customer #@# data_file_length"] = "327680";
+		res_json["customer #@# index_file_length"] = "49152";
+  		res_json["customer #@# data_free_length"] = "0";
+		res_json["customer #@# rec_per_key #@# PRIMARY #@# C_CUSTKEY"] = "1";
+		res_json["customer #@# rec_per_key #@# CUSTOMER_FK1 #@# C_NATIONKEY"] = "61";
+		res_json["customer #@# rec_per_key #@# CUSTOMER_FK1 #@# C_CUSTKEY"] = "1";
+  	}
+	else {
+		// validate the returned json
+    	// stat_n_rows。stat_clustered_index_size。stat_sum_of_other_index_sizes。data_file_length。index_file_length。data_free_length
+		if (!(
+			videx_contains_key(res_json, "stat_n_rows") &&
+			videx_contains_key(res_json, "stat_clustered_index_size") &&
+			videx_contains_key(res_json, "stat_sum_of_other_index_sizes") &&
+			videx_contains_key(res_json, "data_file_length") &&
+			videx_contains_key(res_json, "index_file_length") &&
+			videx_contains_key(res_json, "data_free_length")
+		)) {
+			std::cout << "res_json data error=0 but miss some key." << std::endl;
+			DBUG_RETURN(0);
+		}
+	}
+
+	// update_thd(ha_thd());
+	//
+	// m_prebuilt->trx->op_info = "returning various info to MariaDB";
+
+	// ib_table = m_prebuilt->table;
+	// DBUG_ASSERT(ib_table->get_ref_count() > 0);
+
+	// if (!ib_table->is_readable()
+	//     || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
+	// 	dict_stats_empty_table(ib_table);
+ //        } else if (flag & HA_STATUS_TIME) {
+	// 	stats.update_time = ib_table->update_time;
+	// 	if (!is_analyze && !innobase_stats_on_metadata) {
+	// 		goto stats_fetch;
+	// 	}
+
+		// dberr_t ret;
+		// m_prebuilt->trx->op_info = "updating table statistics";
+
+// 		if (ib_table->stats_is_persistent()
+// 		    && !srv_read_only_mode
+// 		    && dict_stats_persistent_storage_check(false)
+// 		    == SCHEMA_OK) {
+// 			if (is_analyze) {
+// 				dict_stats_recalc_pool_del(ib_table->id,
+// 							   false);
+// recalc:
+// 				ret = statistics_init(ib_table, is_analyze);
+// 			} else {
+// 				/* This is e.g. 'SHOW INDEXES' */
+// 				ret = statistics_init(ib_table, is_analyze);
+// 				switch (ret) {
+// 				case DB_SUCCESS:
+// 				case DB_READ_ONLY:
+// 					break;
+// 				default:
+// 					goto error;
+// 				case DB_STATS_DO_NOT_EXIST:
+// 					if (!ib_table
+// 					    ->stats_is_auto_recalc()) {
+// 						break;
+// 					}
+//
+// 					if (opt_bootstrap) {
+// 						break;
+// 					}
+// #ifdef WITH_WSREP
+// 					if (wsrep_thd_skip_locking(
+// 						    m_user_thd)) {
+// 						break;
+// 					}
+// #endif
+// 					is_analyze = true;
+// 					goto recalc;
+// 				}
+// 			}
+// 		} else {
+// 			ret = dict_stats_update_transient(ib_table);
+// 			if (ret != DB_SUCCESS) {
+// error:
+// 				m_prebuilt->trx->op_info = "";
+// 				DBUG_RETURN(HA_ERR_GENERIC);
+// 			}
+// 		}
+
+// 		m_prebuilt->trx->op_info = "returning various info to MariaDB";
+// 	} else {
+// stats_fetch:
+// 		statistics_init(ib_table, false);
+// 	}
+
+	if (flag & HA_STATUS_VARIABLE) {
+
+		// ulint	stat_clustered_index_size;
+		// ulint	stat_sum_of_other_index_sizes;
+
+// #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
+// 		if (xbegin()) {
+// 			if (ib_table->stats_mutex_is_locked())
+// 				xabort();
+//
+// 			ut_ad(ib_table->stat_initialized());
+//
+// 			n_rows = ib_table->stat_n_rows;
+//
+// 			stat_clustered_index_size
+// 				= ib_table->stat_clustered_index_size;
+//
+// 			stat_sum_of_other_index_sizes
+// 				= ib_table->stat_sum_of_other_index_sizes;
+//
+// 			xend();
+// 		} else
+// #endif
+// 		{
+// 			ib_table->stats_shared_lock();
+//
+// 			ut_ad(ib_table->stat_initialized());
+//
+// 			n_rows = ib_table->stat_n_rows;
+//
+// 			stat_clustered_index_size
+// 				= ib_table->stat_clustered_index_size;
+//
+// 			stat_sum_of_other_index_sizes
+// 				= ib_table->stat_sum_of_other_index_sizes;
+//
+// 			ib_table->stats_shared_unlock();
+// 		}
+
+		std::string concat_stat_n_rows = std::string(table->s->table_name.str) + " #@# stat_n_rows";
+		n_rows = std::stoull(res_json[concat_stat_n_rows.c_str()]);
+		DBUG_PRINT("videx", ("n_rows: %lu", n_rows));
+
+		/*
+		The MySQL optimizer seems to assume in a left join that n_rows
+		is an accurate estimate if it is zero. Of course, it is not,
+		since we do not have any locks on the rows yet at this phase.
+		Since SHOW TABLE STATUS seems to call this function with the
+		HA_STATUS_TIME flag set, while the left join optimizer does not
+		set that flag, we add one to a zero value if the flag is not
+		set. That way SHOW TABLE STATUS will show the best estimate,
+		while the optimizer never sees the table empty. */
+
+		if (n_rows == 0 && !(flag & (HA_STATUS_TIME | HA_STATUS_OPEN))) {
+			n_rows++;
+		}
+
+		/* Fix bug#40386: Not flushing query cache after truncate.
+		n_rows can not be 0 unless the table is empty, set to 1
+		instead. The original problem of bug#29507 is actually
+		fixed in the server code. */
+		// if (thd_sql_command(m_user_thd) == SQLCOM_TRUNCATE) {
+
+		// 	n_rows = 1;
+
+		// 	/* We need to reset the m_prebuilt value too, otherwise
+		// 	checks for values greater than the last value written
+		// 	to the table will fail and the autoinc counter will
+		// 	not be updated. This will force write_row() into
+		// 	attempting an update of the table's AUTOINC counter. */
+
+		// 	m_prebuilt->autoinc_last_value = 0;
+		// }
+
+		stats.records = (ha_rows) n_rows;
+		stats.deleted = 0;
+
+		std::string concat_data_file_length = std::string(table->s->table_name.str) + " #@# data_file_length";
+		std::string concat_index_file_length = std::string(table->s->table_name.str) + " #@# index_file_length";
+
+	    stats.data_file_length = std::stoull(res_json[concat_data_file_length.c_str()]);
+	    stats.index_file_length = std::stoull(res_json[concat_index_file_length.c_str()]);
+		DBUG_PRINT("videx", ("stats.data_file_length: %llu", stats.data_file_length));
+		DBUG_PRINT("videx", ("stats.index_file_length: %llu", stats.index_file_length));
+	    if (flag & HA_STATUS_VARIABLE_EXTRA)
+	    {
+			std::string concat_data_free_length = std::string(table->s->table_name.str) + " #@# data_free_length";
+			stats.delete_length = std::stoull(res_json[concat_data_free_length.c_str()]);
+			DBUG_PRINT("videx", ("stats.delete_length: %llu", stats.delete_length));
+        }
+		// if (fil_space_t* space = ib_table->space) {
+		// 	const ulint size = space->physical_size();
+		// 	stats.data_file_length
+		// 		= ulonglong(stat_clustered_index_size)
+		// 		* size;
+		// 	stats.index_file_length
+		// 		= ulonglong(stat_sum_of_other_index_sizes)
+		// 		* size;
+		// 	if (flag & HA_STATUS_VARIABLE_EXTRA) {
+		// 		space->s_lock();
+		// 		stats.delete_length = 1024
+		// 			* fsp_get_available_space_in_free_extents(
+		// 			*space);
+		// 		space->s_unlock();
+		// 	}
+		// }
+		stats.check_time = 0;
+		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
+
+		if (stats.records == 0) {
+			stats.mean_rec_length = 0;
+		} else {
+			stats.mean_rec_length = (ulong)
+				(stats.data_file_length / stats.records);
+		}
+	}
+
+	if (flag & HA_STATUS_CONST) {
+		/* Verify the number of index in InnoDB and MySQL
+		matches up. If m_prebuilt->clust_index_was_generated
+		holds, InnoDB defines GEN_CLUST_INDEX internally */
+		// ulint	num_innodb_index = UT_LIST_GET_LEN(ib_table->indexes)
+		// 	- m_prebuilt->clust_index_was_generated;
+		// if (table->s->keys < num_innodb_index) {
+		// 	/* If there are too many indexes defined
+		// 	inside InnoDB, ignore those that are being
+		// 	created, because MySQL will only consider
+		// 	the fully built indexes here. */
+		//
+		// 	for (const dict_index_t* index
+		// 		     = UT_LIST_GET_FIRST(ib_table->indexes);
+		// 	     index != NULL;
+		// 	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		//
+		// 		/* First, online index creation is
+		// 		completed inside InnoDB, and then
+		// 		MySQL attempts to upgrade the
+		// 		meta-data lock so that it can rebuild
+		// 		the .frm file. If we get here in that
+		// 		time frame, dict_index_is_online_ddl()
+		// 		would not hold and the index would
+		// 		still not be included in TABLE_SHARE. */
+		// 		if (!index->is_committed()) {
+		// 			num_innodb_index--;
+		// 		}
+		// 	}
+		//
+		// 	if (table->s->keys < num_innodb_index
+		// 	    && innobase_fts_check_doc_id_index(
+		// 		    ib_table, NULL, NULL)
+		// 	    == FTS_EXIST_DOC_ID_INDEX) {
+		// 		num_innodb_index--;
+		// 	}
+		// }
+
+		// if (table->s->keys != num_innodb_index) {
+		// 	ib_table->dict_frm_mismatch = DICT_FRM_INCONSISTENT_KEYS;
+		// 	ib_push_frm_error(m_user_thd, ib_table, table, num_innodb_index, true);
+		// }
+
+		snprintf(path, sizeof(path), "%s/%s%s",
+			 mysql_data_home, table->s->normalized_path.str,
+			 reg_ext);
+
+		unpack_filename(path,path);
+
+		/* Note that we do not know the access time of the table,
+		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
+
+		// if (os_file_get_status(
+		// 	    path, &stat_info, false,
+		// 	    srv_read_only_mode) == DB_SUCCESS) {
+		// 	stats.create_time = (ulong) stat_info.ctime;
+		// }
+
+		// ib_table->stats_shared_lock();
+		// auto _ = make_scope_exit([ib_table]() {
+		// 	ib_table->stats_shared_unlock(); });
+		//
+		// ut_ad(ib_table->stat_initialized());
+
+		for (uint i = 0; i < table->s->keys; i++) {
+			ulong	j;
+
+			// dict_index_t* index = innobase_get_index(i);
+			//
+			// if (index == NULL) {
+			// 	ib_table->dict_frm_mismatch = DICT_FRM_INCONSISTENT_KEYS;
+			// 	ib_push_frm_error(m_user_thd, ib_table, table, num_innodb_index, true);
+			// 	break;
+			// }
+
+			KEY*	key = &table->key_info[i];
+
+			for (j = 0; j < key->ext_key_parts; j++) {
+
+				if ((key->algorithm == HA_KEY_ALG_FULLTEXT)
+				    || (key->algorithm == HA_KEY_ALG_RTREE)) {
+
+					/* The record per key does not apply to
+					FTS or Spatial indexes. */
+				/*
+					key->rec_per_key[j] = 1;
+					key->set_records_per_key(j, 1.0);
+				*/
+					continue;
+				}
+
+				// if (j + 1 > index->n_uniq) {
+				// 	sql_print_error(
+				// 		"Index %s of %s has %u columns"
+				// 	        " unique inside InnoDB, but "
+				// 		"server is asking statistics for"
+				// 	        " %lu columns. Have you mixed "
+				// 		"up .frm files from different "
+				// 		" installations? %s",
+				// 		index->name(),
+				// 		ib_table->name.m_name,
+				// 		index->n_uniq, j + 1,
+				// 		TROUBLESHOOTING_MSG);
+				// 	break;
+				// }
+
+				/* innodb_rec_per_key() will use
+				index->stat_n_diff_key_vals[] and the value we
+				pass index->table->stat_n_rows. Both are
+				calculated by ANALYZE and by the background
+				stats gathering thread (which kicks in when too
+				much of the table has been changed). In
+				addition table->stat_n_rows is adjusted with
+				each DML (e.g. ++ on row insert). Those
+				adjustments are not MVCC'ed and not even
+				reversed on rollback. So,
+				index->stat_n_diff_key_vals[] and
+				index->table->stat_n_rows could have been
+				calculated at different time. This is
+				acceptable. */
+
+				// ulong	rec_per_key_int = static_cast<ulong>(
+				// 	innodb_rec_per_key(index, j,
+				// 			   stats.records));
+				//
+				// if (rec_per_key_int == 0) {
+				// 	rec_per_key_int = 1;
+				// }
+
+				std::string concat_key = std::string(table->s->table_name.str) + " #@# rec_per_key #@# " + key->name.str + " #@# " + key->key_part[j].field->field_name.str;
+				ulong rec_per_key_int = 0;
+			  	if (videx_contains_key(res_json, concat_key.c_str())){
+		        	rec_per_key_int = std::stoul(res_json[concat_key.c_str()]);
+		        }
+				else
+				{
+			    	rec_per_key_int = stats.records;
+			  	}
+			    if (rec_per_key_int == 0) {
+		        	rec_per_key_int = 1;
+		        }
+			    key->rec_per_key[j] = rec_per_key_int;
+				DBUG_PRINT("videx", ("key->rec_per_key[%lu]: %lu", j, key->rec_per_key[j]));
+			}
+		}
+	}
+
+	// if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
+	//
+	// 	goto func_exit;
+
+	// } else if (flag & HA_STATUS_ERRKEY) {
+	// 	const dict_index_t*	err_index;
+	//
+	// 	ut_a(m_prebuilt->trx);
+	// 	ut_a(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
+	//
+	// 	err_index = trx_get_error_info(m_prebuilt->trx);
+	//
+	// 	if (err_index) {
+	// 		errkey = innobase_get_mysql_key_number_for_index(
+	// 				table, ib_table, err_index);
+	// 	} else {
+	// 		errkey = (unsigned int) (
+	// 			(m_prebuilt->trx->error_key_num
+	// 			 == ULINT_UNDEFINED)
+	// 				? ~0U
+	// 				: m_prebuilt->trx->error_key_num);
+	// 	}
+	// }
+
+	// if ((flag & HA_STATUS_AUTO) && table->found_next_number_field) {
+	// 	stats.auto_increment_value = innobase_peek_autoinc();
+	// }
+
+// func_exit:
+// 	m_prebuilt->trx->op_info = (char*)"";
+
 	DBUG_RETURN(0);
 }
 
@@ -1039,7 +1464,7 @@ struct st_mysql_daemon unusable_videx=
 { MYSQL_DAEMON_INTERFACE_VERSION };
 
 #ifdef STATIC_VIDEX
-mariadb_declare_plugin(videx_static)
+maria_declare_plugin(videx_static)
 #else
 maria_declare_plugin(videx)
 #endif
@@ -1050,7 +1475,7 @@ maria_declare_plugin(videx)
 	"Haibo Yang",
 	"Disaggregated, Extensible Virtual Index Engine for What-If Analysis",
 	PLUGIN_LICENSE_GPL,
-	videx_init_func,                            /* Plugin Init */
+	videx_init,                            /* Plugin Init */
 	NULL,                                         /* Plugin Deinit */
 	0x0001,                                       /* version number (0.1) */
 	func_status,                                  /* status variables */
