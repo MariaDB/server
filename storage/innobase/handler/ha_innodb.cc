@@ -5071,7 +5071,7 @@ ha_innobase::table_flags() const
 	called before prebuilt is inited. */
 
 	if (thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
-		return(flags);
+		return(flags | HA_CHECK_UNIQUE_AFTER_WRITE);
 	}
 
 	return(flags | HA_BINLOG_STMT_CAPABLE);
@@ -16509,11 +16509,12 @@ ha_innobase::store_lock(
 			break;
 		case ISO_SERIALIZABLE:
 			auto trx_state = trx->state;
-			if (trx_state == TRX_STATE_NOT_STARTED) {
+			if (trx_state != TRX_STATE_NOT_STARTED) {
+				ut_ad(trx_state == TRX_STATE_ACTIVE);
+			} else if (trx->snapshot_isolation) {
+				trx->will_lock = true;
 				trx_start_if_not_started(trx, false);
 				trx->read_view.open(trx);
-			} else {
-				ut_ad(trx_state == TRX_STATE_ACTIVE);
 			}
 		}
 	}

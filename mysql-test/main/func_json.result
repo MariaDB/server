@@ -1766,5 +1766,13 @@ FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
 #
+# MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
+#
+select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
+null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+#
 # End of 10.6 tests
 #

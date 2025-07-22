@@ -1,0 +1,215 @@
+#
+# MDEV-37199 UNIQUE KEY USING HASH accepting duplicate records
+#
+## INSERT
+create table t1 (
+id int, s date, e date,
+period for p(s,e),
+unique(id, p without overlaps)
+) engine=innodb;
+start transaction;
+select * from t1;
+id	s	e
+connect con1,localhost,root;
+insert t1 values(10, date'2010-10-10', date'2010-11-11');
+delete from t1;
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+insert t1 values(10, date'2010-09-09', date'2010-11-10');
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+insert t1 values(10, date'2010-10-10', date'2010-11-12');
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 23000: Duplicate entry '10-2010-11-10-2010-09-09' for key 'id'
+connection default;
+select * from t1;
+id	s	e
+commit;
+select * from t1;
+id	s	e
+10	2010-10-10	2010-11-12
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE
+create table t1 (
+id int, s date, e date,
+period for p(s,e),
+unique(id, p without overlaps)
+) engine=innodb;
+start transaction;
+select * from t1;
+id	s	e
+connect con1,localhost,root;
+insert t1 values(10, date'2010-10-10', date'2010-11-11');
+delete from t1;
+insert t1 values(10, date'2010-09-09', date'2010-09-10');
+insert t1 values(10, date'2010-12-10', date'2010-12-12');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update t1 set e=e + interval 2 month where s=date'2010-09-09';
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set s=date'2010-10-10' where e=date'2010-12-12';
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 23000: Duplicate entry '10-2010-11-10-2010-09-09' for key 'id'
+connection default;
+select * from t1;
+id	s	e
+commit;
+select * from t1;
+id	s	e
+10	2010-09-09	2010-09-10
+10	2010-10-10	2010-12-12
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## INSERT IGNORE
+create table t1 (
+id int, s date, e date,
+period for p(s,e),
+unique(id, p without overlaps)
+) engine=innodb;
+start transaction;
+select * from t1;
+id	s	e
+connect con1,localhost,root;
+insert t1 values(10, date'2010-10-10', date'2010-11-11');
+delete from t1;
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+insert ignore t1 values(10, date'2010-09-09', date'2010-11-10'),(11, date'2010-09-09', date'2010-11-10');
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+insert t1 values(10, date'2010-10-10', date'2010-11-12');
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+Warnings:
+Warning	1062	Duplicate entry '10-2010-11-10-2010-09-09' for key 'id'
+connection default;
+select * from t1;
+id	s	e
+commit;
+select * from t1;
+id	s	e
+10	2010-10-10	2010-11-12
+11	2010-09-09	2010-11-10
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE IGNORE
+create table t1 (
+id int, s date, e date,
+period for p(s,e),
+unique(id, p without overlaps)
+) engine=innodb;
+start transaction;
+select * from t1;
+id	s	e
+connect con1,localhost,root;
+insert t1 values(10, date'2010-10-10', date'2010-11-11');
+delete from t1;
+insert t1 values(10, date'2010-09-09', date'2010-09-10');
+insert t1 values(10, date'2010-12-10', date'2010-12-12');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update ignore t1 set e=e + interval 2 month where s=date'2010-09-09';
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set s=date'2010-10-10' where e=date'2010-12-12';
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+connection default;
+select * from t1;
+id	s	e
+commit;
+select * from t1;
+id	s	e
+10	2010-09-09	2010-09-10
+10	2010-10-10	2010-12-12
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE modifying PK
+create table t1 (
+id int, s date, e date,
+period for p(s,e),
+primary key (id, p without overlaps)
+) engine=innodb;
+start transaction;
+select * from t1;
+id	s	e
+connect con1,localhost,root;
+insert t1 values(10, date'2010-10-10', date'2010-11-11');
+delete from t1;
+insert t1 values(10, date'2010-09-09', date'2010-09-10');
+insert t1 values(10, date'2010-12-10', date'2010-12-12');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update t1 set e=e + interval 2 month where s=date'2010-09-09';
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set s=date'2010-10-10' where e=date'2010-12-12';
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 23000: Duplicate entry '10-2010-11-10-2010-09-09' for key 'PRIMARY'
+connection default;
+select * from t1;
+id	s	e
+commit;
+select * from t1;
+id	s	e
+10	2010-09-09	2010-09-10
+10	2010-10-10	2010-12-12
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE IGNORE modifying PK
+create table t1 (
+id int, s date, e date,
+period for p(s,e),
+primary key (id, p without overlaps)
+) engine=innodb;
+start transaction;
+select * from t1;
+id	s	e
+connect con1,localhost,root;
+insert t1 values(10, date'2010-10-10', date'2010-11-11');
+delete from t1;
+insert t1 values(10, date'2010-09-09', date'2010-09-10');
+insert t1 values(10, date'2010-12-10', date'2010-12-12');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update ignore t1 set e=e + interval 2 month where s=date'2010-09-09';
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set s=date'2010-10-10' where e=date'2010-12-12';
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 42000: UPDATE IGNORE that modifies a primary key of a table with a UNIQUE constraint WITHOUT OVERLAPS is not currently supported
+connection default;
+select * from t1;
+id	s	e
+commit;
+select * from t1;
+id	s	e
+10	2010-09-09	2010-09-10
+10	2010-10-10	2010-12-12
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+# End of 10.6 tests

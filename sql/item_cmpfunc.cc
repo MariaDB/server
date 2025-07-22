@@ -603,7 +603,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     else if ((*b)->type() == Item::FUNC_ITEM &&
              ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
     {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_str_json:
                                     &Arg_comparator::compare_str_json;
       return 0;
     }
