@@ -291,6 +291,7 @@ public:
 struct chunk_data_cache : public chunk_data_base {
   IO_CACHE *cache;
   binlog_oob_context *oob_ctx;
+  my_off_t main_start;
   size_t main_remain;
   size_t gtid_remain;
   uint32_t header_remain;
@@ -300,6 +301,7 @@ struct chunk_data_cache : public chunk_data_base {
   chunk_data_cache(IO_CACHE *cache_arg,
                    handler_binlog_event_group_info *binlog_info)
   : cache(cache_arg),
+    main_start(binlog_info->out_of_band_offset),
     main_remain((size_t)(binlog_info->gtid_offset -
                          binlog_info->out_of_band_offset)),
     header_sofar(0)
@@ -381,7 +383,7 @@ struct chunk_data_cache : public chunk_data_base {
       ut_a(!res2 /* ToDo: Error handling */);
       gtid_remain-= size2;
       if (gtid_remain == 0)
-        my_b_seek(cache, 0);    /* Move to read the rest of the events. */
+        my_b_seek(cache, main_start); /* Move to read the rest of the events. */
       max_len-= size2;
       size+= size2;
       if (max_len == 0)
@@ -2578,7 +2580,7 @@ ibb_savepoint_rollback(THD *thd, void **engine_data,
 
 
 void
-innodb_reset_oob(THD *thd, void **engine_data)
+innodb_reset_oob(void **engine_data)
 {
   binlog_oob_context *c= (binlog_oob_context *)*engine_data;
   if (c)
@@ -2587,7 +2589,7 @@ innodb_reset_oob(THD *thd, void **engine_data)
 
 
 void
-innodb_free_oob(THD *thd, void *engine_data)
+innodb_free_oob(void *engine_data)
 {
   free_oob_context((binlog_oob_context *)engine_data);
 }

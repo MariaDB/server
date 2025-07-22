@@ -1,0 +1,67 @@
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c LONGTEXT) ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY, b INT, c LONGTEXT) ENGINE=Aria;
+
+--let $i= 0
+while ($i <= 3) {
+  if ($i == 0) {
+    SET @c= REPEAT('*', 20);
+  }
+  if ($i == 1) {
+    SET @c= REPEAT('%', 1024);
+  }
+  if ($i == 2) {
+    SET @c= REPEAT('.', 18000);
+  }
+  if ($i == 3) {
+    SET @c= REPEAT('.', 40000);
+  }
+
+  --let $f= 0
+  while ($f <= 1) {
+    if ($f == 0) {
+      SET SESSION binlog_format=statement;
+    }
+    if ($f == 1) {
+      SET SESSION binlog_format=row;
+    }
+
+    --let $s= 0
+    while ($s <= 1) {
+      --let $k = `SELECT $i*1000 + $f*100 + $s*10`
+      eval SET SESSION binlog_direct_non_transactional_updates= $s;
+
+      eval INSERT INTO t1 VALUES (1 + $k, 0, @c), (2 + $k, 0, @c), (3 + $k, 0, @c);
+      eval INSERT INTO t2 VALUES (1 + $k, 1, @c), (2 + $k, 1, @c), (3 + $k, 1, @c);
+
+      BEGIN;
+      eval UPDATE t1 SET b=2, c=CONCAT('!', c) WHERE a=1+$k;
+      eval UPDATE t2 SET b=2, c=CONCAT('!', c) WHERE a=2+$k;
+      eval UPDATE t1 SET b=2, c=CONCAT('!', c) WHERE a=3+$k;
+      eval INSERT INTO t2 VALUES (4 + $k, 2, @c);
+      COMMIT;
+      inc $s;
+    }
+    inc $f;
+  }
+  inc $i;
+}
+
+SELECT a, b, length(c) FROM t1 ORDER BY a;
+SELECT a, b, length(c) FROM t2 ORDER BY a;
+
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT a, b, length(c) FROM t1 ORDER BY a;
+SELECT a, b, length(c) FROM t2 ORDER BY a;
+
+--connection master
+DROP TABLE t1, t2;
+
+CALL mtr.add_suppression('Statement is unsafe because it accesses a non-transactional table after accessing a transactional table');
+
+--source include/rpl_end.inc

@@ -243,8 +243,8 @@ extern bool innodb_binlog_oob(THD *thd, const unsigned char *data,
                               size_t data_len, void **engine_data);
 void ibb_savepoint_rollback(THD *thd, void **engine_data,
                             void **stmt_start_data, void **savepoint_data);
-extern void innodb_reset_oob(THD *thd, void **engine_data);
-extern void innodb_free_oob(THD *thd, void *engine_data);
+extern void innodb_reset_oob(void **engine_data);
+extern void innodb_free_oob(void *engine_data);
 extern handler_binlog_reader *innodb_get_binlog_reader(bool wait_durable);
 extern void ibb_wait_durable_offset(uint64_t file_no, uint64_t wait_offset);
 extern void ibb_get_filename(char name[FN_REFLEN], uint64_t file_no);
