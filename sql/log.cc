@@ -394,7 +394,6 @@ public:
       stmt_start_engine_ptr(nullptr),
       cache_savepoint_list(nullptr),
       cache_savepoint_next_ptr(&cache_savepoint_list),
-      engine_binlog_info {0, 0, 0},
       using_xa(FALSE), xa_xid(0)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
@@ -410,24 +409,37 @@ public:
   }
   ~binlog_cache_mngr()
   {
-    if (engine_binlog_info.engine_ptr)
-      (*opt_binlog_engine_hton->binlog_oob_free)
-        (thd, engine_binlog_info.engine_ptr);
   }
 
   void reset(bool do_stmt, bool do_trx)
   {
-    if (engine_binlog_info.engine_ptr)
-      (*opt_binlog_engine_hton->binlog_oob_reset)
-        (thd, &engine_binlog_info.engine_ptr);
     if (do_stmt)
-      stmt_cache.reset();
+    {
+      if (opt_binlog_engine_hton)
+      {
+        stmt_cache.reset_for_engine_binlog();
+        /*
+          Use a custom write_function to spill to the engine-implemented binlog.
+          And re-use the IO_CACHE::append_read_pos as a handle for our
+          write_function; it is unused when the cache is not SEQ_READ_APPEND.
+        */
+        stmt_cache.cache_log.write_function= binlog_spill_to_engine;
+        stmt_cache.cache_log.append_read_pos= (uchar *)this;
+      }
+      else
+        stmt_cache.reset();
+    }
     if (do_trx)
     {
       if (opt_binlog_engine_hton)
       {
         trx_cache.reset_for_engine_binlog();
+        trx_cache.cache_log.write_function= binlog_spill_to_engine;
+        trx_cache.cache_log.append_read_pos= (uchar *)this;
         last_commit_pos_file.engine_file_no= ~(uint64_t)0;
+        stmt_start_engine_ptr= nullptr;
+        cache_savepoint_list= nullptr;
+        cache_savepoint_next_ptr= &cache_savepoint_list;
       }
       else
       {
@@ -436,23 +448,6 @@ public:
       }
       last_commit_pos_offset= 0;
       using_xa= FALSE;
-    }
-    if (likely(opt_binlog_engine_hton) &&
-        likely(opt_binlog_engine_hton->binlog_oob_data))
-    {
-      stmt_start_engine_ptr= nullptr;
-      cache_savepoint_list= nullptr;
-      cache_savepoint_next_ptr= &cache_savepoint_list;
-      /*
-        Use a custom write_function to spill to the engine-implemented binlog.
-        And re-use the IO_CACHE::append_read_pos as a handle for our
-        write_function; it is unused when the cache is not SEQ_READ_APPEND.
-      */
-      trx_cache.cache_log.write_function= binlog_spill_to_engine;
-      trx_cache.cache_log.append_read_pos= (uchar *)this;
-      engine_binlog_info.out_of_band_offset= 0;
-      engine_binlog_info.gtid_offset= 0;
-      /* Preserve the engine_ptr for the engine to re-use, was reset above. */
     }
   }
 
@@ -496,8 +491,6 @@ public:
   */
   binlog_savepoint_info *cache_savepoint_list;
   binlog_savepoint_info **cache_savepoint_next_ptr;
-  /* Context for engine-implemented binlogging. */
-  handler_binlog_event_group_info engine_binlog_info;
 
   /*
     Flag set true if this transaction is committed with log_xid() as part of
@@ -1816,9 +1809,10 @@ binlog_trans_log_truncate(THD *thd, binlog_savepoint_info *sv)
   /* No pending savepoints in-cache anymore. */
   cache_mngr->cache_savepoint_next_ptr= &cache_mngr->cache_savepoint_list;
   cache_mngr->cache_savepoint_list= nullptr;
-  cache_mngr->engine_binlog_info.out_of_band_offset= sv->cache_offset;
+  cache_mngr->trx_cache.engine_binlog_info.out_of_band_offset= sv->cache_offset;
   (*opt_binlog_engine_hton->binlog_savepoint_rollback)
-    (thd, &cache_mngr->engine_binlog_info.engine_ptr, nullptr, &sv->engine_ptr);
+    (thd, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr,
+     nullptr, &sv->engine_ptr);
   DBUG_VOID_RETURN;
 }
 
@@ -1956,7 +1950,7 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
       if (mysql_bin_log.write_event(end_ev, cache_data, &cache_data->cache_log))
         DBUG_RETURN(1);
 
-      if (cache_mngr->engine_binlog_info.out_of_band_offset)
+      if (cache_data->engine_binlog_info.out_of_band_offset)
       {
         /*
           This is a "large" transaction, where parts of the transaction were
@@ -1966,7 +1960,7 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
           group is consecutive out-of-band data and the commit record will
           only contain the GTID event (depending on engine implementation).
         */
-        if (my_b_flush_io_cache(&cache_mngr->trx_cache.cache_log, 0))
+        if (my_b_flush_io_cache(&cache_data->cache_log, 0))
           DBUG_RETURN(1);
       }
     }
@@ -2024,9 +2018,10 @@ binlog_get_cache(THD *thd, uint64_t file_no, uint64_t offset,
   {
     cache_mngr->last_commit_pos_file.engine_file_no= file_no;
     cache_mngr->last_commit_pos_offset= offset;
-    context= &cache_mngr->engine_binlog_info;
-    cache= !cache_mngr->trx_cache.empty() ?
-      &cache_mngr->trx_cache.cache_log : &cache_mngr->stmt_cache.cache_log;
+    binlog_cache_data *cache_data= !cache_mngr->trx_cache.empty() ?
+      &cache_mngr->trx_cache : &cache_mngr->stmt_cache;
+    context= &cache_data->engine_binlog_info;
+    cache= &cache_data->cache_log;
     gtid= thd->get_last_commit_gtid();
   }
   *out_cache= cache;
@@ -2233,9 +2228,9 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
       trx_cache.set_prev_position(cache->pos_in_file);
       trx_cache.restore_prev_position();
       trx_cache.reset_cache_for_engine(stmt_pos, binlog_spill_to_engine);
-      cache_mngr->engine_binlog_info.out_of_band_offset= stmt_pos;
+      cache_mngr->trx_cache.engine_binlog_info.out_of_band_offset= stmt_pos;
       (*opt_binlog_engine_hton->binlog_savepoint_rollback)
-        (thd, &cache_mngr->engine_binlog_info.engine_ptr,
+        (thd, &cache_mngr->trx_cache.engine_binlog_info.engine_ptr,
          &cache_mngr->stmt_start_engine_ptr, nullptr);
     }
   }
@@ -6720,7 +6715,9 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
   }
 
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
-  void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
+  binlog_cache_data *cache_data= unlikely(cache==&mngr->stmt_cache.cache_log) ?
+    &mngr->stmt_cache : &mngr->trx_cache;
+  void **engine_ptr= &cache_data->engine_binlog_info.engine_ptr;
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
   size_t max_len= std::min(binlog_max_spill_size, (size_t)binlog_cache_size);
@@ -6851,7 +6848,7 @@ binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
     sofar+= part_len;
   } while (sofar < len);
 
-  mngr->engine_binlog_info.out_of_band_offset+= len;
+  cache_data->engine_binlog_info.out_of_band_offset+= len;
   cache->pos_in_file= spill_end;
 
   return false;
@@ -6868,17 +6865,11 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
   auto *cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
                                   sizeof(binlog_cache_mngr),
                                                    MYF(MY_ZEROFILL));
-  if (!cache_mngr ||
-      open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)))
-  {
-    my_free(cache_mngr);
+  if (!cache_mngr)
     return NULL;
-  }
-  IO_CACHE *trx_cache= &cache_mngr->trx_cache.cache_log;
+  IO_CACHE *stmt_cache= &cache_mngr->stmt_cache.cache_log;
   my_bool res;
-  if (likely(opt_binlog_engine_hton) &&
-      likely(opt_binlog_engine_hton->binlog_oob_data))
+  if (opt_binlog_engine_hton)
   {
     /*
       With binlog implementation in engine, we do not need to spill large
@@ -6886,13 +6877,31 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
       through the binlog as the transaction runs. Setting the file to INT_MIN
       makes IO_CACHE not attempt to create the temporary file.
     */
-    res= init_io_cache(trx_cache, (File)INT_MIN, (size_t)binlog_cache_size,
+    res= init_io_cache(stmt_cache, (File)INT_MIN,
+                       (size_t)binlog_stmt_cache_size,
                        WRITE_CACHE, 0L, 0, MYF(MY_WME | MY_NABP));
     /*
       Use a custom write_function to spill to the engine-implemented binlog.
       And re-use the IO_CACHE::append_read_pos as a handle for our
       write_function; it is unused when the cache is not SEQ_READ_APPEND.
     */
+    stmt_cache->write_function= binlog_spill_to_engine;
+    stmt_cache->append_read_pos= (uchar *)cache_mngr;
+  }
+  else
+    res= open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
+                          LOG_PREFIX, (size_t)binlog_stmt_cache_size,
+                          MYF(MY_WME));
+  if (unlikely(res))
+  {
+    my_free(cache_mngr);
+    return NULL;
+  }
+  IO_CACHE *trx_cache= &cache_mngr->trx_cache.cache_log;
+  if (opt_binlog_engine_hton)
+  {
+    res= init_io_cache(trx_cache, (File)INT_MIN, (size_t)binlog_cache_size,
+                       WRITE_CACHE, 0L, 0, MYF(MY_WME | MY_NABP));
     trx_cache->write_function= binlog_spill_to_engine;
     trx_cache->append_read_pos= (uchar *)cache_mngr;
   }
@@ -8136,7 +8145,7 @@ err:
       if (opt_binlog_engine_hton)
       {
         handler_binlog_event_group_info *engine_context=
-          &cache_mngr->engine_binlog_info;
+          &cache_data->engine_binlog_info;
         engine_context->gtid_offset= my_b_tell(file);
         my_off_t binlog_total_bytes;
         MDL_request mdl_request;
@@ -9264,6 +9273,14 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     else
       break;
   }
+  /*
+    If not going through log_and_order(), we are not going to go through
+    commit_ordered(), and the engine will not binlog for us as part of its
+    own internal transaction commit. So we will need to binlog explicitly.
+    (This occurs when mixing transactional and non-transactional DML in the
+    same event group).
+  */
+  entry.auto_binlog= entry.auto_binlog && cache_mngr->using_xa;
 
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
@@ -10108,10 +10125,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     {
       set_current_thd(current->thd);
       binlog_cache_mngr *cache_mngr= current->cache_mngr;
-      IO_CACHE *file=
-        cache_mngr->get_binlog_cache_log(current->using_trx_cache);
+      binlog_cache_data *cache_data=
+        cache_mngr->get_binlog_cache_data(current->using_trx_cache);
+      IO_CACHE *file= &cache_data->cache_log;
       handler_binlog_event_group_info *engine_context=
-        &cache_mngr->engine_binlog_info;
+        &cache_data->engine_binlog_info;
       if (likely(!current->error))
         current->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
           (file, engine_context, current->thd->get_last_commit_gtid());
@@ -10190,10 +10208,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       {
         set_current_thd(current->thd);
         binlog_cache_mngr *cache_mngr= current->cache_mngr;
-        IO_CACHE *file=
-          cache_mngr->get_binlog_cache_log(current->using_trx_cache);
+        binlog_cache_data *cache_data=
+          cache_mngr->get_binlog_cache_data(current->using_trx_cache);
+        IO_CACHE *file= &cache_data->cache_log;
         handler_binlog_event_group_info *engine_context=
-          &cache_mngr->engine_binlog_info;
+          &cache_data->engine_binlog_info;
         if (likely(!current->error))
           current->error= (*opt_binlog_engine_hton->binlog_write_direct)
             (file, engine_context, current->thd->get_last_commit_gtid());
@@ -10201,8 +10220,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       set_current_thd(leader->thd);
     }
 
+    binlog_cache_data *cache_data=
+      last_in_queue->cache_mngr->get_binlog_cache_data
+      (last_in_queue->using_trx_cache);
     (*opt_binlog_engine_hton->binlog_group_commit_ordered)
-      (last_in_queue->thd, &last_in_queue->cache_mngr->engine_binlog_info);
+      (last_in_queue->thd, &cache_data->engine_binlog_info);
   }
   else if (check_purge)
     checkpoint_and_purge(binlog_id);
@@ -10306,16 +10328,17 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     DBUG_ASSERT((entry->using_stmt_cache && !mngr->stmt_cache.empty()) ||
                 (entry->using_trx_cache && !mngr->trx_cache.empty())
                 /* Assert that empty transaction is handled elsewhere. */);
-    IO_CACHE *cache= (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
-      &mngr->trx_cache.cache_log : &mngr->stmt_cache.cache_log;
+    binlog_cache_data *cache_data=
+      (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
+      &mngr->trx_cache : &mngr->stmt_cache;
     /*
       The GTID event cannot go first since we only allocate the GTID at binlog
       time. So write the GTID at the very end, and record its offset so that the
       engine can pick it out and binlog it at the start.
     */
-    mngr->engine_binlog_info.gtid_offset= my_b_tell(cache);
-    if (write_gtid_event(entry->thd, cache, is_prepared_xa(entry->thd),
-                         false,
+    cache_data->engine_binlog_info.gtid_offset= my_b_tell(&cache_data->cache_log);
+    if (write_gtid_event(entry->thd, &cache_data->cache_log,
+                         is_prepared_xa(entry->thd), false,
                          entry->using_trx_cache, commit_id,
                          has_xid, entry->ro_1pc))
       DBUG_RETURN(ER_ERROR_ON_WRITE);

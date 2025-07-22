@@ -1599,9 +1599,9 @@ struct handlerton
     binlog_oob_data(). Can also change the pointer to point to different data
     (or set it to NULL).
   */
-  void (*binlog_oob_reset)(THD *thd, void **engine_data);
+  void (*binlog_oob_reset)(void **engine_data);
   /* Call to allow engine to release the engine_data from binlog_oob_data(). */
-  void (*binlog_oob_free)(THD *thd, void *engine_data);
+  void (*binlog_oob_free)(void *engine_data);
   /*
     Obtain an object to allow reading from the binlog.
     The boolean argument wait_durable is set to true to require that
