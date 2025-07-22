@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 CREATE TABLE t1 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=InnoDB;
-CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=InnoDB;
+CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=MyISAM;
 SET @b= REPEAT('$', 0);
 BEGIN;
 INSERT INTO t1 VALUES (0, 1, @b);
@@ -34,12 +34,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (0, 11, @b);
 INSERT INTO t2 VALUES (0, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=0 AND a>=10 ORDER BY a;
 a	length(b)
 10	0
 SELECT a, length(b) FROM t2 WHERE i=0 ORDER BY a;
 a	length(b)
+12	0
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=0;
 UPDATE t1 SET b='x' WHERE i=0;
@@ -90,12 +93,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (1, 11, @b);
 INSERT INTO t2 VALUES (1, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=1 AND a>=10 ORDER BY a;
 a	length(b)
 10	10
 SELECT a, length(b) FROM t2 WHERE i=1 ORDER BY a;
 a	length(b)
+12	10
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=1;
 UPDATE t1 SET b='x' WHERE i=1;
@@ -146,12 +152,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (2, 11, @b);
 INSERT INTO t2 VALUES (2, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=2 AND a>=10 ORDER BY a;
 a	length(b)
 10	100
 SELECT a, length(b) FROM t2 WHERE i=2 ORDER BY a;
 a	length(b)
+12	100
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=2;
 UPDATE t1 SET b='x' WHERE i=2;
@@ -202,12 +211,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (3, 11, @b);
 INSERT INTO t2 VALUES (3, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=3 AND a>=10 ORDER BY a;
 a	length(b)
 10	642
 SELECT a, length(b) FROM t2 WHERE i=3 ORDER BY a;
 a	length(b)
+12	642
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=3;
 UPDATE t1 SET b='x' WHERE i=3;
@@ -258,12 +270,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (4, 11, @b);
 INSERT INTO t2 VALUES (4, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=4 AND a>=10 ORDER BY a;
 a	length(b)
 10	3930
 SELECT a, length(b) FROM t2 WHERE i=4 ORDER BY a;
 a	length(b)
+12	3930
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=4;
 UPDATE t1 SET b='x' WHERE i=4;
@@ -314,12 +329,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (5, 11, @b);
 INSERT INTO t2 VALUES (5, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=5 AND a>=10 ORDER BY a;
 a	length(b)
 10	16000
 SELECT a, length(b) FROM t2 WHERE i=5 ORDER BY a;
 a	length(b)
+12	16000
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=5;
 UPDATE t1 SET b='x' WHERE i=5;
@@ -370,12 +388,15 @@ SAVEPOINT s10;
 INSERT INTO t1 VALUES (6, 11, @b);
 INSERT INTO t2 VALUES (6, 12, @b);
 ROLLBACK TO s10;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 COMMIT;
 SELECT a, length(b) FROM t1 WHERE i=6 AND a>=10 ORDER BY a;
 a	length(b)
 10	40000
 SELECT a, length(b) FROM t2 WHERE i=6 ORDER BY a;
 a	length(b)
+12	40000
 BEGIN;
 UPDATE t1 SET a=a+1000 WHERE i=6;
 UPDATE t1 SET b='x' WHERE i=6;

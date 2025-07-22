@@ -3,8 +3,7 @@
 --source include/have_innodb_binlog.inc
 
 CREATE TABLE t1 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=InnoDB;
-# ToDo CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=MyISAM;
-CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=InnoDB;
+CREATE TABLE t2 (i INT, a INT, b TEXT, PRIMARY KEY(i, a)) ENGINE=MyISAM;
 
 # Add different amounts of data, to test various cases where event
 # groups fit or do not fit in case, are binlogged / not binlogged as
