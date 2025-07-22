@@ -9247,14 +9247,22 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.need_unlog= is_preparing_xa(thd);
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
+  entry.auto_binlog= false;
   entry.end_event= end_ev;
   auto has_xid= entry.end_event->get_type_code() == XID_EVENT;
 
-  for (; has_xid && !entry.need_unlog && ha_info; ha_info= ha_info->next())
+  for (; ha_info; ha_info= ha_info->next())
   {
-    if (ha_info->is_started() && ha_info->ht() != binlog_hton &&
-        !ha_info->ht()->commit_checkpoint_request)
-      entry.need_unlog= true;
+    if (likely(ha_info->is_started()))
+    {
+      if (has_xid && ha_info->ht() != binlog_hton &&
+          !ha_info->ht()->commit_checkpoint_request)
+        entry.need_unlog= true;
+      if (ha_info->ht() == opt_binlog_engine_hton)
+        entry.auto_binlog= true;
+    }
+    else
+      break;
   }
 
   if (cache_mngr->stmt_cache.has_incident() ||
@@ -9793,6 +9801,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   bool check_purge= false;
   ulong UNINIT_VAR(binlog_id);
   uint64 commit_id;
+  bool non_auto_binlog= false;
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
 
   {
@@ -9894,6 +9903,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         update_gtid_index((uint32)commit_offset,
                           current->thd->get_last_commit_gtid());
       }
+      else
+        non_auto_binlog= non_auto_binlog || !current->auto_binlog;
+
       if ((cache_mngr->using_xa && cache_mngr->xa_xid) || current->need_unlog)
       {
         /*
@@ -10090,6 +10102,23 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DEBUG_SYNC(leader->thd, "commit_after_release_LOCK_after_binlog_sync");
   ++num_group_commits;
 
+  if (unlikely(non_auto_binlog))
+  {
+    for (current= queue; current != NULL; current= current->next)
+    {
+      set_current_thd(current->thd);
+      binlog_cache_mngr *cache_mngr= current->cache_mngr;
+      IO_CACHE *file=
+        cache_mngr->get_binlog_cache_log(current->using_trx_cache);
+      handler_binlog_event_group_info *engine_context=
+        &cache_mngr->engine_binlog_info;
+      if (likely(!current->error))
+        current->error= (*opt_binlog_engine_hton->binlog_write_direct_ordered)
+          (file, engine_context, current->thd->get_last_commit_gtid());
+    }
+    set_current_thd(leader->thd);
+  }
+
   if (!opt_optimize_thread_scheduling)
   {
     /*
@@ -10154,8 +10183,27 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DEBUG_SYNC(leader->thd, "commit_after_group_release_commit_ordered");
 
   if (opt_binlog_engine_hton)
+  {
+    if (unlikely(non_auto_binlog))
+    {
+      for (current= queue; current != NULL; current= current->next)
+      {
+        set_current_thd(current->thd);
+        binlog_cache_mngr *cache_mngr= current->cache_mngr;
+        IO_CACHE *file=
+          cache_mngr->get_binlog_cache_log(current->using_trx_cache);
+        handler_binlog_event_group_info *engine_context=
+          &cache_mngr->engine_binlog_info;
+        if (likely(!current->error))
+          current->error= (*opt_binlog_engine_hton->binlog_write_direct)
+            (file, engine_context, current->thd->get_last_commit_gtid());
+      }
+      set_current_thd(leader->thd);
+    }
+
     (*opt_binlog_engine_hton->binlog_group_commit_ordered)
       (last_in_queue->thd, &last_in_queue->cache_mngr->engine_binlog_info);
+  }
   else if (check_purge)
     checkpoint_and_purge(binlog_id);
 
@@ -13651,7 +13699,9 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   mysql_mutex_unlock(&LOCK_global_system_variables);
   if (opt_binlog_engine_hton && value)
   {
-    sql_print_information("Value of binlog_checksum forced to NONE since binlog_storage_engine is enabled, and InnoDB uses its own superior checksumming of pages");
+    sql_print_information("Value of binlog_checksum forced to NONE since "
+                          "binlog_storage_engine is enabled, where "
+                          "per-event checksumming is not needed");
     value= 0;
   }
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
