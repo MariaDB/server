@@ -4865,7 +4865,6 @@ void JOIN::exec_inner()
     }
     /* Single select (without union) always returns 0 or 1 row */
     thd->limit_found_rows= send_records;
-    thd->set_examined_row_count(0);
     DBUG_VOID_RETURN;
   }
 
@@ -30813,6 +30812,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       }
     }
     str->append(STRING_WITH_LEN(" */ "));
+    if (join && join->cleaned) // if this join has been cleaned
+      return;                  // the select_number printed above is all we have
   }
 
   if (sel_type == SELECT_CMD ||
@@ -30827,9 +30828,10 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       because temporary tables they pointed on could be freed.
     */
     str->append('#');
-    str->append(select_number);
+    str->append_ulonglong(select_number);
     return;
   }
+
 
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)

@@ -647,11 +647,7 @@ DROP TABLE t1, t2;
 
 create table t1 (a int, b decimal(13, 3)); 
 insert into t1 values (1, 0.123);
---disable_cursor_protocol
---disable_ps2_protocol
 select a, (select max(b) from t1) into outfile "../../tmp/subselect.out.file.1" from t1;
---enable_ps2_protocol
---enable_cursor_protocol
 delete from t1;
 load data infile "../../tmp/subselect.out.file.1" into table t1;
 select * from t1;

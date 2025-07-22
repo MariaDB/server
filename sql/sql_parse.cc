@@ -3072,11 +3072,6 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   ha_rows select_limit= thd->variables.select_limit;
   thd->variables.select_limit= HA_POS_ERROR;
 
-  /*
-    Reset current_select as it may point to random data as a
-    result of previous parsing.
-  */
-  thd->lex->current_select= NULL;
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*

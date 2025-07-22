@@ -14196,11 +14196,11 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
     res= send_server_handshake_packet(mpvio, (char*) packet, packet_len);
   else if (mpvio->status == MPVIO_EXT::RESTART)
     res= send_plugin_request_packet(mpvio, packet, packet_len);
-  else if (packet_len > 0 && (*packet == 1 || *packet == 255 || *packet == 254))
+  else if (packet_len > 0 && (*packet < 2 || *packet > 253))
   {
     /*
-      we cannot allow plugin data packet to start from 255 or 254 -
-      as the client will treat it as an error or "change plugin" packet.
+      we cannot allow plugin data packet to start from 0, 255 or 254 -
+      as the client will treat it as an OK, ERROR or "change plugin" packet.
       We'll escape these bytes with \1. Consequently, we
       have to escape \1 byte too.
     */

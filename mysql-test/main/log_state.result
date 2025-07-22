@@ -392,6 +392,57 @@ disconnect con2;
 connection default;
 DROP TABLE t1;
 TRUNCATE TABLE mysql.slow_log;
+#
+# MDEV-37195 Rows_examined is always 0 in the slow query log 
+# for queries with a subquery and degenerate select
+#
+SET GLOBAL log_output = "TABLE";
+SET GLOBAL slow_query_log = ON;
+SET GLOBAL long_query_time = 0.0;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1(id) SELECT seq FROM seq_1_to_10;
+connect  con2,localhost,root,,;
+SELECT 100 in (SELECT id FROM t1) AS res;
+res
+0
+SELECT rows_examined,sql_text FROM mysql.slow_log WHERE sql_text LIKE '%SELECT 100%';
+rows_examined	sql_text
+10	SELECT 100 in (SELECT id FROM t1) AS res
+TRUNCATE TABLE mysql.slow_log;
+SELECT 100 in (
+SELECT id FROM t1 
+UNION
+SELECT id FROM t1
+) AS res;
+res
+0
+SELECT rows_examined,sql_text FROM mysql.slow_log WHERE sql_text LIKE '%SELECT 100%';
+rows_examined	sql_text
+20	SELECT 100 in (
+SELECT id FROM t1 
+UNION
+SELECT id FROM t1
+) AS res
+TRUNCATE TABLE mysql.slow_log;
+SELECT 100 in (
+SELECT id FROM t1 
+UNION ALL
+SELECT id FROM t1
+) AS res;
+res
+0
+SELECT rows_examined,sql_text FROM mysql.slow_log WHERE sql_text LIKE '%SELECT 100%';
+rows_examined	sql_text
+20	SELECT 100 in (
+SELECT id FROM t1 
+UNION ALL
+SELECT id FROM t1
+) AS res
+disconnect con2;
+connection default;
+DROP TABLE t1;
+TRUNCATE TABLE mysql.slow_log;
 End of 10.11 tests
 SET GLOBAL long_query_time = @save_long_query_time;
 SET GLOBAL log_output = @old_log_output;

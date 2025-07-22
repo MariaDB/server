@@ -3724,6 +3724,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         auto_increment_key= sql_field;
       }
 
+      /* For SPATIAL, FULLTEXT and HASH indexes (anything other than B-tree),
+         ignore the ASC/DESC attribute of columns. */
+      if ((key_info->algorithm > HA_KEY_ALG_BTREE) ||
+          (key_info->flags & (HA_SPATIAL|HA_FULLTEXT)))
+        column->asc= true; // ignore DESC
+
       key_part_info->fieldnr= field;
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
@@ -5940,6 +5946,8 @@ int mysql_discard_or_import_tablespace(THD *thd,
 {
   Alter_table_prelocking_strategy alter_prelocking_strategy;
   int error;
+  TABLE *table;
+  enum_mdl_type mdl_downgrade= MDL_NOT_INITIALIZED;
   DBUG_ENTER("mysql_discard_or_import_tablespace");
 
   mysql_audit_alter_table(thd, table_list);
@@ -5972,7 +5980,21 @@ int mysql_discard_or_import_tablespace(THD *thd,
     DBUG_RETURN(-1);
   }
 
-  error= table_list->table->file->ha_discard_or_import_tablespace(discard);
+  table= table_list->table;
+  DBUG_ASSERT(table->mdl_ticket || table->s->tmp_table);
+  if (table->mdl_ticket && table->mdl_ticket->get_type() < MDL_EXCLUSIVE)
+  {
+    DBUG_ASSERT(thd->locked_tables_mode);
+    mdl_downgrade= table->mdl_ticket->get_type();
+    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
+                                             thd->variables.lock_wait_timeout))
+    {
+      error= 1;
+      goto err;
+    }
+  }
+
+  error= table->file->ha_discard_or_import_tablespace(discard);
 
   THD_STAGE_INFO(thd, stage_end);
 
@@ -5997,6 +6019,9 @@ int mysql_discard_or_import_tablespace(THD *thd,
 
 err:
   thd->tablespace_op=FALSE;
+
+  if (mdl_downgrade > MDL_NOT_INITIALIZED)
+    table->mdl_ticket->downgrade_lock(mdl_downgrade);
 
   if (likely(error == 0))
   {
@@ -8652,7 +8677,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
         else
         {
-          if ((def->default_value= alter->default_value))
+          if ((def->default_value= alter->default_value) ||
+              !(def->flags & NOT_NULL_FLAG))
             def->flags&= ~NO_DEFAULT_VALUE_FLAG;
           else
             def->flags|= NO_DEFAULT_VALUE_FLAG;
