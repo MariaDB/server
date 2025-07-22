@@ -639,7 +639,7 @@ bool spider_fields::check_conn_same_conn(
   DBUG_RETURN(FALSE);
 }
 
-/* Remove all conn holders with false checked_for_same_conn */
+/* Remove all connections with false checked_for_same_conn */
 bool spider_fields::remove_conn_if_not_checked(
 ) {
   SPIDER_CONN_HOLDER *conn_holder;
@@ -683,6 +683,7 @@ bool spider_fields::remove_conn_if_not_checked(
   DBUG_RETURN(removed);
 }
 
+/* Remove and free connections with backends not in a given set */
 void spider_fields::check_support_dbton(
   uchar *dbton_bitmap
 ) {
@@ -725,6 +726,7 @@ void spider_fields::check_support_dbton(
   DBUG_VOID_RETURN;
 }
 
+/* Randomly choose a connection, and remove and free all others */
 void spider_fields::choose_a_conn(
 ) {
   SPIDER_CONN_HOLDER *conn_holder;
@@ -802,11 +804,13 @@ void spider_fields::free_conn_holder(
   DBUG_VOID_RETURN;
 }
 
-/* Add the table associated with an ha_spider to a table_holder.
-Return the table_holder. */
+/*
+  Create a table holder for a given spider table and add it to a given
+  array of table holders. Return the created table holder.
+*/
 SPIDER_TABLE_HOLDER *spider_add_table_holder(
   ha_spider *spider_arg,
-  SPIDER_TABLE_HOLDER *table_holder
+  SPIDER_TABLE_HOLDER *table_holders
 ) {
   spider_string *str;
   uint length;
@@ -826,7 +830,7 @@ SPIDER_TABLE_HOLDER *spider_add_table_holder(
   str->q_append(tmp_buf, length);
   str->q_append(SPIDER_SQL_DOT_STR, SPIDER_SQL_DOT_LEN);
 
-  return_table_holder = &table_holder[spider_arg->idx_for_direct_join];
+  return_table_holder = &table_holders[spider_arg->idx_for_direct_join];
   return_table_holder->table = spider_arg->get_table();
   return_table_holder->spider = spider_arg;
   return_table_holder->alias = str;
@@ -965,6 +969,18 @@ int spider_make_query(const Query& query, spider_fields* fields,
   DBUG_ENTER("spider_make_query");
 
   fields->set_pos_to_first_dbton_id();
+  /*
+    Construct a query for each backend. TODO: for gbh since we've
+    chosen a connection with fields->choose_a_conn() in
+    spider_create_group_by_handler() and got rid of all other
+    connections, it seems like we just need to construct the query for
+    the backend used by that connection, i.e.
+    fields->first_conn_holder->conn->dbton_id
+    In fact, we should remove all but the one backends after choosing
+    the connection. This will further clean up the spider_fields
+    related code. For example fields->set_first_link_idx() will no
+    longer need to iterate over backends.
+  */
   while ((dbton_id = fields->get_next_dbton_id()) < SPIDER_DBTON_SIZE)
   {
     dbton_hdl = spider->dbton_handler[dbton_id];
