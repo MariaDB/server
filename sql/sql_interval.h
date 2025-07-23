@@ -20,6 +20,21 @@
 #include "structs.h"
 #include "sql_type.h"
 
+#define INTERVAL_YEAR_DIGITS    4   // Max: 9999 (4 digits)
+#define INTERVAL_MONTH_DIGITS   6   // Max: 119988 months (9999*12)
+#define INTERVAL_DAY_DIGITS     7   // Max: 3719628 days (9999*12*31)
+#define INTERVAL_HOUR_DIGITS    8   // Max: 89271072 hours
+#define INTERVAL_MINUTE_DIGITS 10   // Max: 5266993248 minutes
+#define INTERVAL_SECOND_DIGITS 12   // Max: 310752601632 seconds
+#define INTERVAL_FRAC_DIGITS    6   // Max: 999999 microseconds
+
+/* Maximum values for interval components */
+#define INTERVAL_MONTH_MAX   11   /* 0-11 months */
+#define INTERVAL_HOUR_MAX    23   /* 0-23 hours */
+#define INTERVAL_MINUTE_MAX  59   /* 0-59 minutes */
+#define INTERVAL_SECOND_MAX  59   /* 0-59 seconds */
+#define INTERVAL_FRAC_MAX    999999 /* 0-999999 microseconds */
+
 constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
   /* YEAR                  */ 1,  // [-]Y
   /* QUARTER               */ 1,  // [-]Q (not supported)
@@ -28,34 +43,92 @@ constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
   /* DAY                   */ 1,  // [-]D
   /* HOUR                  */ 1,  // [-]H
   /* MINUTE                */ 1,  // [-]M
-  /* SECOND                */ 1,  // [-]S
+  /* SECOND                */ 2,  // [-]S.ffffff
   /* MICROSECOND           */ 1,  // [-]U (not supported)
-  /* YEAR_MONTH            */ 2,  // [-]Y-MM
-  /* DAY_HOUR              */ 2,  // [-]D HH
-  /* DAY_MINUTE            */ 5,  // [-]D HH:MM
-  /* DAY_SECOND            */ 8, // [-]D HH:MM:SS
-  /* HOUR_MINUTE           */ 2,  // [-]H:MM
-  /* HOUR_SECOND           */ 5,  // [-]H:MM:SS
-  /* MINUTE_SECOND         */ 2,  // [-]M:SS
+  /* YEAR_MONTH            */ 4,  // [-]Y-MM
+  /* DAY_HOUR              */ 4,  // [-]D HH
+  /* DAY_MINUTE            */ 7,  // [-]D HH:MM
+  /* DAY_SECOND            */ 10, // [-]D HH:MM:SS.ffffff
+  /* HOUR_MINUTE           */ 4,  // [-]H:MM
+  /* HOUR_SECOND           */ 7,  // [-]H:MM:SS.ffffff
+  /* MINUTE_SECOND         */ 4,  // [-]M:SS.ffffff
   /* DAY_MICROSECOND       */ 10, // (not supported)
   /* HOUR_MICROSECOND      */ 7,  // (not supported)
   /* MINUTE_MICROSECOND    */ 4,  // (not supported)
   /* SECOND_MICROSECOND    */ 1   // [-]S (not supported)
 };
 
-
+class Sec6;
+class Temporal;
 uint calc_interval_display_width(interval_type itype,
                                         uint leading_precision,
                                         uint fractional_precision);
 
-class Interval : public INTERVAL {
+class Interval :public INTERVAL
+{
 public:
   Interval();
   Interval(const char *str, size_t length,
                      enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec);
+  Interval(const Sec6 &sec6,enum interval_type itype, uint8 start_prec, uint8 end_prec);
+  Interval(const Longlong_hybrid nr,
+           enum interval_type itype,
+           uint8 start_prec,
+           uint8 end_prec);
+  Interval(double nr,
+           enum interval_type itype,
+           uint8 start_prec,
+           uint8 end_prec);
+  Interval(const my_decimal *d,
+           enum interval_type itype,
+           uint8 start_prec,
+           uint8 end_prec);
+
+  time_round_mode_t default_round_mode(THD *thd);
+
+  Interval &round(THD *thd, uint dec, time_round_mode_t mode)
+  {
+    switch (mode.mode()) {
+    case time_round_mode_t::FRAC_NONE:
+      second_part = 0;
+      break;
+    case time_round_mode_t::FRAC_TRUNCATE:
+      if (dec < 6) {
+        ulonglong factor = 1;
+        for (uint i = 0; i < 6 - dec; ++i) {
+          factor *= 10;
+        }
+        second_part = second_part - (second_part % factor);
+      }
+      break;
+    case time_round_mode_t::FRAC_ROUND:
+      if (dec < 6) {
+        ulonglong factor = 1;
+        for (uint i = 0; i < 6 - dec; ++i) {
+          factor *= 10;
+        }
+        ulonglong remainder = second_part % factor;
+        ulonglong half = factor / 2;
+        if (remainder < half) {
+          second_part = second_part - remainder;
+        } else {
+          second_part = second_part - remainder + factor;
+          if (second_part >= 1000000) {
+            second_part -= 1000000;
+            ++second;
+          }
+        }
+      }
+      break;
+    }
+    return *this;
+  }
 };
 
 int str_to_interval(const char *str, size_t length, Interval *to,
+                    enum interval_type itype, uint8 start_prec, uint8 end_prec);
+
+int Sec6_to_interval(const Sec6 &sec6, Interval *to,
                     enum interval_type itype, uint8 start_prec, uint8 end_prec);
 
 uint8_t is_valid_interval(interval_type itype,

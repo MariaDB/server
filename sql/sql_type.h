@@ -7824,80 +7824,45 @@ public:
     return DYN_COL_NULL;
   }
 
-  const Type_handler *type_handler_for_comparison() const override {
-    return this;
-  }
+  const Type_handler *type_handler_for_comparison() const override;
 
-  decimal_digits_t Item_decimal_precision(const Item*) const override {
+  decimal_digits_t Item_decimal_precision(const Item*) const override;
 
-    return 0;
-  }
+  Field *make_conversion_table_field(MEM_ROOT*, TABLE*, uint, const Field*) const override;
 
-  Field *make_conversion_table_field(MEM_ROOT*, TABLE*, uint, const Field*) const override {
-
-    return nullptr;
-  }
-
-  uint32 max_display_length_for_field(const Conv_source&) const override {
-
-    return 30;
-  }
+  uint32 max_display_length_for_field(const Conv_source&) const override;
 
   bool Column_definition_fix_attributes(Column_definition* c) const override;
 
   Field *make_table_field(MEM_ROOT*, const LEX_CSTRING*,
                           const Record_addr&, const Type_all_attributes&,
-                          TABLE_SHARE*) const override {
-    return nullptr;
-  }
+                          TABLE_SHARE*) const override;
 
   Field *make_table_field_from_def(TABLE_SHARE*, MEM_ROOT*, const LEX_CSTRING*,
                                    const Record_addr&, const Bit_addr&,
                                    const Column_definition_attributes*, uint32) const override;
 
-  uint32 calc_pack_length(uint32) const override {
-    return 16;
-  }
+  uint32 calc_pack_length(uint32) const override;
 
-  String *print_item_value(THD *thd, Item *item, String *str) const override
-  {
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
 
-    return nullptr;
-  }
-
-  Item_cache *Item_get_cache(THD*, const Item*) const override {
-    return nullptr;
-  }
+  Item_cache *Item_get_cache(THD*, const Item*) const override;
 
   bool Item_hybrid_func_fix_attributes(THD*, const LEX_CSTRING&,
                                        Type_handler_hybrid_field_type*,
-                                       Type_all_attributes*, Item**, uint) const override {
-    return false;
-  }
+                                       Type_all_attributes*, Item**, uint) const override;
 
-  String *Item_func_min_max_val_str(Item_func_min_max*, String*) const override {
-    return nullptr;
-  }
+  String *Item_func_min_max_val_str(Item_func_min_max*, String*) const override;
 
-  double Item_func_min_max_val_real(Item_func_min_max*) const override {
-    return 0.0;
-  }
+  double Item_func_min_max_val_real(Item_func_min_max*) const override;
 
-  longlong Item_func_min_max_val_int(Item_func_min_max*) const override {
-    return 0;
-  }
+  longlong Item_func_min_max_val_int(Item_func_min_max*) const override;
 
-  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max*, my_decimal*) const override {
-    return nullptr;
-  }
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max*, my_decimal*) const override;
 
-  bool Item_func_round_fix_length_and_dec(Item_func_round*) const override {
-    return false;
-  }
+  bool Item_func_round_fix_length_and_dec(Item_func_round*) const override;
 
-  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override {
-    return false;
-  }
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
 
   Item *create_typecast_item(THD* thd, Item* item,
                              const Type_cast_attributes& attr) const override;
@@ -7908,12 +7873,7 @@ public:
 
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                   CHARSET_INFO *cs, bool send_error)
-                                  const override
-  {
-    Item_literal *item = nullptr;
-    return item;
-  }
-
+                                  const override;
 };
 
 

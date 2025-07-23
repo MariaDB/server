@@ -7400,14 +7400,12 @@ longlong Field_datetimef::val_datetime_packed(THD *thd)
   TIME_from_longlong_datetime_packed(&ltime, tmp);
   return pack_time(&ltime);
 }
-
-int Field_interval::reset()
-{
-  my_timeval x;
-  x.tv_sec= x.tv_usec= 0;
-  my_interval_to_binary(&x,ptr);
-  return 0;
-}
+/***************************************************************************
+** Interval type
+** In string context: [-]YYYY-MM-DD HH:MM:SS.ffffff
+** In number context: [-]YYYYMMDDHHMMSS.ffffff
+** Stored as a 5 byte unsigned int.
+****************************************************************************/
 int Field_interval::store(const char *from, size_t len, CHARSET_INFO *cs)
 {
   THD *thd = get_thd();
@@ -7418,10 +7416,57 @@ int Field_interval::store(const char *from, size_t len, CHARSET_INFO *cs)
   store_TIMEVAL(tm);
   return 0;
 }
-
-String *Field_interval::val_str(String *val_buffer, String *val_ptr) {
+int Field_interval::store(longlong nr, bool unsigned_val)
+{
+  Longlong_hybrid tmp(nr, unsigned_val);
+  ErrConvInteger str(tmp);
+  THD *thd= get_thd();
+  Interval interval(tmp, m_interval_type, start_prec, end_prec);
   my_timeval tm;
-  my_interval_from_binary(&tm, ptr);
+  interval_to_timeval(&interval, &tm, thd);
+  store_TIMEVAL(tm);
+  return 0;
+}
+int Field_interval::store(double nr)
+{
+  ErrConvDouble str(nr);
+  THD *thd= get_thd();
+  Interval interval(nr, m_interval_type, start_prec, end_prec);
+  my_timeval tm;
+  interval_to_timeval(&interval, &tm, thd);
+  store_TIMEVAL(tm);
+  return 0;
+}
+int Field_interval::store_decimal(const my_decimal *d)
+{
+  ErrConvDecimal str(d);
+  THD *thd= get_thd();
+  Interval interval(d, m_interval_type, start_prec, end_prec);
+  my_timeval tm;
+  interval_to_timeval(&interval, &tm, thd);
+  store_TIMEVAL(tm);
+  return 0;
+}
+
+int Field_interval::store_time_dec(const MYSQL_TIME *ltime, uint dec)
+{
+  //How can we convert
+  return 1;
+}
+
+longlong Field_interval::val_int()
+{
+  return 0;
+}
+
+double Field_interval::val_real()
+{
+  return 0.0;
+}
+String *Field_interval::val_str(String *val_buffer, String *val_ptr)
+{
+  my_timeval tm;
+  my_interval_from_binary(&tm, ptr, end_prec);
 
   Interval iv;
   timeval_to_interval(tm, &iv, m_interval_type);
@@ -7434,6 +7479,52 @@ String *Field_interval::val_str(String *val_buffer, String *val_ptr) {
   val_buffer->set_charset(&my_charset_numeric);
 
   return val_buffer;
+}
+my_decimal *Field_interval::val_decimal(my_decimal *decimal_value)
+{
+  return nullptr;
+}
+
+bool Field_interval::val_native(Native *to)
+{
+  return false;
+}
+
+uint Field_interval::pack_length() const
+{
+  return sizeof(INTERVAL);
+}
+
+void Field_interval::sql_type(String &str) const
+{
+  // Empty body
+}
+
+int Field_interval::cmp(const uchar *a_ptr, const uchar *b_ptr) const
+{
+  return 0;
+}
+
+bool Field_interval::validate_value_in_record(THD *thd, const uchar *record) const
+{
+  return false;
+}
+
+uint Field_interval::size_of() const
+{
+  return sizeof(*this);
+}
+
+void Field_interval::sort_string(uchar *to, uint length)
+{
+  // Empty body
+}
+int Field_interval::reset()
+{
+  my_timeval x;
+  x.tv_sec= x.tv_usec= 0;
+  my_interval_to_binary(&x, ptr, end_prec);
+  return 0;
 }
 /****************************************************************************
 ** string type
@@ -10970,7 +11061,11 @@ bool Column_definition::fix_attributes_interval(interval_type itype)
              intv_length & 15);
 
   if (!(length >> 4))
-    length|= intv_length & 240;
+  {
+    /*
+    length|= intv_length & 240
+    */
+  }
   else if ((length >> 4) > (intv_length >> 4))
     my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              intv_length >> 4);

@@ -4096,12 +4096,10 @@ public:
 };
 
 class Field_interval : public Field_temporal {
-protected:
+public:
   enum interval_type m_interval_type;
   uint8 start_prec;
   uint8 end_prec;
-
-public:
   Field_interval(uchar *ptr_arg, uint32 len_arg,
                  uchar *null_ptr_arg, uchar null_bit_arg,
                  utype unireg_check_arg,
@@ -4116,44 +4114,53 @@ public:
       start_prec(start_prec_val),
       end_prec(end_prec_val)
   {
+    switch (m_interval_type)
+    {
+    case INTERVAL_DAY_SECOND:
+    case INTERVAL_HOUR_SECOND:
+    case INTERVAL_MINUTE_SECOND:
+      break;
+    case INTERVAL_SECOND:
+      end_prec= start_prec, start_prec= INTERVAL_SECOND_DIGITS;
+      break;
+    default:
+      end_prec = 0;
+      break;
+    }
     field_length= calc_interval_display_width(m_interval_type, start_prec, end_prec);
   }
   int store(const char *, size_t, CHARSET_INFO *) override;
-  int store(longlong, bool) override { return 1; }
-  int store(double) override { return 1; }
-  int store_decimal(const my_decimal *) override { return 1; }
-  int store_time_dec(const MYSQL_TIME *, uint) override { return 1; }
+  int store(longlong, bool) override;
+  int store(double) override;
+  int store_decimal(const my_decimal *) override;
+  int store_time_dec(const MYSQL_TIME *, uint) override;
   void store_TIMEVAL(const my_timeval &tm)
   {
-    my_interval_to_binary(&tm, ptr);
+    my_interval_to_binary(&tm, ptr, end_prec);
   }
 
-  longlong val_int() override { return 0; }
-  double val_real() override { return 0.0; }
+  longlong val_int() override;
+  double val_real() override;
   String *val_str(String *, String *) override;
-  my_decimal *val_decimal(my_decimal *) override { return nullptr; }
-  bool val_native(Native *) override { return false; }
+  my_decimal *val_decimal(my_decimal *) override;
+  bool val_native(Native *) override;
 
   const Type_handler *type_handler() const override {
     return &type_handler_interval_DDhhmmssff;
   }
   enum_field_types type() const override { return MYSQL_TYPE_INTERVAL; }
-  uint pack_length() const override { return sizeof(INTERVAL); }
+  uint pack_length() const override;
 
-  void sql_type(String &str) const override {
-  }
+  void sql_type(String &str) const override;
 
-  int cmp(const uchar *, const uchar *) const override { return 0; }
+  int cmp(const uchar *, const uchar *) const override;
 
   void make_send_field(Send_field *field) override
   {
     Field::make_send_field(field);
   }
 
-  bool validate_value_in_record(THD *, const uchar *) const override {
-    return false;
-  }
-
+  bool validate_value_in_record(THD *, const uchar *) const override;
   enum_conv_type rpl_conv_type_from(const Conv_source &,
                                   const Relay_log_info *,
                                   const Conv_param &) const override {
@@ -4161,9 +4168,9 @@ public:
     return conv_type;
   }
 
-  uint size_of() const override { return sizeof(*this); }
+  uint size_of() const override;
 
-  void sort_string(uchar *, uint) override {}
+  void sort_string(uchar *, uint) override;
 
   int reset() override;
 };

@@ -84,6 +84,86 @@ DROP TABLE t1;
 #
 # MDEV-12513: Support for INTERVAL data types in MariaDB
 #
+CREATE PROCEDURE sp_interval_parameters(
+IN in_ym INTERVAL YEAR(4) TO MONTH,        -- Max: 9999-11
+IN in_y INTERVAL YEAR(4),                  -- Max: 9999
+IN in_m INTERVAL MONTH(2),                 -- Max: 99
+IN in_ds INTERVAL DAY(3) TO SECOND(6),     -- Max: 999 23:59:59.999999
+IN in_d INTERVAL DAY(3),                   -- Max: 999
+IN in_h INTERVAL HOUR(3),                  -- Max: 999
+IN in_n INTERVAL MINUTE(2),                -- Max: 99
+IN in_s INTERVAL SECOND(6),                -- Max: 59.999999
+IN in_dh INTERVAL DAY(3) TO HOUR,          -- Max: 999 23
+IN in_dm INTERVAL DAY(3) TO MINUTE,        -- Max: 999 23:59
+IN in_hs INTERVAL HOUR(3) TO SECOND(6),    -- Max: 999:59:59.999999
+IN in_hm INTERVAL HOUR(3) TO MINUTE,       -- Max: 999:59
+IN in_ms INTERVAL MINUTE(2) TO SECOND(6),  -- Max: 99:59.999999
+OUT out_ym INTERVAL YEAR(4) TO MONTH,
+OUT out_y INTERVAL YEAR(4),
+OUT out_m INTERVAL MONTH(2),
+OUT out_ds INTERVAL DAY(3) TO SECOND(6),
+OUT out_d INTERVAL DAY(3),
+OUT out_h INTERVAL HOUR(3),
+OUT out_n INTERVAL MINUTE(2),
+OUT out_s INTERVAL SECOND(6),
+OUT out_dh INTERVAL DAY(3) TO HOUR,
+OUT out_dm INTERVAL DAY(3) TO MINUTE,
+OUT out_hs INTERVAL HOUR(3) TO SECOND(6),
+OUT out_hm INTERVAL HOUR(3) TO MINUTE,
+OUT out_ms INTERVAL MINUTE(2) TO SECOND(6)
+)
+BEGIN
+-- Simple passthrough logic
+SET out_ym = in_ym;
+SET out_y = in_y;
+SET out_m = in_m;
+SET out_ds = in_ds;
+SET out_d = in_d;
+SET out_h = in_h;
+SET out_n = in_n;
+SET out_s = in_s;
+SET out_dh = in_dh;
+SET out_dm = in_dm;
+SET out_hs = in_hs;
+SET out_hm = in_hm;
+SET out_ms = in_ms;
+END;
+/
+CALL sp_interval_parameters(
+'5-3',
+'10',
+'12',
+'100 12:30:45.123456',
+'100',
+'120',
+'90',
+'45.123456',
+'100 12',
+'100 12:30',
+'120:30:45.123456',
+'120:30',
+'90:45.123456',
+@out_ym, @out_y, @out_m, @out_ds, @out_d,
+@out_h, @out_n, @out_s, @out_dh, @out_dm,
+@out_hs, @out_hm, @out_ms
+);
+SELECT
+@out_ym,
+@out_y,
+@out_m,
+@out_ds,
+@out_d,
+@out_h,
+@out_n,
+@out_s,
+@out_dh,
+@out_dm,
+@out_hs,
+@out_hm,
+@out_ms;
+@out_ym	@out_y	@out_m	@out_ds	@out_d	@out_h	@out_n	@out_s	@out_dh	@out_dm	@out_hs	@out_hm	@out_ms
+5-03	10	12	100 12:30:45.123456	100	120	90	45.123456	100 12	100 12:30	120:30:45.123456	120:30	90:45.123456
+drop procedure sp_interval_parameters;
 Parser Validation - Unsupported Interval Types & Invalid combination of INTERVAL Range.
 CREATE PROCEDURE sp_invalid1(IN a INTERVAL QUARTER) BEGIN END;
 ERROR 42000: This version of MariaDB doesn't yet support 'INTERVAL QUARTER'
@@ -125,229 +205,308 @@ ERROR 42000: Too big precision specified for 'a'. Maximum is 8
 CREATE PROCEDURE sp_invalid_5(IN a INTERVAL MINUTE(11)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 10
 CREATE PROCEDURE sp_invalid_6(IN a INTERVAL SECOND(13)) BEGIN END;
-ERROR 42000: Too big precision specified for 'a'. Maximum is 12
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE PROCEDURE sp_invalid_7(IN a INTERVAL YEAR(8)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 4
 CREATE PROCEDURE sp_invalid_8(IN a INTERVAL SECOND(13)) BEGIN END;
-ERROR 42000: Too big precision specified for 'a'. Maximum is 12
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE PROCEDURE sp_invalid_9(IN a INTERVAL DAY(9) TO SECOND(3)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 7
 CREATE PROCEDURE sp_invalid_10(IN a INTERVAL HOUR(4) TO SECOND(13)) BEGIN END;
-ERROR 42000: Too big precision specified for 'a'. Maximum is 12
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE PROCEDURE sp_invalid_11(IN a INTERVAL MINUTE(11) TO SECOND(2)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 10
 CREATE PROCEDURE sp_invalid_12(IN a INTERVAL DAY(12) TO SECOND(2)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 7
 CREATE PROCEDURE sp_invalid_13(IN a INTERVAL HOUR(3) TO SECOND(13)) BEGIN END;
-ERROR 42000: Too big precision specified for 'a'. Maximum is 12
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE PROCEDURE sp_invalid_14(IN a INTERVAL DAY(12) TO SECOND(3)) BEGIN END;
 ERROR 42000: Too big precision specified for 'a'. Maximum is 7
 CREATE PROCEDURE sp_valid_1(IN a INTERVAL YEAR(4))
 BEGIN
 SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_2(IN a INTERVAL MONTH(6))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_3(IN a INTERVAL DAY(7))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_4(IN a INTERVAL HOUR(8))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_5(IN a INTERVAL MINUTE(10))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_6(IN a INTERVAL SECOND(12))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_7(IN a INTERVAL YEAR(2))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_8(IN a INTERVAL MONTH(1))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_9(IN a INTERVAL DAY(3))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_10(IN a INTERVAL MINUTE(7))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_11(IN a INTERVAL DAY(2) TO SECOND(3))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_12(IN a INTERVAL HOUR(3) TO SECOND(6))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_13(IN a INTERVAL MINUTE(5) TO SECOND(4))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_14(IN a INTERVAL DAY(1) TO MINUTE(3))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_15(IN a INTERVAL HOUR(8) TO MINUTE(2))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_16(IN a INTERVAL DAY TO SECOND(6))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_17(IN a INTERVAL HOUR(4) TO SECOND(0))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_18(IN a INTERVAL MINUTE(9) TO SECOND(2))
-BEGIN
-SELECT a;
-END;
-/
-CREATE PROCEDURE sp_valid_19(IN a INTERVAL HOUR TO SECOND(5))
-BEGIN
-SELECT a;
-END;
-/
+END /
 CALL sp_valid_1('9999');
 a
 9999
+CALL sp_Valid_1('1');
+a
+1
+CALL sp_Valid_1('0');
+a
+0
+CALL sp_Valid_1(9999);
+a
+9999
+CALL sp_Valid_1(123);
+a
+123
+CALL sp_Valid_1(0.1234e4);
+a
+1234
+CALL sp_valid_1('10000');
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_1;
+CREATE PROCEDURE sp_valid_2(IN a INTERVAL MONTH(6))
+BEGIN
+SELECT a;
+END /
 CALL sp_valid_2('119988');
 a
 119988
+CALL sp_valid_2(0.119988e6);
+a
+119988
+CALL sp_valid_2(0);
+a
+0
+CALL sp_valid_2('1200000');
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+CALL sp_valid_2(0.119988e7);
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_2;
+CREATE PROCEDURE sp_valid_3(IN a INTERVAL DAY(7))
+BEGIN
+SELECT a;
+END /
 CALL sp_valid_3('3719628');
 a
 3719628
+CALL sp_valid_3(3719628);
+a
+3719628
+CALL sp_valid_3(0.3719628e7);
+a
+3719628
+CALL sp_valid_3('40000000');
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_3;
+CREATE PROCEDURE sp_valid_4(IN a INTERVAL HOUR(8))
+BEGIN
+SELECT a;
+END /
 CALL sp_valid_4('89271072');
 a
 89271072
+CALL sp_valid_4(89271072);
+a
+89271072
+CALL sp_valid_4(0.89271072e8);
+a
+89271072
+CALL sp_valid_4('100000000');
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_4;
+CREATE PROCEDURE sp_valid_5(IN a INTERVAL MINUTE(10))
+BEGIN
+SELECT a;
+END /
 CALL sp_valid_5('5266993248');
 a
 5266993248
-CALL sp_valid_6('310752601632');
+CALL sp_valid_5(5266993248);
 a
-310752601632
+5266993248
+CALL sp_valid_5(52669.93248e5);
+a
+5266993248
+CALL sp_valid_5('99999999999');
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_5;
+CREATE PROCEDURE sp_valid_6(IN a INTERVAL SECOND(3))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_6('59.123');
+a
+59.123000
+CALL sp_valid_6(59.123);
+a
+59.123000
+CALL sp_valid_6(59123e-3);
+a
+59.122000
+CALL sp_valid_6(15646.1232);
+a
+15646.123000
+CALL sp_valid_6(15646.1232e0);
+a
+15646.123000
+CALL sp_valid_6(15646.123255);
+a
+15646.123000
+set SQL_MODE = 'TIME_ROUND_FRACTIONAL';
+CALL sp_valid_6('59.1236');
+a
+59.124000
+CALL sp_valid_6('59.1299');
+a
+59.130000
+DROP PROCEDURE sp_valid_6;
+CREATE PROCEDURE sp_valid_7(IN a INTERVAL YEAR(2))
+BEGIN
+SELECT a;
+END /
 CALL sp_valid_7('99');
 a
 99
-CALL sp_valid_8('1');
+CALL sp_valid_7('0');
 a
-1
-CALL sp_valid_9('999');
+0
+CALL sp_valid_7(99);
 a
-999
-CALL sp_valid_10('9999999');
+99
+CALL sp_valid_7(0.99e2);
 a
-9999999
-CALL sp_valid_11('99 23:59:59');
-a
-99 23:59:59
-CALL sp_valid_12('999:59:999999');
-a
-1277:45:39
-CALL sp_valid_13('99999:59');
-a
-99999:59
-CALL sp_valid_14('9 23:59');
-a
-9 23:59
-CALL sp_valid_15('99999999:59');
-a
-99999999:59
-CALL sp_valid_16('9 23:59:59');
-a
-9 23:59:59
-CALL sp_valid_17('9999:59:59');
-a
-9999:59:59
-CALL sp_valid_18('999999999:59');
-a
-999999999:59
-CALL sp_valid_19('23:59:59');
-a
-23:59:59
-CALL sp_valid_1('10000');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_2('1200000');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_3('40000000');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_4('100000000');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_5('99999999999');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_6('9999999999999');
+99
+CALL sp_valid_7(0.99e3);
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 CALL sp_valid_7('1234');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_8('99999');
+DROP PROCEDURE sp_valid_7;
+CREATE PROCEDURE sp_valid_8(IN a INTERVAL MONTH(1))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_8('1');
+a
+1
+CALL sp_valid_8('9');
+a
+9
+CALL sp_valid_8('0');
+a
+0
+CALL sp_valid_8('7');
+a
+7
+CALL sp_valid_8(0.7e1);
+a
+7
+CALL sp_valid_8(70e-1);
+a
+7
+CALL sp_valid_8('11');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_8;
+CREATE PROCEDURE sp_valid_9(IN a INTERVAL DAY(3))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_9('999');
+a
+999
 CALL sp_valid_9('10000');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_9;
+CREATE PROCEDURE sp_valid_10(IN a INTERVAL MINUTE(7))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_10('9999999');
+a
+9999999
+CALL sp_valid_10(9999999);
+a
+9999999
 CALL sp_valid_10('12345678');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_11('100 23:59:59');
+DROP PROCEDURE sp_valid_10;
+CREATE PROCEDURE sp_valid_11(IN a INTERVAL DAY(2) TO SECOND(3))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_11('99 23:59:59.999');
+a
+99 23:59:59.999000
+CALL sp_valid_11(99235959.999);
+a
+99 23:59:59.999000
+CALL sp_valid_11(99235959999e-3);
+a
+99 23:59:59.999000
+CALL sp_valid_11('100 23:59:59.999');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_12('1000 23:59:59');
+DROP PROCEDURE sp_valid_11;
+CREATE PROCEDURE sp_valid_12(IN a INTERVAL HOUR(3) TO SECOND(6))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_12('999:59:59.999999');
+a
+999:59:59.999999
+CALL sp_valid_12('1000:59:59.999999');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_13('100000:59:59');
+DROP PROCEDURE sp_valid_12;
+CREATE PROCEDURE sp_valid_13(IN a INTERVAL MINUTE(5) TO SECOND(4))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_13('99999:59.9999');
+a
+99999:59.999900
+CALL sp_valid_13('100000:59.9999');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_13;
+CREATE PROCEDURE sp_valid_14(IN a INTERVAL DAY(1) TO MINUTE)
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_14('9 23:59');
+a
+9 23:59
 CALL sp_valid_14('99 23:59');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_14;
+CREATE PROCEDURE sp_valid_15(IN a INTERVAL HOUR(8) TO MINUTE)
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_15('99999999:59');
+a
+99999999:59
 CALL sp_valid_15('100000000:59');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_16('100 23:59:599999999');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP PROCEDURE sp_valid_15;
+CREATE PROCEDURE sp_valid_16(IN a INTERVAL DAY TO SECOND(6))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_16('9 23:59:59.999999');
+a
+9 23:59:59.999999
+CALL sp_valid_16('100 23:59:59.999999');
+a
+100 23:59:59.999999
+DROP PROCEDURE sp_valid_16;
+CREATE PROCEDURE sp_valid_17(IN a INTERVAL HOUR(4) TO SECOND)
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_17('23:59:59');
+a
+23:59:59
 CALL sp_valid_17('10000:59:59');
 ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_18('1000000000:59:59');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-CALL sp_valid_19('1000 232');
-ERROR HY000: Default/ignore value is not supported for such parameter usage
-DROP PROCEDURE sp_valid_1;
-DROP PROCEDURE sp_valid_2;
-DROP PROCEDURE sp_valid_3;
-DROP PROCEDURE sp_valid_4;
-DROP PROCEDURE sp_valid_5;
-DROP PROCEDURE sp_valid_6;
-DROP PROCEDURE sp_valid_7;
-DROP PROCEDURE sp_valid_8;
-DROP PROCEDURE sp_valid_9;
-DROP PROCEDURE sp_valid_10;
-DROP PROCEDURE sp_valid_11;
-DROP PROCEDURE sp_valid_12;
-DROP PROCEDURE sp_valid_13;
-DROP PROCEDURE sp_valid_14;
-DROP PROCEDURE sp_valid_15;
-DROP PROCEDURE sp_valid_16;
 DROP PROCEDURE sp_valid_17;
+CREATE PROCEDURE sp_valid_18(IN a INTERVAL MINUTE(9) TO SECOND(2))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_18('999999999:59.99');
+a
+999999999:59.990000
+CALL sp_valid_18('1000000000:59.99');
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP PROCEDURE sp_valid_18;
+CREATE PROCEDURE sp_valid_19(IN a INTERVAL HOUR TO SECOND(5))
+BEGIN
+SELECT a;
+END /
+CALL sp_valid_19('23:59:59.99999');
+a
+23:59:59.999990
+CALL sp_valid_19('1000:59:59.99999');
+a
+1000:59:59.999990
 DROP PROCEDURE sp_valid_19;

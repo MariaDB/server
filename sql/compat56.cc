@@ -480,10 +480,27 @@ void my_timestamp_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
   @param      ptr The pointer to read the value from.
   @param      dec Precision.
 */
-void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr)
+void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr, uint dec)
 {
   tm->tv_sec= mi_uint5korr(ptr);
-  tm->tv_usec= 0;
+  switch (dec)
+  {
+  case 0:
+  default:
+    tm->tv_usec= 0;
+    return;
+  case 1:
+  case 2:
+    tm->tv_usec= ((uint) ptr[5]) * 10000;
+    break;
+  case 3:
+  case 4:
+    tm->tv_usec= (uint) mi_uint2korr(ptr + 5) * 100;
+    break;
+  case 5:
+  case 6:
+    tm->tv_usec= (uint) mi_uint3korr(ptr + 5);
+  }
 }
 
 
@@ -494,9 +511,26 @@ void my_interval_from_binary(struct my_timeval *tm, const uchar *ptr)
   @param  OUT   ptr  The pointer to store the value to.
   @param        dec  Precision.
 */
-void my_interval_to_binary(const struct my_timeval *tm, uchar *ptr)
+void my_interval_to_binary(const struct my_timeval *tm, uchar *ptr, uint dec)
 {
   mi_int5store(ptr, tm->tv_sec);
+  switch (dec)
+  {
+  case 0:
+  default:
+    break;
+  case 1:
+  case 2:
+    ptr[5]= (unsigned char) (char) (tm->tv_usec / 10000);
+    break;
+  case 3:
+  case 4:
+    mi_int2store(ptr + 5, tm->tv_usec / 100);
+    break;
+  case 5:
+  case 6:
+    mi_int3store(ptr + 5, tm->tv_usec);
+  }
 }
 
 /****************************************/
