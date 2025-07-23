@@ -5967,8 +5967,11 @@ int MYSQL_BIN_LOG::new_file_impl(bool commit_by_rotate)
       We log the whole file name for log file as the user may decide
       to change base names at some point.
     */
-    Rotate_log_event r(new_name + dirname_length(new_name), 0, LOG_EVENT_OFFSET,
-                       is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
+    Rotate_log_event r(
+      &new_name[dirname_length(new_name)], /* strlen() */ 0,
+      BIN_LOG_HEADER_SIZE,
+      is_relay_log ? Rotate_log_event::RELAY_LOG : 0
+    );
     enum_binlog_checksum_alg checksum_alg = BINLOG_CHECKSUM_ALG_UNDEF;
     /*
       The current relay-log's closing Rotate event must have checksum
