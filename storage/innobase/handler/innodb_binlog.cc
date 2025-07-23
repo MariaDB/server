@@ -413,21 +413,8 @@ struct chunk_data_cache : public chunk_data_base {
 
 class gtid_search {
 public:
-  /*
-    Note that this enum is set up to be compatible with int results -1/0/1 for
-    error/not found/fount from read_gtid_state_from_page().
-  */
-  enum Read_Result {
-    READ_ENOENT= -2,
-    READ_ERROR= -1,
-    READ_NOT_FOUND= 0,
-    READ_FOUND= 1
-  };
   gtid_search();
   ~gtid_search();
-  enum Read_Result read_gtid_state_file_no(rpl_binlog_state_base *state,
-                                           uint64_t file_no, uint32_t page_no,
-                                           uint64_t *out_file_end);
   int find_gtid_pos(slave_connection_state *pos,
                     rpl_binlog_state_base *out_state, uint64_t *out_file_no,
                     uint64_t *out_offset);
@@ -544,9 +531,6 @@ static int scan_for_binlogs(const char *binlog_dir, found_binlogs *binlog_files,
 static int innodb_binlog_discover();
 static bool binlog_state_recover();
 static void innodb_binlog_autopurge(uint64_t first_open_file_no, LF_PINS *pins);
-static int read_gtid_state_from_page(rpl_binlog_state_base *state,
-                                     const byte *page, uint32_t page_no)
-  noexcept;
 
 
 /*
@@ -2012,8 +1996,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 
 
 /*
-  Read a binlog state record from a page in a buffer. The passed in STATE
-  object is updated with the state read.
+  Read a binlog state record. The passed in STATE object is updated with the
+  state read.
 
   Returns:
     1  State record found
@@ -2021,28 +2005,43 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     -1 Error
 */
 static int
-read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
-                          uint32_t page_no) noexcept
+read_gtid_state(binlog_chunk_reader *chunk_reader,
+                rpl_binlog_state_base *state) noexcept
 {
-  const byte *p= page + BINLOG_PAGE_DATA;
-  byte t= *p;
-  if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
-    return 0;
-  /* ToDo: Handle reading a state that spans multiple pages. For now, we assume the state fits in a single page. */
-  ut_a(t & FSP_BINLOG_FLAG_LAST);
-
-  uint32_t len= ((uint32_t)p[2] << 8) | p[1];
-  const byte *p_end= p + 3 + len;
-  if (UNIV_UNLIKELY(p + 3 >= p_end))
+  byte buf[256];
+  static_assert(sizeof(buf) >= 6*COMPR_INT_MAX64,
+                "buf must hold at least 2 GTIDs");
+  int res= chunk_reader->read_data(buf, sizeof(buf), true);
+  if (UNIV_UNLIKELY(res < 0))
     return -1;
-  std::pair<uint64_t, const unsigned char *> v_and_p= compr_int_read(p + 3);
-  p= v_and_p.second;
+  if (res == 0 || chunk_reader->cur_type() != FSP_BINLOG_TYPE_GTID_STATE)
+    return 0;
+  const byte *p= buf;
+  const byte *p_end= buf + res;
 
+  /* Read the number of GTIDs in the gtid state record. */
+  std::pair<uint64_t, const unsigned char *> v_and_p= compr_int_read(buf);
+  p= v_and_p.second;
   if (UNIV_UNLIKELY(p > p_end))
     return -1;
 
+  /* Read each GTID one by one and add into the state. */
   for (uint64_t count= v_and_p.first; count > 0; --count)
   {
+    ptrdiff_t remain= p_end - p;
+    /* Read more data as needed to ensure we have read a full GTID. */
+    if (UNIV_UNLIKELY(!chunk_reader->end_of_record()) &&
+        UNIV_UNLIKELY(remain < 3*COMPR_INT_MAX64))
+    {
+      memmove(buf, p, remain);
+      res= chunk_reader->read_data(buf + remain, (int)(sizeof(buf) - remain),
+                                   true);
+      if (UNIV_UNLIKELY(res < 0))
+        return -1;
+      p= buf;
+      p_end= p + remain + res;
+      remain+= res;
+    }
     rpl_gtid gtid;
     if (UNIV_UNLIKELY(p >= p_end))
       return -1;
@@ -2080,32 +2079,6 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
 
 
 /*
-  Read a binlog state record from a specific page in a file. The passed in
-  STATE object is updated with the state read.
-
-  Returns:
-    1  State record found
-    0  No state record found
-    -1 Error
-*/
-static int
-read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no)
-{
-  std::unique_ptr<byte [], void (*)(void *)> page_buf
-    ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, ibb_page_size, MYF(MY_WME)),
-     &my_free);
-  if (UNIV_UNLIKELY(!page_buf))
-    return -1;
-
-  int res= crc32_pread_page(file, page_buf.get(), page_no, MYF(MY_WME));
-  if (UNIV_UNLIKELY(res <= 0))
-    return -1;
-
-  return read_gtid_state_from_page(state, page_buf.get(), page_no);
-}
-
-
-/*
   Recover the GTID binlog state at startup.
   Read the full binlog state at the start of the current binlog file, as well
   as the last differential binlog state on top, if any. Then scan from there to
@@ -2121,17 +2094,17 @@ binlog_state_recover()
   uint64_t active= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t diff_state_interval= current_binlog_state_interval;
   uint32_t page_no= 1;
-  char filename[OS_FILE_MAX_PATH];
 
-  binlog_name_make(filename, active);
-  File file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
-  if (UNIV_UNLIKELY(file < (File)0))
+  binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
+  byte *page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+  if (!page_buf)
     return true;
-
-  int res= read_gtid_state(&state, file, page_no);
+  chunk_reader.set_page_buf(page_buf);
+  chunk_reader.seek(active, page_no << ibb_page_size_shift);
+  int res= read_gtid_state(&chunk_reader, &state);
   if (res < 0)
   {
-    my_close(file, MYF(0));
+    ut_free(page_buf);
     return true;
   }
   if (diff_state_interval == 0)
@@ -2145,13 +2118,14 @@ binlog_state_recover()
                         (binlog_cur_page_no % diff_state_interval));
     while (page_no > 1)
     {
-      res= read_gtid_state(&state, file, page_no);
+      chunk_reader.seek(active, page_no << ibb_page_size_shift);
+      res= read_gtid_state(&chunk_reader, &state);
       if (res > 0)
         break;
       page_no-= (uint32_t)diff_state_interval;
     }
   }
-  my_close(file, MYF(0));
+  ut_free(page_buf);
 
   ha_innodb_binlog_reader reader(false, active,
                                  page_no << ibb_page_size_shift);
@@ -3094,124 +3068,6 @@ gtid_search::~gtid_search()
 
 
 /*
-  Read a GTID state record from file_no and page_no.
-
-  Returns:
-    READ_ERROR      Error reading the file or corrupt data
-    READ_ENOENT     File not found
-    READ_NOT_FOUND  No GTID state record found on the page
-    READ_FOUND      Record found
-
-  ToDo: Rewrite this to use a binlog_chunk_reader.
-
-*/
-enum gtid_search::Read_Result
-gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
-                                     uint64_t file_no, uint32_t page_no,
-                                     uint64_t *out_file_end)
-{
-  *out_file_end= 0;
-  uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
-  if (file_no > active2)
-    return READ_ENOENT;
-
-  for (;;)
-  {
-    uint64_t active= active2;
-    uint64_t end_offset=
-      binlog_cur_end_offset[file_no & 3].load(std::memory_order_acquire);
-    fsp_binlog_page_entry *block;
-
-    if (file_no + 1 >= active &&
-        end_offset != ~(uint64_t)0 &&
-        page_no <= (end_offset >> ibb_page_size_shift))
-    {
-      /*
-        See if the page is available in the buffer pool.
-        Since we only use the low bit of file_no to determine the tablespace
-        id, the buffer pool page will only be valid if the active file_no did
-        not change while getting the page (otherwise it might belong to a
-        later tablespace file).
-      */
-      block= binlog_page_fifo->get_page(file_no, page_no);
-    }
-    else
-      block= nullptr;
-    active2= active_binlog_file_no.load(std::memory_order_acquire);
-    if (UNIV_UNLIKELY(active2 != active))
-    {
-      /* Active moved ahead while we were reading, try again. */
-      if (block)
-        binlog_page_fifo->release_page(block);
-      continue;
-    }
-    if (file_no + 1 >= active)
-    {
-      *out_file_end= end_offset;
-      /*
-        Note: if end_offset is ~0, it means that the tablespace has been closed
-        and needs to be read as a plain file. Then this condition will be false
-        and we fall through to the file-reading code below, no need for an
-        extra conditional jump here.
-      */
-      if (page_no > (end_offset >> ibb_page_size_shift))
-      {
-        ut_ad(!block);
-        if (file_no == active)
-          return READ_NOT_FOUND;
-      }
-    }
-
-    if (block)
-    {
-      ut_ad(end_offset != ~(uint64_t)0);
-      int res= read_gtid_state_from_page(state, block->page_buf(), page_no);
-      binlog_page_fifo->release_page(block);
-      return (Read_Result)res;
-    }
-    else
-    {
-      if (cur_open_file_no != file_no)
-      {
-        if (cur_open_file >= (File)0)
-        {
-          my_close(cur_open_file, MYF(0));
-          cur_open_file= (File)-1;
-          cur_open_file_length= 0;
-        }
-      }
-      if (cur_open_file < (File)0)
-      {
-        char filename[OS_FILE_MAX_PATH];
-        binlog_name_make(filename, file_no);
-        cur_open_file= my_open(filename, O_RDONLY | O_BINARY, MYF(0));
-        if (cur_open_file < (File)0)
-        {
-          if (errno == ENOENT)
-            return READ_ENOENT;
-          my_error(ER_CANT_OPEN_FILE, MYF(0), filename, errno);
-          return READ_ERROR;
-        }
-        MY_STAT stat_buf;
-        if (my_fstat(cur_open_file, &stat_buf, MYF(0))) {
-          my_error(ER_CANT_GET_STAT, MYF(0), filename, errno);
-          my_close(cur_open_file, MYF(0));
-          cur_open_file= (File)-1;
-          return READ_ERROR;
-        }
-        cur_open_file_length= stat_buf.st_size;
-        cur_open_file_no= file_no;
-      }
-      if (!*out_file_end)
-        *out_file_end= cur_open_file_length;
-      int res= read_gtid_state(state, cur_open_file, page_no);
-      return (Read_Result)res;
-    }
-  }
-}
-
-
-/*
   Search for a GTID position in the binlog.
   Find a binlog file_no and an offset into the file that is guaranteed to
   be before the target position. It can be a bit earlier, that only means a
@@ -3234,46 +3090,35 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
   */
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
 
+  std::unique_ptr<byte, void (*)(byte *)>
+    page_buf(static_cast<byte*>(ut_malloc(ibb_page_size, mem_key_binlog)),
+             [](byte *p) {ut_free(p);});
+  if (page_buf == nullptr)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
+    return -1;
+  }
+  binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
+  chunk_reader.set_page_buf(page_buf.get());
+
   /* First search backwards for the right file to start from. */
-  uint64_t file_end= 0;
   uint64_t diff_state_page_interval= 0;
   rpl_binlog_state_base base_state, page0_diff_state, tmp_diff_state;
   base_state.init();
   for (;;)
   {
-    /*
-      Read the header page, needed to get the binlog diff state interval.
-      ToDo: Here we instantiate our own binlog_chunk_reader specifically for
-      this. Later, when read_gtid_state_file_no() is fixed to also use a
-      binlog_chunk_reader, integrate and use the same single
-      binlog_chunk_reader object.
-    */
+    /* Read the header page, needed to get the binlog diff state interval. */
     binlog_header_data header;
-    int err;
-    byte *page_buffer= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
-    if (!page_buffer)
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
+    chunk_reader.seek(file_no, 0);
+    if (chunk_reader.get_file_header(&header))
       return -1;
-    }
-    {
-      binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
-      chunk_reader.set_page_buf(page_buffer);
-      chunk_reader.seek(file_no, 0);
-      err= chunk_reader.get_file_header(&header);
-      diff_state_page_interval= header.diff_state_interval;
-    }
-    ut_free(page_buffer);
-    if (err)
-      return -1;
+    diff_state_page_interval= header.diff_state_interval;
 
-    enum Read_Result res=
-      read_gtid_state_file_no(&base_state, file_no, 1, &file_end);
-    if (res == READ_ENOENT)
-      return 0;
-    if (res == READ_ERROR)
+    chunk_reader.seek(file_no, ibb_page_size);
+    int res= read_gtid_state(&chunk_reader, &base_state);
+    if (UNIV_UNLIKELY(res < 0))
       return -1;
-    if (res == READ_NOT_FOUND)
+    if (res == 0)
     {
       if (file_no == 0)
       {
@@ -3289,7 +3134,7 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     if (base_state.is_before_pos(pos))
       break;
     base_state.reset_nolock();
-    if (file_no == 0)
+    if (file_no <= earliest_binlog_file_no)
       return 0;
     --file_no;
   }
@@ -3302,9 +3147,9 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     is known to be a valid position to start (but possibly earlier than needed).
   */
   uint32_t page0= 0;
-  uint32_t page2= (uint32_t)
-    (diff_state_page_interval + ((file_end - 1) >> ibb_page_size_shift));
-  /* Round to the next diff_state_page_interval after file_end. */
+  uint32_t page2= (uint32_t) (diff_state_page_interval +
+                ((chunk_reader.cur_end_offset - 1) >> ibb_page_size_shift));
+  /* Round to the next diff_state_page_interval after file end. */
   page2-= page2 % (uint32_t)diff_state_page_interval;
   uint32_t page1= (page0 + page2) / 2;
   page0_diff_state.init();
@@ -3315,13 +3160,11 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     ut_ad((page1 - page0) % diff_state_page_interval == 0);
     tmp_diff_state.reset_nolock();
     tmp_diff_state.load_nolock(&base_state);
-    enum Read_Result res=
-      read_gtid_state_file_no(&tmp_diff_state, file_no, page1, &file_end);
-    if (res == READ_ENOENT)
-      return 0;  /* File purged while we are reading from it? */
-    if (res == READ_ERROR)
+    chunk_reader.seek(file_no, page1 << ibb_page_size_shift);
+    int res= read_gtid_state(&chunk_reader, &tmp_diff_state);
+    if (UNIV_UNLIKELY(res < 0))
       return -1;
-    if (res == READ_NOT_FOUND)
+    if (res == 0)
     {
       /*
         If the diff state record was not written here for some reason, just
@@ -3720,17 +3563,24 @@ innodb_binlog_status(uint64_t *out_file_no, uint64_t *out_pos)
 bool
 innodb_binlog_get_init_state(rpl_binlog_state_base *out_state)
 {
-  gtid_search search_obj;
-  uint64_t dummy_file_end;
+  binlog_chunk_reader chunk_reader(binlog_cur_end_offset);
   bool err= false;
 
+  byte *page_buf= (byte *)ut_malloc(ibb_page_size, mem_key_binlog);
+  if (!page_buf)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), ibb_page_size);
+    return true;
+  }
+  chunk_reader.set_page_buf(page_buf);
+
   mysql_mutex_lock(&purge_binlog_mutex);
-  uint64_t file_no= earliest_binlog_file_no;
-  enum gtid_search::Read_Result res=
-    search_obj.read_gtid_state_file_no(out_state, file_no, 1, &dummy_file_end);
+  chunk_reader.seek(earliest_binlog_file_no, ibb_page_size);
+  int res= read_gtid_state(&chunk_reader, out_state);
   mysql_mutex_unlock(&purge_binlog_mutex);
-  if (res != gtid_search::READ_FOUND)
+  if (res != 1)
     err= true;
+  ut_free(page_buf);
   return err;
 
 }
