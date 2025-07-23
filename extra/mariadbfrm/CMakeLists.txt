@@ -1,4 +1,4 @@
-# FRM Parser utility - selective source compilation
+# MariaDB FRM Parser - Minimal Real Environment
 INCLUDE_DIRECTORIES(
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/sql
@@ -9,59 +9,35 @@ INCLUDE_DIRECTORIES(
     ${ZLIB_INCLUDE_DIRS}
     ${SSL_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/tpool
+    ${CMAKE_SOURCE_DIR}/mysys
+    ${CMAKE_SOURCE_DIR}/strings
 )
 
-# Start with minimal set of SQL sources needed for FRM parsing
-SET(FRM_SQL_SOURCES
-    # Core FRM parsing files
-    ${CMAKE_SOURCE_DIR}/sql/table.cc
-    ${CMAKE_SOURCE_DIR}/sql/field.cc
-    ${CMAKE_SOURCE_DIR}/sql/field_conv.cc
-    ${CMAKE_SOURCE_DIR}/sql/unireg.cc
-    ${CMAKE_SOURCE_DIR}/sql/key.cc
-    ${CMAKE_SOURCE_DIR}/sql/sql_string.cc
-    ${CMAKE_SOURCE_DIR}/sql/strfunc.cc
-    
-    # Basic infrastructure (minimal)
-    ${CMAKE_SOURCE_DIR}/sql/sql_class.cc
-    ${CMAKE_SOURCE_DIR}/sql/sql_table.cc
-    ${CMAKE_SOURCE_DIR}/sql/create_options.cc
-    ${CMAKE_SOURCE_DIR}/sql/charset_collations.cc
-    ${CMAKE_SOURCE_DIR}/sql/sql_type.cc
-    ${CMAKE_SOURCE_DIR}/sql/sql_type_string.cc
-    
-    # Handler infrastructure (partial)
-    ${CMAKE_SOURCE_DIR}/sql/handler.cc
-    
-    # String and utility functions
-    ${CMAKE_SOURCE_DIR}/sql/lex_string.h
-    
-    # Our custom mock file
-    frm_mocks.cc
-)
+# Create the mariadb-frm executable with minimal dependencies
+MYSQL_ADD_EXECUTABLE(mariadb-frm mariadb_frm.cc)
 
-MYSQL_ADD_EXECUTABLE(mariadb-frm mariadb_frm.cc ${FRM_SQL_SOURCES})
+# Define as server component to get proper definitions
 TARGET_COMPILE_DEFINITIONS(mariadb-frm PRIVATE MYSQL_SERVER)
 
-# Link with essential libraries only
+# Link with essential MariaDB libraries in correct order
 TARGET_LINK_LIBRARIES(mariadb-frm 
-    mysys 
-    mysys_ssl 
-    dbug 
-    strings 
-    vio 
-    pcre2-8
-    tpool
-    ${LIBWRAP} 
-    ${LIBCRYPT} 
-    ${CMAKE_DL_LIBS} 
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${SSL_LIBRARIES}
+    sql                 # Core SQL functionality including TABLE_SHARE
+    mysys              # MySQL system library
+    strings            # String handling
+    dbug               # Debug library
+    mysys_ssl          # SSL support
+    ${ZLIB_LIBRARIES}  # Compression
+    ${SSL_LIBRARIES}   # SSL
+    ${CMAKE_THREAD_LIBS_INIT}  # Threading
 )
 
+# Add dependency on code generation
 ADD_DEPENDENCIES(mariadb-frm GenError)
 
-# Add dependency on pcre2 if it's a target
+# Add dependency on pcre2 if available
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(mariadb-frm pcre2)
 ENDIF()
+
+# Ensure we can find all needed headers at build time
+ADD_DEPENDENCIES(mariadb-frm sql_builtins)
