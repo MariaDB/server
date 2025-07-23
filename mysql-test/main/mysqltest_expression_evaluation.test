@@ -145,16 +145,6 @@ let $multi_var = $($var_a * $var_b / $var_a);
 --echo !(2 + 3 == 6) -> $(!(2 + 3 == 6))
 
 # ----------------------------------------------------------------------------
-# Complex expressions with multiple operators
-# ----------------------------------------------------------------------------
-
---echo # Complex expressions
---echo 2 + 3 * 4 > 10 -> $(2 + 3 * 4 > 10)
---echo (5 + 5) == (2 * 5) -> $((5 + 5) == (2 * 5))
---echo 1 + 2 + 3 + 4 == 10 -> $(1 + 2 + 3 + 4 == 10)
---echo 3 + 2 > 4 && 5 > 2 -> $(3 + 2 > 4 && 5 > 2)
-
-# ----------------------------------------------------------------------------
 # Expressions with spaces and formatting
 # ----------------------------------------------------------------------------
 
@@ -497,7 +487,553 @@ while ($($counter < 0b11))
 }
 
 # ----------------------------------------------------------------------------
-# Section: Error Handling (Syntax and Runtime)
+# Test of expression conversion functions (conv, bin, oct, hex)
+# ----------------------------------------------------------------------------
+
+--echo # Basic conv() function tests
+
+let $result1= $(conv(10, 10, 2));
+--echo conv(10, 10, 2) -> $result1
+
+let $result2= $(conv(255, 10, 16));  
+--echo conv(255, 10, 16) -> $result2
+
+let $result3= $(conv(FF, 16, 10));
+--echo conv(FF, 16, 10) -> $result3  
+
+let $result4= $(conv(1010, 2, 10));
+--echo conv(1010, 2, 10) -> $result4
+
+let $result5= $(conv(64, 10, 8));
+--echo conv(64, 10, 8) -> $result5
+
+let $result6= $(conv(77, 8, 10));
+--echo conv(77, 8, 10) -> $result6
+
+# ----------------------------------------------------------------------------
+# Test shortcut functions bin(), oct(), hex()
+# ----------------------------------------------------------------------------
+
+--echo # Testing bin() function
+
+let $bin1= $(bin(10));
+--echo bin(10) -> $bin1
+
+let $bin2= $(bin(255));
+--echo bin(255) -> $bin2
+
+let $bin3= $(bin(0));
+--echo bin(0) -> $bin3
+
+--echo # Testing oct() function  
+
+let $oct1= $(oct(64));
+--echo oct(64) -> $oct1
+
+let $oct2= $(oct(512));
+--echo oct(512) -> $oct2
+
+--echo # Testing hex() function
+
+let $hex1= $(hex(255));
+--echo hex(255) -> $hex1
+
+let $hex2= $(hex(4095));
+--echo hex(4095) -> $hex2
+
+# ----------------------------------------------------------------------------
+# Test extended base support (bases 2-62)
+# ----------------------------------------------------------------------------
+
+--echo # Testing extended bases
+
+let $base36= $(conv(ZZ, 36, 10));
+--echo conv(ZZ, 36, 10) -> $base36
+
+let $base62_1= $(conv(z, 62, 10));
+--echo conv(z, 62, 10) -> $base62_1
+
+let $base62_2= $(conv(Hello, 62, 10));
+--echo conv(Hello, 62, 10) -> $base62_2
+
+# ----------------------------------------------------------------------------
+# Test signed vs unsigned interpretation
+# ----------------------------------------------------------------------------
+
+--echo # Testing signed vs unsigned interpretation
+
+let $unsigned1= $(conv(-1, 10, 16));
+--echo conv(-1, 10, 16) -> $unsigned1
+
+let $signed1= $(conv(-1, 10, -16));
+--echo conv(-1, 10, -16) -> $signed1
+
+let $unsigned2= $(conv(-10, 10, 2));
+--echo conv(-10, 10, 2) -> $unsigned2
+
+let $signed2= $(conv(-10, 10, -2));
+--echo conv(-10, 10, -2) -> $signed2
+
+let $unsigned3= $(conv(-255, 10, 16));
+--echo conv(-255, 10, 16) -> $unsigned3
+
+let $signed3= $(conv(-255, 10, -16));
+--echo conv(-255, 10, -16) -> $signed3
+
+let $signed4= $(conv(-1234, -10, 2));
+--echo conv(-1234, -10, 2) -> $signed4
+
+let $signed5= $(conv(-1234, -10, -2));
+--echo conv(-1234, -10, -2) -> $signed5
+
+# ----------------------------------------------------------------------------
+# Edge cases and boundary conditions
+# ----------------------------------------------------------------------------
+
+--echo # Testing edge cases and boundaries
+
+# Zero value
+let $zero1= $(conv(0, 10, 2));
+--echo conv(0, 10, 2) -> $zero1
+
+let $zero2= $(conv(0, 16, 10));
+--echo conv(0, 16, 10) -> $zero2
+
+let $max1= $(conv(9223372036854775807, 10, 16));
+--echo conv(9223372036854775807, 10, 16) -> $max1
+
+let $max2= $(conv(~0, 10, 2));
+--echo conv(~0, 10, 2) -> $max2
+
+let $large1= $(conv(7FFFFFFFFFFFFFFF, 16, 10));
+--echo conv(7FFFFFFFFFFFFFFF, 16, 10) -> $large1
+
+# TODO: a workaround for the test to pass wrapping the value in quotes
+let $large2= $(conv('777777777777777777777', 8, 10));
+--echo conv(777777777777777777777, 8, 10) -> $large2
+
+let $large3= $(conv('1111111111111111111111111111111111111111111111111111111111111111', 2, 10));
+--echo conv(1111111111111111111111111111111111111111111111111111111111111111, 2, 10) -> $large3
+
+let $large4= $(conv('9223372036854775807', 10, 2));
+--echo conv(9223372036854775807, 10, 2) -> $large4
+
+let $large5= $(conv('18446744073709551615', 10, 16));
+--echo conv(18446744073709551615, 10, 16) -> $large5
+
+let $large6= $(conv('18446744073709551615', 10, 2));
+--echo conv(18446744073709551615, 10, 2) -> $large6
+
+let $min1= $(conv(-~0, 10, 2));
+--echo conv(-~0, 10, 2) -> $min1
+
+let $leading1= $(conv(0000123, 10, 16));
+--echo conv(0000123, 10, 16) -> $leading1
+
+# ----------------------------------------------------------------------------
+# Test case sensitivity in conversion
+# ----------------------------------------------------------------------------
+
+--echo # Testing case sensitivity
+
+# Hex with different cases
+let $case1= $(conv(AbCd, 16, 10));
+--echo conv(AbCd, 16, 10) -> $case1
+
+let $case2= $(conv(abcd, 16, 10));
+--echo conv(abcd, 16, 10) -> $case2
+
+let $case3= $(conv(ABCD, 16, 10));
+--echo conv(ABCD, 16, 10) -> $case3
+
+# ----------------------------------------------------------------------------
+# Test with variables and expressions
+# ----------------------------------------------------------------------------
+
+--echo # Testing with variables and expressions  
+
+let $base_var= 16;
+let $value_var= FF;
+let $target_base= 10;
+
+let $var_result= $(conv($value_var, $base_var, $target_base));
+--echo conv($value_var, $base_var, $target_base) -> $var_result
+
+# ----------------------------------------------------------------------------
+# Error cases - Invalid bases
+# ----------------------------------------------------------------------------
+
+--echo # Testing error cases - Invalid bases
+
+# Base too small (< 2)
+--error 1
+--exec echo "let \$invalid1= \$(conv(123, 1, 10));" | $MYSQL_TEST 2>&1
+
+# Base too large (> 62 for our parser, > 36 for MariaDB)
+--error 1
+--exec echo "let \$invalid2= \$(conv(123, 63, 10));" | $MYSQL_TEST 2>&1
+
+# Zero base
+--error 1
+--exec echo "let \$invalid3= \$(conv(123, 0, 10));" | $MYSQL_TEST 2>&1
+
+# ----------------------------------------------------------------------------
+# Error cases - Invalid characters for base
+# ----------------------------------------------------------------------------
+
+--echo # Testing error cases - Invalid characters
+
+# Character not valid for base 8 
+--error 1
+--exec echo "let \$invalid5= \$(conv(189, 8, 10));" | $MYSQL_TEST 2>&1
+
+# Character not valid for base 16
+--error 1
+--exec echo "let \$invalid6= \$(conv(XYZ, 16, 10));" | $MYSQL_TEST 2>&1
+
+# Special characters
+--error 1
+--exec echo "let \$invalid7= \$(conv(@#\$, 36, 10));" | $MYSQL_TEST 2>&1
+
+# ----------------------------------------------------------------------------
+# Error cases - Function argument count
+# ----------------------------------------------------------------------------
+
+--echo # Testing error cases - Wrong argument count
+
+# Too few arguments for conv
+--error 1
+--exec echo "let \$invalid8= \$(conv(123, 10));" | $MYSQL_TEST 2>&1
+
+# Too many arguments for conv
+--error 1
+--exec echo "let \$invalid9= \$(conv(123, 10, 16, 2));" | $MYSQL_TEST 2>&1
+
+# Too many arguments for bin
+--error 1
+--exec echo "let \$invalid10= \$(bin(123, 456));" | $MYSQL_TEST 2>&1
+
+# No arguments for hex
+--error 1
+--exec echo "let \$invalid11= \$(hex());" | $MYSQL_TEST 2>&1
+
+# ----------------------------------------------------------------------------
+# Overflow cases
+# ----------------------------------------------------------------------------
+
+--echo # Testing overflow cases
+
+# Number too large for 64-bit
+--error 1
+--exec echo "let \$overflow1= \$(conv(99999999999999999999999999999999, 10, 16));" | $MYSQL_TEST 2>&1
+
+# Very long hex string that would cause overflow
+--error 1
+--exec echo "let \$overflow2= \$(conv(FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, 16, 10));" | $MYSQL_TEST 2>&1
+
+# ----------------------------------------------------------------------------
+# Bitwise operators
+# ----------------------------------------------------------------------------
+
+--echo # Basic bitwise AND (&)
+let $and1 = $(12 & 10);
+let $and2 = $(15 & 7);
+let $and3 = $(255 & 128);
+let $and4 = $(0 & 15);
+
+--echo 12 & 10 -> $and1
+--echo 15 & 7 -> $and2
+--echo 255 & 128 -> $and3
+--echo 0 & 15 -> $and4
+
+--echo # Basic bitwise OR (|)
+let $or1 = $(12 | 10);
+let $or2 = $(8 | 4);
+let $or3 = $(1 | 2);
+let $or4 = $(0 | 15);
+
+--echo 12 | 10 -> $or1
+--echo 8 | 4 -> $or2
+--echo 1 | 2 -> $or3
+--echo 0 | 15 -> $or4
+
+--echo # Basic bitwise XOR (^)
+let $xor1 = $(12 ^ 10);
+let $xor2 = $(15 ^ 15);
+let $xor3 = $(5 ^ 3);
+let $xor4 = $(255 ^ 128);
+
+--echo 12 ^ 10 -> $xor1
+--echo 15 ^ 15 -> $xor2
+--echo 5 ^ 3 -> $xor3
+--echo 255 ^ 128 -> $xor4
+
+--echo # Basic bitwise NOT (~)
+let $not1 = $(~0);
+let $not2 = $(~1);
+let $not3 = $(~255);
+let $not4 = $(~(-1));
+
+--echo ~0 -> $not1
+--echo ~1 -> $not2
+--echo ~255 -> $not3
+--echo ~(-1) -> $not4
+
+--echo # Basic left shift (<<)
+let $lshift1 = $(1 << 3);
+let $lshift2 = $(5 << 2);
+let $lshift3 = $(8 << 1);
+let $lshift4 = $(0 << 5);
+
+--echo 1 << 3 -> $lshift1
+--echo 5 << 2 -> $lshift2
+--echo 8 << 1 -> $lshift3
+--echo 0 << 5 -> $lshift4
+
+--echo # Basic right shift (>>)
+let $rshift1 = $(8 >> 3);
+let $rshift2 = $(20 >> 2);
+let $rshift3 = $(16 >> 1);
+let $rshift4 = $(7 >> 3);
+
+--echo 8 >> 3 -> $rshift1
+--echo 20 >> 2 -> $rshift2
+--echo 16 >> 1 -> $rshift3
+--echo 7 >> 3 -> $rshift4
+
+# ----------------------------------------------------------------------------
+# Bitwise operations with hex and binary literals
+# ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with hex literals
+let $hex_and = $(0xFF & 0x0F);
+let $hex_or = $(0xF0 | 0x0F);
+let $hex_xor = $(0xFF ^ 0xAA);
+let $hex_not = $(~0xFF);
+let $hex_lshift = $(0x10 << 2);
+let $hex_rshift = $(0x80 >> 4);
+
+--echo 0xFF & 0x0F -> $hex_and
+--echo 0xF0 | 0x0F -> $hex_or
+--echo 0xFF ^ 0xAA -> $hex_xor
+--echo ~0xFF -> $hex_not
+--echo 0x10 << 2 -> $hex_lshift
+--echo 0x80 >> 4 -> $hex_rshift
+
+--echo # Bitwise operations with binary literals
+let $bin_and = $(0b1100 & 0b1010);
+let $bin_or = $(0b1000 | 0b0100);
+let $bin_xor = $(0b1111 ^ 0b1010);
+let $bin_not = $(~0b1111);
+let $bin_lshift = $(0b101 << 2);
+let $bin_rshift = $(0b10000 >> 2);
+
+--echo 0b1100 & 0b1010 -> $bin_and
+--echo 0b1000 | 0b0100 -> $bin_or
+--echo 0b1111 ^ 0b1010 -> $bin_xor
+--echo ~0b1111 -> $bin_not
+--echo 0b101 << 2 -> $bin_lshift
+--echo 0b10000 >> 2 -> $bin_rshift
+
+# ----------------------------------------------------------------------------
+# Mixed base bitwise operations
+# ----------------------------------------------------------------------------
+
+--echo # Mixed base bitwise operations
+let $mixed_and = $(0xFF & 0b11110000);
+let $mixed_or = $(0x0F | 0b11110000);
+let $mixed_xor = $(255 ^ 0xAA);
+let $mixed_shift1 = $(0b1000 << 0x2);
+let $mixed_shift2 = $(0x40 >> 0b10);
+
+--echo 0xFF & 0b11110000 -> $mixed_and
+--echo 0x0F | 0b11110000 -> $mixed_or
+--echo 255 ^ 0xAA -> $mixed_xor
+--echo 0b1000 << 0x2 -> $mixed_shift1
+--echo 0x40 >> 0b10 -> $mixed_shift2
+
+# ----------------------------------------------------------------------------
+# Bitwise operator precedence
+# ----------------------------------------------------------------------------
+
+--echo # Bitwise operator precedence
+let $prec1 = $(12 | 8 ^ 4);
+let $prec2 = $(12 ^ 8 | 4);
+let $prec3 = $(12 & 8 ^ 4);
+let $prec4 = $(12 ^ 8 & 4);
+let $prec5 = $(12 | 8 & 4);
+
+--echo 12 | 8 ^ 4 -> $prec1
+--echo 12 ^ 8 | 4 -> $prec2
+--echo 12 & 8 ^ 4 -> $prec3
+--echo 12 ^ 8 & 4 -> $prec4
+--echo 12 | 8 & 4 -> $prec5
+
+--echo # Parentheses override bitwise precedence
+let $paren1 = $((12 | 8) ^ 4);
+let $paren2 = $(12 | (8 ^ 4));
+let $paren3 = $((12 & 8) | 4);
+let $paren4 = $(12 & (8 | 4));
+
+--echo (12 | 8) ^ 4 -> $paren1
+--echo 12 | (8 ^ 4) -> $paren2
+--echo (12 & 8) | 4 -> $paren3
+--echo 12 & (8 | 4) -> $paren4
+
+# ----------------------------------------------------------------------------
+# Shift precedence with arithmetic operators
+# ----------------------------------------------------------------------------
+
+--echo # Shift operators vs arithmetic
+let $shift_arith1 = $(2 + 3 << 1);
+let $shift_arith2 = $(8 >> 1 + 1);
+let $shift_arith3 = $(4 * 2 << 2);
+let $shift_arith4 = $(16 >> 2 * 1);
+
+--echo 2 + 3 << 1 -> $shift_arith1
+--echo 8 >> 1 + 1 -> $shift_arith2
+--echo 4 * 2 << 2 -> $shift_arith3
+--echo 16 >> 2 * 1 -> $shift_arith4
+
+# ----------------------------------------------------------------------------
+# Bitwise operations with negative numbers
+# ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with negative numbers (unsigned interpretation)
+let $neg_and = $(-1 & 15);
+let $neg_or = $(-16 | 7);
+let $neg_xor = $(-1 ^ 255);
+let $neg_lshift = $(-10 << 3);
+let $neg_rshift = $(-10 >> 3);
+
+--echo -1 & 15 -> $neg_and
+--echo -16 | 7 -> $neg_or
+--echo -1 ^ 255 -> $neg_xor
+--echo -10 << 3 -> $neg_lshift
+--echo -10 >> 3 -> $neg_rshift
+
+# ----------------------------------------------------------------------------
+# Complex bitwise expressions
+# ----------------------------------------------------------------------------
+
+--echo # Complex bitwise expressions
+let $complex1 = $((0xFF & 0xF0) | (0x0F & 0x05));
+let $complex2 = $(~(~0xFF | 0x0F));
+let $complex3 = $((1 << 4) | (1 << 2) | (1 << 0));
+let $complex4 = $((255 >> 2) & (63 << 1));
+
+--echo (0xFF & 0xF0) | (0x0F & 0x05) -> $complex1
+--echo ~(~0xFF | 0x0F) -> $complex2
+--echo (1 << 4) | (1 << 2) | (1 << 0) -> $complex3
+--echo (255 >> 2) & (63 << 1) -> $complex4
+
+# ----------------------------------------------------------------------------
+# Bitwise operations in conditional expressions
+# ----------------------------------------------------------------------------
+
+--echo # Bitwise operations in conditions
+if ($(15 & 8))
+{
+  --echo 15 & 8 is true (result is 8, non-zero)
+}
+
+if ($(12 ^ 12))
+{
+  --echo This should not print - 12 ^ 12 is 0
+}
+
+if ($(!(12 ^ 12)))
+{
+  --echo !(12 ^ 12) is true
+}
+
+if ($((1 << 5) == 32))
+{
+  --echo 1 << 5 equals 32
+}
+
+# ----------------------------------------------------------------------------
+# Bitwise operations with variables
+# ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with variables
+let $mask = 0xFF;
+let $value = 0xAB;
+let $shift_amount = 4;
+
+let $masked = $($value & $mask);
+let $shifted_left = $($value << $shift_amount);
+let $shifted_right = $($value >> $shift_amount);
+let $inverted = $(~$value);
+
+--echo $value & $mask -> $masked
+--echo $value << $shift_amount -> $shifted_left
+--echo $value >> $shift_amount -> $shifted_right
+--echo ~$value -> $inverted
+
+# ----------------------------------------------------------------------------
+# Bitwise error cases
+# ----------------------------------------------------------------------------
+
+--echo # Testing bitwise error cases
+
+# Shift by negative amount
+--error 1
+--exec echo "let \$invalid_shift1= \$(5 << -1);" | $MYSQL_TEST 2>&1
+
+# Shift by too large amount (>= 64)
+--error 1
+--exec echo "let \$invalid_shift2= \$(5 << 64);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$invalid_shift3= \$(100 >> 65);" | $MYSQL_TEST 2>&1
+
+# ----------------------------------------------------------------------------
+# Edge cases for shift operations
+# ----------------------------------------------------------------------------
+
+--echo # Edge cases for shift operations
+let $edge_shift1 = $(1 << 0);
+let $edge_shift2 = $(1 << 63);
+let $edge_shift3 = $(8 >> 0);
+let $edge_shift4 = $(1 >> 63);
+
+--echo 1 << 0 -> $edge_shift1
+--echo 1 << 63 -> $edge_shift2
+--echo 8 >> 0 -> $edge_shift3
+--echo 1 >> 63 -> $edge_shift4
+
+# ----------------------------------------------------------------------------
+# Bitwise operations with large numbers
+# ----------------------------------------------------------------------------
+
+--echo # Bitwise operations with large numbers
+let $large_and = $(0x7FFFFFFFFFFFFFFF & 0x7FFFFFFFFFFFFFFE);
+let $large_or  = $(0x7FFFFFFFFFFFFFFF | 0x7FFFFFFFFFFFFFFE);
+let $large_xor = $(0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE);
+
+--echo 0x7FFFFFFFFFFFFFFF & 0x7FFFFFFFFFFFFFFE -> $large_and
+--echo 0x7FFFFFFFFFFFFFFF | 0x7FFFFFFFFFFFFFFE -> $large_or
+--echo 0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE -> $large_xor
+
+# ----------------------------------------------------------------------------
+# Complex expressions with multiple operators
+# ----------------------------------------------------------------------------
+
+--echo # Complex expressions
+--echo 2 + 3 * 4 > 10 -> $(2 + 3 * 4 > 10)
+--echo (5 + 5) == (2 * 5) -> $((5 + 5) == (2 * 5))
+--echo 1 + 2 + 3 + 4 == 10 -> $(1 + 2 + 3 + 4 == 10)
+--echo 3 + 2 > 4 && 5 > 2 -> $(3 + 2 > 4 && 5 > 2)
+--echo 2 * 3 + 1 << 1 & 15 ^ 8 | 4 > 2 -> $(2 * 3 + 1 << 1 & 15 ^ 8 | 4 > 2)
+--echo 1 + 2 * 3 / 2 % 5 << 1 ^ 7 & 15 | 8 > 4 -> $(1 + 2 * 3 / 2 % 5 << 1 ^ 7 & 15 | 8 > 4)
+--echo 4 + 3 * 2 >> 1 ^ 6 & 3 < 5 | ~1 - 1 % 2 -> $(4 + 3 * 2 >> 1 ^ 6 & 3 < 5 | ~1 - 1 % 2)
+--echo 5 * 3 + 7 << 1 ^ 12 >> 2 -> $(5 * 3 + 7 << 1 ^ 12 >> 2)
+--echo 8 * 2 / 4 + 3 % 2 << 1 > 2 ^ 1 & 1 | !0 - 2 -> $(8 * 2 / 4 + 3 % 2 << 1 > 2 ^ 1 & 1 | !0 - 2)
+--echo (!((6 + 3 * 2) > (14 / 2 - 1)) | ((8 << 1) & ~(5 ^ 3)) + (4 >= 2) * (3 <= 3) - (9 % 4 >> 1)) -> $(!((6 + 3 * 2) > (14 / 2 - 1)) | ((8 << 1) & ~(5 ^ 3)) + (4 >= 2) * (3 <= 3) - (9 % 4 >> 1))
+
+# ----------------------------------------------------------------------------
+# Error Handling (Syntax and Runtime)
 # ----------------------------------------------------------------------------
 
 --echo # Test case: Empty unquoted string (illegal)

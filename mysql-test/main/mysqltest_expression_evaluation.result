@@ -55,11 +55,6 @@ Multiple variables: 10 * 20 / 10 = 20
 !1 -> 0;
 !(5 > 10) -> 1;
 !(2 + 3 == 6) -> 1
-# Complex expressions
-2 + 3 * 4 > 10 -> 1
-(5 + 5) == (2 * 5) -> 1
-1 + 2 + 3 + 4 == 10 -> 1
-3 + 2 > 4 && 5 > 2 -> 1
 # Expressions with varying spaces
 10 + 5 (with spaces) -> 15
 10+5 (no spaces) -> 15
@@ -219,6 +214,181 @@ Boolean and hex comparison works
 Counter: 0
 Counter: 1
 Counter: 2
+# Basic conv() function tests
+conv(10, 10, 2) -> 1010
+conv(255, 10, 16) -> FF
+conv(FF, 16, 10) -> 255  
+conv(1010, 2, 10) -> 10
+conv(64, 10, 8) -> 100
+conv(77, 8, 10) -> 63
+# Testing bin() function
+bin(10) -> 1010
+bin(255) -> 11111111
+bin(0) -> 0
+# Testing oct() function  
+oct(64) -> 100
+oct(512) -> 1000
+# Testing hex() function
+hex(255) -> FF
+hex(4095) -> FFF
+# Testing extended bases
+conv(ZZ, 36, 10) -> 1295
+conv(z, 62, 10) -> 61
+conv(Hello, 62, 10) -> 260914464
+# Testing signed vs unsigned interpretation
+conv(-1, 10, 16) -> FFFFFFFFFFFFFFFF
+conv(-1, 10, -16) -> -1
+conv(-10, 10, 2) -> 1111111111111111111111111111111111111111111111111111111111110110
+conv(-10, 10, -2) -> -1010
+conv(-255, 10, 16) -> FFFFFFFFFFFFFF01
+conv(-255, 10, -16) -> -FF
+conv(-1234, -10, 2) -> 1111111111111111111111111111111111111111111111111111101100101110
+conv(-1234, -10, -2) -> -10011010010
+# Testing edge cases and boundaries
+conv(0, 10, 2) -> 0
+conv(0, 16, 10) -> 0
+conv(9223372036854775807, 10, 16) -> 7FFFFFFFFFFFFFFF
+conv(~0, 10, 2) -> 1111111111111111111111111111111111111111111111111111111111111111
+conv(7FFFFFFFFFFFFFFF, 16, 10) -> 9223372036854775807
+conv(777777777777777777777, 8, 10) -> 9223372036854775807
+conv(1111111111111111111111111111111111111111111111111111111111111111, 2, 10) -> 18446744073709551615
+conv(9223372036854775807, 10, 2) -> 111111111111111111111111111111111111111111111111111111111111111
+conv(18446744073709551615, 10, 16) -> FFFFFFFFFFFFFFFF
+conv(18446744073709551615, 10, 2) -> 1111111111111111111111111111111111111111111111111111111111111111
+conv(-~0, 10, 2) -> 1
+conv(0000123, 10, 16) -> 7B
+# Testing case sensitivity
+conv(AbCd, 16, 10) -> 43981
+conv(abcd, 16, 10) -> 43981
+conv(ABCD, 16, 10) -> 43981
+# Testing with variables and expressions  
+conv(FF, 16, 10) -> 255
+# Testing error cases - Invalid bases
+mysqltest: At line 1: conv() from_base must be between 2 and 62, got 1
+mysqltest: At line 1: conv() from_base must be between 2 and 62, got 63
+mysqltest: At line 1: conv() from_base must be between 2 and 62, got 0
+# Testing error cases - Invalid characters
+mysqltest: At line 1: invalid number '189' for base 8
+mysqltest: At line 1: invalid number 'XYZ' for base 16
+mysqltest: At line 1: Empty variable
+# Testing error cases - Wrong argument count
+mysqltest: At line 1: conv() expects 3 arguments (N, from_base, to_base), got 2
+mysqltest: At line 1: conv() expects 3 arguments (N, from_base, to_base), got 4
+mysqltest: At line 1: bin() expects 1 argument, got 2
+mysqltest: At line 1: hex() expects 1 argument, got 0
+# Testing overflow cases
+mysqltest: At line 1: Range error: value out of range for Integer type
+mysqltest: At line 1: Range error: value out of range for Integer type
+# Basic bitwise AND (&)
+12 & 10 -> 8
+15 & 7 -> 7
+255 & 128 -> 128
+0 & 15 -> 0
+# Basic bitwise OR (|)
+12 | 10 -> 14
+8 | 4 -> 12
+1 | 2 -> 3
+0 | 15 -> 15
+# Basic bitwise XOR (^)
+12 ^ 10 -> 6
+15 ^ 15 -> 0
+5 ^ 3 -> 6
+255 ^ 128 -> 127
+# Basic bitwise NOT (~)
+~0 -> 18446744073709551615
+~1 -> 18446744073709551614
+~255 -> 18446744073709551360
+~(-1) -> 0
+# Basic left shift (<<)
+1 << 3 -> 8
+5 << 2 -> 20
+8 << 1 -> 16
+0 << 5 -> 0
+# Basic right shift (>>)
+8 >> 3 -> 1
+20 >> 2 -> 5
+16 >> 1 -> 8
+7 >> 3 -> 0
+# Bitwise operations with hex literals
+0xFF & 0x0F -> 15
+0xF0 | 0x0F -> 255
+0xFF ^ 0xAA -> 85
+~0xFF -> 18446744073709551360
+0x10 << 2 -> 64
+0x80 >> 4 -> 8
+# Bitwise operations with binary literals
+0b1100 & 0b1010 -> 8
+0b1000 | 0b0100 -> 12
+0b1111 ^ 0b1010 -> 5
+~0b1111 -> 18446744073709551600
+0b101 << 2 -> 20
+0b10000 >> 2 -> 4
+# Mixed base bitwise operations
+0xFF & 0b11110000 -> 240
+0x0F | 0b11110000 -> 255
+255 ^ 0xAA -> 85
+0b1000 << 0x2 -> 32
+0x40 >> 0b10 -> 16
+# Bitwise operator precedence
+12 | 8 ^ 4 -> 12
+12 ^ 8 | 4 -> 4
+12 & 8 ^ 4 -> 12
+12 ^ 8 & 4 -> 4
+12 | 8 & 4 -> 12
+# Parentheses override bitwise precedence
+(12 | 8) ^ 4 -> 8
+12 | (8 ^ 4) -> 12
+(12 & 8) | 4 -> 12
+12 & (8 | 4) -> 12
+# Shift operators vs arithmetic
+2 + 3 << 1 -> 10
+8 >> 1 + 1 -> 2
+4 * 2 << 2 -> 32
+16 >> 2 * 1 -> 4
+# Bitwise operations with negative numbers (unsigned interpretation)
+-1 & 15 -> 15
+-16 | 7 -> 18446744073709551607
+-1 ^ 255 -> 18446744073709551360
+-10 << 3 -> 18446744073709551536
+-10 >> 3 -> 2305843009213693950
+# Complex bitwise expressions
+(0xFF & 0xF0) | (0x0F & 0x05) -> 245
+~(~0xFF | 0x0F) -> 240
+(1 << 4) | (1 << 2) | (1 << 0) -> 21
+(255 >> 2) & (63 << 1) -> 62
+# Bitwise operations in conditions
+15 & 8 is true (result is 8, non-zero)
+!(12 ^ 12) is true
+1 << 5 equals 32
+# Bitwise operations with variables
+0xAB & 0xFF -> 171
+0xAB << 4 -> 2736
+0xAB >> 4 -> 10
+~0xAB -> 18446744073709551444
+# Testing bitwise error cases
+mysqltest: At line 1: Evaluation error: Invalid shift amount
+mysqltest: At line 1: Evaluation error: Invalid shift amount
+mysqltest: At line 1: Evaluation error: Invalid shift amount
+# Edge cases for shift operations
+1 << 0 -> 1
+1 << 63 -> 9223372036854775808
+8 >> 0 -> 8
+1 >> 63 -> 0
+# Bitwise operations with large numbers
+0x7FFFFFFFFFFFFFFF & 0x7FFFFFFFFFFFFFFE -> 9223372036854775806
+0x7FFFFFFFFFFFFFFF | 0x7FFFFFFFFFFFFFFE -> 9223372036854775807
+0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE -> 1
+# Complex expressions
+2 + 3 * 4 > 10 -> 1
+(5 + 5) == (2 * 5) -> 1
+1 + 2 + 3 + 4 == 10 -> 1
+3 + 2 > 4 && 5 > 2 -> 1
+2 * 3 + 1 << 1 & 15 ^ 8 | 4 > 2 -> 1
+1 + 2 * 3 / 2 % 5 << 1 ^ 7 & 15 | 8 > 4 -> 1
+4 + 3 * 2 >> 1 ^ 6 & 3 < 5 | ~1 - 1 % 2 -> 1
+5 * 3 + 7 << 1 ^ 12 >> 2 -> 45056
+8 * 2 / 4 + 3 % 2 << 1 > 2 ^ 1 & 1 | !0 - 2 -> 0
+(!((6 + 3 * 2) > (14 / 2 - 1)) | ((8 << 1) & ~(5 ^ 3)) + (4 >= 2) * (3 <= 3) - (9 % 4 >> 1)) -> 17
 # Test case: Empty unquoted string (illegal)
 mysqltest: At line 1: Syntax error: invalid expression
 # Test case: Empty unquoted string with only spaces (illegal)
