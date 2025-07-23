@@ -463,7 +463,7 @@ static bool remove_sj_conds(THD *thd, Item **tree);
 static bool is_cond_sj_in_equality(Item *item);
 static bool sj_table_is_included(JOIN *join, JOIN_TAB *join_tab);
 static Item *remove_additional_cond(Item* conds);
-static void remove_subq_pushed_predicates(JOIN *join, Item **where);
+static bool can_remove_subq_pushed_predicates(Item *cond);
 
 enum_nested_loop_state 
 end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
@@ -5719,11 +5719,12 @@ int rewrite_to_index_subquery_engine(JOIN *join)
   {
     if (!join->having)
     {
-      Item *where= join->conds;
       if (join_tab[0].type == JT_EQ_REF &&
 	  join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
-        remove_subq_pushed_predicates(join, &where);
+        if (can_remove_subq_pushed_predicates(join->conds))
+          join->conds= NULL;
+        Item *where= join->conds;
         save_index_subquery_explain_info(join_tab, where);
         join_tab[0].type= JT_UNIQUE_SUBQUERY;
         join->error= 0;
@@ -5737,7 +5738,9 @@ int rewrite_to_index_subquery_engine(JOIN *join)
       else if (join_tab[0].type == JT_REF &&
 	       join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
-	remove_subq_pushed_predicates(join, &where);
+	if (can_remove_subq_pushed_predicates(join->conds))
+          join->conds= NULL;
+        Item *where= join->conds;
         save_index_subquery_explain_info(join_tab, where);
         join_tab[0].type= JT_INDEX_SUBQUERY;
         join->error= 0;
@@ -5809,7 +5812,7 @@ static Item *remove_additional_cond(Item* conds)
   Remove the predicates pushed down into the subquery
 
   SYNOPSIS
-    remove_subq_pushed_predicates()
+    can_remove_subq_pushed_predicates()
       where   IN  Must be NULL
               OUT The remaining WHERE condition, or NULL
 
@@ -5835,19 +5838,19 @@ static Item *remove_additional_cond(Item* conds)
     codes of all Field*::store() methods.
 */
 
-static void remove_subq_pushed_predicates(JOIN *join, Item **where)
+static bool can_remove_subq_pushed_predicates(Item *cond)
 {
-  if (join->conds->type() == Item::FUNC_ITEM &&
-      ((Item_func *)join->conds)->functype() == Item_func::EQ_FUNC &&
-      ((Item_func *)join->conds)->arguments()[0]->type() == Item::REF_ITEM &&
-      ((Item_func *)join->conds)->arguments()[1]->type() == Item::FIELD_ITEM &&
-      test_if_ref (join->conds,
-                   (Item_field *)((Item_func *)join->conds)->arguments()[1],
-                   ((Item_func *)join->conds)->arguments()[0]))
+  if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func *)cond)->functype() == Item_func::EQ_FUNC &&
+      ((Item_func *)cond)->arguments()[0]->type() == Item::REF_ITEM &&
+      ((Item_func *)cond)->arguments()[1]->type() == Item::FIELD_ITEM &&
+      test_if_ref (cond,
+                   (Item_field *)((Item_func *)cond)->arguments()[1],
+                   ((Item_func *)cond)->arguments()[0]))
   {
-    *where= 0;
-    return;
+    return true;
   }
+  return false;
 }
 
 
