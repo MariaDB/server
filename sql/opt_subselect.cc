@@ -5775,6 +5775,28 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 }
 
 
+static bool can_remove_ref_or_null(Item *cond)
+{
+  if (cond->name.str != in_additional_cond.str)
+    return false;
+  
+  Item_func_trig_cond *trg;
+  // ok this must be ref-or-null or Item_func_trig_cond(ref-or-null)
+  if ((trg= dynamic_cast<Item_func_trig_cond*>(cond)))
+  {
+    cond= trg->arguments()[0];
+  }
+  Item_cond_or *or_cond= dynamic_cast<Item_cond_or*>(cond);
+
+  DBUG_ASSERT(or_cond);
+  if (!or_cond)
+    return false;
+  
+  Item *eq_cond= or_cond->argument_list()->head();
+  return can_remove_subq_pushed_predicates(eq_cond);
+}
+
+
 /**
   Remove additional condition inserted by IN/ALL/ANY transformation.
 
@@ -5786,8 +5808,10 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 
 static Item *remove_additional_cond(Item* conds)
 {
-  if (conds->name.str == in_additional_cond.str)
+  if (can_remove_ref_or_null(conds))
+  {
     return 0;
+  }
   if (conds->type() == Item::COND_ITEM)
   {
     Item_cond *cnd= (Item_cond*) conds;
@@ -5795,7 +5819,7 @@ static Item *remove_additional_cond(Item* conds)
     Item *item;
     while ((item= li++))
     {
-      if (item->name.str == in_additional_cond.str)
+      if (can_remove_ref_or_null(item))
       {
 	li.remove();
 	if (cnd->argument_list()->elements == 1)
