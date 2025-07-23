@@ -1846,14 +1846,6 @@ static Sys_var_charptr_fscs Sys_binlog_directory(
        DEFAULT(0));
 
 
-static Sys_var_charptr_fscs Sys_binlog_storage_engine(
-       "binlog_storage_engine",
-       "Use a more efficient binlog implementation integrated with the "
-       "storage engine. Only available for supporting engines",
-       READ_ONLY GLOBAL_VAR(opt_binlog_storage_engine), CMD_LINE(REQUIRED_ARG),
-       DEFAULT(0));
-
-
 static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 {
   return false;
@@ -2661,6 +2653,14 @@ static Sys_var_on_access_global<
         GLOBAL_VAR(slave_max_statement_time_double), CMD_LINE(REQUIRED_ARG),
         VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(0), NO_MUTEX_GUARD,
         NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_slave_max_statement_time));
+
+
+static Sys_var_charptr_fscs Sys_binlog_storage_engine(
+       "binlog_storage_engine",
+       "Use a more efficient binlog implementation integrated with the "
+       "storage engine. Only available for supporting engines",
+       READ_ONLY GLOBAL_VAR(opt_binlog_storage_engine), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(0));
 #endif
 
 
