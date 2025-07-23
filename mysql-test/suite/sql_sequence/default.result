@@ -303,4 +303,14 @@ execute stmt using default;
 deallocate prepare stmt;
 drop table t1;
 drop sequence s1;
+#
+# MDEV-37302 Assertion failure in Table_triggers_list::add_tables_and_routines_for_triggers upon attempt to insert DEFAULT into non-insertable view
+#
+create table t1 (f int);
+create algorithm=temptable view v1 as select * from t1;
+create trigger tr before update on t1 for each row set @a=1;
+insert v1 values (default);
+ERROR HY000: The target table v1 of the INSERT is not insertable-into
+drop view v1;
+drop table t1;
 # End of 10.6 tests
