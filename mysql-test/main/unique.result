@@ -7,3 +7,25 @@ CREATE TABLE t2 (n BLOB, UNIQUE(n));
 INSERT INTO t2 VALUES (1);
 DELETE FROM t2 WHERE n = 1;
 DROP TABLE t2;
+#
+# Beginning of 11.4 tests
+#
+#
+# MDEV-36389
+#
+CREATE TABLE t1 (c1 TEXT, UNIQUE (c1(1)));
+INSERT INTO t1 (c1) VALUES ('a');
+SELECT c1 FROM t1 WHERE ('abc' IN (SELECT c1 FROM t1)) IS FALSE;
+c1
+a
+DROP TABLE t1;
+CREATE TABLE t0 (c1 text not null);
+insert into t0 values ('abc'),('abc');
+CREATE TABLE t1 (c1 TEXT, UNIQUE (c1(1))) engine=myisam;
+INSERT INTO t1 (c1) VALUES ('a'),('b'),('c');
+SELECT c1, c1 IN (SELECT c1 FROM t1) FROM t0;
+c1	c1 IN (SELECT c1 FROM t1)
+abc	0
+abc	0
+DROP TABLE t0, t1;
+# End of 11.4 tests

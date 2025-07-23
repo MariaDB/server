@@ -65,7 +65,7 @@ explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	4	func	1	100.00	
+2	SUBQUERY	t3	index_subquery	bb	bb	4	func	1	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in t3 on bb)))

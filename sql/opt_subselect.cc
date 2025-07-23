@@ -463,7 +463,7 @@ static bool remove_sj_conds(THD *thd, Item **tree);
 static bool is_cond_sj_in_equality(Item *item);
 static bool sj_table_is_included(JOIN *join, JOIN_TAB *join_tab);
 static Item *remove_additional_cond(Item* conds);
-static void remove_subq_pushed_predicates(JOIN *join, Item **where);
+static bool can_remove_subq_pushed_predicates(Item *cond);
 
 enum_nested_loop_state 
 end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
@@ -5719,11 +5719,12 @@ int rewrite_to_index_subquery_engine(JOIN *join)
   {
     if (!join->having)
     {
-      Item *where= join->conds;
       if (join_tab[0].type == JT_EQ_REF &&
 	  join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
-        remove_subq_pushed_predicates(join, &where);
+        if (can_remove_subq_pushed_predicates(join->conds))
+          join->conds= NULL;
+        Item *where= join->conds;
         save_index_subquery_explain_info(join_tab, where);
         join_tab[0].type= JT_UNIQUE_SUBQUERY;
         join->error= 0;
@@ -5737,7 +5738,9 @@ int rewrite_to_index_subquery_engine(JOIN *join)
       else if (join_tab[0].type == JT_REF &&
 	       join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
-	remove_subq_pushed_predicates(join, &where);
+	if (can_remove_subq_pushed_predicates(join->conds))
+          join->conds= NULL;
+        Item *where= join->conds;
         save_index_subquery_explain_info(join_tab, where);
         join_tab[0].type= JT_INDEX_SUBQUERY;
         join->error= 0;
@@ -5772,6 +5775,41 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 }
 
 
+/*
+  can_remove_ref_or_null
+
+  @param cond the condition from JOIN::conds ultimately
+
+  Indicates to the caller, by returning true, that the condition
+  can be removed from the expression tree.  Cases where we remove
+  the condition:
+    - The condition's name points to the global "<IN COND>" indicating
+      that this is an IN condition.
+    - The condition is an Item_func_trig_cond that wraps an OR
+      condition and the first disjunct of the OR condition satisfies
+      removal conditions of can_remove_subq_pushed_predicates.
+ */
+
+static bool can_remove_ref_or_null(Item *cond)
+{
+  if (cond->name.str != in_additional_cond.str)
+    return false;
+
+  // This must be ref-or-null or Item_func_trig_cond(ref-or-null)
+  Item_func_trig_cond *trg= dynamic_cast<Item_func_trig_cond*>(cond);
+  if (trg)
+    cond= trg->arguments()[0];
+
+  Item_cond_or *or_cond= dynamic_cast<Item_cond_or*>(cond);
+  DBUG_ASSERT(or_cond);
+  if (!or_cond)
+    return false;
+
+  Item *eq_cond= or_cond->argument_list()->head();
+  return can_remove_subq_pushed_predicates(eq_cond);
+}
+
+
 /**
   Remove additional condition inserted by IN/ALL/ANY transformation.
 
@@ -5783,8 +5821,9 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 
 static Item *remove_additional_cond(Item* conds)
 {
-  if (conds->name.str == in_additional_cond.str)
+  if (can_remove_ref_or_null(conds))
     return 0;
+
   if (conds->type() == Item::COND_ITEM)
   {
     Item_cond *cnd= (Item_cond*) conds;
@@ -5792,7 +5831,7 @@ static Item *remove_additional_cond(Item* conds)
     Item *item;
     while ((item= li++))
     {
-      if (item->name.str == in_additional_cond.str)
+      if (can_remove_ref_or_null(item))
       {
 	li.remove();
 	if (cnd->argument_list()->elements == 1)
@@ -5809,18 +5848,16 @@ static Item *remove_additional_cond(Item* conds)
   Remove the predicates pushed down into the subquery
 
   SYNOPSIS
-    remove_subq_pushed_predicates()
-      where   IN  Must be NULL
-              OUT The remaining WHERE condition, or NULL
+    can_remove_subq_pushed_predicates()
 
   DESCRIPTION
     Given that this join will be executed using (unique|index)_subquery,
     without "checking NULL", remove the predicates that were pushed down
     into the subquery.
 
-    If the subquery compares scalar values, we can remove the condition that
+    If the subquery compares scalar values, we can unwrap the condition that
     was wrapped into trig_cond (it will be checked when needed by the subquery
-    engine)
+    engine).
 
     If the subquery compares row values, we need to keep the wrapped
     equalities in the WHERE clause: when the left (outer) tuple has both NULL
@@ -5831,23 +5868,23 @@ static Item *remove_additional_cond(Item* conds)
     TODO: We can remove the equalities that will be guaranteed to be true by the
     fact that subquery engine will be using index lookup. This must be done only
     for cases where there are no conversion errors of significance, e.g. 257
-    that is searched in a byte. But this requires homogenization of the return 
+    that is searched in a byte. But this requires homogenization of the return
     codes of all Field*::store() methods.
 */
 
-static void remove_subq_pushed_predicates(JOIN *join, Item **where)
+static bool can_remove_subq_pushed_predicates(Item *cond)
 {
-  if (join->conds->type() == Item::FUNC_ITEM &&
-      ((Item_func *)join->conds)->functype() == Item_func::EQ_FUNC &&
-      ((Item_func *)join->conds)->arguments()[0]->type() == Item::REF_ITEM &&
-      ((Item_func *)join->conds)->arguments()[1]->type() == Item::FIELD_ITEM &&
-      test_if_ref (join->conds,
-                   (Item_field *)((Item_func *)join->conds)->arguments()[1],
-                   ((Item_func *)join->conds)->arguments()[0]))
+  if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func *)cond)->functype() == Item_func::EQ_FUNC &&
+      ((Item_func *)cond)->arguments()[0]->type() == Item::REF_ITEM &&
+      ((Item_func *)cond)->arguments()[1]->type() == Item::FIELD_ITEM &&
+      test_if_ref (cond,
+                   (Item_field *)((Item_func *)cond)->arguments()[1],
+                   ((Item_func *)cond)->arguments()[0]))
   {
-    *where= 0;
-    return;
+    return true;
   }
+  return false;
 }
 
 

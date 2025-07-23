@@ -99,7 +99,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	3	100.00	Using where; Full scan on NULL key
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` having trigcond(`test`.`t1`.`a` is null))))) AS `Z` from `test`.`t2`
+Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null) having trigcond(`test`.`t1`.`a` is null))))) AS `Z` from `test`.`t2`
 flush status;
 select oref, a from t2 where a in (select a from t1 where oref=t2.oref);
 oref	a
