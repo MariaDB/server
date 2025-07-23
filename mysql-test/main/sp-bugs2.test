@@ -67,4 +67,34 @@ drop table t1;
 drop procedure p1;
 drop procedure p2;
 
+--echo #
+--echo # MDEV-26115: Crash when calling stored function in FOR loop argument
+--echo #
+--delimiter $
+CREATE OR REPLACE FUNCTION cnt()
+RETURNS INTEGER NO SQL
+BEGIN
+   RETURN 3;
+END;
+$
+
+CREATE OR REPLACE PROCEDURE p1()
+NO SQL
+BEGIN
+   DECLARE i INTEGER;
+   FOR i IN 1..cnt() DO
+      SELECT 1;
+   END FOR;
+END;
+$
+
+--delimiter ;
+
+CALL p1();
+CALL p1();
+
+--echo # Clean up
+DROP FUNCTION cnt;
+DROP PROCEDURE p1;
+
 --echo # End of 10.11 tests

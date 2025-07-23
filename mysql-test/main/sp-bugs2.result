@@ -59,4 +59,39 @@ call p2('2');
 drop table t1;
 drop procedure p1;
 drop procedure p2;
+#
+# MDEV-26115: Crash when calling stored function in FOR loop argument
+#
+CREATE OR REPLACE FUNCTION cnt()
+RETURNS INTEGER NO SQL
+BEGIN
+RETURN 3;
+END;
+$
+CREATE OR REPLACE PROCEDURE p1()
+NO SQL
+BEGIN
+DECLARE i INTEGER;
+FOR i IN 1..cnt() DO
+SELECT 1;
+END FOR;
+END;
+$
+CALL p1();
+1
+1
+1
+1
+1
+1
+CALL p1();
+1
+1
+1
+1
+1
+1
+# Clean up
+DROP FUNCTION cnt;
+DROP PROCEDURE p1;
 # End of 10.11 tests
