@@ -102,13 +102,13 @@ eval $query;
 # double reversion
 let $query=
 select max(200 - a) from t1;
-replace_result 101 100;
+replace_column 9 #;
 eval explain $query;
 eval $query;
 
 let $query=
 select min(200 - a) from t1;
-replace_result 101 100;
+replace_column 9 #;
 eval explain $query;
 eval $query;
 
@@ -162,6 +162,5 @@ eval $query;
 
 # Cleanup
 drop table t1;
---echo #
+
 --echo # end of test 11.4
---echo #
