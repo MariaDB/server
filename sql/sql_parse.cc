@@ -3503,6 +3503,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   lex->first_lists_tables_same();
   lex->fix_first_select_number();
+  lex->resolve_optimizer_hints(thd);
   /* should be assigned after making first tables same */
   all_tables= lex->query_tables;
   /* set context for commands which do not use setup_tables */
