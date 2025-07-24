@@ -1,0 +1,22 @@
+!include ../my.cnf
+
+[mysqld.1]
+gtid_domain_id=0
+server_id=1
+binlog_row_image=FULL
+
+[mysqld.2]
+gtid_domain_id=1
+server_id=2
+log_slave_updates
+binlog_row_image=FULL
+
+[mysqld.3]
+gtid_domain_id=2
+server_id=3
+log_slave_updates
+binlog_row_image=FULL
+
+[ENV]
+SERVER_MYPORT_3=		@mysqld.3.port
+SERVER_MYSOCK_3=		@mysqld.3.socket
