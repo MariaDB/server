@@ -59,6 +59,12 @@ Parse_context::Parse_context(THD *thd, st_select_lex *select)
   select(select)
 {}
 
+Parse_context::Parse_context(Parse_context *pc, st_select_lex *select)
+: thd(pc->thd),
+  mem_root(pc->mem_root),
+  select(select)
+{}
+
 
 Optimizer_hint_tokenizer::TokenID
 Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)

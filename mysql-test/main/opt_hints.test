@@ -767,3 +767,49 @@ DROP TABLE t2;
 --echo #
 --echo # End of 12.0 tests
 --echo #
+
+--echo #
+--echo # MDEV-37260 Hints addressed by implicit query block name
+--echo #
+DROP TABLE IF EXISTS salaries;
+DROP TABLE IF EXISTS employees;
+CREATE TABLE employees (
+    emp_id INT PRIMARY KEY,
+    emp_name VARCHAR(100),
+    department VARCHAR(50)
+);
+CREATE TABLE salaries (
+    emp_id INT,
+    salary DECIMAL(10, 2),
+    FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+);
+INSERT INTO employees (emp_id, emp_name, department) VALUES
+ (101, 'Alice', 'Engineering'),
+ (102, 'Bob', 'Engineering'),
+ (103, 'Charlie', 'Sales'),
+ (104, 'Diana', 'Sales'),
+ (105, 'Eve', 'Engineering');
+INSERT INTO salaries (emp_id, salary) VALUES
+ (101, 120000.00),
+ (102, 95000.00),
+ (103, 110000.00),
+ (104, 85000.00),
+ (105, 130000.00);
+
+EXPLAIN
+  SELECT /*+ NO_MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+
+EXPLAIN
+  SELECT /*+ MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+
+DROP TABLE salaries, employees;
+
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+EXPLAIN SELECT * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+
+DROP TABLE ten, twenty;

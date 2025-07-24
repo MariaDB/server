@@ -2691,7 +2691,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       }
       buffer.length(0);
     }
-    else if (!*ml_comment &&
+    else if (!*ml_comment && *ss_comment != SSC_HINT &&
              (!*in_string &&
               (inchar == '#' ||
                (inchar == '-' && pos[1] == '-' &&

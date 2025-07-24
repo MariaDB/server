@@ -1160,7 +1160,7 @@ Warning	4221	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4220	Query block name `select#1` is not found for BKA hint
+Warning	4221	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 DROP TABLE ` quoted name test`;
 SET SQL_MODE = 'ANSI_QUOTES';
 CREATE TABLE " quoted name test" (i INT);
@@ -1171,7 +1171,7 @@ Warning	4221	Unresolved table name " quoted name test"@"select#1" for BKA hint
 SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
 1
 Warnings:
-Warning	4220	Query block name "select#1" is not found for BKA hint
+Warning	4221	Unresolved table name " quoted name test"@"select#1" for BKA hint
 CREATE TABLE `test1``test2``` (i INT);
 SELECT /*+ BKA(`test1``test2```) */ 1;
 1
@@ -1449,3 +1449,64 @@ DROP TABLE t2;
 #
 # End of 12.0 tests
 #
+#
+# MDEV-37260 Hints addressed by implicit query block name
+#
+DROP TABLE IF EXISTS salaries;
+Warnings:
+Note	1051	Unknown table 'test.salaries'
+DROP TABLE IF EXISTS employees;
+Warnings:
+Note	1051	Unknown table 'test.employees'
+CREATE TABLE employees (
+emp_id INT PRIMARY KEY,
+emp_name VARCHAR(100),
+department VARCHAR(50)
+);
+CREATE TABLE salaries (
+emp_id INT,
+salary DECIMAL(10, 2),
+FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+);
+INSERT INTO employees (emp_id, emp_name, department) VALUES
+(101, 'Alice', 'Engineering'),
+(102, 'Bob', 'Engineering'),
+(103, 'Charlie', 'Sales'),
+(104, 'Diana', 'Sales'),
+(105, 'Eve', 'Engineering');
+INSERT INTO salaries (emp_id, salary) VALUES
+(101, 120000.00),
+(102, 95000.00),
+(103, 110000.00),
+(104, 85000.00),
+(105, 130000.00);
+EXPLAIN
+SELECT /*+ NO_MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	e	ALL	PRIMARY	NULL	NULL	NULL	5	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.e.emp_id	1	Using where
+3	SUBQUERY	salaries	ALL	NULL	NULL	NULL	NULL	5	
+2	DERIVED	salaries	ALL	NULL	NULL	NULL	NULL	5	
+EXPLAIN
+SELECT /*+ MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	salaries	ALL	emp_id	NULL	NULL	NULL	5	Using where
+1	PRIMARY	e	eq_ref	PRIMARY	PRIMARY	4	test.salaries.emp_id	1	
+3	SUBQUERY	salaries	ALL	NULL	NULL	NULL	NULL	5	
+DROP TABLE salaries, employees;
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	
+2	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	
+2	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+EXPLAIN SELECT * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	
+2	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+DROP TABLE ten, twenty;

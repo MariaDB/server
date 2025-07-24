@@ -58,6 +58,24 @@ struct st_opt_hint_info opt_hint_info[]=
 
 const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
+/*
+  Compare LEX_CSTRING objects.
+
+  @param s     The 1st string
+  @param t     The 2nd string
+  @param cs    Pointer to character set
+
+  @return  0 if strings are equal
+           1 if s is greater
+          -1 if t is greater
+*/
+
+int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                   const CHARSET_INFO *cs) {
+    return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
+                                 (const uchar*)t.str, t.length);
+}
+
 
 /*
   This is a version of push_warning_printf() guaranteeing no escalation of
@@ -210,6 +228,34 @@ Opt_hints_qb *get_qb_hints(Parse_context *pc)
   return qb;
 }
 
+
+static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
+                                                 const Lex_ident_sys &qb_name)
+{
+  Opt_hints_qb *qb= nullptr;
+
+  for (SELECT_LEX *sl= pc->thd->lex->all_selects_list;
+       sl && !qb;  // have select and have not found matching query block hints
+       sl= sl->next_select_in_list())
+  {
+    LEX_CSTRING sys_name;  // System QB name
+    char buff[32];         // Buffer to hold sys name
+    sys_name.str= buff;
+    sys_name.length= snprintf(buff, sizeof(buff), "%s%x", "select#",
+                              sl->select_number);
+
+    if (cmp_lex_string(sys_name, qb_name, system_charset_info))
+      continue;  // not a match, continue to next select
+
+    // Found a matching `select#X` query block, get its attached hints.
+    Parse_context sl_ctx(pc, sl);
+    qb= get_qb_hints(&sl_ctx);
+  }
+
+  return qb;
+}
+
+
 /**
   Find existing Opt_hints_qb object, print warning
   if the query block is not found.
@@ -234,11 +280,13 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   Opt_hints_qb *qb= static_cast<Opt_hints_qb *>
     (pc->thd->lex->opt_hints_global->find_by_name(qb_name));
 
-  if (qb == NULL)
-  {
+  if (qb == nullptr)
+    qb= find_hints_by_select_number(pc, qb_name);
+
+  if (qb == nullptr)
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
                &qb_name, NULL, NULL, NULL);
-  }
+
   return qb;
 }
 
