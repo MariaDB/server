@@ -8986,6 +8986,9 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
   */
   if (setup_on_expr(thd, tables, it_is_update))
     goto err_no_arena;
+  if (setup_outer_join_graph(thd, conds, tables, select_lex->table_list,
+                             &select_lex->top_join_list))
+    goto err_no_arena;
 
   if (!thd->stmt_arena->is_conventional())
   {
