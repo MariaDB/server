@@ -1,0 +1,14 @@
+[mysqld.1]
+server-id=1
+log-bin
+log-basename=master
+
+[mysqld.2]
+server-id=2
+log-bin
+log-basename=slave
+master-retry-count=0
+
+[ENV]
+SERVER_MYPORT_1= @mysqld.1.port
+SERVER_MYPORT_2= @mysqld.2.port
