@@ -412,8 +412,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
-Warning	4221	Unresolved table name `wrong_name`@`select#2` for MERGE hint
-Warning	4221	Unresolved table name `wrong_name`@`select#1` for MERGE hint
+Warning	4221	Unresolved table name `wrong_name` for MERGE hint
+Warning	4221	Unresolved table name `wrong_name` for MERGE hint
 Note	1003	/* select#1 */ select `dt_out`.`a` AS `a`,`dt_out`.`b` AS `b` from (/* select#2 */ select `dt_in`.`i` AS `a`,`dt_in`.`j` AS `b` from (/* select#3 */ select `test`.`t2`.`i` * 10 AS `i`,`test`.`t2`.`j` * 5 AS `j` from `test`.`t2` where `test`.`t2`.`i` * 10 < 3 and `test`.`t2`.`j` * 5 > 8) `dt_in` where `dt_in`.`i` < 3 and `dt_in`.`j` > 8) `dt_out` where `dt_out`.`a` < 3 and `dt_out`.`b` > 8
 SELECT /*+ MERGE(dt) MERGE(foo) */ a, b FROM (SELECT i as a, j as b FROM t1) AS dt WHERE a < 3 AND b > 8;
 a	b

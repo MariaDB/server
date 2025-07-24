@@ -9087,7 +9087,7 @@ query_specification:
           opt_having_clause
           opt_window_clause
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             $$= Lex->pop_select();
           }
         ;
@@ -9101,7 +9101,7 @@ select_into_query_specification:
           opt_having_clause
           opt_window_clause
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             $$= Lex->pop_select();
           }
         ;
@@ -13791,7 +13791,7 @@ insert:
           insert_field_spec opt_insert_update opt_returning
           insert_stmt_end
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13813,7 +13813,7 @@ replace:
           insert_field_spec opt_returning
           insert_stmt_end
           {
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
             Lex->mark_first_table_as_inserting();
             thd->get_stmt_da()->reset_current_row_for_warning(0);
           }
@@ -13829,7 +13829,7 @@ insert_start: {
               ;
 
 stmt_end: {
-              Lex->resolve_optimizer_hints_in_last_select();
+              Lex->handle_parsed_optimizer_hints_in_last_select();
               Lex->pop_select(); //main select
               if (Lex->check_main_unit_semantics())
                 MYSQL_YYABORT;
@@ -14198,7 +14198,7 @@ delete:
           {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
-            Lex->resolve_optimizer_hints_in_last_select();
+            Lex->handle_parsed_optimizer_hints_in_last_select();
           }
           ;
 

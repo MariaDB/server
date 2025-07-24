@@ -59,6 +59,12 @@ Parse_context::Parse_context(THD *thd, st_select_lex *select)
   select(select)
 {}
 
+Parse_context::Parse_context(Parse_context *pc, st_select_lex *select)
+: thd(pc->thd),
+  mem_root(pc->mem_root),
+  select(select)
+{}
+
 
 Optimizer_hint_tokenizer::TokenID
 Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
@@ -719,7 +725,8 @@ void Parser::Index_level_hint::append_args(THD *thd, String *str) const
   {
     if (!first_index_name)
       str->append(STRING_WITH_LEN(","));
-    append_identifier(thd, str, &index_name);
+    Lex_ident_sys icli= index_name.to_ident_sys(thd);
+    append_identifier(thd, str, &icli);
     first_index_name= false;
   }
 }
@@ -1241,15 +1248,6 @@ ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
 
 bool Parser::Hint_list::resolve(Parse_context *pc) const
 {
-  if (pc->thd->lex->create_view)
-  {
-    // we're creating or modifying a view, hints are not allowed here
-    push_warning(pc->thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED,
-                 ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED));
-    return false;
-  }
-
   if (!get_qb_hints(pc))
     return true;
 
