@@ -1318,7 +1318,10 @@ public:
   {
     return master_unit()->return_after_parsing();
   }
-  inline bool is_subquery_function() { return master_unit()->item != 0; }
+  inline bool is_subquery_function()
+  {
+    return master_unit() && master_unit()->item != 0;
+  }
 
   bool mark_as_dependent(THD *thd, st_select_lex *last,
                          Item_ident *dependency);
@@ -5071,6 +5074,8 @@ public:
 
   std::pair<bool, Optimizer_hint_parser_output *>
     parse_optimizer_hints(const Lex_comment_st &hint);
+
+  List<SELECT_LEX> selects_for_hint_resolution;
 };
 
 

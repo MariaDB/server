@@ -1342,6 +1342,7 @@ void LEX::start(THD *thd_arg)
   opt_hints_global= 0;
 
   memset(&trg_chistics, 0, sizeof(trg_chistics));
+  selects_for_hint_resolution.empty();
   DBUG_VOID_RETURN;
 }
 
@@ -3891,7 +3892,7 @@ void st_select_lex::print_limit(THD *thd,
                                 enum_query_type query_type)
 {
   SELECT_LEX_UNIT *unit= master_unit();
-  Item_subselect *item= unit->item;
+  Item_subselect *item= unit ? unit->item : nullptr;
 
   if (item && unit->global_parameters() == this)
   {
@@ -4661,6 +4662,27 @@ void LEX::first_lists_tables_same()
   }
 }
 
+static void finish_hint_resolution(THD *thd, List<SELECT_LEX> &deferred_selects)
+{
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  SCOPE_EXIT([&] () mutable {
+    deferred_selects.empty();
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  });
+
+  List_iterator<SELECT_LEX> it(deferred_selects);
+  SELECT_LEX *sel;
+  while ((sel= it++))
+  {
+    if (!sel->parsed_optimizer_hints)
+      continue;
+    Parse_context pc(thd, sel);
+    sel->parsed_optimizer_hints->resolve(&pc);
+  }
+}
+
 void LEX::fix_first_select_number()
 {
   SELECT_LEX *first= first_select_lex();
@@ -4676,6 +4698,8 @@ void LEX::fix_first_select_number()
     }
     first->select_number= 1;
   }
+
+  finish_hint_resolution(thd, selects_for_hint_resolution);
 }
 
 
@@ -13445,16 +13469,23 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 
 void LEX::resolve_optimizer_hints_in_last_select()
 {
-  SELECT_LEX *select_lex;
-  if (likely(select_stack_top))
-    select_lex= select_stack[select_stack_top - 1];
-  else
-    select_lex= nullptr;
-  if (select_lex && select_lex->parsed_optimizer_hints)
+  if (unlikely(select_stack_top == 0))
+    return;
+
+  SELECT_LEX *select_lex= select_stack[select_stack_top - 1];
+
+  if (!select_lex->parsed_optimizer_hints)
+    return;
+
+  if (stmt_lex != this)
   {
+    // VIEWs have their local hints resolved now.
     Parse_context pc(thd, select_lex);
     select_lex->parsed_optimizer_hints->resolve(&pc);
+    return;
   }
+
+  selects_for_hint_resolution.push_back(select_lex);
 }
 
 /*

@@ -488,7 +488,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table
 EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
 (SELECT /*+ NO_ICP(t5) */ t4.x, t5.y, 'filler' FROM t4, t4 t5
@@ -497,7 +497,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+Note	1003	(insert into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table and a key
 EXPLAIN EXTENDED INSERT INTO t3(f1, f2, f3)
 (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1 x_idx)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
@@ -523,7 +523,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#1`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Turn off ICP for a particular table
 EXPLAIN EXTENDED REPLACE INTO t3(f1, f2, f3)
 (SELECT /*+ QB_NAME(qb1) NO_ICP(t5@QB1)*/ t4.x, t5.y, 'filler' FROM t4, t4 t5
@@ -541,7 +541,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t4	ref	y_idx	y_idx	5	const	1	100.00	
 1	SIMPLE	t5	range	x_idx	x_idx	5	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#2` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
+Note	1003	(replace into `test`.`t3`(f1,f2,f3) select /*+ NO_ICP(`t5`@`select#1` `x_idx`) */ `test`.`t4`.`x` AS `x`,`test`.`t5`.`y` AS `y`,'filler' AS `filler` from `test`.`t4` join `test`.`t4` `t5` where `test`.`t4`.`y` = 8 and `test`.`t5`.`x` between 7 and <cache>(8 + 0))
 # Misc tests
 # Should issue warning
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(qb1) QB_NAME(qb1 ) */ * FROM t2;
@@ -888,38 +888,32 @@ Warnings:
 Warning	4239	Hint NO_ICP(`t1`@`q1` `PRIMARY`) is ignored as conflicting/duplicated (an index hint of the same type has already been specified for this key)
 DROP TABLE t1;
 #
-# Hints inside views are not supported
+# Hints inside views are supported
 #
 CREATE TABLE t1 (a INT, INDEX idx_a(a));
 INSERT INTO t1 VALUES (1),(2);
 CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
-Warnings:
-Warning	4223	Optimizer hints are not supported inside view definitions
 SELECT * FROM v1;
 a
 1
 2
-# Make sure hints are not present inside the view definition:
+# Make sure hints are present inside the view definition:
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select /*+ NO_MRR(`t1` `idx_a`) */ `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
 EXPLAIN EXTENDED SELECT * FROM v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	NULL	idx_a	5	NULL	2	100.00	Using index
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1`
 CREATE OR REPLACE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) BKA(t1)*/ a FROM t1;
-Warnings:
-Warning	4223	Optimizer hints are not supported inside view definitions
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select /*+ BKA(`t1`) NO_MRR(`t1` `idx_a`) */ `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
 ALTER VIEW v1 AS SELECT /*+ QB_NAME(q1)*/ a FROM t1;
-Warnings:
-Warning	4223	Optimizer hints are not supported inside view definitions
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select /*+ QB_NAME(`q1`) */ `t1`.`a` AS `a` from `t1`	utf8mb4	utf8mb4_uca1400_ai_ci
 SELECT * FROM v1;
 a
 1
@@ -1160,7 +1154,7 @@ Warning	4221	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 SELECT /*+ BKA(` quoted name test`@`select#1`) */ 1 FROM t1;
 1
 Warnings:
-Warning	4220	Query block name `select#1` is not found for BKA hint
+Warning	4221	Unresolved table name ` quoted name test`@`select#1` for BKA hint
 DROP TABLE ` quoted name test`;
 SET SQL_MODE = 'ANSI_QUOTES';
 CREATE TABLE " quoted name test" (i INT);
@@ -1171,7 +1165,7 @@ Warning	4221	Unresolved table name " quoted name test"@"select#1" for BKA hint
 SELECT /*+ BKA(" quoted name test"@"select#1") */ 1 FROM t1;
 1
 Warnings:
-Warning	4220	Query block name "select#1" is not found for BKA hint
+Warning	4221	Unresolved table name " quoted name test"@"select#1" for BKA hint
 CREATE TABLE `test1``test2``` (i INT);
 SELECT /*+ BKA(`test1``test2```) */ 1;
 1
@@ -1399,7 +1393,7 @@ INSERT INTO t1 (a) SELECT /*+ no_range_optimization (t1 a)*/ a FROM t1 WHERE a>1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	index	a	a	5	NULL	3	100.00	Using where; Using index; Using temporary
 Warnings:
-Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#2` `a`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+Note	1003	insert into `test`.`t1`(a) select /*+ NO_RANGE_OPTIMIZATION(`t1`@`select#1` `a`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
 # Hints at the INSERT part of a INSERT..SELECT are not supported:
 EXPLAIN EXTENDED
 INSERT  /*+ no_range_optimization (t1)*/ INTO t1 (a) SELECT a FROM t1 WHERE a>1 AND a<=3;
@@ -1417,7 +1411,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index; Using temporary
 Warnings:
 Warning	4225	Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported
-Note	1003	insert into `test`.`t1`(a) select /*+ MRR(`t1`@`select#2`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
+Note	1003	insert into `test`.`t1`(a) select /*+ MRR(`t1`@`select#1`) */ sql_buffer_result `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
 # Table `t2` cannot be resolved since it is not present in the SELECT part
 # (a warning expected):
 EXPLAIN EXTENDED
@@ -1425,7 +1419,7 @@ INSERT INTO t2 (a) SELECT /*+ no_range_optimization (t2)*/ a FROM t1 WHERE a>1 A
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	2	100.00	Using where; Using index
 Warnings:
-Warning	4221	Unresolved table name `t2`@`select#2` for NO_RANGE_OPTIMIZATION hint
+Warning	4221	Unresolved table name `t2`@`select#1` for NO_RANGE_OPTIMIZATION hint
 Note	1003	insert into `test`.`t2`(a) select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1 and `test`.`t1`.`a` <= 3
 DROP TABLE t1, t2;
 set optimizer_switch = DEFAULT;
@@ -1449,3 +1443,629 @@ DROP TABLE t2;
 #
 # End of 12.0 tests
 #
+#
+# MDEV-37260 Hints addressed by implicit query block name
+#
+# Simple JOIN Query
+CREATE TABLE employees (
+emp_id INT PRIMARY KEY,
+emp_name VARCHAR(100),
+department VARCHAR(50)
+);
+CREATE TABLE salaries (
+emp_id INT,
+salary DECIMAL(10, 2),
+FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+);
+INSERT INTO employees (emp_id, emp_name, department) VALUES
+(101, 'Alice', 'Engineering'),
+(102, 'Bob', 'Engineering'),
+(103, 'Charlie', 'Sales'),
+(104, 'Diana', 'Sales'),
+(105, 'Eve', 'Engineering');
+INSERT INTO salaries (emp_id, salary) VALUES
+(101, 120000.00),
+(102, 95000.00),
+(103, 110000.00),
+(104, 85000.00),
+(105, 130000.00);
+EXPLAIN
+SELECT /*+ NO_MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	e	ALL	PRIMARY	NULL	NULL	NULL	5	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.e.emp_id	1	Using where
+3	SUBQUERY	salaries	ALL	NULL	NULL	NULL	NULL	5	
+2	DERIVED	salaries	ALL	NULL	NULL	NULL	NULL	5	
+EXPLAIN
+SELECT /*+ MERGE(s@`select#1`) */ e.emp_name, s.salary FROM employees e JOIN  (select * from salaries) s ON e.emp_id = s.emp_id WHERE     s.salary > (SELECT AVG(salary) FROM salaries);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	salaries	ALL	emp_id	NULL	NULL	NULL	5	Using where
+1	PRIMARY	e	eq_ref	PRIMARY	PRIMARY	4	test.salaries.emp_id	1	
+3	SUBQUERY	salaries	ALL	NULL	NULL	NULL	NULL	5	
+# End Simple JOIN Query
+# JOIN_ORDER Example
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	
+2	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	
+2	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+EXPLAIN SELECT * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	200	
+2	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+# End JOIN_ORDER Example
+# CTE Example
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int, d decimal);
+insert into t1 values
+(1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
+(8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+(6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
+(7,11,708), (6,20,214);
+create index t1_a on t1 (a);
+insert into t2 values
+(2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
+(8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
+(8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
+Warnings:
+Note	1265	Data truncated for column 'd' at row 5
+create view v1 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
+group by a,b having max_c < 707;
+create table t3 select 2*seq as a, 2*seq+1 as b from seq_0_to_1000;
+CREATE TABLE t4 (a INT, b INT);
+INSERT INTO t4 VALUES (1,2),(2,3),(3,4);
+create table t5 select seq as i, 10*seq as j from seq_1_to_10;
+create view v2 as select * from t5;
+create table t6 (a int primary key);
+insert into t6 select * from seq_1_to_50;
+create view v6 as select a from t6 where a mod 2 = 1;
+explain format=json with cte as (
+select max_c, avg_c from v1,t2 where
+((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a)))
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(v1@`select#2`) */ * from cte;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 9,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "loops": 9,
+            "rows": 20,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "v1.max_c > 300 or v1.max_c < 135"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "238",
+          "join_type": "BNL",
+          "attached_condition": "v1.b = t2.b and v1.max_c > 300 and v1.avg_c > t2.d or v1.a = t2.a and v1.max_c < 135 and v1.max_c < t2.c",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "having_condition": "max_c < 707",
+              "filesort": {
+                "sort_key": "t1.a, t1.b",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 20,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# End CTE Example
+# Recursive CTE Example
+explain format=json with recursive cte as (
+select max_c, avg_c from v1,t2 where
+((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a))
+union
+select * from cte where max_c < 100
+) select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@`select#2` v1) */ * from cte;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.018043228,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 180,
+          "cost": 0.018043228,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "recursive_union": {
+                "table_name": "<union2,3>",
+                "access_type": "ALL",
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": 0.039600611,
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t2",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 9,
+                            "cost": 0.011443245,
+                            "filtered": 100
+                          }
+                        },
+                        {
+                          "block-nl-join": {
+                            "table": {
+                              "table_name": "<derived4>",
+                              "access_type": "ALL",
+                              "loops": 9,
+                              "rows": 20,
+                              "cost": 0.028157366,
+                              "filtered": 100,
+                              "attached_condition": "v1.max_c > 300 or v1.max_c < 135"
+                            },
+                            "buffer_type": "flat",
+                            "buffer_size": "238",
+                            "join_type": "BNL",
+                            "attached_condition": "v1.b = t2.b and v1.max_c > 300 and v1.avg_c > t2.d or v1.a = t2.a and v1.max_c < 135 and v1.max_c < t2.c",
+                            "materialized": {
+                              "query_block": {
+                                "select_id": 4,
+                                "cost": 0.025950929,
+                                "having_condition": "max_c < 707",
+                                "filesort": {
+                                  "sort_key": "t1.a, t1.b",
+                                  "temporary_table": {
+                                    "nested_loop": [
+                                      {
+                                        "table": {
+                                          "table_name": "t1",
+                                          "access_type": "ALL",
+                                          "loops": 1,
+                                          "rows": 20,
+                                          "cost": 0.0131637,
+                                          "filtered": 100
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": 0.018043228,
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "<derived2>",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 180,
+                            "cost": 0.018043228,
+                            "filtered": 100,
+                            "attached_condition": "cte.max_c < 100"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# End Recursive CTE Example
+# Deeply nested query block example
+explain format=json
+select /*+ NO_DERIVED_CONDITION_PUSHDOWN(@`select#5` dv6) */ * from
+(select * from
+(select * from
+(select * from
+(select avg_a from
+(select avg(a) as avg_a from v6) dv6
+) dv4) dv3) dv2) dv1 where avg_a <> 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived6>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 50,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dv6.avg_a <> 0",
+          "materialized": {
+            "query_block": {
+              "select_id": 6,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t6",
+                    "access_type": "index",
+                    "key": "PRIMARY",
+                    "key_length": "4",
+                    "used_key_parts": ["a"],
+                    "loops": 1,
+                    "rows": 50,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t6.a MOD 2 = 1",
+                    "using_index": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# End deeply nested query block example
+# Stored procedure example
+CREATE PROCEDURE sp_test_implicit_hint()
+BEGIN
+EXPLAIN SELECT /*+ NO_MERGE(@`select#1` dt) */ *
+FROM (SELECT * FROM ten) dt;
+END|
+CALL sp_test_implicit_hint();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+DROP PROCEDURE sp_test_implicit_hint;
+CREATE PROCEDURE sp_test_implicit_hint()
+BEGIN
+EXPLAIN SELECT /*+ MERGE(@`select#1` dt) */ *
+FROM (SELECT * FROM ten) dt;
+END|
+CALL sp_test_implicit_hint();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	ten	ALL	NULL	NULL	NULL	NULL	10	
+DROP PROCEDURE sp_test_implicit_hint;
+# End stored procedure example
+# Prepared statement example
+PREPARE stmt1 FROM 'EXPLAIN SELECT /*+ NO_MERGE(@`select#1` dt) */ * FROM (SELECT * FROM ten) dt;';
+EXECUTE stmt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+DEALLOCATE PREPARE stmt1;
+PREPARE stmt1 FROM 'EXPLAIN SELECT /*+ MERGE(@`select#1` dt) */ * FROM (SELECT * FROM ten) dt;';
+EXECUTE stmt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	ten	ALL	NULL	NULL	NULL	NULL	10	
+DEALLOCATE PREPARE stmt1;
+# End prepared statement example.
+# INDEX/JOIN_INDEX example
+CREATE TABLE t7 (a INT, b INT, c INT, d INT,
+KEY i_a(a), KEY i_b(b),
+KEY i_ab(a,b), KEY i_c(c), KEY i_d(d));
+INSERT INTO t7 VALUES
+(1,1,1,1),(2,2,2,1),(3,3,3,1),(4,4,4,1),
+(5,5,5,1),(6,6,6,1),(7,7,7,1),(8,8,8,1);
+INSERT INTO t7 SELECT a,b, c + 10, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 20, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 40, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 80, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 160, d FROM t7;
+ANALYZE TABLE t7;
+Table	Op	Msg_type	Msg_text
+test.t7	analyze	status	Engine-independent statistics collected
+test.t7	analyze	status	OK
+EXPLAIN SELECT /*+ NO_MERGE(@`select#1` dt) NO_INDEX(@`select#2` t7) */ * FROM (SELECT a FROM t7 WHERE a > 1 AND a < 3) dt WHERE dt.a = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	32	Using where
+2	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	Using where
+# End INDEX/JOIN_INDEX example
+DROP TABLE salaries, employees, ten, twenty, t1, t2, t3, t4, t5, t6, t7;
+DROP VIEW v1, v2, v6;
+#
+# MDEV-37260 Specifying hints in queries during CREATE VIEW AS
+#
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+# `select#X` in a VIEW example will result in warning
+CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@`select#3` twenty, ten) */ * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) t;
+Warnings:
+Warning	4242	Implicit query block names are ignored for hints specified within VIEWs
+EXPLAIN SELECT * FROM v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	200	
+3	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+3	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t`.`a` AS `a` from (select `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb3	utf8mb3_uca1400_ai_ci
+DROP VIEW v2;
+# Creating a VIEW with hints otherwise will work
+CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@qb2 twenty,ten) */ * FROM (SELECT /*+ QB_NAME(qb2) */ ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) t;
+EXPLAIN SELECT * FROM v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	200	
+3	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	
+3	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select /*+ JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`	utf8mb3	utf8mb3_uca1400_ai_ci
+# This next CREATE VIEW statement should match the output of SHOW CREATE VIEW v2.  The following EXPLAIN output should match EXPLAIN SELECT * FROM v2 as a way to demonstrate that the output of SHOW CREATE VIEW is correct.
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select /*+ JOIN_ORDER(@`qb2` `twenty`,`ten`) */ `t`.`a` AS `a` from (select /*+ QB_NAME(`qb2`) */ `ten`.`a` AS `a` from (`ten` join `twenty`) where `ten`.`a` = `twenty`.`a` limit 1000) `t`;
+EXPLAIN SELECT * FROM v3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	200	
+3	DERIVED	twenty	ALL	NULL	NULL	NULL	NULL	20	
+3	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+# Named hint example.
+CREATE TABLE t4 (
+pk INT PRIMARY KEY,
+a INT,
+b INT,
+c INT,
+filler varchar(100),
+key(a,b,c)
+) engine=myisam;
+INSERT INTO t4 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+CREATE VIEW v5 AS SELECT /*+ NO_ICP(t4) */ * FROM t4 WHERE a < 10 AND (b+1>3);
+FLUSH STATUS;
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_MATCH	0
+SELECT * FROM v5;
+pk	a	b	c	filler
+3	3	3	3	hello
+4	4	4	4	hello
+5	5	5	5	hello
+6	6	6	6	hello
+7	7	7	7	hello
+8	8	8	8	hello
+9	9	9	9	hello
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_MATCH	0
+EXPLAIN SELECT * from v5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	a	a	5	NULL	8	Using where
+# End named hint example.
+# JOIN of VIEW with table where the local hint in the VIEW specifies NO_ICP and is JOIN'd with the same table allowing ICP.
+EXPLAIN SELECT * FROM t4 x, t4 y WHERE x.a < 10 AND (x.b+1>3) AND y.a < 10 AND (y.b+1>3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	x	range	a	a	5	NULL	8	Using index condition
+1	SIMPLE	y	range	a	a	5	NULL	8	Using index condition; Using where; Using join buffer (flat, BNL join)
+EXPLAIN SELECT * FROM t4 x, v5 y WHERE x.a < 10 AND (x.b+1>3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	x	range	a	a	5	NULL	8	Using index condition
+1	SIMPLE	t4	range	a	a	5	NULL	8	Using where; Using join buffer (flat, BNL join)
+EXPLAIN SELECT * FROM v5 x, t4 y WHERE y.a < 10 AND (y.b+1>3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	a	a	5	NULL	8	Using where
+1	SIMPLE	y	range	a	a	5	NULL	8	Using index condition; Using where; Using join buffer (flat, BNL join)
+EXPLAIN SELECT * FROM v5 x, v5 y;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	a	a	5	NULL	8	Using where
+1	SIMPLE	t4	range	a	a	5	NULL	8	Using where; Using join buffer (flat, BNL join)
+# End of JOIN of VIEW with table where the local hint in the VIEW specifies NO_ICP and is JOIN'd with the same table allowing ICP.
+# INDEX/JOIN_INDEX example
+CREATE TABLE t7 (a INT, b INT, c INT, d INT,
+KEY i_a(a), KEY i_b(b),
+KEY i_ab(a,b), KEY i_c(c), KEY i_d(d));
+INSERT INTO t7 VALUES
+(1,1,1,1),(2,2,2,1),(3,3,3,1),(4,4,4,1),
+(5,5,5,1),(6,6,6,1),(7,7,7,1),(8,8,8,1);
+INSERT INTO t7 SELECT a,b, c + 10, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 20, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 40, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 80, d FROM t7;
+INSERT INTO t7 SELECT a,b, c + 160, d FROM t7;
+ANALYZE TABLE t7;
+Table	Op	Msg_type	Msg_text
+test.t7	analyze	status	Engine-independent statistics collected
+test.t7	analyze	status	OK
+CREATE VIEW v7 AS SELECT /*+ NO_MERGE(dt) NO_INDEX(@qb t7) */ * FROM (SELECT /*+ QB_NAME(qb) */ a FROM t7 WHERE a > 1 AND a < 3) dt WHERE dt.a = 2;
+EXPLAIN SELECT * FROM v7;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	32	Using where
+3	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	Using where
+SHOW CREATE VIEW v7;
+View	Create View	character_set_client	collation_connection
+v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select /*+ NO_INDEX(`t7`@`qb`) NO_MERGE(`dt`) */ `dt`.`a` AS `a` from (select /*+ QB_NAME(`qb`) */ `t7`.`a` AS `a` from `t7` where `t7`.`a` > 1 and `t7`.`a` < 3) `dt` where `dt`.`a` = 2	utf8mb3	utf8mb3_uca1400_ai_ci
+# End INDEX/JOIN_INDEX example
+# Example of many nested derived tables are not merged.
+EXPLAIN SELECT /*+ NO_MERGE(da) */ * FROM (SELECT /*+ NO_MERGE(db) */ * FROM (SELECT /*+ NO_MERGE(dc) */ * FROM (SELECT /*+ NO_MERGE(dd) */ * FROM (SELECT /*+ NO_MERGE(de) */ * FROM (SELECT /*+ NO_MERGE(df) */ * FROM (SELECT /*+ NO_MERGE(dg) */ * FROM (SELECT /*+ NO_MERGE(dh) */ * FROM (SELECT /*+ NO_MERGE(di) */ * FROM (SELECT /*+ NO_MERGE(dj) */ * FROM (SELECT /*+ NO_MERGE(dk) */ * FROM (SELECT /*+ NO_MERGE(dl) */ * FROM (SELECT * FROM ten) dl) dk) dj) di) dh) dg) df) de) dd) dc) db) da;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	10	
+4	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	10	
+5	DERIVED	<derived6>	ALL	NULL	NULL	NULL	NULL	10	
+6	DERIVED	<derived7>	ALL	NULL	NULL	NULL	NULL	10	
+7	DERIVED	<derived8>	ALL	NULL	NULL	NULL	NULL	10	
+8	DERIVED	<derived9>	ALL	NULL	NULL	NULL	NULL	10	
+9	DERIVED	<derived10>	ALL	NULL	NULL	NULL	NULL	10	
+10	DERIVED	<derived11>	ALL	NULL	NULL	NULL	NULL	10	
+11	DERIVED	<derived12>	ALL	NULL	NULL	NULL	NULL	10	
+12	DERIVED	<derived13>	ALL	NULL	NULL	NULL	NULL	10	
+13	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+EXPLAIN SELECT /*+ NO_MERGE(da@`select#1`) */ * FROM (SELECT /*+ NO_MERGE(db@`select#2`) */ * FROM (SELECT /*+ NO_MERGE(dc@`select#3`) */ * FROM (SELECT /*+ NO_MERGE(dd@`select#4`) */ * FROM (SELECT /*+ NO_MERGE(de@`select#5`) */ * FROM (SELECT /*+ NO_MERGE(df@`select#6`) */ * FROM (SELECT /*+ NO_MERGE(dg@`select#7`) */ * FROM (SELECT /*+ NO_MERGE(dh@`select#8`) */ * FROM (SELECT /*+ NO_MERGE(di@`select#9`) */ * FROM (SELECT /*+ NO_MERGE(dj@`select#10`) */ * FROM (SELECT /*+ NO_MERGE(dk@`select#11`) */ * FROM (SELECT /*+ NO_MERGE(dl@`select#12`) */ * FROM (SELECT * FROM ten) dl) dk) dj) di) dh) dg) df) de) dd) dc) db) da;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	10	
+4	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	10	
+5	DERIVED	<derived6>	ALL	NULL	NULL	NULL	NULL	10	
+6	DERIVED	<derived7>	ALL	NULL	NULL	NULL	NULL	10	
+7	DERIVED	<derived8>	ALL	NULL	NULL	NULL	NULL	10	
+8	DERIVED	<derived9>	ALL	NULL	NULL	NULL	NULL	10	
+9	DERIVED	<derived10>	ALL	NULL	NULL	NULL	NULL	10	
+10	DERIVED	<derived11>	ALL	NULL	NULL	NULL	NULL	10	
+11	DERIVED	<derived12>	ALL	NULL	NULL	NULL	NULL	10	
+12	DERIVED	<derived13>	ALL	NULL	NULL	NULL	NULL	10	
+13	DERIVED	ten	ALL	NULL	NULL	NULL	NULL	10	
+# End example of many nested derived tables are not merged.
+# Example of VIEW hints displaying properly in warning note
+CREATE TABLE t1 ( a int, b int);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10;
+CREATE TABLE t2 AS SELECT * from t1;
+ALTER TABLE t2 ADD INDEX(a);
+CREATE VIEW v23 AS SELECT /*+ NO_INDEX(t2 a) */ * FROM t2 WHERE a<2;
+SHOW CREATE VIEW v23;
+View	Create View	character_set_client	collation_connection
+v23	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v23` AS select /*+ NO_INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2	utf8mb3	utf8mb3_uca1400_ai_ci
+EXPLAIN EXTENDED SELECT * FROM v23;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`a` < 2
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(du) */ * FROM (SELECT /*+ NO_MERGE(dt) */ * FROM (SELECT * from v23) dt) du;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(`dt`) NO_MERGE(`du`) */ `du`.`a` AS `a`,`du`.`b` AS `b` from (/* select#2 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b` from (/* select#3 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`a` < 2) `dt`) `du`
+# merged view will retain v23 in note
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(v23) */ * FROM v23;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select /*+ NO_MERGE(`v23`) */ `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`a` < 2
+CREATE VIEW v24 AS SELECT /*+ INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2;
+SHOW CREATE VIEW v24;
+View	Create View	character_set_client	collation_connection
+v24	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v24` AS select /*+ INDEX(`t2` `a`) */ `t2`.`a` AS `a`,`t2`.`b` AS `b` from `t2` where `t2`.`a` < 2	utf8mb3	utf8mb3_uca1400_ai_ci
+EXPLAIN EXTENDED SELECT * FROM v24;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	range	a	a	5	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`a` < 2
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(du) */ * FROM (SELECT /*+ NO_MERGE(dt) */ * FROM (SELECT * from v24) dt) du;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	t2	range	a	a	5	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(`dt`) NO_MERGE(`du`) */ `du`.`a` AS `a`,`du`.`b` AS `b` from (/* select#2 */ select `dt`.`a` AS `a`,`dt`.`b` AS `b` from (/* select#3 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`a` < 2) `dt`) `du`
+# merged view will retain v24 in note
+EXPLAIN EXTENDED SELECT /*+ NO_MERGE(dt) */ * FROM (SELECT * FROM v24) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t2	range	a	a	5	NULL	1	100.00	Using index condition
+Warnings:
+Note	1003	/* select#1 */ select /*+ NO_MERGE(`dt`) */ `dt`.`a` AS `a`,`dt`.`b` AS `b` from (/* select#2 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`a` < 2) `dt`
+# End example of VIEW hints displaying properly in warning note
+# INSERT example without and with VIEW
+EXPLAIN EXTENDED INSERT INTO ten SELECT /*+ NO_MERGE(dv) NO_BNL(@qb) */ 100*COUNT(dv.a) AS a FROM ( SELECT /*+ QB_NAME(qb) */ dt.a AS a FROM ten dt, ten du WHERE dt.a % 2 = 1 ) dv WHERE dv.a = 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+2	DERIVED	dt	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+2	DERIVED	du	ALL	NULL	NULL	NULL	NULL	10	100.00	
+Warnings:
+Note	1003	insert into `test`.`ten` /* select#1 */ select /*+ NO_BNL(@`qb`) NO_MERGE(`dv`@`select#1`) */ 100 * count(`dv`.`a`) AS `a` from (/* select#2 */ select /*+ QB_NAME(`qb`) */ `test`.`dt`.`a` AS `a` from `test`.`ten` `dt` join `test`.`ten` `du` where `test`.`dt`.`a` = 3) `dv` where `dv`.`a` = 3
+CREATE VIEW v25 AS SELECT /*+ NO_MERGE(dv) NO_BNL(@qb) */ 100*COUNT(dv.a) AS a FROM ( SELECT /*+ QB_NAME(qb) */ dt.a AS a FROM ten dt, ten du WHERE dt.a % 2 = 1 ) dv WHERE dv.a = 3;
+# merged view will retail qb name reference in the note
+EXPLAIN EXTENDED INSERT INTO ten SELECT * FROM v25;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	100	100.00	
+3	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+4	DERIVED	dt	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+4	DERIVED	du	ALL	NULL	NULL	NULL	NULL	10	100.00	
+Warnings:
+Note	1003	insert into `test`.`ten` /* select#1 */ select `v25`.`a` AS `a` from `test`.`v25`
+# End INSERT example without and with VIEW
+# CTE JOIN'd with itself
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ NO_INDEX(t7@`select#2`) NO_INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	100.00	Using where
+2	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	100.00	Using where
+Warnings:
+Note	1003	with cte1 as (/* select#2 */ select `test`.`t7`.`a` AS `a`,`test`.`t7`.`b` AS `b`,`test`.`t7`.`c` AS `c`,`test`.`t7`.`d` AS `d` from `test`.`t7` where `test`.`t7`.`a` < 10 and `test`.`t7`.`b` < 10 limit 10)/* select#1 */ select /*+ NO_INDEX(`t7`@`select#2`) NO_INDEX(`t7`@`select#3`) */ `tbl1`.`a` AS `a`,`tbl1`.`b` AS `b`,`tbl1`.`c` AS `c`,`tbl1`.`d` AS `d`,`tbl2`.`a` AS `a`,`tbl2`.`b` AS `b`,`tbl2`.`c` AS `c`,`tbl2`.`d` AS `d` from `cte1` `tbl1` join `cte1` `tbl2`
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ NO_INDEX(t7@`select#2`) INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t7	range	i_a,i_b,i_ab	i_a	5	NULL	240	93.75	Using index condition; Using where
+2	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	100.00	Using where
+Warnings:
+Note	1003	with cte1 as (/* select#2 */ select `test`.`t7`.`a` AS `a`,`test`.`t7`.`b` AS `b`,`test`.`t7`.`c` AS `c`,`test`.`t7`.`d` AS `d` from `test`.`t7` where `test`.`t7`.`a` < 10 and `test`.`t7`.`b` < 10 limit 10)/* select#1 */ select /*+ NO_INDEX(`t7`@`select#2`) INDEX(`t7`@`select#3`) */ `tbl1`.`a` AS `a`,`tbl1`.`b` AS `b`,`tbl1`.`c` AS `c`,`tbl1`.`d` AS `d`,`tbl2`.`a` AS `a`,`tbl2`.`b` AS `b`,`tbl2`.`c` AS `c`,`tbl2`.`d` AS `d` from `cte1` `tbl1` join `cte1` `tbl2`
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ INDEX(t7@`select#2`) NO_INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t7	ALL	NULL	NULL	NULL	NULL	256	100.00	Using where
+2	DERIVED	t7	range	i_a,i_b,i_ab	i_a	5	NULL	240	93.75	Using index condition; Using where
+Warnings:
+Note	1003	with cte1 as (/* select#2 */ select `test`.`t7`.`a` AS `a`,`test`.`t7`.`b` AS `b`,`test`.`t7`.`c` AS `c`,`test`.`t7`.`d` AS `d` from `test`.`t7` where `test`.`t7`.`a` < 10 and `test`.`t7`.`b` < 10 limit 10)/* select#1 */ select /*+ INDEX(`t7`@`select#2`) NO_INDEX(`t7`@`select#3`) */ `tbl1`.`a` AS `a`,`tbl1`.`b` AS `b`,`tbl1`.`c` AS `c`,`tbl1`.`d` AS `d`,`tbl2`.`a` AS `a`,`tbl2`.`b` AS `b`,`tbl2`.`c` AS `c`,`tbl2`.`d` AS `d` from `cte1` `tbl1` join `cte1` `tbl2`
+EXPLAIN EXTENDED WITH cte1 AS (SELECT * FROM t7 WHERE a<10 AND b<10 LIMIT 10) SELECT /*+ INDEX(t7@`select#2`) INDEX(t7@`select#3`) */ * FROM cte1 AS tbl1, cte1 AS tbl2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	10	100.00	Using join buffer (flat, BNL join)
+3	DERIVED	t7	range	i_a,i_b,i_ab	i_a	5	NULL	240	93.75	Using index condition; Using where
+2	DERIVED	t7	range	i_a,i_b,i_ab	i_a	5	NULL	240	93.75	Using index condition; Using where
+Warnings:
+Note	1003	with cte1 as (/* select#2 */ select `test`.`t7`.`a` AS `a`,`test`.`t7`.`b` AS `b`,`test`.`t7`.`c` AS `c`,`test`.`t7`.`d` AS `d` from `test`.`t7` where `test`.`t7`.`a` < 10 and `test`.`t7`.`b` < 10 limit 10)/* select#1 */ select /*+ INDEX(`t7`@`select#2`) INDEX(`t7`@`select#3`) */ `tbl1`.`a` AS `a`,`tbl1`.`b` AS `b`,`tbl1`.`c` AS `c`,`tbl1`.`d` AS `d`,`tbl2`.`a` AS `a`,`tbl2`.`b` AS `b`,`tbl2`.`c` AS `c`,`tbl2`.`d` AS `d` from `cte1` `tbl1` join `cte1` `tbl2`
+# End CTE JOIN'd with itself
+DROP TABLE ten, twenty, t1, t2, t4, t7;
+DROP VIEW v2, v3, v5, v7, v23, v24, v25;
+# End of 12.2 tests

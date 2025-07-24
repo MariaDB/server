@@ -480,6 +480,13 @@ public:
   }
 
 
+  bool is_print_name_default() const
+  {
+    // If no name given, then it's the sys_name (by default).
+    return name.str == nullptr;
+  }
+
+
   void append_qb_hint(THD *thd, String *str)
   {
     if (name.str)
@@ -492,6 +499,17 @@ public:
 
   virtual void append_name(THD *thd, String *str) override
   {
+    /*
+      If an explicit name isn't given, then the implicit
+      query block name (e.g. `select#X`) will be used.  But
+      we don't yet support that for VIEWs, so don't show it.
+    */
+    if ((thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
+         thd->lex->sql_command == SQLCOM_SHOW_CREATE ||
+         (thd->lex->derived_tables & DERIVED_VIEW)) &&
+        is_print_name_default())
+      return;
+
     /* Append query block name. */
     str->append(STRING_WITH_LEN("@"));
     const LEX_CSTRING print_name= get_print_name();
