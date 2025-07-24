@@ -2207,11 +2207,13 @@ bool Item_splocal_assoc_array_element::append_for_log(THD *thd, String *str)
   CHARSET_INFO *cs= thd->variables.character_set_client;
   StringBuffer<NAME_CHAR_LEN> tmp(cs);
 
-  return tmp.append(name, &my_charset_utf8mb3_bin) ||
-         str->append(STRING_WITH_LEN("NAME_CONST(")) ||
-         append_query_string(cs, str, tmp.ptr(), tmp.length(), false) ||
-         str->append(',') ||
-         append_value_for_log(thd, str) || str->append(')');
+  bool rc= tmp.append(name, &my_charset_utf8mb3_bin) ||
+           str->append(STRING_WITH_LEN("NAME_CONST(")) ||
+           append_query_string(cs, str, tmp.ptr(), tmp.length(), false) ||
+           str->append(',') ||
+           append_value_for_log(thd, str) || str->append(')');
+  walk(&Item::cleanup_processor, 0, 0);
+  return rc;
 }
 
 
@@ -2229,11 +2231,13 @@ bool Item_splocal_assoc_array_element_field::append_for_log(THD *thd,
   CHARSET_INFO *cs= thd->variables.character_set_client;
   StringBuffer<NAME_CHAR_LEN> tmp(cs);
 
-  return tmp.append(name, &my_charset_utf8mb3_bin) ||
-         str->append(STRING_WITH_LEN("NAME_CONST(")) ||
-         append_query_string(cs, str, tmp.ptr(), tmp.length(), false) ||
-         str->append(',') ||
-         append_value_for_log(thd, str) || str->append(')');
+  bool rc= tmp.append(name, &my_charset_utf8mb3_bin) ||
+           str->append(STRING_WITH_LEN("NAME_CONST(")) ||
+           append_query_string(cs, str, tmp.ptr(), tmp.length(), false) ||
+           str->append(',') ||
+           append_value_for_log(thd, str) || str->append(')');
+  walk(&Item::cleanup_processor, 0, 0);
+  return rc;
 }
 
 

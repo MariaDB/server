@@ -458,6 +458,11 @@ public:
                                    Item *key, const Type_handler *handler,
                                    uint pos_in_q= 0, uint len_in_q= 0);
   bool fix_fields(THD *thd, Item **) override;
+  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  {
+    return m_key->walk(processor, walk_subquery, arg) ||
+      (this->*processor)(arg);
+  }
   Item *this_item() override;
   const Item *this_item() const override;
   Item **this_item_addr(THD *thd, Item **) override;
@@ -486,6 +491,11 @@ public:
                                         const Type_handler *handler,
                                         uint pos_in_q= 0, uint len_in_q= 0);
   bool fix_fields(THD *thd, Item **) override;
+  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  {
+    return m_key->walk(processor, walk_subquery, arg) ||
+      (this->*processor)(arg);
+  }
   Item *this_item() override;
   const Item *this_item() const override;
   Item **this_item_addr(THD *thd, Item **) override;
