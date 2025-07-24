@@ -1318,7 +1318,10 @@ public:
   {
     return master_unit()->return_after_parsing();
   }
-  inline bool is_subquery_function() { return master_unit()->item != 0; }
+  inline bool is_subquery_function()
+  {
+    return master_unit() && master_unit()->item != 0;
+  }
 
   bool mark_as_dependent(THD *thd, st_select_lex *last,
                          Item_ident *dependency);
@@ -3776,8 +3779,8 @@ public:
     DBUG_RETURN(select_lex);
   }
 
-  void resolve_optimizer_hints_in_last_select();
-
+  void handle_parsed_optimizer_hints_in_last_select();
+  void resolve_optimizer_hints();
   bool discard_optimizer_hints_in_last_select();
 
   SELECT_LEX *current_select_or_default()
@@ -5087,6 +5090,8 @@ public:
 
   std::pair<bool, Optimizer_hint_parser_output *>
     parse_optimizer_hints(const Lex_comment_st &hint);
+  /* See resolve_optimizer_hints() */
+  List<SELECT_LEX> selects_for_hint_resolution;
 };
 
 

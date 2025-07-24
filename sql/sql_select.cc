@@ -32500,31 +32500,36 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 void st_select_lex::print_hints(THD *thd,
                                 String *str)
 {
-  if (!thd->lex->opt_hints_global)
-    return;
-
   constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
   str->append(header);
-  uint32 len_before_hints= str->length();
-  if (select_number == 1)
-  {
-    if (opt_hints_qb)
-      opt_hints_qb->append_qb_hint(thd, str);
-    thd->lex->opt_hints_global->print(thd, str);
-  }
-  else if (opt_hints_qb)
+  const uint32 len_before_hints= str->length();
+
+  if (opt_hints_qb)
     opt_hints_qb->append_qb_hint(thd, str);
 
-  if (str->length() > len_before_hints)
+  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
+      thd->lex->sql_command == SQLCOM_SHOW_CREATE)
   {
-    // Some hints were printed, close the hint string
-    str->append(STRING_WITH_LEN("*/ "));
+    if (str->length() <= len_before_hints &&
+        opt_hints_qb && opt_hints_qb->get_parent())
+      opt_hints_qb->get_parent()->print(thd, str);
   }
   else
   {
-    // No hints were added, rollback the previouly added header
-    str->length(len_before_hints - header.length);
+    if (thd->lex->opt_hints_global &&
+        select_number == 1)  // toplevel SELECT
+      thd->lex->opt_hints_global->print(thd, str);
   }
+
+  // If no hints were added, then rollback the previouly added header.
+  if (str->length() <= len_before_hints)
+  {
+    str->length(len_before_hints - header.length);
+    return;
+  }
+
+  // Some hints were printed, close the hint string
+  str->append(STRING_WITH_LEN("*/ "));
 }
 
 /**

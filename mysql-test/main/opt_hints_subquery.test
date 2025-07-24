@@ -1,5 +1,4 @@
 --enable_prepare_warnings
---disable_view_protocol # Since optimizer hints are not supported inside views
 CREATE TABLE t1 (a INTEGER NOT NULL, b INT, PRIMARY KEY (a));
 CREATE TABLE t2 (a INTEGER NOT NULL, KEY (a));
 CREATE TABLE t3 (a INTEGER NOT NULL, b INT, KEY (a));

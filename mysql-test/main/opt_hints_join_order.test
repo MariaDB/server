@@ -1,7 +1,6 @@
 --source include/have_innodb.inc
 --source include/innodb_stable_estimates.inc
 --enable_prepare_warnings
---disable_view_protocol # Since optimizer hints are not supported inside views
 
 set default_storage_engine=innodb;
 
@@ -258,7 +257,9 @@ let $query= SELECT /*+  QB_NAME(q1) JOIN_ORDER(t2, t1) */ STRAIGHT_JOIN count(*)
               FROM t1 JOIN t2 JOIN t3
               WHERE t1.f1 IN (SELECT /*+ QB_NAME(subq1) */ f1 FROM t4)
                 AND t2.f1 IN (SELECT /*+ QB_NAME(subq2) */ f1 FROM t5);
+--disable_view_protocol
 eval $query;
+--enable_view_protocol
 eval explain extended $query;
 
 --echo # Test JOIN_FIXED_ORDER.
@@ -798,7 +799,9 @@ SELECT
 COUNT(*) FROM t1 JOIN t2 AS ta3 JOIN t2 AS ta4
 WHERE ta4.f1 IN (SELECT /*+ QB_NAME(qb1) */ f1 FROM t4) AND
       ta3.f2 IN (SELECT /*+ QB_NAME(qb2) */ f2 FROM t2);
+--disable_view_protocol
 eval $query;
+--enable_view_protocol
 eval explain extended $query;
 
 let $query=
@@ -806,7 +809,9 @@ SELECT /*+ JOIN_PREFIX(t2@qb2, t4@qb1, ta3, ta4) */
 COUNT(*) FROM t1 JOIN t2 AS ta3 JOIN t2 AS ta4
 WHERE ta4.f1 IN (SELECT /*+ QB_NAME(qb1) */ f1 FROM t4) AND
       ta3.f2 IN (SELECT /*+ QB_NAME(qb2) */ f2 FROM t2);
+--disable_view_protocol
 eval $query;
+--enable_view_protocol
 eval explain extended $query;
 
 DROP TABLE t1, t2, t4;

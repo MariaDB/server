@@ -65,6 +65,25 @@ struct st_opt_hint_info opt_hint_info[]=
 
 const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
+/*
+  Compare LEX_CSTRING objects.
+
+  @param s     The 1st string
+  @param t     The 2nd string
+  @param cs    Pointer to character set
+
+  @return  0 if strings are equal
+           1 if s is greater
+          -1 if t is greater
+*/
+
+int cmp_lex_string(const LEX_CSTRING &s, const LEX_CSTRING &t,
+                   const CHARSET_INFO *cs)
+{
+  return cs->coll->strnncollsp(cs, (const uchar*)s.str, s.length,
+                                   (const uchar*)t.str, t.length);
+}
+
 
 /*
   This is a version of push_warning_printf() guaranteeing no escalation of
@@ -233,6 +252,42 @@ Opt_hints_qb *get_qb_hints(Parse_context *pc)
   return qb;
 }
 
+
+/**
+   Helper function to find_qb_hints whereby it matches a qb_name to
+   a select number under the presumption that qb_name has a value
+   like `select#X` (where X is a select number).
+
+   @return the matching query block hints object, if it exists.
+ */
+
+static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
+                                                 const Lex_ident_sys &qb_name)
+{
+  Opt_hints_qb *qb= nullptr;
+
+  for (SELECT_LEX *sl= pc->thd->lex->all_selects_list;
+       sl && !qb;  // have select and have not found matching query block hints
+       sl= sl->next_select_in_list())
+  {
+    LEX_CSTRING sys_name;  // System QB name
+    char buff[32];         // Buffer to hold sys name
+    sys_name.str= buff;
+    sys_name.length= snprintf(buff, sizeof(buff), "%s%u", sys_qb_prefix.str,
+                              sl->select_number);
+
+    if (cmp_lex_string(sys_name, qb_name, system_charset_info))
+      continue;  // not a match, continue to next select
+
+    // Found a matching `select#X` query block, get its attached hints.
+    Parse_context sl_ctx(pc, sl);
+    qb= get_qb_hints(&sl_ctx);
+  }
+
+  return qb;
+}
+
+
 /**
   Find existing Opt_hints_qb object, print warning
   if the query block is not found.
@@ -254,14 +309,32 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb_name.length == 0) // no QB NAME is used
     return pc->select->opt_hints_qb;
 
-  Opt_hints_qb *qb= static_cast<Opt_hints_qb *>
+  Opt_hints_qb *qb_by_name= static_cast<Opt_hints_qb *>
     (pc->thd->lex->opt_hints_global->find_by_name(qb_name));
 
-  if (qb == NULL)
+  Opt_hints_qb *qb_by_number= nullptr;
+  if (qb_by_name == nullptr)
+    qb_by_number= find_hints_by_select_number(pc, qb_name);
+
+  // C++-style comment here, otherwise compiler warns of /* within comment.
+  // We don't allow implicit query block names to be specified for hints local
+  // to a view (e.g. CREATE VIEW v1 AS SELECT /*+ NO_ICP(@`select#2` t1) ...
+  // because of select numbering issues.  When we're ready to fix that, then we
+  // can remove this gate.
+  if (pc->thd->lex->sql_command == SQLCOM_CREATE_VIEW &&
+      qb_by_number)
   {
+    print_warn(pc->thd, ER_WARN_NO_IMPLICIT_QB_NAMES_IN_VIEW,
+               hint_type, hint_state, &qb_name,
+               nullptr, nullptr, nullptr);
+    return nullptr;
+  }
+
+  Opt_hints_qb *qb= qb_by_name ? qb_by_name : qb_by_number;
+  if (qb == nullptr)
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
                &qb_name, NULL, NULL, NULL);
-  }
+
   return qb;
 }
 
@@ -1510,7 +1583,9 @@ void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
 
 bool Opt_hints_global::fix_hint(THD *thd)
 {
-  if (thd->lex->is_ps_or_view_context_analysis())
+  if (thd->lex->context_analysis_only &
+      (CONTEXT_ANALYSIS_ONLY_PREPARE |
+       CONTEXT_ANALYSIS_ONLY_VCOL_EXPR))
     return false;
 
   if (!max_exec_time_hint)
@@ -1584,6 +1659,40 @@ bool is_compound_hint(opt_hints_enum type_arg)
       type_arg == ROWID_FILTER_HINT_ENUM);
 }
 
+
+/*
+  @brief
+    Perform "Hint Resolution" for Optimizer Hints (see opt_hints.h for
+    definition)
+
+  @detail
+    Hints use "Explain select numbering", so this must be called after the
+    call to LEX::fix_first_select_number().
+
+    On the other hand, this must be called before the first attempt to check
+    any hint.
+*/
+
+void LEX::resolve_optimizer_hints()
+{
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+  SCOPE_EXIT([&] () mutable {
+    selects_for_hint_resolution.empty();
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  });
+
+  List_iterator<SELECT_LEX> it(selects_for_hint_resolution);
+  SELECT_LEX *sel;
+  while ((sel= it++))
+  {
+    if (!sel->parsed_optimizer_hints)
+      continue;
+    Parse_context pc(thd, sel);
+    sel->parsed_optimizer_hints->resolve(&pc);
+  }
+}
 
 #ifndef DBUG_OFF
 static char dbug_print_hint_buf[64];
