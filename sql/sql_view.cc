@@ -1534,6 +1534,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
 
     parse_status= parse_sql(thd, & parser_state, view_table_alias->view_creation_ctx);
 
+    thd->lex->resolve_optimizer_hints();
+
     view_select= view_query_lex->first_select_lex();
 
     /* Restore environment. */

@@ -70,6 +70,7 @@ struct Parse_context {
   st_select_lex * select;       ///< Current SELECT_LEX object
 
   Parse_context(THD *thd, st_select_lex *select);
+  Parse_context(Parse_context *pc, st_select_lex *select);
 };
 
 

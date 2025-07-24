@@ -26,7 +26,7 @@
   in the query. The result of parsing is saved in
   SELECT_LEX::parsed_optimizer_hints.
 
-  == Hint "resolution" ==
+  == Hint Resolution ==
 
   This is done using "resolve" method of parsed data structures
   This process
@@ -36,8 +36,30 @@
   - Table-level hints are put into their Query Block's Opt_hints_qb object.
   - Index-level hints are put into their table's Opt_hints_table object.
 
-  Currently, this process is done at the parser stage. (This is one of the
-  causes why hints do not work across VIEW bounds, here or in MySQL).
+  Currently, this process is done right after the parsing. It's done before
+  the views are opened. This is why hints cannot control anything inside
+  VIEWs, either in MariaDB or in MySQL.
+
+  Occurrences of hints are resolved in the order their SELECTs are parsed.
+  This is important as query block name declarations like
+
+    / *+ QB_NAME(foo) * /
+
+  must be resolved before we try to resolve any references to foo, like
+
+    / *+ SOME_HINT(table@foo ...) * /
+
+  On the other hand, references that use implicit query block names:
+
+  / *+ SOME_HINT(table@`select#5`) * /
+
+  can only be resolved when select numbers are ready. When one uses CTEs,
+  proper select numbers are assigned in LEX::fix_first_select_number()
+  which is called after parsing has been finished.
+
+  Beause of that, LEX::handle_parsed_optimizer_hints_in_last_select() builds a
+  todo list for resolution and LEX::resolve_optimizer_hints() does the hint
+  resolution.
 
   Query-block level hints can be reached through SELECT_LEX::opt_hints_qb.
 
@@ -497,7 +519,7 @@ class Opt_hints_table;
 class Opt_hints_qb : public Opt_hints
 {
   uint select_number;     // SELECT_LEX number
-  LEX_CSTRING sys_name;   // System QB name
+  LEX_CSTRING sys_name;   // System QB name, 'select#N'
   char buff[32];          // Buffer to hold sys name
 
   // Array of join order hints
@@ -519,6 +541,13 @@ public:
   }
 
 
+  bool is_print_name_default() const
+  {
+    // If no name given, then it's the sys_name (by default).
+    return name.str == nullptr;
+  }
+
+
   void append_qb_hint(THD *thd, String *str)
   {
     if (name.str)
@@ -531,6 +560,17 @@ public:
 
   virtual void append_name(THD *thd, String *str) override
   {
+    /*
+      If an explicit name isn't given, then the implicit
+      query block name (e.g. `select#X`) will be used.  But
+      we don't yet support that for VIEWs, so don't show it.
+    */
+    if ((thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
+         thd->lex->sql_command == SQLCOM_SHOW_CREATE ||
+         (thd->lex->derived_tables & DERIVED_VIEW)) &&
+        is_print_name_default())
+      return;
+
     /* Append query block name. */
     str->append(STRING_WITH_LEN("@"));
     const LEX_CSTRING print_name= get_print_name();
