@@ -30,16 +30,13 @@
 #include "field.h"
 
 extern "C" {
-  // Stub implementations for plugin system
   struct st_maria_plugin *mysql_mandatory_plugins[] = { NULL };
   struct st_maria_plugin *mysql_optional_plugins[] = { NULL };
 }
 
 
-// Properly initialized mock handlerton (simplified)
 static handlerton mock_hton;
 
-// Properly initialized mock plugin
 static st_maria_plugin mock_plugin = {
   .type = MYSQL_STORAGE_ENGINE_PLUGIN,
   .info = &mock_hton,
@@ -56,29 +53,25 @@ static st_maria_plugin mock_plugin = {
   .maturity = MariaDB_PLUGIN_MATURITY_STABLE
 };
 
-// Properly initialized mock plugin_int structure
 static st_plugin_int mock_plugin_int = {
-  .name = {const_cast<char*>("mock_storage_engine"), 19}, // name and length
+  .name = {const_cast<char*>("mock_storage_engine"), 19},
   .plugin = &mock_plugin,
-  .plugin_dl = NULL, // Built-in plugin (not dynamically loaded)
+  .plugin_dl = NULL,
   .state = PLUGIN_IS_READY,
   .ref_count = 1,
   .load_option = PLUGIN_ON,
   .locks_total = 0,
-  .mem_root = {0}, // Will be initialized if needed
+  .mem_root = {0},
   .system_vars = NULL,
   .nbackups = 0,
   .ptr_backup = NULL
 };
 
-// Mock plugin reference
 static plugin_ref mock_plugin_ref = (plugin_ref)&mock_plugin_int;
 
-// Global plugin system variables (minimal initialization)
-extern mysql_mutex_t LOCK_plugin;  // Use existing LOCK_plugin from libsql.a
+extern mysql_mutex_t LOCK_plugin;
 static bool plugin_system_initialized = false;
 
-// Initialize minimal plugin system
 static void init_minimal_plugin_system()
 {
   if (plugin_system_initialized)
@@ -87,8 +80,6 @@ static void init_minimal_plugin_system()
   printf("DEBUG: Initializing minimal plugin system\n");
   fflush(stdout);
   
-  // Initialize the mutex that the plugin system expects
-  // This is required because we're running as a standalone utility
   plugin_mutex_init();
   
   plugin_system_initialized = true;
@@ -97,24 +88,20 @@ static void init_minimal_plugin_system()
   fflush(stdout);
 }
 
-// Cleanup plugin system
 static void cleanup_minimal_plugin_system()
 {
   if (plugin_system_initialized) {
-    // Destroy the mutex we initialized
     mysql_mutex_destroy(&LOCK_plugin);
     plugin_system_initialized = false;
   }
 }
 
-// Comprehensive mock functions - cover all plugin lookup paths
 #define ha_resolve_by_name(thd, name, tmp) (mock_plugin_ref)
 #define ha_checktype(thd, type, check) (&mock_hton)
 #define ha_lock_engine(thd, hton) (mock_plugin_ref)
 #define plugin_hton(plugin) (&mock_hton)
 #define get_new_handler(share, root, hton) (NULL)
 
-// Additional plugin lookup functions that FRM parsing might use
 #define plugin_lock_by_name(thd, name, type) (mock_plugin_ref)
 #define plugin_find_by_type(type) (mock_plugin_ref)
 #define ha_resolve_by_legacy_type(thd, type) (mock_plugin_ref)
@@ -122,17 +109,13 @@ static void cleanup_minimal_plugin_system()
 #define plugin_int_to_ref(plugin) (mock_plugin_ref)
 #define plugin_ref_to_int(plugin) (&mock_plugin_int)
 
-// Storage engine resolution functions
 #define ha_default_handlerton(thd) (&mock_hton)
 #define ha_storage_engine_is_enabled(hton) (true)
 
-// Mock validation function - return safe default
 #define enum_value_with_check(thd, share, name, value, max_val) ((value <= max_val) ? value : 0)
 
-// Mock status variable increment - no-op
 #define status_var_increment(x) do { } while(0)
 
-// Additional mock functions for plugin system
 static plugin_ref mock_plugin_lock(THD *thd, plugin_ref ptr) {
   printf("DEBUG: mock_plugin_lock called with ptr=%p\n", ptr);
   fflush(stdout);
@@ -142,10 +125,8 @@ static plugin_ref mock_plugin_lock(THD *thd, plugin_ref ptr) {
 static void mock_plugin_unlock(THD *thd, plugin_ref ptr) {
   printf("DEBUG: mock_plugin_unlock called with ptr=%p\n", ptr);
   fflush(stdout);
-  // No-op for mock
 }
 
-// Override the actual plugin_lock and plugin_unlock functions
 #define plugin_lock(thd, ptr) mock_plugin_lock(thd, ptr)
 #define plugin_unlock(thd, ptr) mock_plugin_unlock(thd, ptr)
 
@@ -177,27 +158,22 @@ static FakeTHD* init_fake_thd()
   printf("DEBUG: Entering init_fake_thd\n");
   fflush(stdout);
 
-  // Initialize minimal plugin system FIRST
   init_minimal_plugin_system();
 
   FakeTHD *fake_thd = (FakeTHD*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(FakeTHD), MYF(MY_ZEROFILL));
   if (!fake_thd)
     return NULL;
     
-  // Initialize memory root
   init_alloc_root(PSI_NOT_INSTRUMENTED, &fake_thd->mem_root, 8192, 0, MYF(0));
   
-  // Set thread stack for recursion limits
   char stack_dummy;
   fake_thd->thread_stack = &stack_dummy;
   
-  // Set up essential character set variables
   fake_thd->variables.character_set_client = &my_charset_utf8mb4_general_ci;
   fake_thd->variables.collation_connection = &my_charset_utf8mb4_general_ci;
   fake_thd->variables.collation_database = &my_charset_utf8mb4_general_ci;
   fake_thd->variables.character_set_results = &my_charset_utf8mb4_general_ci;
   
-  // Initialize status variables
   fake_thd->status_var.feature_system_versioning = 0;
   fake_thd->status_var.feature_application_time_periods = 0;
 
@@ -217,7 +193,6 @@ static void cleanup_fake_thd(FakeTHD *fake_thd)
     my_free(fake_thd);
   }
   
-  // Cleanup plugin system
   cleanup_minimal_plugin_system();
 }
 
@@ -291,7 +266,6 @@ static bool extract_db_table_names(const char *frm_path,
   
   if (!table_start)
   {
-    // No path separator found, assume it's just a filename
     table_name->str= my_strdup(PSI_NOT_INSTRUMENTED, path_copy, MYF(MY_WME));
     table_name->length= strlen(table_name->str);
     db_name->str= my_strdup(PSI_NOT_INSTRUMENTED, "test", MYF(MY_WME));
@@ -303,7 +277,6 @@ static bool extract_db_table_names(const char *frm_path,
   *table_start= '\0';
   table_start++;
   
-  // Find the database name (second to last component)
   db_start= strrchr(path_copy, '/');
   if (!db_start)
     db_start= strrchr(path_copy, '\\');
@@ -342,7 +315,6 @@ static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
   printf("DEBUG: table_list initialized\n");
   fflush(stdout);
 
-  // Read FRM file into memory
   printf("DEBUG: About to read FRM file: %s\n", frm_path);
   fflush(stdout);
   
@@ -366,7 +338,6 @@ static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
          (int)db_name.length, db_name.str, (int)table_name.length, table_name.str);
   fflush(stdout);
 
-  // Create TABLE_SHARE manually to avoid character set conversion issues
   printf("DEBUG: Allocating TABLE_SHARE manually\n");
   fflush(stdout);
   
@@ -377,22 +348,18 @@ static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
     goto cleanup;
   }
   
-  // Initialize essential TABLE_SHARE fields
   share->db.str = db_name.str;
   share->db.length = db_name.length;
   share->table_name.str = table_name.str;
   share->table_name.length = table_name.length;
   
-  // Initialize TABLE_SHARE memory root
   init_alloc_root(PSI_NOT_INSTRUMENTED, &share->mem_root, 1024, 0, MYF(0));
   
-  // Set fake_thd to use the share's memory root for parsing
   fake_thd->mem_root = share->mem_root;
   
   printf("DEBUG: TABLE_SHARE allocated and initialized successfully\n");
   fflush(stdout);
   
-  // Initialize TABLE_SHARE from binary FRM image
   printf("DEBUG: About to call init_from_binary_frm_image\n");
   fflush(stdout);
   
@@ -406,7 +373,6 @@ static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
   fflush(stdout);
   
 
-  // Create TABLE structure
   table= static_cast<TABLE *>(
       my_malloc(PSI_NOT_INSTRUMENTED, sizeof(TABLE), MYF(MY_ZEROFILL)));
   if (!table)
@@ -415,19 +381,15 @@ static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
     goto cleanup;
   }
   
-  // Initialize TABLE structure
   table->s= share;
   table->in_use= (THD*)fake_thd;
   
-  // Call TABLE::init to complete initialization
-  // Note: We use a dummy TABLE_LIST for this
   table_list.table_name= Lex_ident_table(table_name);
   table_list.db= Lex_ident_db(db_name);
   table_list.alias= Lex_ident_table(table_name);
   
   table->init((THD*)fake_thd, &table_list);
   
-  // Generate and output CREATE TABLE statement
   printf("Table: %.*s.%.*s\n", (int)db_name.length, db_name.str, (int)table_name.length, table_name.str);
   printf("Fields: %d\n", share->fields);
   printf("Keys: %d\n", share->keys);
@@ -437,7 +399,6 @@ static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
 cleanup:
   if (share)
   {
-    // Clean up manually allocated TABLE_SHARE
     free_root(&share->mem_root, MYF(0));
     my_free(share);
   }
@@ -463,7 +424,6 @@ int main(int argc, char **argv)
   FakeTHD *fake_thd= NULL;
   int exit_code= 0;
 
-  // Check if FRM file was specified as argument
   if (argc < 2)
   {
     fprintf(stderr, "Usage: %s <frm_file>\n", argv[0]);
@@ -476,7 +436,6 @@ int main(int argc, char **argv)
   printf("DEBUG: About to initialize THD...\n");
   fflush(stdout);
 
-  // Initialize Fake THD (Thread Descriptor)
   my_thread_init();
   my_mutex_init();
   fake_thd= init_fake_thd();
@@ -490,7 +449,6 @@ int main(int argc, char **argv)
   printf("DEBUG: THD initialized successfully, about to parse FRM file...\n");
   fflush(stdout);
 
-  // Parse the FRM file
   if (parse_frm_file(fake_thd, argv[1]))
   {
     exit_code= 1;
@@ -500,7 +458,6 @@ int main(int argc, char **argv)
   fflush(stdout);
 
   exit:
-    // Cleanup
     cleanup_fake_thd(fake_thd);
   my_thread_end();
   my_mutex_end();
