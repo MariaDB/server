@@ -19956,7 +19956,6 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       {
         /* If the ON expression is still there, it's an outer join */
         DBUG_ASSERT(prev_table->outer_join);
-        prev_table->dep_tables|= table->on_expr_dep_tables;
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
 	                            prev_table->get_map();

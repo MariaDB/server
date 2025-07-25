@@ -12162,7 +12162,7 @@ JS
             }
         ],
         "refills": 5,
-        "spl_pd_boundary": 2,
+        "spl_pd_boundary": 8,
         "split_plan_search": 
         [],
         "split_materialized": 
@@ -12178,6 +12178,46 @@ JS
             "refills": 5,
             "total_splitting_cost": 25.90426751,
             "chosen": true
+        }
+    },
+    {
+        "considered_keys": 
+        [
+            {
+                "table_name": "t10",
+                "index": "grp_id",
+                "rec_per_key": 100,
+                "param_tables": 1
+            }
+        ],
+        "refills": 5,
+        "spl_pd_boundary": 2,
+        "cached_plan_found": 1,
+        "split_materialized": 
+        {
+            "one_splitting_cost": 5.180853502,
+            "total_splitting_cost": 0,
+            "rows": 100
+        }
+    },
+    {
+        "considered_keys": 
+        [
+            {
+                "table_name": "t10",
+                "index": "grp_id",
+                "rec_per_key": 100,
+                "param_tables": 1
+            }
+        ],
+        "refills": 5,
+        "spl_pd_boundary": 2,
+        "cached_plan_found": 1,
+        "split_materialized": 
+        {
+            "one_splitting_cost": 5.180853502,
+            "total_splitting_cost": 0,
+            "rows": 100
         }
     }
 ]

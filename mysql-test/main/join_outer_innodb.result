@@ -185,8 +185,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (incremental, BNL join)
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t6b	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t6b	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 drop table t1,t2,t3,t4,t5,t6;
 #
 Bug mdev-4318: view over a complex query with outer joins
@@ -437,44 +437,44 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	a4,a6,a5,a7	NULL	NULL	NULL	3	Using where
 1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.b2	1	Using where
+1	SIMPLE	t15	eq_ref	PRIMARY	PRIMARY	2	test.t1.a9	1	Using where
+1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where
 1	SIMPLE	t10	eq_ref	PRIMARY	PRIMARY	1	test.t1.a6	1	
 1	SIMPLE	t8	eq_ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
+1	SIMPLE	t14	eq_ref	PRIMARY	PRIMARY	2	test.t1.a8	1	Using where
 1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.a2	1	
 1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t4.d1	1	Using where
-1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where
 1	SIMPLE	t7	eq_ref	PRIMARY	PRIMARY	1	test.t1.a7	1	
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t1.a5	1	
-1	SIMPLE	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.k3	1	Using where
 1	SIMPLE	l2	eq_ref	PRIMARY	PRIMARY	4	test.t11.k4	1	Using where
+1	SIMPLE	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.k3	1	Using where
 1	SIMPLE	t9	ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
 1	SIMPLE	t13	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
 1	SIMPLE	l4	eq_ref	PRIMARY	PRIMARY	4	test.t13.m2	1	Using where
 1	SIMPLE	m2	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
 1	SIMPLE	l3	eq_ref	PRIMARY	PRIMARY	4	test.m2.m2	1	Using where
-1	SIMPLE	t14	eq_ref	PRIMARY	PRIMARY	2	test.t1.a8	1	Using where
-1	SIMPLE	t15	eq_ref	PRIMARY	PRIMARY	2	test.t1.a9	1	Using where
 1	SIMPLE	t16	ref	PRIMARY	PRIMARY	2	test.t15.o1	1	Using where
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	a4,a6,a5,a7	NULL	NULL	NULL	3	Using where
 1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	
 1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.b2	1	Using where
+1	SIMPLE	t15	eq_ref	PRIMARY	PRIMARY	2	test.t1.a9	1	Using where
+1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where
 1	SIMPLE	t10	eq_ref	PRIMARY	PRIMARY	1	test.t1.a6	1	
 1	SIMPLE	t8	eq_ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
+1	SIMPLE	t14	eq_ref	PRIMARY	PRIMARY	2	test.t1.a8	1	Using where
 1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.a2	1	
 1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t4.d1	1	Using where
-1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where
 1	SIMPLE	t7	eq_ref	PRIMARY	PRIMARY	1	test.t1.a7	1	
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t1.a5	1	
-1	SIMPLE	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.k3	1	Using where
 1	SIMPLE	l2	eq_ref	PRIMARY	PRIMARY	4	test.t11.k4	1	Using where
+1	SIMPLE	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.k3	1	Using where
 1	SIMPLE	t9	ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
 1	SIMPLE	t13	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
 1	SIMPLE	l4	eq_ref	PRIMARY	PRIMARY	4	test.t13.m2	1	Using where
 1	SIMPLE	m2	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
 1	SIMPLE	l3	eq_ref	PRIMARY	PRIMARY	4	test.m2.m2	1	Using where
-1	SIMPLE	t14	eq_ref	PRIMARY	PRIMARY	2	test.t1.a8	1	Using where
-1	SIMPLE	t15	eq_ref	PRIMARY	PRIMARY	2	test.t1.a9	1	Using where
 1	SIMPLE	t16	ref	PRIMARY	PRIMARY	2	test.t15.o1	1	Using where
 drop view v1;
 drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16;
