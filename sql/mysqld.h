@@ -880,7 +880,12 @@ enum enum_query_type
   QT_FOR_FRM= (1 << 13),
 
   // Print only the SELECT part, even for INSERT...SELECT
-  QT_SELECT_ONLY = (1 << 14)
+  QT_SELECT_ONLY = (1 << 14),
+  /// Used for printing default stored routine parameter for Information Schema.
+  /// Parameters are considered SP local variables and they're usually printed
+  /// in `var_name`@`var_index` format. Setting this prevents such formatting
+  /// and just prints the `var_name`
+  QT_DEFAULT_PARAM_INFO_SCHEMA = (1 << 15)
 };
 
 

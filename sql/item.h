@@ -2057,6 +2057,7 @@ public:
                      (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                        QT_ITEM_IDENT_SKIP_DB_NAMES |
                                        QT_ITEM_IDENT_SKIP_TABLE_NAMES |
+                                       QT_DEFAULT_PARAM_INFO_SCHEMA |
                                        QT_NO_DATA_EXPANSION |
                                        QT_TO_SYSTEM_CHARSET |
                                        QT_FOR_FRM),

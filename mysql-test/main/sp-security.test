@@ -1666,4 +1666,52 @@ drop database test_db;
 
 --echo # End of 11.3 tests
 
+--echo #
+--echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+--echo #
+
+DELIMITER //;
+CREATE PROCEDURE proc(a INT DEFAULT 1, b INT DEFAULT (a+1), c INT DEFAULT POW(2,b)) AS
+BEGIN
+  SELECT a, b, c FROM DUAL;
+END;
+//
+
+CREATE FUNCTION func(a INT DEFAULT 8, b INT DEFAULT LOG2(a)) RETURN INT AS
+BEGIN
+  RETURN b;
+END;
+//
+DELIMITER ;//
+
+# Tests to verify access control for procedures
+CREATE USER user@localhost;
+GRANT EXECUTE ON PROCEDURE test.proc TO user@localhost;
+GRANT EXECUTE ON FUNCTION test.func TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should not display default parameter values
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+GRANT SHOW CREATE ROUTINE ON PROCEDURE test.proc TO user@localhost;
+GRANT SHOW CREATE ROUTINE ON FUNCTION test.func TO user@localhost;
+CONNECT conn1, localhost, user, , test;
+
+# should display default parameter values
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'proc';
+SELECT specific_schema, specific_name, parameter_name, parameter_default FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'func';
+
+CONNECTION default;
+DISCONNECT conn1;
+
+DROP USER user@localhost;
+DROP PROCEDURE proc;
+DROP FUNCTION func;
+
+--echo # End of 12.2 tests
+
 set @@global.collation_server=@save_collation_server;
