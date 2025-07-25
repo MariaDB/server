@@ -445,10 +445,11 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
 static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
                                 uint n_keypart, key_part_map keypart_map);
 
-static void trace_ranges(Json_writer_array *range_trace,
-                         PARAM *param, uint idx,
-                         SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts);
+static void trace_ranges(
+    Json_writer_array *range_trace, PARAM *param, uint idx, SEL_ARG *keypart,
+    const KEY_PART_INFO *key_parts, size_t found_records= 0,
+    void (*record_ranges_for_tbl_fn)(THD *, TABLE_LIST *, size_t, const char *,
+                                     List<char> *)= NULL);
 
 static
 void print_range(String *out, const KEY_PART_INFO *key_part,
@@ -7893,7 +7894,31 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         *tree->index_scans_end++= index_scan;
 
         if (unlikely(thd->trace_started()))
-          trace_ranges(&trace_range, param, idx, key, key_part);
+        {
+          if (thd->variables.optimizer_record_context &&
+              !thd->lex->explain->is_query_plan_ready())
+          {
+            /*
+              Set the thd's mem_root to that of the top level statement.
+              Required to persist the ranges that are created for each index
+              until the end of the query execution.
+            */
+            MEM_ROOT *tmp_root= param->mem_root;
+            param->thd->mem_root= param->old_root;
+
+            /*
+              compute the ranges, and persist them in the list of range
+              contexts
+            */
+            trace_ranges(&trace_range, param, idx, key, key_part,
+                         found_records, &record_ranges_for_tbl);
+
+	    // restore the mem_root value
+            param->thd->mem_root= tmp_root;
+          }
+          else
+            trace_ranges(&trace_range, param, idx, key, key_part);
+        }
         trace_range.end();
 
         if (unlikely(trace_idx.trace_started()))
@@ -17350,12 +17375,15 @@ void print_range_for_non_indexed_field(String *out, Field *field,
     so we create a range:
       (2,4) <= (a,b) <= (2,4)
     this is added to the trace
+  Also, store the created range into the list_trc, if it is not null.
 */
 
-static void trace_ranges(Json_writer_array *range_trace,
-                         PARAM *param, uint idx,
-                         SEL_ARG *keypart,
-                         const KEY_PART_INFO *key_parts)
+static void trace_ranges(
+    Json_writer_array *range_trace, PARAM *param, uint idx, SEL_ARG *keypart,
+    const KEY_PART_INFO *key_parts,
+    size_t found_records,
+    void (*record_ranges_for_tbl_fn)(THD *, TABLE_LIST *, size_t, const char *,
+                                     List<char> *))
 {
   SEL_ARG_RANGE_SEQ seq;
   KEY_MULTI_RANGE range;
@@ -17365,6 +17393,7 @@ static void trace_ranges(Json_writer_array *range_trace,
                          sel_arg_range_seq_next, 0, 0};
   KEY *keyinfo= param->table->key_info + param->real_keynr[idx];
   uint n_key_parts= param->table->actual_n_key_parts(keyinfo);
+  uint keynr= param->real_keynr[idx];
   DBUG_ASSERT(range_trace->trace_started());
   seq.keyno= idx;
   seq.key_parts= param->key[idx];
@@ -17379,12 +17408,27 @@ static void trace_ranges(Json_writer_array *range_trace,
   const KEY_PART_INFO *cur_key_part= key_parts + keypart->part;
   seq_it= seq_if.init((void *) &seq, 0, flags);
 
+  List<char> *range_list= NULL;
+  if (record_ranges_for_tbl_fn)
+  {
+    range_list= (List<char> *) param->thd->calloc(sizeof(List<char>));
+    range_list->empty();
+  }
   while (!seq_if.next(seq_it, &range))
   {
     StringBuffer<128> range_info(system_charset_info);
     print_range(&range_info, cur_key_part, &range, n_key_parts);
     range_trace->add(range_info.c_ptr_safe(), range_info.length());
+    if (range_list)
+    {
+      range_list->push_back(
+          create_new_copy(param->thd, range_info.c_ptr_safe()));
+    }
   }
+  if (range_list)
+    record_ranges_for_tbl_fn(param->thd, param->table->pos_in_table_list,
+                             found_records,
+                             param->table->key_info[keynr].name.str, range_list);
 }
 
 /**
