@@ -84,6 +84,9 @@ DELIMITER ;$$
 
 CALL p1();
 
+# PARAMETER_DEFAULT Column test for various data types
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP TABLE t1;
 DROP DATABASE d1;
@@ -137,6 +140,147 @@ CREATE PROCEDURE sp1(IN p1 INT DEFAULT 0, IN OUT p2 INT)
 BEGIN
   SET p2 = p2 + 1;
 END;
+$$
 DELIMITER ;$$
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t values (1);
+
+--echo # Procedure with default parameters
+
+DELIMITER //;
+
+# Constant default parameters
+CREATE OR REPLACE PROCEDURE p1(a INTEGER DEFAULT 9999, b INT DEFAULT NULL) DETERMINISTIC
+BEGIN
+  SELECT a;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p2(a INT DEFAULT 99,
+                               b VARCHAR(5) DEFAULT 'maria',
+                               c VARCHAR(10) DEFAULT CONCAT(b, 'db'))
+BEGIN
+  SELECT b;
+END;
+//
+
+# Default parameter as an epxression and function
+CREATE OR REPLACE PROCEDURE p3(a INT DEFAULT 1,
+                               b INT DEFAULT (a+1),
+                               c INT DEFAULT POW(2,b),
+                               d INET6 DEFAULT INET6_NTOA(UNHEX('0A000101')))
+BEGIN
+  SELECT a, b, c FROM DUAL;
+END;
+//
+
+# Subquery as default value
+CREATE OR REPLACE PROCEDURE p4(x INT DEFAULT (SELECT a from t))
+BEGIN
+  SELECT x FROM DUAL;
+END;
+//
+
+# another stored function as a default parameter
+CREATE OR REPLACE FUNCTION func(a INT DEFAULT 123) RETURNS INT
+BEGIN
+  RETURN a;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p5(x INT DEFAULT func())
+BEGIN
+  SELECT x FROM DUAL;
+END;
+//
+
+# date-time functions as default params
+CREATE OR REPLACE PROCEDURE p6(a TIMESTAMP DEFAULT NOW(), b DATE DEFAULT CURDATE())
+BEGIN
+  SELECT a, b;
+END;
+//
+
+DELIMITER ;//
+
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p2';
+
+CALL p3();
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p3';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p4';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p5';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p6';
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;
+DROP PROCEDURE p5;
+DROP PROCEDURE p6;
+DROP FUNCTION func;
+
+--echo # Functions with defualt parameters
+
+DELIMITER //;
+
+CREATE OR REPLACE FUNCTION f1(a INT DEFAULT 9999, b INT DEFAULT NULL) RETURNS INT
+BEGIN
+    RETURN a;
+END;
+//
+
+# Default parameter as an expression
+CREATE OR REPLACE FUNCTION f2(a INT DEFAULT 99, b INT DEFAULT (a+1)) RETURNS INT
+BEGIN
+    RETURN b;
+END;
+//
+
+# Default param as function
+CREATE OR REPLACE FUNCTION f3(a INT DEFAULT 8,
+                              b INT DEFAULT LOG2(a),
+                              c VARCHAR(5) DEFAULT (IF(LOG2(a)=3,'yes','no'))) RETURNS INT
+BEGIN
+  RETURN b;
+END;
+//
+
+# Subquery as function's default parameter
+CREATE OR REPLACE FUNCTION f4(x INT DEFAULT (SELECT a FROM t)) RETURNS INT
+BEGIN
+  RETURN x;
+END;
+//
+
+# date-time functions as default params
+CREATE OR REPLACE FUNCTION f5(a TIMESTAMP DEFAULT NOW(), b DATE DEFAULT CURDATE()) RETURNS DATE
+BEGIN
+  RETURN b;
+END;
+//
+
+DELIMITER ;//
+
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f1';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f2';
+SELECT f3();
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f3';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f4';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f5';
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP FUNCTION f4;
+DROP FUNCTION f5;
+DROP TABLE t;
+
+--echo # End of 12.2 tests

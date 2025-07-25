@@ -106,6 +106,9 @@ $$
 DELIMITER ;$$
 CALL p1();
 
+# PARAMETER_DEFAULT column test- differnt types
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP TABLE t1;
 DROP DATABASE d1;
@@ -136,6 +139,9 @@ CALL p1(10);
 CALL p1();
 --enable_ps_protocol
 
+# PARAMETER_DEFAULT column test- function as default value
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 DROP TABLE t1;
@@ -158,6 +164,9 @@ DELIMITER ;$$
 CALL p1();
 CALL p1(10);
 
+# PARAMETER_DEFAULT column test- subquery as default
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -176,6 +185,9 @@ DELIMITER ;$$
 
 CALL p1(10);
 CALL p1(10,20);
+
+# PARAMETER_DEFAULT column test- default value referencing another parameter
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
 
 DROP PROCEDURE p1;
 
@@ -242,6 +254,7 @@ CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 INOUT INT)
 BEGIN
   SET p2 = p2 + 1;
 END;
+$$
 DELIMITER ;$$
 
 --echo # End of 11.8 tests
