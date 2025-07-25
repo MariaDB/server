@@ -12,12 +12,19 @@ INCLUDE_DIRECTORIES(
     ${CMAKE_SOURCE_DIR}/strings
 )
 
-MYSQL_ADD_EXECUTABLE(mariadb-frm mariadb_frm.cc)
+SET(FRM_PARSER_SOURCES mariadb_frm.cc frm_mocks.cc 
+  ${CMAKE_SOURCE_DIR}/sql/table.cc
+  ${CMAKE_SOURCE_DIR}/sql/sql_type.cc
+  ${CMAKE_SOURCE_DIR}/sql/key.cc
+  ${CMAKE_SOURCE_DIR}/sql/strfunc.cc
+)
+
+
+MYSQL_ADD_EXECUTABLE(mariadb-frm ${FRM_PARSER_SOURCES})
 
 TARGET_COMPILE_DEFINITIONS(mariadb-frm PRIVATE MYSQL_SERVER)
 
 TARGET_LINK_LIBRARIES(mariadb-frm
-    sql
     mysys
     strings
     dbug
@@ -28,9 +35,3 @@ TARGET_LINK_LIBRARIES(mariadb-frm
 )
 
 ADD_DEPENDENCIES(mariadb-frm GenError)
-
-IF(TARGET pcre2)
-  ADD_DEPENDENCIES(mariadb-frm pcre2)
-ENDIF()
-
-ADD_DEPENDENCIES(mariadb-frm sql_builtins)
