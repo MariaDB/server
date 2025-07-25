@@ -19,6 +19,7 @@
 #                                           always 0 for stored function RETURN
 #  PARAMETER_MODE                           'IN' or 'OUT' or 'INOUT'
 #  PARAMETER_NAME                           the parameter's name
+#  PARAMETER_DEFAULT                        the parameter's default value
 #  DATA_TYPE                                same as for COLUMNS
 #  CHARACTER_MAXIMUM_LENGTH                 same as for COLUMNS
 #  CHARACTER_OCTET_LENGTH                   same as for COLUMNS

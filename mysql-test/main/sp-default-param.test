@@ -137,6 +137,53 @@ CREATE PROCEDURE sp1(IN p1 INT DEFAULT 0, IN OUT p2 INT)
 BEGIN
   SET p2 = p2 + 1;
 END;
+$$
 DELIMITER ;$$
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-37054: Implement INFORMATION_SCHEMA.PARAMETERS.PARAMETER_DEFAULT column
+--echo #
+
+--echo # Procedure with default parameters
+
+DELIMITER //;
+
+CREATE OR REPLACE PROCEDURE p1(a INTEGER DEFAULT 9999) DETERMINISTIC
+BEGIN
+  SELECT a;
+END;
+//
+
+CREATE OR REPLACE PROCEDURE p2(a INT DEFAULT 99, b VARCHAR(5) DEFAULT 'foo')
+BEGIN
+  SELECT b;
+END;
+//
+
+DELIMITER ;//
+
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'p2';
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+--echo # Functions with defualt parameters
+
+DELIMITER //;
+
+CREATE OR REPLACE FUNCTION f(a INT DEFAULT 9999) RETURNS VARCHAR(5)
+BEGIN
+    RETURN 'foo';
+END;
+//
+
+DELIMITER ;//
+
+SELECT * FROM information_schema.PARAMETERS WHERE SPECIFIC_NAME = 'f';
+
+DROP FUNCTION f;
+
+--echo # End of 12.2 tests

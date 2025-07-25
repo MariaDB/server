@@ -7031,10 +7031,10 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       table->field[3]->store((longlong) 0, TRUE);
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_str_nopad(thd->mem_root,
                                                               &tmp_string);
-      table->field[15]->store(tmp_string, cs);
+      table->field[16]->store(tmp_string, cs);
       store_variable_type(thd, sp->m_return_field_def,
                           ""_Lex_ident_column,
-                          &tbl, &share, cs, table, 6);
+                          &tbl, &share, cs, table, 7);
       if (schema_table_store_record(thd, table))
       {
         free_table_share(&share);
@@ -7074,12 +7074,18 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       table->field[4]->set_notnull();
       table->field[5]->store(spvar->name.str, spvar->name.length, cs);
       table->field[5]->set_notnull();
+      if (spvar->default_value)
+      {
+        table->field[6]->store(spvar->default_value->name.str,
+                               spvar->default_value->name.length, cs);
+        table->field[6]->set_notnull();
+      }
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_str_nopad(thd->mem_root,
                                                               &tmp_string);
-      table->field[15]->store(tmp_string, cs);
+      table->field[16]->store(tmp_string, cs);
 
       store_variable_type(thd, spvar->field_def, spvar->name,
-                          &tbl, &share, cs, table, 6);
+                          &tbl, &share, cs, table, 7);
       if (schema_table_store_record(thd, table))
       {
         error= 1;
@@ -10574,6 +10580,8 @@ ST_FIELD_INFO parameters_fields_info[]=
   Column("ORDINAL_POSITION",        SLong(21),       NOT_NULL, OPEN_FULL_TABLE),
   Column("PARAMETER_MODE",          Varchar(5),      NULLABLE, OPEN_FULL_TABLE),
   Column("PARAMETER_NAME",          Name(),          NULLABLE, OPEN_FULL_TABLE),
+  Column("PARAMETER_DEFAULT",       Longtext(MAX_FIELD_VARCHARLENGTH),
+                                                     NULLABLE, OPEN_FRM_ONLY),
   Column("DATA_TYPE",               Name(),          NOT_NULL, OPEN_FULL_TABLE),
   Column("CHARACTER_MAXIMUM_LENGTH",SLong(21),       NULLABLE, OPEN_FULL_TABLE),
   Column("CHARACTER_OCTET_LENGTH",  SLong(21),       NULLABLE, OPEN_FULL_TABLE),
