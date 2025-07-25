@@ -7843,29 +7843,11 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     int e= 0;
     if (ha_thd()->lex->ignore)
     {
-      /* hack: modifying PK is not supported for now, see  MDEV-37233 */
-      if (table->s->primary_key != MAX_KEY)
-      {
-        KEY *key= table->key_info + table->s->primary_key;
-        KEY_PART_INFO *kp= key->key_part;
-        KEY_PART_INFO *end= kp + key->user_defined_key_parts;
-        for (; kp < end; kp++)
-          if (bitmap_is_set(table->write_set, kp->fieldnr-1))
-          {
-            my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE that "
-              "modifies a primary key of a table with a UNIQUE constraint "
-              "%s is not currently supported", MYF(0),
-              table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
-            return HA_ERR_UNSUPPORTED;
-          }
-      }
-      table->move_fields(table->field, table->record[1], table->record[0]);
-      std::swap(table->record[0], table->record[1]);
-      increment_statistics(&SSV::ha_update_count);
-      TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, MAX_KEY, e,
-        { e= update_row(new_data, old_data);})
-      table->move_fields(table->field, table->record[1], table->record[0]);
-      std::swap(table->record[0], table->record[1]);
+      my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE in READ "
+        "COMMITTED isolation mode of a table with a UNIQUE constraint "
+        "%s is not currently supported", MYF(0),
+        table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
+      return HA_ERR_UNSUPPORTED;
     }
     return e ? e : error;
   }

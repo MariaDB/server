@@ -162,6 +162,7 @@ set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";
 --connection con1
+--error ER_NOT_SUPPORTED_YET
 --reap
 --connection default
 select * from t1;

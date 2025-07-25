@@ -150,9 +150,23 @@ create table t1 (id int, f longtext, primary key (id), unique(f)) engine=innodb 
 insert t1 (id) values (1),(2);
 set transaction isolation level read committed;
 update ignore t1 set f = 'x';
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint USING HASH is not currently supported
 select * from t1;
 id	f
-1	x
+1	NULL
 2	NULL
+drop table t1;
+#
+# MDEV-37310 Non-debug failing assertion node->pcur->rel_pos == BTR_PCUR_ON upon violating long unique under READ-COMMITTED
+#
+create table t1 (id int, f blob, unique(id,f)) engine=innodb partition by key(id) partitions 2;
+insert t1 values (1,'foo'),(2,'foo');
+set transaction isolation level read committed;
+update ignore t1 set id = 2;
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint USING HASH is not currently supported
+select * from t1;
+id	f
+1	foo
+2	foo
 drop table t1;
 # End of 10.6 tests

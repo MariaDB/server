@@ -166,6 +166,7 @@ set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";
 connection con1;
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint USING HASH is not currently supported
 connection default;
 select * from t1;
 col1	col2
@@ -173,7 +174,7 @@ commit;
 select * from t1;
 col1	col2
 5	b
-9	e
+9	d
 15	a
 disconnect con1;
 disconnect con2;
@@ -237,7 +238,7 @@ set transaction isolation level read committed;
 update t1 set col2='a' where col1=15;
 set debug_sync="now SIGNAL do_insert";
 connection con1;
-ERROR 42000: UPDATE IGNORE that modifies a primary key of a table with a UNIQUE constraint USING HASH is not currently supported
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint USING HASH is not currently supported
 connection default;
 select * from t1;
 col1	col2

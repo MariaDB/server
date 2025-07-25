@@ -128,6 +128,7 @@ set transaction isolation level read committed;
 update t1 set s=date'2010-10-10' where e=date'2010-12-12';
 set debug_sync="now SIGNAL do_insert";
 connection con1;
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint WITHOUT OVERLAPS is not currently supported
 connection default;
 select * from t1;
 id	s	e
@@ -199,7 +200,7 @@ set transaction isolation level read committed;
 update t1 set s=date'2010-10-10' where e=date'2010-12-12';
 set debug_sync="now SIGNAL do_insert";
 connection con1;
-ERROR 42000: UPDATE IGNORE that modifies a primary key of a table with a UNIQUE constraint WITHOUT OVERLAPS is not currently supported
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint WITHOUT OVERLAPS is not currently supported
 connection default;
 select * from t1;
 id	s	e
