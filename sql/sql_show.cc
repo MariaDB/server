@@ -1918,6 +1918,38 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
 
 
 /**
+ @brief Get string representation of stored routine parameter's default value
+
+ @param item          stored routine parameter
+ @param default_value String to hold the default value
+
+ @return
+  TRUE  - if the parameter has default value
+  FALSE - if no default value
+ */
+
+static bool get_param_default_value(Item *item, String *default_value)
+{
+  StringBuffer<MAX_FIELD_WIDTH> buf(system_charset_info);
+
+  if (!item)
+    return false;
+
+  bool need_parantheses= item->need_parentheses_in_default();
+  if (need_parantheses)
+    default_value->append('(');
+
+  item->print_for_table_def(&buf);
+  default_value->append(buf);
+
+  if (need_parantheses)
+    default_value->append(')');
+
+  return true;
+}
+
+
+/**
   Appends list of options to string
 
   @param thd             thread handler
@@ -7057,6 +7089,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     {
       const char *tmp_buff;
       sp_variable *spvar= spcont->find_variable(i);
+      StringBuffer<MAX_FIELD_WIDTH> default_value(cs);
       switch (spvar->mode) {
       case sp_variable::MODE_IN:
         tmp_buff= "IN";
@@ -7084,6 +7117,13 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_str_nopad(thd->mem_root,
                                                               &tmp_string);
       table->field[15]->store(tmp_string, cs);
+
+      if (full_access &&
+          get_param_default_value(spvar->default_value, &default_value))
+      {
+        table->field[16]->store(default_value.ptr(), default_value.length(), cs);
+        table->field[16]->set_notnull();
+      }
 
       store_variable_type(thd, spvar->field_def, spvar->name,
                           &tbl, &share, cs, table, 6);
@@ -10680,6 +10720,8 @@ ST_FIELD_INFO parameters_fields_info[]=
   Column("COLLATION_NAME",          Varchar(64),     NULLABLE, OPEN_FULL_TABLE),
   Column("DTD_IDENTIFIER",          Longtext(65535), NOT_NULL, OPEN_FULL_TABLE),
   Column("ROUTINE_TYPE",            Varchar(9),      NOT_NULL, OPEN_FULL_TABLE),
+  Column("PARAMETER_DEFAULT",       Longtext(MAX_FIELD_VARCHARLENGTH),
+                                                     NULLABLE, OPEN_FRM_ONLY),
   CEnd()
 };
 

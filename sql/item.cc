@@ -1892,14 +1892,24 @@ Item_splocal::this_item_addr(THD *thd, Item **)
 }
 
 
-void Item_splocal::print(String *str, enum_query_type)
+void Item_splocal::print(String *str, enum_query_type qt)
 {
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   str->reserve(m_name.length + 8 + prefix->length);
-  str->append(prefix);
+  if (!(qt & QT_DEFAULT_PARAM_INFO_SCHEMA))
+    str->append(prefix);
+  else
+    str->append('`');
+
   str->append(&m_name);
-  str->append('@');
-  str->qs_append(m_var_idx);
+
+  if (!(qt & QT_DEFAULT_PARAM_INFO_SCHEMA))
+  {
+    str->append('@');
+    str->qs_append(m_var_idx);
+  }
+  else
+    str->append('`');
 }
 
 
