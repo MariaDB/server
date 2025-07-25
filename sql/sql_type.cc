@@ -529,8 +529,28 @@ int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
   }
   return field->store_timestamp_dec(Timestamp(*this), decimals);
 }
+Interval_native::Interval_native(const Interval &iv, uint decimals)
+{
+  iv.to_native(this, decimals);
+}
+Interval_native::Interval_native(const Native &iv)
+{
+  *this = iv;
+}
 
-
+int Interval_native::save_in_field(Field *field, uint decimals)
+{
+  field->set_notnull();
+  return field->store_native(*this);
+}
+int Interval_native::save_in_field(Field *field)
+{
+  return this->save_in_field(field, 0);
+}
+int Interval_native::cmp(const Interval_native &other) const
+{
+  return memcmp(this, &other, sizeof(Interval_native));
+}
 void Sec6::make_from_decimal(const my_decimal *d, ulong *nanoseconds)
 {
   m_neg= my_decimal2seconds(d, &m_sec, &m_usec, nanoseconds);
@@ -1575,6 +1595,10 @@ uint Type_handler_datetime::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
 uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
      { 3, 4, 4, 5, 5, 5, 6 };
 
+/* number of bytes to store various INTERVAL types */
+uint Type_handler_interval_DDhhmmssff::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 5, 6, 6, 7, 7, 7, 8 };
+
 /***************************************************************************/
 
 const Name Type_handler::version() const
@@ -1799,6 +1823,13 @@ const Type_handler *
 Type_handler_time_common::type_handler_for_native_format() const
 {
   return &type_handler_time2;
+}
+
+
+const Type_handler *
+Type_handler_interval_DDhhmmssff::type_handler_for_native_format() const
+{
+  return &type_handler_interval_DDhhmmssff;
 }
 
 
@@ -3602,7 +3633,7 @@ uint32 Type_handler_datetime2::calc_pack_length(uint32 length) const
 
 uint32 Type_handler_interval_DDhhmmssff::calc_pack_length(uint32 length) const
 {
-  return 0;
+  return my_interval_binary_length(length >> 4);
 }
 
 uint32 Type_handler_tiny_blob::calc_pack_length(uint32 length) const
@@ -4730,9 +4761,9 @@ Type_handler_date_common::Item_get_cache(THD *thd, const Item *item) const
 }
 
 Item_cache *
-  Type_handler_interval_DDhhmmssff::Item_get_cache(THD*, const Item*) const
+  Type_handler_interval_DDhhmmssff::Item_get_cache(THD *thd, const Item* item) const
 {
-  return nullptr;
+  return new (thd->mem_root) Item_cache_interval(thd);
 }
 /*************************************************************************/
 
@@ -6126,6 +6157,13 @@ in_vector *Type_handler_row::make_in_vector(THD *thd,
   return new (thd->mem_root) in_row(thd, nargs, 0);
 }
 
+in_vector *
+Type_handler_interval_DDhhmmssff::make_in_vector(THD *thd,
+                                              const Item_func_in *func,
+                                              uint nargs) const
+{
+  return new (thd->mem_root) in_interval(thd, nargs);
+}
 /***************************************************************************/
 
 bool Type_handler_string_result::
@@ -8138,6 +8176,15 @@ Type_handler_datetime_common::convert_item_for_comparison(
                                           subject->datetime_precision(thd));
 }
 
+Item *
+Type_handler_interval_DDhhmmssff::convert_item_for_comparison(
+                                                        THD *thd,
+                                                        Item *subject,
+                                                        const Item *counterpart)
+                                                        const
+{
+  return nullptr;
+}
 
 /***************************************************************************/
 
@@ -9226,7 +9273,17 @@ Type_handler_timestamp_common::Item_const_eq(const Item_const *a,
   return !ta->value().cmp(tb->value());
 }
 
-
+bool
+Type_handler_interval_DDhhmmssff::Item_const_eq(const Item_const *a,
+                                             const Item_const *b,
+                                             bool binary_cmp) const
+{
+  const Item_interval_literal *ta, *tb;
+  if (!(ta= dynamic_cast<const Item_interval_literal*>(a)) ||
+      !(tb= dynamic_cast<const Item_interval_literal*>(b)))
+    return false;
+  return !ta->value().cmp(tb->value());
+}
 /***************************************************************************/
 
 const Type_handler *
@@ -9625,6 +9682,23 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
     TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 
+
+bool
+Type_handler_interval_DDhhmmssff::Item_val_native_with_conversion(THD *thd, Item *item, Native *to) const
+{
+  if (item->type_handler()->type_handler_for_native_format() ==
+    &type_handler_interval_DDhhmmssff)
+    return item->val_native(thd, to);
+  Interval iv(thd, item);
+  iv.to_native(to, iv.end_prec);
+  return 0;
+}
+
+bool Type_handler_interval_DDhhmmssff::Item_val_native_with_conversion_result(THD *thd, Item *, Native *to) const
+{
+  return false;
+}
+
 bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
 {
   item->set_handler(&type_handler_string);
@@ -9662,6 +9736,12 @@ int Type_handler_timestamp_common::cmp_native(const Native &a,
   return Timestamp_or_zero_datetime(a).cmp(Timestamp_or_zero_datetime(b));
 }
 
+int Type_handler_interval_DDhhmmssff::cmp_native(const Native &a, const Native &b) const
+{
+  if (a.length() == b.length())
+    return memcmp(a.ptr(), b.ptr(), a.length());
+  return Interval_native(a).cmp(Interval_native(b));
+}
 
 Timestamp_or_zero_datetime_native_null::
   Timestamp_or_zero_datetime_native_null(THD *thd, Item *item, bool conv)

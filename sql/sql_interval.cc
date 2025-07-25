@@ -63,6 +63,71 @@ Interval::Interval(const my_decimal *d,
          uint8 start_prec,
          uint8 end_prec)
     : Interval(Sec6(d), itype, start_prec, end_prec) {}
+Interval::Interval(THD *thd, Item *item) {  }
+Interval::Interval(Interval_native val) {  }
+Interval::Interval(Native *val) {  }
+
+int Interval::cmp(const Interval &other) const
+{
+  my_timeval tm1= this->to_TIMEVAL(), tm2= other.to_TIMEVAL();
+  return tm1.tv_sec < tm2.tv_sec ? -1 : tm1.tv_sec > tm2.tv_sec ? 1 : tm1.tv_usec < tm2.tv_usec ? -1 : tm1.tv_usec > tm2.tv_usec ? 1 : 0;
+}
+
+my_timeval Interval::to_TIMEVAL() const
+{
+  my_timeval tm={};
+  interval_to_timeval(this, &tm, current_thd);
+  return tm;
+}
+
+bool Interval::to_bool() const
+{
+  return (bool)is_valid_interval(m_interval_type, start_prec, end_prec, this);
+}
+
+longlong Interval::to_longlong() const
+{
+  my_timeval tm= to_TIMEVAL();
+  return tm.tv_sec;
+}
+
+double Interval::to_double() const
+{
+  my_timeval tm= to_TIMEVAL();
+  double d= tm.tv_sec + (tm.tv_usec / INTERVAL_FRAC_MAX_FACTOR);
+  return d;
+}
+
+String *Interval::to_string(String *str, uint dec) const
+{
+  uint field_length= calc_interval_display_width(m_interval_type, start_prec, end_prec);
+  str->alloc( field_length+ 1);
+  char *buf= (char *)str->ptr();
+
+  size_t len= interval_to_string(this, m_interval_type, buf, end_prec);
+  str->length(len);
+  str->set_charset(&my_charset_numeric);
+  return str;
+}
+
+
+my_decimal *Interval::to_decimal(my_decimal *dec) const
+{
+  my_timeval tm= to_TIMEVAL();
+  my_decimal d;
+  return seconds2my_decimal((tm.tv_sec < 0), tm.tv_sec,
+                           (ulong)tm.tv_usec, &d);
+}
+
+bool Interval::to_native(Native *to, uint decimals) const
+{
+  my_timeval tm= to_TIMEVAL();
+  uint len= my_interval_binary_length(decimals);
+  my_interval_to_binary(&tm, (uchar *) to->ptr(), decimals);
+  to->length(len);
+  return false;
+}
+
 static my_bool parse_number(ulong *dest, const char **str, const char *end)
 {
   const char *start= *str;
@@ -351,7 +416,7 @@ static uint8_t count_digits(ulong value)
   return digits;
 }
 
-uint8_t is_valid_interval(interval_type itype,
+bool is_valid_interval(interval_type itype,
                           uint8_t start_prec,
                           uint8_t end_prec,
                           const Interval *ival) {
@@ -426,16 +491,6 @@ int interval_to_timeval(const Interval *iv, my_timeval *tm, THD *thd)
   total_seconds+= static_cast<longlong>(iv->second);
 
   ulong microseconds= static_cast<ulong>(iv->second_part);
-
-  if (iv->neg)
-  {
-    total_seconds= -total_seconds;
-    if (microseconds)
-    {
-      total_seconds-= 1;
-      microseconds= 1000000 - microseconds;
-    }
-  }
 
   tm->tv_sec= total_seconds;
   tm->tv_usec= microseconds;
@@ -580,10 +635,8 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
 
   if (tm.tv_sec == 0 && tm.tv_usec == 0)
     return;
-
-
-
   longlong seconds= tm.tv_sec;
+  ulong microseconds= tm.tv_usec;
 
   switch (itype) {
   case INTERVAL_YEAR:
@@ -613,7 +666,7 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     break;
   case INTERVAL_SECOND:
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(tm.tv_usec);
+    iv->second_part= static_cast<ulonglong>(microseconds);
     break;
   case INTERVAL_DAY_HOUR:
     iv->day= static_cast<ulong>(seconds / 86400LL);
@@ -635,7 +688,7 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     iv->minute= static_cast<ulonglong>(seconds / 60LL);
     seconds%= 60LL;
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(tm.tv_usec);
+    iv->second_part= static_cast<ulonglong>(microseconds);
     break;
   case INTERVAL_HOUR_MINUTE:
     iv->hour= static_cast<ulong>(seconds / 3600LL);
@@ -648,13 +701,13 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     iv->minute= static_cast<ulonglong>(seconds / 60LL);
     seconds%= 60LL;
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(tm.tv_usec);
+    iv->second_part= static_cast<ulonglong>(microseconds);
     break;
   case INTERVAL_MINUTE_SECOND:
     iv->minute= static_cast<ulonglong>(seconds / 60LL);
     seconds%= 60LL;
     iv->second= static_cast<ulonglong>(seconds);
-    iv->second_part= static_cast<ulonglong>(tm.tv_usec);
+    iv->second_part= static_cast<ulonglong>(microseconds);
     break;
   default:
     break;

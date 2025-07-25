@@ -98,6 +98,7 @@ class Conv_source;
 class ST_FIELD_INFO;
 class Type_collection;
 class Create_func;
+class Interval;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -3010,6 +3011,16 @@ public:
   }
 };
 
+class Interval_native : public NativeBuffer<STRING_BUFFER_TIMESTAMP_BINARY_SIZE + 1>
+{
+public:
+  Interval_native() = default;
+  Interval_native(const Interval &iv, uint decimals);
+  Interval_native(const Native &iv);
+  int save_in_field(Field *field, uint decimals);
+  int save_in_field(Field *field);
+  int cmp(const Interval_native &other) const;
+};
 
 /**
   A helper class to store nullable MariaDB TIMESTAMP values in
@@ -7806,7 +7817,9 @@ public:
 
 
 class Type_handler_interval_DDhhmmssff : public Type_handler_temporal_with_date {
+  static uint m_hires_bytes[MAX_DATETIME_PRECISION+1];
 public:
+  static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   const Name &default_value() const override {
     static Name def(STRING_WITH_LEN("interval"));
     return def;
@@ -7874,6 +7887,19 @@ public:
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                   CHARSET_INFO *cs, bool send_error)
                                   const override;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                   bool binary_cmp) const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
+                          const override;
+  Item *convert_item_for_comparison(THD *thd,
+                                  Item *subject,
+                                  const Item *counterpart) const override;
+  const Type_handler *type_handler_for_native_format() const override;
+  int cmp_native(const Native &a, const Native &b) const override;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
+                                       const override;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
+                                              const override;
 };
 
 

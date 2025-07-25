@@ -4121,7 +4121,7 @@ public:
     case INTERVAL_MINUTE_SECOND:
       break;
     case INTERVAL_SECOND:
-      end_prec= start_prec, start_prec= INTERVAL_SECOND_DIGITS;
+      start_prec= INTERVAL_SECOND_DIGITS;
       break;
     default:
       end_prec = 0;
@@ -4134,10 +4134,16 @@ public:
   int store(double) override;
   int store_decimal(const my_decimal *) override;
   int store_time_dec(const MYSQL_TIME *, uint) override;
+  int store_native(const Native &value) override;
   void store_TIMEVAL(const my_timeval &tm)
   {
     my_interval_to_binary(&tm, ptr, end_prec);
   }
+  int get_TIMEVAL(my_timeval *tm);
+  int get_TIMEVAL(my_timeval *tm, const uchar *ptr) const;
+
+  int get_INTERVAL(Interval *iv);
+  int get_INTERVAL(Interval *iv, const uchar *ptr) const;
 
   longlong val_int() override;
   double val_real() override;
@@ -4149,7 +4155,8 @@ public:
     return &type_handler_interval_DDhhmmssff;
   }
   enum_field_types type() const override { return MYSQL_TYPE_INTERVAL; }
-  uint pack_length() const override;
+  uint pack_length() const override
+  {  return Type_handler_interval_DDhhmmssff::hires_bytes(end_prec); }
 
   void sql_type(String &str) const override;
 
@@ -4168,7 +4175,7 @@ public:
     return conv_type;
   }
 
-  uint size_of() const override;
+  uint size_of() const override { return sizeof *this; }
 
   void sort_string(uchar *, uint) override;
 

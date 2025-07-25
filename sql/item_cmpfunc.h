@@ -1692,6 +1692,19 @@ public:
   { return &type_handler_timestamp2; }
 };
 
+class in_interval :public in_vector
+{
+  Interval tmp;
+public:
+  in_interval(THD *thd, uint elements);
+  bool set(uint pos, Item *item) override;
+  uchar *get_value(Item *item) override;
+  Item* create_item(THD *thd) override;
+  void value_to_item(uint pos, Item *item) override;
+  const Type_handler *type_handler() const  override
+  { return &type_handler_interval_DDhhmmssff; }
+};
+
 
 /*
   Class to represent a vector of constant DATE/DATETIME values.

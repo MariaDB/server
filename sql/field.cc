@@ -7404,121 +7404,205 @@ longlong Field_datetimef::val_datetime_packed(THD *thd)
 ** Interval type
 ** In string context: [-]YYYY-MM-DD HH:MM:SS.ffffff
 ** In number context: [-]YYYYMMDDHHMMSS.ffffff
-** Stored as a 5 byte unsigned int.
+** Binary storage format:
+**  - Seconds: 5 bytes (40 bits)
+      * The 39th bit (most significant bit) indicates sign
+          (0 = negative, 1 = non-negative)
+    - Fractional seconds: 3 bytes (24 bits)
+        * Precision determined by column definition
+  Total storage: 8 bytes (5 + 3)
 ****************************************************************************/
 int Field_interval::store(const char *from, size_t len, CHARSET_INFO *cs)
 {
-  THD *thd = get_thd();
+  THD *thd= get_thd();
   ErrConvString str(from, len, cs);
   Interval interval(from, len, m_interval_type, cs, start_prec, end_prec);
-  my_timeval tm;
+  my_timeval tm{};
   interval_to_timeval(&interval, &tm, thd);
   store_TIMEVAL(tm);
   return 0;
 }
+
+
 int Field_interval::store(longlong nr, bool unsigned_val)
 {
   Longlong_hybrid tmp(nr, unsigned_val);
   ErrConvInteger str(tmp);
   THD *thd= get_thd();
   Interval interval(tmp, m_interval_type, start_prec, end_prec);
-  my_timeval tm;
+  my_timeval tm{};
   interval_to_timeval(&interval, &tm, thd);
   store_TIMEVAL(tm);
   return 0;
 }
+
+
 int Field_interval::store(double nr)
 {
   ErrConvDouble str(nr);
   THD *thd= get_thd();
   Interval interval(nr, m_interval_type, start_prec, end_prec);
-  my_timeval tm;
+  my_timeval tm{};
   interval_to_timeval(&interval, &tm, thd);
   store_TIMEVAL(tm);
   return 0;
 }
+
+
 int Field_interval::store_decimal(const my_decimal *d)
 {
   ErrConvDecimal str(d);
   THD *thd= get_thd();
   Interval interval(d, m_interval_type, start_prec, end_prec);
-  my_timeval tm;
+  my_timeval tm{};
   interval_to_timeval(&interval, &tm, thd);
   store_TIMEVAL(tm);
   return 0;
 }
 
+
 int Field_interval::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
-  //How can we convert
+  // How can we convert?
   return 1;
 }
 
-longlong Field_interval::val_int()
+int Field_interval::store_native(const Native &value)
 {
+  size_t bin_length = my_interval_binary_length(end_prec);
+
+  if (value.length() != bin_length) {
+    return 1;
+  }
+
+  memcpy(ptr, value.ptr(), bin_length);
   return 0;
 }
 
-double Field_interval::val_real()
+int Field_interval::get_TIMEVAL(my_timeval *tm)
 {
-  return 0.0;
+  my_interval_from_binary(tm, ptr, end_prec);
+  return 0;
 }
-String *Field_interval::val_str(String *val_buffer, String *val_ptr)
+
+
+int Field_interval::get_TIMEVAL(my_timeval *tm, const uchar *ptr) const
+{
+  my_interval_from_binary(tm, ptr, end_prec);
+  return 0;
+}
+
+
+int Field_interval::get_INTERVAL(Interval *iv)
 {
   my_timeval tm;
-  my_interval_from_binary(&tm, ptr, end_prec);
+  get_TIMEVAL(&tm);
+  timeval_to_interval(tm, iv, m_interval_type);
+  return is_valid_interval(m_interval_type, start_prec, end_prec, iv);
+}
 
+
+int Field_interval::get_INTERVAL(Interval *iv, const uchar *ptr) const
+{
+  my_timeval tm;
+  get_TIMEVAL(&tm, ptr);
+  timeval_to_interval(tm, iv, m_interval_type);
+  return is_valid_interval(m_interval_type, start_prec, end_prec, iv);
+}
+
+
+longlong Field_interval::val_int()
+{
+  my_timeval tm{};
+  get_TIMEVAL(&tm);
+  return tm.tv_sec;
+}
+
+
+double Field_interval::val_real()
+{
+  my_timeval tm;
+  get_TIMEVAL(&tm);
+  double d= tm.tv_sec + (tm.tv_usec / INTERVAL_FRAC_MAX_FACTOR);
+  return d;
+}
+
+
+String *Field_interval::val_str(String *val_buffer, String *val_ptr)
+{
   Interval iv;
-  timeval_to_interval(tm, &iv, m_interval_type);
-
+  get_INTERVAL(&iv);
   val_buffer->alloc(field_length + 1);
-  char *buf = (char *)val_buffer->ptr();
+  char *buf= (char *)val_buffer->ptr();
 
-  size_t len = interval_to_string(&iv, m_interval_type, buf, field_length + 1);
+  size_t len= interval_to_string(&iv, m_interval_type, buf, field_length + 1);
   val_buffer->length(len);
   val_buffer->set_charset(&my_charset_numeric);
 
   return val_buffer;
 }
+
+
 my_decimal *Field_interval::val_decimal(my_decimal *decimal_value)
 {
-  return nullptr;
+  my_timeval tm;
+  get_TIMEVAL(&tm);
+  return seconds2my_decimal((tm.tv_sec < 0), tm.tv_sec,
+                           (ulong)tm.tv_usec, decimal_value);
 }
+
 
 bool Field_interval::val_native(Native *to)
 {
-  return false;
-}
+  size_t bin_length = my_interval_binary_length(end_prec);
 
-uint Field_interval::pack_length() const
-{
-  return sizeof(INTERVAL);
-}
+  if (to->alloc(bin_length)) {
+    return 1;
+  }
 
-void Field_interval::sql_type(String &str) const
-{
-  // Empty body
-}
-
-int Field_interval::cmp(const uchar *a_ptr, const uchar *b_ptr) const
-{
+  memcpy(const_cast<char*>(to->ptr()), ptr, bin_length);
+  to->length(bin_length);
   return 0;
 }
 
-bool Field_interval::validate_value_in_record(THD *thd, const uchar *record) const
+
+void Field_interval::sql_type(String &str) const
 {
-  return false;
+  DBUG_ASSERT(m_interval_type >= INTERVAL_YEAR &&
+              m_interval_type < INTERVAL_LAST);
+
+  str.length(0);
+  str.append(STRING_WITH_LEN("interval "));
+  str.append(interval_type_names[m_interval_type].str,
+             interval_type_names[m_interval_type].length);
 }
 
-uint Field_interval::size_of() const
+
+int Field_interval::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
-  return sizeof(*this);
+  ulonglong a= read_bigendian(a_ptr, Field_interval::pack_length());
+  ulonglong b= read_bigendian(b_ptr, Field_interval::pack_length());
+  return a < b ? -1 : a > b ? 1 : 0;
 }
+
+
+bool Field_interval::validate_value_in_record(THD *thd, const uchar *record) const
+{
+  Interval iv;
+  return get_INTERVAL(&iv, ptr_in_record(record));
+}
+
 
 void Field_interval::sort_string(uchar *to, uint length)
 {
-  // Empty body
+  to[0]= ptr[4];
+  to[1]= ptr[3];
+  to[2]= ptr[2];
+  to[3]= ptr[1];
+  to[4]= ptr[0];
 }
+
+
 int Field_interval::reset()
 {
   my_timeval x;
@@ -11070,6 +11154,8 @@ bool Column_definition::fix_attributes_interval(interval_type itype)
     my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              intv_length >> 4);
 
+  if (itype == INTERVAL_SECOND)
+      length<<= 4;
   return false;
 }
 

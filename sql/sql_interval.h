@@ -34,6 +34,7 @@
 #define INTERVAL_MINUTE_MAX  59   /* 0-59 minutes */
 #define INTERVAL_SECOND_MAX  59   /* 0-59 seconds */
 #define INTERVAL_FRAC_MAX    999999 /* 0-999999 microseconds */
+#define INTERVAL_FRAC_MAX_FACTOR (INTERVAL_FRAC_MAX + 1)
 
 constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
   /* YEAR                  */ 1,  // [-]Y
@@ -58,15 +59,44 @@ constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
   /* SECOND_MICROSECOND    */ 1   // [-]S (not supported)
 };
 
+const LEX_CSTRING interval_type_names[INTERVAL_LAST] = {
+  {STRING_WITH_LEN("year")},
+  {STRING_WITH_LEN("quarter")},
+  {STRING_WITH_LEN("month")},
+  {STRING_WITH_LEN("week")},
+  {STRING_WITH_LEN("day")},
+  {STRING_WITH_LEN("hour")},
+  {STRING_WITH_LEN("minute")},
+  {STRING_WITH_LEN("second")},
+  {STRING_WITH_LEN("microsecond")},
+  {STRING_WITH_LEN("year to month")},
+  {STRING_WITH_LEN("day to hour")},
+  {STRING_WITH_LEN("day to minute")},
+  {STRING_WITH_LEN("day to second")},
+  {STRING_WITH_LEN("hour to minute")},
+  {STRING_WITH_LEN("hour to second")},
+  {STRING_WITH_LEN("minute to second")},
+  {STRING_WITH_LEN("day to microsecond")},
+  {STRING_WITH_LEN("hour to microsecond")},
+  {STRING_WITH_LEN("minute to microsecond")},
+  {STRING_WITH_LEN("second to microsecond")}
+};
+
+class Interval;
 class Sec6;
 class Temporal;
+class Native;
 uint calc_interval_display_width(interval_type itype,
                                         uint leading_precision,
                                         uint fractional_precision);
-
+class Interval_native;
 class Interval :public INTERVAL
 {
 public:
+  enum interval_type m_interval_type;
+  uint8 start_prec;
+  uint8 end_prec;
+
   Interval();
   Interval(const char *str, size_t length,
                      enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec);
@@ -83,6 +113,7 @@ public:
            enum interval_type itype,
            uint8 start_prec,
            uint8 end_prec);
+  Interval(THD *thd, Item *item);
 
   time_round_mode_t default_round_mode(THD *thd);
 
@@ -123,6 +154,27 @@ public:
     }
     return *this;
   }
+
+    bool to_bool() const;
+
+    my_timeval to_TIMEVAL() const;
+
+    longlong to_longlong() const;
+
+    double to_double() const;
+
+    String *to_string(String *str, uint dec) const;
+
+    my_decimal *to_decimal(my_decimal *dec) const;
+
+    bool to_native(Native *to, uint decimals) const;
+
+    Interval(Interval_native val);
+
+    Interval(Native *val);
+
+    int cmp(const Interval &other) const;
+
 };
 
 int str_to_interval(const char *str, size_t length, Interval *to,
@@ -131,7 +183,7 @@ int str_to_interval(const char *str, size_t length, Interval *to,
 int Sec6_to_interval(const Sec6 &sec6, Interval *to,
                     enum interval_type itype, uint8 start_prec, uint8 end_prec);
 
-uint8_t is_valid_interval(interval_type itype,
+bool is_valid_interval(interval_type itype,
                           uint8_t start_prec,
                           uint8_t end_prec,
                           const Interval *ival);
