@@ -7626,7 +7626,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_1") ||
         write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("convert_partition_2") ||
-        mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
+        mysql_write_frm(lpt, WFRM_WRITE_SHADOW|WFRM_ALTER_INFO_PREPARED) ||
         ERROR_INJECT("convert_partition_3") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         ERROR_INJECT("convert_partition_4") ||

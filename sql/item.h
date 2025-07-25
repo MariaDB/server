@@ -5815,6 +5815,11 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
+  virtual ~Item_sp()
+  {
+    delete sp_result_field;
+    sp_result_field= NULL;
+  }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
@@ -6504,6 +6509,19 @@ public:
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
+  /*
+    Do the same thing as Item_field: if we were referring to a local view,
+    now we refer to somewhere outside of our SELECT.
+  */
+  bool set_fields_as_dependent_processor(void *arg) override
+  {
+    if (!(used_tables() & OUTER_REF_TABLE_BIT))
+    {
+      depended_from= (st_select_lex *) arg;
+      item_equal= NULL;
+    }
+    return 0;
+  }
 };
 
 

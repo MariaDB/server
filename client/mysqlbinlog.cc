@@ -1201,9 +1201,16 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         binlog, even if they have a server_id.  Also, we have to read
         the format_description event so that we can parse subsequent
         events.
+        Don't skip Unknown events either since we don't know their `server_id`s.
       */
-      if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
-        goto end;
+      switch (ev_type) {
+      case ROTATE_EVENT:
+      case UNKNOWN_EVENT:
+        break;
+      default:
+        if (is_server_id_excluded(ev->server_id))
+          goto end;
+      }
     }
     if ((ev->when >= stop_datetime)
         || (pos >= stop_position_mot))

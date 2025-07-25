@@ -165,13 +165,9 @@ insert into federated.t4 select * from federated.t1;
 --sorted_result
 select * from federated.t4;
 
---disable_cursor_protocol
 select name into @var from federated.t1 where id=3 limit 1 ;
 select @var;
---disable_ps2_protocol
 select name into outfile 'tmp.txt' from federated.t1;
---enable_ps2_protocol
---enable_cursor_protocol
 
 let $path=`select concat(@@datadir, 'test/tmp.txt')`;
 remove_file $path;

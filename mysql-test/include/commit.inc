@@ -258,10 +258,8 @@ select * from t2;
 insert into t2 (a) values (1025);
 
 --replace_result $MYSQLTEST_VARDIR ..
---disable_cursor_protocol
 --error ER_DUP_ENTRY
 eval select f2(25) into outfile "$MYSQLTEST_VARDIR/tmp/dml.out" from t1;
---enable_cursor_protocol
 select * from t2;
 rollback;
 select * from t2;
@@ -281,10 +279,8 @@ select * from t2;
 --echo =======================================================================
 
 insert into t2 (a) values (1027);
---disable_cursor_protocol
 --error ER_DUP_ENTRY
 select f2(27) into @foo;
---enable_cursor_protocol
 select * from t2;
 rollback;
 select * from t2;

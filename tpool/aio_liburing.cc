@@ -60,7 +60,10 @@ public:
       case EPERM:
 	my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_queue_init() failed with EPERM:"
-			" sysctl kernel.io_uring_disabled has the value 2, or 1 and the user of the process is not a member of sysctl kernel.io_uring_group. (see man 2 io_uring_setup).",
+			" sysctl kernel.io_uring_disabled has the value 2, "
+                        "or 1 and the user of the process is not a member of "
+                        "sysctl kernel.io_uring_group. (see man 2 "
+                        "io_uring_setup).",
                         ME_ERROR_LOG | ME_WARNING);
 	break;
       default:
@@ -93,7 +96,7 @@ public:
       {
         my_printf_error(ER_UNKNOWN_ERROR,
                         "io_uring_submit() returned %d during shutdown:"
-                        " this may cause a hang\n",
+                        " this may cause a hang",
                         ME_ERROR_LOG | ME_FATAL, ret);
         abort();
       }
@@ -152,7 +155,7 @@ private:
         if (ret == -EINTR)
           continue;
         my_printf_error(ER_UNKNOWN_ERROR,
-                        "io_uring_wait_cqe() returned %d\n",
+                        "io_uring_wait_cqe() returned %d",
                         ME_ERROR_LOG | ME_FATAL, ret);
         abort();
       }

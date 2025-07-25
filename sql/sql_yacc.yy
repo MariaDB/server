@@ -15505,7 +15505,6 @@ user_maybe_role:
             if (unlikely(!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_user;
-            $$->auth= new (thd->mem_root) USER_AUTH();
           }
         ;
 

@@ -2284,15 +2284,8 @@ public:
     @param [OUT] idx  - In case if a value that is equal to the predicant
                         was found, the index of the matching value is returned
                         here. Otherwise, *idx is not changed.
-    @param [IN/OUT] found_unknown_values - how to handle UNKNOWN results.
-                        If found_unknown_values is NULL (e.g. Item_func_case),
-                        cmp() returns immediately when the first UNKNOWN
-                        result is found.
-                        If found_unknown_values is non-NULL (Item_func_in),
-                        cmp() does not return when an UNKNOWN result is found,
-                        sets *found_unknown_values to true, and continues
-                        to compare the remaining pairs to find FALSE
-                        (i.e. the value that is equal to the predicant).
+    @param [OUT] found_unknown_values - set to true if the result of at least
+                        one comparison was UNKNOWN
 
     @retval     false - Found a value that is equal to the predicant
     @retval     true  - Didn't find an equal value
@@ -2309,11 +2302,7 @@ public:
         return false; // Found a matching value
       }
       if (rc == UNKNOWN)
-      {
-        if (!found_unknown_values)
-          return true;
         *found_unknown_values= true;
-      }
     }
     return true; // Not found
   }
