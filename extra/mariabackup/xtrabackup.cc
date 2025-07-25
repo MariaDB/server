@@ -4416,7 +4416,7 @@ xb_load_list_file(
 	FILE*	fp;
 
 	/* read and store the filenames */
-	fp = fopen(filename, "r");
+	fp = fopen(filename, "rt");
 	if (!fp) {
 		die("Can't open %s",
 		    filename);
