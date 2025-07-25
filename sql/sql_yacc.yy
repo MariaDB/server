@@ -931,6 +931,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  LOCKED_SYM
 %token  <kwd>  LOCKS_SYM
 %token  <kwd>  LOGS_SYM
+%token  <kwd>  MASTER_BIND_SYM
 %token  <kwd>  MASTER_CONNECT_RETRY_SYM
 %token  <kwd>  MASTER_DELAY_SYM
 %token  <kwd>  MASTER_GTID_POS_SYM
@@ -2264,6 +2265,10 @@ master_def:
           MASTER_HOST_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.host = $3.str;
+          }
+        | MASTER_BIND_SYM '=' TEXT_STRING_sys
+          {
+            Lex->mi.bind_addr = $3.str;
           }
         | MASTER_USER_SYM '=' TEXT_STRING_sys
           {
@@ -16584,6 +16589,7 @@ keyword_func_sp_var_and_label:
         | LOGS_SYM
         | MAX_ROWS
         | MASTER_SYM
+        | MASTER_BIND_SYM
         | MASTER_HEARTBEAT_PERIOD_SYM
         | MASTER_GTID_POS_SYM
         | MASTER_HOST_SYM

@@ -76,6 +76,7 @@ if ($tmp)
   --echo Replicate_Rewrite_DB	#
   --echo Connects_Tried	#
   --echo Master_Retry_Count	#
+  --echo Master_Bind	
 }
 if (!$tmp) {
   # Note: after WL#5177, fields 13-18 shall not be filtered-out.
