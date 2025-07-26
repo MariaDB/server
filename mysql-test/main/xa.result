@@ -616,4 +616,73 @@ select count(*) from t1;
 count(*)
 1
 drop table t1;
+#
+# MDEV-37315 Assertion `!xid_state.xid_cache_element' failed in trans_xa_rollback
+#
+create table t1 (a int) engine=innodb;
+create table t2 (b int) engine=innodb;
+create table t3 (c int) engine=innodb;
+insert t1 values (1);
+insert t2 values (2);
+connect con1,localhost,root;
+xa start 'r:foo';
+insert t3 values (3);
+xa end 'r:foo';
+xa prepare 'r:foo';
+disconnect con1;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	5	0	r:foo
+xa start 'r:bar';
+select * from t1 for update;
+a
+1
+connect con2,localhost,root;
+xa start 'r:baz';
+update t2 set b=12;
+update t1 set a=13;
+connection default;
+xa rollback 'r:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+select * from t2 for update;
+Got one of the listed errors
+xa rollback 'r:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+connection con2;
+disconnect con2;
+connection default;
+xa rollback 'r:bar';
+xa rollback 'r:foo';
+connect con1,localhost,root;
+xa start 'c:foo';
+insert t3 values (103);
+xa end 'c:foo';
+xa prepare 'c:foo';
+disconnect con1;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	5	0	c:foo
+xa start 'c:bar';
+select * from t1 for update;
+a
+1
+connect con2,localhost,root;
+xa start 'c:baz';
+update t2 set b=102;
+update t1 set a=103;
+connection default;
+xa commit 'c:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+select * from t2 for update;
+Got one of the listed errors
+xa commit 'c:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+connection con2;
+disconnect con2;
+connection default;
+xa rollback 'c:bar';
+xa commit 'c:foo';
+drop table t1,t2,t3;
 # End of 10.11 tests
