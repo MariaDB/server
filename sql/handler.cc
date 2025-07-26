@@ -3367,7 +3367,7 @@ int handler::create_lookup_handler()
   if (!(tmp= clone(table->s->normalized_path.str, table->in_use->mem_root)))
     return 1;
   lookup_handler= tmp;
-  return lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
+  return lookup_handler->ha_external_lock(table->in_use, F_WRLCK);
 }
 
 LEX_CSTRING *handler::engine_name()
@@ -7774,16 +7774,16 @@ int handler::ha_write_row(const uchar *buf)
     if (lookup_handler != this) // INSERT IGNORE or REPLACE or ODKU
     {
       int olderror= error;
-      if ((error= rnd_init(0)))
+      if ((error= lookup_handler->rnd_init(0)))
         goto err;
       position(buf);
-      if ((error= rnd_pos(lookup_buffer, ref)))
+      if ((error= lookup_handler->rnd_pos(lookup_buffer, ref)))
         goto err;
 
       increment_statistics(&SSV::ha_delete_count);
       TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, error,
-                    { error= delete_row(buf);})
-      rnd_end();
+                    { error= lookup_handler->delete_row(buf);})
+      lookup_handler->rnd_end();
       if (!error)
         error= olderror;
     }
@@ -7916,8 +7916,7 @@ int handler::ha_delete_row(const uchar *buf)
   /*
     Normally table->record[0] is used, but sometimes table->record[1] is used.
   */
-  DBUG_ASSERT(buf == table->record[0] ||
-              buf == table->record[1]);
+  DBUG_ASSERT(buf == table->record[0] || buf == table->record[1]);
 
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
