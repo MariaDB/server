@@ -92,8 +92,6 @@ class String;
 #define LOG_READ_CHECKSUM_FAILURE -8
 #define LOG_READ_DECRYPT -9
 
-#define LOG_EVENT_OFFSET 4
-
 /*
    3 is MySQL 4.x; 4 is MySQL 5.0.0.
    Compared to version 3, version 4 has:
