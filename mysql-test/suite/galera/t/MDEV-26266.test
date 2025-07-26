@@ -13,6 +13,7 @@
 --source include/have_innodb.inc
 --source include/force_restart.inc
 
+--disable_ps_protocol
 SET SESSION query_prealloc_size=8192;
 SET max_session_mem_used=50000;
 CREATE TABLE t1 (c1 INT NOT NULL) ENGINE=InnoDB ;
@@ -34,3 +35,4 @@ INSERT INTO t2 VALUES (5);
 --error ER_LOCK_DEADLOCK
 CREATE VIEW v1 AS SELECT c1 FROM t1 WHERE c1 IN (SELECT a FROM t2) GROUP BY c1;
 DROP TABLE t1,t2;
+--enable_ps_protocol
