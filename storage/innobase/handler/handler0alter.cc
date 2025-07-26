@@ -11252,9 +11252,12 @@ alter_stats_rebuild(
 		DBUG_VOID_RETURN;
 	}
 
-	dberr_t	ret = dict_stats_update_persistent(table);
+	std::pair<dberr_t, unsigned> result =
+		dict_stats_update_persistent(table);
+
+        dberr_t ret = result.first;
 	if (ret == DB_SUCCESS) {
-		ret = dict_stats_save(table);
+		ret = dict_stats_save(table, result.second);
 	}
 
 	if (ret != DB_SUCCESS) {

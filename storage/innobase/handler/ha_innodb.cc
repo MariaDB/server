@@ -5794,9 +5794,11 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
         if (recalc)
         {
         recalc:
-          err= dict_stats_update_persistent(table);
+          std::pair<dberr_t, unsigned> result =
+            dict_stats_update_persistent(table);
+          err = result.first;
           if (err == DB_SUCCESS)
-            err= dict_stats_save(table);
+            err= dict_stats_save(table, result.second);
         }
         else
         {
