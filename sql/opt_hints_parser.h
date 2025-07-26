@@ -641,6 +641,14 @@ public:
   public:
     using AND4::AND4;
 
+    /*
+      If no index names are given, this is a table level hint, for example:
+      GROUP_INDEX(t1), NO_MRR(t2).
+      Otherwise this is an index-level hints:
+      NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
+    */
+    bool is_table_level_hint() const { return is_empty(); }
+
     bool resolve(Parse_context *pc) const;
     void append_args(THD *thd, String *str) const override;
   };

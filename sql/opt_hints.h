@@ -635,10 +635,12 @@ public:
 
   void set_fixed() { fixed= true; }
   bool is_fixed() const { return fixed; }
+  bool is_table_level() const { return parsed_hint->is_table_level_hint(); }
 
   void set_key_map(uint i) { key_map.set_bit(i); }
   bool is_set_key_map(uint i) { return key_map.is_set(i); }
   bool is_key_map_clear_all() { return key_map.is_clear_all(); }
+  uint bits_set() { return key_map.bits_set(); }
   Key_map *get_key_map() { return &key_map; }
 };
 

@@ -506,14 +506,6 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
     fixing the child objects.
   */
   set_fixed();
-  if (is_specified(INDEX_HINT_ENUM))
-    global_index_map.set_fixed();
-  if (is_specified(JOIN_INDEX_HINT_ENUM))
-    join_index_map.set_fixed();
-  if (is_specified(GROUP_INDEX_HINT_ENUM))
-    group_index_map.set_fixed();
-  if (is_specified(ORDER_INDEX_HINT_ENUM))
-    order_index_map.set_fixed();
 
   /* Make sure that adjustment is called only once. */
   DBUG_ASSERT(keyinfo_array.size() == 0);
@@ -533,6 +525,26 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
         set_compound_key_hint_map(*hint, j);
         break;
       }
+    }
+  }
+
+  /*
+    Fixing compound index hints. A compound hint is fixed in two cases:
+    - it is a table-level hint, i.e. does not have a list of index names
+          (like ORDER_INDEX(t1);
+    - it has a list of index names, and at least one of listed
+      index names is resolved successfully. So, NO_INDEX(t1 bad_idx) does not
+      become a table-level hint NO_INDEX(t1) if `bad_idx` cannnot be resolved.
+  */
+  for (opt_hints_enum
+           hint_type : { INDEX_HINT_ENUM, JOIN_INDEX_HINT_ENUM,
+                         GROUP_INDEX_HINT_ENUM, ORDER_INDEX_HINT_ENUM })
+  {
+    if (is_specified(hint_type))
+    {
+      Opt_hints_key_bitmap *bitmap= get_key_hint_bitmap(hint_type);
+      if (bitmap->is_table_level() || bitmap->bits_set() > 0)
+        bitmap->set_fixed();
     }
   }
 

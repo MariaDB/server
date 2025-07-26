@@ -112,3 +112,48 @@ EXPLAIN EXTENDED DELETE FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
 EXPLAIN EXTENDED DELETE /*+ NO_INDEX(t1 i_ab) */ FROM t1 WHERE a = 1 AND b = 2 AND c = 3;
 
 DROP TABLE t1;
+
+--echo #
+--echo # Hint NO_INDEX() disables all indexes if none of given index names is not resolved
+--echo #
+
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  PRIMARY KEY(a),
+  KEY ab(a, b)
+);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3),(4,4);
+
+ANALYZE TABLE t1;
+
+# Warnings "Unresolved table/index name..." are generated during both prepare
+# and execution stages. So disable PS protocol to avoid duplication
+--disable_ps_protocol
+
+--echo # By default, the index `ab` is used for grouping
+EXPLAIN EXTENDED SELECT a FROM t1 GROUP BY a;
+--echo # Invalid index names are ignored, index `ab` is still used
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb)*/ a FROM t1 GROUP BY a;
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb, abcd)*/ a FROM t1 GROUP BY a;
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb, abcd, PRIMARY)*/ a FROM t1 GROUP BY a;
+
+--echo # This hint disables all indexes for grouping, so effectively it is the same
+--echo # as table-level hint NO_GROUP_INDEX(t1)
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb, dcba, PRIMARY, ab)*/ a FROM t1 GROUP BY a;
+--echo # Compare the previous case with the table-level hint, results are the same:
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1)*/ a FROM t1 GROUP BY a;
+
+--echo # Same set of tests as above but for the global `NO_INDEX()` hint
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb)*/ a FROM t1 GROUP BY a;
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb, abcd)*/ a FROM t1 GROUP BY a;
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb, abcd, PRIMARY)*/ a FROM t1 GROUP BY a;
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb, abcd, PRIMARY, ab)*/ a FROM t1 GROUP BY a;
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1)*/ a FROM t1 GROUP BY a;
+
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # End of 12.1 tests
+--echo #
