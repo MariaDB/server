@@ -32,27 +32,26 @@ Created 11/5/1995 Heikki Tuuri
 will be invoked on read completion.
 @param page_id   page identifier
 @param chain     buf_pool.page_hash cell for page_id
+@param err       error code: DB_SUCCESS if the page was successfully read,
+DB_SUCCESS_LOCKED_REC if the page was not read,
+DB_PAGE_CORRUPTED on page checksum mismatch,
+DB_DECRYPTION_FAILED if page post encryption checksum matches but
+after decryption normal page checksum does not match,
+DB_TABLESPACE_DELETED if tablespace .ibd file is missing
 @param unzip     whether to decompress ROW_FORMAT=COMPRESSED pages
-@retval DB_SUCCESS if the page was read and is not corrupted
-@retval DB_SUCCESS_LOCKED_REC if the page was not read
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id,
-                      buf_pool_t::hash_chain &chain, bool unzip= true)
+@return buffer-fixed block (*err may be set to DB_SUCCESS_LOCKED_REC)
+@retval nullptr if the page is not available (*err will be set) */
+buf_block_t *buf_read_page(const page_id_t page_id, dberr_t *err,
+                           buf_pool_t::hash_chain &chain, bool unzip= true)
   noexcept;
 
-/** High-level function which reads a page asynchronously from a file to the
-buffer buf_pool if it is not already there. Sets the io_fix flag and sets
-an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param[in,out]	space		tablespace
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
-void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size) noexcept
-  MY_ATTRIBUTE((nonnull));
+/** Read a page asynchronously into buf_pool if it is not already there.
+@param page_id page identifier
+@param space   tablespace
+@param stats   statistics */
+void buf_read_page_background(const page_id_t page_id, fil_space_t *space,
+                              ha_handler_stats *stats) noexcept
+  MY_ATTRIBUTE((nonnull(2)));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
 value of accessed pages from the random read-ahead area. Does not read any
