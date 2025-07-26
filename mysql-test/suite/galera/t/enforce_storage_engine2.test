@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_aria.inc
 
 --echo #
 --echo # MDEV-9312: storage engine not enforced during galera cluster
@@ -7,14 +8,21 @@
 --echo #
 --connection node_1
 CREATE TABLE t1(i INT) ENGINE=INNODB;
+#
+# This is not anymore supported because enforce_storage_engine
+# is local setting and final used storage engine
+# on other members of cluster depend on their configuration.
+# Currently, there is no way to query remote node
+# configuration.
+#
+--error ER_OPTION_PREVENTS_STATEMENT
 CREATE TABLE t2(i INT) ENGINE=MYISAM;
 
 --connection node_2
 SHOW TABLES;
 SHOW CREATE TABLE t1;
-SHOW CREATE TABLE t2;
 
 # Cleanup
-DROP TABLE t1, t2;
+DROP TABLE t1;
 
 --echo # End of tests

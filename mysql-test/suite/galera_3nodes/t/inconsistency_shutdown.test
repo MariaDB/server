@@ -33,6 +33,7 @@ SET wsrep_on=OFF;
 DELETE FROM t1 WHERE f1 = 2;
 DELETE FROM t1 WHERE f1 = 4;
 SET wsrep_on=ON;
+--source include/galera_wait_ready.inc
 
 # Build up slave queue:
 # - first 8 events will be picked by slave threads
@@ -51,11 +52,11 @@ UPDATE t1 SET f2 = 1 WHERE f1 = 7;
 UPDATE t1 SET f2 = 1 WHERE f1 = 8;
 
 --connection node_2
-# make sure all events landed to slave queue
-SET wsrep_on=OFF;
+--echo # make sure all events landed to slave queue
+set wsrep_sync_wait=0;
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue';
 --source include/wait_condition.inc
-SET wsrep_on=ON;
+
 UNLOCK TABLES;
 --source include/wsrep_wait_disconnect.inc
 # Wait for the node to shutdown replication
@@ -70,8 +71,8 @@ SHOW STATUS LIKE 'wsrep_cluster_size';
 SELECT * FROM t1;
 
 --connection node_2
-#Gracefully restart the node
-SET GLOBAL wsrep_on=OFF;
+--echo # Gracefully restart the node
+set wsrep_on=OFF;
 --source include/shutdown_mysqld.inc
 --source include/start_mysqld.inc
 --source include/galera_wait_ready.inc
@@ -98,20 +99,21 @@ COMMIT;
 CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 INT);
 
 --connection node_2
-# Allow 1K slave queue without flow control
+--echo # Allow 1K slave queue without flow control
 SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
-# Introduce inconsistency
-SET wsrep_on=OFF;
 --let $wait_condition = SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
 --source include/wait_condition.inc
+--echo # Introduce inconsistency
+SET wsrep_on=OFF;
 DROP TABLE t2;
 SET wsrep_on=ON;
+--source include/galera_wait_ready.inc
 
-# set up sync point to ensure DROP TABLE replication order below
+--echo # set up sync point to ensure DROP TABLE replication order below
 --let galera_sync_point = after_replicate_sync
 --source include/galera_set_sync_point.inc
 
-# Build up slave queue:
+--echo # Build up slave queue:
 # - first 8 events will be picked by slave threads
 # - one more event will be waiting in slave queue
 LOCK TABLES t1 READ;
@@ -123,20 +125,19 @@ UPDATE t1 SET f2 = 1 WHERE f1 = 3;
 UPDATE t1 SET f2 = 1 WHERE f1 = 4;
 UPDATE t1 SET f2 = 2 WHERE f1 = 4; /* dependent applier */;
 
-# interleave a failing statement
+--echo # interleave a failing statement
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
 --send DROP TABLE t2;
 
-# make sure DROP TABLE from above has replicated
+--echo # make sure DROP TABLE from above has replicated
 --connection node_2
-SET wsrep_on=OFF;
+set wsrep_sync_wait=0;
 --echo "Wait for DROP TABLE to replicate"
 --source include/galera_wait_sync_point.inc
 --source include/galera_signal_sync_point.inc
 --source include/galera_clear_sync_point.inc
 --echo "DROP TABLE replicated"
-SET wsrep_on=ON;
 
 --connection node_1
 UPDATE t1 SET f2 = 3 WHERE f1 = 4; /* dependent applier */
@@ -146,11 +147,10 @@ UPDATE t1 SET f2 = 1 WHERE f1 = 7;
 UPDATE t1 SET f2 = 1 WHERE f1 = 8;
 
 --connection node_2
-# make sure all events landed to slave queue
-SET wsrep_on=OFF;
+--echo # make sure all events landed to slave queue
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue';
 --source include/wait_condition.inc
-SET wsrep_on=ON;
+
 UNLOCK TABLES;
 
 --connection node_2a
@@ -165,12 +165,13 @@ SHOW STATUS LIKE 'wsrep_cluster_size';
 SELECT * FROM t1;
 
 --connection node_2
+set wsrep_on=OFF;
 --source include/wsrep_wait_disconnect.inc
-# Wait for the node to shutdown replication
+--echo # Wait for the node to shutdown replication
 --let $members=0
 --source include/wsrep_wait_membership.inc
-# Gracefully restart the node
-SET GLOBAL wsrep_on=OFF;
+--echo # Gracefully restart the node
+
 --source include/shutdown_mysqld.inc
 --source include/start_mysqld.inc
 --source include/galera_wait_ready.inc

@@ -166,7 +166,6 @@ SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 a	b
 1	NULL
 COMMIT;
-disconnect con_weird;
 connection consistent;
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 a	b
@@ -230,9 +229,67 @@ UPDATE t SET b=4 WHERE a=1;
 connection consistent;
 SELECT * FROM t WHERE a=1 FOR UPDATE;
 ERROR HY000: Record has changed since last read in table 't'
-disconnect consistent;
 disconnect disable_purging;
 connection default;
 SET DEBUG_SYNC="RESET";
 DROP TABLE t;
+CREATE TABLE t1(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+BEGIN;
+INSERT INTO t1 SET a=1;
+connection con_weird;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN;
+INSERT INTO t2 SET a=1;
+connection consistent;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN;
+INSERT INTO t2 SET a=2;
+connection default;
+COMMIT;
+connection con_weird;
+SELECT * FROM t1;
+a
+1
+COMMIT;
+connection consistent;
+SELECT * FROM t1;
+ERROR HY000: Record has changed since last read in table 't1'
+COMMIT;
+connection default;
+BEGIN;
+INSERT INTO t1 SET a=2;
+connection con_weird;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+INSERT INTO t2 SET a=3;
+connection consistent;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+INSERT INTO t2 SET a=2;
+connection default;
+COMMIT;
+connection con_weird;
+SELECT * FROM t1;
+a
+1
+2
+COMMIT;
+disconnect con_weird;
+connection consistent;
+SELECT * FROM t1;
+ERROR HY000: Record has changed since last read in table 't1'
+COMMIT;
+disconnect consistent;
+connection default;
+DROP TABLE t1,t2;
+#
+# MDEV-37215 SELECT...FOR UPDATE crash under SERIALIZABLE
+#
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+SELECT * FROM t1 FOR UPDATE;
+a
+DROP TABLE t1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 # End of 10.6 tests

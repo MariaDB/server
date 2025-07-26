@@ -7100,15 +7100,14 @@ longlong Item_func_cursor_rowcount::val_int()
 /*****************************************************************************
   SEQUENCE functions
 *****************************************************************************/
-bool Item_func_nextval::check_access_and_fix_fields(THD *thd, Item **ref,
-                                                    privilege_t want_access)
+bool Item_func_nextval::check_access(THD *thd, privilege_t want_access)
 {
   table_list->sequence= false;
   bool error= check_single_table_access(thd, want_access, table_list, false);
   table_list->sequence= true;
   if (error && table_list->belong_to_view)
     table_list->replace_view_error_with_generic(thd);
-  return error || Item_longlong_func::fix_fields(thd, ref);
+  return error;
 }
 
 longlong Item_func_nextval::val_int()
@@ -7123,7 +7122,8 @@ longlong Item_func_nextval::val_int()
   String key_buff(buff,sizeof(buff), &my_charset_bin);
   DBUG_ENTER("Item_func_nextval::val_int");
   update_table();
-  DBUG_ASSERT(table && table->s->sequence);
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->s->sequence);
   thd= table->in_use;
 
   if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)

@@ -5,7 +5,7 @@
  SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
  START TRANSACTION WITH CONSISTENT SNAPSHOT;
 +Warnings:
-+Warning	138	InnoDB: WITH CONSISTENT SNAPSHOT was ignored because this phrase can only be used with REPEATABLE READ isolation level.
++Warning	138	InnoDB: WITH CONSISTENT SNAPSHOT is ignored at READ UNCOMMITTED isolation level.
  connection con2;
  INSERT INTO t1 (a) VALUES (1);
  connection con1;

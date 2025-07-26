@@ -322,7 +322,6 @@ private:
     and if clustered pk, [0]= current index, [1]= pk, [2]= NULL
   */
   KEY *m_curr_key_info[3];              // Current index
-  uchar *m_rec0;                        // table->record[0]
   const uchar *m_err_rec;               // record which gave error
   QUEUE m_queue;                        // Prio queue used by sorted read
 
