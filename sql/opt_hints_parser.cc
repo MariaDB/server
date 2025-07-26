@@ -588,7 +588,13 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   const Lex_ident_sys key_conflict(
       STRING_WITH_LEN("another hint was already specified for this index"));
 
-  if (is_empty())  // Empty list of index names, i.e. it is a table level hint
+  /*
+    If no index names are given, this is a table level hint, for example:
+    GROUP_INDEX(t1), NO_MRR(t2).
+    Otherwise this is a group of index-level hints:
+    NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
+  */
+  if (is_empty())
   {
     uint warn_code= 0;
     if (is_compound_hint(hint_type) &&
