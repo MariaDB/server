@@ -85,7 +85,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
  && echo _WSREP_START_POSITION=$VAR > @mysqlunixdir@/wsrep-start-position || exit 1"
 
 # Needed to create system tables etc.
-# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
+# ExecStartPre=@scriptdir@/mariadb-install-db -u mysql
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf

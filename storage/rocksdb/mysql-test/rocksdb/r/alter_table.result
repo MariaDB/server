@@ -26,7 +26,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
@@ -37,7 +37,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b1` char(8) DEFAULT NULL,
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -46,7 +46,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
@@ -56,7 +56,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
@@ -66,7 +66,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`)
@@ -77,7 +77,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` char(8) DEFAULT NULL,
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -86,7 +86,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
@@ -96,7 +96,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -107,7 +107,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `pk` int(11) NOT NULL,
-  `a` int(11),
+  `a` int(11) DEFAULT NULL,
   `c` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci

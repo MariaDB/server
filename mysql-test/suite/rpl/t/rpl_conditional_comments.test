@@ -80,5 +80,17 @@ sync_slave_with_master;
 select * from t1;
 connection master;
 
+#
+# Bug#37117875 Binlog record error when delimiter is set to other symbols
+#
+delimiter //;
+--error ER_PARSE_ERROR
+insert t1 values /*! (100);insert t1 values */ (200) //
+delimiter ;//
+select * from t1;
+sync_slave_with_master;
+select * from t1;
+connection master;
+
 DROP TABLE t1;
 --source include/rpl_end.inc

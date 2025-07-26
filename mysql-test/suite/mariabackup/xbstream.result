@@ -1,8 +1,28 @@
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
-# xtrabackup backup to stream
+# xtrabackup full backup to stream
+INSERT INTO t VALUES(2), (3), (4);
+# xtrabackup incremental backup to stream
+# checking recording of history
+SELECT tool_name, name, partial, incremental, format, compressed
+FROM mysql.mariadb_backup_history
+ORDER BY innodb_from_lsn;
+tool_name	mariadb-backup
+name	fullback
+partial	Y
+incremental	N
+format	mbstream
+compressed	N
+tool_name	mariadb-backup
+name	incr_1
+partial	N
+incremental	Y
+format	mbstream
+compressed	N
 # xbstream extract
 # xtrabackup prepare
+# xbstream extract for incremental backup
+# xtrabackup incremental prepare
 # shutdown server
 # remove datadir
 # xtrabackup move back
@@ -10,4 +30,8 @@ INSERT INTO t VALUES(1);
 SELECT * FROM t;
 i
 1
+2
+3
+4
 DROP TABLE t;
+DROP TABLE mysql.mariadb_backup_history;

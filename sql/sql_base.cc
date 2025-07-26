@@ -4634,10 +4634,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
     if (!table->schema_table)
     {
       if (thd->transaction->xid_state.check_has_uncommitted_xa())
-      {
-	thd->transaction->xid_state.er_xaer_rmfail();
         DBUG_RETURN(true);
-      }
       else
         break;
     }
@@ -5205,7 +5202,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
   DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE ||
               thd->lex->default_used);
 
-  if (table_list->trg_event_map)
+  if (table_list->trg_event_map && table_list->lock_type >= TL_FIRST_WRITE)
   {
     if (table->triggers)
     {

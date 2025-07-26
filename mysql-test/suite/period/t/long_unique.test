@@ -1,3 +1,4 @@
+--source include/have_innodb.inc
 --source include/have_partition.inc
 
 --echo #
@@ -21,3 +22,23 @@ INSERT INTO t1 VALUES (1,'foo','2022-01-01', '2025-01-01');
 DELETE FROM t1 FOR PORTION OF app FROM '2023-01-01' TO '2024-01-01';
 DROP TABLE t1;
 
+--echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-37312 ASAN errors or assertion failure upon attempt to UPDATE FOR PORTION violating long unique under READ COMMITTED
+--echo #
+create table t1 (a int, f text unique, s datetime, e datetime, period for p(s,e)) engine=innodb;
+insert into t1 values (1,'foo','1900-01-01','2000-01-01'),(2,'bar','1900-01-01','2000-01-01');
+set transaction isolation level read committed;
+--error ER_DUP_ENTRY
+update t1 for portion of p from '1980-01-01' to '1980-01-02' set a = 1;
+drop table t1;
+
+create table t1 (a int, f text unique, s datetime, e datetime, period for p(s,e)) engine=innodb partition by hash (a);
+insert into t1 values (1,'foo','1900-01-01','2000-01-01'),(2,'bar','1900-01-01','2000-01-01');
+set transaction isolation level read committed;
+--error ER_DUP_ENTRY
+update t1 for portion of p from '1980-01-01' to '1980-01-02' set a = 1;
+drop table t1;
+
+--echo # End of 10.6 tests

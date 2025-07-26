@@ -723,13 +723,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     case 'g':
     {
       double d;
-#if __has_feature(memory_sanitizer)         /* QQ: MSAN has double trouble? */
-      __msan_check_mem_is_initialized(ap, sizeof(double));
-#endif
       d= va_arg(ap, double);
-#if __has_feature(memory_sanitizer)        /* QQ: MSAN has double trouble? */
-      __msan_unpoison(&d, sizeof(double));
-#endif
       to= process_dbl_arg(to, end, width, d, arg_type);
       continue;
     }

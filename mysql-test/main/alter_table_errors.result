@@ -1,3 +1,6 @@
+#
+# MDEV-16110 ALTER with ALGORITHM=INPLACE breaks temporary table with virtual columns
+#
 create table t (a int, v int as (a)) engine=innodb;
 alter table t change column a b tinyint, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
@@ -28,8 +31,13 @@ t2	CREATE TEMPORARY TABLE `t2` (
   `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop temporary table t1, t2;
+unlock tables;
+#
+# MDEV-18083 ASAN heap-use-after-free in Field::set_warning_truncated_wrong_value upon inserting into temporary table
+#
 create temporary table t1 (a int);
 alter table t1 add column f text;
 insert into t1 values ('x','foo');
 ERROR 22007: Incorrect integer value: 'x' for column `test`.`t1`.`a` at row 1
 drop temporary table t1;
+# End of 10.2 tests

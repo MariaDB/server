@@ -26,7 +26,7 @@ static bool check_overlaps(json_engine_t *, json_engine_t *, bool);
 static int json_find_overlap_with_object(json_engine_t *, json_engine_t *, bool);
 
 #ifndef DBUG_OFF
-static int dbug_json_check_min_stack_requirement()
+int dbug_json_check_min_stack_requirement()
 {
   my_error(ER_STACK_OVERRUN_NEED_MORE, MYF(ME_FATAL),
            my_thread_stack_size, my_thread_stack_size, STACK_MIN_SIZE);
@@ -103,20 +103,34 @@ append_simple(String *s, const uchar *a, size_t a_len)
   Appends JSON string to the String object taking charsets in
   consideration.
 */
-int st_append_json(String *s,
+bool st_append_json(String *s,
              CHARSET_INFO *json_cs, const uchar *js, uint js_len)
 {
   int str_len= js_len * s->charset()->mbmaxlen;
 
-  if (!s->reserve(str_len, 1024) &&
-      (str_len= json_unescape(json_cs, js, js + js_len,
+  if (s->reserve(str_len, 1024))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), str_len);
+    return false;
+  }
+
+  if ((str_len= json_unescape(json_cs, js, js + js_len,
          s->charset(), (uchar *) s->end(), (uchar *) s->end() + str_len)) > 0)
   {
     s->length(s->length() + str_len);
-    return 0;
+    return false;
+  }
+  if (current_thd)
+  {
+    if (str_len == JSON_ERROR_OUT_OF_SPACE)
+      my_error(ER_OUTOFMEMORY, MYF(0), str_len);
+    else if (str_len == JSON_ERROR_ILLEGAL_SYMBOL)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                          0, "st_append_json", 0);
   }
 
-  return str_len;
+  return true;
 }
 
 
@@ -796,7 +810,12 @@ bool Json_engine_scan::check_and_get_value_scalar(String *res, int *error)
     js_len= value_len;
   }
 
-  return st_append_json(res, json_cs, js, js_len);
+  if (st_append_json(res, json_cs, js, js_len))
+  {
+    *error= 1;
+    return true;
+  }
+  return false;
 }
 
 
@@ -901,7 +920,7 @@ error:
 String *Item_func_json_unquote::val_str(String *str)
 {
   json_engine_t je;
-  int c_len;
+  int c_len= JSON_ERROR_OUT_OF_SPACE;
   String *js;
 
   if (!(js= read_json(&je)))
@@ -910,21 +929,40 @@ String *Item_func_json_unquote::val_str(String *str)
   if (unlikely(je.s.error) || je.value_type != JSON_VALUE_STRING)
     return js;
 
+  int buf_len= je.value_len;
+  if (js->charset()->cset != my_charset_utf8mb4_bin.cset)
+  {
+    /*
+      json_unquote() will be transcoding between charsets. We don't know
+      how much buffer space we'll need. Assume that each byte in the source
+      will require mbmaxlen bytes in the output.
+    */
+    buf_len *= my_charset_utf8mb4_bin.mbmaxlen;
+  }
+
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->realloc_with_extra_if_needed(je.value_len) ||
+  if (str->realloc_with_extra_if_needed(buf_len) ||
       (c_len= json_unescape(js->charset(),
         je.value, je.value + je.value_len,
         &my_charset_utf8mb4_bin,
-        (uchar *) str->ptr(), (uchar *) (str->ptr() + je.value_len))) < 0)
+        (uchar *) str->ptr(), (uchar *) (str->ptr() + buf_len))) < 0)
     goto error;
 
   str->length(c_len);
   return str;
 
 error:
-  report_json_error(js, &je, 0);
+  if (current_thd)
+  {
+    if (c_len == JSON_ERROR_OUT_OF_SPACE)
+      my_error(ER_OUTOFMEMORY, MYF(0), buf_len);
+    else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                          0, "unquote", 0);
+  }
   return js;
 }
 
@@ -3923,7 +3961,21 @@ int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
                            (uchar *) (esc_value.ptr() + 
                                       esc_value.alloced_length()));
     if (esc_len <= 0)
+    {
+      if (current_thd)
+      {
+        if (esc_len == JSON_ERROR_OUT_OF_SPACE)
+          my_error(ER_OUTOFMEMORY, MYF(0), je->value_len);
+        else if (esc_len == JSON_ERROR_ILLEGAL_SYMBOL)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                              0, "comparison",
+                              (int)(je->s.c_str - je->value));
+        }
+      }
       return 0;
+    }
 
     return collation.collation->wildcmp(
         esc_value.ptr(), esc_value.ptr() + esc_len,
@@ -4189,9 +4241,16 @@ int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
                                (uchar *) (value2.ptr() + je.value_len))) < 0)
        {
          if (current_thd)
-           push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                               ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
-                               0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
+         {
+           if (c_len == JSON_ERROR_OUT_OF_SPACE)
+             my_error(ER_OUTOFMEMORY, MYF(0), je.value_len);
+           else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+           {
+             push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                                 0, "comparison", (int)((const char *) je.s.c_str - js->ptr()));
+           }
+         }
          goto error;
        }
 
@@ -4248,10 +4307,17 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
                               (uchar *) (value1.ptr() + value_len))) < 0)
     {
       if (current_thd)
-        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
-                            0, "equality comparison", 0);
-      return 1;
+      {
+        if (c_len == JSON_ERROR_OUT_OF_SPACE)
+          my_error(ER_OUTOFMEMORY, MYF(0), value_len);
+        else if (c_len == JSON_ERROR_ILLEGAL_SYMBOL)
+        {
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_JSON_BAD_CHR, ER_THD(current_thd, ER_JSON_BAD_CHR),
+                              0, "equality comparison", 0);
+        }
+       }
+       return 1;
     }
     value1.length(c_len);
     res1= &value1;

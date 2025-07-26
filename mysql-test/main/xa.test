@@ -1,7 +1,7 @@
 #
 # WL#1756
 #
--- source include/have_innodb.inc
+--source include/have_innodb.inc
 --source include/not_embedded.inc
 
 # Save the initial number of concurrent sessions
@@ -12,10 +12,6 @@ call mtr.add_suppression("Deadlock found when trying to get lock; try restarting
 call mtr.add_suppression("InnoDB: Transaction was aborted due to ");
 --enable_query_log
 
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 create table t1 (a int) engine=innodb;
 xa start 'test1';
 insert t1 values (10);
@@ -165,10 +161,12 @@ update t1 set c = 'bb' where a = 2;
 --sleep 1
 --error ER_LOCK_DEADLOCK
 update t1 set c = 'aa' where a = 1;
+--error ER_XAER_RMFAIL
 select count(*) from t1;
---error ER_XA_RBDEADLOCK
+--error ER_XAER_RMFAIL
 xa end 'a','c';
 xa rollback 'a','c';
+select count(*) from t1;
 --disconnect con2
 
 connect (con3,localhost,root,,);
@@ -274,7 +272,7 @@ WHERE ID=$conn_id AND STATE='Searching rows for update';
 
 --error ER_LOCK_DEADLOCK
 UPDATE t1 SET a=5 WHERE a=1;
---error ER_XA_RBDEADLOCK
+--error ER_XAER_RMFAIL
 XA END 'xid1';
 XA ROLLBACK 'xid1';
 
@@ -750,7 +748,21 @@ xa rollback '4';
 
 set @@global.read_only=@sav_read_only;
 
+--echo # End of 10.5 tests
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-24981 LOAD INDEX may cause rollback of prepared XA transaction
 --echo #
+create table t1 (f1 integer primary key) engine=innodb;
+show create table t1;
+xa start 'a';
+insert into t1 values (1);
+xa end 'a';
+xa prepare 'a';
+--error ER_XAER_RMFAIL
+load index into cache t1 key(primary);
+xa commit 'a';
+select count(*) from t1;
+drop table t1;
+
+--echo # End of 10.11 tests

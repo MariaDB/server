@@ -186,7 +186,6 @@ xb_fil_cur_open(
 	}
 #else
 	err = fstat(cursor->file.m_file, &cursor->statinfo);
-	MSAN_STAT_WORKAROUND(&cursor->statinfo);
 #endif
 	if (max_file_size < (ulonglong)cursor->statinfo.st_size) {
 		cursor->statinfo.st_size = (ulonglong)max_file_size;
