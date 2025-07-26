@@ -510,8 +510,6 @@ struct rpl_parallel {
   void stop_during_until();
   int wait_for_workers_idle(THD *thd);
   int do_event(rpl_group_info *serial_rgi, Log_event *ev, ulonglong event_size);
-
-  static bool workers_idle(Relay_log_info *rli);
 };
 
 

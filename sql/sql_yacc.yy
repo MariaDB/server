@@ -13438,6 +13438,7 @@ expr_or_ignore_or_default:
         | DEFAULT
           {
             $$= new (thd->mem_root) Item_default_specification(thd);
+            Lex->default_used= TRUE;
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -13529,6 +13530,7 @@ update_elem:
           {
             Item *def= new (thd->mem_root) Item_default_value(thd,
                                              Lex->current_context(), $1, 1);
+            Lex->default_used= TRUE;
             if (!def || add_item_to_list(thd, $1) || add_value_to_list(thd, def))
               MYSQL_YYABORT;
           }
@@ -15700,7 +15702,6 @@ user_maybe_role:
             if (unlikely(!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_user;
-            $$->auth= new (thd->mem_root) USER_AUTH();
           }
         ;
 

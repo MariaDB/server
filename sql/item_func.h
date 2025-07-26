@@ -35,8 +35,8 @@ extern "C"				/* Bug in BSDI include file */
 #include <cmath>
 
 
-extern int st_append_json(String *s,
-             CHARSET_INFO *json_cs, const uchar *js, uint js_len);
+extern bool st_append_json(String *s,
+              CHARSET_INFO *json_cs, const uchar *js, uint js_len);
 class Item_func :public Item_func_or_sum
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
@@ -84,6 +84,8 @@ protected:
   {
     return print_sql_mode_qualified_name(to, query_type, func_name_cstring());
   }
+
+  void update_nullability_post_fix_fields();
 
   bool aggregate_args2_for_comparison_with_conversion(THD *thd,
                                            Type_handler_hybrid_field_type *th);
@@ -4240,7 +4242,7 @@ protected:
   TABLE_LIST *table_list;
   TABLE *table;
   bool print_table_list_identifier(THD *thd, String *to) const;
-  bool check_access_and_fix_fields(THD *, Item **ref, privilege_t);
+  bool check_access(THD *, privilege_t);
 public:
   Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
   Item_longlong_func(thd), table_list(table_list_arg) {}
@@ -4251,7 +4253,13 @@ public:
     return name;
   }
   bool fix_fields(THD *thd, Item **ref) override
-  { return check_access_and_fix_fields(thd, ref, INSERT_ACL | SELECT_ACL); }
+  {
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    return (table_list->table && check_sequence_privileges(thd)) ||
+           Item_longlong_func::fix_fields(thd, ref);
+  }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL | SELECT_ACL); }
   bool fix_length_and_dec(THD *thd) override
   {
     unsigned_flag= 0;
@@ -4293,8 +4301,8 @@ class Item_func_lastval :public Item_func_nextval
 public:
   Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
   Item_func_nextval(thd, table_list_arg) {}
-  bool fix_fields(THD *thd, Item **ref) override
-  { return check_access_and_fix_fields(thd, ref, SELECT_ACL); }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, SELECT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -4319,8 +4327,8 @@ public:
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
-  bool fix_fields(THD *thd, Item **ref) override
-  { return check_access_and_fix_fields(thd, ref, INSERT_ACL); }
+  bool check_sequence_privileges(void *thd) override
+  { return check_access((THD*)thd, INSERT_ACL); }
   longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {

@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+set session sql_mode='';
+SET @@enforce_storage_engine=INNODB;
+CREATE TABLE t1 (c INT ) ENGINE=ARIA;
+ERROR HY000: The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
+SHOW WARNINGS;
+Level	Code	Message
+Error	1290	The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
+Note	1290	Do not use ENGINE=x when @@enforce_storage_engine is set
+Error	1290	The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
+Note	1290	Do not use ENGINE=x when @@enforce_storage_engine is set
+CREATE TABLE t1 (c INT );
+DROP TABLE t1;
+CREATE TABLE t1 (c INT ) ENGINE=INNODB;
+DROP TABLE t1;
+SET @@enforce_storage_engine=ARIA;
+CREATE TABLE t1 (c INT ) ENGINE=INNODB;
+ERROR HY000: The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
+SHOW WARNINGS;
+Level	Code	Message
+Error	1290	The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
+Note	1290	Do not use ENGINE=x when @@enforce_storage_engine is set
+Error	1290	The MariaDB server is running with the ENFORCE_STORAGE_ENGINE option so it cannot execute this statement
+Note	1290	Do not use ENGINE=x when @@enforce_storage_engine is set

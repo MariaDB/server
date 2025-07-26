@@ -7799,3 +7799,954 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-36765 JSON Histogram cannot handle >1 byte characters
+#
+CREATE TABLE t1 (f varchar(50)) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO t1 VALUES (UNHEX('E983A8E996800AE983A8E99680'));
+SET STATEMENT histogram_type=JSON_HB FOR ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT min_value, max_value, hist_type
+FROM mysql.column_stats WHERE db_name = 'test' AND table_name = 't1';
+min_value	max_value	hist_type
+部門
+部門	部門
+部門	JSON_HB
+DROP TABLE t1;
+create table t1 (
+col1 varchar(10) charset utf8
+);
+set names utf8;
+select hex('б'), collation('б');
+hex('б')	collation('б')
+D0B1	utf8mb3_general_ci
+insert into t1 values 
+('а'),('б'),('в'),('г'),('д'),('е'),('ж'),('з'),('и'),('й');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select hex(col1) from t1;
+hex(col1)
+D0B0
+D0B1
+D0B2
+D0B3
+D0B4
+D0B5
+D0B6
+D0B7
+D0B8
+D0B9
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "а",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "в",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "г",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "д",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "е",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ж",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "з",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "и",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "й",
+            "end": "й",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+explain extended select * from t1 where col1 < 'а';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'а'
+explain extended select * from t1 where col1 < 'в';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	20.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'в'
+explain extended select * from t1 where col1 < 'д';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	40.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'д'
+explain extended select * from t1 where col1 < 'ж';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'ж'
+explain extended select * from t1 where col1 < 'й';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	90.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < 'й'
+delete from t1;
+insert into t1 values 
+('"а'),('"б'),('"в'),('"г'),('"д'),('"е'),('"ж'),('"з'),('"и'),('"й');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"а",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"в",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"г",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"д",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"е",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ж",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"з",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"и",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"й",
+            "end": "\"й",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select hex(col1) from t1;
+hex(col1)
+22D0B9
+22D0B8
+22D0B7
+22D0B6
+22D0B5
+22D0B4
+22D0B3
+22D0B2
+22D0B1
+22D0B0
+explain extended select * from t1 where col1 < '"а';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"а'
+explain extended select * from t1 where col1 < '"в';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	20.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"в'
+explain extended select * from t1 where col1 < '"д';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	40.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"д'
+explain extended select * from t1 where col1 < '"ж';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"ж'
+explain extended select * from t1 where col1 < '"й';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	90.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` < '"й'
+drop table t1;
+select JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251));
+JSON_UNQUOTE(CONVERT('"ФФ"' using cp1251))
+ФФ
+#
+# MDEV-36977 Histogram code lacks coverage for non-latin characters
+#
+create table t1 (
+col1 varchar(10) charset utf8 collate utf8mb3_general_ci
+);
+set names utf8;
+select hex('Ꙃ'), collation('Ꙃ');
+hex('Ꙃ')	collation('Ꙃ')
+EA9982	utf8mb3_general_ci
+insert into t1 values
+('Ꙩ'),('Ꙛ'),('ꙮ'),('Ꙃ'),('Ꚛ'),('ꘐ'),('ꘜ'),('ꕫ'),('ꖿ'), ('ꙛ');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+ꕫ	EA95AB
+ꖿ	EA96BF
+ꘐ	EA9890
+ꘜ	EA989C
+Ꙃ	EA9982
+Ꙛ	EA999A
+ꙛ	EA999B
+Ꙩ	EA99A8
+ꙮ	EA99AE
+Ꚛ	EA9A9A
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꖿ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꘐ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꘜ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙩ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꙮ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꚛ",
+            "end": "Ꚛ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < 'ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < 'ꖿ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < 'Ꙃ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < 'ꙛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < 'Ꚛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+delete from t1;
+insert into t1 values
+('"Ꙩ'),('"Ꙛ'),('"ꙮ'),('"Ꙃ'),('"Ꚛ'),('"ꘐ'),('"ꘜ'),('"ꕫ'),('"ꖿ'), ('"ꙛ');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꖿ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꘐ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꘜ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꙛ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙩ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꙮ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꚛ",
+            "end": "\"Ꚛ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"ꕫ	22EA95AB
+"ꖿ	22EA96BF
+"ꘐ	22EA9890
+"ꘜ	22EA989C
+"Ꙃ	22EA9982
+"Ꙛ	22EA999A
+"ꙛ	22EA999B
+"Ꙩ	22EA99A8
+"ꙮ	22EA99AE
+"Ꚛ	22EA9A9A
+analyze select * from t1 where col1 < '"ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"ꖿ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '"Ꙃ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '"ꙛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < '"Ꚛ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+drop table t1;
+create table t1 (
+col1 varchar(10) charset utf32 collate utf32_uca1400_ai_ci
+);
+show variables like "histogram_size";
+Variable_name	Value
+histogram_size	254
+SET NAMES utf8mb4;
+select hex('🌀'), collation('🌀');
+hex('?')	collation('?')
+F09F8C80	utf8mb4_general_ci
+insert into t1 values
+('𝄞'),('🌀'),('😎'),('😀'),('🂡'),('🌚'), ('🀄'),('𝄢'), ('😺'), ('🧸');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+𝄞	0001D11E
+𝄢	0001D122
+🀄	0001F004
+🂡	0001F0A1
+🌀	0001F300
+🌚	0001F31A
+🧸	0001F9F8
+😀	0001F600
+😎	0001F60E
+😺	0001F63A
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "𝄢",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🀄",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🌚",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🧸",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😎",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😺",
+            "end": "😺",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < '𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '𝄢';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	30.00	30.00	Using where
+analyze select * from t1 where col1 < '🌚';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+analyze select * from t1 where col1 < '😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"😎'),('"😀'),('"🂡'),('"🌚'), ('"🀄'),('"𝄢'), ('"😺'), ('"🧸');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"𝄢",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🀄",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌚",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🧸",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😎",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😺",
+            "end": "\"😺",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"𝄞	000000220001D11E
+"𝄢	000000220001D122
+"🀄	000000220001F004
+"🂡	000000220001F0A1
+"🌀	000000220001F300
+"🌚	000000220001F31A
+"🧸	000000220001F9F8
+"😀	000000220001F600
+"😎	000000220001F60E
+"😺	000000220001F63A
+analyze select * from t1 where col1 < '"𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"𝄢';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '"🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	30.00	30.00	Using where
+analyze select * from t1 where col1 < '"🌚';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+analyze select * from t1 where col1 < '"😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+drop table t1;
+create table t1 (
+col1 varchar(10) charset utf32 collate utf32_general_ci
+);
+show variables like "histogram_size";
+Variable_name	Value
+histogram_size	254
+SET NAMES utf8mb4;
+insert into t1 values
+('𝄞'),('🌀'),('б'),('😀'),('🂡'),('🀄'), ('ꕫ'),('Ꙃ'), ('😺'), ('d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+d	00000064
+б	00000431
+ꕫ	0000A56B
+Ꙃ	0000A642
+😺	0001F63A
+🀄	0001F004
+🂡	0001F0A1
+😀	0001F600
+🌀	0001F300
+𝄞	0001D11E
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "𝄞",
+            "end": "𝄞",
+            "size": 0.6,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < 'ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	20.00	20.00	Using where
+analyze select * from t1 where col1 < '𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"б'),('"😀'),('"🂡'),('"🌚'), ('"ꕫ'),('"Ꙃ'), ('"😺'), ('"d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😺",
+            "end": "\"😺",
+            "size": 0.6,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"d	0000002200000064
+"б	0000002200000431
+"ꕫ	000000220000A56B
+"Ꙃ	000000220000A642
+"🌀	000000220001F300
+"😀	000000220001F600
+"🂡	000000220001F0A1
+"🌚	000000220001F31A
+"😺	000000220001F63A
+"𝄞	000000220001D11E
+analyze select * from t1 where col1 < '"d';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	20.00	20.00	Using where
+analyze select * from t1 where col1 < '"𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '"🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+analyze select * from t1 where col1 < '"😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	40.00	40.00	Using where
+drop table t1;
+create table t1 (
+col1 varchar(10) charset utf32  COLLATE utf32_uca1400_ai_ci
+);
+show variables like "histogram_size";
+Variable_name	Value
+histogram_size	254
+SET NAMES utf8mb4;
+insert into t1 values
+('𝄞'),('🌀'),('б'),('😀'),('🂡'),('🀄'), ('ꕫ'),('Ꙃ'), ('😺'), ('d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+𝄞	0001D11E
+🀄	0001F004
+🂡	0001F0A1
+🌀	0001F300
+😀	0001F600
+😺	0001F63A
+d	00000064
+б	00000431
+Ꙃ	0000A642
+ꕫ	0000A56B
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🀄",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "😺",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "ꕫ",
+            "end": "ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+analyze select * from t1 where col1 < 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < 'ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+analyze select * from t1 where col1 < '𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	20.00	20.00	Using where
+analyze select * from t1 where col1 < '😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+delete from t1;
+insert into t1 values
+('"𝄞'),('"🌀'),('"б'),('"😀'),('"🂡'),('"🌚'), ('"ꕫ'),('"Ꙃ'), ('"😺'), ('"d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select json_detailed(json_extract(histogram, '$**.histogram_hb'))
+from mysql.column_stats where db_name=database() and table_name='t1';
+json_detailed(json_extract(histogram, '$**.histogram_hb'))
+[
+    [
+        {
+            "start": "\"𝄞",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🂡",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"🌚",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😀",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"😺",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"d",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"б",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"Ꙃ",
+            "size": 0.1,
+            "ndv": 1
+        },
+        {
+            "start": "\"ꕫ",
+            "end": "\"ꕫ",
+            "size": 0.1,
+            "ndv": 1
+        }
+    ]
+]
+select  col1, hex(col1) from t1 order by col1;
+col1	hex(col1)
+"𝄞	000000220001D11E
+"🂡	000000220001F0A1
+"🌀	000000220001F300
+"🌚	000000220001F31A
+"😀	000000220001F600
+"😺	000000220001F63A
+"d	0000002200000064
+"б	0000002200000431
+"Ꙃ	000000220000A642
+"ꕫ	000000220000A56B
+analyze select * from t1 where col1 < '"d';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+analyze select * from t1 where col1 < '"ꕫ';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	90.00	90.00	Using where
+analyze select * from t1 where col1 < '"𝄞';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+analyze select * from t1 where col1 < '"🂡';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	10.00	Using where
+analyze select * from t1 where col1 < '"😺';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
+drop table t1;
+# End of 10.11 tests

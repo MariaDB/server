@@ -995,12 +995,19 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/** Shutdown background threads, except the page cleaner. */
-static void srv_shutdown_threads()
+/** Shutdown background threads, except the page cleaner.
+@param init_abort set to true when InnoDB startup aborted */
+static void srv_shutdown_threads(bool init_abort= false)
 {
 	ut_ad(!srv_undo_sources);
 	srv_master_timer.reset();
-	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	/* In case of InnoDB start up aborted, Don't change
+	the srv_shutdown_state. Because innodb_shutdown()
+	does call innodb_preshutdown() which changes the
+	srv_shutdown_state back to SRV_SHUTDOWN_INITIATED */
+	if (!init_abort) {
+		srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	}
 
 	if (purge_sys.enabled()) {
 		srv_purge_shutdown();
@@ -1070,7 +1077,7 @@ srv_init_abort_low(
 	}
 
 	srv_shutdown_bg_undo_sources();
-	srv_shutdown_threads();
+	srv_shutdown_threads(true);
 	return(err);
 }
 
@@ -1372,21 +1379,8 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	if (os_aio_init()) {
-		ib::error() << "Cannot initialize AIO sub-system";
-
 		return(srv_init_abort(DB_ERROR));
 	}
-
-#ifdef LINUX_NATIVE_AIO
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#endif
-#ifdef HAVE_URING
-	if (srv_use_native_aio) {
-		ib::info() << "Using liburing";
-	}
-#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 

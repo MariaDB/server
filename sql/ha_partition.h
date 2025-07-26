@@ -322,7 +322,6 @@ private:
     and if clustered pk, [0]= current index, [1]= pk, [2]= NULL
   */
   KEY *m_curr_key_info[3];              // Current index
-  uchar *m_rec0;                        // table->record[0]
   const uchar *m_err_rec;               // record which gave error
   QUEUE m_queue;                        // Prio queue used by sorted read
 
@@ -576,6 +575,17 @@ public:
   {
     m_file[part_id]->update_create_info(create_info);
   }
+
+  void column_bitmaps_signal() override
+  {
+    for (uint i= bitmap_get_first_set(&m_opened_partitions);
+        i < m_tot_parts;
+        i= bitmap_get_next_set(&m_opened_partitions, i))
+    {
+      m_file[i]->column_bitmaps_signal();
+    }
+  }
+
 private:
   int copy_partitions(ulonglong * const copied, ulonglong * const deleted);
   void cleanup_new_partition(uint part_count);

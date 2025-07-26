@@ -1596,6 +1596,13 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
     if (field->can_optimize_outer_join_table_elimination(cond, right) !=
         Data_type_compatibility::OK)
       return;
+    /*
+      UNIQUE indexes over nullable columns may have duplicate NULL values.
+      This means, a condition like "field IS NULL" or "field <=> right_expr"
+      may match multiple rows. Dis-qualify such conditions.
+    */
+    if (field->real_maybe_null() && right->maybe_null())
+      return;
     Dep_value_field *field_val;
     if ((field_val= ctx->get_field_value(field)))
       add_module_expr(ctx, eq_mod, and_level, field_val, right, NULL);

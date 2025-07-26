@@ -19,9 +19,7 @@ SET default_storage_engine= InnoDB;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 COMMIT;
---disable_ps2_protocol
 SELECT * INTO OUTFILE 'load.data' FROM t1;
---enable_ps2_protocol
 
 LOAD DATA INFILE 'load.data' INTO TABLE t1;
 SELECT * FROM t1;

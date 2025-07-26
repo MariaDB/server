@@ -376,6 +376,10 @@ static my_bool opt_check_privileges;
 extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
 extern TYPELIB innodb_flush_method_typelib;
+#ifdef __linux__
+extern const char *innodb_linux_aio_names[];
+extern TYPELIB innodb_linux_aio_typelib;
+#endif
 extern TYPELIB innodb_doublewrite_typelib;
 /** Ignored option */
 static ulong innodb_flush_method;
@@ -1148,29 +1152,63 @@ static void backup_file_op(uint32_t space_id, int type,
 	}
 }
 
-static bool check_if_fts_table(const char *file_name) {
-	const char *table_name_start = strrchr(file_name, '/');
+/** Check whether the spacename belongs to internal FTS table
+@param space_name  space name to be checked
+@return true if it is fts table or false otherwise */
+static bool check_if_fts_table(const char *space_name) {
+	/* There are two types of FTS internal table
+	1) FTS common tables (FTS_<space_id>_<fts_common_tables>
+	2) FTS INDEX auxiliary table (FTS_<space_id>_<index_id>_<aux_table> */
+	const char *table_name_start = strrchr(space_name, '/');
 	if (table_name_start)
 		++table_name_start;
 	else
-		table_name_start = file_name;
-
-	if (!starts_with(table_name_start,"FTS_"))
-		return false;
+		table_name_start = space_name;
 
 	const char *table_name_end = strrchr(table_name_start, '.');
 	if (!table_name_end)
-		table_name_end = table_name_start + strlen(table_name_start);
-	ptrdiff_t table_name_len = table_name_end - table_name_end;
+		table_name_end =
+			table_name_start + strlen(table_name_start) - 1;
+	if (!starts_with(table_name_start,"FTS_"))
+		return false;
 
-	for (const char **suffix = fts_common_tables; *suffix; ++suffix)
-		if (!strncmp(table_name_start, *suffix, table_name_len))
+	/* Skip FTS_ */
+	const char *table_name_suffix = strchr(table_name_start, '_');
+	if (!table_name_suffix ||
+	    table_name_suffix == table_name_end) {
+		return false;
+	}
+	table_name_suffix++;
+
+	/* Skip <table_id>_ */
+	table_name_suffix = strchr(table_name_suffix, '_');
+	if (!table_name_suffix ||
+	    table_name_end == table_name_suffix) {
+		return false;
+	}
+	table_name_suffix++;
+
+        ptrdiff_t table_name_len = table_name_end - table_name_suffix;
+
+	/* Compare only common tables */
+	for (const char **suffix = fts_common_tables; *suffix; ++suffix) {
+		if (!strncmp(table_name_suffix, *suffix, table_name_len))
 			return true;
+	}
+
+	/* Skip index_id on fts table name */
+	table_name_suffix = strchr(table_name_suffix, '_');
+	if (!table_name_suffix ||
+	    table_name_suffix == table_name_end) {
+		return false;
+	}
+	table_name_suffix++;
+
+        table_name_len = table_name_end - table_name_suffix;
 	for (size_t i = 0; fts_index_selector[i].suffix; ++i)
-		if (!strncmp(table_name_start, fts_index_selector[i].suffix,
-			table_name_len))
+		if (!strncmp(table_name_suffix, fts_index_selector[i].suffix,
+                             table_name_len))
 			return true;
-
 	return false;
 }
 
@@ -1195,7 +1233,20 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 		msg("DDL tracking : create %" PRIu32 " \"%.*s\"",
 			space_id, int(len), name);
 		fail = !check_if_skip_table(spacename.c_str());
-                error= "create";
+		if (!opt_no_lock && fail &&
+		    check_if_fts_table(spacename.c_str())) {
+			/* Ignore the FTS internal table because InnoDB does
+			create intermediate table and their associative FTS
+			internal table when table is being rebuilt during
+			prepare phase. Also, backup_set_alter_copy_lock()
+			downgrades the MDL_BACKUP_DDL before prepare phase
+			of alter. This leads to the FTS internal table being
+			created in the late phase of backup.
+			mariabackup --prepare should be able to handle
+			this case. */
+			fail = false;
+		}
+	        error= "create";
 		break;
 	case FILE_MODIFY:
 		break;
@@ -1336,6 +1387,9 @@ enum options_xtrabackup
   OPT_INNODB_READ_IO_THREADS,
   OPT_INNODB_WRITE_IO_THREADS,
   OPT_INNODB_USE_NATIVE_AIO,
+#ifdef __linux__
+  OPT_INNODB_LINUX_AIO,
+#endif
   OPT_INNODB_PAGE_SIZE,
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
@@ -1948,6 +2002,14 @@ struct my_option xb_server_options[] =
    (G_PTR*) &srv_use_native_aio,
    (G_PTR*) &srv_use_native_aio, 0, GET_BOOL, NO_ARG,
    TRUE, 0, 0, 0, 0, 0},
+#ifdef __linux__
+  {"innodb_linux_aio", OPT_INNODB_LINUX_AIO,
+   "Which linux AIO implementation to use, auto (io_uring, failing to aio) or explicit",
+   (G_PTR*) &srv_linux_aio_method,
+   (G_PTR*) &srv_linux_aio_method,
+   &innodb_linux_aio_typelib, GET_ENUM, REQUIRED_ARG,
+   SRV_LINUX_AIO_AUTO, 0, 0, 0, 0, 0},
+#endif
   {"innodb_page_size", OPT_INNODB_PAGE_SIZE,
    "The universal page size of the database.",
    (G_PTR*) &innobase_page_size, (G_PTR*) &innobase_page_size, 0,
@@ -2517,26 +2579,7 @@ static bool innodb_init_param()
 
 	ut_ad(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
 
-#ifdef _WIN32
-	srv_use_native_aio = TRUE;
-
-#elif defined(LINUX_NATIVE_AIO)
-
-	if (srv_use_native_aio) {
-		msg("InnoDB: Using Linux native AIO");
-	}
-#elif defined(HAVE_URING)
-
-	if (srv_use_native_aio) {
-		msg("InnoDB: Using liburing");
-	}
-#else
-	/* Currently native AIO is supported only on windows and linux
-	and that also when the support is compiled in. In all other
-	cases, we ignore the setting of innodb_use_native_aio. */
-	srv_use_native_aio = FALSE;
-
-#endif
+	srv_use_native_aio= tpool::supports_native_aio();
 
 	/* Assign the default value to srv_undo_dir if it's not specified, as
 	my_getopt does not support default values for string options. We also
@@ -2571,9 +2614,6 @@ static bool innodb_init_param()
 		}
 	}
 
-#ifdef _WIN32
-	srv_use_native_aio = TRUE;
-#endif
 	return false;
 
 error:
@@ -2581,6 +2621,7 @@ error:
 	return true;
 }
 
+alignas(8)
 static byte log_hdr_buf[log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT];
 
 /** Initialize an InnoDB log file header in log_hdr_buf[] */
@@ -4182,7 +4223,6 @@ next_file:
 		return(-1);
 	}
 
-	MSAN_STAT_WORKAROUND(&statinfo);
 	info->size = statinfo.st_size;
 
 	if (S_ISDIR(statinfo.st_mode)) {
@@ -4544,7 +4584,7 @@ xb_register_filter_entry(
 			databases_hash->cell_get(my_crc32c(0, name, p - name))
 			->search(&xb_filter_entry_t::name_hash,
 				 [dbname](xb_filter_entry_t* f)
-				 { return f && !strcmp(f->name, dbname); });
+				 { return !f || !strcmp(f->name, dbname); });
 		if (!*prev) {
 			(*prev = xb_new_filter_entry(dbname))
 				->has_tables = TRUE;
@@ -4678,7 +4718,7 @@ xb_load_list_file(
 	FILE*	fp;
 
 	/* read and store the filenames */
-	fp = fopen(filename, "r");
+	fp = fopen(filename, "rt");
 	if (!fp) {
 		die("Can't open %s",
 		    filename);
@@ -5090,7 +5130,7 @@ class BackupStages {
 
 		bool stage_start(Backup_datasinks &backup_datasinks,
 		                 CorruptedPages &corrupted_pages) {
-			msg("BACKUP STAGE START");
+			msg("Starting BACKUP STAGE START");
 			if (!opt_no_lock) {
 				if (opt_safe_slave_backup) {
 					if (!wait_for_safe_slave(mysql_connection)) {
@@ -5104,6 +5144,7 @@ class BackupStages {
 					msg("Error on BACKUP STAGE START query execution");
 					return(false);
 				}
+				msg("Acquired locks for BACKUP STAGE START");
 			}
 
                         InnodbDataCopier innodb_data_copier(backup_datasinks,
@@ -5134,14 +5175,18 @@ class BackupStages {
 
 			DBUG_MARIABACKUP_EVENT_LOCK("after_aria_background", {});
 
+			msg("Finished BACKUP STAGE START");
 			return true;
 		}
 
 		bool stage_flush() {
-			msg("BACKUP STAGE FLUSH");
-			if (!opt_no_lock && !lock_for_backup_stage_flush(m_bs_con)) {
-				msg("Error on BACKUP STAGE FLUSH query execution");
-				return false;
+			msg("Starting BACKUP STAGE FLUSH");
+			if (!opt_no_lock) {
+				if (!lock_for_backup_stage_flush(m_bs_con)) {
+					msg("Error on BACKUP STAGE FLUSH query execution");
+					return false;
+				}
+				msg("Acquired locks for BACKUP STAGE FLUSH");
 			}
 			auto tables_in_use = get_tables_in_use(mysql_connection);
 			// Copy non-stats-log non-in-use tables of non-InnoDB-Aria-RocksDB engines
@@ -5189,17 +5234,20 @@ class BackupStages {
 					xb_mysql_query(mysql_connection,
 						"SET debug_sync='now WAIT_FOR copy_started'", false, true);
 				);
-
+			msg("Finished BACKUP STAGE FLUSH");
 			return true;
 		}
 
 		bool stage_block_ddl(Backup_datasinks &backup_datasinks,
                                      CorruptedPages &corrupted_pages) {
+			msg("Started BACKUP STAGE BLOCK_DDL");
 			if (!opt_no_lock) {
 				if (!lock_for_backup_stage_block_ddl(m_bs_con)) {
-					msg("BACKUP STAGE BLOCK_DDL");
+					msg("Error on BACKUP STAGE BLOCK_DDL "
+					    "query execution");
 					return false;
 				}
+				msg("Acquired locks for BACKUP STAGE BLOCK_DDL");
 				if (have_galera_enabled)
 				{
 					xb_mysql_query(mysql_connection, "SET SESSION wsrep_sync_wait=0", false);
@@ -5261,14 +5309,18 @@ class BackupStages {
 
 			DBUG_MARIABACKUP_EVENT_LOCK("after_stage_block_ddl", {});
 
+			msg("Finished BACKUP STAGE BLOCK_DDL");
 			return true;
 		}
 
 		bool stage_block_commit(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE BLOCK_COMMIT");
-			if (!opt_no_lock && !lock_for_backup_stage_commit(m_bs_con)) {
-				msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
-				return false;
+			msg("Starting BACKUP STAGE BLOCK_COMMIT");
+			if (!opt_no_lock) {
+				if (!lock_for_backup_stage_commit(m_bs_con)) {
+					msg("Error on BACKUP STAGE BLOCK_COMMIT query execution");
+					return false;
+				}
+				msg("Acquired locks for BACKUP STAGE BLOCK_COMMIT");
 			}
 
 			// Copy log tables tail
@@ -5368,11 +5420,13 @@ class BackupStages {
 						"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
 			}
 
-			return backup_datasinks.backup_low();
+			bool res= backup_datasinks.backup_low();
+			msg("Finishing BACKUP STAGE BLOCK_COMMIT");
+			return res;
 		}
 
 		bool stage_end(Backup_datasinks &backup_datasinks) {
-			msg("BACKUP STAGE END");
+			msg("Starting BACKUP STAGE END");
 			/* release all locks */
 			if (!opt_no_lock) {
 				unlock_all(m_bs_con);
@@ -5495,7 +5549,6 @@ fail:
 	xb_fil_io_init();
 
 	if (os_aio_init()) {
-		msg("Error: cannot initialize AIO subsystem");
 		goto fail;
 	}
 
@@ -5543,10 +5596,6 @@ fail:
 
 	backup_datasinks.init();
 
-	if (!select_history()) {
-		goto fail;
-	}
-
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
 	dst_log_file = ds_open(backup_datasinks.m_redo, LOG_FILE_NAME, &stat_info);
@@ -5561,6 +5610,11 @@ fail:
 	if (innodb_log_checkpoint_now != false) {
 		mysql_read_query_result(mysql_connection);
 	}
+
+	if (!select_history()) {
+		goto fail;
+	}
+
 	/* label it */
 	recv_sys.file_checkpoint = log_sys.next_checkpoint_lsn;
 	log_hdr_init();
