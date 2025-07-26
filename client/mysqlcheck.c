@@ -984,7 +984,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_ASSERT(strlen(op)+strlen(tables)+strlen(options)+8+1 <= query_size);
 
     /* No backticks here as we added them before */
-    query_length= sprintf(query, "%s%s%s %s", op,
+    query_length= snprintf(query, query_size, "%s%s%s %s", op,
                           tab_view, tables, options);
     table_name= tables;
   }
@@ -1013,7 +1013,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   print_result();
   if (opt_flush_tables)
   {
-    query_length= sprintf(query, "FLUSH TABLES %s", table_name);
+    query_length= snprintf(query, query_size, "FLUSH TABLES %s", table_name);
     if (mysql_real_query(sock, query, (ulong)query_length))
     {
       DBerror(sock, query);
