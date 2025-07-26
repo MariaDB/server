@@ -1,5 +1,9 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
+# These because false positive leak on SSL_COMP_get_compression_methods
+--source include/not_asan.inc
+--source include/not_ubsan.inc
+--source include/not_valgrind.inc
 --source ../encryption/include/have_file_key_management_plugin.inc
 
 # Save original auto_increment_offset values.
