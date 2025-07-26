@@ -255,6 +255,9 @@ FOREACH(se aria partition perfschema sql_sequence wsrep)
   ENDIF()
 ENDFOREACH()
 
+# JIT compiler
+TARGET_LINK_LIBRARIES(sql mir)
+
 IF(VISIBILITY_HIDDEN_FLAG AND TARGET partition AND WITH_UBSAN)
   # the spider plugin needs some partition symbols from inside mysqld
   # when built with ubsan, in which case we need to remove

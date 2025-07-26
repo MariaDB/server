@@ -1,0 +1,13 @@
+# Extern call test
+m:		module
+exit_p:		proto  i64:v
+printf_p:	proto  p:fmt, ...
+		import printf, exit
+main:		func
+		local i64:i, d:r
+		mov i, 42
+		dmov r, 4.2
+		call printf_p, printf, "Hello %ld != %ld, %g != %g\n", i, 24, r, 2.4
+		call exit_p, exit, 0
+		endfunc
+		endmodule

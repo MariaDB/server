@@ -24,6 +24,50 @@ class Item;
 struct TABLE_LIST;
 class THD;
 
+struct Ctx_update {
+  TABLE *table;
+  THD *thd;
+  List<Item> *fields;
+  List<Item> *values;
+
+  ha_rows *limit;
+  ha_rows *updated;
+  ha_rows *dup_key_found;
+  ha_rows *rows_inserted;
+  ha_rows *found;
+  ha_rows *updated_or_same;
+
+  bool *ignore;
+  
+  int can_compare_record;
+  int will_batch;
+  bool has_period;
+  bool has_vers_fields;
+  bool is_triggers_after;
+  bool is_triggers_before;
+  bool is_versioned;
+  bool is_vers_insert_history;
+  bool is_check_view_conds;
+  bool using_limit;
+};
+
+using update_row_jit_func_t = int (*)(
+    TABLE *table,
+    THD *thd,
+    List<Item> *fields,
+    List<Item> *values,
+    ha_rows *limit,
+    ha_rows *updated,
+    ha_rows *dup_key_found,
+    ha_rows *rows_inserted,
+    ha_rows *found,
+    ha_rows *updated_or_same,
+    bool *ignore,
+    int can_compare_record,
+    int code_err_record_is_same,
+    int will_batch
+);
+
 typedef class st_select_lex SELECT_LEX;
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
 

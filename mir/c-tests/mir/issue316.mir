@@ -1,0 +1,30 @@
+m: module
+callee_proto:	proto	p
+callee2:	func	p
+	local	i64:exception, i64:si0, i64:ti0
+        alloca si0, 100
+	mov	ti0, 42
+	bt	L32164, ti0
+ 	mov	ti0, 24
+L32164:
+	ret	ti0
+	endfunc
+callee:	func	p
+	local	i64:ti0
+# 0 args, 4 locals
+	mov	ti0, 42
+	bt	L32167, ti0
+ 	mov	ti0, 24
+L32167:
+	ret	ti0
+	endfunc
+f1:	func	i32
+	local	i64:si0
+	call	callee_proto, callee, si0
+	call	callee_proto, callee2, si0
+	ret	si0
+	endfunc
+main: func i32
+      ret 0
+      endfunc
+endmodule
