@@ -272,3 +272,96 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	delete /*+ NO_INDEX(`t1`@`select#1` `i_ab`) */  from `test`.`t1` using dual where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 2 and `test`.`t1`.`c` = 3
 DROP TABLE t1;
+#
+# Hint NO_INDEX() disables all indexes if none of given index names is not resolved
+#
+CREATE TABLE t1 (
+a INT,
+b INT,
+PRIMARY KEY(a),
+KEY ab(a, b)
+);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3),(4,4);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# By default, the index `ab` is used for grouping
+EXPLAIN EXTENDED SELECT a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+# Invalid index names are ignored, index `ab` is still used
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_GROUP_INDEX hint
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb, abcd)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_GROUP_INDEX hint
+Warning	4222	Unresolved index name `t1`@`select#1` `abcd` for NO_GROUP_INDEX hint
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb, abcd, PRIMARY)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_GROUP_INDEX hint
+Warning	4222	Unresolved index name `t1`@`select#1` `abcd` for NO_GROUP_INDEX hint
+Note	1003	select /*+ NO_GROUP_INDEX(`t1`@`select#1` `bbb`,`abcd`,`PRIMARY`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+# This hint disables all indexes for grouping, so effectively it is the same
+# as table-level hint NO_GROUP_INDEX(t1)
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1 bbb, dcba, PRIMARY, ab)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	100.00	Using index; Using filesort
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_GROUP_INDEX hint
+Warning	4222	Unresolved index name `t1`@`select#1` `dcba` for NO_GROUP_INDEX hint
+Note	1003	select /*+ NO_GROUP_INDEX(`t1`@`select#1` `bbb`,`dcba`,`PRIMARY`,`ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+# Compare the previous case with the table-level hint, results are the same:
+EXPLAIN EXTENDED SELECT /*+ NO_GROUP_INDEX(t1)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	100.00	Using index; Using filesort
+Warnings:
+Note	1003	select /*+ NO_GROUP_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+# Same set of tests as above but for the global `NO_INDEX()` hint
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_INDEX hint
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb, abcd)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_INDEX hint
+Warning	4222	Unresolved index name `t1`@`select#1` `abcd` for NO_INDEX hint
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb, abcd, PRIMARY)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	NULL	ab	4	NULL	4	100.00	Using index for group-by
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_INDEX hint
+Warning	4222	Unresolved index name `t1`@`select#1` `abcd` for NO_INDEX hint
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `bbb`,`abcd`,`PRIMARY`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1 bbb, abcd, PRIMARY, ab)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+Warnings:
+Warning	4222	Unresolved index name `t1`@`select#1` `bbb` for NO_INDEX hint
+Warning	4222	Unresolved index name `t1`@`select#1` `abcd` for NO_INDEX hint
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1` `bbb`,`abcd`,`PRIMARY`,`ab`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+EXPLAIN EXTENDED SELECT/*+ NO_INDEX(t1)*/ a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+Warnings:
+Note	1003	select /*+ NO_INDEX(`t1`@`select#1`) */ `test`.`t1`.`a` AS `a` from `test`.`t1` group by `test`.`t1`.`a`
+DROP TABLE t1;
+#
+# End of 12.1 tests
+#
