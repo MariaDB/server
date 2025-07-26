@@ -2532,6 +2532,11 @@ class Item_func_in :public Item_func_opt_neg,
   {
     return check_argument_types_like_args0();
   }
+  /*
+    TRUE <=> the results of the conversion of arguments from the IN list
+    to integers are not allocated on the statement arena
+  */
+  bool no_permanent_conv_of_args;
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
@@ -2558,6 +2563,7 @@ public:
   Item_func_in(THD *thd, List<Item> &list):
     Item_func_opt_neg(thd, list),
     Predicant_to_list_comparator(thd, arg_count - 1),
+    no_permanent_conv_of_args(false),
     transform_into_subq(false),
     transform_into_subq_checked(false),
     array(0), have_null(0),
