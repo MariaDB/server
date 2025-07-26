@@ -36,8 +36,12 @@ bool Wsrep_allowlist_service::allowlist_cb (
   const wsrep::const_buffer& value)
   WSREP_NOEXCEPT
 {
-  std::string string_value(value.data());
-  bool res= wsrep_schema->allowlist_check(key, string_value);
+  bool res=true; // allow all connections
+  if (wsrep_schema)
+  {
+    std::string string_value(value.data());
+    res= wsrep_schema->allowlist_check(key, string_value);
+  }
   return res;
 }
 
