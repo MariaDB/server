@@ -2551,6 +2551,64 @@ buf_block_t *buf_pool_t::unzip(buf_page_t *b, buf_pool_t::hash_chain &chain)
   return block;
 }
 
+/** Apply a random read-ahead if it is enabled or there are at least a
+threshold value of accessed pages from the random read-ahead area.
+@param page_id   a page which the current thread wants to access
+@param ibuf      whether we are inside ibuf routine */
+TRANSACTIONAL_TARGET
+static void buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept
+{
+  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
+    /* Disable the read-ahead for temporary tablespace */
+    return;
+
+  if (srv_startup_is_before_trx_rollback_phase)
+    /* No read-ahead to avoid thread deadlocks */
+    return;
+
+  if (trx_sys_hdr_page(page_id))
+    return;
+
+  if (os_aio_pending_reads_approx() > buf_pool.curr_size / 2)
+    return;
+
+  fil_space_t* space= fil_space_t::get(page_id.space());
+  if (!space)
+    return;
+
+  if (!ibuf_bitmap_page(page_id, space->zip_size()))
+  {
+    const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
+    ulint count= 5 + buf_read_ahead_area / 8;
+    const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
+    page_id_t high= low + buf_read_ahead_area;
+    high.set_page_no(std::min(high.page_no(), space->last_page_number()));
+
+    /* Count how many blocks in the area have been recently accessed,
+    that is, reside near the start of the LRU list. */
+
+    for (page_id_t i= low; i < high; ++i)
+    {
+      bool ok= false;
+      {
+        buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
+        transactional_shared_lock_guard<page_hash_latch> g
+          {buf_pool.page_hash.lock_get(chain)};
+        if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
+          if (bpage->is_accessed() && buf_page_peek_if_young(bpage))
+            ok= true;
+      }
+      if (ok && !--count)
+      {
+        buf_read_ahead_random(space, ibuf, low, high);
+        break;
+      }
+    }
+  }
+
+  space->release();
+}
+
 buf_block_t *buf_pool_t::page_fix(const page_id_t id,
                                   dberr_t *err,
                                   buf_pool_t::page_fix_conflicts c) noexcept

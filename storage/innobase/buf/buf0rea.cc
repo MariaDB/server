@@ -44,11 +44,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "log.h"
 #include "mariadb_stats.h"
 
-/** If there are buf_pool.curr_size per the number below pending reads, then
-read-ahead is not done: this is to prevent flooding the buffer pool with
-i/o-fixed buffer blocks */
-#define BUF_READ_AHEAD_PEND_LIMIT	2
-
 /** Remove the sentinel block for the watch before replacing it with a
 real block. watch_unset() or watch_occurred() will notice
 that the block has been replaced with the real block.
@@ -93,7 +88,7 @@ and the lock released later.
 @param[in]	unzip			whether the uncompressed page is
 					requested (for ROW_FORMAT=COMPRESSED)
 @return pointer to the block
-@retval	NULL	in case of an error */
+@retval	NULL	in case of an error, or if page_id is in buf_pool.page_hash */
 TRANSACTIONAL_TARGET
 static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
                                           ulint zip_size, bool unzip) noexcept
@@ -290,10 +285,6 @@ buf_read_page_low(
 		sync = true;
 	}
 
-	/* The following call will also check if the tablespace does not exist
-	or is being dropped; if we succeed in initing the page in the buffer
-	pool for read, then DISCARD cannot proceed until the read has
-	completed */
 	bpage = buf_page_init_for_read(mode, page_id, zip_size, unzip);
 
 	if (!bpage) {
@@ -342,81 +333,38 @@ buf_read_page_low(
 	return fio.err;
 }
 
-/** Applies a random read-ahead in buf_pool if there are at least a threshold
-value of accessed pages from the random read-ahead area. Does not read any
-page, not even the one at the position (space, offset), if the read-ahead
-mechanism is not activated. NOTE 1: the calling thread may own latches on
-pages: to avoid deadlocks this function must be written such that it cannot
-end up waiting for these latches! NOTE 2: the calling thread must want
-access to the page given: this rule is set to prevent unintended read-aheads
-performed by ibuf routines, a situation which could result in a deadlock if
-the OS does not support asynchronous i/o.
-@param[in]	page_id		page id of a page which the current thread
-wants to access
-@param[in]	ibuf		whether we are inside ibuf routine
-@return number of page read requests issued; NOTE that if we read ibuf
-pages, it may happen that the page at the given page number does not
-get read even if we return a positive value! */
-TRANSACTIONAL_TARGET
-ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf) noexcept
+/** Update the read-ahead statistics.
+@param count  number of pages that were read ahead */
+static void buf_read_ahead_update(size_t count) noexcept
 {
-  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
-    /* Disable the read-ahead for temporary tablespace */
-    return 0;
+  mysql_mutex_lock(&buf_pool.mutex);
+  /* Read ahead is considered one I/O operation for the purpose of
+  LRU policy decision. */
+  buf_LRU_stat_inc_io();
+  buf_pool.stat.n_ra_pages_read+= count;
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
 
-  if (srv_startup_is_before_trx_rollback_phase)
-    /* No read-ahead to avoid thread deadlocks */
-    return 0;
+/** Update the statistics for a read-ahead that is triggered from SQL.
+@param count  number of pages that were read ahead */
+static void buf_read_ahead_update_sql(size_t count) noexcept
+{
+  mariadb_increment_pages_prefetched(count);
+  buf_read_ahead_update(count);
+}
 
-  if (trx_sys_hdr_page(page_id))
-    return 0;
-
-  if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
-    return 0;
-
-  fil_space_t* space= fil_space_t::get(page_id.space());
-  if (!space)
-    return 0;
-
-  const unsigned zip_size{space->zip_size()};
-
-  if (ibuf_bitmap_page(page_id, zip_size))
-  {
-    /* If it is a change buffer bitmap page, we do no
-    read-ahead, as that could break the ibuf page access order */
-  no_read_ahead:
-    space->release();
-    return 0;
-  }
-
-  const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
-  ulint count= 5 + buf_read_ahead_area / 8;
-  const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
-  page_id_t high= low + buf_read_ahead_area;
-  high.set_page_no(std::min(high.page_no(), space->last_page_number()));
-
-  /* Count how many blocks in the area have been recently accessed,
-  that is, reside near the start of the LRU list. */
-
-  for (page_id_t i= low; i < high; ++i)
-  {
-    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    transactional_shared_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
-    if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
-      if (bpage->is_accessed() && buf_page_peek_if_young(bpage) && !--count)
-        goto read_ahead;
-  }
-
-  goto no_read_ahead;
-
-read_ahead:
-  if (space->is_stopping())
-    goto no_read_ahead;
-
+/** Apply a random read-ahead of pages.
+@param space     tablespace
+@param ibuf      whether we are inside ibuf routine
+@param low       first page to attempt to read
+@param high      last page to attempt to read */
+void buf_read_ahead_random(fil_space_t *space, bool ibuf,
+                           page_id_t low, page_id_t high) noexcept
+{
   /* Read all the suitable blocks within the area */
   const ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
+  const unsigned zip_size{space->zip_size()};
+  size_t count{0};
 
   for (page_id_t i= low; i < high; ++i)
   {
@@ -432,20 +380,11 @@ read_ahead:
 
   if (count)
   {
-    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
-    mysql_mutex_lock(&buf_pool.mutex);
-    /* Read ahead is considered one I/O operation for the purpose of
-    LRU policy decision. */
-    buf_LRU_stat_inc_io();
-    buf_pool.stat.n_ra_pages_read_rnd+= count;
-    mysql_mutex_unlock(&buf_pool.mutex);
+    buf_read_ahead_update_sql(count);
   }
-
-  space->release();
-  return count;
 }
 
 dberr_t buf_read_page(const page_id_t page_id, bool unzip) noexcept
@@ -487,45 +426,22 @@ void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
 	ignore these in our heuristics. */
 }
 
-/** Applies linear read-ahead if in the buf_pool the page is a border page of
+/** Apply linear read-ahead if an undo log page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
-Does not read any page if the read-ahead mechanism is not activated. Note
-that the algorithm looks at the 'natural' adjacent successor and
-predecessor of the page, which on the leaf level of a B-tree are the next
-and previous page in the chain of leaves. To know these, the page specified
-in (space, offset) must already be present in the buf_pool. Thus, the
-natural way to use this function is to call it when a page in the buf_pool
-is accessed the first time, calling this function just after it has been
-bufferfixed.
-NOTE 1: as this function looks at the natural predecessor and successor
-fields on the page, what happens, if these are not initialized to any
-sensible value? No problem, before applying read-ahead we check that the
-area to read is within the span of the space, if not, read-ahead is not
-applied. An uninitialized value may result in a useless read operation, but
-only very improbably.
-NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
-function must be written such that it cannot end up waiting for these
-latches!
-NOTE 3: the calling thread must want access to the page given: this rule is
-set to prevent unintended read-aheads performed by ibuf routines, a situation
-which could result in a deadlock if the OS does not support asynchronous io.
-@param[in]	page_id		page id; see NOTE 3 above
-@param[in]	ibuf		whether if we are inside ibuf routine
+Does not read any page if the read-ahead mechanism is not activated.
+@param space     undo tablespace or fil_system.space, or nullptr
+@param page      undo page number
 @return number of page read requests issued */
-TRANSACTIONAL_TARGET
-ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept
+ulint buf_read_ahead_undo(fil_space_t *space, const page_id_t page_id) noexcept
 {
-  /* check if readahead is disabled.
-  Disable the read ahead logic for temporary tablespace */
-  if (!srv_read_ahead_threshold || page_id.space() >= SRV_TMP_SPACE_ID)
+  if (!srv_read_ahead_threshold)
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
     /* No read-ahead to avoid thread deadlocks */
     return 0;
 
-  if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
+  if (os_aio_pending_reads_approx() > buf_pool.curr_size / 2)
     return 0;
 
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
@@ -540,18 +456,26 @@ ulint buf_read_ahead_linear(const page_id_t page_id, bool ibuf) noexcept
     /* This is not a border page of the area */
     return 0;
 
-  fil_space_t *space= fil_space_t::get(page_id.space());
+  fil_space_t *my_space= nullptr;
   if (!space)
-    return 0;
+  {
+    space= my_space= fil_space_t::get(page_id.space());
+    if (!space)
+      return 0;
+  }
 
   const unsigned zip_size= space->zip_size();
+  ulint count;
 
   if (high_1.page_no() > space->last_page_number())
   {
     /* The area is not whole. */
-fail:
-    space->release();
-    return 0;
+  fail:
+    count= 0;
+  func_exit:
+    if (my_space)
+      my_space->release();
+    return count;
   }
 
   if (ibuf_bitmap_page(page_id, zip_size) || trx_sys_hdr_page(page_id))
@@ -561,9 +485,9 @@ fail:
 
   /* How many out of order accessed pages can we ignore
   when working out the access pattern for linear readahead */
-  ulint count= std::min<ulint>(buf_pool_t::READ_AHEAD_PAGES -
-                               srv_read_ahead_threshold,
-                               uint32_t{buf_pool.read_ahead_area});
+  count= std::min<ulint>(buf_pool_t::READ_AHEAD_PAGES -
+                         srv_read_ahead_threshold,
+                         uint32_t{buf_pool.read_ahead_area});
   page_id_t new_low= low, new_high_1= high_1;
   unsigned prev_accessed= 0;
   for (page_id_t i= low; i <= high_1; ++i)
@@ -653,35 +577,119 @@ failed:
 
   /* If we got this far, read-ahead can be sensible: do it */
   count= 0;
-  for (ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
-       new_low <= new_high_1; ++new_low)
+  for (; new_low <= new_high_1; ++new_low)
   {
     if (ibuf_bitmap_page(new_low, zip_size))
       continue;
     if (space->is_stopping())
       break;
     space->reacquire();
-    if (buf_read_page_low(space, false, ibuf_mode, new_low, zip_size, false) ==
-        DB_SUCCESS)
+    if (buf_read_page_low(space, false, BUF_READ_ANY_PAGE, new_low,
+                          zip_size, false) == DB_SUCCESS)
       count++;
   }
 
   if (count)
   {
-    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));
-    mysql_mutex_lock(&buf_pool.mutex);
-    /* Read ahead is considered one I/O operation for the purpose of
-    LRU policy decision. */
-    buf_LRU_stat_inc_io();
-    buf_pool.stat.n_ra_pages_read+= count;
-    mysql_mutex_unlock(&buf_pool.mutex);
+    buf_read_ahead_update_sql(count);
+  }
+
+  goto func_exit;
+}
+
+/** Read ahead a number of pages.
+@param space    tablespace
+@param pages    page numbers to read ahead
+@param ibuf     whether we are inside the ibuf routine */
+void buf_read_ahead_pages(fil_space_t *space,
+                          st_::span<const uint32_t> pages, bool ibuf) noexcept
+{
+#if MYSQL_VERSION_ID < 110000
+  if (recv_recovery_is_on())
+    return; /* Before MDEV-32042, dict_boot() may end up here. */
+#endif
+  ut_ad(!recv_recovery_is_on());
+  if (os_aio_pending_reads_approx() > buf_pool.curr_size / 2)
+    return;
+  const ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
+  page_id_t id{space->id, 0};
+  const unsigned zip_size{space->zip_size()};
+  const ulint len{zip_size ? zip_size : srv_page_size};
+  ulint count= 0;
+  for (const uint32_t page : pages)
+  {
+    if (space->last_page_number() < page || !space->acquire())
+      return;
+    id.set_page_no(page);
+    if (buf_page_t *bpage=
+        buf_page_init_for_read(ibuf_mode, id, zip_size, false))
+    {
+      if (UNIV_LIKELY(space->io(IORequest(IORequest::READ_ASYNC),
+                                os_offset_t{id.page_no()} * len, len,
+                                zip_size ? bpage->zip.data : bpage->frame,
+                                bpage).err == DB_SUCCESS))
+      {
+        count++;
+        continue;
+      }
+      buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
+    }
+
+    /* We stop on the first error, or the first page that already
+    resides in the buffer pool. */
+    space->release();
+    break;
+  }
+
+  if (count)
+    buf_read_ahead_update_sql(count);
+}
+
+/** Read ahead a page if it is not yet in the buffer pool.
+@param space    tablespace
+@param page     page to read ahead
+@param ibuf     whether we are inside the ibuf routine */
+void buf_read_ahead_one(fil_space_t *space, uint32_t page, bool ibuf) noexcept
+{
+#if MYSQL_VERSION_ID < 110000
+  if (recv_recovery_is_on())
+    return; /* Before MDEV-32042, dict_boot() may end up here. */
+#endif
+  ut_ad(!recv_recovery_is_on());
+  page_id_t id{space->id, page};
+  {
+    auto &page_hash= buf_pool.page_hash;
+    auto& chain= page_hash.cell_get(id.fold());
+    page_hash_latch &hash_lock= page_hash.lock_get(chain);
+    hash_lock.lock_shared();
+    buf_page_t *b= page_hash.get(id, chain);
+    hash_lock.unlock_shared();
+    if (b)
+      return;
+  }
+  if (space->last_page_number() < page || !space->acquire())
+    return;
+  const unsigned zip_size{space->zip_size()};
+  if (buf_page_t *bpage=
+      buf_page_init_for_read(ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE,
+                             id, zip_size, false))
+  {
+    const ulint len{zip_size ? zip_size : srv_page_size};
+    if (UNIV_LIKELY(space->io(IORequest(IORequest::READ_ASYNC),
+                              os_offset_t{page} * len, len,
+                              zip_size ? bpage->zip.data : bpage->frame,
+                              bpage).err == DB_SUCCESS))
+    {
+      buf_read_ahead_update_sql(1);
+      return;
+    }
+    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
   }
 
   space->release();
-  return count;
 }
 
 /** Schedule a page for recovery.
