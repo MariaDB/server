@@ -191,12 +191,12 @@ SHOW PROCEDURE STATUS;
 
 ALTER TABLE mysql.proc MODIFY comment CHAR (32);
 
---error ER_CANNOT_LOAD_FROM_TABLE_V2
+--error ER_SP_STORE_FAILED
 CREATE PROCEDURE p2()
   SET @foo = 10;
 --echo # Procedure loaded from the cache
 CALL p1();
---error ER_CANNOT_LOAD_FROM_TABLE_V2
+--error ER_SP_PROC_TABLE_CORRUPT
 SHOW PROCEDURE STATUS;
 
 DROP TABLE mysql.proc;
@@ -297,7 +297,7 @@ drop database mysqltest1;
 #
 create procedure p1() set @foo = 10;
 alter table mysql.proc drop primary key;
---error ER_CANNOT_LOAD_FROM_TABLE_V2
+--error ER_SP_DROP_FAILED
 drop procedure p1;
 alter table mysql.proc add primary key (db,name,type);
 drop procedure p1;
