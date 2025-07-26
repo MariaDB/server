@@ -1,7 +1,6 @@
 include/master-slave.inc
 [connection master]
 connection slave;
-include/stop_slave.inc
 CHANGE MASTER TO 
 MASTER_CONNECT_RETRY = 1;
 include/start_slave.inc

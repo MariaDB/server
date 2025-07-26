@@ -1,15 +1,16 @@
 #
 # MDEV-36002: --master-retry-count=0 can still stop
-# This test verifies that the slave in a disconnected state will try to reconnect 
-# to the master continuously when master-retry-count is set to 0
+#
+# master_retry_count is set as 0 and master_connect_retry as 1 second. The master will be 
+# shutdown for 5 seconds, during this time the replica should attempt to reconnect to the 
+# master continuously. After 5 seconds, the master will be restarted, and the reconnection 
+# from the replica should success, which means it's Slave_IO_Running status should be Yes.
 #
 
---source include/have_innodb.inc
---source include/have_log_bin.inc
+--let $rpl_skip_start_slave= 1
 --source include/master-slave.inc
 
 --connection slave 
---source include/stop_slave.inc
 CHANGE MASTER TO 
    MASTER_CONNECT_RETRY = 1;
 --source include/start_slave.inc
@@ -19,7 +20,7 @@ CHANGE MASTER TO
 --let $rpl_server_number = 1
 --source include/rpl_stop_server.inc
 
-# during sleep, the slave should try to reconnect to the master
+# during sleep, the slave should try to reconnect to the master continuously
 --sleep 5
 
 --let $rpl_server_number= 1
