@@ -625,7 +625,7 @@ bool trans_xa_commit(THD *thd)
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
-    if (thd->in_multi_stmt_transaction_mode())
+    if (thd->in_multi_stmt_transaction_mode() || xid_state.xid_cache_element)
     {
       /*
         Not allow to commit from inside an not-"native" to xid
@@ -799,7 +799,7 @@ bool trans_xa_rollback(THD *thd)
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {
-    if (thd->in_multi_stmt_transaction_mode())
+    if (thd->in_multi_stmt_transaction_mode() || xid_state.xid_cache_element)
     {
       my_error(ER_XAER_OUTSIDE, MYF(0));
       DBUG_RETURN(TRUE);
