@@ -1571,9 +1571,11 @@ dict_stats_analyze_index_level(
 				level ? 0 : index->n_core_fields,
 				n_uniq, &heap);
 
-			cmp_rec_rec(prev_rec, rec,
-				    prev_rec_offsets, rec_offsets, index,
-				    false, &matched_fields);
+			cmp_rec_rec(prev_rec, rec, prev_rec_offsets,
+				    rec_offsets, index,
+				    (srv_innodb_stats_method
+				       > SRV_STATS_NULLS_EQUAL),
+				    &matched_fields);
 
 			for (i = matched_fields; i < n_uniq; i++) {
 
@@ -1812,7 +1814,9 @@ dict_stats_scan_page(
 		/* check whether rec != next_rec when looking at
 		the first n_prefix fields */
 		cmp_rec_rec(rec, next_rec, offsets_rec, offsets_next_rec,
-			    index, false, &matched_fields);
+			    index, (srv_innodb_stats_method
+				      > SRV_STATS_NULLS_EQUAL),
+			    &matched_fields);
 
 		if (matched_fields < n_prefix) {
 			/* rec != next_rec, => rec is non-boring */
