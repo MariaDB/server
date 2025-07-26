@@ -32,6 +32,14 @@ typedef struct st_known_date_time_format KNOWN_DATE_TIME_FORMAT;
 #define WEEK_YEAR            2
 #define WEEK_FIRST_WEEKDAY   4
 
+class TemporalAsciiBuffer : public LEX_CSTRING {
+  char cnv[32];
+
+public:
+  TemporalAsciiBuffer(const char *str, size_t length, CHARSET_INFO *cs);
+
+};
+
 ulong convert_period_to_month(ulong period);
 ulong convert_month_to_period(ulong month);
 void set_current_date(THD *thd, MYSQL_TIME *to);

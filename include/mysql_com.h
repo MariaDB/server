@@ -501,6 +501,7 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
                         MYSQL_TYPE_TIMESTAMP2,
                         MYSQL_TYPE_DATETIME2,
                         MYSQL_TYPE_TIME2,
+                        MYSQL_TYPE_INTERVAL,
                         /* Compressed types are only used internally for RBR. */
                         MYSQL_TYPE_BLOB_COMPRESSED= 140,
                         MYSQL_TYPE_VARCHAR_COMPRESSED= 141,
