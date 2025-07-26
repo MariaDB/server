@@ -1,0 +1,255 @@
+#
+# MDEV-37199 UNIQUE KEY USING HASH accepting duplicate records
+#
+## INSERT
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+# Keep a Read View open to prevent purge
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+# Create delete marked secondary index Record ('a', 10)
+insert t1 values(10, 'a');
+delete from t1;
+# Insert secondary index key ('a', 15) in the GAP between ('a', 10) and Supremum
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+insert t1 values(15, 'a');
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+# Insert secondary index key ('a', 5) in the GAP between Infimum and ('a', 10)
+set transaction isolation level read committed;
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 23000: Duplicate entry 'a' for key 'col2'
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+5	a
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## INSERT, row-level locking proof
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+# Keep a Read View open to prevent purge
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+# Create delete marked secondary index Record ('a', 10)
+insert t1 values(10, 'a');
+delete from t1;
+# Insert secondary index key ('a', 15) in the GAP between ('a', 10) and Supremum
+set transaction isolation level read committed;
+set debug_sync="ha_write_row_end SIGNAL checked_duplicate WAIT_FOR do_insert";
+insert t1 values(15, 'a');
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+# Insert secondary index key ('a', 5) in the GAP between Infimum and ('a', 10)
+set session innodb_lock_wait_timeout= 1;
+set transaction isolation level read committed;
+insert t1 values(5, 'a');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+15	a
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update t1 set col2='a' where col1=5;
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 23000: Duplicate entry 'a' for key 'col2'
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+5	b
+15	a
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## INSERT IGNORE
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+insert t1 values(10, 'a');
+delete from t1;
+set transaction isolation level read committed;
+set debug_sync="innodb_row_ins_step_enter SIGNAL checked_duplicate WAIT_FOR do_insert";
+insert ignore t1 values(15, 'a'), (16, 'b');
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+insert t1 values(5, 'a');
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+Warnings:
+Warning	1062	Duplicate entry 'a' for key 'col2'
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+5	a
+16	b
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE IGNORE
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+insert into t1 values( 9, 'd');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update ignore t1 set col2=chr(92+col1) where col1<=9;
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint USING HASH is not currently supported
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+5	b
+9	d
+15	a
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE modifying PK
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update t1 set col2='a', col1=4 where col1=5;
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 23000: Duplicate entry 'a' for key 'col2'
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+5	b
+15	a
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+## UPDATE IGNORE modifying PK
+create table t1 (
+col1 int primary key,
+col2 varchar(3000),
+unique (col2) using hash) engine=innodb;
+start transaction;
+select * from t1;
+col1	col2
+connect con1,localhost,root;
+insert into t1 values(10, 'a');
+delete from t1;
+insert into t1 values( 5, 'b');
+insert into t1 values(15, 'c');
+insert into t1 values( 9, 'd');
+set transaction isolation level read committed;
+set debug_sync="innodb_row_update_for_mysql_begin SIGNAL checked_duplicate WAIT_FOR do_insert";
+update ignore t1 set col2=chr(92+col1), col1=col1-1 where col1<=9;
+connect con2,localhost,root;
+set debug_sync="now WAIT_FOR checked_duplicate";
+set transaction isolation level read committed;
+update t1 set col2='a' where col1=15;
+set debug_sync="now SIGNAL do_insert";
+connection con1;
+ERROR 42000: UPDATE IGNORE in READ COMMITTED isolation mode of a table with a UNIQUE constraint USING HASH is not currently supported
+connection default;
+select * from t1;
+col1	col2
+commit;
+select * from t1;
+col1	col2
+5	b
+9	d
+15	a
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+drop table t1;
+# End of 10.6 tests

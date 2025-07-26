@@ -4562,7 +4562,7 @@ xb_register_filter_entry(
 			databases_hash->cell_get(my_crc32c(0, name, p - name))
 			->search(&xb_filter_entry_t::name_hash,
 				 [dbname](xb_filter_entry_t* f)
-				 { return f && !strcmp(f->name, dbname); });
+				 { return !f || !strcmp(f->name, dbname); });
 		if (!*prev) {
 			(*prev = xb_new_filter_entry(dbname))
 				->has_tables = TRUE;
@@ -4696,7 +4696,7 @@ xb_load_list_file(
 	FILE*	fp;
 
 	/* read and store the filenames */
-	fp = fopen(filename, "r");
+	fp = fopen(filename, "rt");
 	if (!fp) {
 		die("Can't open %s",
 		    filename);
