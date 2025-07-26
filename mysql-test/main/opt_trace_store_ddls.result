@@ -1,0 +1,516 @@
+set optimizer_record_context=ON;
+#
+show variables like 'optimizer_record_context';
+Variable_name	Value
+optimizer_record_context	ON
+#
+set optimizer_record_context=OFF;
+#
+show variables like 'optimizer_record_context';
+Variable_name	Value
+optimizer_record_context	OFF
+#
+create database db1;
+use db1;
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+#
+create table t2 (a int);
+insert into t2 values (1),(2);
+#
+create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+#
+# disable both optimizer_trace and optimizer_record_context
+# there should be no trace
+#
+set optimizer_trace=0;
+set optimizer_record_context=OFF;
+#
+select * from t1 where t1.a = 3;
+a	b
+#
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+#
+# disable optimizer_trace, but enable optimizer_record_context
+# there should be no trace here as well
+#
+set optimizer_record_context=ON;
+#
+select * from t1 where t1.a = 3;
+a	b
+#
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+#
+# enable optimizer_trace, but disable optimizer_record_context
+# trace result should be empty
+#
+set optimizer_trace=1;
+set optimizer_record_context=OFF;
+#
+select * from t1 where t1.a = 3;
+a	b
+#
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+#
+# enable both optimizer_trace and optimizer_record_context
+# trace result should have 1 ddl statement for table t1
+#
+set optimizer_trace=1;
+set optimizer_record_context=ON;
+#
+select * from t1 where t1.a = 3;
+a	b
+#
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db1
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# enable both optimizer_trace and optimizer_record_context
+# test for view
+# trace result should have 3 ddl statements
+#
+set optimizer_record_context=ON;
+select * from view1 where view1.a = 3;
+a	b	c
+#
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`)
+#
+# enable both optimizer_trace and optimizer_record_context
+# test for temp table
+# trace result should have 1 ddl statement for table t1
+#
+create temporary table temp1(col1 int);
+insert into temp1 select * from t2;
+#
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TEMPORARY TABLE `temp1` (
+  `col1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# there should be no duplicate ddls
+# there should be only 1 ddl for table t2
+#
+select * from t2 union select * from t2 union select * from t2;
+a
+1
+2
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# there should be no duplicate ddls
+# there should be only 3 ddls for tables t1, t2, and view1
+#
+select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
+a	b	c
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW db1.view1 AS (select `db1`.`t1`.`a` AS `a`,`db1`.`t1`.`b` AS `b`,`db1`.`t2`.`a` AS `c` from (`db1`.`t1` join `db1`.`t2`) where `db1`.`t1`.`a` = `db1`.`t2`.`a`)
+#
+# test for insert
+# there should be no trace for insert with values
+#
+insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+#
+# test for delete
+# trace result should have 1 ddl statement for table t1
+#
+delete from t1 where t1.a=3;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# test for update
+# trace result should have 1 ddl statement for table t1
+#
+update t1 set t1.b = t1.a;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# test for insert as select
+# trace result should have 2 ddl statements for tables t1, t2
+#
+insert into t1 (select t2.a as a, t2.a as b from t2);
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+create database db2;
+use db2;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+#
+# use database db1
+# test to select 2 tables with same name from 2 databases
+# trace result should have 2 ddl statements for tables db1.t1, db2.t1
+#
+use db1;
+select db1_t1.b
+FROM t1 AS db1_t1, db2.t1 AS db2_t1
+WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
+b
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db1
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db2.t1
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `db2`.`t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# use database db2
+# test to select 2 tables with same name but from 2 databases
+# trace result should have 2 ddl statements for tables db1.t1, db2.t1
+#
+use db2;
+select db1_t1.b
+FROM db1.t1 AS db1_t1, db2.t1 AS db2_t1
+WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
+b
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db2
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db2.t1
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `db1`.`t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+#
+# use database db2
+# test to select from 2 tables from 2 different databases,
+# of which one is a mysql table, and other is a db1 table
+# trace result should have only 1 ddl
+#
+select t1.b
+FROM db1.t1 AS t1, mysql.db AS t2
+WHERE t1.a >= 3;
+b
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db2
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `db1`.`t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+use db1;
+drop table db2.t1;
+drop database db2;
+drop table temp1;
+drop view view1;
+drop table t2;
+#
+# const table test with explain
+#
+insert into t1 select seq, seq from seq_1_to_10;
+create table t2 (a int primary key, b int);
+insert into t2 select seq, seq from seq_1_to_10;
+explain select * from t1, t2 where t2.a=1 and t1.b=t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	15	Using where
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db1
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db1.t2
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+drop table t2;
+#
+# query failure test
+# trace should not contain the failed query result
+# no table definitions for t10, and t11 should be present
+#
+create table t10 (a int, b int);
+insert into t10 select seq, seq from seq_1_to_10;
+create table t11 (a int primary key, b varchar(10));
+insert into t11 values (1, 'one'),(2, 'two');
+select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
+ERROR 42S22: Unknown column 't11.c' in 'WHERE'
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+drop table t10;
+drop table t11;
+#
+# partitioned table test
+# trace result should have 1 ddl
+#
+create table t1 (
+pk int primary key,
+a int,
+key (a)
+)
+engine=myisam
+partition by range(pk) (
+partition p0 values less than (10),
+partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+explain
+select * from t1 partition (p1) where a=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	49	
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db1
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`pk`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+drop table t1;
+#
+# test with insert delayed
+# test shouldn't fail
+# Also, trace result shouldn't have any ddls
+#
+CREATE TABLE t1 (
+a int(11) DEFAULT 1,
+b int(11) DEFAULT (a + 1),
+c int(11) DEFAULT (a + b)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+insert into t1 values ();
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,20);
+insert into t1 (a,b,c) values (100,200,400);
+truncate table t1;
+insert delayed into t1 values ();
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db1
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+drop table t1;
+#
+# test primary, and foreign key tables
+# trace result should have the ddls in correct order
+#
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(10)
+);
+CREATE TABLE t2 (
+id INT,
+address VARCHAR(10),
+CONSTRAINT `fk_id` FOREIGN KEY (id) REFERENCES t1 (id)
+);
+insert into t1 values (1, 'abc'), (2, 'xyz');
+insert into t2 values (1, 'address1'), (2, 'address2');
+select t1.name, t2.address
+from t1,t2 where t1.id = t2.id;
+name	address
+abc	address1
+xyz	address2
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+db_used
+db1
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+name
+db1.t2
+db1.t1
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `address` varchar(10) DEFAULT NULL,
+  KEY `fk_id` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+drop table t2;
+#
+# MDEV-37207: test multi delete of 2 tables
+# trace result should have the ddls for both the tables
+#
+create table t1(id1 int not null auto_increment primary key);
+create table t2(id2 int not null);
+insert into t1 values (1),(2);
+insert into t2 values (1),(1),(2),(2);
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `id2` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# rerun the same delete query
+# Now, trace result should have the ddls for all 2 tables,
+# even though no data is deleted
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ddl
+CREATE TABLE `t2` (
+  `id2` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE `t1` (
+  `id1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id1`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+drop database db1;

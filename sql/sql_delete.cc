@@ -1420,6 +1420,8 @@ int multi_delete::send_data(List<Item> &values)
               }
               found++;
           }
+          else
+            error= 0; /* Clear HA_ERR_FOUND_DUPP_{KEY,UNIQUE} error */
       }
     }
   }

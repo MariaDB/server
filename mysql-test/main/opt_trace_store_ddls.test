@@ -1,0 +1,392 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+--source include/have_partition.inc
+set optimizer_record_context=ON;
+--echo #
+show variables like 'optimizer_record_context';
+
+--echo #
+set optimizer_record_context=OFF;
+--echo #
+show variables like 'optimizer_record_context';
+
+--echo #
+create database db1;
+use db1;
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+
+--echo #
+create table t2 (a int);
+insert into t2 values (1),(2);
+
+--echo #
+create view view1 as (select t1.a as a, t1.b as b, t2.a as c from (t1 join t2) where t1.a = t2.a);
+
+--echo #
+--echo # disable both optimizer_trace and optimizer_record_context
+--echo # there should be no trace
+--echo #
+set optimizer_trace=0;
+set optimizer_record_context=OFF;
+--echo #
+select * from t1 where t1.a = 3;
+--echo #
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # disable optimizer_trace, but enable optimizer_record_context
+--echo # there should be no trace here as well
+--echo #
+
+set optimizer_record_context=ON;
+--echo #
+select * from t1 where t1.a = 3;
+--echo #
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # enable optimizer_trace, but disable optimizer_record_context
+--echo # trace result should be empty
+--echo #
+set optimizer_trace=1;
+set optimizer_record_context=OFF;
+--echo #
+select * from t1 where t1.a = 3;
+--echo #
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # enable both optimizer_trace and optimizer_record_context
+--echo # trace result should have 1 ddl statement for table t1
+--echo #
+set optimizer_trace=1;
+set optimizer_record_context=ON;
+--echo #
+select * from t1 where t1.a = 3;
+--echo #
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # enable both optimizer_trace and optimizer_record_context
+--echo # test for view
+--echo # trace result should have 3 ddl statements
+--echo #
+set optimizer_record_context=ON;
+select * from view1 where view1.a = 3;
+--echo #
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # enable both optimizer_trace and optimizer_record_context
+--echo # test for temp table
+--echo # trace result should have 1 ddl statement for table t1
+--echo #
+create temporary table temp1(col1 int);
+insert into temp1 select * from t2;
+
+--echo #
+
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # there should be no duplicate ddls
+--echo # there should be only 1 ddl for table t2
+--echo #
+select * from t2 union select * from t2 union select * from t2;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # there should be no duplicate ddls
+--echo # there should be only 3 ddls for tables t1, t2, and view1
+--echo #
+select * from view1 where view1.a = 3 union select * from view1 where view1.a = 3;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for insert
+--echo # there should be no trace for insert with values
+--echo #
+insert into t1 values ((select max(t2.a) from t2), (select min(t2.a) from t2));
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for delete
+--echo # trace result should have 1 ddl statement for table t1
+--echo #
+delete from t1 where t1.a=3;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for update
+--echo # trace result should have 1 ddl statement for table t1
+--echo #
+update t1 set t1.b = t1.a;
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # test for insert as select
+--echo # trace result should have 2 ddl statements for tables t1, t2
+--echo #
+insert into t1 (select t2.a as a, t2.a as b from t2);
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+create database db2;
+use db2;
+create table t1(a int);
+insert into t1 values (1),(2),(3);
+
+--echo #
+--echo # use database db1
+--echo # test to select 2 tables with same name from 2 databases
+--echo # trace result should have 2 ddl statements for tables db1.t1, db2.t1
+--echo #
+use db1;
+select db1_t1.b
+FROM t1 AS db1_t1, db2.t1 AS db2_t1
+WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # use database db2
+--echo # test to select 2 tables with same name but from 2 databases
+--echo # trace result should have 2 ddl statements for tables db1.t1, db2.t1
+--echo #
+use db2;
+
+select db1_t1.b
+FROM db1.t1 AS db1_t1, db2.t1 AS db2_t1
+WHERE db1_t1.a = db2_t1.a AND db1_t1.a >= 3;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo #
+--echo # use database db2
+--echo # test to select from 2 tables from 2 different databases,
+--echo # of which one is a mysql table, and other is a db1 table
+--echo # trace result should have only 1 ddl
+--echo #
+select t1.b
+FROM db1.t1 AS t1, mysql.db AS t2
+WHERE t1.a >= 3;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+use db1;
+drop table db2.t1;
+drop database db2;
+drop table temp1;
+drop view view1;
+drop table t2;
+
+--echo #
+--echo # const table test with explain
+--echo #
+insert into t1 select seq, seq from seq_1_to_10;
+create table t2 (a int primary key, b int);
+insert into t2 select seq, seq from seq_1_to_10;
+
+explain select * from t1, t2 where t2.a=1 and t1.b=t2.b;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+drop table t1;
+drop table t2;
+
+--echo #
+--echo # query failure test
+--echo # trace should not contain the failed query result
+--echo # no table definitions for t10, and t11 should be present
+--echo #
+create table t10 (a int, b int);
+insert into t10 select seq, seq from seq_1_to_10;
+create table t11 (a int primary key, b varchar(10));
+insert into t11 values (1, 'one'),(2, 'two');
+
+--error ER_BAD_FIELD_ERROR
+select t10.b, t11.a from t10, t11 where t10.a = t11.c + 10;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+drop table t10;
+drop table t11;
+
+--echo #
+--echo # partitioned table test
+--echo # trace result should have 1 ddl
+--echo #
+create table t1 (
+    pk int primary key,
+    a int,
+    key (a)
+)
+engine=myisam
+partition by range(pk) (
+    partition p0 values less than (10),
+    partition p1 values less than MAXVALUE
+);
+insert into t1 select seq, MOD(seq, 100) from seq_1_to_5000;
+flush tables;
+
+explain
+select * from t1 partition (p1) where a=10;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+drop table t1;
+
+--echo #
+--echo # test with insert delayed
+--echo # test shouldn't fail
+--echo # Also, trace result shouldn't have any ddls
+--echo #
+
+CREATE TABLE t1 (
+  a int(11) DEFAULT 1,
+  b int(11) DEFAULT (a + 1),
+  c int(11) DEFAULT (a + b)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+insert into t1 values ();
+insert into t1 (a) values (2);
+insert into t1 (a,b) values (10,20);
+insert into t1 (a,b,c) values (100,200,400);
+
+truncate table t1;
+insert delayed into t1 values ();
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+drop table t1;
+
+--echo #
+--echo # test primary, and foreign key tables
+--echo # trace result should have the ddls in correct order
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(10)
+);
+
+CREATE TABLE t2 (
+    id INT,
+    address VARCHAR(10),
+    CONSTRAINT `fk_id` FOREIGN KEY (id) REFERENCES t1 (id)
+);
+
+insert into t1 values (1, 'abc'), (2, 'xyz');
+insert into t2 values (1, 'address1'), (2, 'address2');
+
+select t1.name, t2.address
+from t1,t2 where t1.id = t2.id;
+
+set @trace= (select trace from information_schema.optimizer_trace);
+set @db=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.current_database')));
+select db_used from json_table(@db, '$[*]' columns(db_used text path '$')) as jt;
+set @fn=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.name')));
+select name from json_table(@fn, '$[*]' columns(name text path '$')) as jt;
+set @ddls=(select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.ddl')));
+select ddl from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+drop table t1;
+drop table t2;
+
+--echo #
+--echo # MDEV-37207: test multi delete of 2 tables
+--echo # trace result should have the ddls for both the tables
+--echo #
+
+create table t1(id1 int not null auto_increment primary key);
+create table t2(id2 int not null);
+
+insert into t1 values (1),(2);
+insert into t2 values (1),(1),(2),(2);
+
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+
+--echo # rerun the same delete query
+--echo # Now, trace result should have the ddls for all 2 tables,
+--echo # even though no data is deleted
+delete t1.*, t2.* from t1, t2 where t1.id1 = t2.id2;
+
+set @ddls= (select json_detailed(json_extract(trace, '$**.ddl')) from information_schema.optimizer_trace);
+select ddl
+from json_table(@ddls, '$[*]' columns(ddl text path '$')) as jt;
+ 
+drop table t1, t2;
+
+drop database db1;

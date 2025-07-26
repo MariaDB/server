@@ -498,6 +498,7 @@ extern PSI_memory_key key_memory_Query_cache;
 extern PSI_memory_key key_memory_Table_trigger_dispatcher;
 extern PSI_memory_key key_memory_native_functions;
 extern PSI_memory_key key_memory_WSREP;
+extern PSI_memory_key key_memory_trace_ddl_info;
 
 /*
   MAINTAINER: Please keep this list in order, to limit merge collisions.
