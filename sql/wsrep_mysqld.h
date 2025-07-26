@@ -611,6 +611,11 @@ bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables);
  */
 bool wsrep_foreign_key_append(THD *thd, FOREIGN_KEY_INFO *fk);
 
+/**
+ * Returns true if the server is recovering from SST.
+ */
+bool wsrep_is_recovering_from_sst();
+
 #else /* !WITH_WSREP */
 
 /* These macros are needed to compile MariaDB without WSREP support

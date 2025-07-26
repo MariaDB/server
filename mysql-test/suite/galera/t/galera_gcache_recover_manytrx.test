@@ -8,6 +8,8 @@
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 
+--let $log_bin_opt = `SELECT @@log_bin`
+
 SET SESSION wsrep_sync_wait = 0;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
@@ -168,6 +170,8 @@ SET SESSION wsrep_sync_wait = 0;
 --connection node_1_insert_10m
 --error 2013, 2026
 --reap
+
+--let $wsrep_recover_additional = --log-bin=$log_bin_opt
 
 --connection node_1
 --let $galera_wsrep_recover_server_id=1
