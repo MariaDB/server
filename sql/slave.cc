@@ -7639,7 +7639,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       do not want to have election triggered on the first failure to
       connect
     */
-    if (++err_count == master_retry_count)
+    if (master_retry_count && (++err_count == master_retry_count))
     {
       slave_was_killed=1;
       if (reconnect)
