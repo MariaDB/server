@@ -2839,7 +2839,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
               *((double*)pp->Value)= pval->val_real();
               break;
             case ROW_RESULT:
-              DBUG_ASSERT(0);
+              DBUG_ASSERT_NO_ASSUME(0);
               return NULL;
           }
           }

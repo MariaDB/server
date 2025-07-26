@@ -218,7 +218,7 @@ bool Lex_exact_charset_opt_extended_collate::
   if (cl.is_contextually_typed_collate_default())
   {
     CHARSET_INFO *ci= find_mapped_default_collation(used, map);
-    DBUG_ASSERT(ci);
+    DBUG_ASSERT_NO_ASSUME(ci);
     if (!ci)
       return true;
     m_ci= ci;
@@ -260,7 +260,7 @@ bool Lex_extended_collation_st::merge_exact_charset(Sql_used *used,
       return false;
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -292,7 +292,7 @@ bool Lex_extended_collation_st::
       return false;
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -321,7 +321,7 @@ bool Lex_extended_collation_st::
       return Lex_context_collation(m_ci).raise_if_not_equal(rhs);
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -354,7 +354,7 @@ bool Lex_extended_collation_st::merge(const Lex_extended_collation_st &rhs)
     return raise_if_conflicts_with_context_collation(
              Lex_context_collation(rhs.m_ci));
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -446,7 +446,7 @@ Lex_exact_charset_opt_extended_collate::find_compiled_default_collation() const
     The above should never fail, as we have default collations for
     all character sets.
   */
-  DBUG_ASSERT(cs);
+  DBUG_ASSERT_NO_ASSUME(cs);
   return cs;
 }
 
@@ -500,7 +500,7 @@ CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
     return tmp.collation().charset_info();
   }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }
 
@@ -541,7 +541,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
       return false;
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -578,7 +578,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
     return Lex_context_collation(m_ci).raise_if_not_equal(cl);
   }
 
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -629,7 +629,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
     return merge_context_collation(used, map,
                                    Lex_context_collation(cl.charset_info()));
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -679,7 +679,7 @@ bool Lex_exact_charset_extended_collation_attrs_st::
       return false;
     }
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return false;
 }
 
@@ -807,6 +807,6 @@ Lex_extended_charset_extended_collation_attrs_st::
                                        ctx.charset_default().
                                          collation().charset_info());
   }
-  DBUG_ASSERT(0);
+  DBUG_ASSERT_NO_ASSUME(0);
   return NULL;
 }

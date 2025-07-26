@@ -36,6 +36,7 @@ SET(MY_WARNING_FLAGS
   -Wno-unused-parameter
   -Wno-unused-private-field
   -Wnon-virtual-dtor
+  -Wno-assume
   -Woverloaded-virtual
   -Wvla
   -Wwrite-strings
