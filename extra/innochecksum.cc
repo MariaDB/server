@@ -95,6 +95,7 @@ static bool			page_type_dump;
 char*				page_dump_filename = 0;
 /* skip the checksum verification & rewrite if page is doublewrite buffer. */
 static bool			skip_page = 0;
+static bool			skip_dblwr = false;
 const char			*dbug_setting = "FALSE";
 char*				log_filename = NULL;
 /* User defined filename for logging. */
@@ -794,6 +795,7 @@ parse_page(
 	str = skip_page ? "Double_write_buffer" : "-";
 	page_no = mach_read_from_4(page + FIL_PAGE_OFFSET);
 	if (skip_freed_pages) {
+		if (skip_dblwr) return;
 		const byte *des= xdes + XDES_ARR_OFFSET +
 			xdes_size * ((page_no & (physical_page_size - 1))
 				     / extent_size);
@@ -1832,6 +1834,7 @@ first_non_zero:
 			if (is_system_tablespace) {
 				/* enable when page is double write buffer.*/
 				skip_page = is_page_doublewritebuffer(buf);
+				skip_dblwr = skip_page;
 			} else {
 				skip_page = false;
 			}
