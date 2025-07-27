@@ -1,0 +1,225 @@
+# Test for function trunc()
+SET NAMES utf8mb4;
+#
+# Simple test
+#
+select trunc('2025-07-27 12:01:02.123');
+trunc('2025-07-27 12:01:02.123')
+2025-07-27 00:00:00.000
+select trunc('2025-07-27 12:01:02.123','YY');
+trunc('2025-07-27 12:01:02.123','YY')
+2025-01-01 00:00:00.000
+select trunc('2025-07-27 12:01:02.123','MM');
+trunc('2025-07-27 12:01:02.123','MM')
+2025-07-01 00:00:00.000
+select trunc('2025-07-27 12:01:02.123','DD');
+trunc('2025-07-27 12:01:02.123','DD')
+2025-07-27 00:00:00.000
+select trunc('hello');
+trunc('hello')
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: 'hello'
+select trunc(1);
+trunc(1)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+#
+# The returned data type is DATETIME (the closest to Oracle's DATE)
+#
+CREATE TABLE t1 AS SELECT
+trunc('2025-07-27 12:01:02','YYYY') AS c0,
+trunc('2025-07-27 12:01:02.1','YYYY') AS c1,
+trunc('2025-07-27 12:01:02.12','YYYY') AS c2,
+trunc('2025-07-27 12:01:02.123','YYYY') AS c3,
+trunc('2025-07-27 12:01:02.1234','YYYY') AS c4,
+trunc('2025-07-27 12:01:02.12345','YYYY') AS c5,
+trunc('2025-07-27 12:01:02.123456','YYYY') AS c6,
+trunc('2025-07-27 12:01:02.1234567','YYYY') AS c7;
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2025-07-27 12:01:02.1234567'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` datetime DEFAULT NULL,
+  `c1` datetime(1) DEFAULT NULL,
+  `c2` datetime(2) DEFAULT NULL,
+  `c3` datetime(3) DEFAULT NULL,
+  `c4` datetime(4) DEFAULT NULL,
+  `c5` datetime(5) DEFAULT NULL,
+  `c6` datetime(6) DEFAULT NULL,
+  `c7` datetime(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+# Ensure that trunc table name and column can still be used
+create table trunc (trunc int);
+insert into trunc (trunc) values (1);
+select trunc from trunc;
+trunc
+1
+drop table trunc;
+#
+# Test all format variations
+#
+CREATE TABLE t1(c2 datetime, c3 date, c4 timestamp);
+INSERT INTO t1 VALUES ('2021-11-12 00:23:12', '2021-11-12', '2021-11-12 00:23:12');
+INSERT INTO t1 VALUES ('0000-09-02 00:00:00', '0000-09-02', '1980-09-02 00:00:00');
+INSERT INTO t1 VALUES ('9999-09-02', '9999-09-02', '1980-09-02');
+create table t2 (format varchar(5)) engine=aria;
+insert into t2 values ('DD'),('DDD'),('J'),('MM'),('MON'),('MONTH'),('RM'),('SYEAR'),('SYYYY'),('Y'),('YEAR'),('YY'),('YYY'),('YYYY'), ('ZZZ');
+SELECT format,trunc(c2,format),trunc(c3,format),trunc(c4,format) from t2 straight_join t1;
+format	trunc(c2,format)	trunc(c3,format)	trunc(c4,format)
+DD	2021-11-12 00:00:00	2021-11-12 00:00:00	2021-11-12 00:00:00
+DDD	2021-11-12 00:00:00	2021-11-12 00:00:00	2021-11-12 00:00:00
+J	2021-11-12 00:00:00	2021-11-12 00:00:00	2021-11-12 00:00:00
+MM	2021-11-01 00:00:00	2021-11-01 00:00:00	2021-11-01 00:00:00
+MON	2021-11-01 00:00:00	2021-11-01 00:00:00	2021-11-01 00:00:00
+MONTH	2021-11-01 00:00:00	2021-11-01 00:00:00	2021-11-01 00:00:00
+RM	2021-11-01 00:00:00	2021-11-01 00:00:00	2021-11-01 00:00:00
+SYEAR	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+SYYYY	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+Y	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+YEAR	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+YY	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+YYY	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+YYYY	2021-01-01 00:00:00	2021-01-01 00:00:00	2021-01-01 00:00:00
+ZZZ	NULL	NULL	NULL
+DD	0000-09-02 00:00:00	0000-09-02 00:00:00	1980-09-02 00:00:00
+DDD	0000-09-02 00:00:00	0000-09-02 00:00:00	1980-09-02 00:00:00
+J	0000-09-02 00:00:00	0000-09-02 00:00:00	1980-09-02 00:00:00
+MM	0000-09-01 00:00:00	0000-09-01 00:00:00	1980-09-01 00:00:00
+MON	0000-09-01 00:00:00	0000-09-01 00:00:00	1980-09-01 00:00:00
+MONTH	0000-09-01 00:00:00	0000-09-01 00:00:00	1980-09-01 00:00:00
+RM	0000-09-01 00:00:00	0000-09-01 00:00:00	1980-09-01 00:00:00
+SYEAR	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+SYYYY	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+Y	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+YEAR	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+YY	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+YYY	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+YYYY	0000-01-01 00:00:00	0000-01-01 00:00:00	1980-01-01 00:00:00
+ZZZ	NULL	NULL	NULL
+DD	9999-09-02 00:00:00	9999-09-02 00:00:00	1980-09-02 00:00:00
+DDD	9999-09-02 00:00:00	9999-09-02 00:00:00	1980-09-02 00:00:00
+J	9999-09-02 00:00:00	9999-09-02 00:00:00	1980-09-02 00:00:00
+MM	9999-09-01 00:00:00	9999-09-01 00:00:00	1980-09-01 00:00:00
+MON	9999-09-01 00:00:00	9999-09-01 00:00:00	1980-09-01 00:00:00
+MONTH	9999-09-01 00:00:00	9999-09-01 00:00:00	1980-09-01 00:00:00
+RM	9999-09-01 00:00:00	9999-09-01 00:00:00	1980-09-01 00:00:00
+SYEAR	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+SYYYY	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+Y	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+YEAR	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+YY	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+YYY	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+YYYY	9999-01-01 00:00:00	9999-01-01 00:00:00	1980-01-01 00:00:00
+ZZZ	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+#
+# Test wrong usage
+#
+select trunc('2021-11-12 00:23:12','');
+trunc('2021-11-12 00:23:12','')
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: ''
+select trunc('2021-11-12 00:23:12','ZZZZ');
+trunc('2021-11-12 00:23:12','ZZZZ')
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: 'ZZZZ'
+select trunc('','DD');
+trunc('','DD')
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: ''
+select trunc();
+ERROR 42000: Incorrect parameter count in the call to native function 'trunc'
+select trunc(1);
+trunc(1)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+select trunc(1,2,3);
+ERROR 42000: Incorrect parameter count in the call to native function 'trunc'
+drop table t1,t2;
+select trunc('2021-11-12 00:23:12', POINT(1,1));
+ERROR HY000: Illegal parameter data type point for operation 'trunc'
+select trunc('2021-11-12 00:23:12', ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'trunc'
+select trunc(POINT(1,1), 'YYYY');
+ERROR HY000: Illegal parameter data type point for operation 'trunc'
+select trunc(ROW(1,1), 'YYYY');
+ERROR HY000: Illegal parameter data type row for operation 'trunc'
+select trunc(POINT(1,1));
+ERROR HY000: Illegal parameter data type point for operation 'trunc'
+select trunc(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'trunc'
+#
+# Testing non-ASCII input in the format
+#
+SELECT trunc('2021-11-12 00:23:12','ŸŸŸŸ');
+trunc('2021-11-12 00:23:12','ŸŸŸŸ')
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: 'ŸŸŸŸ'
+#
+# Fractional digits outside of the supported limit of 6 digits
+# are always truncated even if TIME_ROUND_FRACTIONAL is set.
+#
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SELECT trunc('2001-12-31 23:59:59.9999999','YYYY') AS c1;
+c1
+2001-01-01 00:00:00.000000
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
+SELECT trunc('2001-12-31 23:59:59.9999999','MM') AS c1;
+c1
+2001-12-01 00:00:00.000000
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
+SELECT trunc('2001-12-31 23:59:59.9999999','DD') AS c1;
+c1
+2001-12-31 00:00:00.000000
+Warnings:
+Note	1292	Truncated incorrect datetime value: '2001-12-31 23:59:59.9999999'
+SET sql_mode=DEFAULT;
+#
+# TIME argument is converted to DATE using CURRENT_DATE
+#
+SET timestamp=unix_timestamp('2001-12-31 10:00:00');
+SELECT trunc(time'24:00:00','YYYY');
+trunc(time'24:00:00','YYYY')
+2002-01-01 00:00:00
+SELECT trunc(time'24:00:00','MM');
+trunc(time'24:00:00','MM')
+2002-01-01 00:00:00
+SELECT trunc(time'24:00:00','DD');
+trunc(time'24:00:00','DD')
+2002-01-01 00:00:00
+SET timestamp=DEFAULT;
+#
+# MDEV-37414 SIGSEGV in Binary_string::c_ptr | Item_func_trunc::get_date
+#
+SELECT trunc(time'24:00:00',NULL);
+trunc(time'24:00:00',NULL)
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: '<NULL>'
+SET SQL_MODE=EMPTY_STRING_IS_NULL;
+SELECT trunc(time'24:00:00','');
+trunc(time'24:00:00','')
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: '<NULL>'
+SET SQL_MODE=DEFAULT;
