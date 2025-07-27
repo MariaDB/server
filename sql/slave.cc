@@ -3119,6 +3119,7 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
 
   (*field++)->store(static_cast<long long>(mi->connects_tried), true);
   (*field++)->store(static_cast<long long>(mi->retry_count), true);
+  store_string_or_null(field++, mi->bind_addr);
 
   // SHOW ALL SLAVE STATUS additional entries commences-
   (*field++)->store((uint32)    mi->rli.retried_trans, true);
@@ -6961,6 +6962,8 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+  if (mi->bind_addr[0])
+    mysql_options(mysql, MYSQL_OPT_BIND, mi->bind_addr);
 
   /* we disallow empty users */
   if (mi->user[0] == 0)
