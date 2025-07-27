@@ -184,7 +184,7 @@ protected:
                                      Field *field, Item *value)
   {
     DBUG_ENTER("Item_bool_func::get_func_mm_tree");
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     DBUG_RETURN(0);
   }
   /*

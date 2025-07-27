@@ -56,7 +56,7 @@ Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
     return new Cached_item_decimal(item);
   case ROW_RESULT:
   default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT_NO_ASSUME(0);
     return 0;
   }
 }
