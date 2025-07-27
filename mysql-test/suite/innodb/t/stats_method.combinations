@@ -1,0 +1,8 @@
+[NULLS_EQUAL]
+--innodb_stats_method=nulls_equal
+
+[NULLS_UNEQUAL]
+--innodb_stats_method=nulls_unequal
+
+[NULLS_IGNORED]
+--innodb_stats_method=nulls_ignored

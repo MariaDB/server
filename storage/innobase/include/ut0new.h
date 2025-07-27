@@ -169,6 +169,7 @@ extern PSI_memory_key	mem_key_buf_buf_pool;
 extern PSI_memory_key	mem_key_dict_stats_bg_recalc_pool_t;
 extern PSI_memory_key	mem_key_dict_stats_index_map_t;
 extern PSI_memory_key	mem_key_dict_stats_n_diff_on_level;
+extern PSI_memory_key   mem_key_dict_stats_n_nonnull_on_level;
 extern PSI_memory_key	mem_key_other;
 extern PSI_memory_key	mem_key_row_log_buf;
 extern PSI_memory_key	mem_key_row_merge_sort;
