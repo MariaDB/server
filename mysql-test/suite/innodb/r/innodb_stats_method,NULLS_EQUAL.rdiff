@@ -1,0 +1,9 @@
+--- innodb_stats_method.result	2025-07-11 20:02:18.854016407 +0530
++++ innodb_stats_method.reject	2025-07-11 20:02:41.077627513 +0530
+@@ -8,5 +8,5 @@
+ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+ t1	1	f1	1	f1	A	16341	NULL	NULL		BTREE			NO
+ t1	1	f1	2	f3	A	16341	NULL	NULL	YES	BTREE			NO
+-t1	1	f3	1	f3	A	16341	NULL	NULL	YES	BTREE			NO
++t1	1	f3	1	f3	A	2	NULL	NULL	YES	BTREE			NO
+ DROP TABLE t1;
