@@ -57,6 +57,7 @@
 #include "sql_cte.h"
 #include "sql_window.h"
 #include "item_windowfunc.h"
+#include "item_timefunc.h"
 #include "event_parse_data.h"
 #include "create_options.h"
 #include <myisam.h>
