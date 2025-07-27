@@ -58,6 +58,15 @@ uint calc_days_in_year(uint year)
           366 : 365);
 }
 
+/* Calc days in a month */
+
+uint calc_days_in_month(uint year, uint month)
+{
+  uint days= days_in_month[month-1];
+  if (month == 2 && isleap(year))
+    days= 29;
+  return days;
+}
 
 #ifdef DBUG_ASSERT_EXISTS
 
