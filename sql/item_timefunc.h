@@ -2097,4 +2097,22 @@ public:
   { return get_item_copy<Item_func_trunc>(thd, this); }
 };
 
+
+class Item_func_months_between : public Item_real_func
+{
+  bool check_arguments() const override
+  { return check_argument_types_can_return_date(0, arg_count); }
+public:
+  Item_func_months_between(THD *thd, Item *a, Item *b):
+    Item_real_func(thd, a, b) {}
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("months_between") };
+    return name;
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_months_between>(thd, this); }
+};
+
 #endif /* ITEM_TIMEFUNC_INCLUDED */

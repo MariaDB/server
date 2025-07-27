@@ -1905,6 +1905,18 @@ protected:
   ~Create_func_monthname() override = default;
 };
 
+class Create_func_months_between : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override;
+
+  static Create_func_months_between s_singleton;
+
+protected:
+  Create_func_months_between() = default;
+  ~Create_func_months_between() override = default;
+};
+
 
 class Create_func_name_const : public Create_func_arg2
 {
@@ -5356,6 +5368,15 @@ Create_func_monthname::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_months_between Create_func_months_between::s_singleton;
+
+Item*
+Create_func_months_between::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_months_between(thd, arg1, arg2);
+}
+
+
 Create_func_name_const Create_func_name_const::s_singleton;
 
 Item*
@@ -6427,6 +6448,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("MICROSECOND") }, BUILDER(Create_func_microsecond)},
   { { STRING_WITH_LEN("MOD") }, BUILDER(Create_func_mod)},
   { { STRING_WITH_LEN("MONTHNAME") }, BUILDER(Create_func_monthname)},
+  { { STRING_WITH_LEN("MONTHS_BETWEEN") }, BUILDER(Create_func_months_between)},
   { { STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
   {  {STRING_WITH_LEN("NATURAL_SORT_KEY")}, BUILDER(Create_func_natural_sort_key)},
   { { STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
