@@ -217,7 +217,7 @@ SendSIGKILL=no
 
 # Restart crashed server only, on-failure would also restart, for example, when
 # my.cnf contains unknown option
-Restart=on-abort
+Restart=on-abnormal
 RestartSec=5s
 
 UMask=007
