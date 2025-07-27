@@ -97,6 +97,11 @@ extern void (*log_file_op)(uint32_t space_id, int type,
 			   const byte* name, size_t len,
 			   const byte* new_name, size_t new_len);
 
+/** Report an redo log read operation
+@param lsn        log sequence number
+@param read_lsn   last read lsn */
+extern void (*log_file_report)(lsn_t lsn) noexcept;
+
 /** Report an operation which does undo log tablespace truncation
 during backup
 @param	space_id	undo tablespace identifier */
