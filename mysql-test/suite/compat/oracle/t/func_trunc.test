@@ -1,0 +1,48 @@
+--echo # Test for function trunc()
+
+--echo #
+--echo # Simple test
+--echo #
+
+select trunc("2025-07-27 12:01:02.123");
+select trunc("2025-07-27 12:01:02.123","YY");
+select trunc("2025-07-27 12:01:02.123","MM");
+select trunc("2025-07-27 12:01:02.123","DD");
+
+select trunc("hello");
+select trunc(1);
+
+--echo # Ensure that trunc table name and column can still be used
+
+create table trunc (trunc int);
+insert into trunc (trunc) values (1);
+select trunc from trunc;
+drop table trunc;
+
+--echo #
+--echo # Test all format variations
+--echo #
+
+CREATE TABLE t1(c2 datetime, c3 date, c4 timestamp);
+INSERT INTO t1 VALUES ('2021-11-12 00:23:12', '2021-11-12', '2021-11-12 00:23:12');
+INSERT INTO t1 VALUES ('0000-09-02 00:00:00', '0000-09-02', '1980-09-02 00:00:00');
+INSERT INTO t1 VALUES ('9999-09-02', '9999-09-02', '1980-09-02');
+
+create table t2 (format varchar(5)) engine=aria;
+insert into t2 values ("DD"),("DDD"),("J"),("MM"),("MON"),("MONTH"),("RM"),("SYEAR"),("SYYYY"),("Y"),("YEAR"),("YY"),("YYY"),("YYYY"), ("ZZZ");
+
+SELECT format,trunc(c2,format),trunc(c3,format),trunc(c4,format) from t2 straight_join t1;
+
+--echo #
+--echo # Test wrong usage
+--echo #
+
+select trunc('2021-11-12 00:23:12',"");
+select trunc("","DD");
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select trunc();
+select trunc(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select trunc(1,2,3);
+
+drop table t1,t2;

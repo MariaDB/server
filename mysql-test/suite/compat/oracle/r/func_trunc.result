@@ -1,0 +1,122 @@
+# Test for function trunc()
+#
+# Simple test
+#
+select trunc("2025-07-27 12:01:02.123");
+trunc("2025-07-27 12:01:02.123")
+2025-07-27
+select trunc("2025-07-27 12:01:02.123","YY");
+trunc("2025-07-27 12:01:02.123","YY")
+2025-01-01
+select trunc("2025-07-27 12:01:02.123","MM");
+trunc("2025-07-27 12:01:02.123","MM")
+2025-07-01
+select trunc("2025-07-27 12:01:02.123","DD");
+trunc("2025-07-27 12:01:02.123","DD")
+2025-07-27
+select trunc("hello");
+trunc("hello")
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: 'hello'
+select trunc(1);
+trunc(1)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+# Ensure that trunc table name and column can still be used
+create table trunc (trunc int);
+insert into trunc (trunc) values (1);
+select trunc from trunc;
+trunc
+1
+drop table trunc;
+#
+# Test all format variations
+#
+CREATE TABLE t1(c2 datetime, c3 date, c4 timestamp);
+INSERT INTO t1 VALUES ('2021-11-12 00:23:12', '2021-11-12', '2021-11-12 00:23:12');
+INSERT INTO t1 VALUES ('0000-09-02 00:00:00', '0000-09-02', '1980-09-02 00:00:00');
+INSERT INTO t1 VALUES ('9999-09-02', '9999-09-02', '1980-09-02');
+create table t2 (format varchar(5)) engine=aria;
+insert into t2 values ("DD"),("DDD"),("J"),("MM"),("MON"),("MONTH"),("RM"),("SYEAR"),("SYYYY"),("Y"),("YEAR"),("YY"),("YYY"),("YYYY"), ("ZZZ");
+SELECT format,trunc(c2,format),trunc(c3,format),trunc(c4,format) from t2 straight_join t1;
+format	trunc(c2,format)	trunc(c3,format)	trunc(c4,format)
+DD	2021-11-12	2021-11-12	2021-11-12
+DDD	2021-11-12	2021-11-12	2021-11-12
+J	2021-11-12	2021-11-12	2021-11-12
+MM	2021-11-01	2021-11-01	2021-11-01
+MON	2021-11-01	2021-11-01	2021-11-01
+MONTH	2021-11-01	2021-11-01	2021-11-01
+RM	2021-11-01	2021-11-01	2021-11-01
+SYEAR	2021-01-01	2021-01-01	2021-01-01
+SYYYY	2021-01-01	2021-01-01	2021-01-01
+Y	2021-01-01	2021-01-01	2021-01-01
+YEAR	2021-01-01	2021-01-01	2021-01-01
+YY	2021-01-01	2021-01-01	2021-01-01
+YYY	2021-01-01	2021-01-01	2021-01-01
+YYYY	2021-01-01	2021-01-01	2021-01-01
+ZZZ	NULL	NULL	NULL
+DD	0000-09-02	0000-09-02	1980-09-02
+DDD	0000-09-02	0000-09-02	1980-09-02
+J	0000-09-02	0000-09-02	1980-09-02
+MM	0000-09-01	0000-09-01	1980-09-01
+MON	0000-09-01	0000-09-01	1980-09-01
+MONTH	0000-09-01	0000-09-01	1980-09-01
+RM	0000-09-01	0000-09-01	1980-09-01
+SYEAR	0000-01-01	0000-01-01	1980-01-01
+SYYYY	0000-01-01	0000-01-01	1980-01-01
+Y	0000-01-01	0000-01-01	1980-01-01
+YEAR	0000-01-01	0000-01-01	1980-01-01
+YY	0000-01-01	0000-01-01	1980-01-01
+YYY	0000-01-01	0000-01-01	1980-01-01
+YYYY	0000-01-01	0000-01-01	1980-01-01
+ZZZ	NULL	NULL	NULL
+DD	9999-09-02	9999-09-02	1980-09-02
+DDD	9999-09-02	9999-09-02	1980-09-02
+J	9999-09-02	9999-09-02	1980-09-02
+MM	9999-09-01	9999-09-01	1980-09-01
+MON	9999-09-01	9999-09-01	1980-09-01
+MONTH	9999-09-01	9999-09-01	1980-09-01
+RM	9999-09-01	9999-09-01	1980-09-01
+SYEAR	9999-01-01	9999-01-01	1980-01-01
+SYYYY	9999-01-01	9999-01-01	1980-01-01
+Y	9999-01-01	9999-01-01	1980-01-01
+YEAR	9999-01-01	9999-01-01	1980-01-01
+YY	9999-01-01	9999-01-01	1980-01-01
+YYY	9999-01-01	9999-01-01	1980-01-01
+YYYY	9999-01-01	9999-01-01	1980-01-01
+ZZZ	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+Warning	1292	Incorrect TRUNC value: 'ZZZ'
+#
+# Test wrong usage
+#
+select trunc('2021-11-12 00:23:12',"");
+trunc('2021-11-12 00:23:12',"")
+NULL
+Warnings:
+Warning	1292	Incorrect TRUNC value: ''
+select trunc("","DD");
+trunc("","DD")
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: ''
+select trunc();
+ERROR 42000: Incorrect parameter count in the call to native function 'trunc'
+select trunc(1);
+trunc(1)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+select trunc(1,2,3);
+ERROR 42000: Incorrect parameter count in the call to native function 'trunc'
+drop table t1,t2;

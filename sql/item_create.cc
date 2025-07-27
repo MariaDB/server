@@ -2590,6 +2590,41 @@ protected:
 };
 
 
+class Create_func_trunc : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name,
+                              List<Item> *item_list) override
+  {
+    Item *a[2];
+    uint arg_count= item_list == nullptr ? 0 : item_list->elements;
+
+    for (uint i=0; i < MY_MIN(array_elements(a), arg_count); i++)
+      a[i]= item_list->pop();
+    switch (arg_count)
+    {
+    case 1:
+      {
+        a[1]= new (thd->mem_root) Item_string_sys(thd, "DD",  2);
+        if (unlikely(a[1] == nullptr))
+          return nullptr;
+      }
+      /*fall through*/
+    case 2:
+      return new (thd->mem_root) Item_func_trunc(thd, a[0], a[1]);
+    }
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+
+  static Create_func_trunc s_singleton;
+
+protected:
+  Create_func_trunc() = default;
+  ~Create_func_trunc() override = default;
+};
+
+
 class Create_func_ucase : public Create_func_arg1
 {
 public:
@@ -5986,6 +6021,9 @@ Create_func_to_seconds::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_trunc Create_func_trunc::s_singleton;
+
+
 Create_func_ucase Create_func_ucase::s_singleton;
 
 Item*
@@ -6555,6 +6593,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TO_CHAR") }, BUILDER(Create_func_to_char)},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
+  { { STRING_WITH_LEN("TRUNC") }, BUILDER(Create_func_trunc)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UNCOMPRESS") }, BUILDER(Create_func_uncompress)},
   { { STRING_WITH_LEN("UNCOMPRESSED_LENGTH") }, BUILDER(Create_func_uncompressed_length)},
