@@ -71,18 +71,20 @@ and the lock released later.
 @param chain      buf_pool.page_hash cell for page_id
 @param block      preallocated buffer block (set to nullptr if consumed)
 @return pointer to the block
-@retval	nullptr in case of an error */
+@retval nullptr in case of an error
+@retval pointer to block | 1 if the page already exists in buf pool */
 TRANSACTIONAL_TARGET
 static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
                                           ulint zip_size,
                                           buf_pool_t::hash_chain &chain,
-                                          buf_block_t *&block)
+                                          buf_block_t *&block) noexcept
 {
   buf_page_t *bpage= nullptr;
+  constexpr uint32_t READ_BUF_FIX{buf_page_t::READ_FIX + 1};
   if (!zip_size || (zip_size & 1))
   {
     bpage= &block->page;
-    block->initialise(page_id, zip_size & ~1, buf_page_t::READ_FIX);
+    block->initialise(page_id, zip_size & ~1, READ_BUF_FIX);
     /* x_unlock() will be invoked
     in buf_page_t::read_complete() by the io-handler thread. */
     block->page.lock.x_lock(true);
@@ -90,11 +92,14 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
 
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
   hash_lock.lock();
-  if (buf_pool.page_hash.get(page_id, chain))
+  buf_page_t *hash_page= buf_pool.page_hash.get(page_id, chain);
+  if (hash_page)
   {
-page_exists:
-    hash_lock.unlock();
+  page_exists:
     /* The page is already in the buffer pool. */
+    ut_d(const uint32_t state=) hash_page->fix();
+    ut_ad(state >= buf_page_t::FREED);
+    hash_lock.unlock();
     if (bpage)
     {
       bpage->lock.x_unlock(true);
@@ -102,7 +107,7 @@ page_exists:
       ut_d(bpage->set_state(buf_page_t::MEMORY));
       ut_d(mysql_mutex_unlock(&buf_pool.mutex));
     }
-    return nullptr;
+    return reinterpret_cast<buf_page_t*>(uintptr_t(hash_page) | 1);
   }
 
   if (UNIV_UNLIKELY(mysql_mutex_trylock(&buf_pool.mutex)))
@@ -110,7 +115,8 @@ page_exists:
     hash_lock.unlock();
     mysql_mutex_lock(&buf_pool.mutex);
     hash_lock.lock();
-    if (buf_pool.page_hash.get(page_id, chain))
+    hash_page= buf_pool.page_hash.get(page_id, chain);
+    if (hash_page)
     {
       mysql_mutex_unlock(&buf_pool.mutex);
       goto page_exists;
@@ -160,11 +166,15 @@ page_exists:
     check the page_hash again, as it may have been modified. */
     if (UNIV_UNLIKELY(lru))
     {
-      if (UNIV_LIKELY_NULL(buf_pool.page_hash.get(page_id, chain)))
+      hash_page= buf_pool.page_hash.get(page_id, chain);
+      if (UNIV_LIKELY_NULL(hash_page))
       {
         /* The block was added by some other thread. */
+        ut_d(const uint32_t state=) hash_page->fix();
+        ut_ad(state >= buf_page_t::FREED);
         buf_buddy_free(data, zip_size);
-        goto func_exit;
+        mysql_mutex_unlock(&buf_pool.mutex);
+        return reinterpret_cast<buf_page_t*>(uintptr_t(hash_page) | 1);
       }
     }
 
@@ -175,7 +185,7 @@ page_exists:
     bpage->zip.data = (page_zip_t*) data;
 
     bpage->lock.init();
-    bpage->init(buf_page_t::READ_FIX, page_id);
+    bpage->init(READ_BUF_FIX, page_id);
     bpage->lock.x_lock(true);
 
     {
@@ -190,10 +200,8 @@ page_exists:
   }
 
   buf_pool.stat.n_pages_read++;
-func_exit:
-  mysql_mutex_unlock(&buf_pool.mutex);
   ut_ad(!bpage || bpage->in_file());
-
+  mysql_mutex_unlock(&buf_pool.mutex);
   return bpage;
 }
 
@@ -205,76 +213,154 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 @param[in] page_id	page id
 @param[in] zip_size	0 or ROW_FORMAT=COMPRESSED page size
 			bitwise-ORed with 1 to allocate an uncompressed frame
+@param[out] err		nullptr for asynchronous; error code for synchronous:
+			DB_SUCCESS if the page was successfully read,
+			DB_SUCCESS_LOCKED_REC if the exists in the pool,
+			DB_PAGE_CORRUPTED on page checksum mismatch,
+			DB_DECRYPTION_FAILED if page post encryption checksum
+			matches but after decryption normal page checksum
+			does not match
 @param[in,out] chain	buf_pool.page_hash cell for page_id
 @param[in,out] space	tablespace
 @param[in,out] block	preallocated buffer block
-@param[in] sync		true if synchronous aio is desired
-@return error code
-@retval DB_SUCCESS if the page was read
-@retval DB_SUCCESS_LOCKED_REC if the page exists in the buffer pool already */
+@param[in,out] stats	per-thread statistics
+@return buffer-fixed block (*err may be set to DB_SUCCESS_LOCKED_REC)
+@retval -1 if err==nullptr and an asynchronous read was submitted
+@retval -2 if err==nullptr and the page exists in the buffer pool
+@retval nullptr if the page was not successfully read (*err will be set) */
 static
-dberr_t
+buf_page_t*
 buf_read_page_low(
 	const page_id_t		page_id,
 	ulint			zip_size,
+	dberr_t*		err,
 	buf_pool_t::hash_chain&	chain,
 	fil_space_t*		space,
 	buf_block_t*&		block,
-	bool			sync = false) noexcept
+	ha_handler_stats*	stats) noexcept
 {
-	buf_page_t*	bpage;
+  if (buf_dblwr.is_inside(page_id))
+  {
+  fail:
+    space->release();
+    if (err)
+      *err= DB_PAGE_CORRUPTED;
+    return nullptr;
+  }
 
-	if (buf_dblwr.is_inside(page_id)) {
-		space->release();
-		return DB_PAGE_CORRUPTED;
-	}
+  buf_page_t *bpage= buf_page_init_for_read(page_id, zip_size, chain, block);
+  if (UNIV_UNLIKELY(!bpage))
+    goto fail;
+  const bool exist(uintptr_t(bpage) & 1);
+  bpage= reinterpret_cast<buf_page_t*>(uintptr_t(bpage) & ~uintptr_t{1});
+  ulonglong start= 0;
+  if (exist)
+  {
+    if (!err)
+    {
+      bpage->unfix();
+      bpage= reinterpret_cast<buf_page_t*>(-2);
+    }
+    else
+    {
+      uint32_t state{bpage->state()};
+      ut_d(page_id_t id{bpage->id()});
+      ut_ad(state > buf_page_t::FREED);
+      if (state < buf_page_t::UNFIXED)
+      {
+      corrupted:
+        ut_ad(id == page_id || id == page_id_t{~0ULL});
+        bpage->unfix();
+        bpage= nullptr;
+        *err= DB_PAGE_CORRUPTED;
+      }
+      else if (!bpage->is_read_fixed(state))
+        *err= DB_SUCCESS_LOCKED_REC;
+      else
+      {
+        bpage->read_wait(stats);
+        state= bpage->state();
+        ut_d(id= bpage->id());
+        bpage->lock.s_unlock();
+        if (state < buf_page_t::UNFIXED)
+          goto corrupted;
+      }
+    }
 
-	bpage = buf_page_init_for_read(page_id, zip_size, chain, block);
+    space->release();
+    return bpage;
+  }
 
-	if (!bpage) {
-		space->release();
-		return DB_SUCCESS_LOCKED_REC;
-	}
+  ut_ad(bpage->in_file());
+  if (err)
+  {
+    thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+    if (stats != nullptr && stats->active)
+      start= mariadb_measure();
+  }
 
-	ut_ad(bpage->in_file());
-	ulonglong mariadb_timer = 0;
+  void* dst= zip_size > 1 ? bpage->zip.data : bpage->frame;
+  const ulint len= zip_size & ~1 ? zip_size & ~1 : srv_page_size;
 
-	if (sync) {
-		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-		if (const ha_handler_stats *stats = mariadb_stats) {
-			if (stats->active) {
-				mariadb_timer = mariadb_measure();
-			}
-		}
-	}
+  auto fio=
+    space->io(IORequest(err
+                        ? IORequest::READ_SYNC : IORequest::READ_ASYNC),
+              os_offset_t{page_id.page_no()} * len, len, dst, bpage);
 
-	DBUG_LOG("ib_buf",
-		 "read page " << page_id << " zip_size=" << zip_size
-		 << (sync ? " sync" : " async"));
+  if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+  {
+    if (UNIV_LIKELY(err != nullptr))
+      *err= fio.err;
+    recv_sys.free_corrupted_page(page_id, *space->chain.start);
+    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
+    bpage= nullptr;
+  }
+  else if (err != nullptr)
+  {
+    const bool recovery{recv_sys.recovery_on};
+    if ((*err= fio.err= bpage->read_complete(*fio.node, recovery)))
+      bpage= nullptr;
+    thd_wait_end(nullptr);
+    space->release();
+    if (stats)
+    {
+      stats->pages_read_count++;
+      if (start)
+        stats->pages_read_time+= mariadb_measure() - start;
+    }
 
-	void* dst = zip_size > 1 ? bpage->zip.data : bpage->frame;
-	const ulint len = zip_size & ~1 ? zip_size & ~1 : srv_page_size;
+    /* FIXME: Remove this, and accumulate stats->pages_read_count to
+    global statistics somewhere! */
+    buf_LRU_stat_inc_io();
+    mysql_mutex_assert_not_owner(&buf_pool.mutex);
+  }
+  else
+    bpage= reinterpret_cast<buf_page_t*>(-1);
 
-	auto fio = space->io(IORequest(sync
-				       ? IORequest::READ_SYNC
-				       : IORequest::READ_ASYNC),
-			     os_offset_t{page_id.page_no()} * len, len,
-			     dst, bpage);
+  return bpage;
+}
 
-	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		recv_sys.free_corrupted_page(page_id, *space->chain.start);
-		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
-	} else if (sync) {
-		thd_wait_end(nullptr);
-		/* The i/o was already completed in space->io() */
-		fio.err = bpage->read_complete(*fio.node);
-		space->release();
-		if (mariadb_timer) {
-			mariadb_increment_pages_read_time(mariadb_timer);
-		}
-	}
+/** Update the read-ahead statistics.
+@param count  number of pages that were read ahead */
+static void buf_read_ahead_update(size_t count) noexcept
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  /* Read ahead is considered one I/O operation for the purpose of
+  LRU policy decision. */
+  buf_LRU_stat_inc_io();
+  buf_pool.stat.n_ra_pages_read+= count;
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
 
-	return fio.err;
+/** Update the statistics for a read-ahead that is triggered from SQL.
+@param count  number of pages that were read ahead
+@param stats  per-thread statistics */
+static void buf_read_ahead_update_sql(size_t count, ha_handler_stats *stats)
+  noexcept
+{
+  if (stats)
+    stats->pages_prefetched+= count;
+  buf_read_ahead_update(count);
 }
 
 /** Acquire a buffer block. */
@@ -284,7 +370,7 @@ static buf_block_t *buf_read_acquire()
 }
 
 /** Free a buffer block if needed. */
-static void buf_read_release(buf_block_t *block)
+static buf_block_t *buf_read_release(buf_block_t *block) noexcept
 {
   if (block)
   {
@@ -292,6 +378,8 @@ static void buf_read_release(buf_block_t *block)
     buf_LRU_block_free_non_file_page(block);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
+
+  return block;
 }
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -364,13 +452,15 @@ read_ahead:
     goto allocate_block;
   }
 
+  /* Read all the suitable blocks within the area */
   for (page_id_t i= low; i < high; ++i)
   {
     if (space->is_stopping())
       break;
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
     space->reacquire();
-    if (buf_read_page_low(i, zip_size, chain, space, block) == DB_SUCCESS)
+    if (reinterpret_cast<buf_page_t*>(-1) ==
+        buf_read_page_low(i, zip_size, nullptr, chain, space, block, nullptr))
     {
       count++;
       ut_ad(!block);
@@ -382,16 +472,10 @@ read_ahead:
 
   if (count)
   {
-    mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
-    mysql_mutex_lock(&buf_pool.mutex);
-    /* Read ahead is considered one I/O operation for the purpose of
-    LRU policy decision. */
-    buf_LRU_stat_inc_io();
-    buf_pool.stat.n_ra_pages_read_rnd+= count;
-    mysql_mutex_unlock(&buf_pool.mutex);
+    buf_read_ahead_update_sql(count, mariadb_stats);
   }
 
   space->release();
@@ -399,10 +483,13 @@ read_ahead:
   return count;
 }
 
-dberr_t buf_read_page(const page_id_t page_id,
-                      buf_pool_t::hash_chain &chain, bool unzip) noexcept
+buf_block_t *buf_read_page(const page_id_t page_id, dberr_t *err,
+                           buf_pool_t::hash_chain &chain, bool unzip) noexcept
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
+  dberr_t local_err;
+  if (!err)
+    err= &local_err;
   if (UNIV_UNLIKELY(!space))
   {
     sql_print_information("InnoDB: trying to read page "
@@ -410,7 +497,8 @@ dberr_t buf_read_page(const page_id_t page_id,
                           ", page number=" UINT32PF "]"
                           " in nonexisting or being-dropped tablespace",
                           page_id.space(), page_id.page_no());
-    return DB_TABLESPACE_DELETED;
+    *err= DB_TABLESPACE_DELETED;
+    return nullptr;
   }
 
   /* Our caller should already have ensured that the page does not
@@ -422,7 +510,6 @@ dberr_t buf_read_page(const page_id_t page_id,
   {
   allocate_block:
     mysql_mutex_lock(&buf_pool.mutex);
-    buf_LRU_stat_inc_io();
     block= buf_LRU_get_free_block(have_mutex);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
@@ -432,54 +519,41 @@ dberr_t buf_read_page(const page_id_t page_id,
     goto allocate_block;
   }
 
-  dberr_t err= buf_read_page_low(page_id, zip_size, chain, space, block, true);
+  buf_page_t *b= buf_read_page_low(page_id, zip_size, err, chain, space,
+                                   block, mariadb_stats);
   buf_read_release(block);
-  return err;
+  return reinterpret_cast<buf_block_t*>(b);
 }
 
-/** High-level function which reads a page asynchronously from a file to the
-buffer buf_pool if it is not already there. Sets the io_fix flag and sets
-an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param[in,out]	space		tablespace
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
-void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-                              ulint zip_size) noexcept
+/** Read a page asynchronously into buf_pool if it is not already there.
+@param page_id page identifier
+@param space   tablespace
+@param stats   statistics */
+void buf_read_page_background(const page_id_t page_id, fil_space_t *space,
+                              ha_handler_stats *stats) noexcept
 {
+  ut_ad(!recv_recovery_is_on());
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   if (buf_pool.page_hash_contains(page_id, chain))
-  {
   skip:
     space->release();
-    return;
-  }
-
-  buf_block_t *block= nullptr;
-  if (UNIV_LIKELY(!zip_size))
-  {
-  allocate_block:
-    if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
-      goto skip;
-  }
-  else if (recv_recovery_is_on())
-  {
-    zip_size|= 1;
-    goto allocate_block;
-  }
-
-  if (buf_read_page_low(page_id, zip_size, chain, space, block) ==
-      DB_SUCCESS)
-    ut_ad(!block);
   else
-    buf_read_release(block);
-
-  /* We do not increment number of I/O operations used for LRU policy
-  here (buf_LRU_stat_inc_io()). We use this in heuristics to decide
-  about evicting uncompressed version of ROW_FORMAT=COMPRESSED pages
-  from the buffer pool. Since this function is called from buffer pool
-  load these IOs are deliberate and are not part of normal workload we
-  can ignore these in our heuristics. */
+  {
+    buf_block_t *b= nullptr;
+    ulint zip_size{space->zip_size()};
+    if (UNIV_LIKELY(!zip_size) && UNIV_UNLIKELY(!(b= buf_read_acquire())))
+      goto skip;
+    buf_read_page_low(page_id, zip_size, nullptr, chain, space, b, nullptr);
+    if (!buf_read_release(b) && stats)
+    {
+      stats->pages_prefetched++;
+      buf_read_ahead_update(1);
+    }
+    /* buf_load() invokes this with stats=nullptr. In that case, we skip
+    the call to buf_read_ahead_update() or buf_LRU_stat_inc_io(); these
+    deliberate page reads are not part of a normal workload and therefore
+    should not affect the unzip_LRU heuristics. */
+  }
 }
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
@@ -662,8 +736,9 @@ failed:
       break;
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(new_low.fold());
     space->reacquire();
-    if (buf_read_page_low(new_low, zip_size, chain, space, block) ==
-        DB_SUCCESS)
+    if (reinterpret_cast<buf_page_t*>(-1) ==
+        buf_read_page_low(new_low, zip_size, nullptr,
+                          chain, space, block, nullptr))
     {
       count++;
       ut_ad(!block);
@@ -675,16 +750,10 @@ failed:
 
   if (count)
   {
-    mariadb_increment_pages_prefetched(count);
-    DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
+    DBUG_PRINT("ib_buf", ("linear read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));
-    mysql_mutex_lock(&buf_pool.mutex);
-    /* Read ahead is considered one I/O operation for the purpose of
-    LRU policy decision. */
-    buf_LRU_stat_inc_io();
-    buf_pool.stat.n_ra_pages_read+= count;
-    mysql_mutex_unlock(&buf_pool.mutex);
+    buf_read_ahead_update_sql(count, mariadb_stats);
   }
 
   space->release();
@@ -708,29 +777,23 @@ void buf_read_recover(fil_space_t *space, const page_id_t page_id,
 
   if (init_lsn)
   {
-    if (buf_page_t *bpage=
-        buf_page_init_for_read(page_id, zip_size, chain, block))
-    {
-      ut_ad(bpage->in_file());
+    buf_page_t *bpage= buf_page_init_for_read(page_id, zip_size, chain, block);
+    if (UNIV_UNLIKELY(!bpage))
+      goto fail;
+    const bool exist(uintptr_t(bpage) & 1);
+    bpage= reinterpret_cast<buf_page_t*>(uintptr_t(bpage) & ~uintptr_t{1});
+    bpage->unfix();
+
+    if (!exist)
       os_fake_read(IORequest{bpage, (buf_tmp_buffer_t*) &recs,
                              UT_LIST_GET_FIRST(space->chain),
                              IORequest::READ_ASYNC}, init_lsn);
-      return;
-    }
   }
-  else if (dberr_t err=
-           buf_read_page_low(page_id, zip_size, chain, space, block))
-  {
-    if (err != DB_SUCCESS_LOCKED_REC)
-      sql_print_error("InnoDB: Recovery failed to read page "
-                      UINT32PF " from %s",
-                      page_id.page_no(), space->chain.start->name);
-  }
-  else
-  {
-    ut_ad(!block);
-    return;
-  }
+  else if (!buf_read_page_low(page_id, zip_size, nullptr, chain, space, block,
+                              nullptr))
+  fail:
+    sql_print_error("InnoDB: Recovery failed to read page %" PRIu32 " from %s",
+                    page_id.page_no(), space->chain.start->name);
 
-  buf_LRU_block_free_non_file_page(block);
+  buf_read_release(block);
 }
