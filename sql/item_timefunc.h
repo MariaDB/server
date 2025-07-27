@@ -2057,4 +2057,44 @@ public:
     return false;
   }
 };
+
+
+class Item_func_trunc :public Item_datetimefunc
+{
+public:
+  enum enum_trunc
+  {
+    TRUNC_UNINIT,
+    TRUNC_IMPOSSIBLE,
+    TRUNC_YEAR,
+    TRUNC_MONTH,
+    TRUNC_DAY
+  };
+private:
+  enum_trunc const_format;
+  bool error_given;
+  bool check_arguments() const override
+  {
+    return args[0]->check_type_can_return_date(func_name_cstring()) ||
+           args[1]->check_type_can_return_text(func_name_cstring());
+  }
+  enum_trunc get_trunc_option(const LEX_CSTRING format);
+
+public:
+  Item_func_trunc(THD *thd, Item *a, Item *b):
+    Item_datetimefunc(thd, a, b),
+    const_format(TRUNC_UNINIT),
+    error_given(false)
+  {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("trunc") };
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_trunc>(thd, this); }
+};
+
 #endif /* ITEM_TIMEFUNC_INCLUDED */

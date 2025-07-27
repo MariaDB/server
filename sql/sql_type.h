@@ -2267,6 +2267,9 @@ public:
   class Options: public Temporal_with_date::Options
   {
   public:
+    Options(date_conv_mode_t dmode, time_round_mode_t rmode)
+     :Temporal_with_date::Options(dmode, rmode)
+    { }
     explicit Options(date_conv_mode_t fuzzydate)
      :Temporal_with_date::Options(fuzzydate, TIME_FRAC_TRUNCATE)
     { }
