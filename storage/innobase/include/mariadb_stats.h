@@ -101,23 +101,6 @@ inline ulonglong mariadb_measure()
 }
 
 /*
-  Call this only of start_time != 0
-  See buf0rea.cc for an example of how to use it efficiently
-*/
-
-inline void mariadb_increment_pages_read_time(ulonglong start_time)
-{
-  ha_handler_stats *stats= mariadb_stats;
-  ulonglong end_time= mariadb_measure();
-  /* Check that we only call this if active, see example! */
-  DBUG_ASSERT(start_time);
-  DBUG_ASSERT(stats->active);
-
-  stats->pages_read_time+= (end_time - start_time);
-}
-
-
-/*
   Helper class to set mariadb_stats temporarly for one call in handler.cc
 */
 
