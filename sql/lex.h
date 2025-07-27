@@ -678,6 +678,7 @@ SYMBOL symbols[] = {
   { "TRIGGER",          SYM(TRIGGER_SYM)},
   { "TRIGGERS",         SYM(TRIGGERS_SYM)},
   { "TRUE",		SYM(TRUE_SYM)},
+  { "TRUNC",		SYM(TRUNC_SYM)},
   { "TRUNCATE",		SYM(TRUNCATE_SYM)},
   { "TYPE",		SYM(TYPE_SYM)},
   { "UNBOUNDED",        SYM(UNBOUNDED_SYM)},

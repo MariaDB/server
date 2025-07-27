@@ -50,14 +50,22 @@ uchar days_in_month[]= {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 0};
 static long my_time_zone=0;
 
 
-/* Calc days in one year. works with 0 <= year <= 99 */
+/* Calc days in one year */
 
 uint calc_days_in_year(uint year)
 {
-  return ((year & 3) == 0 && (year%100 || (year%400 == 0 && year)) ?
-          366 : 365);
+  return isleap(year) ? 366 : 365;
 }
 
+/* Calc days in a month */
+
+uint calc_days_in_month(uint year, uint month)
+{
+  uint days= days_in_month[month-1];
+  if (month == 2 && isleap(year))
+    days= 29;
+  return days;
+}
 
 #ifdef DBUG_ASSERT_EXISTS
 

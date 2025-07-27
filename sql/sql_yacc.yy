@@ -57,6 +57,7 @@
 #include "sql_cte.h"
 #include "sql_window.h"
 #include "item_windowfunc.h"
+#include "item_timefunc.h"
 #include "event_parse_data.h"
 #include "create_options.h"
 #include <myisam.h>
@@ -1138,6 +1139,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  TIME_SYM                      /* SQL-2003-R, Oracle-R */
 %token  <kwd>  TRANSACTION_SYM
 %token  <kwd>  TRANSACTIONAL_SYM
+%token  <kwd>  TRUNC_SYM                     /* Oracle-R */
 %token  <kwd>  THREADS_SYM
 %token  <kwd>  TRIGGERS_SYM
 %token  <kwd>  TRIM_ORACLE
@@ -10504,6 +10506,22 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | TRUNC_SYM '(' expr ')'
+          {
+            Item_string_sys *arg= new (thd->mem_root)
+              Item_string_sys(thd, "DD",  2);
+            if (unlikely(arg == NULL))
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_func_trunc(thd, $3, arg);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | TRUNC_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_trunc(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         | INSERT '(' expr ',' expr ',' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_insert(thd, $3, $5, $7, $9);
@@ -16799,6 +16817,7 @@ keyword_sp_var_and_label:
         | SYSDATE
 %endif
         | TRIM_ORACLE
+        | TRUNC_SYM
         | TIMESTAMP_ADD
         | TIMESTAMP_DIFF
         | USER_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
