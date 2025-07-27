@@ -1,0 +1,45 @@
+--echo # Test for function trunc()
+
+--echo #
+--echo # Test 'same day, different months'. Result is an integer
+--echo #
+
+select months_between("1995-02-15", "1995-01-15");
+select months_between("1995-02-15", "1995-01-15 11:59:59");
+select months_between("1995-02-15 02:01:01", "1995-01-15 01:00:01");
+select months_between("2000-02-29", "1999-02-28");
+select months_between("2001-04-30", "1999-05-31");
+
+--echo # Test different days. Result has decimals
+
+select months_between("1995-02-02", "1995-01-01");
+select months_between("1995-01-01", "1995-02-02");
+
+--echo # Test one day difference
+select months_between("1995-02-15", "1995-01-15");
+select months_between("1995-02-15", "1995-01-14");
+select months_between("1995-02-15", "1995-01-16");
+
+--echo # Test effect on different times different time
+
+select months_between("1995-02-15 12:00:00", "1995-01-16 12:00:00");
+select months_between("1995-02-15 12:00:00", "1995-01-16 11:59:59");
+select months_between("1995-02-15 12:00:00", "1995-01-16 12:00:01");
+
+--echo #
+--echo # Test difference in hours
+--echo #
+
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a DATE, b DATE);
+show create table t1;
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00',TIMESTAMP'2001-01-01 23:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00', TIMESTAMP'2001-01-01 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:00:00', TIMESTAMP'2001-01-01 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:30:00', TIMESTAMP'2001-01-01 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00',TIMESTAMP'2001-01-03 23:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00', TIMESTAMP'2001-01-03 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:00:00', TIMESTAMP'2001-01-03 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:30:00', TIMESTAMP'2001-01-03 00:00:00');
+SELECT a,b, MONTHS_BETWEEN(a,b) AS c FROM t1;
+set sql_mode=default;

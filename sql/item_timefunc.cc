@@ -4051,6 +4051,125 @@ bool Item_func_last_day::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 }
 
 
+/*
+  Help functions for months_between()
+  Note that by compiling with EXTENDED_MONTHS_BETWEEN MariaDB would
+  take into account alse the time part when comparing dates.
+*/
+
+static ulonglong microseconds(const MYSQL_TIME *t)
+{
+  ulonglong days= (((t->year * 366LL) + t->month) * 31 + t->day);
+#ifndef EXTENDED_MONTHS_BETWEEN
+  return days;
+#else
+  ulonglong microseconds= (((((days*24 + t->hour) * 60) + t->minute) * 60 +
+                            t->second)*1000000LL + t->second_part);
+  return microseconds;
+#endif /* EXTENDED_MONTHS_BETWEEN */
+}
+
+
+/*
+  Get the fractional day based on hour, minute, second and
+  fractional second.
+*/
+
+static double fractional_day(const MYSQL_TIME *t)
+{
+  /* Normalize all components to the fractional part of the day */
+  ulonglong milliseconds= (t->hour * 3600LL + t->minute * 60LL +
+                           t->second)*1000;
+
+#ifdef EXTENDED_MONTHS_BETWEEN
+  milliseconds+= t->second_part / 1000;
+#endif
+
+  /*
+    Normalize by 86400000
+    (which is 24 hours * 60 minutes * 60 seconds * 1000 milliseconds)
+  */
+  return milliseconds / 86400000.0; // fractional day
+}
+
+
+/* Check if it's the last day of the month */
+static inline int is_last_day(const MYSQL_TIME *ltime)
+{
+  uint last_day= calc_days_in_month(ltime->year, ltime->month);
+  return ltime->day == last_day;
+}
+
+/*
+  Calculate months_between() according to how Oracle does it.
+
+  "If date1 is earlier than date2, then the result is negative.  If
+  date1 and date2 are either the same days of the month or both last
+  days of months, then the result is always an integer.  If not, then
+  a fractional portion is added based on a 31-day month.
+
+  One difference between the MariaDB and Oracle implementation is that
+  MariaDB takes hours, minutes, seconds and fractional seconds into
+  account when comparing dates when computing the fractional months.
+*/
+
+double Item_func_months_between::val_real()
+{
+  double frac;
+  int invert = 1, months;
+  ulonglong dt1, dt2;
+  MYSQL_TIME ltime1, ltime2, *d1, *d2;
+  THD *thd= current_thd;
+  Datetime::Options opt(TIME_NO_ZEROS, thd);
+
+  if (Datetime(thd, args[0], opt).copy_to_mysql_time(&ltime1) ||
+      Datetime(thd, args[1], opt).copy_to_mysql_time(&ltime2))
+  {
+    null_value= 1;
+    return 0.0;
+  }
+  null_value= 0;
+
+  /* Get earlier time in d1 */
+  d1= &ltime1;
+  d2= &ltime2;
+
+  dt1= microseconds(d1);
+  dt2= microseconds(d2);
+
+  if (dt1 < dt2)
+  {
+    invert= -1;
+    swap_variables(MYSQL_TIME *, d1, d2);
+  }
+
+  /* Calculate months */
+  months= (d1->year - d2->year) * 12 + (d1->month - d2->month);
+
+  /*
+    If days are the same or day is last day of the month they are
+    regarded as equal
+  */
+  if (d1->day == d2->day || (is_last_day(d1) && is_last_day(d2)))
+    return months * invert;
+
+  double frac_d1, frac_d2;
+  frac_d1= fractional_day(d1);
+  frac_d2= fractional_day(d2);
+
+  /* Compute fractional month using 31-day assumption */
+  if (d1->day > d2->day)
+    frac= (d1->day + frac_d1 - d2->day - frac_d2) / 31.0;
+  else
+  {
+    months--;
+    frac= (31 - d2->day - frac_d2 + d1->day + frac_d1) / 31.0;
+  }
+
+  return invert * (months + frac);
+}
+
+
 /* enum for Oracle TRUNC function */
 
 struct TRUNC_FORMAT

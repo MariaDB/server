@@ -1,0 +1,76 @@
+# Test for function trunc()
+#
+# Test 'same day, different months'. Result is an integer
+#
+select months_between("1995-02-15", "1995-01-15");
+months_between("1995-02-15", "1995-01-15")
+1
+select months_between("1995-02-15", "1995-01-15 11:59:59");
+months_between("1995-02-15", "1995-01-15 11:59:59")
+1
+select months_between("1995-02-15 02:01:01", "1995-01-15 01:00:01");
+months_between("1995-02-15 02:01:01", "1995-01-15 01:00:01")
+1
+select months_between("2000-02-29", "1999-02-28");
+months_between("2000-02-29", "1999-02-28")
+12
+select months_between("2001-04-30", "1999-05-31");
+months_between("2001-04-30", "1999-05-31")
+23
+# Test different days. Result has decimals
+select months_between("1995-02-02", "1995-01-01");
+months_between("1995-02-02", "1995-01-01")
+1.032258064516129
+select months_between("1995-01-01", "1995-02-02");
+months_between("1995-01-01", "1995-02-02")
+-1.032258064516129
+# Test one day difference
+select months_between("1995-02-15", "1995-01-15");
+months_between("1995-02-15", "1995-01-15")
+1
+select months_between("1995-02-15", "1995-01-14");
+months_between("1995-02-15", "1995-01-14")
+1.032258064516129
+select months_between("1995-02-15", "1995-01-16");
+months_between("1995-02-15", "1995-01-16")
+0.967741935483871
+# Test effect on different times different time
+select months_between("1995-02-15 12:00:00", "1995-01-16 12:00:00");
+months_between("1995-02-15 12:00:00", "1995-01-16 12:00:00")
+0.967741935483871
+select months_between("1995-02-15 12:00:00", "1995-01-16 11:59:59");
+months_between("1995-02-15 12:00:00", "1995-01-16 11:59:59")
+0.9677423088410991
+select months_between("1995-02-15 12:00:00", "1995-01-16 12:00:01");
+months_between("1995-02-15 12:00:00", "1995-01-16 12:00:01")
+0.9677415621266429
+#
+# Test difference in hours
+#
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a DATE, b DATE);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" datetime DEFAULT NULL,
+  "b" datetime DEFAULT NULL
+)
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00',TIMESTAMP'2001-01-01 23:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00', TIMESTAMP'2001-01-01 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:00:00', TIMESTAMP'2001-01-01 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:30:00', TIMESTAMP'2001-01-01 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00',TIMESTAMP'2001-01-03 23:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 00:00:00', TIMESTAMP'2001-01-03 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:00:00', TIMESTAMP'2001-01-03 00:00:00');
+INSERT INTO t1 VALUES(TIMESTAMP'2001-01-02 23:30:00', TIMESTAMP'2001-01-03 00:00:00');
+SELECT a,b, MONTHS_BETWEEN(a,b) AS c FROM t1;
+a	b	c
+2001-01-02 00:00:00	2001-01-01 23:00:00	0.0013440860215053752
+2001-01-02 00:00:00	2001-01-01 00:00:00	0.03225806451612903
+2001-01-02 23:00:00	2001-01-01 00:00:00	0.06317204301075269
+2001-01-02 23:30:00	2001-01-01 00:00:00	0.06384408602150538
+2001-01-02 00:00:00	2001-01-03 23:00:00	-0.06317204301075269
+2001-01-02 00:00:00	2001-01-03 00:00:00	-0.03225806451612903
+2001-01-02 23:00:00	2001-01-03 00:00:00	-0.0013440860215053752
+2001-01-02 23:30:00	2001-01-03 00:00:00	-0.0006720430107526894
+set sql_mode=default;
