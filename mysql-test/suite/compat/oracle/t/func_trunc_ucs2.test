@@ -1,0 +1,26 @@
+--source include/have_ucs2.inc
+
+--echo #
+--echo # MDEV-20023 Implement Oracle TRUNC() function
+--echo #
+
+SET NAMES utf8mb4, @@character_set_connection=ucs2;
+
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2001-02-03 10:20:30');
+# Testing constant format
+SELECT trunc(dt, 'YYYY') FROM t1;
+SELECT trunc(dt, 'MM') FROM t1;
+SELECT trunc(dt, 'DD') FROM t1;
+# Testing non-constant format
+CREATE TABLE t2 (fmt VARCHAR(32) CHARACTER SET ucs2);
+INSERT INTO t2 VALUES ('YYYY'),('MM'),('DD');
+SELECT trunc(dt, fmt) FROM t1, t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing non-ASCII input in the format
+--echo #
+
+SELECT trunc('2021-11-12 00:23:12','ŸŸŸŸ');

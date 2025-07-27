@@ -4043,12 +4043,129 @@ bool Item_func_last_day::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   Datetime *d= new(ltime) Datetime(thd, args[0], opt);
   if ((null_value= (!d->is_valid_datetime() || ltime->month == 0)))
     return true;
-  uint month_idx= ltime->month-1;
-  ltime->day= days_in_month[month_idx];
-  if ( month_idx == 1 && calc_days_in_year(ltime->year) == 366)
-    ltime->day= 29;
+  ltime->day= calc_days_in_month(ltime->year, ltime->month);
   ltime->hour= ltime->minute= ltime->second= 0;
   ltime->second_part= 0;
   ltime->time_type= MYSQL_TIMESTAMP_DATE;
   return (null_value= 0);
+}
+
+
+/* enum for Oracle TRUNC function */
+
+struct TRUNC_FORMAT
+{
+  const LEX_CSTRING name;
+  Item_func_trunc::enum_trunc format;
+};
+
+
+/*
+  Formats in sorted order. Only the Oracle formats that truncates to year,
+  month or day are supported
+*/
+static struct TRUNC_FORMAT trunc_options[]=
+{
+  {{STRING_WITH_LEN("DD")}, Item_func_trunc::TRUNC_DAY },
+  {{STRING_WITH_LEN("DDD")}, Item_func_trunc::TRUNC_DAY },
+  {{STRING_WITH_LEN("J")}, Item_func_trunc::TRUNC_DAY },
+  {{STRING_WITH_LEN("MM")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("MON")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("MONTH")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("RM")}, Item_func_trunc::TRUNC_MONTH },
+  {{STRING_WITH_LEN("SYEAR")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("SYYYY")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("Y")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YEAR")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YY")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YYY")}, Item_func_trunc::TRUNC_YEAR },
+  {{STRING_WITH_LEN("YYYY")}, Item_func_trunc::TRUNC_YEAR },
+};
+
+
+Item_func_trunc::enum_trunc
+Item_func_trunc::get_trunc_option(const LEX_CSTRING format)
+{
+  uint low=0, high= array_elements(trunc_options) - 1;
+
+  /* Use binary search to find the format */
+  do
+  {
+    uint mid= (low+high)/2;
+    int cmp= my_charset_latin1.strnncoll(format, trunc_options[mid].name);
+    if (!cmp)
+      return trunc_options[mid].format;
+    if (cmp > 0)
+      low= mid+1;
+    else
+      high= mid-1;
+  } while ((int) low <= (int) high);
+  return TRUNC_IMPOSSIBLE;
+}
+
+
+bool Item_func_trunc::fix_length_and_dec(THD *thd)
+{
+  fix_attributes_datetime(args[0]->datetime_precision(thd));
+  set_maybe_null();
+  if (args[1]->can_eval_in_optimize())
+  {
+    String tmp, *res;
+    if ((res= args[1]->val_str_ascii(&tmp)))
+    {
+      const_format= get_trunc_option(res->to_lex_cstring());
+      if (const_format == TRUNC_IMPOSSIBLE)
+        const_format= TRUNC_UNINIT;             // Error handling in get_date()
+    }
+  }
+  return false;
+}
+
+
+bool Item_func_trunc::get_date(THD *thd, MYSQL_TIME *ltime,
+                               date_mode_t fuzzydate)
+{
+  Datetime::Options opt(TIME_NO_ZEROS, TIME_FRAC_TRUNCATE);
+  enum_trunc format= TRUNC_IMPOSSIBLE;
+  Datetime *dt= new(ltime) Datetime(thd, args[0], opt);
+  if ((null_value= !dt->is_valid_datetime()))
+    return true;
+  if (const_format != TRUNC_UNINIT)
+    format= const_format;
+  else
+  {
+    String tmp, *res;
+    if ((res= args[1]->val_str_ascii(&tmp)))
+      format= get_trunc_option(res->to_lex_cstring());
+    if (format == TRUNC_IMPOSSIBLE)
+    {
+      thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN, "TRUNC",
+                                    res ? res->c_ptr() : "<NULL>");
+      goto error;
+    }
+  }
+
+  null_value= 0;
+  switch (format)
+  {
+  case TRUNC_UNINIT:
+  case TRUNC_IMPOSSIBLE:
+    DBUG_ASSERT(0);
+    goto error;
+  case TRUNC_YEAR:
+    ltime->month= 1;
+    /* fall through */
+  case TRUNC_MONTH:
+    ltime->day= 1;
+    /* fall through */
+  case TRUNC_DAY:
+    ltime->hour= ltime->minute= ltime->second= 0;
+    ltime->second_part= 0;
+    break;
+  }
+  return false;
+
+  error:
+  null_value= 1;
+  return true;
 }
