@@ -1,0 +1,39 @@
+call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+show status like 'caching_sha2_password%';
+Variable_name	Value
+Caching_sha2_password_rsa_public_key	
+create user test1@'%' identified via caching_sha2_password using PASSWORD('pwd');
+create user test2@'%' identified via caching_sha2_password;
+show grants for test2@'%';
+Grants for test2@%
+GRANT USAGE ON *.* TO `test2`@`%` IDENTIFIED VIA caching_sha2_password
+create procedure checkme() sql security invoker
+select user(), current_user(), variable_value > '' as 'have_ssl'
+    from information_schema.session_status
+where variable_name='ssl_cipher';
+grant execute on test.* to test1@'%', test2@'%';
+connect con1, localhost,test1,pwd,,,,$proto NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test1@localhost	test1@%	0
+disconnect con1;
+connect con2, localhost,test1,pwd,,,,$proto NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test1@localhost	test1@%	0
+disconnect con2;
+connect(localhost,test1,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con3, localhost,test1,wrong_pwd,,,,$proto NOSSL;
+ERROR 28000: Access denied for user 'test1'@'localhost' (using password: YES)
+connect con4, localhost,test2,,,,,$proto NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test2@localhost	test2@%	0
+disconnect con4;
+connect(localhost,test2 pwd,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con5, localhost,test2 pwd,,,,,$proto NOSSL;
+ERROR 28000: Access denied for user 'test2 pwd'@'localhost' (using password: NO)
+connection default;
+drop procedure checkme;
+drop user test1@'%';
+drop user test2@'%';
