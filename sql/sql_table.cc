@@ -3540,8 +3540,6 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
-    bool is_hash_field_needed= key->key_create_info.algorithm
-                               == HA_KEY_ALG_LONG_HASH;
     if (key->type == Key::IGNORE_KEY)
     {
       /* ignore redundant keys */
@@ -3551,6 +3549,9 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       if (!key)
 	break;
     }
+
+    bool is_hash_field_needed= key->key_create_info.algorithm
+                               == HA_KEY_ALG_LONG_HASH;
 
     if (key_check_without_overlaps(thd, create_info, alter_info, *key))
       DBUG_RETURN(true);
@@ -11343,7 +11344,8 @@ do_continue:;
     thd->count_cuted_fields= CHECK_FIELD_EXPRESSION;
     altered_table.reset_default_fields();
     if (altered_table.default_field &&
-        altered_table.update_default_fields(true))
+        (altered_table.check_sequence_privileges(thd) ||
+         altered_table.update_default_fields(true)))
     {
       cleanup_table_after_inplace_alter(&altered_table);
       goto err_new_table_cleanup;
@@ -12761,6 +12763,23 @@ bool check_engine(THD *thd, const char *db_name,
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
+#ifdef WITH_WSREP
+    /*  @@enforce_storage_engine is local, if user has used
+	ENGINE=XXX we can't allow it in cluster in this
+	case as enf_engine != new _engine. This is because
+        original stmt is replicated including ENGINE=XXX and
+        here */
+    if ((create_info->used_fields & HA_CREATE_USED_ENGINE) &&
+        WSREP(thd))
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "ENFORCE_STORAGE_ENGINE");
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_OPTION_PREVENTS_STATEMENT,
+                          "Do not use ENGINE=x when @@enforce_storage_engine is set");
+
+      DBUG_RETURN(TRUE);
+    }
+#endif
     *new_engine= enf_engine;
   }
 
