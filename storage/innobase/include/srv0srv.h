@@ -178,6 +178,12 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
+
+#ifdef __linux__
+/* This enum is defined which linux native io method to use */
+extern ulong	srv_linux_aio_method;
+#endif
+
 extern my_bool	srv_numa_interleave;
 
 /* Use atomic writes i.e disable doublewrite buffer */

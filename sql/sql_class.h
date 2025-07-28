@@ -5694,6 +5694,7 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
+  bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
@@ -5798,7 +5799,6 @@ public:
   uint32                    wsrep_rand;
   rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
@@ -6103,6 +6103,18 @@ public:
       return false;
     return !is_set_timestamp_forbidden(this);
   }
+
+  /**
+    @brief
+    Return true if current statement uses cursor protocol for execution.
+
+    @details
+    Cursor protocol execution is determined by checking if lex->result is a
+    Select_materialize object, which is exclusively used by the server for
+    cursor result set materialization.
+  */
+  bool is_cursor_execution() const;
+
   /*
     Return true if we are in stored procedure, not in a function or
     trigger.
@@ -6112,6 +6124,8 @@ public:
     return (lex->sphead != 0 &&
             !(in_sub_stmt & (SUB_STMT_FUNCTION | SUB_STMT_TRIGGER)));
   }
+
+  bool reparsing_sp_stmt= {false};
 
   /* Data and methods for bulk multiple unit result reporting */
   DYNAMIC_ARRAY *unit_results;

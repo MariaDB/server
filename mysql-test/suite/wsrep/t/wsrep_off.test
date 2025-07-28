@@ -1,0 +1,8 @@
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_binlog_format_row.inc
+
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+SET GLOBAL wsrep_on=ON;
+REPAIR TABLE performance_schema.setup_objects;
+SET GLOBAL wsrep_on=OFF;

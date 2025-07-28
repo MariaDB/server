@@ -113,13 +113,13 @@ min(a)
 2
 explain select max(200 - a) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	5	NULL	100	Using index
+1	SIMPLE	t1	index	NULL	a	5	NULL	#	Using index
 select max(200 - a) from t1;
 max(200 - a)
 198
 explain select min(200 - a) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	5	NULL	100	Using index
+1	SIMPLE	t1	index	NULL	a	5	NULL	#	Using index
 select min(200 - a) from t1;
 min(200 - a)
 0
@@ -174,6 +174,4 @@ SELECT MAX(a) FROM t1 WHERE a <= 0.6789;
 MAX(a)
 0.6789
 drop table t1;
-#
 # end of test 11.4
-#

@@ -55,4 +55,3 @@
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
 [mariadb-11.8]
-

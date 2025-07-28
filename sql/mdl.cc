@@ -2412,6 +2412,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
                       (ulonglong)(abort_blocking_timeout * 1000000000ULL));
     abort_blocking_enabled= true;
   }
+  DEBUG_SYNC(get_thd(), "mdl_after_find_deadlock");
+
   set_timespec_nsec(abs_timeout,
                     (ulonglong)(lock_wait_timeout * 1000000000ULL));
   wait_status= MDL_wait::EMPTY;

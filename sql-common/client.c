@@ -1993,6 +1993,29 @@ error:
   return res;
 }
 
+/**
+  Checks if self-signed certificate error should be ignored.
+*/
+static my_bool is_local_connection(const char *hostname, enum enum_vio_type viotype)
+{
+  const char *local_host_names[]= {
+#ifdef _WIN32
+  "localhost",
+#endif
+  "127.0.0.1", "::1"};
+  size_t i;
+
+  if (viotype != VIO_TYPE_TCPIP || !hostname)
+    return TRUE;
+
+  for (i= 0; i < array_elements(local_host_names); i++)
+  {
+    if (strcmp(hostname, local_host_names[i]) == 0)
+      return TRUE;
+  }
+  return FALSE;
+}
+
 #define MAX_CONNECTION_ATTR_STORAGE_LENGTH 65536
 
 /**
@@ -2121,6 +2144,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     enum enum_ssl_init_error ssl_init_error;
     const char *cert_error;
     unsigned long ssl_error;
+    my_bool is_local;
 
     /*
       Send mysql->client_flag, max_packet_size - unencrypted otherwise
@@ -2168,10 +2192,11 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     }
     DBUG_PRINT("info", ("IO layer change done!"));
 
+    is_local= is_local_connection(mysql->host, vio_type);
     /* Verify server cert */
     if ((!mysql->options.extension ||
          !mysql->options.extension->tls_allow_invalid_server_cert) &&
-        ssl_verify_server_cert(mysql, &cert_error, vio_type == VIO_TYPE_SOCKET))
+        ssl_verify_server_cert(mysql, &cert_error, is_local))
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                                ER(CR_SSL_CONNECTION_ERROR), cert_error);
@@ -2180,14 +2205,13 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     if (mysql->tls_self_signed_error)
     {
       /*
-        If the transport is secure (see opt_require_secure_transport) we
-        allow a self-signed cert as we know it came from the server.
+        If connection is local, we allow self-signed cert.
 
         If no password or plugin uses insecure protocol - refuse the cert.
 
         Otherwise one last cert check after auth.
       */
-      if (vio_type == VIO_TYPE_SOCKET)
+      if (is_local)
         mysql->tls_self_signed_error= 0;
       else if (!mysql->passwd || !mysql->passwd[0] ||
                !mpvio->plugin->hash_password_bin)

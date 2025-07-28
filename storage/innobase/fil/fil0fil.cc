@@ -2833,23 +2833,30 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 
 		while (node->size <= p) {
 			p -= node->size;
-			node = UT_LIST_GET_NEXT(chain, node);
-			if (!node) {
+			if (!UT_LIST_GET_NEXT(chain, node)) {
 fail:
-				if (type.type != IORequest::READ_ASYNC) {
+				switch (type.type) {
+				case IORequest::READ_ASYNC:
+					/* Read-ahead may be requested for
+					non-existing pages. Ignore such
+					requests. */
+					break;
+				default:
 					fil_invalid_page_access_msg(
 						node->name,
 						offset, len,
 						type.is_read());
-				}
 #ifndef DBUG_OFF
 io_error:
 #endif
-				set_corrupted();
+					set_corrupted();
+				}
+
 				err = DB_CORRUPTION;
 				node = nullptr;
 				goto release;
 			}
+			node = UT_LIST_GET_NEXT(chain, node);
 		}
 
 		offset = os_offset_t{p} << srv_page_size_shift;

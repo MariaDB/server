@@ -193,7 +193,6 @@ let $c1=
         c_nationkey = n_nationkey and
         n_name='PERU';
 
-
 explain
 update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
  o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
@@ -208,4 +207,25 @@ update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE 
 DROP DATABASE dbt3_s001;
 
 set default_storage_engine=@save_default_storage_engine;
+use test;
 
+--echo #
+--echo # MDEV-37281 incorrect isolation level in update with unique using hash or without overlap
+--echo #
+create table t1 (id int, e varchar(100), a int, unique (e) using hash) engine=innodb;
+insert t1 values(10, '2000-01-01', 0);
+insert t1 values(20, '2000-01-02', 1);
+insert t1 values(30, '2000-01-03', 2);
+set session innodb_snapshot_isolation=0;
+set transaction isolation level read committed;
+start transaction;
+update t1 set a=10 where a=0;
+--connect con1,localhost,root
+set session innodb_snapshot_isolation=0;
+set transaction isolation level read committed;
+update t1 set a=20 where a=1;
+--connection default
+drop table t1;
+--disconnect con1
+
+--echo # End of 11.4.tests

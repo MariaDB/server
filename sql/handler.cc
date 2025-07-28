@@ -505,6 +505,8 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
   SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
   SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
+  SETMSG(HA_ERR_INCOMPATIBLE_DEFINITION,
+         "Mismatch between table definitions in sql and storage layer");
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -3446,7 +3448,7 @@ int handler::create_lookup_handler()
   if (!(tmp= clone(table->s->normalized_path.str, table->in_use->mem_root)))
     return 1;
   lookup_handler= tmp;
-  return lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
+  return lookup_handler->ha_external_lock(table->in_use, F_WRLCK);
 }
 
 LEX_CSTRING *handler::engine_name()
@@ -6424,7 +6426,8 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
 
   Table_path_buffer name_buff;
   Lex_cstring name= table.file->get_canonical_filename(share->path, &name_buff);
-  int error= table.file->ha_create(name.str, &table, create_info);
+  int error= table.check_sequence_privileges(thd) ? 1 :
+             table.file->ha_create(name.str, &table, create_info);
 
   if (error)
   {
@@ -7802,16 +7805,17 @@ int handler::ha_reset()
   {
     lookup_handler->ha_external_unlock(table->in_use);
     lookup_handler->close();
+    PSI_CALL_close_table(table_share, lookup_handler->m_psi);
     delete lookup_handler;
     lookup_handler= this;
   }
   DBUG_RETURN(reset());
 }
 
-#ifdef WITH_WSREP
 static int wsrep_after_row(THD *thd)
 {
   DBUG_ENTER("wsrep_after_row");
+#ifdef WITH_WSREP
   if (thd->internal_transaction())
     DBUG_RETURN(0);
 
@@ -7835,9 +7839,32 @@ static int wsrep_after_row(THD *thd)
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
+#endif /* WITH_WSREP */
   DBUG_RETURN(0);
 }
-#endif /* WITH_WSREP */
+
+
+static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
+{
+  uint key_parts= fields_in_hash_keyinfo(keyinfo);
+  KEY_PART_INFO *keypart= keyinfo->key_part - key_parts;
+  my_ptrdiff_t off= other - keypart->field->table->record[0];
+  DBUG_ASSERT(off);
+  do
+  {
+    Field *field= keypart->field;
+    if (field->is_null() || field->is_null(off))
+      return true;
+    else if (f_is_blob(keypart->key_type) && keypart->length)
+    {
+      if (field->cmp_prefix(field->ptr, field->ptr + off, keypart->length))
+        return true;
+    }
+    else if (field->cmp_offset(off))
+      return true;
+  } while (keypart++ < keyinfo->key_part);
+  return false;
+}
 
 
 /**
@@ -7846,92 +7873,70 @@ static int wsrep_after_row(THD *thd)
 
 int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
 {
-  int result, error= 0;
+  int result;
+  /* Skip just written row in the case of HA_CHECK_UNIQUE_AFTER_WRITE */
+  bool skip_self= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
   KEY *key_info= table->key_info + key_no;
-  Field *hash_field= key_info->key_part->field;
   uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
-  String *blob_storage;
   DBUG_ENTER("handler::check_duplicate_long_entry_key");
 
   DBUG_ASSERT((key_info->flags & HA_NULL_PART_KEY &&
                key_info->key_length == HA_HASH_KEY_LENGTH_WITH_NULL) ||
               key_info->key_length == HA_HASH_KEY_LENGTH_WITHOUT_NULL);
 
-  if (hash_field->is_real_null())
+  if (key_info->key_part->field->is_real_null())
     DBUG_RETURN(0);
+
+  if (skip_self)
+    position(table->record[0]);
 
   key_copy(ptr, new_rec, key_info, key_info->key_length, false);
 
   result= lookup_handler->ha_index_init(key_no, 0);
   if (result)
     DBUG_RETURN(result);
-  blob_storage= (String*)alloca(sizeof(String)*table->s->virtual_not_stored_blob_fields);
+  auto blob_storage= (String*)alloca(sizeof(String)*table->s->virtual_not_stored_blob_fields);
   table->remember_blob_values(blob_storage);
   store_record(table, file->lookup_buffer);
   result= lookup_handler->ha_index_read_map(table->record[0], ptr,
                                             HA_WHOLE_KEY, HA_READ_KEY_EXACT);
-  if (!result)
+  if (result)
+    goto end;
+
+  // restore pointers after swap_values in TABLE::update_virtual_fields()
+  for (Field **vf= table->vfield; *vf; vf++)
   {
-    bool is_same;
-    Field * t_field;
-    Item_func_hash * temp= (Item_func_hash *)hash_field->vcol_info->expr;
-    Item ** arguments= temp->arguments();
-    uint arg_count= temp->argument_count();
-    // restore pointers after swap_values in TABLE::update_virtual_fields()
-    for (Field **vf= table->vfield; *vf; vf++)
+    if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
+        bitmap_is_set(table->read_set, (*vf)->field_index))
+      ((Field_blob*)*vf)->swap_value_and_read_value();
+  }
+  do
+  {
+    if (!long_unique_fields_differ(key_info, lookup_buffer))
     {
-      if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
-          bitmap_is_set(table->read_set, (*vf)->field_index))
-        ((Field_blob*)*vf)->swap_value_and_read_value();
-    }
-    do
-    {
-      my_ptrdiff_t diff= table->file->lookup_buffer - new_rec;
-      is_same= true;
-      for (uint j=0; is_same && j < arg_count; j++)
+      lookup_handler->position(table->record[0]);
+      if (skip_self && !memcmp(ref, lookup_handler->ref, ref_length))
       {
-        DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM ||
-                    // this one for left(fld_name,length)
-                    arguments[j]->type() == Item::FUNC_ITEM);
-        if (arguments[j]->type() == Item::FIELD_ITEM)
-        {
-          t_field= static_cast<Item_field *>(arguments[j])->field;
-          if (t_field->cmp_offset(diff))
-            is_same= false;
-        }
-        else
-        {
-          Item_func_left *fnc= static_cast<Item_func_left *>(arguments[j]);
-          DBUG_ASSERT(Lex_ident_routine(fnc->func_name_cstring()).
-                        streq("left"_LEX_CSTRING));
-          DBUG_ASSERT(fnc->arguments()[0]->type() == Item::FIELD_ITEM);
-          t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;
-          uint length= (uint)fnc->arguments()[1]->val_int();
-          if (t_field->cmp_prefix(t_field->ptr, t_field->ptr + diff, length))
-            is_same= false;
-        }
+        skip_self= false; // cannot happen twice, so let's save a memcpy
+        continue;
       }
+      result= HA_ERR_FOUND_DUPP_KEY;
+      table->file->lookup_errkey= key_no;
+      memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
+      goto end;
     }
-    while (!is_same &&
-           !(result= lookup_handler->ha_index_next_same(table->record[0],
-                                                ptr, key_info->key_length)));
-    if (is_same)
-      error= HA_ERR_FOUND_DUPP_KEY;
-    goto exit;
   }
-  if (result != HA_ERR_KEY_NOT_FOUND)
-    error= result;
-exit:
-  if (error == HA_ERR_FOUND_DUPP_KEY)
-  {
-    table->file->lookup_errkey= key_no;
-    lookup_handler->position(table->record[0]);
-    memcpy(table->file->dup_ref, lookup_handler->ref, ref_length);
-  }
+  while (!(result= lookup_handler->ha_index_next_same(table->record[0], ptr,
+                                                      key_info->key_length)));
+
+end:
+  if (result == HA_ERR_END_OF_FILE || result == HA_ERR_KEY_NOT_FOUND)
+    result= 0;
+
   restore_record(table, file->lookup_buffer);
   table->restore_blob_values(blob_storage);
   lookup_handler->ha_index_end();
-  DBUG_RETURN(error);
+  DBUG_RETURN(result);
 }
 
 void handler::alloc_lookup_buffer()
@@ -7943,77 +7948,48 @@ void handler::alloc_lookup_buffer()
                                       + table_share->reclength);
 }
 
-/** @brief
-    check whether inserted records breaks the
-    unique constraint on long columns.
-    @returns 0 if no duplicate else returns error
-  */
-int handler::check_duplicate_long_entries(const uchar *new_rec)
+
+int handler::ha_check_inserver_constraints(const uchar *old_data,
+                                           const uchar* new_data)
 {
-  lookup_errkey= (uint)-1;
-  for (uint i= 0; i < table->s->keys; i++)
+  int error= 0;
+  if (is_root_handler())
   {
-    int result;
-    if (table->key_info[i].algorithm == HA_KEY_ALG_LONG_HASH &&
-        (result= check_duplicate_long_entry_key(new_rec, i)))
-      return result;
+    uint saved_status= table->status;
+    if (!(error= ha_check_overlaps(old_data, new_data)))
+      error= ha_check_long_uniques(old_data, new_data);
+    table->status= saved_status;
   }
-  return 0;
+  return error;
 }
 
 
 /** @brief
-    check whether updated records breaks the
-    unique constraint on long columns.
-    In the case of update we just need to check the specic key
-    reason for that is consider case
-    create table t1(a blob , b blob , x blob , y blob ,unique(a,b)
-                                                    ,unique(x,y))
-    and update statement like this
-    update t1 set a=23+a; in this case if we try to scan for
-    whole keys in table then index scan on x_y will return 0
-    because data is same so in the case of update we take
-    key as a parameter in normal insert key should be -1
+    check whether inserted records breaks the unique constraint on long columns.
     @returns 0 if no duplicate else returns error
   */
-int handler::check_duplicate_long_entries_update(const uchar *new_rec)
+int handler::ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec)
 {
-  Field *field;
-  uint key_parts;
-  KEY *keyinfo;
-  KEY_PART_INFO *keypart;
-  /*
-     Here we are comparing whether new record and old record are same
-     with respect to fields in hash_str
-   */
-  uint reclength= (uint) (table->record[1] - table->record[0]);
-
+  if (!table->s->long_unique_table)
+    return 0;
+  DBUG_ASSERT(inited == NONE || lookup_handler != this);
+  DBUG_ASSERT(new_rec == table->record[0]);
+  DBUG_ASSERT(!old_rec || old_rec == table->record[1]);
+  lookup_errkey= (uint)-1;
   for (uint i= 0; i < table->s->keys; i++)
   {
-    keyinfo= table->key_info + i;
+    KEY *keyinfo= table->key_info + i;
     if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
     {
-      key_parts= fields_in_hash_keyinfo(keyinfo);
-      keypart= keyinfo->key_part - key_parts;
-      for (uint j= 0; j < key_parts; j++, keypart++)
+      if (!old_rec || long_unique_fields_differ(keyinfo, old_rec))
       {
-        int error;
-        field= keypart->field;
-        /*
-          Compare fields if they are different then check for duplicates
-          cmp_binary_offset cannot differentiate between null and empty string
-          So also check for that too
-        */
-        if((field->is_null(0) != field->is_null(reclength)) ||
-                               field->cmp_offset(reclength))
+        if (int res= check_duplicate_long_entry_key(new_rec, i))
         {
-          if((error= check_duplicate_long_entry_key(new_rec, i)))
-            return error;
-          /*
-            break because check_duplicate_long_entries_key will
-            take care of remaining fields
-           */
-          break;
+          if (!old_rec && table->next_number_field &&
+              !(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE))
+            if (int err= update_auto_increment())
+              return err;
+          return res;
         }
       }
     }
@@ -8025,14 +8001,14 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
   DBUG_ASSERT(new_data);
-  if (this != table->file)
-    return 0;
+  DBUG_ASSERT(this == table->file);
   if (!table_share->period.unique_keys)
     return 0;
   if (table->versioned() && !table->vers_end_field()->is_max())
     return 0;
 
-  const bool is_update= old_data != NULL;
+  const bool after_write= ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE;
+  const bool is_update= !after_write && old_data;
   uchar *record_buffer= lookup_buffer + table_share->max_unique_length
                                       + table_share->null_fields;
 
@@ -8087,17 +8063,22 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                                        key_part_map((1 << (key_parts - 1)) - 1),
                                        HA_READ_AFTER_KEY);
 
-    if (!error && is_update)
+    if (!error)
     {
-      /* In case of update it could happen that the nearest neighbour is
-         a record we are updating. It means, that there are no overlaps
-         from this side.
-      */
-      DBUG_ASSERT(lookup_handler != this);
-      DBUG_ASSERT(ref_length == lookup_handler->ref_length);
+      if (is_update)
+      {
+        /* In case of update it could happen that the nearest neighbour is
+           a record we are updating. It means, that there are no overlaps
+           from this side.
+        */
+        DBUG_ASSERT(lookup_handler != this);
+        DBUG_ASSERT(ref_length == lookup_handler->ref_length);
 
-      lookup_handler->position(record_buffer);
-      if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+        lookup_handler->position(record_buffer);
+        if (memcmp(ref, lookup_handler->ref, ref_length) == 0)
+          error= lookup_handler->ha_index_next(record_buffer);
+      }
+      else if (after_write)
         error= lookup_handler->ha_index_next(record_buffer);
     }
 
@@ -8223,11 +8204,8 @@ int handler::prepare_for_modify(bool can_set_fields, bool can_lookup)
 int handler::ha_write_row(const uchar *buf)
 {
   int error;
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE || m_lock_type == F_WRLCK);
-  DBUG_ASSERT(buf == table->record[0]);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
-#ifdef WITH_WSREP
   DBUG_EXECUTE_IF("wsrep_ha_write_row",
                   {
                     const char act[]=
@@ -8236,25 +8214,12 @@ int handler::ha_write_row(const uchar *buf)
                       "WAIT_FOR wsrep_ha_write_row_continue";
                     DBUG_ASSERT(!debug_sync_set_action(ha_thd(), STRING_WITH_LEN(act)));
                   });
-#endif /* WITH_WSREP */
-  if ((error= ha_check_overlaps(NULL, buf)))
-  {
-    DEBUG_SYNC_C("ha_write_row_end");
-    DBUG_RETURN(error);
-  }
+  DBUG_ASSERT(table_share->tmp_table || m_lock_type == F_WRLCK);
+  DBUG_ASSERT(buf == table->record[0]);
 
-  if (table->s->long_unique_table && is_root_handler())
-  {
-    DBUG_ASSERT(inited == NONE || lookup_handler != this);
-    if ((error= check_duplicate_long_entries(buf)))
-    {
-      if (table->next_number_field)
-        if (int err= update_auto_increment())
-          error= err;
-      DEBUG_SYNC_C("ha_write_row_end");
-      DBUG_RETURN(error);
-    }
-  }
+  if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(NULL, buf)))
+    goto err;
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -8266,20 +8231,43 @@ int handler::ha_write_row(const uchar *buf)
                      dbug_format_row(table, buf, false).c_ptr_safe(), error));
 
   MYSQL_INSERT_ROW_DONE(error);
-  if (!error && !((error= table->hlindexes_on_insert())))
-  {
-    rows_stats.inserted++;
-    Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
-    error= binlog_log_row(0, buf, log_func);
+  if (error)
+    goto err;
 
-#ifdef WITH_WSREP
-    THD *thd= ha_thd();
-    if (WSREP_NNULL(thd) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION && !error)
-      error= wsrep_after_row(thd);
-#endif /* WITH_WSREP */
+  if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(NULL, buf)))
+  {
+    if (lookup_handler != this) // INSERT IGNORE or REPLACE or ODKU
+    {
+      int olderror= error;
+      if ((error= lookup_handler->rnd_init(0)))
+        goto err;
+      position(buf);
+      if ((error= lookup_handler->rnd_pos(lookup_buffer, ref)))
+        goto err;
+
+      increment_statistics(&SSV::ha_delete_count);
+      TABLE_IO_WAIT(tracker, PSI_TABLE_DELETE_ROW, MAX_KEY, error,
+                    { error= lookup_handler->delete_row(buf);})
+      lookup_handler->rnd_end();
+      if (!error)
+        error= olderror;
+    }
+    goto err;
   }
 
+  if ((error= table->hlindexes_on_insert()))
+    goto err;
+
+  rows_stats.inserted++;
+  error= binlog_log_row(0, buf,
+                        Write_rows_log_event::binlog_row_logging_function);
+
+  if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
+      ht->flags & HTON_WSREP_REPLICATION && !error)
+    error= wsrep_after_row(ha_thd());
+
+err:
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -8288,23 +8276,16 @@ int handler::ha_write_row(const uchar *buf)
 int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+  DBUG_ASSERT(table_share->tmp_table || m_lock_type == F_WRLCK);
   /*
     Some storage engines require that the new record is in record[0]
     (and the old record is in record[1]).
-   */
+  */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
-  uint saved_status= table->status;
-  error= ha_check_overlaps(old_data, new_data);
-
-  if (!error && table->s->long_unique_table && is_root_handler())
-    error= check_duplicate_long_entries_update(new_data);
-  table->status= saved_status;
-
-  if (error)
+  if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(old_data, new_data)))
     return error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
@@ -8319,33 +8300,51 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
                      error));
 
   MYSQL_UPDATE_ROW_DONE(error);
-  if (likely(!error) && !(error= table->hlindexes_on_update()))
+  if (error)
+    return error;
+
+  if ((ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
+      (error= ha_check_inserver_constraints(old_data, new_data)))
   {
-    rows_stats.updated++;
-    Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
-    error= binlog_log_row(old_data, new_data, log_func);
+    int e= 0;
+    if (ha_thd()->lex->ignore)
+    {
+      my_printf_error(ER_NOT_SUPPORTED_YET, "UPDATE IGNORE in READ "
+        "COMMITTED isolation mode of a table with a UNIQUE constraint "
+        "%s is not currently supported", MYF(0),
+        table->s->long_unique_table ? "USING HASH" : "WITHOUT OVERLAPS");
+      return HA_ERR_UNSUPPORTED;
+    }
+    return e ? e : error;
+  }
+
+  if ((error= table->hlindexes_on_update()))
+    return error;
+
+  rows_stats.updated++;
+  error= binlog_log_row(old_data, new_data,
+                        Update_rows_log_event::binlog_row_logging_function);
 
 #ifdef WITH_WSREP
-    THD *thd= ha_thd();
-    if (WSREP_NNULL(thd))
+  THD *thd= ha_thd();
+  if (WSREP_NNULL(thd))
+  {
+    /* for streaming replication, the following wsrep_after_row()
+    may replicate a fragment, so we have to declare potential PA
+    unsafe before that */
+    if (table->s->primary_key == MAX_KEY && wsrep_thd_is_local(thd))
     {
-      /* for streaming replication, the following wsrep_after_row()
-      may replicate a fragment, so we have to declare potential PA
-      unsafe before that */
-      if (table->s->primary_key == MAX_KEY && wsrep_thd_is_local(thd))
-      {
-        WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
-        if (thd->wsrep_cs().mark_transaction_pa_unsafe())
-          WSREP_DEBUG("session does not have active transaction,"
-                      " can not mark as PA unsafe");
-      }
-
-      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
-          ht->flags & HTON_WSREP_REPLICATION)
-        error= wsrep_after_row(thd);
+      WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+      if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+        WSREP_DEBUG("session does not have active transaction,"
+                    " can not mark as PA unsafe");
     }
-#endif /* WITH_WSREP */
+
+    if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+        ht->flags & HTON_WSREP_REPLICATION)
+      error= wsrep_after_row(thd);
   }
+#endif /* WITH_WSREP */
   return error;
 }
 
@@ -8380,8 +8379,7 @@ int handler::update_first_row(const uchar *new_data)
 int handler::ha_delete_row(const uchar *buf)
 {
   int error;
-  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
-              m_lock_type == F_WRLCK);
+  DBUG_ASSERT(table_share->tmp_table || m_lock_type == F_WRLCK);
   /*
     Normally table->record[0] is used, but sometimes table->record[1] is used.
     (notably, for REPLACE and in sql_acl.cc)
@@ -8400,8 +8398,8 @@ int handler::ha_delete_row(const uchar *buf)
   if (likely(!error) && !(error= table->hlindexes_on_delete(buf)))
   {
     rows_stats.deleted++;
-    Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
-    error= binlog_log_row(buf, 0, log_func);
+    error= binlog_log_row(buf, 0,
+                          Delete_rows_log_event::binlog_row_logging_function);
 
 #ifdef WITH_WSREP
     THD *thd= ha_thd();

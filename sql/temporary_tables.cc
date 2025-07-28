@@ -441,6 +441,17 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 }
 
 
+bool THD::check_and_open_tmp_table(TABLE_LIST *tl)
+{
+  if (!has_temporary_tables() ||
+      tl == lex->first_not_own_table() ||
+      tl->derived || tl->schema_table)
+    return false;
+
+  return open_temporary_table(tl);
+}
+
+
 /**
   Pre-open temporary tables corresponding to table list elements.
 

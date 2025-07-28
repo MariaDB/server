@@ -5076,6 +5076,16 @@ digest_reduce_token(sql_digest_state *state, uint token_left, uint token_right);
 
 struct st_lex_local: public LEX, public Sql_alloc
 {
+  /**
+    List of Item_param instances that should be re-used on re-parsing of
+    a SP instruction's statement
+  */
+  List<Item_param> sp_statement_param_values;
+  /**
+    Iterator to the next Item_param in the list above to be processed by
+    the method LEX::add_placeholder()
+  */
+  List<Item_param>::iterator param_values_it;
 };
 
 

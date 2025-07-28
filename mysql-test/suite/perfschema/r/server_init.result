@@ -24,15 +24,11 @@ where name like "wait/synch/mutex/mysys/THR_LOCK_charset";
 count(name)
 1
 select count(name) from mutex_instances
-<<<<<<< HEAD
-where name like "wait/synch/mutex/sql/LOCK_thread_count";
-=======
 where name like "wait/synch/mutex/sql/LOCK_open";
 count(name)
 1
 select count(name) from mutex_instances
-where name like "wait/synch/mutex/sql/LOCK_thd_list";
->>>>>>> merge-perfschema-5.7
+where name like "wait/synch/mutex/sql/LOCK_thread_count";
 count(name)
 1
 select count(name) from mutex_instances
@@ -52,11 +48,7 @@ where name like "wait/synch/mutex/sql/LOCK_crypt";
 count(name)
 1
 select count(name) from mutex_instances
-<<<<<<< HEAD
 where name like "wait/synch/mutex/sql/LOCK_active_mi";
-=======
-where name like "wait/synch/mutex/sql/LOCK_slave_list";
->>>>>>> 258e16fa2de... WIP 5.7 P_S
 count(name)
 1
 select count(name) from mutex_instances
@@ -96,13 +88,10 @@ where name like "wait/synch/mutex/sql/LOCK_audit_mask";
 count(name)
 1
 select count(name) from mutex_instances
-<<<<<<< HEAD
-=======
 where name like "wait/synch/mutex/sql/LOCK_transaction_cache";
 count(name)
 1
 select count(name) from mutex_instances
->>>>>>> merge-perfschema-5.7
 where name like "wait/synch/mutex/sql/LOCK_plugin";
 count(name)
 1

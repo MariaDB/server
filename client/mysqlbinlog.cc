@@ -1033,9 +1033,16 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         binlog, even if they have a server_id.  Also, we have to read
         the format_description event so that we can parse subsequent
         events.
+        Don't skip Unknown events either since we don't know their `server_id`s.
       */
-      if (ev_type != ROTATE_EVENT && is_server_id_excluded(ev->server_id))
-        goto end;
+      switch (ev_type) {
+      case ROTATE_EVENT:
+      case UNKNOWN_EVENT:
+        break;
+      default:
+        if (is_server_id_excluded(ev->server_id))
+          goto end;
+      }
     }
     if ((stop_datetime_given && ev->when >= stop_datetime)
         || (pos >= stop_position_mot))
@@ -3400,7 +3407,8 @@ int main(int argc, char** argv)
   }
 
   /*
-    Emit a warning if we finished processing input before reaching the stop
+    Emit warning(s) (in Gtid_event_filter::verify_completed_state() for GTID(s))
+    if we finished processing input before reaching the stop
     boundaries indicated by --stop-datetime or --stop-position.
   */
   if (stop_datetime_given && stop_datetime > last_processed_ev.datetime)
@@ -3410,6 +3418,8 @@ int main(int argc, char** argv)
       stop_position > last_processed_ev.position)
     warning("Did not reach stop position %llu before end of input",
             stop_position);
+  if (position_gtid_filter)
+    position_gtid_filter->verify_final_state();
 
   /*
     If enable flashback, need to print the events from the end to the

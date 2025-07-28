@@ -644,6 +644,7 @@ public:
     value= 0;
     null_value= 0;
     was_null= 0;
+    is_jtbm_const_tab= 0;
   }
   bool select_transformer(JOIN *join) override;
   bool create_in_to_exists_cond(JOIN *join_arg);

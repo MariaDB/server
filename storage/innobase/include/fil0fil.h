@@ -48,6 +48,22 @@ struct named_spaces_tag_t;
 
 using space_list_t= ilist<fil_space_t, space_list_tag_t>;
 
+/** Possible values of innodb_linux_aio */
+#ifdef __linux__
+enum srv_linux_aio_t
+{
+  /** auto, io_uring first and then aio */
+  SRV_LINUX_AIO_AUTO,
+  /** io_uring */
+  SRV_LINUX_AIO_IO_URING,
+  /** aio (libaio interface) */
+  SRV_LINUX_AIO_LIBAIO
+};
+#endif
+
+/** innodb_flush_method */
+extern ulong srv_file_flush_method;
+
 /** Undo tablespaces starts with space_id. */
 extern uint32_t srv_undo_space_id_start;
 /** The number of UNDO tablespaces that are open and ready to use. */
