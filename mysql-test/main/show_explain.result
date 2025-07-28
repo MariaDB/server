@@ -1377,8 +1377,8 @@ WHERE b <= ANY (
 SELECT a FROM t1 
 WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
 3	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
 4	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	
 set @show_explain_probe_select_id=1;
@@ -1390,8 +1390,8 @@ WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
 connection default;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
 3	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
 4	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	
 Warnings:

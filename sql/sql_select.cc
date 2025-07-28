@@ -12232,7 +12232,8 @@ best_extension_by_limited_search(JOIN      *join,
         Prune some less promising partial plans. This heuristic may miss
         the optimal QEPs, thus it results in a non-exhaustive search.
       */
-      if (join->prune_level >= 1)
+      if (join->prune_level >= 1 &&
+          join->table_count - join->const_tables > 7)
       {
         // Collect the members with min_cost and min_read_time.
         bool min_rec_hit= false;

@@ -433,8 +433,8 @@ EXPLAIN SELECT count(*)
 FROM wp, t1
 WHERE MATCH(title, text) AGAINST ('database');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	wp	fulltext	idx	idx	0		1	Using where
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	
+1	SIMPLE	wp	fulltext	idx	idx	0		1	Using where
 SELECT count(*)
 FROM wp, t1
 WHERE MATCH(title, text) AGAINST ('database');

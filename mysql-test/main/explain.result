@@ -364,8 +364,8 @@ INSERT into t1 values('test1'),('test2'),('test3'),('test4'),('test5');
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	unique	26	NULL	6	Using index
-2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 2	SUBQUERY	a	index	NULL	unique	26	NULL	6	Using index
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 End of 5.1 tests.

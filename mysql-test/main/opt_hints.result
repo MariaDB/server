@@ -554,25 +554,25 @@ Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2`
 EXPLAIN EXTENDED SELECT /*+ BKA(@qb1) QB_NAME(qb1) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
 WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	100.00	Using where
+1	SIMPLE	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.f1	3	33.33	Using where; Using join buffer (flat, BNLH join)
 Warnings:
 Warning	4220	Query block name `qb1` is not found for BKA hint
-Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
+Note	1003	select /*+ QB_NAME(`qb1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`f1` = `test`.`t2`.`f1` and `test`.`t2`.`f2` between `test`.`t2`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t2`.`f1` + 1
 # Should not crash
 PREPARE stmt1 FROM "SELECT /*+ BKA(t2) */ t2.f1, t2.f2, t2.f3 FROM t1,t2
 WHERE t1.f1=t2.f1 AND t2.f2 BETWEEN t1.f1 and t1.f2 and t2.f2 + 1 >= t1.f1 + 1";
 EXECUTE stmt1;
 f1	f2	f3
 1	1	qwerty
-2	2	qwerty
 1	1	qwerty
+2	2	qwerty
 2	2	qwerty
 EXECUTE stmt1;
 f1	f2	f3
 1	1	qwerty
-2	2	qwerty
 1	1	qwerty
+2	2	qwerty
 2	2	qwerty
 DEALLOCATE PREPARE stmt1;
 # Check use of alias
@@ -598,13 +598,13 @@ SELECT /*+ BKA(t2) NO_BNL(t1) BKA(t3) NO_RANGE_OPTIMIZATION(t3 idx1) NO_RANGE_OP
 t2.f1, t2.f2, t2.f3 FROM t1,t2 WHERE t1.f1=t2.f1 AND
 t2.f2 BETWEEN t1.f1 AND t1.f2 AND t2.f2 + 1 >= t1.f1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	25.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	f1	NULL	NULL	NULL	28	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where
 Warnings:
 Warning	4221	Unresolved table name `t3`@`select#1` for BKA hint
 Warning	4221	Unresolved table name `t3`@`select#1` for NO_RANGE_OPTIMIZATION hint
 Warning	4222	Unresolved index name `t3`@`select#1` `idx1` for NO_RANGE_OPTIMIZATION hint
-Note	1003	select /*+ BKA(`t2`@`select#1`) NO_BNL(`t1`@`select#1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`f1` = `test`.`t1`.`f1` and `test`.`t2`.`f2` between `test`.`t1`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t1`.`f1` + 1
+Note	1003	select /*+ BKA(`t2`@`select#1`) NO_BNL(`t1`@`select#1`) */ `test`.`t2`.`f1` AS `f1`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f3` AS `f3` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`f1` = `test`.`t2`.`f1` and `test`.`t2`.`f2` between `test`.`t2`.`f1` and `test`.`t1`.`f2` and `test`.`t2`.`f2` + 1 >= `test`.`t2`.`f1` + 1
 # Check illegal syntax
 EXPLAIN EXTENDED SELECT /*+ BKA(qb1 t3@qb1) */ f2 FROM
 (SELECT /*+ QB_NAME(qb1) */ f2, f3, f1 FROM t3 WHERE f1 > 2 AND f3 = 'poiu') AS TD

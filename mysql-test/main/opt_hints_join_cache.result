@@ -27,8 +27,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -59,14 +59,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -97,14 +97,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -129,32 +129,32 @@ set join_cache_level = 3;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -167,32 +167,32 @@ set join_cache_level = 4;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -205,32 +205,32 @@ set join_cache_level = 5;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -243,32 +243,32 @@ set join_cache_level = 6;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -281,32 +281,32 @@ set join_cache_level = 7;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -319,32 +319,32 @@ set join_cache_level = 8;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -713,8 +713,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -745,14 +745,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -783,14 +783,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -815,32 +815,32 @@ set join_cache_level = 3;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -853,32 +853,32 @@ set join_cache_level = 4;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -891,32 +891,32 @@ set join_cache_level = 5;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -929,32 +929,32 @@ set join_cache_level = 6;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -965,32 +965,32 @@ set join_cache_level = 7;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -1001,32 +1001,32 @@ set join_cache_level = 8;
 EXPLAIN  SELECT * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition(BKA); Using where; Using join buffer (flat, BKAH join); Rowid-ordered scan
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	hash_ALL	a	#hash#a	5	test.t12.a	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t12	hash_ALL	NULL	#hash#$hj	5	test.t13.a	10	Using where; Using join buffer (flat, BNLH join)
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t13	ALL	a	NULL	NULL	NULL	10	Using where
 1	SIMPLE	t12	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t13	ref	a	a	5	test.t12.a	1	Using index condition
 --------------------------------------------
 EXPLAIN  SELECT /*+ NO_BKA() NO_BNL() */ * FROM t12, t13
 WHERE t12.a=t13.a AND (t13.b+1 <= t12.b+1);
@@ -1581,16 +1581,16 @@ Warnings:
 Note	1003	select /*+ BNL(@`select#1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3`
 EXPLAIN EXTENDED SELECT /*+ BNL(t1, t2) */t1.* FROM t1,t2,t3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select /*+ BNL(`t1`@`select#1`) BNL(`t2`@`select#1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3`
 EXPLAIN EXTENDED SELECT /*+ BNL(t1, t3) */t1.* FROM t1,t2,t3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select /*+ BNL(`t1`@`select#1`) BNL(`t3`@`select#1`) */ `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3`
 EXPLAIN EXTENDED SELECT /*+ BNL(t2, t3) */t1.* FROM t1,t2,t3;
