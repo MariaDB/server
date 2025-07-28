@@ -1537,7 +1537,14 @@ public:
   {
     ptr=ADD_TO_PTR(ptr,ptr_diff, uchar*);
     if (null_ptr)
+    {
       null_ptr=ADD_TO_PTR(null_ptr,ptr_diff,uchar*);
+      if (table)
+      {
+        DBUG_ASSERT(null_ptr < ptr);
+        DBUG_ASSERT(ptr - null_ptr <= (int)table->s->rec_buff_length);
+      }
+    }
   }
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs) const
   { get_image(buff, length, ptr, cs); }
