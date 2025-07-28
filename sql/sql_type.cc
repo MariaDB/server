@@ -282,6 +282,27 @@ Type_handler::handler_by_name_or_error(THD *thd, const LEX_CSTRING &name)
 }
 
 
+Item *Type_handler::create_item_method_or_error(THD *thd,
+                                                object_method_type_t type,
+                                                const Lex_ident_sys &ca,
+                                                const Lex_ident_sys &cb,
+                                                List<Item> *args,
+                                                const Lex_ident_cli_st
+                                                  &query_fragment)
+                                                             const
+{
+  Item *item= create_item_method(thd, type, ca, cb, args, query_fragment);
+  if (item)
+    return item;
+  char err_buffer[MYSQL_ERRMSG_SIZE];
+  Identifier_chain2(ca, cb).make_qname(err_buffer, sizeof(err_buffer));
+  my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+           type == object_method_type_t::FUNCTION ? "FUNCTION" : "PROCEDURE",
+           err_buffer);
+  return nullptr;
+}
+
+
 Type_handler_data *type_handler_data= NULL;
 
 

@@ -753,7 +753,7 @@ marks(0) := 62;
 SELECT marks.DELETE;
 END;
 $$
-ERROR 42S22: Unknown column 'marks' in 'DELETE'
+ERROR 42000: FUNCTION marks.DELETE does not exist
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
@@ -762,7 +762,7 @@ marks(0) := 62;
 DO marks.DELETE;
 END;
 $$
-ERROR 42S22: Unknown column 'marks' in 'DELETE'
+ERROR 42000: FUNCTION marks.DELETE does not exist
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
@@ -771,7 +771,7 @@ marks(0) := 62;
 SELECT marks.DELETE(0);
 END;
 $$
-ERROR 42S22: Unknown column 'marks' in 'DELETE'
+ERROR 42000: FUNCTION marks.DELETE does not exist
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
@@ -780,7 +780,7 @@ marks(0) := 62;
 DO marks.DELETE(0);
 END;
 $$
-ERROR 42S22: Unknown column 'marks' in 'DELETE'
+ERROR 42000: FUNCTION marks.DELETE does not exist
 #
 # DELETE
 #
@@ -847,7 +847,7 @@ marks(0) := 62;
 marks.COUNT;
 END;
 $$
-ERROR 42S22: Unknown column 'marks' in 'COUNT'
+ERROR 42000: PROCEDURE marks.COUNT does not exist
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
 marks marks_t;
@@ -856,7 +856,7 @@ marks(0) := 62;
 marks.COUNT();
 END;
 $$
-ERROR 42S22: Unknown column 'marks' in 'COUNT'
+ERROR 42000: PROCEDURE marks.COUNT does not exist
 #
 # COUNT
 #

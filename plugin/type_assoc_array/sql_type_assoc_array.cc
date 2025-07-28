@@ -2703,10 +2703,7 @@ Item *Type_handler_assoc_array::create_item_method_func(THD *thd,
   }
 
   if (!item)
-  {
-    my_error(ER_BAD_FIELD_ERROR, MYF(0), a.str, b.str);
     return nullptr;
-  }
 
   if (item->init_method(a, query_fragment))
     return nullptr;
@@ -2730,10 +2727,7 @@ Item *Type_handler_assoc_array::create_item_method_proc(THD *thd,
   }
 
   if (!item)
-  {
-    my_error(ER_BAD_FIELD_ERROR, MYF(0), a.str, b.str);
     return nullptr;
-  }
 
   if (item->init_method(a, query_fragment))
     return nullptr;
