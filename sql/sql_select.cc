@@ -32463,13 +32463,20 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 void st_select_lex::print_hints(THD *thd,
                                 String *str)
 {
-  if (!thd->lex->opt_hints_global)
-    return;
-
   constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
   str->append(header);
   uint32 len_before_hints= str->length();
-  if (select_number == 1)
+  if (!thd->lex->opt_hints_global &&  // SHOW CREATE VIEW
+      opt_hints_qb)
+  {
+    Opt_hints_global *global_hints= dynamic_cast<Opt_hints_global*>(opt_hints_qb->get_parent());
+    DBUG_ASSERT(global_hints);
+    global_hints->force_print= true;
+    global_hints->print(thd, str);
+    global_hints->force_print= false;
+  }
+  else if (thd->lex->opt_hints_global &&
+           select_number == 1)
   {
     if (opt_hints_qb)
       opt_hints_qb->append_qb_hint(thd, str);

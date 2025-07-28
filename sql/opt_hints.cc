@@ -348,7 +348,7 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 void Opt_hints::print(THD *thd, String *str)
 {
   /* Do not print the hint if we couldn't attach it to its object */
-  if (!is_fixed())
+  if (!is_fixed() || force_print)
     return;
 
   // Print the hints stored in the bitmap
@@ -1107,7 +1107,9 @@ void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
 
 bool Opt_hints_global::fix_hint(THD *thd)
 {
-  if (thd->lex->is_ps_or_view_context_analysis())
+  if (thd->lex->context_analysis_only &
+      (CONTEXT_ANALYSIS_ONLY_PREPARE |
+       CONTEXT_ANALYSIS_ONLY_VCOL_EXPR))
     return false;
 
   if (!max_exec_time_hint)

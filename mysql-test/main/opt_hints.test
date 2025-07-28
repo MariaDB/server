@@ -813,3 +813,21 @@ EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a A
 EXPLAIN SELECT * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
 
 DROP TABLE ten, twenty;
+
+--echo #
+--echo # MDEV-37260 Specifying hints in queries during CREATE VIEW AS
+--echo #
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+
+EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+
+CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@`select#3` twenty,ten) */ * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+EXPLAIN SELECT * FROM v2;
+
+SHOW CREATE VIEW v2;
+DROP TABLE ten, twenty;
+DROP VIEW v2;

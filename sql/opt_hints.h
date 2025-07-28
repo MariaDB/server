@@ -216,6 +216,8 @@ private:
 
 public:
 
+  bool force_print{false};
+
   Opt_hints(const Lex_ident_sys &name_arg,
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
