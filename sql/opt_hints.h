@@ -216,6 +216,8 @@ private:
 
 public:
 
+  bool force_print{false};
+
   Opt_hints(const Lex_ident_sys &name_arg,
             Opt_hints *parent_arg,
             MEM_ROOT *mem_root_arg)
@@ -431,6 +433,8 @@ class Opt_hints_qb : public Opt_hints
       sizeof(join_order_hints_ignored) * 8;
 
 public:
+  bool found_by_select_number{false};
+
   Opt_hints_qb(Opt_hints *opt_hints_arg,
                MEM_ROOT *mem_root_arg,
                uint select_number_arg);

@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 --enable_prepare_warnings
 --disable_view_protocol # Since optimizer hints are not supported inside views
 SET NAMES utf8mb4;
@@ -467,14 +469,14 @@ SELECT /*+ QB_NAME(q1) NO_ICP(@q1 t1 PRIMARY) NO_ICP(@q1 t1 PRIMARY) */ * FROM t
 DROP TABLE t1;
 
 --echo #
---echo # Hints inside views are not supported
+--echo # Hints inside views are supported
 --echo #
 CREATE TABLE t1 (a INT, INDEX idx_a(a));
 INSERT INTO t1 VALUES (1),(2);
 
 CREATE VIEW v1 AS SELECT /*+ NO_MRR(t1 idx_a) */ a FROM t1;
 SELECT * FROM v1;
---echo # Make sure hints are not present inside the view definition:
+--echo # Make sure hints are present inside the view definition:
 SHOW CREATE VIEW v1;
 EXPLAIN EXTENDED SELECT * FROM v1;
 
@@ -813,3 +815,44 @@ EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a A
 EXPLAIN SELECT * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
 
 DROP TABLE ten, twenty;
+
+--echo #
+--echo # MDEV-37260 Specifying hints in queries during CREATE VIEW AS
+--echo #
+CREATE TABLE ten(a int);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE twenty(a int);
+INSERT INTO twenty SELECT a FROM ten;
+INSERT INTO twenty SELECT a+10 FROM ten;
+
+EXPLAIN SELECT /*+ JOIN_ORDER(@`select#2` twenty,ten) */  * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+
+CREATE VIEW v2 AS SELECT /*+ JOIN_ORDER(@`select#3` twenty,ten) */ * FROM (SELECT ten.a AS a FROM (ten JOIN twenty) WHERE (ten.a = twenty.a) LIMIT 1000 ) T;
+EXPLAIN SELECT * FROM v2;
+
+SHOW CREATE VIEW v2;
+DROP TABLE ten, twenty;
+DROP VIEW v2;
+
+CREATE TABLE t4 (
+   pk INT PRIMARY KEY,
+   a INT,
+   b INT,
+   c INT,
+   filler varchar(100),
+   key(a,b,c)
+) engine=myisam;
+
+INSERT INTO t4 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+CREATE VIEW v5 AS SELECT /*+ NO_ICP(t4) */ * FROM t4 WHERE a < 10 AND (b+1>3);
+FLUSH STATUS;
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+SELECT * FROM v5;
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+EXPLAIN SELECT * from v5;
+DROP TABLE t4;
+DROP VIEW v5;
+
+--echo #
+--echo # MDEV-37260 Apply hint to query block inside view from an outer query
+--echo #

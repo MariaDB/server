@@ -1395,7 +1395,7 @@ public:
   uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_lock_type(String *str);
-  void print_hints(THD *thd, String *hint_str);
+  void print_hints(THD *thd, String *hint_str, enum_query_type query_type);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
   void print_set_clause(THD *thd, String *str, enum_query_type query_type);
   void print_on_duplicate_key_clause(THD *thd, String *str,

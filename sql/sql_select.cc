@@ -32276,7 +32276,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   if (sel_type == SELECT_CMD ||
       sel_type == INSERT_CMD ||
       sel_type == REPLACE_CMD)
-    print_hints(thd, str);
+    print_hints(thd, str, query_type);
 
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)
@@ -32333,7 +32333,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
     {
       str->append(get_explainable_cmd_name(sel_type));
-      print_hints(thd, str);
+      print_hints(thd, str, query_type);
     }
     if (sel_type == DELETE_CMD)
     {
@@ -32461,15 +32461,24 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
 
 void st_select_lex::print_hints(THD *thd,
-                                String *str)
+                                String *str,
+                                enum_query_type query_type)
 {
-  if (!thd->lex->opt_hints_global)
-    return;
-
   constexpr LEX_CSTRING header={STRING_WITH_LEN("/*+ ")};
   str->append(header);
   uint32 len_before_hints= str->length();
-  if (select_number == 1)
+  if (thd->lex->sql_command == SQLCOM_SHOW_CREATE &&
+      (query_type & QT_VIEW_INTERNAL) &&
+      opt_hints_qb &&
+      opt_hints_qb->found_by_select_number)
+  {
+    DBUG_ASSERT(!thd->lex->opt_hints_global);
+    opt_hints_qb->force_print= true;
+    opt_hints_qb->print(thd, str);
+    opt_hints_qb->force_print= false;
+  }
+  else if (thd->lex->opt_hints_global &&
+           select_number == 1)
   {
     if (opt_hints_qb)
       opt_hints_qb->append_qb_hint(thd, str);

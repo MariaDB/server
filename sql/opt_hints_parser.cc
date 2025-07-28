@@ -1055,15 +1055,6 @@ ulonglong Parser::Max_execution_time_hint::get_milliseconds() const
 
 bool Parser::Hint_list::resolve(Parse_context *pc) const
 {
-  if (pc->thd->lex->create_view)
-  {
-    // we're creating or modifying a view, hints are not allowed here
-    push_warning(pc->thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED,
-                 ER_THD(pc->thd, ER_HINTS_INSIDE_VIEWS_NOT_SUPPORTED));
-    return false;
-  }
-
   if (!get_qb_hints(pc))
     return true;
 

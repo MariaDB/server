@@ -229,6 +229,18 @@ Opt_hints_qb *get_qb_hints(Parse_context *pc)
 }
 
 
+/**
+   Helper function to find_qb_hints whereby it matches a qb_name to
+   a select number under the presumption that qb_name has a value
+   like `select#X` where X is some select number.
+
+   If the matching query block hints object is found by this manner,
+   then the Opt_hints_qb::found_by_select_number flag will be true.
+   This flag exists to ensure that SHOW CREATE VIEW works correctly.
+
+   @return the matching query block hints object, if it exists.
+ */
+
 static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
                                                  const Lex_ident_sys &qb_name)
 {
@@ -241,7 +253,7 @@ static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
     LEX_CSTRING sys_name;  // System QB name
     char buff[32];         // Buffer to hold sys name
     sys_name.str= buff;
-    sys_name.length= snprintf(buff, sizeof(buff), "%s%x", "select#",
+    sys_name.length= snprintf(buff, sizeof(buff), "%s%x", sys_qb_prefix.str,
                               sl->select_number);
 
     if (cmp_lex_string(sys_name, qb_name, system_charset_info))
@@ -250,6 +262,7 @@ static Opt_hints_qb *find_hints_by_select_number(Parse_context *pc,
     // Found a matching `select#X` query block, get its attached hints.
     Parse_context sl_ctx(pc, sl);
     qb= get_qb_hints(&sl_ctx);
+    qb->found_by_select_number= true;
   }
 
   return qb;
@@ -348,7 +361,7 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 void Opt_hints::print(THD *thd, String *str)
 {
   /* Do not print the hint if we couldn't attach it to its object */
-  if (!is_fixed())
+  if (!is_fixed() && !force_print)
     return;
 
   // Print the hints stored in the bitmap
@@ -1107,7 +1120,9 @@ void Opt_hints_qb::print_join_order_warn(THD *thd, opt_hints_enum type,
 
 bool Opt_hints_global::fix_hint(THD *thd)
 {
-  if (thd->lex->is_ps_or_view_context_analysis())
+  if (thd->lex->context_analysis_only &
+      (CONTEXT_ANALYSIS_ONLY_PREPARE |
+       CONTEXT_ANALYSIS_ONLY_VCOL_EXPR))
     return false;
 
   if (!max_exec_time_hint)
