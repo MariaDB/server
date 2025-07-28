@@ -832,7 +832,7 @@ DELIMITER ;$$
 --echo #
 
 DELIMITER $$;
---error ER_BAD_FIELD_ERROR
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
   marks marks_t;
@@ -844,7 +844,7 @@ $$
 DELIMITER ;$$
 
 DELIMITER $$;
---error ER_BAD_FIELD_ERROR
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
   marks marks_t;
@@ -856,7 +856,7 @@ $$
 DELIMITER ;$$
 
 DELIMITER $$;
---error ER_BAD_FIELD_ERROR
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
   marks marks_t;
@@ -868,7 +868,7 @@ $$
 DELIMITER ;$$
 
 DELIMITER $$;
---error ER_BAD_FIELD_ERROR
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
   marks marks_t;
@@ -950,7 +950,7 @@ DELIMITER ;$$
 --echo #
 
 DELIMITER $$;
---error ER_BAD_FIELD_ERROR
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
   marks marks_t;
@@ -963,7 +963,7 @@ DELIMITER ;$$
 
 
 DELIMITER $$;
---error ER_BAD_FIELD_ERROR
+--error ER_SP_DOES_NOT_EXIST
 DECLARE
   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
   marks marks_t;

@@ -4708,6 +4708,13 @@ public:
     return nullptr;
   }
 
+  Item *create_item_method_or_error(THD *thd, object_method_type_t type,
+                                    const Lex_ident_sys &ca,
+                                    const Lex_ident_sys &cb,
+                                    List<Item> *args,
+                                    const Lex_ident_cli_st &query_fragment)
+                                                                     const;
+
   virtual int cmp_native(const Native &a, const Native &b) const
   {
     MY_ASSERT_UNREACHABLE();

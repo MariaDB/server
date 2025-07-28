@@ -8967,7 +8967,7 @@ Item *LEX::create_item_ident(THD *thd,
       if (sys_a.is_null() || sys_b.is_null())
         return nullptr; // EOM
       return spv->type_handler()->
-               create_item_method(thd,
+               create_item_method_or_error(thd,
                                   Type_handler::object_method_type_t::FUNCTION,
                                   sys_a, sys_b, NULL, query_fragment);
     }
@@ -10154,7 +10154,7 @@ bool LEX::direct_call(THD *thd, const Qualified_ident *ident,
   }
 
   if (!(item= ident->spvar()->type_handler()->
-               create_item_method(thd,
+               create_item_method_or_error(thd,
                                   Type_handler::object_method_type_t::PROCEDURE,
                                   ident->part(0), ident->part(1),
                                   args, ident->pos())))
@@ -10571,7 +10571,7 @@ Item *LEX::make_item_func_or_method_call(THD *thd,
       spv->type_handler()->has_methods())
   {
     if (Item *item= spv->type_handler()->
-               create_item_method(thd,
+               create_item_method_or_error(thd,
                                   Type_handler::object_method_type_t::FUNCTION,
                                   sys_a, sys_b, args, query_fragment))
     {
