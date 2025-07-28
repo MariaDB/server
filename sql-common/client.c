@@ -156,18 +156,24 @@ void init_client_psi_keys(void)
 
 #endif /* HAVE_PSI_INTERFACE */
 
+#ifdef EMBEDDED_LIBRARY
 uint            mariadb_deinitialize_ssl= 1;
 uint		mysql_port=0;
 char		*mysql_unix_port= 0;
+#endif
 const char	*unknown_sqlstate= "HY000";
 const char	*not_error_sqlstate= "00000";
 const char	*cant_connect_sqlstate= "08001";
 
+#ifdef EMBEDDED_LIBRARY
 static void mysql_close_free_options(MYSQL *mysql);
 static void mysql_close_free(MYSQL *mysql);
+#endif
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
+#ifdef EMBEDDED_LIBRARY
 static my_bool parse_ok_packet(MYSQL *mysql, ulong length);
+#endif
 
 CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 
@@ -175,6 +181,7 @@ CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 unsigned int mysql_server_last_errno;
 char mysql_server_last_error[MYSQL_ERRMSG_SIZE];
 
+#ifdef EMBEDDED_LIBRARY
 /**
   Convert the connect timeout option to a timeout value for VIO
   functions (vio_socket_connect() and vio_io_wait()).
@@ -204,6 +211,7 @@ static int get_vio_connect_timeout(MYSQL *mysql)
 
   return timeout_ms;
 }
+#endif
 
 
 /**
@@ -458,6 +466,7 @@ restart:
   return len;
 }
 
+#ifdef EMBEDDED_LIBRARY
 void free_rows(MYSQL_DATA *cur)
 {
   if (cur)
@@ -466,6 +475,7 @@ void free_rows(MYSQL_DATA *cur)
     my_free(cur);
   }
 }
+#endif
 
 my_bool
 cli_advanced_command(MYSQL *mysql, enum enum_server_command command,
@@ -634,6 +644,7 @@ my_bool opt_flush_ok_packet(MYSQL *mysql, my_bool *is_ok_packet)
 }
 
 
+#ifdef EMBEDDED_LIBRARY
 /*
   Flush result set sent from server
 */
@@ -676,6 +687,7 @@ static void cli_flush_use_result(MYSQL *mysql, my_bool flush_all_results)
 
   DBUG_VOID_RETURN;
 }
+#endif
 
 
 /*
@@ -745,6 +757,7 @@ void end_server(MYSQL *mysql)
 }
 
 
+#ifdef EMBEDDED_LIBRARY
 void STDCALL
 mysql_free_result(MYSQL_RES *result)
 {
@@ -773,6 +786,7 @@ mysql_free_result(MYSQL_RES *result)
   }
   DBUG_VOID_RETURN;
 }
+#endif
 
 /****************************************************************************
   Get options from my.cnf
@@ -872,12 +886,14 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
 #define EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, dup)            \
   EXTENSION_SET_STRING_X((OPTS), X, (STR), dup);
 
+#ifdef EMBEDDED_LIBRARY
 static char *set_ssl_option_unpack_path(const char *arg, myf flags)
 {
   char buff[FN_REFLEN + 1];
   unpack_filename(buff, (char *)arg);
   return opt_strdup(buff, flags);
 }
+#endif
 
 #else
 #define SET_SSL_OPTION_X(OPTS, opt_var,arg, dup) do { } while(0)
@@ -1088,6 +1104,7 @@ void mysql_read_default_options(struct st_mysql_options *options,
 }
 
 
+#ifdef EMBEDDED_LIBRARY
 /**************************************************************************
   Get column lengths of the current row
   If one uses mysql_use_result, res->lengths contains the length information,
@@ -1256,6 +1273,7 @@ err:
   set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
   DBUG_RETURN(0);
 }
+#endif
 
 /* Read all rows (fields or data) from server */
 
@@ -1365,6 +1383,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
 */
 
 
+#ifdef EMBEDDED_LIBRARY
 static int
 read_one_row(MYSQL *mysql,uint fields,MYSQL_ROW row, ulong *lengths)
 {
@@ -1653,12 +1672,14 @@ error:
 
 static my_bool cli_read_query_result(MYSQL *mysql);
 static MYSQL_RES *cli_use_result(MYSQL *mysql);
+#endif
 
 int cli_read_change_user_result(MYSQL *mysql)
 {
   return cli_safe_read(mysql);
 }
 
+#ifdef EMBEDDED_LIBRARY
 static MYSQL_METHODS client_methods=
 {
   cli_read_query_result,                       /* read_query_result */
@@ -1680,6 +1701,7 @@ static MYSQL_METHODS client_methods=
   cli_read_binary_rows                         /* read_rows_from_cursor */
 #endif
 };
+#endif
 
 
 #include <my_sys.h>
@@ -1766,6 +1788,7 @@ C_MODE_END
 /*********** client side authentication support **************************/
 
 typedef struct st_mysql_client_plugin_AUTHENTICATION auth_plugin_t;
+#ifdef EMBEDDED_LIBRARY
 static int client_mpvio_write_packet(struct st_plugin_vio*, const uchar*, int);
 static int native_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
 static int native_password_auth_hash(MYSQL *mysql, uchar *out, size_t *outlen);
@@ -1812,6 +1835,7 @@ struct st_mysql_client_plugin *mysql_client_builtins[]=
   (struct st_mysql_client_plugin *)&old_password_client_plugin,
   0
 };
+#endif
 
 
 static uchar *
@@ -1862,6 +1886,7 @@ send_client_connect_attrs(MYSQL *mysql, uchar *buf)
 }
 
 
+#ifdef EMBEDDED_LIBRARY
 static size_t get_length_store_length(size_t length)
 {
   /* as defined in net_store_length */
@@ -1872,6 +1897,7 @@ static size_t get_length_store_length(size_t length)
 
   return ptr - &length_buffer[0];
 }
+#endif
 
 
 /* this is a "superset" of MYSQL_PLUGIN_VIO, in C++ I use inheritance */
@@ -1893,6 +1919,7 @@ typedef struct {
 } MCPVIO_EXT;
 
 
+#ifdef EMBEDDED_LIBRARY
 /*
   Write 1-8 bytes of string length header information to dest depending on
   value of src_len, then copy src_len bytes from src to dest.
@@ -3220,6 +3247,7 @@ error:
   }
   DBUG_RETURN(0);
 }
+#endif
 
 
 my_bool mysql_reconnect(MYSQL *mysql)
@@ -3285,6 +3313,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   Set current database
 **************************************************************************/
 
+#ifdef EMBEDDED_LIBRARY
 int STDCALL
 mysql_select_db(MYSQL *mysql, const char *db)
 {
@@ -3356,6 +3385,7 @@ static void mysql_close_free(MYSQL *mysql)
   /* Clear pointers for better safety */
   mysql->host_info= mysql->user= mysql->passwd= mysql->db= 0;
 }
+#endif
 
 
 /**
@@ -3436,6 +3466,7 @@ void mysql_detach_stmt_list(LIST **stmt_list __attribute__((unused)),
   (As some clients call this after mysql_real_connect() fails)
 */
 
+#ifdef EMBEDDED_LIBRARY
 /*
   mysql_close() can actually block, at least in theory, if the socket buffer
   is full when sending the COM_QUIT command.
@@ -3935,6 +3966,7 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
   }
   DBUG_RETURN(0);
 }
+#endif
 /**
   A function to return the key from a connection attribute
 */
@@ -3947,6 +3979,7 @@ get_attr_key(const void *part_, size_t *length,
   return (const uchar *) part[0].str;
 }
 
+#ifdef EMBEDDED_LIBRARY
 int STDCALL
 mysql_options4(MYSQL *mysql,enum mysql_option option,
                const void *arg1, const void *arg2)
@@ -4276,6 +4309,7 @@ mysql_get_socket(const MYSQL *mysql)
     return vio_fd(mysql->net.vio);
   return INVALID_SOCKET;
 }
+#endif
 
 
 int STDCALL mysql_cancel(MYSQL *mysql)
@@ -4286,6 +4320,7 @@ int STDCALL mysql_cancel(MYSQL *mysql)
 }
 
 
+#ifdef EMBEDDED_LIBRARY
 MYSQL_RES *STDCALL mysql_use_result(MYSQL *mysql)
 {
   return (*mysql->methods->use_result)(mysql);
@@ -4309,3 +4344,4 @@ mysql_real_escape_string(MYSQL *mysql, char *to,const char *from,
   return (ulong) escape_string_for_mysql(mysql->charset, to, 0, from, length,
                                          &overflow);
 }
+#endif

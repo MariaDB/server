@@ -4266,7 +4266,7 @@ static int init_common_variables()
     return 1;
   global_system_variables.lc_messages= my_default_lc_messages;
   global_system_variables.errmsgs= my_default_lc_messages->errmsgs->errmsgs;
-  init_client_errs();
+  server_init_client_errs();
   mysql_library_init(unused,unused,unused); /* for replication */
   lex_init();
   if (item_create_init())

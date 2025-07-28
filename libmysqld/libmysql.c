@@ -134,7 +134,7 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
     org_my_init_done=my_init_done;
     if (my_init())				/* Will init threads */
       return 1;
-    init_client_errs();
+    server_init_client_errs();
     if (mysql_client_plugin_init())
       return 1;
     if (!mysql_port)

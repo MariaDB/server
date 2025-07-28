@@ -24,7 +24,7 @@
 #include <my_sys.h>
 #include "errmsg.h"
 
-const char *client_errors[]=
+const char *server_client_errors[]=
 {
   "Unknown error",
   "Can't create UNIX socket (%d)",
@@ -93,7 +93,7 @@ const char *client_errors[]=
 
 const char** get_client_errmsgs(int nr __attribute__((unused)))
 {
-  return client_errors;
+  return server_client_errors;
 }
 
 /*
@@ -106,9 +106,9 @@ const char** get_client_errmsgs(int nr __attribute__((unused)))
     void
 */
 
-void init_client_errs(void)
+void server_init_client_errs(void)
 {
-  compile_time_assert(array_elements(client_errors) ==
+  compile_time_assert(array_elements(server_client_errors) ==
                       (CR_ERROR_LAST - CR_ERROR_FIRST + 2));
   (void) my_error_register(get_client_errmsgs, CR_ERROR_FIRST, CR_ERROR_LAST);
 }

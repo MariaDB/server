@@ -26,7 +26,7 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-void	init_client_errs(void);
+void	server_init_client_errs(void);
 void	finish_client_errs(void);
 extern const char *client_errors[];	/* Error messages */
 #ifdef	__cplusplus

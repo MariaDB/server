@@ -332,7 +332,7 @@ decimal_digits_t decimal_actual_fraction(const decimal_t *from)
     E_DEC_OK/E_DEC_TRUNCATED/E_DEC_OVERFLOW
 */
 
-int decimal2string(const decimal_t *from, char *to, int *to_len,
+int old_decimal2string(const decimal_t *from, char *to, int *to_len,
                    decimal_digits_t fixed_precision,
                    decimal_digits_t fixed_decimals,
                    char filler)
@@ -1037,7 +1037,7 @@ int decimal2double(const decimal_t *from, double *to)
   int len= sizeof(strbuf);
   int rc, error;
 
-  rc = decimal2string(from, strbuf, &len, 0, 0, 0);
+  rc = old_decimal2string(from, strbuf, &len, 0, 0, 0);
   end= strbuf + len;
 
   DBUG_PRINT("info", ("interm.: %s", strbuf));
@@ -1404,6 +1404,7 @@ int decimal2bin(const decimal_t *from, uchar *to, decimal_digits_t precision,
   return error;
 }
 
+#ifdef DO_NOT_USE_CONC
 /*
   Restores decimal from its binary fixed-length representation
 
@@ -1565,6 +1566,7 @@ uint decimal_bin_size(decimal_digits_t precision, decimal_digits_t scale)
   return intg0*sizeof(dec1)+dig2bytes[intg0x]+
          frac0*sizeof(dec1)+dig2bytes[frac0x];
 }
+#endif
 
 /*
   Rounds the decimal to "scale" digits

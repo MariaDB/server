@@ -43,6 +43,7 @@ ENDIF()
 
 
 ADD_DEFINITIONS(-UMYSQL_SERVER)
+ADD_DEFINITIONS(-DEMBEDDED_LIBRARY)
 ########################################################################
 # xtrabackup binary
 ########################################################################
@@ -75,7 +76,6 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   ddl_log.cc
   common_engine.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
-  ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
   COMPONENT Backup
   )
 

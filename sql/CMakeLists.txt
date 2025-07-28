@@ -112,7 +112,7 @@ SET (SQL_SOURCE
                rpl_record.cc rpl_reporting.cc
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
-               ../sql-common/client_plugin.c
+               #../sql-common/client_plugin.c
                opt_range.cc vector_mhnsw.cc
                opt_group_by_cardinality.cc
                opt_rewrite_date_cmp.cc
@@ -238,6 +238,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
+  mariadbclient
   mysys mysys_ssl dbug strings vio pcre2-8
   tpool
   online_alter_log
