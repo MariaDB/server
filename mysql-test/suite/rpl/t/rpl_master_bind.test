@@ -1,0 +1,72 @@
+# MDEV-19248: Test the `CHANGE MASTER TO Master_Bind` feature
+# * Set the config to
+#   * `localhost` and foreign (Cloudflare DNS) bind addresses
+#   * IPv4, IPv6 and domain name
+# * Observe that:
+#   * The `localhost` variant shows in the master's SHOW SLAVE HOSTS.
+      #FIXME: Does it work?
+#   * The slave cannot connect when bound to a foreign address.
+
+--source include/check_ipv6.inc
+--source include/have_binlog_format_mixed.inc # The test is agnostic of binlog formats.
+--source include/master-slave.inc
+--let $slave_io_errno= 2003 #TODO ?
+--let $show_slave_io_error= 1
+#--let $slave_io_error_replace=
+
+--echo # Case NULL
+SHOW SLAVE HOSTS;
+--connection slave
+STOP SLAVE;
+SELECT master_retry_count INTO @orig_retry_count
+  FROM information_schema.SLAVE_STATUS;
+
+CREATE TEMPORARY TABLE test_cases(
+  i TINYINT AUTO_INCREMENT PRIMARY KEY,
+  master_bind VARCHAR(39), # IPv6: 8 groups of 4 hex digits + 7 `:`s
+  is_valid BOOL
+);
+INSERT INTO test_cases(master_bind, is_valid) VALUES
+  ('127.0.1.1', TRUE),
+  ('1.1.1.1', FALSE),
+  ('::1', TRUE),
+  ('2606:4700:4700::1111', FALSE),
+  ('localhost', TRUE),
+  ('one.one.one.one', FALSE),
+  ('', TRUE);
+
+--let $i= 0
+--let $count= `SELECT COUNT(*) FROM test_cases`
+while ($i < $count)
+{
+  --inc $i
+  --let $master_bind= `SELECT QUOTE(master_bind) FROM test_cases WHERE i=$i`
+  --let $is_valid= `SELECT is_valid FROM test_cases WHERE i=$i`
+  --echo # Case $master_bind
+
+  --source include/wait_for_slave_to_stop.inc
+  --let $master_retry_count= `SELECT IF($is_valid, @orig_retry_count, 1)`
+  eval CHANGE MASTER TO
+    master_bind=$master_bind, master_retry_count=$master_retry_count;
+  START SLAVE IO_THREAD;
+  
+  if ($is_valid)
+  {
+    --source include/wait_for_slave_io_to_start.inc
+    --connection master
+    SHOW SLAVE HOSTS;
+    --connection slave
+    STOP SLAVE IO_THREAD;
+  }
+  if (!$is_valid)
+  {
+    --let $slave_io_error_is_nonfatal= 1
+    --source include/wait_for_slave_io_error.inc
+  }
+
+}
+--echo # Cleanup
+--let $rpl_only_running_threads= 1
+# No need to reset `master_bind` and `master_retry_count`
+# if the last test case has a valid bind address.
+--source include/rpl_end.inc
