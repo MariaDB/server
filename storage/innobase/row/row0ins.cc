@@ -2831,6 +2831,7 @@ avoid_bulk:
 		/* If foreign key exist and foreign key is enabled
 		then avoid using bulk insert for copy algorithm */
 		if (innodb_alter_copy_bulk
+		    && !index->table->unique_blob
 		    && !index->table->is_temporary()
 		    && !index->table->versioned()
 		    && !index->table->has_spatial_index()
