@@ -288,9 +288,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
-  if (!(create_info->table_options & HA_OPTION_PACK_RECORD))
-    create_info->null_bits++;
-  data_offset= (create_info->null_bits + 7) / 8;
+  bool need_deleted_bit= !(create_info->table_options & HA_OPTION_PACK_RECORD);
+  data_offset= (create_info->null_bits + need_deleted_bit + 7) / 8;
 
   error= pack_vcols(thd, &vcols,
                     create_fields, create_info->check_constraint_list);
