@@ -63,6 +63,21 @@
     <CustomAction Id="LaunchUrl" BinaryKey="WixCA" DllEntry="WixShellExec"  Execute="immediate" Return="check" Impersonate="yes" />
 
 
+    <!--
+    When msiexec /i ADDLOCAL=<feature_list> is used, usually only features in
+    the <feature_list> are installed. owever there are things we always want to
+    be there, there is ALWAYSINSTALL feature id, hidden in UI for that.
+    Modify ADDLOCAL list by adding mandatory features.
+    -->
+    <CustomAction Id="ForceAddMandatoryFeatures"
+              Property="ADDLOCAL"
+              Value="[ADDLOCAL],@MANDATORY_FEATURES@"/>
+    <InstallUISequence>
+      <Custom Action="ForceAddMandatoryFeatures" Before="CostFinalize">ADDLOCAL</Custom>
+    </InstallUISequence>
+    <InstallExecuteSequence>
+      <Custom Action="ForceAddMandatoryFeatures" Before="CostFinalize">ADDLOCAL</Custom>
+    </InstallExecuteSequence>
 
     <!-- 
       User interface dialogs 
@@ -583,7 +598,7 @@
 
     <!-- Optional 3rd party tools -->
     <DirectoryRef Id='TARGETDIR'>
-     <Directory Id='CommonFilesFolder'>
+     <Directory Id='CommonFiles64Folder'>
        <Directory Id='MariaDBShared' Name='MariaDBShared'/>
      </Directory>
      <Directory Id='DesktopFolder'/>

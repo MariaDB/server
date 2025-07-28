@@ -43,14 +43,9 @@ remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
 --echo #
 --echo # Bootstrap with a large thd->net.max_packet
 --echo #
---disable_query_log
 create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
---disable_cursor_protocol
---disable_ps2_protocol
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
 eval select * into outfile '$MYSQLTEST_VARDIR/tmp/long_query.sql' from t1;
---enable_ps2_protocol
---enable_cursor_protocol
---enable_query_log
 --source include/kill_mysqld.inc
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/long_query.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1

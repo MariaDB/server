@@ -552,7 +552,7 @@ my_read_charset_file(MY_CHARSET_LOADER *loader,
   
   if (my_parse_charset_xml(loader, (char *) buf, len))
   {
-    my_printf_error(EE_UNKNOWN_CHARSET, "Error while parsing '%s': %s\n",
+    my_printf_error(EE_UNKNOWN_CHARSET, "Error while parsing '%s': %s",
                     MYF(0), filename, loader->error);
     goto error;
   }

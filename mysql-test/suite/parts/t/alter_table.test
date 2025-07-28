@@ -347,6 +347,18 @@ alter table t1 convert table tp to partition p2 values less than (1000);
 drop user u@localhost;
 drop database db;
 
+--echo #
+--echo # MDEV-37328 Assertion failure in make_empty_rec upon CONVERT PARTITION
+--echo #
+create table t (f1 int, f2 int, f3 int, f4 int, f5 int, f6 int, f7 int) engine=myisam
+ partition by list (f3) (
+  partition p0 values in (null,0),
+  partition p1 values in (1,2,3),
+  partition p2 default
+);
+alter table t convert partition p0 to table tp;
+drop table if exists tp, t;
+
 --echo # End of 10.11 tests
 
 --echo #

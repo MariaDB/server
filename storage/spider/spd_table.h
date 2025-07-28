@@ -446,19 +446,12 @@ void spider_free_spider_object_for_share(
   ha_spider **spider
 );
 
-int spider_create_sts_threads(
-  SPIDER_THREAD *spider_thread
+int spider_create_sts_crd_threads(
+  SPIDER_THREAD *spider_thread,
+  bool is_sts
 );
 
-void spider_free_sts_threads(
-  SPIDER_THREAD *spider_thread
-);
-
-int spider_create_crd_threads(
-  SPIDER_THREAD *spider_thread
-);
-
-void spider_free_crd_threads(
+void spider_free_sts_crd_threads(
   SPIDER_THREAD *spider_thread
 );
 

@@ -26,13 +26,13 @@ SET GLOBAL innodb_fast_shutdown = 0;
 # restart: --debug_dbug=+d,ib_log_checkpoint_avoid_hard --innodb_flush_sync=0
 begin;
 insert into t1 values (6, repeat('%', 400));
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0, innodb_max_dirty_pages_pct=0;
 # Make the first page dirty for system tablespace
 set global innodb_saved_page_number_debug = 0;
 set global innodb_fil_make_page_dirty_debug = 0;
 # Make the second page dirty for system tablespace
 set global innodb_saved_page_number_debug = 1;
 set global innodb_fil_make_page_dirty_debug = 0;
-set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Make the 1st page (page_no=0) and 2nd page (page_no=1)
 # of the system tablespace all zeroes.

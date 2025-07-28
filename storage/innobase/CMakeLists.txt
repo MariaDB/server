@@ -131,7 +131,6 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
 	btr/btr0btr.cc
@@ -440,14 +439,16 @@ MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
 	${ZLIB_LIBRARIES}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
-	${LINKER_SCRIPT})
+	${LINKER_SCRIPT}
+	tpool
+	)
 
 IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
-ADD_DEFINITIONS(${SSL_DEFINES} ${TPOOL_DEFINES})
 
+ADD_DEFINITIONS(${SSL_DEFINES})
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
 IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
@@ -536,7 +537,7 @@ IF(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
 ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
-  TARGET_LINK_LIBRARIES(innobase tpool mysys)
+  TARGET_LINK_LIBRARIES(innobase mysys)
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 ENDIF()
 

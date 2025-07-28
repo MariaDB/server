@@ -165,13 +165,9 @@ while ($_dt_tables)
 
   # Now that we have the comma-separated list of columns, we can write
   # the table to a file.
-  --disable_ps2_protocol
   --let $_dt_outfile= `SELECT @@datadir`
   --let $_dt_outfile= $_dt_outfile/diff_table-$_dt_connection-$_dt_database-$_dt_table
-  --disable_cursor_protocol
   eval SELECT * INTO OUTFILE '$_dt_outfile' FROM $_dt_database.$_dt_table ORDER BY `$_dt_column_list`;
-  --enable_cursor_protocol
-  --enable_ps2_protocol
 
   # Compare files.
   if ($_dt_prev_outfile)

@@ -2536,9 +2536,7 @@ bool st_select_lex_unit::exec_inner()
 
       fake_select_lex->table_list.empty();
       if (likely(!saved_error))
-      {
-	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-      }
+        thd->limit_found_rows= (ulonglong)table->file->stats.records + add_rows;
       /*
 	Mark for slow query log if any of the union parts didn't use
 	indexes efficiently

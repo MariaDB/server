@@ -321,8 +321,7 @@ enum chf_create_flags {
 #define HA_REUSES_FILE_NAMES             (1ULL << 49)
 
 /*
-  Set of all binlog flags. Currently only contain the capabilities
-  flags.
+  Set of all binlog flags. Currently only contain the capabilities flags.
  */
 #define HA_BINLOG_FLAGS (HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE)
 
@@ -371,11 +370,12 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 61)
 
+#define HA_CHECK_UNIQUE_AFTER_WRITE  (1ULL << 62)
+
 /* This engine is not compatible with Online ALTER TABLE */
-#define HA_NO_ONLINE_ALTER  (1ULL << 62)
+#define HA_NO_ONLINE_ALTER  (1ULL << 63)
 
 #define HA_LAST_TABLE_FLAG HA_NO_ONLINE_ALTER
-
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -2355,6 +2355,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &default_cscl,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
+  bool check_if_valid_log_table();
 };
 
 
@@ -3552,7 +3553,7 @@ public:
   */
   Table_flags ha_table_flags() const
   {
-    DBUG_ASSERT(cached_table_flags < (HA_LAST_TABLE_FLAG << 1));
+    DBUG_ASSERT((cached_table_flags >> 1) < HA_LAST_TABLE_FLAG);
     return cached_table_flags;
   }
   /**
@@ -5157,11 +5158,11 @@ private:
 
   int create_lookup_handler();
   void alloc_lookup_buffer();
-  int check_duplicate_long_entries(const uchar *new_rec);
-  int check_duplicate_long_entries_update(const uchar *new_rec);
   int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
   /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
+  int ha_check_long_uniques(const uchar *old_rec, const uchar *new_rec);
+  int ha_check_inserver_constraints(const uchar *old_data, const uchar* new_data);
 
 protected:
   /*

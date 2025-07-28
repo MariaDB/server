@@ -3088,6 +3088,11 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     table_list->table->no_cache= true;
   }
 
+  {
+    List_iterator_fast<Item> fs(select_lex->item_list), vs(lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
 
   free_join= false;
 

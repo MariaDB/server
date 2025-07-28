@@ -54,6 +54,7 @@
 #include "sql_test.h"         // mysql_print_status
 #include "sql_select.h"       // handle_select, mysql_select,
                               // mysql_explain_union
+#include "sql_cursor.h"       // Select_materialzie
 #include "sql_load.h"         // mysql_load
 #include "sql_servers.h"      // create_servers, alter_servers,
                               // drop_servers, servers_reload
@@ -3064,11 +3065,6 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   ha_rows select_limit= thd->variables.select_limit;
   thd->variables.select_limit= HA_POS_ERROR;
 
-  /*
-    Reset current_select as it may point to random data as a
-    result of previous parsing.
-  */
-  thd->lex->current_select= NULL;
   thd->lex->in_sum_func= 0;                     // For Item_field::fix_fields()
 
   /*
@@ -5984,6 +5980,9 @@ finish:
       one of storage engines (e.g. due to deadlock). Rollback transaction in
       all storage engines including binary log.
     */
+    auto &xid_state= thd->transaction->xid_state;
+    if (xid_state.is_explicit_XA())
+      xid_state.set_rollback_only();
     trans_rollback_implicit(thd);
     thd->release_transactional_locks();
   }
@@ -6200,7 +6199,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
   }
   /* Count number of empty select queries */
-  if (!thd->get_sent_row_count() && !res)
+  if (!thd->is_cursor_execution() && !thd->get_sent_row_count() && !res)
     status_var_increment(thd->status_var.empty_queries);
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());

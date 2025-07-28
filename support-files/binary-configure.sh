@@ -23,9 +23,9 @@ for arg do
   esac
 done
 
-if test ! -x  ./scripts/mysql_install_db
+if test ! -x  ./scripts/mariadb-install-db
 then
-  echo "I didn't find the script './scripts/mysql_install_db'."
+  echo "I didn't find the script './scripts/mariadb-install-db'."
   echo "Please execute this script in the mysql distribution directory!"
   exit 1;
 fi
@@ -38,7 +38,7 @@ echo "and start the MySQL server for you.  If you run into any trouble, please"
 echo "consult the MySQL manual, that you can find in the Docs directory."
 echo ""
 
-./scripts/mysql_install_db --no-defaults
+./scripts/mariadb-install-db --no-defaults
 if [ $? = 0 ]
 then
   echo "Starting the mariadbd server.  You can test that it is up and running"

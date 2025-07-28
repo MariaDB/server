@@ -2,8 +2,6 @@ select @@optimizer_switch like '%exists_to_in=off%';
 @@optimizer_switch like '%exists_to_in=off%'
 0
 set optimizer_switch='exists_to_in=off';
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
-drop view if exists v2;
 call mtr.add_suppression("Sort aborted.*");
 set @subselect_tmp=@@optimizer_switch;
 set @@optimizer_switch=ifnull(@optimizer_switch_for_subselect_test,
@@ -7602,9 +7600,7 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 Warning	1292	Truncated incorrect DECIMAL value: 'e'
 drop view v1;
 drop table t1, t2, t3;
-#
 # End of 10.6 tests
-#
 #
 # MDEV-32656: ASAN errors in base_list_iterator::next /
 # setup_table_map upon 2nd execution of PS
@@ -7644,9 +7640,7 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 Warning	1292	Truncated incorrect DECIMAL value: 'e'
 DROP VIEW v1;
 DROP TABLE t1, t2, t3;
-#
 # End of 10.10 tests
-#
 set optimizer_switch=default;
 select @@optimizer_switch like '%exists_to_in=off%';
 @@optimizer_switch like '%exists_to_in=off%'

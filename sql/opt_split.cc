@@ -610,6 +610,11 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     right_item->walk(&Item::set_fields_as_dependent_processor,
                      false, join->select_lex);
     right_item->update_used_tables();
+    /*
+      We've just pushed right_item down into the child select. It may only
+      have references to outside.
+    */
+    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
 
     //  Item_func::EQUAL_FUNC is null-safe, others can use Item_func_eq()
     if (key_field->cond->type() == Item::FUNC_ITEM &&
