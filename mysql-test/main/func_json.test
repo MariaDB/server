@@ -1941,7 +1941,18 @@ SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
 
 SET @@collation_connection= @save_collation_connection;
 
-
 --echo #
 --echo # End of 10.9 Test
+--echo #
+
+--echo #
+--echo # MDEV-28649 json_array(false) in the definition of view return 0 instead of "true"
+--echo #
+
+create view v1 as select json_array(false) as ja_false, json_array(true) as ja_true;
+select * from v1;
+drop view v1;
+
+--echo #
+--echo # End of 10.11 tests
 --echo #
