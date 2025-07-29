@@ -154,6 +154,7 @@ public:
 
   int bind(native_file_handle &fd) override { return 0; }
   int unbind(const native_file_handle &fd) override { return 0; }
+  const char *get_implementation() const override { return "simulated"; }
 };
 
 aio *create_simulated_aio(thread_pool *tp)

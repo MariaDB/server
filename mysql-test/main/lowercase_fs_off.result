@@ -274,6 +274,23 @@ CREATE TABLE t1 (a mariadb_schema.date);
 DROP TABLE t1;
 # End of 10.3 tests
 #
+# MDEV-36979 Same alias name with different case on same table is not working in functions
+#
+create table t1 (a int);
+insert t1 values (1);
+create table T1 (b int);
+insert T1 values (10);
+create function t1test(val int) returns int
+begin
+return (select a from t1 where exists (select b from T1 where b > val));
+end//
+select t1test(1);
+t1test(1)
+1
+drop function t1test;
+drop table t1, T1;
+# End of 10.11 tests
+#
 # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
 #
 create temporary table t1 (a int);

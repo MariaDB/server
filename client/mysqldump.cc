@@ -184,7 +184,7 @@ static DYNAMIC_STRING extended_row;
 static DYNAMIC_STRING dynamic_where;
 static MYSQL_RES *get_table_name_result= NULL;
 static MEM_ROOT glob_root;
-static MYSQL_RES *routine_res, *routine_list_res;
+static MYSQL_RES *routine_res, *routine_list_res, *slave_status_res= NULL;
 
 
 #include <sslopt-vars.h>
@@ -1996,6 +1996,8 @@ static void free_resources()
     mysql_free_result(routine_res);
   if (routine_list_res)
     mysql_free_result(routine_list_res);
+  if (slave_status_res)
+    mysql_free_result(slave_status_res);
   if (mysql)
   {
     mysql_close(mysql);
@@ -6432,17 +6434,19 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
 
 static int do_stop_slave_sql(MYSQL *mysql_con)
 {
-  MYSQL_RES *slave;
   MYSQL_ROW row;
+  DBUG_ASSERT(
+    !slave_status_res // do_stop_slave_sql() should only be called once
+  );
 
-  if (mysql_query_with_error_report(mysql_con, &slave,
+  if (mysql_query_with_error_report(mysql_con, &slave_status_res,
                                     multi_source ?
                                     "SHOW ALL SLAVES STATUS" :
                                     "SHOW SLAVE STATUS"))
     return(1);
 
   /* Loop over all slaves */
-  while ((row= mysql_fetch_row(slave)))
+  while ((row= mysql_fetch_row(slave_status_res)))
   {
     if (row[11 + multi_source])
     {
@@ -6457,13 +6461,11 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
 
         if (mysql_query_with_error_report(mysql_con, 0, query))
         {
-          mysql_free_result(slave);
           return 1;
         }
       }
     }
   }
-  mysql_free_result(slave);
   return(0);
 }
 
@@ -6587,32 +6589,35 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
 
 static int do_start_slave_sql(MYSQL *mysql_con)
 {
-  MYSQL_RES *slave;
   MYSQL_ROW row;
   int error= 0;
   DBUG_ENTER("do_start_slave_sql");
 
-  /* We need to check if the slave sql is stopped in the first place */
-  if (mysql_query_with_error_report(mysql_con, &slave,
-                                    multi_source ?
-                                    "SHOW ALL SLAVES STATUS" :
-                                    "SHOW SLAVE STATUS"))
-    DBUG_RETURN(1);
+  /*
+    do_start_slave_sql() should normally be called
+    sometime after do_stop_slave_sql() succeeds
+  */
+  if (!slave_status_res)
+    DBUG_RETURN(error);
+  mysql_data_seek(slave_status_res, 0);
 
-  while ((row= mysql_fetch_row(slave)))
+  while ((row= mysql_fetch_row(slave_status_res)))
   {
     DBUG_PRINT("info", ("Connection: '%s'  status: '%s'",
                         multi_source ? row[0] : "", row[11 + multi_source]));
     if (row[11 + multi_source])
     {
-      /* if SLAVE SQL is not running, we don't start it */
-      if (strcmp(row[11 + multi_source], "Yes"))
+      /*
+        If SLAVE_SQL was not running but is now,
+        we start it anyway to warn the unexpected state change.
+      */
+      if (strcmp(row[11 + multi_source], "No"))
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "START SLAVE '%.80s'", row[0]);
+          sprintf(query, "START SLAVE '%.80s' SQL_THREAD", row[0]);
         else
-          strmov(query, "START SLAVE");
+          strmov(query, "START SLAVE SQL_THREAD");
 
         if (mysql_query_with_error_report(mysql_con, 0, query))
         {
@@ -6623,7 +6628,6 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       }
     }
   }
-  mysql_free_result(slave);
   DBUG_RETURN(error);
 }
 

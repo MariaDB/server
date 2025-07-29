@@ -251,3 +251,257 @@ t	CREATE TABLE `t` (
 PARTITIONS 2
 drop table t;
 # End of 10.9 tests
+#
+# MDEV-34046 Parameterized PS converts error to warning, causes replication problems
+#
+create table t (a int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into t values (1), (100);
+delete history from t before system_time @@timestamp;
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+execute immediate "delete history from t before system_time @@timestamp";
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+execute immediate "delete history from t before system_time ?" using @@timestamp;
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+set @ts1= '2000-01-01 00:00:01';
+set timestamp= unix_timestamp(@ts1);
+update t set a= a + 1 where a < 100;
+set @ts2= '2000-01-01 00:00:02';
+set timestamp= unix_timestamp(@ts2);
+update t set a= a + 1 where a < 100;
+set @ts3= '2000-01-01 00:00:03';
+set timestamp= unix_timestamp(@ts3);
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+1	2000-01-01 00:00:00.000000	2000-01-01 00:00:01.000000
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+select *, row_start, row_end from t for system_time as of @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+execute immediate "select *, row_start, row_end from t for system_time as of ?" using @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+prepare stmt from 'select *, row_start, row_end from t for system_time as of ?';
+execute stmt using @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+Execute stmt using @ts1;
+a	row_start	row_end
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+select *, row_start, row_end from t for system_time as of @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute immediate "select *, row_start, row_end from t for system_time as of ?" using @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+Execute stmt using @ts2;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+drop prepare stmt;
+execute immediate "delete history from t before system_time @ts1";
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+1	2000-01-01 00:00:00.000000	2000-01-01 00:00:01.000000
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute immediate "delete history from t before system_time @ts2";
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute immediate "delete history from t before system_time ?" using @ts3;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute immediate "delete history from t before system_time ?" using @ts3;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+update t set a= a + 1 where a < 100;
+set @ts4= '2000-01-01 00:00:04';
+set timestamp= unix_timestamp(@ts4);
+update t set a= a + 1 where a < 100;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2000-01-01 00:00:04.000000
+5	2000-01-01 00:00:04.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute immediate "delete history from t before system_time ?" using '2000-01-01 00:00:04';
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+4	2000-01-01 00:00:03.000000	2000-01-01 00:00:04.000000
+5	2000-01-01 00:00:04.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+set @ts5= '2000-01-01 00:00:05';
+set timestamp= unix_timestamp(@ts5);
+update t set a= a + 1 where a < 100;
+set @ts6= '2000-01-01 00:00:06';
+set timestamp= unix_timestamp(@ts6);
+update t set a= a + 1 where a < 100;
+set @ts7= '2000-01-01 00:00:07';
+set timestamp= unix_timestamp(@ts7);
+update t set a= a + 1 where a < 100;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+4	2000-01-01 00:00:03.000000	2000-01-01 00:00:04.000000
+5	2000-01-01 00:00:04.000000	2000-01-01 00:00:05.000000
+6	2000-01-01 00:00:05.000000	2000-01-01 00:00:06.000000
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+prepare stmt from 'delete history from t before system_time ?';
+execute stmt using @ts4;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+4	2000-01-01 00:00:03.000000	2000-01-01 00:00:04.000000
+5	2000-01-01 00:00:04.000000	2000-01-01 00:00:05.000000
+6	2000-01-01 00:00:05.000000	2000-01-01 00:00:06.000000
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts5;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+5	2000-01-01 00:00:04.000000	2000-01-01 00:00:05.000000
+6	2000-01-01 00:00:05.000000	2000-01-01 00:00:06.000000
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts6;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+6	2000-01-01 00:00:05.000000	2000-01-01 00:00:06.000000
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using '2000-01-01 00:00:06';
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+6	2000-01-01 00:00:05.000000	2000-01-01 00:00:06.000000
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using '2000-01-01 00:00:06.000001';
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+set @ts8= '2000-01-01 00:00:08';
+set timestamp= unix_timestamp(@ts8);
+delete from t;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+7	2000-01-01 00:00:06.000000	2000-01-01 00:00:07.000000
+8	2000-01-01 00:00:07.000000	2000-01-01 00:00:08.000000
+100	2000-01-01 00:00:00.000000	2000-01-01 00:00:08.000000
+execute immediate "delete history from t before system_time from_unixtime(?)" using @@timestamp;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+8	2000-01-01 00:00:07.000000	2000-01-01 00:00:08.000000
+100	2000-01-01 00:00:00.000000	2000-01-01 00:00:08.000000
+execute stmt using '2020-01-01';
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+drop prepare stmt;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into t values (1), (100);
+set @ts1= '2000-01-01 00:00:01';
+set timestamp= unix_timestamp(@ts1);
+update t set a= a + 1 where a < 100;
+set timestamp= @@timestamp + 1;
+set @ts2= @@timestamp;
+update t set a= a + 1 where a < 100;
+set timestamp= @@timestamp + 1;
+update t set a= a + 1 where a < 100;
+prepare stmt from 'delete history from t before system_time from_unixtime(? + ?)';
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+1	2000-01-01 00:00:00.000000	2000-01-01 00:00:01.000000
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts1, 0;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2000-01-01 00:00:01'
+Warning	1292	Truncated incorrect DOUBLE value: '2000-01-01 00:00:01'
+Warning	1292	Truncated incorrect DOUBLE value: '2000-01-01 00:00:01'
+Warning	1292	Truncated incorrect DOUBLE value: '2000-01-01 00:00:01'
+Warning	1292	Truncated incorrect DOUBLE value: '2000-01-01 00:00:01'
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+1	2000-01-01 00:00:00.000000	2000-01-01 00:00:01.000000
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts2, 0;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @@timestamp, NULL;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using NULL, NULL;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+2	2000-01-01 00:00:01.000000	2000-01-01 00:00:02.000000
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts2, 1;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+3	2000-01-01 00:00:02.000000	2000-01-01 00:00:03.000000
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+execute stmt using @ts2, @ts2;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+4	2000-01-01 00:00:03.000000	2106-02-07 06:28:15.999999
+100	2000-01-01 00:00:00.000000	2106-02-07 06:28:15.999999
+delete from t;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+4	2000-01-01 00:00:03.000000	2000-01-01 00:00:03.000000
+100	2000-01-01 00:00:00.000000	2000-01-01 00:00:03.000000
+execute stmt using @ts2, @ts2;
+select *, row_start, row_end from t for system_time all order by a;
+a	row_start	row_end
+drop prepare stmt;
+drop table t;
+set timestamp= default;
+#
+# MDEV-37164 Assertion `vers_conditions.delete_history' failed upon PREPARE
+#
+create table t (a int) with system versioning;
+insert into t values (1),(2);
+prepare stmt from 'select * from t for system_time as of timestamp ?';
+drop table t;
+# End of 10.11 tests

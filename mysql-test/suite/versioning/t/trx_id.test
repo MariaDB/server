@@ -643,3 +643,21 @@ alter table xx;
 --disconnect con1
 --connection default
 drop table t1;
+
+--echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on primary or replica upon CREATE OR REPLACE for partitioned table
+--echo #
+create table t1 (
+  a int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time (row_start, row_end)
+) engine=innodb with system versioning
+ partition by hash (a);
+create or replace table t1 (b int) engine=innodb with system versioning partition by system_time;
+show create table t1;
+drop table t1;
+
+--echo # End of 11.8 tests

@@ -36,6 +36,8 @@ set @save_semi_sync_master_enabled= @@global.rpl_semi_sync_master_enabled;
 set @save_semi_sync_wp= @@global.rpl_semi_sync_master_wait_point;
 set @save_bgc_count= @@global.binlog_commit_wait_count;
 set @save_bgc_usec= @@global.binlog_commit_wait_usec;
+set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set @old_master_wait_no_slave= @@global.rpl_semi_sync_master_wait_no_slave;
 set @save_debug_dbug= @@global.debug_dbug;
 set @@global.binlog_commit_wait_count=3;
 set @@global.binlog_commit_wait_usec=10000000;
@@ -111,8 +113,6 @@ drop table t1, t2, t3;
 
 
 --connection master
-set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
-set @old_master_wait_no_slave= @@global.rpl_semi_sync_master_wait_no_slave;
 set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
 set @@global.rpl_semi_sync_master_wait_no_slave= 1;
 --eval set @@global.debug_dbug="+d,semisync_log_skip_trx_wait"
@@ -207,11 +207,111 @@ commit;
 --echo # Cleanup
 --connection master
 drop table tn;
+set @@global.debug_dbug=@save_debug_dbug;
+
+
+--echo #
+--echo # MDEV-36934
+--echo # The server could indefinitely hang due to a memory leak which tried to
+--echo # pthread signal on a destroyed condition variable. In effect, no
+--echo # connections could commit transactions because there would be a thread
+--echo # stuck on a never-returning call to pthread_cond_signal() while
+--echo # holding Repl_semi_sync_master::LOCK_log.
+
+--connection master
+set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+set @@global.rpl_semi_sync_master_wait_no_slave= 0;
+
+--echo # Ensure servers are in proper state
+--connection master
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+--connection slave
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--echo # Test case initial set-up
+--connection master
+create table t_36934 (a int) engine=innodb;
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo # Pause the user transaction before inserting into Active_tranx
+--connect(user_con,localhost,root,,)
+SET debug_sync= 'semisync_at_write_tranx_in_binlog SIGNAL at_write_tranx_in_binlog WAIT_FOR resume_write_tranx_in_binlog';
+--send insert into t_36934 values (1)
+
+--connection server_1
+set debug_sync="now wait_for at_write_tranx_in_binlog";
+
+--echo # Disconnect the slave (note that the binlog dump thread won't yet be
+--echo # notified of a binlog update from the last transaction, so the slave
+--echo # should neither receiver nor ACK the transaction).
+--connection slave
+--source include/stop_slave.inc
+
+--echo # Waiting for master to realize the slave has disconnected..
+--connection server_1
+let $status_var= rpl_semi_sync_master_clients;
+let $status_var_value= 0;
+source include/wait_for_status_var.inc;
+--echo # ..done
+
+--echo # Resuming transaction (it will exit commit_trx early without waiting)
+set debug_sync="now signal resume_write_tranx_in_binlog";
+
+--connection user_con
+--reap
+--let $user_con_tid= `SELECT connection_id()`
+--disconnect user_con
+--source include/wait_until_disconnected.inc
+
+--echo # Force delete the user thread (FLUSH THREADS ensures the thread won't
+--echo # stay in the thread cache)
+--connection master
+FLUSH THREADS;
+
+--echo # BUG: Re-connect slave. MDEV-36934 reports that the master would hang
+--echo # when the slave would re-connect and try to ACK the last transaction
+--echo # who's thread has been deleted
+--connection slave
+--source include/start_slave.inc
+
+--echo # Try to commit another transaction (prior to MDEV-36934 fixes, this
+--echo # would hang indefinitely)
+--connection master
+set debug_sync="RESET";
+--send insert into t_36934 values (2)
+
+--connection server_1
+--echo # Waiting 30s for last query to complete..
+--let $wait_timeout= 30
+--let $wait_condition= SELECT count(*)=0 FROM information_schema.processlist WHERE info LIKE 'insert into t_36934%';
+--source include/wait_condition.inc
+
+# Variable `success` is set by wait_condition.inc
+if (!$success)
+{
+  --echo # ..error
+  --die Query is hung
+}
+
+--connection master
+--reap
+--echo # ..done
+
+
+--echo # Cleanup
+--connection master
 set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
 set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
 set @@global.debug_dbug=@save_debug_dbug;
 set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
 set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
+drop table t_36934;
 
 --connection slave
 --source include/stop_slave.inc

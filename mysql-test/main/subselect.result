@@ -7601,9 +7601,7 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 Warning	1292	Truncated incorrect DECIMAL value: 'e'
 drop view v1;
 drop table t1, t2, t3;
-#
 # End of 10.6 tests
-#
 #
 # MDEV-32656: ASAN errors in base_list_iterator::next /
 # setup_table_map upon 2nd execution of PS
@@ -7643,6 +7641,4 @@ Warning	1292	Truncated incorrect DECIMAL value: 'e'
 Warning	1292	Truncated incorrect DECIMAL value: 'e'
 DROP VIEW v1;
 DROP TABLE t1, t2, t3;
-#
 # End of 10.10 tests
-#

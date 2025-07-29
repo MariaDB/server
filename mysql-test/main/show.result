@@ -65,3 +65,37 @@ drop table t1;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-31721: Cursor protocol increases the counter of  "Empty_queries" for select
+#
+FLUSH STATUS;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t1 LIMIT 0;
+a
+SHOW STATUS LIKE "Empty_queries";
+Variable_name	Value
+Empty_queries	1
+DROP TABLE t1;
+#------------------------------
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t1 UNION SELECT * FROM t2;
+a
+1
+2
+SELECT * FROM t1 UNION SELECT * FROM t2 LIMIT 0;
+a
+SHOW STATUS LIKE "Empty_queries";
+Variable_name	Value
+Empty_queries	2
+DROP TABLE t1, t2;
+# End of 10.11 tests

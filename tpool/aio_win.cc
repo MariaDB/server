@@ -131,6 +131,7 @@ public:
       : GetLastError();
   }
   int unbind(const native_file_handle& fd) override { return 0; }
+  const char *get_implementation() const override { return "completion ports"; }
 };
 
 aio* create_win_aio(thread_pool* pool, int max_io)

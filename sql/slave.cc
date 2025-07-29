@@ -3012,21 +3012,10 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
 
     if (!stamp)
       idle= true;
+    else if (mi->using_parallel())
+      idle= mi->rli.are_sql_threads_caught_up();
     else
-    {
       idle= mi->rli.sql_thread_caught_up;
-
-      /*
-        The idleness of the SQL thread is needed for the parallel slave
-        because events can be ignored before distribution to a worker thread.
-        That is, Seconds_Behind_Master should still be calculated and visible
-        while the slave is processing ignored events, such as those skipped
-        due to slave_skip_counter.
-      */
-      if (mi->using_parallel() && idle &&
-          !rpl_parallel::workers_idle(&mi->rli))
-        idle= false;
-    }
     if (idle)
       time_diff= 0;
     else
@@ -4120,20 +4109,19 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if (rli->mi->using_parallel())
     {
       /*
-        rli->sql_thread_caught_up is checked and negated here to ensure that
+        Relay_log_info::are_sql_threads_caught_up()
+        is checked and its states are negated here to ensure that
         the value of Seconds_Behind_Master in SHOW SLAVE STATUS is consistent
         with the update of last_master_timestamp. It was previously unset
         immediately after reading an event from the relay log; however, for the
         duration between that unset and the time that LMT would be updated
         could lead to spikes in SBM.
 
-        The check for queued_count == dequeued_count ensures the worker threads
-        are all idle (i.e. all events have been executed).
+        The check also ensures the worker threads
+        are all practically idle (i.e. all user events have been executed).
       */
       if ((unlikely(rli->last_master_timestamp == 0) ||
-           (rli->sql_thread_caught_up &&
-            (rli->last_inuse_relaylog->queued_count ==
-             rli->last_inuse_relaylog->dequeued_count))) &&
+           rli->are_sql_threads_caught_up()) &&
           event_can_update_last_master_timestamp(ev))
       {
         /*
@@ -4148,6 +4136,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           rli->last_master_timestamp= ev->when;
         }
         rli->sql_thread_caught_up= false;
+        rli->unset_worker_threads_caught_up();
       }
 
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
@@ -4160,6 +4149,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
       {
+        DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+          if (typ == FORMAT_DESCRIPTION_EVENT)
+            DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+              "now WAIT_FOR main_sql_thread_continue"
+            )));
+        );
 #ifdef WITH_WSREP
 	wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
@@ -4187,15 +4182,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     if (typ == GTID_EVENT)
     {
       Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
-
-#ifdef ENABLED_DEBUG_SYNC
-    DBUG_EXECUTE_IF(
-        "pause_sql_thread_on_relay_fde_after_trans",
-        {
-          DBUG_SET("-d,pause_sql_thread_on_relay_fde_after_trans");
-          DBUG_SET("+d,pause_sql_thread_on_next_relay_fde");
-        });
-#endif
 
       /*
         For GTID, allocate a new sub_id for the given domain_id.
@@ -4348,16 +4334,13 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
 #ifdef ENABLED_DEBUG_SYNC
-    DBUG_EXECUTE_IF(
-        "pause_sql_thread_on_next_relay_fde",
-        if (ev && typ == FORMAT_DESCRIPTION_EVENT &&
-            ((Format_description_log_event *) ev)->is_relay_log_event()) {
-          DBUG_ASSERT(!debug_sync_set_action(
-              thd,
-              STRING_WITH_LEN(
-                  "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
-          DBUG_SET("-d,pause_sql_thread_on_next_relay_fde");
-        });
+    // Note: Parallel Replication does not hit this point.
+    DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+      if (typ == FORMAT_DESCRIPTION_EVENT)
+        DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+          "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
+        )));
+    );
 #endif
 
     DBUG_RETURN(exec_res);
@@ -7070,9 +7053,9 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
 
 /**
   Reads next event from the relay log.  Should be called from the
-  slave IO thread.
+  slave SQL thread.
 
-  @param rli Relay_log_info structure for the slave IO thread.
+  @param rgi rpl_group_info structure for the slave SQL thread.
 
   @return The event read, or NULL on error.  If an error occurs, the
   error is reported through the sql_print_information() or

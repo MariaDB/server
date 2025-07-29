@@ -994,3 +994,15 @@ FTS_DOC_ID	f1	f2
 4294967298	txt	bbb
 100000000000	aaa	bbb
 DROP TABLE t1;
+#
+#  MDEV-30363  Failing assertion: trx->error_state == DB_SUCCESS
+#                    in que_run_threads
+#
+CREATE TABLE server_stopword (value VARCHAR(1))engine=innodb;
+SET GLOBAL innodb_ft_server_stopword_table='test/server_stopword';
+CREATE TABLE t (t VARCHAR(1) COLLATE utf8_unicode_ci,
+FULLTEXT (t))engine=innodb;
+TRUNCATE TABLE t;
+DROP TABLE t;
+DROP TABLE server_stopword;
+SET GLOBAL innodb_ft_server_stopword_table= default;

@@ -3526,6 +3526,9 @@ void mysqld_stmt_fetch(THD *thd, char *packet, uint packet_length)
 
   cursor->fetch(num_rows);
 
+  if (!thd->get_sent_row_count())
+    status_var_increment(thd->status_var.empty_queries);
+
   if (!cursor->is_open())
   {
     stmt->close_cursor();
@@ -4367,6 +4370,8 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
+  lex->default_used= thd->lex->default_used;
+  thd->lex->default_used= false;
   if (res)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
