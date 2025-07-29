@@ -1,7 +1,7 @@
 #
 # MDEV-36002: --master-retry-count=0 can still stop
 #
-# master_retry_count is set as 0 and master_connect_retry as 1 second. The master will be 
+# master_retry_count is set as 0 or 10 and master_connect_retry as 1 second. The master will be 
 # shutdown for 5 seconds, during this time the replica should attempt to reconnect to the 
 # master continuously. After 5 seconds, the master will be restarted, and the reconnection 
 # from the replica should success, which means it's Slave_IO_Running status should be Yes.
@@ -15,7 +15,6 @@ CHANGE MASTER TO
    MASTER_CONNECT_RETRY = 1;
 --source include/start_slave.inc
 
-
 # stop the master
 --let $rpl_server_number = 1
 --source include/rpl_stop_server.inc
@@ -26,18 +25,8 @@ CHANGE MASTER TO
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc
 
---connection slave 
---source include/stop_slave.inc
-CHANGE MASTER TO 
-   MASTER_CONNECT_RETRY = 1;
---source include/start_slave.inc
-
-
-# wait until the slave reconnects to the master
---let $slave_timeout = 1
---source include/wait_for_slave_io_to_start.inc
-
-# --enable_warnings
+--connection master
+--sync_slave_with_master
 
 # the slave reconnecting to the master should success
 --let $slave_io_running = query_get_value("SHOW SLAVE STATUS", Slave_IO_Running, 1)

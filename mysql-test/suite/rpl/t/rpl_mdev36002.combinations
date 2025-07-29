@@ -1,0 +1,5 @@
+[rpl_master_retry_count_equals_0]
+master-retry-count=0
+
+[rpl_master_retry_count_equals_10]
+master-retry-count=10
