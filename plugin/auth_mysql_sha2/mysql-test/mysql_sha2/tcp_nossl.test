@@ -1,7 +1,10 @@
 call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
 call mtr.add_suppression('Authentication requires either RSA keys or secure transport');
 
-source include/require_openssl_client.inc;
+if ($CLIENT_TLS_LIBRARY == "GnuTLS") {
+    skip Test requires client library, which is not built with GnuTLS;
+}
+
 source init.inc;
 
 query_vertical select * from information_schema.system_variables where variable_name like 'caching_sha2_password%' order by 1;
