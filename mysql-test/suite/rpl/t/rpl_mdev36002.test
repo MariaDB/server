@@ -7,10 +7,16 @@
 # from the replica should success, which means it's Slave_IO_Running status should be Yes.
 #
 
+
 --let $rpl_skip_start_slave= 1
 --source include/master-slave.inc
 
 --connection slave 
+
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+
+SET GLOBAL debug_dbug = "d,set_slave_err_count_near_overflow";
+
 CHANGE MASTER TO 
    MASTER_CONNECT_RETRY = 1;
 --source include/start_slave.inc
@@ -24,6 +30,8 @@ CHANGE MASTER TO
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc
+
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 
 --connection master
 --sync_slave_with_master
