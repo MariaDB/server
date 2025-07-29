@@ -57,13 +57,73 @@ int ssl_decrypt(EVP_PKEY *pkey, unsigned char *src, size_t srclen,
 int ssl_genkeys()
 {
 #ifdef OPENSSL_IS_WOLFSSL
-  /*
-    doesn't have few functions from below and libmariadb doesn't support RSA
-    encryption anyway, so not worth bothering
-  */
-  my_printf_error(1, SELF ": cannot auto-generate keys with WolfSSL",
-                  ME_ERROR_LOG_ONLY);
-  return 1;
+  int ret= 1;
+  static RsaKey rsa_key; /* large struct, thus static */
+  WC_RNG rng;
+  byte der[4096];
+  byte pem[4096];
+  int der_size, pem_size;
+  FILE *f= NULL;
+
+  ret= wc_InitRng(&rng);
+  if (ret)
+  {
+    my_printf_error(
+        1, SELF ": failed to generate RSA key: wc_InitRng failed with %d",
+        ME_ERROR_LOG_ONLY, ret);
+    return ret;
+  }
+
+  ret= wc_InitRsaKey(&rsa_key, NULL);
+  if (ret)
+  {
+    my_printf_error(
+        1, SELF ": failed to generate RSA key: wc_InitRsaKey failed with %d",
+        ME_ERROR_LOG_ONLY, ret);
+    return ret;
+  }
+
+  ret= wc_MakeRsaKey(&rsa_key, 2048, 65537, &rng);
+  if (ret)
+    SSL_ERROR("failed to generate RSA key: wc_MakeRsaKey failed", private_key_path);
+
+  der_size= wc_RsaKeyToDer(&rsa_key, der, sizeof(der));
+  if (der_size < 0)
+    SSL_ERROR("wc_DerToPem", private_key_path);
+
+  pem_size= wc_DerToPem(der, (word32) der_size, pem, sizeof(pem), PRIVATEKEY_TYPE);
+  if (pem_size < 0)
+    SSL_ERROR("wc_DerToPem", private_key_path);
+
+  if (!(f= fopen(private_key_path, "w")))
+    FILE_ERROR("fopen", private_key_path);
+  if (fwrite(pem, 1, pem_size, f) < (size_t)pem_size)
+    FILE_ERROR("fwrite", private_key_path);
+  fclose(f);
+  f= NULL;
+
+  der_size= wc_RsaKeyToPublicDer(&rsa_key, der, sizeof(der));
+  if (der_size < 0)
+    SSL_ERROR("wc_RsaKeyToPublicDer", public_key_path);
+  pem_size= wc_DerToPem(der, (word32)der_size, pem, sizeof(pem), PUBLICKEY_TYPE);
+  if (pem_size < 0)
+    SSL_ERROR("wc_DerToPem", public_key_path);
+
+  if (!(f= fopen(public_key_path, "w")))
+    FILE_ERROR("write", public_key_path);
+  if (fwrite(pem, 1, pem_size, f) < (size_t)pem_size)
+    FILE_ERROR("fwrite", public_key_path);
+  fclose(f);
+  f= NULL;
+
+  ret= 0;
+
+err:
+  wc_FreeRsaKey(&rsa_key);
+  wc_FreeRng(&rng);
+  if (f)
+    fclose(f);
+  return ret;
 #else
   EVP_PKEY *pkey;
   FILE *f= NULL;
