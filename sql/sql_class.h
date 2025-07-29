@@ -59,6 +59,7 @@
 #include "ha_handler_stats.h"                    // ha_handler_stats */
 #include "sql_basic_types.h"                     // enum class active_dml_stmt
 #include "sql_trigger.h"
+#include "opt_trace_ddl_info.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -4293,6 +4294,7 @@ public:
   Parser_state *m_parser_state;
 
   Locked_tables_list locked_tables_list;
+  Optimizer_Stats_Context_Recorder *stats_ctx_recorder= NULL;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *work_part_info;
