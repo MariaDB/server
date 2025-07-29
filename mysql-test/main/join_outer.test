@@ -2434,4 +2434,109 @@ drop table t1, t2, t3;
 
 --echo # end of 10.3 tests
 
+--echo #
+--echo # MDEV-33436 Transform OUTER JOIN to INNER JOIN in subqueries used with IN operator
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+CREATE TABLE t3 (a INT, b INT);
+
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t2 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t3 VALUES (1,1), (2,2), (3,3);
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='semijoin=off';
+
+--echo # LEFT JOIN transformed to INNER JOIN
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT t3.a + t2.a
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT t3.a + t2.b
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a = 1 AND b IN (SELECT t3.a
+                      FROM t2 LEFT JOIN t3 ON t3.b = t2.a
+                      WHERE t2.b = 1);
+
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE (a, b) IN (SELECT t3.a, t2.b
+                 FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT MAX(t3.a + 2)
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # ANY is converted to IN, so the transformation is possible
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE a = ANY(SELECT t3.a
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # Transformation is possible since t3.a is null-complemented, and it is enough
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE (a, b) IN (SELECT t3.a + t2.a, t2.b + t2.b
+                 FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # Transformation is not possible 'cause t2.a is not null-complemented
+EXPLAIN EXTENDED SELECT b
+FROM t1
+WHERE a IN (SELECT t2.a
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # Transformation is not possible 'cause t2.a, t2.b are not null-complemented
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE (a, b) IN (SELECT t2.a, t2.b
+                 FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE (a, b) IN (SELECT t2.a + t2.b, t2.a + t2.b + 5
+                 FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # Transformation is not possible 'cause of NOT IN condition
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE a NOT IN (SELECT t3.a
+                FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # Not transformed 'cause IFNULL() masks NULL-complement
+EXPLAIN EXTENDED SELECT a
+FROM t1
+WHERE a IN (SELECT IFNULL(t3.a, 1)
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+--echo # TODO: Not transformed, although looks eligible
+EXPLAIN EXTENDED SELECT 1
+FROM t1
+WHERE a = (SELECT t3.a
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+CREATE TABLE t4 (a BOOLEAN, b BOOLEAN);
+INSERT INTO t4 VALUES (FALSE,TRUE), (TRUE,FALSE), (TRUE,TRUE);
+
+--echo # Not transformed, and this is correct
+EXPLAIN EXTENDED SELECT a
+FROM t4
+WHERE a IN (SELECT CASE WHEN t3.b IS NULL THEN TRUE
+                        WHEN t2.a IS NULL THEN TRUE
+                        ELSE FALSE END
+            FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+
+DROP TABLE t1, t2, t3, t4;
+SET optimizer_switch=@save_optimizer_switch;
+
+--echo # end of 11.4 tests
+
 SET optimizer_switch=@org_optimizer_switch;
