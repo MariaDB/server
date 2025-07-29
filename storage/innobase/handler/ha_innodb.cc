@@ -15857,6 +15857,19 @@ bool ha_innobase::referenced_by_foreign_key() const noexcept
   return !empty;
 }
 
+/** Check whether the table has any unique blob index
+@return true if the table has unique blob index or false */
+static bool has_unique_blob(TABLE *table)
+{
+  for (uint32_t i= 0; i < table->s->keys; i++)
+  {
+    KEY* key= &table->key_info[i];
+    if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+      return true;
+  }
+  return false;
+}
+
 /*******************************************************************//**
 Tells something additional to the handler about how to do things.
 @return 0 or error number */
@@ -15932,6 +15945,7 @@ ha_innobase::extra(
 	case HA_EXTRA_BEGIN_ALTER_COPY:
 		trx = check_trx_exists(ha_thd());
 		m_prebuilt->table->skip_alter_undo = 1;
+		m_prebuilt->table->unique_blob = has_unique_blob(table);
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
 			break;

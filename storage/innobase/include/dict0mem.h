@@ -2231,6 +2231,9 @@ public:
 	/** TRUE if the table object has been added to the dictionary cache. */
 	unsigned				cached:1;
 
+	/** TRUE if the table has long unique blob column. */
+	unsigned				unique_blob:1;
+
 	/** Number of non-virtual columns defined so far. */
 	unsigned				n_def:10;
 
