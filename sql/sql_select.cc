@@ -12262,6 +12262,17 @@ best_extension_by_limited_search(JOIN      *join,
             (idx == join->const_tables &&  // 's' is the first table in the QEP
              s->table == join->sort_by_table))
         {
+          auto are_remaining_tables_key_dependent_on_this=
+          [&]() -> table_map
+          {
+            table_map map= 0;
+            for (JOIN_TAB **remain_tab= join->best_ref + idx + 1 ; *remain_tab; remain_tab++)
+            {
+              map |= (*remain_tab)->key_dependent & position->table->table->map;
+            }
+            return map;
+          };
+
           /*
             Store the current record count and cost as the best
             possible cost at this level if the following holds:
@@ -12272,7 +12283,8 @@ best_extension_by_limited_search(JOIN      *join,
           */
           if (best_record_count >= current_record_count &&
               best_read_time >= current_read_time &&
-              (!(position->key_dependent & join->allowed_tables) ||
+              ((!(position->key_dependent & allowed_tables) &&
+                are_remaining_tables_key_dependent_on_this()) ||
                position->records_read < 2.0))
           {
             best_record_count= current_record_count;
