@@ -698,170 +698,7 @@ void display_optimizer_trace(struct st_connection *con,
 static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql);
 
 
-/**
-  A simplified string class for the expression evaluator, inspired by the
-  server's `Binary_string` class.
-*/
-class My_string
-{
-private:
-  char* m_str;
-  uint32 m_length, m_alloced_length;
-  bool m_is_alloced;
-
-
-  void free_buffer()
-  {
-    if (m_is_alloced && m_str)
-    {
-      my_free(m_str);
-      m_is_alloced= false;
-    }
-    m_str= NULL;
-    m_alloced_length= m_length= 0;
-  }
-
-public:
-  My_string()
-  {
-    m_str= NULL;
-    m_length= m_alloced_length= 0;
-    m_is_alloced= false;
-  }
-
-
-  My_string(size_t length_arg)
-  {
-    m_str= NULL;
-    m_length= m_alloced_length= 0;
-    m_is_alloced= false;
-    (void) real_alloc(length_arg);
-  }
-
-
-  My_string(const char *str, size_t len)
-  {
-    m_str= (char*) str;
-    m_length= (uint32) len;
-    m_alloced_length= 0;
-    m_is_alloced= false;
-  }
-
-
-  My_string(char *str, size_t len)
-  {
-    m_str= str;
-    m_length= m_alloced_length= (uint32)len;
-    m_is_alloced= false;
-  }
-
-  
-  My_string(const My_string &str)
-  {
-    m_str= str.m_str;
-    m_length= str.m_length;
-    m_alloced_length= str.m_alloced_length;
-    m_is_alloced= false;
-  }
-
-
-  ~My_string()
-  {
-    free_buffer();
-  }
-
-
-  My_string& operator=(const My_string& other)
-  {
-    if (this != &other)
-    {
-      free_buffer();
-      m_str= other.m_str;
-      m_length= other.m_length;
-      DBUG_ASSERT(other.m_alloced_length < UINT_MAX32);
-      m_alloced_length= other.m_alloced_length;
-    }
-    return *this;
-  }
-
-
-  inline const char* c_str() const { return m_str ? m_str : ""; }
-  inline uint32 length() const { return m_length; }
-  inline void length(size_t len) { m_length=(uint32)len ; }
-  inline bool is_empty() const { return (m_length == 0); }
-  inline const char *ptr() const { return m_str; }
-  inline const char *end() const { return m_str + m_length; }
-  inline char& operator [] (size_t i) const 
-  { 
-    if (!m_str)
-      die("Attempting to access null string in My_string::operator[]");
-    return m_str[i]; 
-  }
-
-  
-  bool alloc(size_t arg_length)
-  {
-    if (arg_length <= m_alloced_length && m_alloced_length)
-      return false;
-    return real_alloc(arg_length);
-  }
-
-
-  bool real_alloc(size_t length)
-  {
-    size_t arg_length= ALIGN_SIZE(length + 1);
-    DBUG_ASSERT(arg_length > length);
-    if (arg_length <= length)
-      return true;
-    DBUG_ASSERT(length < UINT_MAX32);
-    m_length= 0;
-    if (m_alloced_length < arg_length)
-    {
-      free_buffer();
-      if (!(m_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, arg_length,
-                                      MYF(MY_WME))))
-        return true;
-      m_alloced_length= (uint32) arg_length;
-      m_is_alloced= true;
-    }
-    m_str[0]= '\0';
-    return false;
-  }
-
-
-  bool copy(const char* str, size_t arg_length)
-  {
-    DBUG_ASSERT(arg_length < UINT_MAX32);
-    if (alloc(arg_length + 1))
-      return true;
-    if (m_str == str && arg_length == uint32(m_length))
-    {
-      /*
-        This can happen in some cases. This code is here mainly to avoid
-        warnings from valgrind, but can also be an indication of error.
-      */
-      DBUG_PRINT("warning", ("Copying string on itself: %p  %zu",
-                             str, arg_length));
-    }
-    else if ((m_length= uint32(arg_length)))
-      memcpy(m_str, str, arg_length);
-    m_str[arg_length]= '\0';
-    return false;
-  }
-
-
-  void shrink(size_t arg_length)
-  {
-    if (m_is_alloced && ALIGN_SIZE(arg_length + 1) < m_alloced_length)
-    {
-      /* my_realloc() can't fail as new buffer is less than the original one */
-      m_str= (char*) my_realloc(PSI_NOT_INSTRUMENTED, m_str, arg_length,
-                                MYF(MY_WME));
-      m_alloced_length= (uint32) arg_length;
-    }
-  }
-};
-
+typedef String My_string;
 
 /*
   Expression evaluation support for mysqltest.
@@ -869,11 +706,9 @@ public:
 */
 enum Expression_value_type
 {
-  EXPR_INT= 10,
+  EXPR_INT,
   EXPR_BOOL,
-  EXPR_HEX= 16,
   EXPR_STRING,
-  EXPR_BINARY= 2,
   EXPR_DATE, // TODO: add date support
   EXPR_NULL
 };
@@ -887,6 +722,7 @@ struct Expression_value
   bool is_unsigned;
   My_string str_val;
 
+
   Expression_value()
   {
     type= EXPR_NULL;
@@ -894,21 +730,22 @@ struct Expression_value
     is_unsigned= false;
   }
 
-  void set_int(long long value, int base= 10)
+
+  void set_int(long long value)
   {
     int_val= value;
     is_numeric= true;
     is_unsigned= false;
-
-    type= (Expression_value_type) base;
+    type= EXPR_INT;
   }
 
-  void set_uint(unsigned long long value, int base= 10)
+
+  void set_uint(unsigned long long value)
   {
     int_val= value;
     is_numeric= true;
     is_unsigned= true;
-    type= (Expression_value_type) base;
+    type= EXPR_INT;
   }
 
 
@@ -916,8 +753,9 @@ struct Expression_value
   {
     type= EXPR_STRING;
     is_numeric= false;
-    str_val.copy(value, len);
+    str_val.copy(value, len, charset_info);
   }
+
 
   void set_bool(bool value)
   {
@@ -927,20 +765,23 @@ struct Expression_value
     int_val= value ? 1 : 0;
   }
 
+
   long long to_int() const 
   {
     if (is_numeric)
       return (long long)int_val;
-    return strtoll(str_val.c_str(), NULL, 10);
+    return strtoll(str_val.ptr(), NULL, 10);
   }
+
 
   unsigned long long to_uint() const 
   {
     if (is_numeric)
       return int_val;
-    return strtoull(str_val.c_str(), NULL, 10);
+    return strtoull(str_val.ptr(), NULL, 10);
   }
-   
+
+
   bool to_bool() const 
   {
     if (is_numeric)
@@ -949,42 +790,30 @@ struct Expression_value
   }
 
 
-  void to_string(char *buffer, size_t buffer_size) const
+  My_string to_string() const
   {
-    size_t len = str_val.length();
-
-    if (!buffer || buffer_size == 0)
-      return;
-
+    My_string buffer;
+  
     if (type == EXPR_NULL)
     {
-      strcpy(buffer, "NULL");
-      return;
+      buffer.set("NULL", 4, charset_info);
+      return buffer;
     }
-
+  
     if (is_numeric)
     {
-      if (is_unsigned)
-        my_snprintf(buffer, buffer_size, "%llu", int_val);
-      else
-        my_snprintf(buffer, buffer_size, "%lld", (long long)int_val);
-      return;
+      buffer.set_int(int_val, is_unsigned, charset_info);
+      return buffer;
     }
-
+  
     if (type == EXPR_STRING)
     {
-      if (str_val.c_str() == NULL)
-      {
-        strcpy(buffer, "");
-        return;
-      }
-
-      memcpy(buffer, str_val.c_str(), len);
-      buffer[len] = '\0';
-      return;
+      buffer.copy(str_val);
+      return buffer;
     }
-
-    strcpy(buffer, "");
+  
+    buffer.set("", 0, charset_info);
+    return buffer;
   }
 
 
@@ -998,7 +827,7 @@ struct Expression_value
       is_unsigned= other.is_unsigned;
       if (other.type == EXPR_STRING)
       {
-        str_val.copy(other.str_val.c_str(), other.str_val.length());
+        str_val.copy(other.str_val);
       }
     }
     return *this;
@@ -1054,10 +883,10 @@ struct Expression_value
     // If the entire token was parsed as an integer, set the type to integer
     if (endptr == token_start + token_len)
     {
-      if (parsed_int <= LLONG_MAX)
-        set_int((long long)parsed_int);
-      else
+      if (base == 16 || base == 2 || parsed_int > LLONG_MAX)
         set_uint(parsed_int);
+      else
+        set_int((long long)parsed_int);
       return;
     }
 
@@ -1585,9 +1414,8 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
         if (*eval_ptr != '\0')
           die("Syntax error in sub-expression '%.*s'", (int)sub_expr_eval.length, sub_expr_eval.str);
 
-        char result_buf[66];
-        result_val.to_string(result_buf, sizeof(result_buf));
-        dynstr_append_mem(query_eval, result_buf, strlen(result_buf));
+        My_string result_buf= result_val.to_string();
+        dynstr_append_mem(query_eval, result_buf.c_ptr(), result_buf.length());
 
         dynstr_free(&sub_expr_eval);
         p= expr_end;
@@ -5462,14 +5290,18 @@ int do_save_master_pos()
 
 
 /* Built-in functions available in expressions */
-enum func_type {
-  FUNC_ABS ,
+enum func_type
+{
+  FUNC_ABS,
   FUNC_MAX,
   FUNC_MIN,
   FUNC_CONV,
   FUNC_BIN,
   FUNC_OCT,
   FUNC_HEX,
+  FUNC_INSTR,
+  FUNC_REPLACE,
+  FUNC_SUBSTR,
   FUNC_UNKNOWN
 };
 
@@ -5865,7 +5697,7 @@ static void equality(Expression_value *result, const char **s)
           result->set_bool(result->to_int() == rhs.to_int());
       }
       else
-        result->set_bool(!strcmp(result->str_val.c_str(), rhs.str_val.c_str()));
+        result->set_bool(!strcmp(result->str_val.c_ptr(), rhs.str_val.c_ptr()));
     }
     else if (match(s, "!="))
     {
@@ -5879,7 +5711,7 @@ static void equality(Expression_value *result, const char **s)
           result->set_bool(result->to_int() != rhs.to_int());
       }
       else
-        result->set_bool(strcmp(result->str_val.c_str(), rhs.str_val.c_str()));
+        result->set_bool(strcmp(result->str_val.c_ptr(), rhs.str_val.c_ptr()));
     }
     else
       break;
@@ -5931,41 +5763,50 @@ static void expr(Expression_value *result, const char **s)
 static struct {
   const char *name;
   enum func_type type;
-} function_table[] = {
-  {"abs", FUNC_ABS},
-  {"max", FUNC_MAX}, 
-  {"min", FUNC_MIN},
-  {"conv", FUNC_CONV},
-  {"bin", FUNC_BIN},
-  {"oct", FUNC_OCT},
-  {"hex", FUNC_HEX},
+} function_table[]= {
+    {"abs", FUNC_ABS},
+    {"max", FUNC_MAX},
+    {"min", FUNC_MIN},
+    {"conv", FUNC_CONV},
+    {"bin", FUNC_BIN},
+    {"oct", FUNC_OCT},
+    {"hex", FUNC_HEX},
+    {"instr", FUNC_INSTR},
+    {"replace", FUNC_REPLACE},
+    {"substr", FUNC_SUBSTR},
+    {"substring", FUNC_SUBSTR},
   {NULL, FUNC_UNKNOWN}
 };
 
 
-static void convert_base_helper(const char *str, int from_base, int to_base,
-                                char *buffer)
+static void convert_base_helper(const My_string &str, int from_base, int to_base,
+                                Expression_value *value)
 {
+  char temp_buffer[66]; // should be enough for any base
   long long result;
   char *endptr;
   int err;
-  size_t len = strlen(str);
+  size_t str_len= str.length();
 
   if (from_base < 0) // Negative base = treat input as SIGNED
-    result= my_strntoll_8bit(charset_info, str, len, -from_base,
+    result= my_strntoll_8bit(charset_info, str.ptr(), str_len, -from_base,
                              &endptr, &err);
   else // Positive base = treat input as UNSIGNED
-    result= (long long) my_strntoull_8bit(charset_info, str, len, from_base,
-                                          &endptr, &err);
+    result= (long long) my_strntoull_8bit(charset_info, str.ptr(), str_len,
+                                          from_base, &endptr, &err);
 
   if (err == ERANGE)
     die("Range error: value out of range for Integer type");
 
-  if (err != 0 || endptr != str + len)
-    die("invalid number '%s' for base %d", str, from_base);
+  if (err != 0 || endptr != str.ptr() + str_len)
+    die("invalid number '%.*s' for base %d", (int)str_len, str.ptr(), from_base);
 
-  if (!longlong2str(result, buffer, to_base))
-    die("could not convert number '%s' for base %d", str, to_base);
+  endptr = longlong2str(result, temp_buffer, to_base);
+  if (!endptr)
+    die("could not convert number '%.*s' for base %d",
+        (int)str_len, str.ptr(), to_base);
+  
+  value->set_string(temp_buffer, endptr - temp_buffer);
 }
 
 
@@ -6020,8 +5861,6 @@ void func_conv(Expression_value args[], int count, Expression_value *result)
 {
   int from_base;
   int to_base;
-  char result_buffer[66];
-  char number_str[66];
   
   if (count != 3)
     die("conv() expects 3 arguments (N, from_base, to_base), got %d", count);
@@ -6037,54 +5876,134 @@ void func_conv(Expression_value args[], int count, Expression_value *result)
   if (abs(to_base) < 2 || abs(to_base) > 62)
     die("conv() to_base must be between 2 and 62, got %d", to_base);
 
-  args[0].to_string(number_str, sizeof(number_str));
-  convert_base_helper(number_str, from_base, to_base, result_buffer);
-  result->set_string(result_buffer, strlen(result_buffer));
+  convert_base_helper(args[0].to_string(), from_base, to_base, result);
 }
 
 
 void func_bin(Expression_value args[], int count, Expression_value *result)
 {
-  char result_buffer[66];
-  char number_str[66];
-
   if (count != 1)
     die("bin() expects 1 argument, got %d", count);
 
-  args[0].to_string(number_str, sizeof(number_str));
-  convert_base_helper(number_str, 10, 2, result_buffer);
-
-  result->set_string(result_buffer, strlen(result_buffer));
+  convert_base_helper(args[0].to_string(), 10, 2, result);
 }
 
 
 void func_oct(Expression_value args[], int count, Expression_value *result)
 {
-  char result_buffer[32];
-  char number_str[66];
-
   if (count != 1)
     die("oct() expects 1 argument, got %d", count);
 
-  args[0].to_string(number_str, sizeof(number_str));
-  convert_base_helper(number_str, 10, 8, result_buffer);
-
-  result->set_string(result_buffer, strlen(result_buffer));
+  convert_base_helper(args[0].to_string(), 10, 8, result);
 }
 
 
 void func_hex(Expression_value args[], int count, Expression_value *result)
 {
-  char result_buffer[17];
-  char number_str[66];
-
   if (count != 1)
     die("hex() expects 1 argument, got %d", count);
 
-  args[0].to_string(number_str, sizeof(number_str));
-  convert_base_helper(number_str, 10, 16, result_buffer);
+  convert_base_helper(args[0].to_string(), 10, 16, result);
+}
 
-  result->set_string(result_buffer, strlen(result_buffer));
+
+void func_instr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2)
+    die("instr() expects 2 arguments (str, substr), got %d", count);
+
+  if (args[0].is_numeric || args[1].is_numeric)
+    die("instr() arguments must be strings");
+
+  My_string str= args[0].str_val;
+  My_string substr= args[1].str_val;
+
+  for (int i = 0; i < (int)str.length(); i++)
+    str[i] = tolower(str[i]);
+  for (int i = 0; i < (int)substr.length(); i++)
+    substr[i] = tolower(substr[i]);
+
+  int position= str.strstr(substr);
+  result->set_int(position + 1);
+}
+
+
+void func_replace(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 3)
+    die("replace() expects 3 arguments (str, from, to), got %d", count);
+
+  if (args[0].is_numeric || args[1].is_numeric || args[2].is_numeric)
+    die("replace() arguments must be strings");
+
+  My_string str = args[0].str_val;
+  My_string from_str = args[1].str_val;
+  My_string to_str = args[2].str_val;
+
+  if (from_str.length() == 0)
+  {
+    result->set_string(str.ptr(), str.length());
+    return;
+  }
+
+  My_string result_str;
+  result_str.copy(str);
+
+  int pos = 0;
+  while ((pos = result_str.strstr(from_str.ptr(), from_str.length(), pos)) >= 0)
+  {
+    result_str.replace(pos, from_str.length(), to_str.ptr(), to_str.length());
+    pos += to_str.length();
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+void func_substr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2 || count > 3)
+    die("substr() expects 2 or 3 arguments (str, start [, length]), got %d", count);
+
+  if (args[0].is_numeric)
+    die("substr() first argument must be a string");
+
+  if (!args[1].is_numeric)
+    die("substr() start position must be numeric");
+
+  if (count == 3 && !args[2].is_numeric)
+    die("substr() length must be numeric");
+
+  My_string str = args[0].str_val;
+  int start = (int)args[1].to_int();
+  int length = count == 3 ? (int)args[2].to_int() : str.length();
+
+  if (start == 0 || start > (int)str.length() || length <= 0)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (start < 0)
+    start= str.length() + start;
+  else
+    start--;
+
+  int end = str.length();
+  if (count == 3)
+  {
+    end = start + length;
+    if (end > (int)str.length())
+      end = str.length();
+  }
+
+  if (start >= end || start >= (int)str.length() || start < 0)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  result->set_string(str.ptr() + start, end - start);
 }
 
 
@@ -6092,7 +6011,7 @@ enum func_type get_expr_function_type(const char *name, size_t len)
 {
   for (int i= 0; function_table[i].name; ++i)
   {
-    if (!strncmp(function_table[i].name, name, len))
+    if (!strncasecmp(function_table[i].name, name, len))
       return function_table[i].type;
   }
   return FUNC_UNKNOWN;
@@ -6144,6 +6063,15 @@ void handle_expr_function_call(enum func_type func_type,
     break;
   case FUNC_HEX:
     func_hex(args, arg_count, result);
+    break;
+  case FUNC_INSTR:
+    func_instr(args, arg_count, result);
+    break;
+  case FUNC_REPLACE:
+    func_replace(args, arg_count, result);
+    break;
+  case FUNC_SUBSTR:
+    func_substr(args, arg_count, result);
     break;
   case FUNC_UNKNOWN:
   default:

@@ -399,4 +399,358 @@ mysqltest: At line 1: Unmatched parenthesis in expression starting at '$((1 + 2)
 mysqltest: At line 1: Evaluation error: Division by zero
 # Test case: Modulo by zero
 mysqltest: At line 1: Evaluation error: Modulo by zero
+# Basic REPLACE function tests
+replace("hello world", "world", "mariadb") -> "hello mariadb"
+replace("hello hello hello", "hello", "hi") -> "hi hi hi"
+replace("test string", "test", "") -> " string"
+replace("no change", "missing", "replacement") -> "no change"
+# REPLACE with empty strings
+replace("hello world", "", "test") -> "hello world"
+replace("hello world", "hello", "") -> " world"
+replace("", "test", "replacement") -> ""
+# REPLACE with special characters
+replace("a+b=c", "+", "-") -> "a-b=c"
+replace("test\nstring", "\n", " ") -> "test string"
+replace("quoted 'string'", "'", "") -> "quoted string"
+replace('quoted "string"', '"', "") -> "quoted string"
+# REPLACE with variables
+replace("hello world", "world", "mariadb") -> "hello mariadb"
+replace("test test test", "test", "mariadb") -> "mariadb mariadb mariadb"
+# REPLACE edge cases
+replace("aaa", "aa", "b") -> "ba"
+replace("aaaa", "aa", "b") -> "bb"
+replace("test", "test", "test") -> "test"
+replace("", "", "something") -> ""
+# SUBSTR function
+substr("hello", -7, -7) -> ""
+substr("hello", -7, -6) -> ""
+substr("hello", -7, -5) -> ""
+substr("hello", -7, -4) -> ""
+substr("hello", -7, -3) -> ""
+substr("hello", -7, -2) -> ""
+substr("hello", -7, -1) -> ""
+substr("hello", -7, 0) -> ""
+substr("hello", -7, 1) -> ""
+substr("hello", -7, 2) -> ""
+substr("hello", -7, 3) -> ""
+substr("hello", -7, 4) -> ""
+substr("hello", -7, 5) -> ""
+substr("hello", -7, 6) -> ""
+substr("hello", -7, 7) -> ""
+substr("hello", -6, -7) -> ""
+substr("hello", -6, -6) -> ""
+substr("hello", -6, -5) -> ""
+substr("hello", -6, -4) -> ""
+substr("hello", -6, -3) -> ""
+substr("hello", -6, -2) -> ""
+substr("hello", -6, -1) -> ""
+substr("hello", -6, 0) -> ""
+substr("hello", -6, 1) -> ""
+substr("hello", -6, 2) -> ""
+substr("hello", -6, 3) -> ""
+substr("hello", -6, 4) -> ""
+substr("hello", -6, 5) -> ""
+substr("hello", -6, 6) -> ""
+substr("hello", -6, 7) -> ""
+substr("hello", -5, -7) -> ""
+substr("hello", -5, -6) -> ""
+substr("hello", -5, -5) -> ""
+substr("hello", -5, -4) -> ""
+substr("hello", -5, -3) -> ""
+substr("hello", -5, -2) -> ""
+substr("hello", -5, -1) -> ""
+substr("hello", -5, 0) -> ""
+substr("hello", -5, 1) -> "h"
+substr("hello", -5, 2) -> "he"
+substr("hello", -5, 3) -> "hel"
+substr("hello", -5, 4) -> "hell"
+substr("hello", -5, 5) -> "hello"
+substr("hello", -5, 6) -> "hello"
+substr("hello", -5, 7) -> "hello"
+substr("hello", -4, -7) -> ""
+substr("hello", -4, -6) -> ""
+substr("hello", -4, -5) -> ""
+substr("hello", -4, -4) -> ""
+substr("hello", -4, -3) -> ""
+substr("hello", -4, -2) -> ""
+substr("hello", -4, -1) -> ""
+substr("hello", -4, 0) -> ""
+substr("hello", -4, 1) -> "e"
+substr("hello", -4, 2) -> "el"
+substr("hello", -4, 3) -> "ell"
+substr("hello", -4, 4) -> "ello"
+substr("hello", -4, 5) -> "ello"
+substr("hello", -4, 6) -> "ello"
+substr("hello", -4, 7) -> "ello"
+substr("hello", -3, -7) -> ""
+substr("hello", -3, -6) -> ""
+substr("hello", -3, -5) -> ""
+substr("hello", -3, -4) -> ""
+substr("hello", -3, -3) -> ""
+substr("hello", -3, -2) -> ""
+substr("hello", -3, -1) -> ""
+substr("hello", -3, 0) -> ""
+substr("hello", -3, 1) -> "l"
+substr("hello", -3, 2) -> "ll"
+substr("hello", -3, 3) -> "llo"
+substr("hello", -3, 4) -> "llo"
+substr("hello", -3, 5) -> "llo"
+substr("hello", -3, 6) -> "llo"
+substr("hello", -3, 7) -> "llo"
+substr("hello", -2, -7) -> ""
+substr("hello", -2, -6) -> ""
+substr("hello", -2, -5) -> ""
+substr("hello", -2, -4) -> ""
+substr("hello", -2, -3) -> ""
+substr("hello", -2, -2) -> ""
+substr("hello", -2, -1) -> ""
+substr("hello", -2, 0) -> ""
+substr("hello", -2, 1) -> "l"
+substr("hello", -2, 2) -> "lo"
+substr("hello", -2, 3) -> "lo"
+substr("hello", -2, 4) -> "lo"
+substr("hello", -2, 5) -> "lo"
+substr("hello", -2, 6) -> "lo"
+substr("hello", -2, 7) -> "lo"
+substr("hello", -1, -7) -> ""
+substr("hello", -1, -6) -> ""
+substr("hello", -1, -5) -> ""
+substr("hello", -1, -4) -> ""
+substr("hello", -1, -3) -> ""
+substr("hello", -1, -2) -> ""
+substr("hello", -1, -1) -> ""
+substr("hello", -1, 0) -> ""
+substr("hello", -1, 1) -> "o"
+substr("hello", -1, 2) -> "o"
+substr("hello", -1, 3) -> "o"
+substr("hello", -1, 4) -> "o"
+substr("hello", -1, 5) -> "o"
+substr("hello", -1, 6) -> "o"
+substr("hello", -1, 7) -> "o"
+substr("hello", 0, -7) -> ""
+substr("hello", 0, -6) -> ""
+substr("hello", 0, -5) -> ""
+substr("hello", 0, -4) -> ""
+substr("hello", 0, -3) -> ""
+substr("hello", 0, -2) -> ""
+substr("hello", 0, -1) -> ""
+substr("hello", 0, 0) -> ""
+substr("hello", 0, 1) -> ""
+substr("hello", 0, 2) -> ""
+substr("hello", 0, 3) -> ""
+substr("hello", 0, 4) -> ""
+substr("hello", 0, 5) -> ""
+substr("hello", 0, 6) -> ""
+substr("hello", 0, 7) -> ""
+substr("hello", 1, -7) -> ""
+substr("hello", 1, -6) -> ""
+substr("hello", 1, -5) -> ""
+substr("hello", 1, -4) -> ""
+substr("hello", 1, -3) -> ""
+substr("hello", 1, -2) -> ""
+substr("hello", 1, -1) -> ""
+substr("hello", 1, 0) -> ""
+substr("hello", 1, 1) -> "h"
+substr("hello", 1, 2) -> "he"
+substr("hello", 1, 3) -> "hel"
+substr("hello", 1, 4) -> "hell"
+substr("hello", 1, 5) -> "hello"
+substr("hello", 1, 6) -> "hello"
+substr("hello", 1, 7) -> "hello"
+substr("hello", 2, -7) -> ""
+substr("hello", 2, -6) -> ""
+substr("hello", 2, -5) -> ""
+substr("hello", 2, -4) -> ""
+substr("hello", 2, -3) -> ""
+substr("hello", 2, -2) -> ""
+substr("hello", 2, -1) -> ""
+substr("hello", 2, 0) -> ""
+substr("hello", 2, 1) -> "e"
+substr("hello", 2, 2) -> "el"
+substr("hello", 2, 3) -> "ell"
+substr("hello", 2, 4) -> "ello"
+substr("hello", 2, 5) -> "ello"
+substr("hello", 2, 6) -> "ello"
+substr("hello", 2, 7) -> "ello"
+substr("hello", 3, -7) -> ""
+substr("hello", 3, -6) -> ""
+substr("hello", 3, -5) -> ""
+substr("hello", 3, -4) -> ""
+substr("hello", 3, -3) -> ""
+substr("hello", 3, -2) -> ""
+substr("hello", 3, -1) -> ""
+substr("hello", 3, 0) -> ""
+substr("hello", 3, 1) -> "l"
+substr("hello", 3, 2) -> "ll"
+substr("hello", 3, 3) -> "llo"
+substr("hello", 3, 4) -> "llo"
+substr("hello", 3, 5) -> "llo"
+substr("hello", 3, 6) -> "llo"
+substr("hello", 3, 7) -> "llo"
+substr("hello", 4, -7) -> ""
+substr("hello", 4, -6) -> ""
+substr("hello", 4, -5) -> ""
+substr("hello", 4, -4) -> ""
+substr("hello", 4, -3) -> ""
+substr("hello", 4, -2) -> ""
+substr("hello", 4, -1) -> ""
+substr("hello", 4, 0) -> ""
+substr("hello", 4, 1) -> "l"
+substr("hello", 4, 2) -> "lo"
+substr("hello", 4, 3) -> "lo"
+substr("hello", 4, 4) -> "lo"
+substr("hello", 4, 5) -> "lo"
+substr("hello", 4, 6) -> "lo"
+substr("hello", 4, 7) -> "lo"
+substr("hello", 5, -7) -> ""
+substr("hello", 5, -6) -> ""
+substr("hello", 5, -5) -> ""
+substr("hello", 5, -4) -> ""
+substr("hello", 5, -3) -> ""
+substr("hello", 5, -2) -> ""
+substr("hello", 5, -1) -> ""
+substr("hello", 5, 0) -> ""
+substr("hello", 5, 1) -> "o"
+substr("hello", 5, 2) -> "o"
+substr("hello", 5, 3) -> "o"
+substr("hello", 5, 4) -> "o"
+substr("hello", 5, 5) -> "o"
+substr("hello", 5, 6) -> "o"
+substr("hello", 5, 7) -> "o"
+substr("hello", 6, -7) -> ""
+substr("hello", 6, -6) -> ""
+substr("hello", 6, -5) -> ""
+substr("hello", 6, -4) -> ""
+substr("hello", 6, -3) -> ""
+substr("hello", 6, -2) -> ""
+substr("hello", 6, -1) -> ""
+substr("hello", 6, 0) -> ""
+substr("hello", 6, 1) -> ""
+substr("hello", 6, 2) -> ""
+substr("hello", 6, 3) -> ""
+substr("hello", 6, 4) -> ""
+substr("hello", 6, 5) -> ""
+substr("hello", 6, 6) -> ""
+substr("hello", 6, 7) -> ""
+substr("hello", 7, -7) -> ""
+substr("hello", 7, -6) -> ""
+substr("hello", 7, -5) -> ""
+substr("hello", 7, -4) -> ""
+substr("hello", 7, -3) -> ""
+substr("hello", 7, -2) -> ""
+substr("hello", 7, -1) -> ""
+substr("hello", 7, 0) -> ""
+substr("hello", 7, 1) -> ""
+substr("hello", 7, 2) -> ""
+substr("hello", 7, 3) -> ""
+substr("hello", 7, 4) -> ""
+substr("hello", 7, 5) -> ""
+substr("hello", 7, 6) -> ""
+substr("hello", 7, 7) -> ""
+substr("hello world", 1, 5) -> "hello"
+substr("hello world", 7) -> "world"
+substr("hello world", 1, 3) -> "hel"
+substr("hello world", 7, 5) -> "world"
+# SUBSTR with negative indices
+substr("hello world", -5) -> "world"
+substr("hello world", -5, 3) -> "wor"
+substr("hello world", -10, 5) -> "ello "
+substr("hello world", -20) -> ""
+# SUBSTR boundary conditions
+substr("hello world", 1, 0) -> ""
+substr("hello world", 1, 20) -> "hello world"
+substr("hello world", 12) -> ""
+substr("hello world", 0) -> ""
+substr("hello world", 0, 5) -> ""
+# SUBSTR with variables
+substr("hello world", 7, 5) -> "world"
+substr("hello world", -5) -> "world"
+# SUBSTR edge cases
+substr("", 1) -> ""
+substr("a", 1, 5) -> "a"
+substr("hello", 1, -1) -> ""
+substr("hello", 5, 1) -> "o"
+# Combined function tests
+replace(substr("hello world", 1, 5), "hello", "hi") -> "hi"
+substr(replace("hello world", "world", "mariadb"), 7) -> "mariadb"
+replace(substr("test test test", 1, 9), "test", "check") -> "check check"
+# String functions in while loops
+Character at position 1: h
+Character at position 2: e
+Character at position 3: l
+Character at position 4: l
+Character at position 5: o
+# Testing error cases for REPLACE function
+mysqltest: At line 1: replace() expects 3 arguments (str, from, to), got 1
+mysqltest: At line 1: replace() expects 3 arguments (str, from, to), got 2
+mysqltest: At line 1: replace() expects 3 arguments (str, from, to), got 4
+mysqltest: At line 1: replace() arguments must be strings
+mysqltest: At line 1: replace() arguments must be strings
+mysqltest: At line 1: replace() arguments must be strings
+# Testing error cases for SUBSTR function
+mysqltest: At line 1: substr() expects 2 or 3 arguments (str, start [, length]), got 1
+mysqltest: At line 1: substr() expects 2 or 3 arguments (str, start [, length]), got 4
+mysqltest: At line 1: substr() first argument must be a string
+mysqltest: At line 1: substr() start position must be numeric
+mysqltest: At line 1: substr() length must be numeric
 # Expression evaluation tests completed successfully
+# Basic INSTR function tests
+instr("hello world", "world") -> 7
+instr("hello world", "hello") -> 1
+instr("hello world", "o") -> 5
+instr("hello world", "xyz") -> 0
+instr("hello world", "") -> 1
+# INSTR with single characters
+instr("hello", "h") -> 1
+instr("hello", "e") -> 2
+instr("hello", "l") -> 3
+instr("hello", "o") -> 5
+instr("hello", "x") -> 0
+# INSTR with repeated characters
+instr("hello", "l") -> 3
+instr("hello hello", "hello") -> 1
+instr("aaa", "aa") -> 1
+# INSTR with empty strings
+instr("", "hello") -> 0
+instr("hello", "") -> 1
+instr("", "") -> 1
+# INSTR with special characters
+instr("a+b=c", "+") -> 2
+instr("test\nstring", "\n") -> 5
+instr("quoted 'string'", "'") -> 8
+instr('quoted "string"', '"') -> 8
+instr("test@example.com", "@") -> 5
+# INSTR with variables
+instr("hello world", "world") -> 7
+instr("hello world", "o") -> 5
+# INSTR edge cases
+instr("hello", "hello") -> 1
+instr("hello", "hellox") -> 0
+instr("hello", "h") -> 1
+instr("hello", "o") -> 5
+instr("a", "a") -> 1
+# INSTR with case sensitivity
+instr("Hello World", "hello") -> 1
+instr("Hello World", "HELLO") -> 1
+# INSTR with whitespace
+instr("hello world", " ") -> 6
+instr("  hello  ", "hello") -> 3
+instr("hello   world", "   ") -> 6
+instr("hello\tworld", "\t") -> 6
+# INSTR with complex expressions
+instr("hello world", substr("world test", 1, 5)) -> 7
+instr(replace("hello world", "world", "mariadb"), "mariadb") -> 7
+# INSTR with arithmetic expressions
+instr("hello world", "world") + 5 -> 12
+instr("hello world", "hello") * 2 -> 2
+# INSTR with logical operators
+instr("hello world", "hello") > 0 && instr("hello world", "world") > 0 -> 1
+instr("hello world", "hello") > 0 || instr("hello world", "xyz") > 0 -> 1
+# INSTR integration with other functions
+instr("hello world", substr("world test", 1, 5)) -> 7
+instr(replace("hello world", "world", "mariadb"), "mariadb") -> 7
+# Testing error cases for INSTR function
+mysqltest: At line 1: instr() expects 2 arguments (str, substr), got 1
+mysqltest: The test didn't produce any output
+mysqltest: At line 1: instr() arguments must be strings
+mysqltest: At line 1: instr() arguments must be strings

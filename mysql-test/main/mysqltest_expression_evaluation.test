@@ -608,7 +608,6 @@ let $max2= $(conv(~0, 10, 2));
 let $large1= $(conv(7FFFFFFFFFFFFFFF, 16, 10));
 --echo conv(7FFFFFFFFFFFFFFF, 16, 10) -> $large1
 
-# TODO: a workaround for the test to pass wrapping the value in quotes
 let $large2= $(conv('777777777777777777777', 8, 10));
 --echo conv(777777777777777777777, 8, 10) -> $large2
 
@@ -1056,5 +1055,487 @@ let $large_xor = $(0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE);
 --error 1
 --exec echo "let \$a = \$(5 % 0);" | $MYSQL_TEST 2>&1
 
+# ----------------------------------------------------------------------------
+# Test REPLACE function
+# ----------------------------------------------------------------------------
+
+--echo # Basic REPLACE function tests
+
+let $result1 = $(replace("hello world", "world", "mariadb"));
+--echo replace("hello world", "world", "mariadb") -> "$result1"
+
+let $result2 = $(replace("hello hello hello", "hello", "hi"));
+--echo replace("hello hello hello", "hello", "hi") -> "$result2"
+
+let $result3 = $(replace("test string", "test", ""));
+--echo replace("test string", "test", "") -> "$result3"
+
+let $result4 = $(replace("no change", "missing", "replacement"));
+--echo replace("no change", "missing", "replacement") -> "$result4"
+
+# ----------------------------------------------------------------------------
+# REPLACE with empty strings
+# ----------------------------------------------------------------------------
+
+--echo # REPLACE with empty strings
+
+let $empty1 = $(replace("hello world", "", "test"));
+--echo replace("hello world", "", "test") -> "$empty1"
+
+let $empty2 = $(replace("hello world", "hello", ""));
+--echo replace("hello world", "hello", "") -> "$empty2"
+
+let $empty3 = $(replace("", "test", "replacement"));
+--echo replace("", "test", "replacement") -> "$empty3"
+
+# ----------------------------------------------------------------------------
+# REPLACE with special characters
+# ----------------------------------------------------------------------------
+
+--echo # REPLACE with special characters
+
+let $special1 = $(replace("a+b=c", "+", "-"));
+--echo replace("a+b=c", "+", "-") -> "$special1"
+
+let $special2 = $(replace("test\\nstring", "\\n", " "));
+--echo replace("test\\nstring", "\\n", " ") -> "$special2"
+
+let $special3 = $(replace("quoted 'string'", "'", ""));
+--echo replace("quoted 'string'", "'", "") -> "$special3"
+
+let $special4 = $(replace('quoted "string"', '"', ""));
+--echo replace('quoted "string"', '"', "") -> "$special4"
+
+# ----------------------------------------------------------------------------
+# REPLACE with variables
+# ----------------------------------------------------------------------------
+
+--echo # REPLACE with variables
+
+let $text = "hello world";
+let $search = "world";
+let $replacement = "mariadb";
+let $var_result = $(replace($text, $search, $replacement));
+--echo replace($text, $search, $replacement) -> "$var_result"
+
+let $multi_var = $(replace("test test test", "test", $replacement));
+--echo replace("test test test", "test", $replacement) -> "$multi_var"
+
+# ----------------------------------------------------------------------------
+# REPLACE edge cases
+# ----------------------------------------------------------------------------
+
+--echo # REPLACE edge cases
+
+let $edge1 = $(replace("aaa", "aa", "b"));
+--echo replace("aaa", "aa", "b") -> "$edge1"
+
+let $edge2 = $(replace("aaaa", "aa", "b"));
+--echo replace("aaaa", "aa", "b") -> "$edge2"
+
+let $edge3 = $(replace("test", "test", "test"));
+--echo replace("test", "test", "test") -> "$edge3"
+
+let $edge4 = $(replace("", "", "something"));
+--echo replace("", "", "something") -> "$edge4"
+
+# ----------------------------------------------------------------------------
+# Test SUBSTR function
+# ----------------------------------------------------------------------------
+
+--echo # SUBSTR function
+
+let $str = "hello";
+
+let $from = -7;
+while ($from <= 7)
+{
+  let $to = -7;
+  while ($to <= 7)
+  {
+    let $result = $(substr($str, $from, $to));
+    --echo substr("hello", $from, $to) -> "$result"
+    --inc $to
+  }
+  --inc $from
+}
+
+let $substr1 = $(substr("hello world", 1, 5));
+--echo substr("hello world", 1, 5) -> "$substr1"
+
+let $substr2 = $(substr("hello world", 7));
+--echo substr("hello world", 7) -> "$substr2"
+
+let $substr3 = $(substr("hello world", 1, 3));
+--echo substr("hello world", 1, 3) -> "$substr3"
+
+let $substr4 = $(substr("hello world", 7, 5));
+--echo substr("hello world", 7, 5) -> "$substr4"
+
+# ----------------------------------------------------------------------------
+# SUBSTR with negative indices
+# ----------------------------------------------------------------------------
+
+--echo # SUBSTR with negative indices
+
+let $neg1 = $(substr("hello world", -5));
+--echo substr("hello world", -5) -> "$neg1"
+
+let $neg2 = $(substr("hello world", -5, 3));
+--echo substr("hello world", -5, 3) -> "$neg2"
+
+let $neg3 = $(substr("hello world", -10, 5));
+--echo substr("hello world", -10, 5) -> "$neg3"
+
+let $neg4 = $(substr("hello world", -20));
+--echo substr("hello world", -20) -> "$neg4"
+
+# ----------------------------------------------------------------------------
+# SUBSTR boundary conditions
+# ----------------------------------------------------------------------------
+
+--echo # SUBSTR boundary conditions
+
+let $bound1 = $(substr("hello world", 1, 0));
+--echo substr("hello world", 1, 0) -> "$bound1"
+
+let $bound2 = $(substr("hello world", 1, 20));
+--echo substr("hello world", 1, 20) -> "$bound2"
+
+let $bound3 = $(substr("hello world", 12));
+--echo substr("hello world", 12) -> "$bound3"
+
+let $bound4 = $(substr("hello world", 0));
+--echo substr("hello world", 0) -> "$bound4"
+
+let $bound5 = $(substr("hello world", 0, 5));
+--echo substr("hello world", 0, 5) -> "$bound5"
+
+# ----------------------------------------------------------------------------
+# SUBSTR with variables
+# ----------------------------------------------------------------------------
+
+--echo # SUBSTR with variables
+
+let $text_var = "hello world";
+let $start_var = 7;
+let $len_var = 5;
+let $var_substr = $(substr($text_var, $start_var, $len_var));
+--echo substr($text_var, $start_var, $len_var) -> "$var_substr"
+
+let $neg_var = $(substr($text_var, -5));
+--echo substr($text_var, -5) -> "$neg_var"
+
+# ----------------------------------------------------------------------------
+# SUBSTR edge cases
+# ----------------------------------------------------------------------------
+
+--echo # SUBSTR edge cases
+
+let $edge_substr1 = $(substr("", 1));
+--echo substr("", 1) -> "$edge_substr1"
+
+let $edge_substr2 = $(substr("a", 1, 5));
+--echo substr("a", 1, 5) -> "$edge_substr2"
+
+let $edge_substr3 = $(substr("hello", 1, -1));
+--echo substr("hello", 1, -1) -> "$edge_substr3"
+
+let $edge_substr4 = $(substr("hello", 5, 1));
+--echo substr("hello", 5, 1) -> "$edge_substr4"
+
+# ----------------------------------------------------------------------------
+# Combined function tests
+# ----------------------------------------------------------------------------
+
+--echo # Combined function tests
+
+let $combined1 = $(replace(substr("hello world", 1, 5), "hello", "hi"));
+--echo replace(substr("hello world", 1, 5), "hello", "hi") -> "$combined1"
+
+let $combined2 = $(substr(replace("hello world", "world", "mariadb"), 7));
+--echo substr(replace("hello world", "world", "mariadb"), 7) -> "$combined2"
+
+let $combined3 = $(replace(substr("test test test", 1, 9), "test", "check"));
+--echo replace(substr("test test test", 1, 9), "test", "check") -> "$combined3"
+
+
+# ----------------------------------------------------------------------------
+# String functions in while loops
+# ----------------------------------------------------------------------------
+
+--echo # String functions in while loops
+let $counter = 1;
+let $text_loop = "hello world";
+while ($(substr($text_loop, $counter, 1)))
+{
+  --echo Character at position $counter: $(substr($text_loop, $counter, 1))
+  --inc $counter
+}
+
+# ----------------------------------------------------------------------------
+# Error cases for REPLACE function
+# ----------------------------------------------------------------------------
+
+--echo # Testing error cases for REPLACE function
+
+# Wrong number of arguments
+--error 1
+--exec echo "let \$error1= \$(replace('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error2= \$(replace('hello', 'world'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error3= \$(replace('hello', 'world', 'test', 'extra'));" | $MYSQL_TEST 2>&1
+
+# Wrong argument types
+--error 1
+--exec echo "let \$error4= \$(replace(123, 'world', 'test'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error5= \$(replace('hello', 456, 'test'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error6= \$(replace('hello', 'world', 789));" | $MYSQL_TEST 2>&1
+
+# ----------------------------------------------------------------------------
+# Error cases for SUBSTR function
+# ----------------------------------------------------------------------------
+
+--echo # Testing error cases for SUBSTR function
+
+# Wrong number of arguments
+--error 1
+--exec echo "let \$error7= \$(substr('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error8= \$(substr('hello', 1, 2, 3));" | $MYSQL_TEST 2>&1
+
+# Wrong argument types
+--error 1
+--exec echo "let \$error9= \$(substr(123, 1, 2));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error10= \$(substr('hello', 'world', 2));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error11= \$(substr('hello', 1, 'world'));" | $MYSQL_TEST 2>&1
 
 --echo # Expression evaluation tests completed successfully
+
+# ----------------------------------------------------------------------------
+# Basic INSTR function tests
+# ----------------------------------------------------------------------------
+
+--echo # Basic INSTR function tests
+
+let $result1 = $(instr("hello world", "world"));
+--echo instr("hello world", "world") -> $result1
+
+let $result2 = $(instr("hello world", "hello"));
+--echo instr("hello world", "hello") -> $result2
+
+let $result3 = $(instr("hello world", "o"));
+--echo instr("hello world", "o") -> $result3
+
+let $result4 = $(instr("hello world", "xyz"));
+--echo instr("hello world", "xyz") -> $result4
+
+let $result5 = $(instr("hello world", ""));
+--echo instr("hello world", "") -> $result5
+
+# ----------------------------------------------------------------------------
+# INSTR with single characters
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with single characters
+let $char1 = $(instr("hello", "h"));
+--echo instr("hello", "h") -> $char1
+
+let $char2 = $(instr("hello", "e"));
+--echo instr("hello", "e") -> $char2
+
+let $char3 = $(instr("hello", "l"));
+--echo instr("hello", "l") -> $char3
+
+let $char4 = $(instr("hello", "o"));
+--echo instr("hello", "o") -> $char4
+
+let $char5 = $(instr("hello", "x"));
+--echo instr("hello", "x") -> $char5
+
+# ----------------------------------------------------------------------------
+# INSTR with repeated characters
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with repeated characters
+let $repeat1 = $(instr("hello", "l"));
+--echo instr("hello", "l") -> $repeat1
+
+let $repeat2 = $(instr("hello hello", "hello"));
+--echo instr("hello hello", "hello") -> $repeat2
+
+let $repeat3 = $(instr("aaa", "aa"));
+--echo instr("aaa", "aa") -> $repeat3
+
+# ----------------------------------------------------------------------------
+# INSTR with empty strings
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with empty strings
+let $empty1 = $(instr("", "hello"));
+--echo instr("", "hello") -> $empty1
+
+let $empty2 = $(instr("hello", ""));
+--echo instr("hello", "") -> $empty2
+
+let $empty3 = $(instr("", ""));
+--echo instr("", "") -> $empty3
+
+# ----------------------------------------------------------------------------
+# INSTR with special characters
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with special characters
+let $special1 = $(instr("a+b=c", "+"));
+--echo instr("a+b=c", "+") -> $special1
+
+let $special2 = $(instr("test\\nstring", "\\n"));
+--echo instr("test\\nstring", "\\n") -> $special2
+
+let $special3 = $(instr("quoted 'string'", "'"));
+--echo instr("quoted 'string'", "'") -> $special3
+
+let $special4 = $(instr('quoted "string"', '"'));
+--echo instr('quoted "string"', '"') -> $special4
+
+let $special5 = $(instr("test@example.com", "@"));
+--echo instr("test@example.com", "@") -> $special5
+
+# ----------------------------------------------------------------------------
+# INSTR with variables
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with variables
+let $text = "hello world";
+let $search = "world";
+let $var_result = $(instr($text, $search));
+--echo instr($text, $search) -> $var_result
+
+let $char_var = "o";
+let $char_result = $(instr($text, $char_var));
+--echo instr($text, $char_var) -> $char_result
+
+# ----------------------------------------------------------------------------
+# INSTR edge cases
+# ----------------------------------------------------------------------------
+
+--echo # INSTR edge cases
+let $edge1 = $(instr("hello", "hello"));
+--echo instr("hello", "hello") -> $edge1
+
+let $edge2 = $(instr("hello", "hellox"));
+--echo instr("hello", "hellox") -> $edge2
+
+let $edge3 = $(instr("hello", "h"));
+--echo instr("hello", "h") -> $edge3
+
+let $edge4 = $(instr("hello", "o"));
+--echo instr("hello", "o") -> $edge4
+
+let $edge5 = $(instr("a", "a"));
+--echo instr("a", "a") -> $edge5
+
+# ----------------------------------------------------------------------------
+# INSTR with case sensitivity
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with case sensitivity
+let $case1 = $(instr("Hello World", "hello"));
+--echo instr("Hello World", "hello") -> $case1
+
+let $case2 = $(instr("Hello World", "HELLO"));
+--echo instr("Hello World", "HELLO") -> $case2
+
+# ----------------------------------------------------------------------------
+# INSTR with whitespace
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with whitespace
+let $space1 = $(instr("hello world", " "));
+--echo instr("hello world", " ") -> $space1
+
+let $space2 = $(instr("  hello  ", "hello"));
+--echo instr("  hello  ", "hello") -> $space2
+
+let $space3 = $(instr("hello   world", "   "));
+--echo instr("hello   world", "   ") -> $space3
+
+let $space4 = $(instr("hello\tworld", "\t"));
+--echo instr("hello\tworld", "\t") -> $space4
+
+# ----------------------------------------------------------------------------
+# INSTR with complex expressions
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with complex expressions
+let $complex1 = $(instr("hello world", substr("world test", 1, 5)));
+--echo instr("hello world", substr("world test", 1, 5)) -> $complex1
+
+let $complex2 = $(instr(replace("hello world", "world", "mariadb"), "mariadb"));
+--echo instr(replace("hello world", "world", "mariadb"), "mariadb") -> $complex2
+
+# ----------------------------------------------------------------------------
+# INSTR with arithmetic expressions
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with arithmetic expressions
+let $arith1 = $(instr("hello world", "world") + 5);
+--echo instr("hello world", "world") + 5 -> $arith1
+
+let $arith2 = $(instr("hello world", "hello") * 2);
+--echo instr("hello world", "hello") * 2 -> $arith2
+
+# ----------------------------------------------------------------------------
+# INSTR with logical operators
+# ----------------------------------------------------------------------------
+
+--echo # INSTR with logical operators
+let $logical1 = $(instr("hello world", "hello") > 0 && instr("hello world", "world") > 0);
+--echo instr("hello world", "hello") > 0 && instr("hello world", "world") > 0 -> $logical1
+
+let $logical2 = $(instr("hello world", "hello") > 0 || instr("hello world", "xyz") > 0);
+--echo instr("hello world", "hello") > 0 || instr("hello world", "xyz") > 0 -> $logical2
+
+# ----------------------------------------------------------------------------
+# INSTR integration with other functions
+# ----------------------------------------------------------------------------
+
+--echo # INSTR integration with other functions
+
+let $result1 = $(instr("hello world", substr("world test", 1, 5)));
+--echo instr("hello world", substr("world test", 1, 5)) -> $result1
+
+let $result2 = $(instr(replace("hello world", "world", "mariadb"), "mariadb"));
+--echo instr(replace("hello world", "world", "mariadb"), "mariadb") -> $result2
+
+# ----------------------------------------------------------------------------
+# INSTR error cases
+# ----------------------------------------------------------------------------
+
+--echo # Testing error cases for INSTR function
+
+# Wrong number of arguments
+--error 1
+--exec echo "let \$error1= \$(instr('hello'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error2= \$(instr('hello', 'world', 'extra'));" | $MYSQL_TEST 2>&1
+
+# Wrong argument types
+--error 1
+--exec echo "let \$error3= \$(instr(123, 'world'));" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$error4= \$(instr('hello', 456));" | $MYSQL_TEST 2>&1
