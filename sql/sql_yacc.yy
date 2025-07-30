@@ -1106,6 +1106,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  STAGE_SYM
 %token  <kwd>  STARTS_SYM
 %token  <kwd>  START_SYM                     /* SQL-2003-R */
+%token  <kwd>  STARTUP_SYM
 %token  <kwd>  STATEMENT_SYM
 %token  <kwd>  STATUS_SYM
 %token  <kwd>  STOP_SYM
@@ -4774,6 +4775,11 @@ trg_event:
             { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_UPDATE); }
           | DELETE_SYM
             { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_DELETE); }
+          | STARTUP_SYM
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_STARTUP); }
+          | SHUTDOWN
+            { Lex->trg_chistics.events|= trg2bit(TRG_EVENT_SHUTDOWN); }
+
           ;
 
 trg_events:
