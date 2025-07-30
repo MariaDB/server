@@ -5650,6 +5650,80 @@ public:
   Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
+class Item_interval_literal : public Item_literal
+{
+  Interval m_value;
+public:
+  Item_interval_literal(THD *thd)
+   : Item_literal(thd)
+  {
+    collation = DTCollation_numeric();
+  }
+
+  Item_interval_literal(THD *thd, const Interval &value, decimal_digits_t dec)
+   : Item_literal(thd),
+     m_value(value)
+  {
+    collation = DTCollation_numeric();
+    decimals = dec;
+  }
+
+  const Type_handler *type_handler() const override
+  { return &type_handler_interval_DDhhmmssff; }
+
+  void print(String *str, enum_query_type query_type) override
+  {
+    str->append(STRING_WITH_LEN("INTERVAL '"));
+    m_value.to_string(str, decimals);
+    str->append(STRING_WITH_LEN("' "));
+  }
+  int save_in_field(Field *field, bool) override
+  {
+    Interval_native native(m_value, decimals);
+    return native.save_in_field(field, decimals);
+  }
+  bool val_bool() override
+  {
+    return m_value.to_bool();
+  }
+  longlong val_int() override
+  {
+    return m_value.to_longlong();
+  }
+
+  double val_real() override
+  {
+    return m_value.to_double();
+  }
+
+  String *val_str(String *to) override
+  {
+    return m_value.to_string(to, decimals);
+  }
+
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    return m_value.to_decimal(to);
+  }
+
+  bool val_native(THD *thd, Native *to) override
+  {
+    return m_value.to_native(to, decimals);
+  }
+
+  const Interval &value() const { return m_value; }
+  void set_value(const Interval &value) { m_value = value; }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_interval_literal>(thd, this); }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    /* Intervals aren't directly convertible to dates */
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
+};
 
 class Used_tables_and_const_cache
 {
@@ -7915,6 +7989,70 @@ public:
   bool val_native(THD *thd, Native *to) override;
 };
 
+class Item_cache_interval : public Item_cache
+{
+  Interval_native m_native;
+public:
+  Item_cache_interval(THD *thd)
+   : Item_cache(thd, &type_handler_interval_DDhhmmssff) { }
+
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_cache_interval>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+
+  bool cache_value() override
+  {
+    if (!example) return false;
+    value_cached = true;
+    null_value_inside = null_value =
+      example->val_native_with_conversion_result(current_thd, &m_native, type_handler());
+    return true;
+  }
+
+  longlong val_int() override
+  {
+    return has_value() ? Interval(m_native).to_longlong() : 0;
+  }
+
+  double val_real() override
+  {
+    return has_value() ? Interval(m_native).to_double() : 0.0;
+  }
+
+  String *val_str(String *to) override
+  {
+    return has_value() ? Interval(m_native).to_string(to, decimals) : nullptr;
+  }
+
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    return has_value() ? Interval(m_native).to_decimal(to) : nullptr;
+  }
+
+  int save_in_field(Field *field, bool no_conversions) override
+  {
+    if (!has_value())
+      return set_field_to_null_with_conversions(field, no_conversions);
+    return m_native.save_in_field(field);
+  }
+
+  bool val_native(THD *thd, Native *to) override
+  {
+    if (!has_value()) {
+      null_value = true;
+      return true;
+    }
+    null_value = false;
+    return to->copy(m_native);
+  }
+
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    /* Intervals aren't directly convertible to dates */
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
+};
 
 class Item_cache_real: public Item_cache
 {

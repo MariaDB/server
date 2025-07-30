@@ -171,7 +171,7 @@ Named_type_handler<Type_handler_long_blob> type_handler_long_blob("longblob");
 Named_type_handler<Type_handler_blob> type_handler_blob("blob");
 Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed("blob");
 
-Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
+Named_type_handler<Type_handler_interval_DDhhmmssff> type_handler_interval_DDhhmmssff("interval");
 
 Vers_type_timestamp       vers_type_timestamp;
 Vers_type_trx             vers_type_trx;
@@ -389,6 +389,12 @@ time_round_mode_t Timestamp::default_round_mode(THD *thd)
 }
 
 
+time_round_mode_t Interval::default_round_mode(THD *thd)
+{
+  return thd->temporal_round_mode();
+}
+
+
 my_decimal *Temporal::to_decimal(my_decimal *to) const
 {
   return date2my_decimal(this, to);
@@ -523,8 +529,28 @@ int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
   }
   return field->store_timestamp_dec(Timestamp(*this), decimals);
 }
+Interval_native::Interval_native(const Interval &iv, uint decimals)
+{
+  iv.to_native(this, decimals);
+}
+Interval_native::Interval_native(const Native &iv)
+{
+  *this = iv;
+}
 
-
+int Interval_native::save_in_field(Field *field, uint decimals)
+{
+  field->set_notnull();
+  return field->store_native(*this);
+}
+int Interval_native::save_in_field(Field *field)
+{
+  return this->save_in_field(field, 0);
+}
+int Interval_native::cmp(const Interval_native &other) const
+{
+  return memcmp(this, &other, sizeof(Interval_native));
+}
 void Sec6::make_from_decimal(const my_decimal *d, ulong *nanoseconds)
 {
   m_neg= my_decimal2seconds(d, &m_sec, &m_usec, nanoseconds);
@@ -1569,6 +1595,10 @@ uint Type_handler_datetime::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
 uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
      { 3, 4, 4, 5, 5, 5, 6 };
 
+/* number of bytes to store various INTERVAL types */
+uint Type_handler_interval_DDhhmmssff::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+     { 5, 6, 6, 7, 7, 7, 8 };
+
 /***************************************************************************/
 
 const Name Type_handler::version() const
@@ -1774,6 +1804,12 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
   return &type_handler_row;
 }
 
+
+const Type_handler *Type_handler_interval_DDhhmmssff::type_handler_for_comparison() const
+{
+  return &type_handler_interval_DDhhmmssff;
+}
+
 /***************************************************************************/
 
 const Type_handler *
@@ -1787,6 +1823,13 @@ const Type_handler *
 Type_handler_time_common::type_handler_for_native_format() const
 {
   return &type_handler_time2;
+}
+
+
+const Type_handler *
+Type_handler_interval_DDhhmmssff::type_handler_for_native_format() const
+{
+  return &type_handler_interval_DDhhmmssff;
 }
 
 
@@ -2248,6 +2291,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_TIME2:       return &type_handler_time2;
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime2; // Map to datetime2
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
+  case MYSQL_TYPE_INTERVAL:    return &type_handler_interval_DDhhmmssff;
   case MYSQL_TYPE_NEWDATE:
     /*
       NEWDATE is actually a real_type(), not a field_type(),
@@ -2301,6 +2345,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime;
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
+  case MYSQL_TYPE_INTERVAL: return &type_handler_interval_DDhhmmssff;
   };
   return NULL;
 }
@@ -2639,6 +2684,17 @@ Field *Type_handler_datetime2::make_conversion_table_field(MEM_ROOT *root,
                          Field::NONE, &empty_clex_str, metadata);
 }
 
+Field *Type_handler_interval_DDhhmmssff::make_conversion_table_field(MEM_ROOT *root,
+                                                                     TABLE *table,
+                                                                     uint metadata,
+                                                                     const Field *target)
+                                                                     const
+{
+  return new(root)
+       Field_interval(NULL, metadata,(uchar *) "", 1,
+                       Field::NONE, &empty_clex_str,(enum interval_type)target->field_length,target->field_length,target->field_length);
+
+}
 
 Field *Type_handler_bit::make_conversion_table_field(MEM_ROOT *root,
                                                      TABLE *table,
@@ -3012,6 +3068,16 @@ bool Type_handler_datetime_common::
 {
   return def->fix_attributes_temporal_with_time(MAX_DATETIME_WIDTH);
 }
+
+bool Type_handler_interval_DDhhmmssff::
+       Column_definition_fix_attributes(Column_definition *def) const
+{
+  def->pack_flag= f_set_interval_type(def->decimals);
+  interval_type itype= (enum interval_type) f_get_interval_type(def->pack_flag);
+
+  return def->fix_attributes_interval(itype);
+}
+
 
 bool Type_handler_set::
        Column_definition_fix_attributes(Column_definition *def) const
@@ -3565,6 +3631,11 @@ uint32 Type_handler_datetime2::calc_pack_length(uint32 length) const
          my_datetime_binary_length(length - MAX_DATETIME_WIDTH - 1) : 5;
 }
 
+uint32 Type_handler_interval_DDhhmmssff::calc_pack_length(uint32 length) const
+{
+  return my_interval_binary_length(length >> 4);
+}
+
 uint32 Type_handler_tiny_blob::calc_pack_length(uint32 length) const
 {
   return 1 + portable_sizeof_char_ptr;
@@ -3904,6 +3975,15 @@ Field *Type_handler_datetime2::make_table_field(MEM_ROOT *root,
                             Field::NONE, name, attr.decimals);
 }
 
+Field *Type_handler_interval_DDhhmmssff::make_table_field(MEM_ROOT *root,
+                                                const LEX_CSTRING *name,
+                                                const Record_addr &addr,
+                                                const Type_all_attributes &attr,
+                                                TABLE_SHARE *share) const
+{
+  return new (root)
+      Field_interval(addr.ptr(),16,addr.null_ptr(),addr.null_bit(),Field::NONE, name, (enum interval_type) attr.decimals,attr.decimals, attr.decimals);
+}
 
 Field *Type_handler_bit::make_table_field(MEM_ROOT *root,
                                           const LEX_CSTRING *name,
@@ -4680,7 +4760,11 @@ Type_handler_date_common::Item_get_cache(THD *thd, const Item *item) const
   return new (thd->mem_root) Item_cache_date(thd);
 }
 
-
+Item_cache *
+  Type_handler_interval_DDhhmmssff::Item_get_cache(THD *thd, const Item* item) const
+{
+  return new (thd->mem_root) Item_cache_interval(thd);
+}
 /*************************************************************************/
 
 Item_copy *
@@ -4906,6 +4990,15 @@ bool Type_handler_timestamp_common::
   return false;
 }
 
+bool Type_handler_interval_DDhhmmssff::
+Item_hybrid_func_fix_attributes(THD *thd,
+                                const LEX_CSTRING &name,
+                                Type_handler_hybrid_field_type *handler,
+                                Type_all_attributes *func,
+                                Item **items, uint nitems) const
+{
+  return false;
+}
 
 bool Type_handler_row::
        Item_hybrid_func_fix_attributes(THD *thd,
@@ -6064,6 +6157,13 @@ in_vector *Type_handler_row::make_in_vector(THD *thd,
   return new (thd->mem_root) in_row(thd, nargs, 0);
 }
 
+in_vector *
+Type_handler_interval_DDhhmmssff::make_in_vector(THD *thd,
+                                              const Item_func_in *func,
+                                              uint nargs) const
+{
+  return new (thd->mem_root) in_interval(thd, nargs);
+}
 /***************************************************************************/
 
 bool Type_handler_string_result::
@@ -6180,6 +6280,11 @@ String *Type_handler_timestamp_common::
            to_datetime(thd).to_string(str, func->decimals);
 }
 
+String *Type_handler_interval_DDhhmmssff::
+  Item_func_min_max_val_str(Item_func_min_max*, String*) const
+{
+  return nullptr;
+}
 
 String *Type_handler_int_result::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
@@ -6249,6 +6354,11 @@ double Type_handler_timestamp_common::
            to_datetime(thd).to_double();
 }
 
+double Type_handler_interval_DDhhmmssff::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  return 0.0;
+}
 
 double Type_handler_numeric::
          Item_func_min_max_val_real(Item_func_min_max *func) const
@@ -6293,6 +6403,11 @@ longlong Type_handler_timestamp_common::
            to_datetime(thd).to_longlong();
 }
 
+longlong Type_handler_interval_DDhhmmssff::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  return 0;
+}
 
 longlong Type_handler_numeric::
          Item_func_min_max_val_int(Item_func_min_max *func) const
@@ -6348,6 +6463,13 @@ my_decimal *Type_handler_timestamp_common::
   THD *thd= current_thd;
   return Timestamp_or_zero_datetime_native_null(thd, func).
            to_datetime(thd).to_decimal(dec);
+}
+
+my_decimal *Type_handler_interval_DDhhmmssff::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  return 0;
 }
 
 
@@ -6525,6 +6647,11 @@ String *Type_handler_timestamp_common::
                                    Name(STRING_WITH_LEN("TIMESTAMP")), &buf);
 }
 
+String *Type_handler_interval_DDhhmmssff::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+    return nullptr;
+}
 
 /***************************************************************************/
 
@@ -6632,6 +6759,12 @@ bool Type_handler_timestamp_common::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
   item->fix_arg_datetime();
+  return false;
+}
+
+bool Type_handler_interval_DDhhmmssff::
+        Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
   return false;
 }
 
@@ -6744,6 +6877,12 @@ bool Type_handler_timestamp_common::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
   item->fix_length_and_dec_datetime();
+  return false;
+}
+
+bool Type_handler_interval_DDhhmmssff::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
   return false;
 }
 
@@ -7427,6 +7566,11 @@ Item_decimal_precision(const Item *item) const
   return (decimal_digits_t) (14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
+decimal_digits_t Type_handler_interval_DDhhmmssff::Item_decimal_precision(const Item*) const
+{
+  return 0;
+}
+
 /***************************************************************************/
 
 bool Type_handler_real_result::
@@ -8032,6 +8176,15 @@ Type_handler_datetime_common::convert_item_for_comparison(
                                           subject->datetime_precision(thd));
 }
 
+Item *
+Type_handler_interval_DDhhmmssff::convert_item_for_comparison(
+                                                        THD *thd,
+                                                        Item *subject,
+                                                        const Item *counterpart)
+                                                        const
+{
+  return nullptr;
+}
 
 /***************************************************************************/
 
@@ -8200,7 +8353,14 @@ Item *Type_handler_long_blob::
   }
   return new (thd->mem_root) Item_char_typecast(thd, item, len, real_cs);
 }
-
+bool Type_handler_interval_DDhhmmssff::
+          Column_definition_prepare_stage2(Column_definition* c,
+                                     handler* file,
+                                     ulonglong table_flags) const
+{
+  c->pack_flag|= f_settype((uint) MYSQL_TYPE_INTERVAL);
+  return false;
+}
 Item *Type_handler_interval_DDhhmmssff::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
@@ -8684,6 +8844,24 @@ Field *Type_handler_datetime2::
                     attr->temporal_dec(MAX_DATETIME_WIDTH));
 }
 
+  Field *Type_handler_interval_DDhhmmssff::
+    make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &rec, const Bit_addr &bit,
+                          const Column_definition_attributes *attr,
+                          uint32 flags) const
+  {
+  return new (mem_root) Field_interval(
+      rec.ptr(),
+      16,
+      rec.null_ptr(),
+      rec.null_bit(),
+      attr->unireg_check,
+      name,
+      (enum interval_type)f_get_interval_type(attr->pack_flag),
+      attr->length &15,
+attr->length>>4      );
+  }
 
 Field *Type_handler_null::
   make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
@@ -9095,7 +9273,17 @@ Type_handler_timestamp_common::Item_const_eq(const Item_const *a,
   return !ta->value().cmp(tb->value());
 }
 
-
+bool
+Type_handler_interval_DDhhmmssff::Item_const_eq(const Item_const *a,
+                                             const Item_const *b,
+                                             bool binary_cmp) const
+{
+  const Item_interval_literal *ta, *tb;
+  if (!(ta= dynamic_cast<const Item_interval_literal*>(a)) ||
+      !(tb= dynamic_cast<const Item_interval_literal*>(b)))
+    return false;
+  return !ta->value().cmp(tb->value());
+}
 /***************************************************************************/
 
 const Type_handler *
@@ -9409,6 +9597,16 @@ Type_handler_time_common::create_literal_item(THD *thd,
   return item;
 }
 
+Item_literal *
+Type_handler_interval_DDhhmmssff::create_literal_item(THD *thd,
+                                              const char *str,
+                                              size_t length,
+                                              CHARSET_INFO *cs,
+                                              bool send_error) const
+{
+  Item_literal *item = nullptr;
+  return item;
+}
 
 bool
 Type_handler_time_common::Item_val_native_with_conversion(THD *thd,
@@ -9484,6 +9682,23 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
     TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 
+
+bool
+Type_handler_interval_DDhhmmssff::Item_val_native_with_conversion(THD *thd, Item *item, Native *to) const
+{
+  if (item->type_handler()->type_handler_for_native_format() ==
+    &type_handler_interval_DDhhmmssff)
+    return item->val_native(thd, to);
+  Interval iv(thd, item);
+  iv.to_native(to, iv.end_prec);
+  return 0;
+}
+
+bool Type_handler_interval_DDhhmmssff::Item_val_native_with_conversion_result(THD *thd, Item *, Native *to) const
+{
+  return false;
+}
+
 bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
 {
   item->set_handler(&type_handler_string);
@@ -9521,6 +9736,12 @@ int Type_handler_timestamp_common::cmp_native(const Native &a,
   return Timestamp_or_zero_datetime(a).cmp(Timestamp_or_zero_datetime(b));
 }
 
+int Type_handler_interval_DDhhmmssff::cmp_native(const Native &a, const Native &b) const
+{
+  if (a.length() == b.length())
+    return memcmp(a.ptr(), b.ptr(), a.length());
+  return Interval_native(a).cmp(Interval_native(b));
+}
 
 Timestamp_or_zero_datetime_native_null::
   Timestamp_or_zero_datetime_native_null(THD *thd, Item *item, bool conv)

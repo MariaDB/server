@@ -28,6 +28,7 @@
 #include "sql_type_ref.h"
 #include "compat56.h"
 #include "log_event_data_type.h"
+#include <sql_interval.h>
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -97,6 +98,7 @@ class Conv_source;
 class ST_FIELD_INFO;
 class Type_collection;
 class Create_func;
+class Interval;
 
 #define my_charset_numeric      my_charset_latin1
 
@@ -1517,6 +1519,7 @@ public:
 
 
 /*
+  While implementing "class Interval" the following class will be removed and all functions that use it will start relying on the Interval class instead
   This class is used for the "time_interval" argument of these SQL functions:
     TIMESTAMP(tm,time_interval)
     ADDTIME(tm,time_interval)
@@ -3008,6 +3011,16 @@ public:
   }
 };
 
+class Interval_native : public NativeBuffer<STRING_BUFFER_TIMESTAMP_BINARY_SIZE + 1>
+{
+public:
+  Interval_native() = default;
+  Interval_native(const Interval &iv, uint decimals);
+  Interval_native(const Native &iv);
+  int save_in_field(Field *field, uint decimals);
+  int save_in_field(Field *field);
+  int cmp(const Interval_native &other) const;
+};
 
 /**
   A helper class to store nullable MariaDB TIMESTAMP values in
@@ -7803,12 +7816,90 @@ public:
 };
 
 
-// A pseudo type handler, mostly for test purposes for now
-class Type_handler_interval_DDhhmmssff: public Type_handler_long_blob
-{
+class Type_handler_interval_DDhhmmssff : public Type_handler_temporal_with_date {
+  static uint m_hires_bytes[MAX_DATETIME_PRECISION+1];
 public:
-  Item *create_typecast_item(THD *thd, Item *item,
-                             const Type_cast_attributes &attr) const override;
+  static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
+  const Name &default_value() const override {
+    static Name def(STRING_WITH_LEN("interval"));
+    return def;
+  }
+
+  enum_field_types field_type() const override {
+    return MYSQL_TYPE_INTERVAL;
+  }
+
+  protocol_send_type_t protocol_send_type() const override {
+    return PROTOCOL_SEND_STRING;
+  }
+
+  enum_dynamic_column_type dyncol_type(const Type_all_attributes*) const override {
+    return DYN_COL_NULL;
+  }
+
+  const Type_handler *type_handler_for_comparison() const override;
+
+  decimal_digits_t Item_decimal_precision(const Item*) const override;
+
+  Field *make_conversion_table_field(MEM_ROOT*, TABLE*, uint, const Field*) const override;
+
+  uint32 max_display_length_for_field(const Conv_source&) const override;
+
+  bool Column_definition_fix_attributes(Column_definition* c) const override;
+
+  Field *make_table_field(MEM_ROOT*, const LEX_CSTRING*,
+                          const Record_addr&, const Type_all_attributes&,
+                          TABLE_SHARE*) const override;
+
+  Field *make_table_field_from_def(TABLE_SHARE*, MEM_ROOT*, const LEX_CSTRING*,
+                                   const Record_addr&, const Bit_addr&,
+                                   const Column_definition_attributes*, uint32) const override;
+
+  uint32 calc_pack_length(uint32) const override;
+
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
+
+  Item_cache *Item_get_cache(THD*, const Item*) const override;
+
+  bool Item_hybrid_func_fix_attributes(THD*, const LEX_CSTRING&,
+                                       Type_handler_hybrid_field_type*,
+                                       Type_all_attributes*, Item**, uint) const override;
+
+  String *Item_func_min_max_val_str(Item_func_min_max*, String*) const override;
+
+  double Item_func_min_max_val_real(Item_func_min_max*) const override;
+
+  longlong Item_func_min_max_val_int(Item_func_min_max*) const override;
+
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max*, my_decimal*) const override;
+
+  bool Item_func_round_fix_length_and_dec(Item_func_round*) const override;
+
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
+
+  Item *create_typecast_item(THD* thd, Item* item,
+                             const Type_cast_attributes& attr) const override;
+
+  bool Column_definition_prepare_stage2(Column_definition* c,
+                                       handler* file,
+                                       ulonglong table_flags) const override;
+
+  Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
+                                  CHARSET_INFO *cs, bool send_error)
+                                  const override;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                   bool binary_cmp) const override;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
+                          const override;
+  Item *convert_item_for_comparison(THD *thd,
+                                  Item *subject,
+                                  const Item *counterpart) const override;
+  const Type_handler *type_handler_for_native_format() const override;
+  int cmp_native(const Native &a, const Native &b) const override;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
+                                       const override;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
+                                              const override;
 };
 
 
@@ -8011,7 +8102,7 @@ extern Named_type_handler<Type_handler_datetime2>   type_handler_datetime2;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
 
-extern Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
+extern Named_type_handler<Type_handler_interval_DDhhmmssff> type_handler_interval_DDhhmmssff;
 
 class Type_aggregator
 {

@@ -132,6 +132,59 @@ static Item* escape(THD *thd)
   return new (thd->mem_root) Item_string_ascii(thd, esc, MY_TEST(esc[0]));
 }
 
+inline const char* interval_error_message(enum interval_type type) {
+  switch (type) {
+    case INTERVAL_QUARTER:        return "INTERVAL QUARTER";
+    case INTERVAL_WEEK:           return "INTERVAL WEEK";
+    case INTERVAL_MICROSECOND:    return "INTERVAL MICROSECOND";
+    case INTERVAL_DAY_MICROSECOND:    return "INTERVAL DAY TO MICROSECOND";
+    case INTERVAL_HOUR_MICROSECOND:   return "INTERVAL HOUR TO MICROSECOND";
+    case INTERVAL_MINUTE_MICROSECOND: return "INTERVAL MINUTE TO MICROSECOND";
+    case INTERVAL_SECOND_MICROSECOND: return "INTERVAL SECOND TO MICROSECOND";
+    case INTERVAL_LAST:           return "Invalid INTERVAL range combination";
+    default:                      return "UNREACHABLE CASE";
+  }
+}
+
+inline enum interval_type combine_interval_range(enum interval_type start, enum interval_type end) {
+  switch (start) {
+    case INTERVAL_YEAR:
+      if (end == INTERVAL_MONTH) return INTERVAL_YEAR_MONTH;
+      break;
+    case INTERVAL_DAY:
+      switch (end) {
+        case INTERVAL_HOUR:         return INTERVAL_DAY_HOUR;
+        case INTERVAL_MINUTE:       return INTERVAL_DAY_MINUTE;
+        case INTERVAL_SECOND:       return INTERVAL_DAY_SECOND;
+        case INTERVAL_MICROSECOND:  return INTERVAL_DAY_MICROSECOND;
+        default: break;
+      }
+      break;
+    case INTERVAL_HOUR:
+      switch (end) {
+        case INTERVAL_MINUTE:       return INTERVAL_HOUR_MINUTE;
+        case INTERVAL_SECOND:       return INTERVAL_HOUR_SECOND;
+        case INTERVAL_MICROSECOND:  return INTERVAL_HOUR_MICROSECOND;
+        default: break;
+      }
+      break;
+    case INTERVAL_MINUTE:
+      switch (end) {
+        case INTERVAL_SECOND:       return INTERVAL_MINUTE_SECOND;
+        case INTERVAL_MICROSECOND:  return INTERVAL_MINUTE_MICROSECOND;
+        default: break;
+      }
+    break;
+    case INTERVAL_SECOND:
+        switch(end) {
+        case INTERVAL_MICROSECOND:  return INTERVAL_SECOND_MICROSECOND;
+        default: break;
+      }
+      break;
+    default: break;
+  }
+  return INTERVAL_LAST;
+}
 
 /**
   @brief Bison callback to report a syntax/OOM error
@@ -344,6 +397,12 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     Item *expr;
     LEX_CSTRING expr_str;
   } expr_and_query_str;
+  struct Interval_qualifier {
+    enum interval_type type;
+    Lex_length_and_dec_st start_prec;
+    Lex_length_and_dec_st end_prec;
+  };
+  struct Interval_qualifier Interval_quali;
 }
 
 %{
@@ -1320,9 +1379,19 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 */
 %left   PREC_BELOW_CONTRACTION_TOKEN2
-%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM BODY_MARIADB_SYM OF_SYM
+%left PREC_INTERVAL_CONTEXT
+%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM BODY_MARIADB_SYM OF_SYM TO_SYM
 %left EMPTY_FROM_CLAUSE
 %right INTO
+%left YEAR_SYM
+%left MONTH_SYM
+%left DAY_SYM
+%left HOUR_SYM
+%left MINUTE_SYM
+%left SECOND_SYM
+%left MICROSECOND_SYM
+%left WEEK_SYM
+%left QUARTER_SYM
 
 %type <lex_comment>
         HINT_COMMENT opt_hint_comment
@@ -1593,6 +1662,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <opt_hints>
         opt_optimizer_hint
+
+%type <Interval_quali>
+        interval_qualifier
+        single_datetime_field
+        range_datetime_field
+
 
 %destructor
 {
@@ -6626,6 +6701,13 @@ field_type_temporal:
         | DATETIME opt_field_length
           {
             $$.set(thd->type_handler_for_datetime(), $2);
+          }
+        | INTERVAL_SYM interval_qualifier
+          {
+            $2.start_prec.set_length_and_dec(
+            $2.start_prec.length() | ($2.end_prec.length() << 4),
+            static_cast<uint8>($2.type));
+            $$.set(static_cast<const Type_handler*>(&type_handler_interval_DDhhmmssff),$2.start_prec);
           }
         ;
 
@@ -12449,6 +12531,68 @@ using_list:
           }
         ;
 
+interval_qualifier:
+    single_datetime_field
+    {
+        $$ = $1;
+        switch ($$.type)
+        {
+            case INTERVAL_QUARTER:
+            case INTERVAL_WEEK:
+            case INTERVAL_MICROSECOND:
+                my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                         interval_error_message($$.type));
+                YYERROR;
+
+            default:
+                break;
+        }
+    }
+  | range_datetime_field
+    {
+        $$ = $1;
+        switch ($$.type)
+        {
+            case INTERVAL_DAY_MICROSECOND:
+            case INTERVAL_HOUR_MICROSECOND:
+            case INTERVAL_MINUTE_MICROSECOND:
+            case INTERVAL_SECOND_MICROSECOND:
+                my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                         interval_error_message($$.type));
+                YYERROR;
+
+            case INTERVAL_LAST:
+                my_error(ER_PARSE_ERROR, MYF(0),
+                         interval_error_message($$.type));
+                YYERROR;
+
+            default:
+                break;
+        }
+    }
+;
+
+single_datetime_field:
+    interval_time_stamp opt_field_length
+    %prec PREC_INTERVAL_CONTEXT
+    {
+        $$.type = $1;
+        $$.start_prec = $2;
+        $$.end_prec.reset();
+    }
+;
+
+range_datetime_field:
+    interval_time_stamp opt_field_length
+    TO_SYM
+    interval_time_stamp opt_field_length
+    {
+        $$.type = combine_interval_range($1, $4);
+        $$.start_prec = $2;
+        $$.end_prec = $5;
+    }
+;
+
 interval:
           interval_time_stamp    {}
         | DAY_HOUR_SYM           { $$=INTERVAL_DAY_HOUR; }
@@ -16900,7 +17044,6 @@ reserved_keyword_udt_not_param_type:
         | INSENSITIVE_SYM
         | INSERT
         | INTERSECT_SYM
-        | INTERVAL_SYM
         | INTO
         | IS
         | ITERATE_SYM

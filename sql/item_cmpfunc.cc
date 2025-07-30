@@ -4085,6 +4085,34 @@ Item *in_temporal::create_item(THD *thd)
   return new (thd->mem_root) Item_datetime(thd);
 }
 
+in_interval::in_interval(THD *thd, uint elements)
+  :in_vector(thd, elements, sizeof(Value), cmp_timestamp, 0)
+{}
+
+
+bool in_interval::set(uint pos, Item *item)
+{
+  return false;
+}
+
+
+uchar *in_interval::get_value(Item *item)
+{
+  return nullptr;
+}
+
+
+Item *in_interval::create_item(THD *thd)
+{
+  return nullptr;
+}
+
+
+void in_interval::value_to_item(uint pos, Item *item)
+{
+
+}
+
 
 in_double::in_double(THD *thd, uint elements)
   :in_vector(thd, elements, sizeof(double), cmp_double, 0)
