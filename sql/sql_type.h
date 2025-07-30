@@ -3928,6 +3928,13 @@ protected:
   bool Column_definition_prepare_stage2_legacy_real(Column_definition *c,
                                                     enum_field_types type)
                                                     const;
+  void Item_temporal_add_interval_common(THD *thd,
+                                       Item *base_value,
+                                       Item *interval_value,
+                                       MYSQL_TIME *result,
+                                       bool subtract,
+                                       date_conv_mode_t base_conv_mode,
+                                       timestamp_type ts_type) const;
 public:
   static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
   static const Type_handler *handler_by_name_or_error(THD *thd,
@@ -4752,6 +4759,15 @@ public:
   Item_func_mod_fix_length_and_dec(Item_func_mod *func) const= 0;
 
   virtual const Vers_type_handler *vers() const { return NULL; }
+  virtual void Item_temporal_add_interval(THD *thd,
+                                          Item *base_value,
+                                          Item *interval_value,
+                                          MYSQL_TIME *result,
+                                          bool subtract) const
+  {
+    set_zero_time(result, MYSQL_TIMESTAMP_NONE);
+  }
+  virtual interval_type get_interval_type() const { return INTERVAL_LAST; }
 };
 
 
@@ -6632,6 +6648,11 @@ public:
                             const override;
   void Item_param_set_param_func(Item_param *param, uchar **pos, ulong len)
                                  const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                      Item *item1,
+                                      Item *item2,
+                                      MYSQL_TIME *res, bool substract) const override;
+
 };
 
 
@@ -6797,6 +6818,11 @@ public:
     override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                      Item *item1,
+                                      Item *item2,
+                                      MYSQL_TIME *res, bool substract) const override;
+
 };
 
 class Type_handler_date: public Type_handler_date_common
@@ -6939,6 +6965,10 @@ public:
                                        const override;
   void Item_param_set_param_func(Item_param *param, uchar **pos, ulong len)
                                  const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                  Item *item1,
+                                  Item *item2,
+                                  MYSQL_TIME *res, bool substract) const override;
 };
 
 
@@ -7109,6 +7139,11 @@ public:
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate)
                                   const override;
+  void  Item_temporal_add_interval(THD *thd,
+                                      Item *item1,
+                                      Item *item2,
+                                      MYSQL_TIME *res, bool substract) const override;
+
 };
 
 
@@ -7816,7 +7851,7 @@ public:
 };
 
 
-class Type_handler_interval_DDhhmmssff : public Type_handler_temporal_with_date {
+class Type_handler_interval_common : public Type_handler_temporal_with_date {
   static uint m_hires_bytes[MAX_DATETIME_PRECISION+1];
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
@@ -7836,6 +7871,7 @@ public:
   enum_dynamic_column_type dyncol_type(const Type_all_attributes*) const override {
     return DYN_COL_NULL;
   }
+  Item_result cmp_type() const override { return INTERVAL_RESULT; }
 
   const Type_handler *type_handler_for_comparison() const override;
 
@@ -7884,9 +7920,10 @@ public:
                                        handler* file,
                                        ulonglong table_flags) const override;
 
-  Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
-                                  CHARSET_INFO *cs, bool send_error)
-                                  const override;
+  Item_literal *create_literal_item_for_interval(THD *thd, const char *str, size_t length,
+                                CHARSET_INFO *cs, bool send_error, interval_type itype,
+                                uint8 start_prec, uint8 end_prec)
+                                const;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                    bool binary_cmp) const override;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
@@ -7900,6 +7937,187 @@ public:
                                        const override;
   bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
                                               const override;
+  const Type_handler* determine_result_type(const Type_handler* th0, const Type_handler* th1) const;
+};
+
+
+class Type_handler_interval_year : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_YEAR;
+  }
+};
+
+
+class Type_handler_interval_quarter : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_QUARTER;
+  }
+};
+
+
+class Type_handler_interval_month : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MONTH;
+  }
+};
+
+
+class Type_handler_interval_week : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_WEEK;
+  }
+};
+
+
+class Type_handler_interval_day : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY;
+  }
+};
+
+
+class Type_handler_interval_hour : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR;
+  }
+};
+
+
+class Type_handler_interval_minute : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MINUTE;
+  }
+};
+
+
+class Type_handler_interval_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_SECOND;
+  }
+};
+
+
+class Type_handler_interval_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_year_month: public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_YEAR_MONTH;
+  }
+};
+
+
+class Type_handler_interval_day_hour : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_HOUR;
+  }
+};
+
+
+class Type_handler_interval_day_minute : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_MINUTE;
+  }
+};
+
+
+class Type_handler_interval_day_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_SECOND;
+  }
+};
+
+
+class Type_handler_interval_hour_minute : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR_MINUTE;
+  }
+};
+
+
+class Type_handler_interval_hour_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR_SECOND;
+  }
+};
+
+
+class Type_handler_interval_minute_second : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MINUTE_SECOND;
+  }
+};
+
+
+class Type_handler_interval_day_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_DAY_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_hour_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_HOUR_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_minute_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_MINUTE_MICROSECOND;
+  }
+};
+
+
+class Type_handler_interval_second_microsecond : public Type_handler_interval_common
+{
+  enum interval_type get_interval_type() const override
+  {
+    return INTERVAL_SECOND_MICROSECOND;
+  }
 };
 
 
@@ -8102,7 +8320,29 @@ extern Named_type_handler<Type_handler_datetime2>   type_handler_datetime2;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp>   type_handler_timestamp;
 extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_timestamp2>  type_handler_timestamp2;
 
-extern Named_type_handler<Type_handler_interval_DDhhmmssff> type_handler_interval_DDhhmmssff;
+extern Named_type_handler<Type_handler_interval_common> type_handler_interval_common;
+extern Named_type_handler<Type_handler_interval_year> type_handler_interval_year;
+extern Named_type_handler<Type_handler_interval_quarter> type_handler_interval_quarter;
+extern Named_type_handler<Type_handler_interval_month> type_handler_interval_month;
+extern Named_type_handler<Type_handler_interval_week> type_handler_interval_week;
+extern Named_type_handler<Type_handler_interval_day> type_handler_interval_day;
+extern Named_type_handler<Type_handler_interval_hour> type_handler_interval_hour;
+extern Named_type_handler<Type_handler_interval_minute> type_handler_interval_minute;
+extern Named_type_handler<Type_handler_interval_second> type_handler_interval_second;
+extern Named_type_handler<Type_handler_interval_microsecond> type_handler_interval_microsecond;
+
+extern Named_type_handler<Type_handler_interval_year_month> type_handler_interval_year_month;
+extern Named_type_handler<Type_handler_interval_day_hour> type_handler_interval_day_hour;
+extern Named_type_handler<Type_handler_interval_day_minute> type_handler_interval_day_minute;
+extern Named_type_handler<Type_handler_interval_day_second> type_handler_interval_day_second;
+extern Named_type_handler<Type_handler_interval_hour_minute> type_handler_interval_hour_minute;
+extern Named_type_handler<Type_handler_interval_hour_second> type_handler_interval_hour_second;
+extern Named_type_handler<Type_handler_interval_minute_second> type_handler_interval_minute_second;
+extern Named_type_handler<Type_handler_interval_day_microsecond> type_handler_interval_day_microsecond;
+extern Named_type_handler<Type_handler_interval_hour_microsecond> type_handler_interval_hour_microsecond;
+extern Named_type_handler<Type_handler_interval_minute_microsecond> type_handler_interval_minute_microsecond;
+extern Named_type_handler<Type_handler_interval_second_microsecond> type_handler_interval_second_microsecond;
+
 
 class Type_aggregator
 {

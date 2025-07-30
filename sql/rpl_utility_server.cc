@@ -169,7 +169,7 @@ Type_handler_datetime2::max_display_length_for_field(const Conv_source &src)
 
 
 uint32
-Type_handler_interval_DDhhmmssff::max_display_length_for_field(const Conv_source&)
+Type_handler_interval_common::max_display_length_for_field(const Conv_source&)
                                                                const
 {
   return 0;

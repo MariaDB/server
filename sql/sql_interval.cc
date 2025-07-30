@@ -22,7 +22,33 @@ This program is free software; you can redistribute it and/or modify
 #include "mysql/plugin.h"
 #include "sql_type.h"
 
+
+Interval::Interval(const Interval &other)
+  : INTERVAL(other),
+    m_interval_type(other.m_interval_type),
+    start_prec(other.start_prec),
+    end_prec(other.end_prec)
+{}
+
+
+Interval& Interval::operator=(const Interval &other)
+{
+  if (this != &other)
+  {
+    static_cast<INTERVAL&>(*this)= other;
+
+    m_interval_type= other.m_interval_type;
+    start_prec= other.start_prec;
+    end_prec= other.end_prec;
+  }
+  return *this;
+}
+
+
 Interval::Interval()
+  : m_interval_type(INTERVAL_LAST),
+    start_prec(0),
+    end_prec(0)
 {
   year= month= day= hour= 0;
   minute= second= second_part= 0;
@@ -31,7 +57,10 @@ Interval::Interval()
 
 
 Interval::Interval(const char *str, size_t length,
-                   enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec)
+                  enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec)
+    : m_interval_type(itype),
+      start_prec(start_prec),
+      end_prec(end_prec)
 {
   TemporalAsciiBuffer tmp(str, length, cs);
   str_to_interval(tmp.str, tmp.length, this, itype, start_prec, end_prec);
@@ -73,6 +102,11 @@ int Interval::cmp(const Interval &other) const
   return tm1.tv_sec < tm2.tv_sec ? -1 : tm1.tv_sec > tm2.tv_sec ? 1 : tm1.tv_usec < tm2.tv_usec ? -1 : tm1.tv_usec > tm2.tv_usec ? 1 : 0;
 }
 
+void Interval::toggle_sign()
+{
+  this->neg = !this->neg;
+}
+
 my_timeval Interval::to_TIMEVAL() const
 {
   my_timeval tm={};
@@ -98,14 +132,26 @@ double Interval::to_double() const
   return d;
 }
 
-String *Interval::to_string(String *str, uint dec) const
+String *Interval::to_string(String *str, uint dec, bool append_mode) const
 {
   uint field_length= calc_interval_display_width(m_interval_type, start_prec, end_prec);
-  str->alloc( field_length+ 1);
-  char *buf= (char *)str->ptr();
 
-  size_t len= interval_to_string(this, m_interval_type, buf, end_prec);
-  str->length(len);
+  if (!append_mode)
+  {
+    str->alloc(field_length + 1);
+    char *buf= (char *)str->ptr();
+    size_t len= interval_to_string(this, m_interval_type, buf, field_length + 1);
+    str->length(len);
+  }
+  else
+  {
+    size_t orig_len= str->length();
+    str->realloc_with_extra(orig_len + field_length + 1);
+    char *buf= (char *)str->ptr() + orig_len;
+    size_t len= interval_to_string(this, m_interval_type, buf, field_length + 1);
+    str->length(orig_len + len);
+  }
+
   str->set_charset(&my_charset_numeric);
   return str;
 }
@@ -150,7 +196,8 @@ int str_to_interval(const char *str, size_t length, Interval *to,
   uint num_components= 0;
   uint parsed_components= 0;
 
-  *to= Interval();
+  to->year= to->month= to->day= to->hour= to->minute= to->second= to->second_part= 0;
+  to->neg= false;
 
   while (p < end && my_isspace(&my_charset_latin1, *p))
     p++;
@@ -494,6 +541,10 @@ int interval_to_timeval(const Interval *iv, my_timeval *tm, THD *thd)
 
   tm->tv_sec= total_seconds;
   tm->tv_usec= microseconds;
+  if (iv->neg)
+  {
+    tm->tv_sec= -total_seconds;
+  }
   return 0;
 }
 
@@ -638,6 +689,11 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
   longlong seconds= tm.tv_sec;
   ulong microseconds= tm.tv_usec;
 
+  if (seconds < 0)
+  {
+    seconds= -seconds;
+    iv->neg= true;
+  }
   switch (itype) {
   case INTERVAL_YEAR:
   case INTERVAL_MONTH:
@@ -762,5 +818,137 @@ uint8 interval_default_length(enum interval_type type) {
     return INTERVAL_FRAC_DIGITS;
   default:
     return 0;
+  }
+}
+
+
+void get_interval_default_precision(interval_type type,
+                                   uint8 *default_start,
+                                   uint8 *default_end)
+{
+  switch(type) {
+  case INTERVAL_YEAR:
+    *default_start= INTERVAL_YEAR_DIGITS;
+    *default_end= 0;
+    break;
+  case INTERVAL_YEAR_MONTH:
+    *default_start= INTERVAL_YEAR_DIGITS;
+    *default_end= INTERVAL_MONTH_DIGITS;
+    break;
+  case INTERVAL_MONTH:
+    *default_start= INTERVAL_MONTH_DIGITS;
+    *default_end= 0;
+    break;
+  case INTERVAL_DAY:
+    *default_start= INTERVAL_DAY_DIGITS;
+    *default_end= 0;
+    break;
+  case INTERVAL_DAY_HOUR:
+    *default_start= INTERVAL_DAY_DIGITS;
+    *default_end= INTERVAL_HOUR_DIGITS;
+    break;
+  case INTERVAL_DAY_MINUTE:
+    *default_start= INTERVAL_DAY_DIGITS;
+    *default_end= INTERVAL_MINUTE_DIGITS;
+    break;
+  case INTERVAL_DAY_SECOND:
+    *default_start= INTERVAL_DAY_DIGITS;
+    *default_end= INTERVAL_FRAC_DIGITS;
+    break;
+  case INTERVAL_HOUR:
+    *default_start= INTERVAL_HOUR_DIGITS;
+    *default_end= 0;
+    break;
+  case INTERVAL_HOUR_MINUTE:
+    *default_start= INTERVAL_HOUR_DIGITS;
+    *default_end= INTERVAL_MINUTE_DIGITS;
+    break;
+  case INTERVAL_HOUR_SECOND:
+    *default_start= INTERVAL_HOUR_DIGITS;
+    *default_end= INTERVAL_FRAC_DIGITS;
+    break;
+  case INTERVAL_MINUTE:
+    *default_start= INTERVAL_MINUTE_DIGITS;
+    *default_end= 0;
+    break;
+  case INTERVAL_MINUTE_SECOND:
+    *default_start= INTERVAL_MINUTE_DIGITS;
+    *default_end= INTERVAL_FRAC_DIGITS;
+    break;
+  case INTERVAL_SECOND:
+    *default_start= INTERVAL_SECOND_DIGITS;
+    *default_end= INTERVAL_FRAC_DIGITS;
+    break;
+  default:
+    *default_start= 0;
+    *default_end= 0;
+    break;
+  }
+}
+
+
+void mysql_time_to_interval(const MYSQL_TIME &from,
+                            bool subtract,
+                            INTERVAL *to)
+{
+  to->year= from.year;
+  to->month= from.month;
+  to->day= from.day;
+  to->hour= from.hour;
+  to->minute= from.minute;
+  to->second= from.second;
+  to->second_part= from.second_part;
+  to->neg= subtract ? !from.neg : from.neg;
+}
+
+const Type_handler *interval_type_to_handler_type(interval_type type)
+{
+  switch (type)
+  {
+  case INTERVAL_YEAR:
+    return &type_handler_interval_year;
+  case INTERVAL_QUARTER:
+    return &type_handler_interval_quarter;
+  case INTERVAL_MONTH:
+    return &type_handler_interval_month;
+  case INTERVAL_WEEK:
+    return &type_handler_interval_week;
+  case INTERVAL_DAY:
+    return &type_handler_interval_day;
+  case INTERVAL_HOUR:
+    return &type_handler_interval_hour;
+  case INTERVAL_MINUTE:
+    return &type_handler_interval_minute;
+  case INTERVAL_SECOND:
+    return &type_handler_interval_second;
+  case INTERVAL_MICROSECOND:
+    return &type_handler_interval_microsecond;
+
+  case INTERVAL_YEAR_MONTH:
+    return &type_handler_interval_year_month;
+  case INTERVAL_DAY_HOUR:
+    return &type_handler_interval_day_hour;
+  case INTERVAL_DAY_MINUTE:
+    return &type_handler_interval_day_minute;
+  case INTERVAL_DAY_SECOND:
+    return &type_handler_interval_day_second;
+  case INTERVAL_HOUR_MINUTE:
+    return &type_handler_interval_hour_minute;
+  case INTERVAL_HOUR_SECOND:
+    return &type_handler_interval_hour_second;
+  case INTERVAL_MINUTE_SECOND:
+    return &type_handler_interval_minute_second;
+  case INTERVAL_DAY_MICROSECOND:
+    return &type_handler_interval_day_microsecond;
+  case INTERVAL_HOUR_MICROSECOND:
+    return &type_handler_interval_hour_microsecond;
+  case INTERVAL_MINUTE_MICROSECOND:
+    return &type_handler_interval_minute_microsecond;
+  case INTERVAL_SECOND_MICROSECOND:
+    return &type_handler_interval_second_microsecond;
+
+  case INTERVAL_LAST:
+  default:
+    return nullptr; // or handle as an error
   }
 }

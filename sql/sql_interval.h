@@ -60,26 +60,26 @@ constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
 };
 
 const LEX_CSTRING interval_type_names[INTERVAL_LAST] = {
-  {STRING_WITH_LEN("year")},
-  {STRING_WITH_LEN("quarter")},
-  {STRING_WITH_LEN("month")},
-  {STRING_WITH_LEN("week")},
-  {STRING_WITH_LEN("day")},
-  {STRING_WITH_LEN("hour")},
-  {STRING_WITH_LEN("minute")},
-  {STRING_WITH_LEN("second")},
-  {STRING_WITH_LEN("microsecond")},
-  {STRING_WITH_LEN("year to month")},
-  {STRING_WITH_LEN("day to hour")},
-  {STRING_WITH_LEN("day to minute")},
-  {STRING_WITH_LEN("day to second")},
-  {STRING_WITH_LEN("hour to minute")},
-  {STRING_WITH_LEN("hour to second")},
-  {STRING_WITH_LEN("minute to second")},
-  {STRING_WITH_LEN("day to microsecond")},
-  {STRING_WITH_LEN("hour to microsecond")},
-  {STRING_WITH_LEN("minute to microsecond")},
-  {STRING_WITH_LEN("second to microsecond")}
+  {STRING_WITH_LEN("YEAR")},
+  {STRING_WITH_LEN("QUARTER")},
+  {STRING_WITH_LEN("MONTH")},
+  {STRING_WITH_LEN("WEEK")},
+  {STRING_WITH_LEN("DAY")},
+  {STRING_WITH_LEN("HOUR")},
+  {STRING_WITH_LEN("MINUTE")},
+  {STRING_WITH_LEN("SECOND")},
+  {STRING_WITH_LEN("MICROSECOND")},
+  {STRING_WITH_LEN("YEAR TO MONTH")},
+  {STRING_WITH_LEN("DAY TO HOUR")},
+  {STRING_WITH_LEN("DAY TO MINUTE")},
+  {STRING_WITH_LEN("DAY TO SECOND")},
+  {STRING_WITH_LEN("HOUR TO MINUTE")},
+  {STRING_WITH_LEN("HOUR TO SECOND")},
+  {STRING_WITH_LEN("MINUTE TO SECOND")},
+  {STRING_WITH_LEN("DAY TO MICROSECOND")},
+  {STRING_WITH_LEN("HOUR TO MICROSECOND")},
+  {STRING_WITH_LEN("MINUTE TO MICROSECOND")},
+  {STRING_WITH_LEN("SECOND TO MICROSECOND")}
 };
 
 class Interval;
@@ -96,8 +96,8 @@ public:
   enum interval_type m_interval_type;
   uint8 start_prec;
   uint8 end_prec;
-
-  Interval();
+  Interval(const Interval& other);
+  Interval& operator=(const Interval& other);  Interval();
   Interval(const char *str, size_t length,
                      enum interval_type itype, CHARSET_INFO *cs, uint8 start_prec, uint8 end_prec);
   Interval(const Sec6 &sec6,enum interval_type itype, uint8 start_prec, uint8 end_prec);
@@ -163,7 +163,7 @@ public:
 
     double to_double() const;
 
-    String *to_string(String *str, uint dec) const;
+    String *to_string(String *str, uint dec, bool append_mode) const;
 
     my_decimal *to_decimal(my_decimal *dec) const;
 
@@ -175,6 +175,7 @@ public:
 
     int cmp(const Interval &other) const;
 
+    void toggle_sign();
 };
 
 int str_to_interval(const char *str, size_t length, Interval *to,
@@ -196,4 +197,11 @@ size_t interval_to_string(const Interval *iv, enum interval_type itype,
                               char *buf, size_t buf_len);
 
 uint8 interval_default_length(enum interval_type type);
+
+void get_interval_default_precision(interval_type type, uint8 *default_start, uint8 *default_end);
+
+void mysql_time_to_interval(const MYSQL_TIME &from,
+                            bool subtract,
+                            INTERVAL *to);
+const Type_handler *interval_type_to_handler_type(interval_type type);
 #endif  // SQL_INTERVAL_H

@@ -1702,7 +1702,7 @@ public:
   Item* create_item(THD *thd) override;
   void value_to_item(uint pos, Item *item) override;
   const Type_handler *type_handler() const  override
-  { return &type_handler_interval_DDhhmmssff; }
+  { return &type_handler_interval_common; }
 };
 
 

@@ -5644,80 +5644,133 @@ public:
   Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
+
 class Item_interval_literal : public Item_literal
 {
-  Interval m_value;
 public:
+  Interval m_value;
+
   Item_interval_literal(THD *thd)
-   : Item_literal(thd)
+    : Item_literal(thd)
   {
-    collation = DTCollation_numeric();
+    collation= DTCollation_numeric();
   }
 
-  Item_interval_literal(THD *thd, const Interval &value, decimal_digits_t dec)
-   : Item_literal(thd),
-     m_value(value)
+
+  Item_interval_literal(THD *thd, const Interval *value, decimal_digits_t dec)
+    : Item_literal(thd),
+      m_value(*value)
   {
-    collation = DTCollation_numeric();
-    decimals = dec;
+    collation= DTCollation_numeric();
+    decimals= dec;
   }
+
 
   const Type_handler *type_handler() const override
-  { return &type_handler_interval_DDhhmmssff; }
+  {
+    return interval_type_to_handler_type(m_value.m_interval_type);
+  }
+
 
   void print(String *str, enum_query_type query_type) override
   {
     str->append(STRING_WITH_LEN("INTERVAL '"));
-    m_value.to_string(str, decimals);
+    m_value.to_string(str, decimals, true);
     str->append(STRING_WITH_LEN("' "));
+    str->append(interval_type_names[m_value.m_interval_type].str,
+                interval_type_names[m_value.m_interval_type].length);
   }
+
+
   int save_in_field(Field *field, bool) override
   {
     Interval_native native(m_value, decimals);
     return native.save_in_field(field, decimals);
   }
+
+
   bool val_bool() override
   {
     return m_value.to_bool();
   }
+
+
   longlong val_int() override
   {
     return m_value.to_longlong();
   }
+
 
   double val_real() override
   {
     return m_value.to_double();
   }
 
+
   String *val_str(String *to) override
   {
-    return m_value.to_string(to, decimals);
+    return m_value.to_string(to, decimals, false);
   }
+
 
   my_decimal *val_decimal(my_decimal *to) override
   {
     return m_value.to_decimal(to);
   }
 
+
   bool val_native(THD *thd, Native *to) override
   {
     return m_value.to_native(to, decimals);
   }
 
-  const Interval &value() const { return m_value; }
-  void set_value(const Interval &value) { m_value = value; }
-  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+
+  const Interval &value() const
+  {
+    return m_value;
+  }
+
+
+  void set_value(const Interval &value)
+  {
+    m_value= value;
+  }
+
+
+  Item *do_build_clone(THD *thd) const override
+  {
+    return get_copy(thd);
+  }
+
 
   Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_interval_literal>(thd, this); }
+  {
+    return get_item_copy<Item_interval_literal>(thd, this);
+  }
+
+
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
-    /* Intervals aren't directly convertible to dates */
-    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    ltime->year= static_cast<unsigned int>(m_value.year);
+    ltime->month= static_cast<unsigned int>(m_value.month);
+    ltime->day= static_cast<unsigned int>(m_value.day);
+    ltime->hour= static_cast<unsigned int>(m_value.hour);
+    ltime->minute= static_cast<unsigned int>(m_value.minute);
+    ltime->second= static_cast<unsigned int>(m_value.second);
+    ltime->second_part= static_cast<unsigned long>(m_value.second_part);
+    ltime->neg= static_cast<my_bool>(m_value.neg);
+    ltime->time_type= static_cast<enum enum_mysql_timestamp_type>(m_value.m_interval_type);
     return false;
   }
+
+
+  Item *neg(THD *thd) override
+  {
+    m_value.toggle_sign();
+    return this;
+  }
 };
+
 
 class Used_tables_and_const_cache
 {
@@ -7988,7 +8041,7 @@ class Item_cache_interval : public Item_cache
   Interval_native m_native;
 public:
   Item_cache_interval(THD *thd)
-   : Item_cache(thd, &type_handler_interval_DDhhmmssff) { }
+   : Item_cache(thd, &type_handler_interval_common) { }
 
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_interval>(thd, this); }
@@ -8015,7 +8068,7 @@ public:
 
   String *val_str(String *to) override
   {
-    return has_value() ? Interval(m_native).to_string(to, decimals) : nullptr;
+    return has_value() ? Interval(m_native).to_string(to, decimals, false) : nullptr;
   }
 
   my_decimal *val_decimal(my_decimal *to) override

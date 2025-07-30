@@ -1231,6 +1231,65 @@ my_decimal *Item_func_plus::decimal_op(my_decimal *decimal_value)
   return 0;
 }
 
+
+bool Item_func_plus::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+{
+  const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+  if (th0)
+  {
+    args[1]->type_handler()->Item_temporal_add_interval(thd, args[1], args[0],
+                                                        ltime, false);
+  }
+  else
+  {
+    args[0]->type_handler()->Item_temporal_add_interval(thd, args[0], args[1],
+                                                        ltime, false);
+  }
+  return false;
+}
+
+
+bool Item_func_plus::time_op(THD *thd, MYSQL_TIME *ltime)
+{
+  const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+  if (th0)
+  {
+    args[1]->type_handler()->Item_temporal_add_interval(thd, args[1], args[0],
+                                                        ltime, false);
+  }
+  else
+  {
+    args[0]->type_handler()->Item_temporal_add_interval(thd, args[0], args[1],
+                                                        ltime, false);
+  }
+  return false;
+}
+
+
+bool Item_func_plus::native_op(THD *thd, Native *to)
+{
+  MYSQL_TIME ltime{};
+  const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+  if (th0)
+  {
+    args[1]->type_handler()->Item_temporal_add_interval(thd, args[1], args[0],
+                                                        &ltime, false);
+  }
+  else
+  {
+    args[0]->type_handler()->Item_temporal_add_interval(thd, args[0], args[1],
+                                                        &ltime, false);
+  }
+
+  uint err_code= 0;
+  Timestamp_or_zero_datetime tm(thd, &ltime, &err_code);
+  if (err_code)
+  {
+    tm= Timestamp_or_zero_datetime::zero();
+  }
+  return tm.to_native(to, decimals);
+}
+
 /**
   Set precision of results for additive operations (+ and -)
 */
@@ -1391,6 +1450,64 @@ my_decimal *Item_func_minus::decimal_op(my_decimal *decimal_value)
   return 0;
 }
 
+
+bool Item_func_minus::date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+{
+  const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+  if (th0)
+  {
+    args[1]->type_handler()->Item_temporal_add_interval(thd, args[1], args[0],
+                                                        ltime, true);
+  }
+  else
+  {
+    args[0]->type_handler()->Item_temporal_add_interval(thd, args[0], args[1],
+                                                        ltime, true);
+  }
+  return false;
+}
+
+
+bool Item_func_minus::time_op(THD *thd, MYSQL_TIME *ltime)
+{
+  const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+  if (th0)
+  {
+    args[1]->type_handler()->Item_temporal_add_interval(thd, args[1], args[0],
+                                                        ltime, true);
+  }
+  else
+  {
+    args[0]->type_handler()->Item_temporal_add_interval(thd, args[0], args[1],
+                                                        ltime, true);
+  }
+  return false;
+}
+
+
+bool Item_func_minus::native_op(THD *thd, Native *to)
+{
+  MYSQL_TIME ltime{};
+  const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+  if (th0)
+  {
+    args[1]->type_handler()->Item_temporal_add_interval(thd, args[1], args[0],
+                                                        &ltime, true);
+  }
+  else
+  {
+    args[0]->type_handler()->Item_temporal_add_interval(thd, args[0], args[1],
+                                                        &ltime, true);
+  }
+
+  uint err_code= 0;
+  Timestamp_or_zero_datetime tm(thd, &ltime, &err_code);
+  if (err_code)
+  {
+    tm= Timestamp_or_zero_datetime::zero();
+  }
+  return tm.to_native(to, decimals);
+}
 
 double Item_func_mul::real_op()
 {
@@ -3668,6 +3785,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
           break;
         case ROW_RESULT:
         case TIME_RESULT:
+        case INTERVAL_RESULT:
           DBUG_ASSERT(0);          // This case should never be chosen
           break;
         }
@@ -3744,6 +3862,7 @@ bool udf_handler::get_arguments()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
+    case INTERVAL_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       break;
     }
@@ -4572,6 +4691,7 @@ longlong Item_func_benchmark::val_int()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
+    case INTERVAL_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       return 0;
     }
@@ -4811,6 +4931,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     set_handler(&type_handler_newdecimal);
     break;
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     set_handler(&type_handler_row);
     break;
@@ -5034,6 +5155,7 @@ double user_var_entry::val_real(bool *null_value)
     return my_atof(value);                      // This is null terminated
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5062,6 +5184,7 @@ longlong user_var_entry::val_int(bool *null_value) const
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5096,6 +5219,7 @@ String *user_var_entry::val_str(bool *null_value, String *str,
     break;
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5124,6 +5248,7 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5182,6 +5307,7 @@ Item_func_set_user_var::check(bool use_result_field)
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5216,6 +5342,7 @@ void Item_func_set_user_var::save_item_result(Item *item)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5298,6 +5425,7 @@ Item_func_set_user_var::update()
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5760,6 +5888,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
+    case INTERVAL_RESULT:
       DBUG_ASSERT(0);                // This case should never be chosen
       break;
     }

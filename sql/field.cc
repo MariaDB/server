@@ -7511,6 +7511,24 @@ int Field_interval::get_INTERVAL(Interval *iv, const uchar *ptr) const
 }
 
 
+bool Field_interval::get_date(MYSQL_TIME *to, date_mode_t mode)
+{
+  Interval iv;
+  get_INTERVAL(&iv);
+
+  to->year= static_cast<unsigned int>(iv.year);
+  to->month= static_cast<unsigned int>(iv.month);
+  to->day= static_cast<unsigned int>(iv.day);
+  to->hour= static_cast<unsigned int>(iv.hour);
+  to->minute= static_cast<unsigned int>(iv.minute);
+  to->second= static_cast<unsigned int>(iv.second);
+  to->second_part= static_cast<unsigned long>(iv.second_part);
+  to->neg= static_cast<my_bool>(iv.neg);
+  to->time_type= static_cast<enum enum_mysql_timestamp_type>(m_interval_type);
+  return false;
+}
+
+
 longlong Field_interval::val_int()
 {
   my_timeval tm{};
@@ -10218,6 +10236,7 @@ Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
             Data_type_compatibility::OK :
             Data_type_compatibility::INCOMPATIBLE_COLLATION);
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }

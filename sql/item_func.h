@@ -1230,6 +1230,20 @@ public:
   }
   void fix_length_and_dec_temporal(bool downcast_decimal_to_int)
   {
+    const Type_handler_interval_common* th0 = dynamic_cast<const Type_handler_interval_common*>(args[0]->type_handler());
+    const Type_handler_interval_common* th1 = dynamic_cast<const Type_handler_interval_common*>(args[1]->type_handler());
+    if (th0 || th1)
+    {
+      if (th0)
+      {
+        set_handler(th0->determine_result_type(args[0]->type_handler(), args[1]->type_handler()));
+      }
+      else
+      {
+        set_handler(th0->determine_result_type(args[1]->type_handler(), args[0]->type_handler()));
+      }
+      return;
+    }
     set_handler(&type_handler_newdecimal);
     fix_length_and_dec_decimal();
     if (decimals == 0 && downcast_decimal_to_int)
@@ -1695,6 +1709,9 @@ public:
   longlong int_op() override;
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool native_op(THD *thd, Native *to) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_plus>(thd, this); }
 };
@@ -1717,6 +1734,9 @@ public:
   longlong int_op() override;
   double real_op() override;
   my_decimal *decimal_op(my_decimal *) override;
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool time_op(THD *thd, MYSQL_TIME *ltime) override;
+  bool native_op(THD *thd, Native *to) override;
   bool fix_length_and_dec(THD *thd) override;
   void fix_unsigned_flag();
   void fix_length_and_dec_double()

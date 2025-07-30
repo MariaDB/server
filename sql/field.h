@@ -4145,6 +4145,8 @@ public:
   int get_INTERVAL(Interval *iv);
   int get_INTERVAL(Interval *iv, const uchar *ptr) const;
 
+  bool get_date(MYSQL_TIME *to, date_mode_t mode) override;
+
   longlong val_int() override;
   double val_real() override;
   String *val_str(String *, String *) override;
@@ -4152,11 +4154,11 @@ public:
   bool val_native(Native *) override;
 
   const Type_handler *type_handler() const override {
-    return &type_handler_interval_DDhhmmssff;
+    return interval_type_to_handler_type(m_interval_type);
   }
   enum_field_types type() const override { return MYSQL_TYPE_INTERVAL; }
   uint pack_length() const override
-  {  return Type_handler_interval_DDhhmmssff::hires_bytes(end_prec); }
+  {  return Type_handler_interval_common::hires_bytes(end_prec); }
 
   void sql_type(String &str) const override;
 
@@ -4180,6 +4182,7 @@ public:
   void sort_string(uchar *, uint) override;
 
   int reset() override;
+
 };
 
 static inline Field_timestamp *

@@ -561,6 +561,7 @@ void Item::print_value(String *str)
       str->append(*ptr);
       break;
     case ROW_RESULT:
+    case INTERVAL_RESULT:
       DBUG_ASSERT(0);
     }
   }
@@ -4827,6 +4828,7 @@ double Item_param::PValue::val_real(const Type_std_attributes *attr) const
     */
     return TIME_to_double(&time);
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4848,6 +4850,7 @@ longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
   case TIME_RESULT:
     return (longlong) TIME_to_ulonglong(&time);
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4872,6 +4875,7 @@ my_decimal *Item_param::PValue::val_decimal(my_decimal *dec,
   case TIME_RESULT:
     return TIME_to_my_decimal(&time, dec);
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4904,6 +4908,7 @@ String *Item_param::PValue::val_str(String *str,
     str->set_charset(&my_charset_bin);
     return str;
   }
+  case INTERVAL_RESULT:
   case ROW_RESULT:
     DBUG_ASSERT(0);
     break;
@@ -4981,6 +4986,7 @@ const String *Item_param::value_query_val_str(THD *thd, String *str) const
       return str;
     }
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -5081,6 +5087,7 @@ Item *Item_param::value_clone_item(THD *thd) const
   case TIME_RESULT:
     break;
   case ROW_RESULT:
+  case INTERVAL_RESULT:
     DBUG_ASSERT(0);
     break;
   }
