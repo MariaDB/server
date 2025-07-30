@@ -10,16 +10,13 @@
 --connect (inactive_master, 127.0.0.1, root, , , $SERVER_MYPORT_3)
 --connect (          slave, 127.0.0.1, root, , , $SERVER_MYPORT_1)
 
---replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER TO
+evalp CHANGE MASTER TO master_ssl_verify_server_cert=0,
   master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root';
 START SLAVE SQL_THREAD;
---replace_result $SERVER_MYPORT_3 MYPORT_3
-eval CHANGE MASTER 'inactive' TO
+evalp CHANGE MASTER 'inactive' TO
   master_host='127.0.0.1', master_port=$SERVER_MYPORT_3;
 # wait for the active default '' connection only
 --source include/wait_for_slave_sql_to_start.inc
-
 
 --echo # Control State
 --source include/show_slave_status.inc
@@ -28,7 +25,6 @@ eval CHANGE MASTER 'inactive' TO
 --echo \$MYSQL_DUMP --compact --dump-slave --include-master-host-port test
 --replace_result $SERVER_MYPORT_2 MYPORT_2 $SERVER_MYPORT_3 MYPORT_3
 --exec  $MYSQL_DUMP --compact --dump-slave --include-master-host-port test
-
 
 # The 'inactive' connection should remain stopped
 # while the active '' connection should restart.
@@ -45,7 +41,6 @@ eval CHANGE MASTER 'inactive' TO
 --exec  $MYSQL_DUMP --compact --dump-slave no_such_db
 --source include/wait_for_slave_sql_to_start.inc
 --source include/show_slave_status.inc
-
 
 --echo # Cleanup
 STOP SLAVE SQL_THREAD;
