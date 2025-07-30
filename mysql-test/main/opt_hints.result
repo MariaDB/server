@@ -1562,3 +1562,36 @@ DROP VIEW v5;
 #
 # MDEV-37260 Apply hint to query block inside view from an outer query
 #
+CREATE TABLE t4 (
+pk INT PRIMARY KEY,
+a INT,
+b INT,
+c INT,
+filler varchar(100),
+key(a,b,c)
+) engine=myisam;
+INSERT INTO t4 SELECT seq, seq, seq, seq, 'hello' FROM seq_1_to_10000;
+CREATE VIEW v5 AS SELECT /*+ QB_NAME(view_qb) */ * FROM t4 WHERE a < 10 AND (b+1>3);
+EXPLAIN SELECT * from v5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	a	a	5	NULL	8	Using index condition
+FLUSH STATUS;
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_MATCH	0
+SELECT /*+ QB_NAME(view_qb, v5) NO_ICP(t4@v5) */ * FROM v5;
+pk	a	b	c	filler
+3	3	3	3	hello
+4	4	4	4	hello
+5	5	5	5	hello
+6	6	6	6	hello
+7	7	7	7	hello
+8	8	8	8	hello
+9	9	9	9	hello
+Warnings:
+Warning	4220	Query block name `v5` is not found for NO_ICP hint
+SELECT * FROM information_schema.session_status WHERE variable_name= 'handler_icp_match';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_ICP_MATCH	7
+DROP TABLE t4;
+DROP VIEW v5;

@@ -361,6 +361,12 @@ private:
     using TOKEN::TOKEN;
   };
 
+  class Comma: public TOKEN<Parser, TokenID::tCOMMA>
+  {
+  public:
+    using TOKEN::TOKEN;
+  };
+
 
   // Rules consisting of multiple choices of tokens
 
@@ -635,11 +641,19 @@ private:
   };
 
 
+  class View_spec: public AND2<Parser, Comma, Table_name>
+  {
+  public:
+    using AND2::AND2;
+    using AND2::operator=;
+  };
+
+
   // qb_name_hint ::= QB_NAME ( query_block_name )
   class Qb_name_hint: public AND4<Parser,
                                   Keyword_QB_NAME,
                                   LParen,
-                                  Query_block_name,
+                                  AND2<Parser, Query_block_name, OPT<Parser, View_spec> >,
                                   RParen>
   {
   public:
