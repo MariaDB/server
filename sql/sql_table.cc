@@ -5948,7 +5948,9 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             lock on this table. The table will be closed by
             close_thread_table() at the end of this branch.
           */
-          open_res= open_table(thd, table, &ot_ctx);
+          open_res= thd->open_temporary_table(table);
+          if (!open_res && !table->table)
+            open_res= open_table(thd, table, &ot_ctx);
           /* Restore */
           table->open_strategy= save_open_strategy;
           if (open_res)
@@ -5992,13 +5994,15 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
           if (new_table)
           {
-            DBUG_ASSERT(thd->open_tables == table->table);
+            bool is_tmp_table= table->table->s->tmp_table != NO_TMP_TABLE;
+            DBUG_ASSERT(thd->open_tables == table->table || is_tmp_table);
             /*
               When opening the table, we ignored the locked tables
               (MYSQL_OPEN_GET_NEW_TABLE). Now we can close the table
               without risking to close some locked table.
             */
-            close_thread_table(thd, &thd->open_tables);
+            if (!is_tmp_table)
+              close_thread_table(thd, &thd->open_tables);
           }
         }
       }
