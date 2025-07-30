@@ -447,7 +447,7 @@ static struct my_option my_long_options[] =
   {"ignore-database", OPT_IGNORE_DATABASE,
    "Do not dump the specified database. To specify more than one database to ignore, "
    "use the directive multiple times, once for each database. Only takes effect "
-   "when used together with --all-databases|-A or --wildcards|-L --databases.",
+   "when used together with --all-databases or --wildcards --databases.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-table-data", OPT_IGNORE_DATA,
    "Do not dump the specified table data. To specify more than one table "
