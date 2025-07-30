@@ -7647,6 +7647,12 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
         change_rpl_status(RPL_ACTIVE_SLAVE,RPL_LOST_SOLDIER);
       break;
     }
+    DBUG_EXECUTE_IF("sync_master_retry",
+      debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL master_retry_sleep WAIT_FOR master_retry_continue"
+      ));
+    );
+
     slave_sleep(thd,mi->connect_retry,io_slave_killed, mi);
   }
 
