@@ -1,0 +1,94 @@
+#
+# MENT-2297: Inconsistency detected - create sequence
+#
+# Test checks when two concurrent sequence queries executed on applier node
+# with one granted X-lock then another one will fail with 
+# ER_LOCK_WAIT_TIMEOUT.
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+#
+# Verify there are 3 nodes in galera cluster.
+#
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+
+#
+# Create a sequence table on node1.
+#
+--connection node_1
+CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE TABLE seq_test;
+
+
+--connection node_3
+--let $default_wsrep_applier_retry_count = `SELECT @@global.wsrep_applier_retry_count`
+
+# Stop the applier after writing a row into the child table.
+SET GLOBAL DEBUG_DBUG = 'd,seq_after_upgrade_lock';
+
+# Insert a child row that will be applied on node #3, should
+# grab table-level X-lock and wait.
+--connection node_1
+SELECT NEXT VALUE FOR seq_test;
+
+--connection node_3
+SET DEBUG_SYNC = 'now WAIT_FOR sync.seq_after_upgrade_lock_reached';
+
+# Now that the applier has hit the global sync point wait, reset it
+# so that the upcoming insert avoids it.
+SET GLOBAL DEBUG_DBUG = '';
+
+# Don't wait for applied insert to commit.
+SET wsrep_sync_wait = 0;
+
+
+# Execute another query on node3 which will fail with
+# ER_LOCK_WAIT_TIMEOUT as other query has taken exclusive
+# lock and blocked.
+--connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3a
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT NEXT VALUE FOR seq_test;
+
+
+--connection node_3
+SET DEBUG_SYNC="now SIGNAL signal.seq_after_upgrade_lock";
+SET DEBUG_SYNC='RESET';
+
+
+#
+# Verify there are 3 nodes in galera cluster.
+#
+--sleep 2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+
+#
+# Cleanup
+#
+--connection node_3
+# Restore original variable values.
+--eval SET @@global.wsrep_applier_retry_count= $default_wsrep_applier_retry_count
+--source ../galera/include/auto_increment_offset_restore.inc
+
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = '';
+DROP SEQUENCE seq_test;
+
+--source include/galera_end.inc

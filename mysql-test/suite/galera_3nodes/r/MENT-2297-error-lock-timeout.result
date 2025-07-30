@@ -1,0 +1,43 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE TABLE seq_test;
+Table	Create Table
+seq_test	CREATE TABLE `seq_test` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=InnoDB SEQUENCE=1
+connection node_3;
+SET GLOBAL DEBUG_DBUG = 'd,seq_after_upgrade_lock';
+connection node_1;
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+1
+connection node_3;
+SET DEBUG_SYNC = 'now WAIT_FOR sync.seq_after_upgrade_lock_reached';
+SET GLOBAL DEBUG_DBUG = '';
+SET wsrep_sync_wait = 0;
+connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3a;
+SELECT NEXT VALUE FOR seq_test;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection node_3;
+SET DEBUG_SYNC="now SIGNAL signal.seq_after_upgrade_lock";
+SET DEBUG_SYNC='RESET';
+connection node_3;
+SET @@global.wsrep_applier_retry_count= 0;
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL DEBUG_DBUG = '';
+DROP SEQUENCE seq_test;
+disconnect node_2;
+disconnect node_1;
