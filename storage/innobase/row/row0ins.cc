@@ -2619,6 +2619,25 @@ static uint64_t row_parse_int(const byte *data, size_t len,
   return 0;
 }
 
+/** Write the persistent auto increment value on clustered
+index root page.
+@param index 	clustered index
+@param auto_inc	next available AUTO_INCREMENT value
+@param mode	latch mode of the b-tree
+@param mtr	mini-transaction */
+static void row_ins_write_autoinc(const dict_index_t *index,
+				  uint64_t auto_inc,
+				  btr_latch_mode mode,
+				  mtr_t *mtr)
+{
+  if (auto_inc)
+  {
+    buf_block_t* root = mtr->at_savepoint(mode != BTR_MODIFY_ROOT_AND_LEAF);
+    ut_ad(index->page == root->page.id().page_no());
+    page_set_autoinc(root, auto_inc, mtr, false);
+  }
+}
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2729,13 +2748,6 @@ err_exit:
 		goto func_exit;
 	}
 
-	if (auto_inc) {
-		buf_block_t* root
-			= mtr.at_savepoint(mode != BTR_MODIFY_ROOT_AND_LEAF);
-		ut_ad(index->page == root->page.id().page_no());
-		page_set_autoinc(root, auto_inc, &mtr, false);
-	}
-
 	btr_pcur_get_btr_cur(&pcur)->thr = thr;
 
 #ifdef UNIV_DEBUG
@@ -2819,6 +2831,8 @@ avoid_bulk:
 				goto avoid_bulk;
 			}
 
+			row_ins_write_autoinc(index, auto_inc, mode,
+					      &mtr);
 			export_vars.innodb_bulk_operations++;
 			goto err_exit;
 		}
@@ -2854,6 +2868,7 @@ avoid_bulk:
 	}
 
 row_level_insert:
+	row_ins_write_autoinc(index, auto_inc, mode, &mtr);
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 

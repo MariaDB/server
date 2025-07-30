@@ -3341,6 +3341,7 @@ set_start_lsn:
 			}
 
 			mtr.discard_modifications();
+			block->page.lock.x_lock();
 			mtr.commit();
 
 			fil_space_t* s = space
