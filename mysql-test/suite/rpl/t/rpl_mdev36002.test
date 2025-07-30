@@ -1,21 +1,21 @@
 #
 # MDEV-36002: --master-retry-count=0 can still stop
 #
-# master_retry_count is set as 0 or 10 and master_connect_retry as 1 second. The master will be 
+# master_retry_count is set as 0 or 100 and master_connect_retry as 1 second. The master will be 
 # shutdown for 5 seconds, during this time the replica should attempt to reconnect to the 
 # master continuously. After 5 seconds, the master will be restarted, and the reconnection 
 # from the replica should success, which means it's Slave_IO_Running status should be Yes.
 #
 
-
+# stop the slave
 --let $rpl_skip_start_slave= 1
 --source include/master-slave.inc
 
 --connection slave 
-
+SET DEBUG_SYNC= 'RESET';
 SET @saved_dbug = @@GLOBAL.debug_dbug;
-
-SET GLOBAL debug_dbug = "d,set_slave_err_count_near_overflow";
+SET GLOBAL debug_dbug = "+d,set_slave_err_count_near_overflow";
+SET DEBUG_SYNC= 'after_failed_limit_times_to_reconnect SIGNAL fail_connect WAIT_FOR try_again';
 
 CHANGE MASTER TO 
    MASTER_CONNECT_RETRY = 1;
@@ -25,18 +25,26 @@ CHANGE MASTER TO
 --let $rpl_server_number = 1
 --source include/rpl_stop_server.inc
 
-# during sleep, the slave should try to reconnect to the master continuously
---sleep 5
+--connection slave1
+
+# check slave io thread state which should be Connecting
+--let $slave_io_running = query_get_value("SHOW SLAVE STATUS", Slave_IO_Running, 1)
+--echo Slave_IO_Running: $slave_io_running
 
 --let $rpl_server_number= 1
 --source include/rpl_start_server.inc
 
+SET DEBUG_SYNC= 'now SIGNAL try_again'; 
+SET DEBUG_SYNC= 'RESET';
+
 SET @@GLOBAL.debug_dbug = @saved_dbug;
 
+# wait until the slave reconnect to the master successfully
 --connection master
 --sync_slave_with_master
 
 # the slave reconnecting to the master should success
+--connection slave
 --let $slave_io_running = query_get_value("SHOW SLAVE STATUS", Slave_IO_Running, 1)
 --echo Slave_IO_Running: $slave_io_running
 
