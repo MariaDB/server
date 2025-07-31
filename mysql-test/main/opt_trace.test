@@ -1214,7 +1214,7 @@ select
 from t3;
 
 --echo # The trace must be empty:
-select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record')) as 'must be NULL'
     from information_schema.optimizer_trace;
 --echo # The trace must be empty:
 select json_detailed(json_extract(trace, '$**.join_execution'))
