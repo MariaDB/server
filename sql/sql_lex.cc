@@ -3889,7 +3889,7 @@ void st_select_lex::print_limit(THD *thd,
                                 enum_query_type query_type)
 {
   SELECT_LEX_UNIT *unit= master_unit();
-  Item_subselect *item= unit->item;
+  Item_subselect *item= unit ? unit->item : nullptr;
 
   if (item && unit->global_parameters() == this)
   {

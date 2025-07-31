@@ -32071,7 +32071,7 @@ void st_select_lex::print_item_list(THD *thd, String *str,
     else
       str->append(',');
 
-    if ((is_subquery_function() && !item->is_explicit_name()) ||
+    if ((master_unit() && is_subquery_function() && !item->is_explicit_name()) ||
         !item->name.str)
     {
       /*
