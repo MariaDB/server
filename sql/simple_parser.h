@@ -387,12 +387,16 @@ protected:
     TokenParser(TokenParser && rhs) = default;
     TokenParser & operator=(TokenParser && rhs) = default;
 #endif
-    TokenParser(const class PARSER::Token &tok)
-     :PARSER::Token(tok)
-    { }
+    TokenParser(const class PARSER::Token &tok) = delete;
+    TokenParser & operator=(const class PARSER::Token &tok) = delete;
     explicit TokenParser(class PARSER::Token &&tok)
      :PARSER::Token(std::move(tok))
     { }
+    TokenParser & operator=(const class PARSER::Token &&tok)
+    {
+      PARSER::Token::operator=(std::move(tok));
+      return *this;
+    }
     TokenParser(PARSER *p)
      :PARSER::Token(p->token(tid))
     { }

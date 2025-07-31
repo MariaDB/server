@@ -268,41 +268,24 @@ private:
 
   // Rules consisting of a single token
 
-  class TokenAT: public TokenParser<Parser, TokenID::tAT>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using TokenAT= TokenParser<Parser, TokenID::tAT>;
 
-  class TokenEOF: public TokenParser<Parser, TokenID::tEOF>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using TokenEOF= TokenParser<Parser, TokenID::tEOF>;
 
-  class Keyword_QB_NAME: public TokenParser<Parser, TokenID::keyword_QB_NAME>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using Keyword_QB_NAME= TokenParser<Parser, TokenID::keyword_QB_NAME>;
 
-  class Keyword_MAX_EXECUTION_TIME:
-      public TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using Keyword_MAX_EXECUTION_TIME=
+          TokenParser<Parser, TokenID::keyword_MAX_EXECUTION_TIME>;
 
-  class Keyword_SUBQUERY: public TokenParser<Parser, TokenID::keyword_SUBQUERY>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using Keyword_SUBQUERY= TokenParser<Parser, TokenID::keyword_SUBQUERY>;
 
   class Identifier: public TokenParser<Parser, TokenID::tIDENT>
   {
   public:
     using TokenParser::TokenParser;
+    Identifier(Token &&tok)
+     :TokenParser(std::move(tok))
+    { }
     Lex_ident_cli_st to_ident_cli() const
     {
       Lex_ident_cli_st cli;
@@ -339,17 +322,9 @@ private:
     }
   };
 
-  class LParen: public TokenParser<Parser, TokenID::tLPAREN>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using LParen= TokenParser<Parser, TokenID::tLPAREN>;
 
-  class RParen: public TokenParser<Parser, TokenID::tRPAREN>
-  {
-  public:
-    using TokenParser::TokenParser;
-  };
+  using RParen= TokenParser<Parser, TokenID::tRPAREN>;
 
 
   // Rules consisting of multiple choices of tokens
