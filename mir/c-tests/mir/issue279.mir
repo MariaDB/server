@@ -1,0 +1,82 @@
+mod: module
+malloc_proto: proto p, i64:size
+import malloc
+box_nullable_proto: proto p, p, blk0:8(arg0)
+box_nullable:	func	p, p, blk0:8(arg0)
+	local	i64:exception, i64:si0, i64:sv0, i64:ti0, i64:ti1
+# 1 arg, 5 locals
+	alloca	sv0, 8
+L15:
+	mov	si0, sv0
+	mov	i64:(si0), i64:(arg0)
+L16:
+	mov	ti0, si0
+	mov	si0, 0
+	bf	L17, i8:(ti0)
+	call	malloc_proto, malloc, si0, 24
+	add	ti1, si0, 16
+	add	ti0, ti0, 4
+	mov	i32:(ti1), i32:(ti0)
+L17:
+L18:
+	mov	ti0, si0
+	ret	0, ti0
+	endfunc
+init_nullable_proto: proto p, p:this, i32:arg0
+init_nullable:	func	p, p:this, i32:arg0
+	local	i64:exception, i64:si0, i64:si1, i64:ti0, i64:ti1
+# 2 args, 5 locals
+L78:
+	mov	si0, this
+L79:
+	mov	si1, 1
+L80:
+	mov	ti0, si1
+	mov	ti1, si0
+	mov	i8:(ti1), ti0
+L81:
+	mov	si0, this
+L82:
+	mov	si1, arg0
+L83:
+	mov	ti0, si1
+	mov	ti1, si0
+	mov	i32:4(ti1), ti0
+L84:
+	ret	0
+	endfunc
+main:	func	i32
+	local	i64:exception, i64:si0, i64:ti0, i64:sv0
+# 0 args, 4 locals
+	alloca	sv0, 8
+L5:
+	mov	si0, 123
+L6:
+	mov	ti0, si0
+	mov	si0, sv0
+	mov	i64:(si0), 0
+	call	init_nullable_proto, init_nullable, exception, si0, ti0
+	bf	L7, exception
+	ret	exception
+L7:
+L8:
+	mov	ti0, si0
+	call	box_nullable_proto, box_nullable, exception, si0, blk0:8(ti0)
+	bf	L9, exception
+	ret	exception
+L9:
+L10:
+	mov	ti0, si0
+	bf	L11, ti0
+L12:
+	mov	si0, 0
+L13:
+	mov	ti0, si0
+	ret	ti0
+L11:
+	mov	si0, 1
+L14:
+	mov	ti0, si0
+	ret	ti0
+	endfunc
+endmodule

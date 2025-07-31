@@ -1,0 +1,18 @@
+M0:	module
+	forward la0, la1
+main:	func	i32, i32:argc
+	local	i64:a, i64:t
+	bge fail, argc, 2
+        mov t, la0
+	mov a, i64:(t)
+	jmp skip
+fail:   mov t, la1
+	mov a, i64:(t);
+skip:	jmpi a
+l1:     ret 1
+l0:	ret 0
+	endfunc
+la0:	lref l0
+la1:	lref l1
+	export	main
+	endmodule

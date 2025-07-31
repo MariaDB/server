@@ -1,0 +1,30 @@
+# Test for switch
+mc:       module
+	  import printf
+p_printf: proto p:fmt, ...
+p_f:	  proto i64, i64:i
+f:	  func i64, i64:i
+	  switch i, l0, l1, l2, l3, l4, l5, l6, l7, l8, l9
+l0:       jmp zero
+l1:       ret 43
+l2:       ret 44
+l3:       ret 45
+l4:       ret 46
+l5:       ret 47
+l6:       ret 48
+l7:       ret 49
+l8:       ret 50
+l9:       ret 51
+zero:	  ret 42
+	  endfunc
+main:  	  func i64
+	  local i64:i, i64:r
+	  mov i, 0
+loop: 
+          call p_f, f, r, i	  
+	  call p_printf, printf, "printf switch (%ld) = %ld\n", i, r
+	  add i, i, 1
+	  blt loop, i, 10
+          ret 0
+	  endfunc
+          endmodule

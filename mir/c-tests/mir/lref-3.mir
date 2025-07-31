@@ -1,0 +1,14 @@
+M0:	module
+e:      bss 8
+        export e
+	forward diff
+main:	func	i32, i32:argc
+	local	i64:a, i64:t
+l0:     mov t, diff
+	bf fail, i64:(t)
+l2:     ret 0
+fail:   ret 1
+	endfunc
+	export	main
+diff:	lref l0, l2
+	endmodule

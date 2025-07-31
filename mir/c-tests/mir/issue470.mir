@@ -1,0 +1,9 @@
+M0:	module
+main:	func i64
+	local	i64:num
+	mov num, 0x100000000
+	bfs l1, num
+	ret 1
+	l1: ret 2
+	endfunc
+	endmodule

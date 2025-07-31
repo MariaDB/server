@@ -550,7 +550,8 @@ enum ha_base_keytype {
 #define HA_ERR_ROLLBACK           200  /* Automatic rollback done */
 #define HA_ERR_LOCAL_TMP_SPACE_FULL   201
 #define HA_ERR_GLOBAL_TMP_SPACE_FULL  202
-#define HA_ERR_LAST               202  /* Copy of last error nr * */
+#define HA_ERR_SKIP_ROW           203
+#define HA_ERR_LAST               203  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

@@ -694,4 +694,11 @@ private:
   int m_unhandled_errors;
   uint first_error;
 };
+
+/**
+  Test NOT NULL constraint after BEFORE triggers
+*/
+bool not_null_fields_have_null_values(TABLE *table);
+
+bool no_need_to_skip_a_row(bool *skip_row_indicator);
 #endif /* SQL_BASE_INCLUDED */

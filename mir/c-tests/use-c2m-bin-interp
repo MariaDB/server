@@ -1,0 +1,2 @@
+# ! /bin/sh
+./c2m -bin $* && ./b2ctab <a.bmir >mir-ctab && gcc -O0 -DMIR_USE_INTERP -fno-tree-sra mir.o mir-gen.o mir-bin-driver.c -ldl -g && (./a.out;exit $?);code=$?; rm -f a.bmir mir-ctab && exit $code

@@ -1,0 +1,22 @@
+mc:       module
+	  import printf
+p_printf: proto p:fmt, ...
+p_f:	  proto i64, i64:el, ...
+f:	  func i64, i64:el, ...
+	  local i64:va, i64:a
+	  alloca va, 64
+	  alloca a, 16
+	  va_start va
+	  va_block_arg a, va, 16, 12
+	  add i64:8(a), i64:8(a), 18
+          ret i64:8(a)
+          endfunc
+main:  	  func i64
+	  local i64:r, i64:a
+	  alloca a, 16
+	  mov i64:8(a), 24
+          call p_f, f, r, 1, blk:16(a)
+	  call p_printf, printf, "printf %ld,%ld\n", i64:8(a), r
+          ret 0
+	  endfunc
+          endmodule

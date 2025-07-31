@@ -1,0 +1,12 @@
+# Call test
+m4:    module
+f:     func i32, i8:c1, i32:s1, i32:i1, i64:l1, f:f1, d:d1, i32:i2, i8:c2, i32:s2, i32:i3, i64:l2, f:f2, f:f3, f:f4, f:f5, f:f6, f:f7, f:f8, d:d2
+       ret l1
+       endfunc
+p:     proto i32, i8:c1, i32:s1, i32:i1, i64:l1, f:f1, d:d1, i32:i2, i8:c2, i32:s2, i32:i3, i64:l2, f:f2, f:f3, f:f4, f:f5, f:f6, f:f7, f:f8, d:d2
+call:  func i64
+       local i64:r
+       call p, f, r, 1000, 1000000, -1, 0, 1.0f, 2.0, 0, 2000, 2000000, -1, 0, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0
+       ret r
+       endfunc
+       endmodule

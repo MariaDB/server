@@ -1,0 +1,110 @@
+# test for long doubles
+m:		module
+		import printf, abort
+printf_p:	proto  p:fmt, ...
+abort_p:	proto
+main:		func i64
+		local d:s, ld:l, ld:l1, ld:l2, ld:r, i64:i, f:f, d:d
+		call printf_p, printf, "10.56: double = %.25E, long double = %.25LE\n", 10.56, 10.56L
+		dmov s, 10.0E200
+		ldmov l, 10.0E200L
+		dmul s, s, s
+		ldmul l, l, l
+		call printf_p, printf, "10.0E400: double = %E, long double = %LE\n", s, l
+		ldmov l1, 10.56E10L
+		ldmov l2, 3.3E10L
+ 		ldadd r, l1, l2
+		call printf_p, printf, "add: %.25LE\n", r
+		ldbeq O1, r, 1.3860000000000000000000000E+11L
+		call abort_p, abort
+O1:		ldsub r, l1, l2
+		call printf_p, printf, "sub: %.25LE\n", r
+		ldbeq O2, r, 7.260000E+10L
+		call abort_p, abort
+O2: 		ldmul r, l1, l2
+		call printf_p, printf, "mul: %.25LE\n", r
+		ldbeq O3, r, 3.484800E+21L
+		call abort_p, abort
+O3: 		lddiv r, l1, l2
+		call printf_p, printf, "div: %.25LE\n", r
+		ldbeq O4, r, 3.2E+00L
+		call abort_p, abort
+O4:		ldeq i, l1, l2
+		call printf_p, printf, "eq: %ld\n", i
+		beq S1, i, 0
+		call abort_p, abort
+S1:		ldne i, l1, l2
+		call printf_p, printf, "ne: %ld\n", i
+		beq S2, i, 1
+		call abort_p, abort
+S2:		ldlt i, l1, l2
+		call printf_p, printf, "lt: %ld\n", i
+		beq S3, i, 0
+		call abort_p, abort
+S3:		ldgt i, l1, l2
+		call printf_p, printf, "gt: %ld\n", i
+		beq S4, i, 1
+		call abort_p, abort
+S4:		ldle i, l1, l2
+		call printf_p, printf, "le: %ld\n", i
+		beq S5, i, 0
+		call abort_p, abort
+S5:		ldge i, l1, l2
+		call printf_p, printf, "ge: %ld\n", i
+		beq S6, i, 1
+		call abort_p, abort
+S6:		ldbeq L1, l1, l2
+		call printf_p, printf, "ldbeq fall\n"
+		jmp FL1
+L1: 		call abort_p, abort
+FL1:            ldbne L2, l1, l2
+		call printf_p, printf, "ldbne fall\n"
+		call abort_p, abort
+L2:             ldblt L3, l1, l2
+		call printf_p, printf, "ldblt fall\n"
+		jmp FL3
+L3:		call abort_p, abort
+FL3:            ldbgt L4, l1, l2
+		call printf_p, printf, "ldbgt fall\n"
+		call abort_p, abort
+L4:             ldble L5, l1, l2
+		call printf_p, printf, "ldble fall\n"
+		jmp FL5
+L5:             call abort_p, abort
+FL5:            ldbge L6, l1, l2
+		call printf_p, printf, "ldbge fall\n"
+		call abort_p, abort
+L6:             ldmov l1, 10.33333333333333333333333L
+                ld2f f, l1
+		f2d  d, f
+		call printf_p, printf, "%.10E\n", d
+		fbeq C1, f, 1.0333333015E+01F
+		call abort_p, abort
+C1:             ld2d d, l1
+		call printf_p, printf, "%.18E\n", d
+		dbeq C2, d, 1.033333333333333393E+01
+		call abort_p, abort
+C2:             ldneg l2, l1
+	        ld2i i, l2
+		call printf_p, printf, "%ld\n", i
+		beq C3, i, -10
+		call abort_p, abort
+C3:             i2ld l2, -10
+		call printf_p, printf, "%.10LE\n", l2
+		ldbeq C4, l2, -1.0000000000E+01L
+		call abort_p, abort
+C4:             ui2ld l2, 10
+		call printf_p, printf, "%.10LE\n", l2
+		ldbeq C5, l2, 1.0000000000E+01L
+		call abort_p, abort
+C5:		f2ld l2, 10.3333333333333f
+		call printf_p, printf, "%.25LE\n", l2
+		ldbeq C6, l2, 1.0333333015441894531250000E+01L
+		call abort_p, abort
+C6:		d2ld l2, 10.333333333333333333333333
+		call printf_p, printf, "%.38LE\n", l2
+		ldbeq C7, l2, 1.03333333333333339254522798000834882259E+01L
+		call abort_p, abort
+C7:		ret 0
+		endfunc
+		endmodule

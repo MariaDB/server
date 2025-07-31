@@ -1,0 +1,26 @@
+iteration:	module
+	export	iteration
+	import	print_identity
+	import	print_and_return_zero
+_proto_1:	proto	p, p:a0
+_proto_2:	proto	i32, p:a0
+iteration:	func	p, p:a0
+	local	i64:x2, i64:x1, i64:z1
+# 2 args, 4 locals
+	mov	x1, a0
+	mov	x2, 0
+L1:
+	bf	L3, x2
+	bt	L3, i64:(x2)
+L3:
+	call	_proto_1, print_identity, x2, x1
+	call	_proto_2, print_and_return_zero, z1, x2
+	bt	L4, z1
+	jmp	L5
+L4:
+	jmp	L1
+L5:
+	ret	x1
+ 	ret	x2
+endfunc
+endmodule

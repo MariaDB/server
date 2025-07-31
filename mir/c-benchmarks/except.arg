@@ -1,0 +1,5 @@
+if test `uname` = Darwin && test `arch` = i386 ;then
+  echo 300000
+else
+  echo 200000000
+fi

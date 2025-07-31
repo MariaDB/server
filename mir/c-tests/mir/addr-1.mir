@@ -1,0 +1,14 @@
+M0:	module
+e:      bss 8
+        export e
+main:	func	i32
+	local	i64:i0_d, i64:a, i64:t
+	mov i0_d, 5
+	addr a, i0_d
+	mov t, e
+	mov i64:(t), a
+	mov i64:(a), 0
+	ret i0_d
+	endfunc
+	export	main
+	endmodule

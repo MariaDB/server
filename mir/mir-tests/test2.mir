@@ -1,0 +1,14 @@
+# SCCP test
+m2:    module
+ccp:   func i64
+       local i64:a, i64:b, i64:c
+       mov a, 2
+       mov b, 3
+       blt L1, a, b
+       mov c, 5
+       jmp L2
+L1:
+       mov c, 5
+L2:    ret c
+       endfunc
+       endmodule
