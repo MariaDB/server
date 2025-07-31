@@ -240,6 +240,25 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   DBUG_RETURN(false);
 }
 
+
+#ifndef DBUG_OFF
+/*
+  Check if all rewrittable query params in an instruction are fixed.
+  They can be fixed e.g. if append_for_log() already happened.
+*/
+bool dbug_rqp_are_fixed(sp_instr *instr)
+{
+  for (Item *item= instr->free_list; item; item= item->next)
+  {
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    if (rqp && rqp->pos_in_query && !item->fixed())
+      return false;
+  }
+  return true;
+}
+#endif
+
+
 /**
   Prepare LEX and thread for execution of instruction, if requested open
   and lock LEX's tables, execute instruction's core function, perform
@@ -286,7 +305,14 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   thd->transaction->stmt.m_unsafe_rollback_flags= 0;
 
   DBUG_ASSERT(!thd->derived_tables);
-  DBUG_ASSERT(thd->Item_change_list::is_empty());
+  /*
+    Item*::append_for_log() called from subst_spvars (which already happened
+    at this point) can create new Items in some cases. For example:
+      INSERT INTO t1 VALUES
+       (assoc_array(spvar_latin1 || CONVERT(' ' USING ucs2)));
+    wraps CONVERT into Item_func_conv_charset.
+  */
+  DBUG_ASSERT(dbug_rqp_are_fixed(instr) || thd->Item_change_list::is_empty());
   /*
     Use our own lex.
     We should not save old value since it is saved/restored in
