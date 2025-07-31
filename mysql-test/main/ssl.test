@@ -8,6 +8,7 @@
 
 --source include/default_charset.inc
 --source include/have_perfschema.inc
+--disable_service_connection
 
 connect (ssl_con,localhost,root,,,,,SSL);
 

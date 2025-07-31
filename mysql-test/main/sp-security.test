@@ -5,6 +5,7 @@
 # Can't test with embedded server that doesn't support grants
 --source include/not_embedded.inc
 --source include/default_charset.inc
+--disable_service_connection
 set @@global.collation_server=@@session.collation_server;
 
 connect (con1root,localhost,root,,);

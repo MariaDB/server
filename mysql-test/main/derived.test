@@ -1194,6 +1194,7 @@ drop table t1,t2,t3;
 --echo # query includes a derived table containing unnamed column
 --echo # (eg: `SELECT '' from t`).
 --echo #
+--disable_view_protocol
 
 --echo # Tests from the bug report
 
@@ -1292,6 +1293,7 @@ SELECT * FROM v6_t;
 
 DROP VIEW v1_t, v2_t, v3_t, v4_t, v5_t, v6_t;
 DROP TABLE t;
+--enable_view_protocol
 
 --echo # End of 10.11 tests
 
