@@ -33,9 +33,12 @@ SELECT ID INTO @binlog_dump_tid
   FROM information_schema.PROCESSLIST WHERE COMMAND = 'Binlog Dump';
 --enable_cursor_protocol
 
---echo # Control State
-SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
-SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+--echo # Wait for the Control State
+let $wait_condition=
+  SELECT STATE LIKE 'Master has sent all binlog to slave%'
+    FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_clients';
 
 --echo # Disable Semi-Sync while the dump thread is still connected to its slave
 SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
@@ -43,7 +46,7 @@ SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
 --source include/wait_for_status_var.inc
 
 SELECT STATE FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
-SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_clients';
 
 --echo # Disconnect the slave and wait until the master's dump thread is gone
 --connection slave
@@ -54,9 +57,10 @@ STOP SLAVE;
 
 # MDEV-36359: The disconnection would crash the master and leave the wait with
 # error 2013 'Lost connection to server during query'
---let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid
+let $wait_condition= SELECT COUNT(*)=0
+  FROM information_schema.PROCESSLIST WHERE ID = @binlog_dump_tid;
 --source include/wait_condition.inc
-SHOW STATUS LIKE 'Rpl_semi_sync_master_clients';
+SHOW STATUS LIKE 'Rpl\_semi\_sync\_master\_clients';
 
 --echo # Cleanup
 --eval SET @@GLOBAL.rpl_semi_sync_master_enabled= $orig_master_enabled

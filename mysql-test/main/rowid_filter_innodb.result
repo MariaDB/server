@@ -1,6 +1,8 @@
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=0;
+SET @save_ahi=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=OFF;
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -2287,6 +2289,7 @@ ALTER TABLE orders DROP COLUMN o_totaldiscount;
 DROP VIEW v1;
 DROP DATABASE dbt3_s001;
 use test;
+SET GLOBAL innodb_adaptive_hash_index=@save_ahi;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 #
 # MDEV-18755: possible RORI-plan and possible plan with range filter

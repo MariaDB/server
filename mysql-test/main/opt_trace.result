@@ -12203,6 +12203,23 @@ exp1	exp2
 ]	1
 DROP TABLE t1;
 #
+# MDEV-30334 Optimizer trace produces invalid JSON with WHERE subquery
+#  Simple code rearrangement to stop it displaying an unsigned int in a String.
+#
+SET optimizer_trace= 'enabled=on';
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (3),(4);
+SELECT * FROM t1 WHERE id < ( SELECT SUM(a) FROM t2 );
+id
+1
+2
+SELECT JSON_VALID(trace) FROM information_schema.optimizer_trace;
+JSON_VALID(trace)
+1
+DROP TABLE t1, t2;
+#
 # End of 10.4 tests
 #
 set optimizer_trace='enabled=on';
@@ -12921,9 +12938,9 @@ SUBQ	a
 985	1
 985	2
 # The trace must be empty:
-select json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+select json_detailed(json_extract(trace, '$**.range-checked-for-each-record')) as TRACE
 from information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.range-checked-for-each-record'))
+TRACE
 NULL
 # The trace must be empty:
 select json_detailed(json_extract(trace, '$**.join_execution'))

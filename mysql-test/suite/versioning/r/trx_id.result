@@ -595,3 +595,24 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 drop table t1;
+# End of 10.4 tests
+#
+# MDEV-37005 Unexpected ER_TABLE_EXISTS_ERROR on primary or replica upon CREATE OR REPLACE for partitioned table
+#
+create table t1 (
+a int,
+row_start bigint unsigned generated always as row start,
+row_end bigint unsigned generated always as row end,
+period for system_time (row_start, row_end)
+) engine=innodb with system versioning
+partition by hash (a);
+create or replace table t1 (b int) engine=innodb with system versioning partition by system_time;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+PARTITIONS 2
+drop table t1;
+# End of 11.8 tests

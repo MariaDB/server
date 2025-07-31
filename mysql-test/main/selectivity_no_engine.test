@@ -1,6 +1,7 @@
 --source include/have_stat_tables.inc
 --source include/default_optimizer_switch.inc
 --source include/test_db_charset_latin1.inc
+--source include/hostname_is_not_localhost.inc
 
 --echo #
 --echo #  Engine-agnostic tests for statistics-based selectivity calculations.

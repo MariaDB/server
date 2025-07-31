@@ -1,5 +1,6 @@
 # If log_warnings is lower than 2 then the deprecation warnings will
 # not be logged
+call mtr.add_suppression('Can''t get hardware address with error');
 if (`select @@log_warnings < 2`)
 {
   skip Test requires log_warnings > 1;

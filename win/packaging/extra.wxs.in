@@ -43,14 +43,15 @@
     <Property Id="SKIPNETWORKING" Secure="yes"/>
     <!-- Whether to keep default (unauthenticated) user. Default is no-->
     <Property Id="DEFAULTUSER" Secure="yes"/>
-    <!-- Set server character set to UTF8 -->
-    <Property Id="UTF8" Secure="yes"/>
     <!-- Whether to data on uninstall (default yes, after asking user consent) -->
     <Property Id="CLEANUPDATA" Secure="yes" Value="1"/>
     <!-- Force per machine installation -->
     <Property Id="ALLUSERS" Secure="yes" Value="1"/>
     <!-- Disable advertised shortcuts weirdness -->
     <Property Id="DISABLEADVTSHORTCUTS" Secure="yes" Value="1"/>
+
+    <!-- Activate feedback plugin-->
+    <Property Id="FEEDBACK" Secure="yes"/>
 
     <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
     <Property Id="STDCONFIG" Secure="yes" Value="1"/>
@@ -63,6 +64,21 @@
     <CustomAction Id="LaunchUrl" BinaryKey="WixCA" DllEntry="WixShellExec"  Execute="immediate" Return="check" Impersonate="yes" />
 
 
+    <!--
+    When msiexec /i ADDLOCAL=<feature_list> is used, usually only features in
+    the <feature_list> are installed. owever there are things we always want to
+    be there, there is ALWAYSINSTALL feature id, hidden in UI for that.
+    Modify ADDLOCAL list by adding mandatory features.
+    -->
+    <CustomAction Id="ForceAddMandatoryFeatures"
+              Property="ADDLOCAL"
+              Value="[ADDLOCAL],@MANDATORY_FEATURES@"/>
+    <InstallUISequence>
+      <Custom Action="ForceAddMandatoryFeatures" Before="CostFinalize">ADDLOCAL</Custom>
+    </InstallUISequence>
+    <InstallExecuteSequence>
+      <Custom Action="ForceAddMandatoryFeatures" Before="CostFinalize">ADDLOCAL</Custom>
+    </InstallExecuteSequence>
 
     <!-- 
       User interface dialogs 
@@ -167,7 +183,7 @@
         </Control>
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
       </Dialog>
-      
+
       <!-- Error popup dialog -->
       <Dialog Id="WarningDlg" Width="320" Height="85" Title="[ProductName] Setup" NoMinimize="yes">
        <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24"
@@ -227,9 +243,14 @@
           <Condition Action="disable">NOT ModifyRootPassword</Condition>
         </Control>
 
-        <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="154" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
-          <Text>{\Font1}Use UTF8 as default server's character set</Text>
+        <Control Id="CheckBoxFeedback" Type="CheckBox" X="8" Y="150" Width="350" Height="18" Property="FEEDBACK" CheckBoxValue="1" TabSkip="no">
+          <Text>{\Font1}Enable the Feedback plugin and submit anonymous usage information</Text>
         </Control>
+
+        <Control Id="LinkFeedbackPlugin" Type="Hyperlink" X="23" Y="167" Width="350" Height="18" TabSkip="yes">
+          <Text>Collected statistics can be viewed at <![CDATA[<a href="https://mariadb.org/feedback-plugin">https://mariadb.org/feedback-plugin</a>]]></Text>
+        </Control>
+
         <Control Type="Text" Id="Text11" Width="67" Height="17" X="8" Y="190" Text="{\Font1}Data directory" />
         <Control Type="PathEdit" Id="TxtDir" Width="175" Height="18" X="80" Y="190" Property="DATADIR">
         </Control>
@@ -346,7 +367,7 @@
 
     <Property Id="CRLF" Value="&#xD;&#xA;" />
     <CustomAction Id="CheckDataDirectory" BinaryKey="wixca.dll" DllEntry="CheckDataDirectory" Execute="immediate" Impersonate="yes"/>
-	<CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
+    <CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
     <!--  What to do when navigation buttons are clicked -->
     <UI Id="MyWixUI_Mondo">
       <UIRef Id="WixUI_FeatureTree" />
@@ -366,11 +387,11 @@
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="NewOrUpgradeInstanceDlg" Order="999">
         NOT Installed AND UpgradableServiceFound
       </Publish>
-	  <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
       <Publish  Dialog="CustomizeDlg" Control="Next"  Property="WarningText" Order="2"
         Value="[INSTALLDIRERROR]">
        INSTALLDIRERROR
-	   </Publish>
+      </Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="SpawnDialog" Value="WarningDlg" Order="3">WarningText</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ConfirmDataCleanupDlg" Order="4">
         <![CDATA[(&DBInstance=2) AND (!DBInstance=3)]]>
@@ -456,19 +477,18 @@
             Key="innodb_buffer_pool_size"
             Value="[BUFFERPOOLSIZE]M" />
       </Component>
-
-      <Component Id="C.utf8" Guid="*" Directory="DATADIR">
-        <Condition>UTF8</Condition>
+      <Component Id="C.feedback" Guid="*" Directory="DATADIR">
+        <Condition>FEEDBACK</Condition>
         <RegistryValue Root='HKLM'
            Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
-           Name='UTF8' Value='1' Type='string' KeyPath='yes'/>
-        <IniFile Id="Ini6"
+           Name='FEEDBACK' Value='1' Type='string' KeyPath='yes'/>
+        <IniFile Id="Ini5"
             Action="createLine"
             Directory="DATADIR"
             Section="mysqld"
             Name="my.ini"
-            Key="character-set-server"
-            Value="utf8mb4" />
+            Key="feedback"
+            Value="ON" />
       </Component>
 
       <!-- Shortcuts in program menu (mysql client etc) -->
@@ -583,7 +603,7 @@
 
     <!-- Optional 3rd party tools -->
     <DirectoryRef Id='TARGETDIR'>
-     <Directory Id='CommonFilesFolder'>
+     <Directory Id='CommonFiles64Folder'>
        <Directory Id='MariaDBShared' Name='MariaDBShared'/>
      </Directory>
      <Directory Id='DesktopFolder'/>
@@ -832,7 +852,7 @@
        'Setting the ALLUSERS property is not allowed because [ProductName] is a per-machine application. Setup will now exit.'>
       <![CDATA[ALLUSERS = "1"]]>
     </Condition>
-	<Condition Message='This application is only supported on Windows 10, Windows Server 2016, or higher.'>
+    <Condition Message='This application is only supported on Windows 10, Windows Server 2016, or higher.'>
       <![CDATA[Installed OR (VersionNT >= 603)]]>
     </Condition>
   </Fragment>

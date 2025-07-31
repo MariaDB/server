@@ -1600,17 +1600,40 @@ public:
       - either by the most generic way in Item_func::fix_fields()
       - or by Item_func_xxx::fix_length_and_dec() before the call of
         Item_hybrid_func_fix_attributes()
-      IFNULL() is special. It does not need to test args[0].
+      IFNULL and COALESCE are special-
+      If the first non-null arg can be safely converted to result type,
+      the result is guaranteed to be NOT NULL
     */
-    uint first= dynamic_cast<Item_func_ifnull*>(attr) ? 1 : 0;
-    for (uint i= first; i < nitems; i++)
+    bool not_null_on_conversion= false;
+    if (dynamic_cast<Item_func_ifnull*>(attr) ||
+        dynamic_cast<Item_func_coalesce*>(attr))
     {
-      if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+      for (uint i= 0; i< nitems; i++)
       {
-        attr->set_type_maybe_null(true);
-        break;
+        if (!items[i]->maybe_null() &&
+            !Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+        {
+          not_null_on_conversion= true;
+          break;
+        }
       }
     }
+    else
+    {
+      not_null_on_conversion= true;
+      for (uint i= 0; i < nitems; i++)
+      {
+        if (Fbt::fix_fields_maybe_null_on_conversion_to_fbt(items[i]))
+        {
+          not_null_on_conversion= false;
+          break;
+        }
+      }
+    }
+    if (not_null_on_conversion)
+      attr->set_type_maybe_null(false);
+    else
+      attr->set_type_maybe_null(true);
     return false;
   }
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,

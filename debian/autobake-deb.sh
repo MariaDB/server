@@ -44,11 +44,10 @@ add_lsb_base_depends()
   sed -e 's#lsof #lsb-base (>= 3.0-10),\n         lsof #' -i debian/control
 }
 
-replace_uring_with_aio()
+remove_uring()
 {
-  sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed -e '/-DIGNORE_AIO_CHECK=ON/d' \
-      -e '/-DWITH_URING=ON/d' -i debian/rules
+  sed -e '/liburing-dev/d' -i debian/control
+  sed -e '/-DWITH_URING=ON/d' -i debian/rules
 }
 
 disable_libfmt()
@@ -96,7 +95,7 @@ in
   # Debian
   "buster")
     disable_libfmt
-    replace_uring_with_aio
+    remove_uring
     ;&
   "bullseye")
     add_lsb_base_depends
@@ -107,7 +106,7 @@ in
     # so no removal is necessary.
     if [[ ! "$architecture" =~ amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x ]]
     then
-      replace_uring_with_aio
+      remove_uring
     fi
     ;&
   "trixie"|"forky"|"sid")
@@ -116,8 +115,8 @@ in
     ;;
   # Ubuntu
   "focal")
-    replace_uring_with_aio
     disable_libfmt
+    remove_uring
     ;&
   "jammy"|"kinetic")
     add_lsb_base_depends

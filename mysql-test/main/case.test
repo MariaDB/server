@@ -2,11 +2,6 @@
 # Testing of CASE
 #
 
-
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
-
 select CASE "b" when "a" then 1 when "b" then 2 END as exp;
 select CASE "c" when "a" then 1 when "b" then 2 END as exp;
 select CASE "c" when "a" then 1 when "b" then 2 ELSE 3 END as exp;
@@ -412,13 +407,16 @@ SELECT * FROM t1 WHERE
 
 DROP TABLE t1;
 
-
---echo #
 --echo # End of 10.3 test
+
 --echo #
+--echo # MDEV-25415 CASE function handles NULL inconsistently
+--echo #
+select case 'X' when null then 1 when 'X' then 2 else 3 end;
+select case 'X' when 1/1 then 1 when 'X' then 2 else 3 end;
+select case 'X' when 1/0 then 1 when 'X' then 2 else 3 end;
 
-
---echo # Start of 12.0 tests
+--echo # End of 10.11 test
 
 --echo #
 --echo # MDEV-36716 A case expression with ROW arguments in THEN crashes
@@ -524,6 +522,5 @@ SELECT NULLIF(ROW(1,2), ROW(1,2));
 SELECT NULLIF(NULL, ROW(1,2));
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT NULLIF(ROW(1,2), NULL);
-
 
 --echo # End of 12.0 tests
