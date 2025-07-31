@@ -1494,7 +1494,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
-             lock_wait_timeout))
+             (double)lock_wait_timeout))
     DBUG_RETURN(TRUE);
 
   table->s->tdc->flush(thd, true);
