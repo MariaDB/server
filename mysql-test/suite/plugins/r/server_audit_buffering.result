@@ -33,7 +33,6 @@ set global server_audit_file_buffer_size=0;
 Line count in file: 1206
 set global server_audit_sync_log_file=on;
 Line count in file: 1207
-SET GLOBAL server_audit_output_type=0;
 SET GLOBAL server_audit_file_buffer_size=0;
 set global server_audit_logging=off;
 uninstall plugin server_audit;

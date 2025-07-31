@@ -1,4 +1,3 @@
---source include/have_plugin_auth.inc
 --source include/not_embedded.inc
 
 if (!$SERVER_AUDIT_SO) {
@@ -98,7 +97,6 @@ set global server_audit_sync_log_file=on;
 let SEARCH_COUNT=1207;
 --source include/wait_for_line_count_in_file.inc
 
-SET GLOBAL server_audit_output_type=0;
 SET GLOBAL server_audit_file_buffer_size=0;
 
 set global server_audit_logging=off;
