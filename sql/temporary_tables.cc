@@ -1882,6 +1882,16 @@ static int commit_global_tmp_table(THD *thd, bool all)
   return 0;
 }
 
+static int xa_commit_global_tmp_table(XID *xid)
+{
+
+  THD *thd= current_thd;
+  if (thd->transaction->xid_state.get_xid() != xid)
+    return 0; // Recovery, nothing to do.
+
+  return commit_global_tmp_table(thd, true);
+}
+
 static transaction_participant global_temporary_tp=
 {
   0, 0,  HTON_NO_ROLLBACK,
@@ -1889,10 +1899,10 @@ static transaction_participant global_temporary_tp=
   NULL, NULL, NULL, NULL,
   commit_global_tmp_table,       // commit
   commit_global_tmp_table,       // rollback
-  NULL,                          // prepare
+  [](THD *, bool){ return 0; },  // prepare
   NULL, // recover
-  NULL, // xa_commit
-  NULL, // xa_rollback
+  xa_commit_global_tmp_table,   // xa_commit
+  xa_commit_global_tmp_table,   // xa_rollback
   NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
