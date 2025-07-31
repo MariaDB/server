@@ -296,8 +296,11 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   if (qb == nullptr)
     qb= find_hints_by_select_number(pc, qb_name);
 
+  // if (qb == nullptr)
+  //    look in VIEW here?  Is it one of the SELECTs on pc::select?  Or via THD?
+
   if (qb == nullptr)
-    print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,
+    print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,  // emitted now because hint<-->view linkage nonexistent
                &qb_name, NULL, NULL, NULL);
 
   return qb;

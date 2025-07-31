@@ -654,7 +654,7 @@ static void nullify_outer_context_for_on_clauses(List<TABLE_LIST>& join_list)
 static
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
-  SELECT_LEX_UNIT *unit= derived->get_unit();
+  SELECT_LEX_UNIT *unit= derived->get_unit();  // unit->master is the VIEW's calling query
   SELECT_LEX *first_select;
   bool res= FALSE, keep_row_order, distinct;
   DBUG_ENTER("mysql_derived_prepare");
@@ -663,7 +663,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (!unit)
     DBUG_RETURN(FALSE);
 
-  first_select= unit->first_select();
+  first_select= unit->first_select();  // put breakpoint here and look at backtrace
   /*
     If rownum() is used we have to preserve the insert row order
     to make GROUP BY and ORDER BY with filesort work.

@@ -9977,7 +9977,8 @@ void TABLE_LIST::reset_const_table()
 
 bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
-  SELECT_LEX_UNIT *unit= get_unit();
+  // unit->first_select() corresponds to 
+  SELECT_LEX_UNIT *unit= get_unit();  // Points to this->view->unit when this is a view
   DBUG_ENTER("handle_derived");
   DBUG_PRINT("enter", ("phases: 0x%x", phases));
 
@@ -9985,7 +9986,7 @@ bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
   {
     if (!is_with_table_recursive_reference())
     {
-      for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+      for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())  // unit->first_select() is the VIEW when *this is the TABLE_LIST for the view (v5 in test case)
         if (sl->handle_derived(lex, phases))
           DBUG_RETURN(TRUE);
     }

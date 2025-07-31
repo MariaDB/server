@@ -6163,7 +6163,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           return 1;                               /* purecov: inspected */
       }
       query_cache_store_query(thd, all_tables);
-      res= handle_select(thd, lex, result, 0);
+      res= handle_select(thd, lex, result, 0); // lex->first_select_lex() is the calling query, not the VIEW.  But the VIEW is a derived table and is in lex->first_select_lex()->table_list.  When to do LEX::resolve_optimizer_hints_in_last_select() type things by looking at the derived tables to find hints referred to by the calling query?
       if (result != lex->result)
         delete result;
 

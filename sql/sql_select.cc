@@ -1453,8 +1453,8 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   */
   if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
       create_explain_query_if_not_exists(thd->lex, thd->mem_root);
-
-  if (select_lex->handle_derived(thd->lex, DT_PREPARE))
+// select_lex::parsed_optimizer_hints is a thing here, but will have already been parsed during sql_yacc.yy stage at LEX::resolve_optimizer_hints_in_last_select
+  if (select_lex->handle_derived(thd->lex, DT_PREPARE)) // the entire list of derived tables which includes the VIEW derived table
     DBUG_RETURN(-1);
 
   thd->lex->current_select->context_analysis_place= NO_MATTER;

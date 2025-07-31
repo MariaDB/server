@@ -13028,15 +13028,13 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
   return {false, new (thd->mem_root) Optimizer_hint_parser_output(std::move(hints))};
 }
 
-
+// why do this during parsing and not during JOIN::prepare?
 void LEX::resolve_optimizer_hints_in_last_select()
 {
-  SELECT_LEX *select_lex;
-  if (likely(select_stack_top))
-    select_lex= select_stack[select_stack_top - 1];
-  else
-    select_lex= nullptr;
-  if (select_lex && select_lex->parsed_optimizer_hints)
+  SELECT_LEX *select_lex= nullptr;
+  if (select_stack_top &&
+      (select_lex= select_stack[select_stack_top - 1]) &&
+      select_lex->parsed_optimizer_hints)
   {
     Parse_context pc(thd, select_lex);
     select_lex->parsed_optimizer_hints->resolve(&pc);
