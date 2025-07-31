@@ -278,7 +278,7 @@ static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
        "Path to the log file", NULL, update_file_path, default_file_name);
 static MYSQL_SYSVAR_ULONGLONG(file_rotate_size, file_rotate_size,
-       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation",
+       PLUGIN_VAR_RQCMDARG, "Rotate the log when it grows larger than that",
        NULL, update_file_rotate_size,
        1000000, 100, ((long long) 0x7FFFFFFFFFFFFFFFLL), 1);
 static MYSQL_SYSVAR_UINT(file_rotations, rotations,
@@ -1075,6 +1075,7 @@ static void setup_connection_connect(MYSQL_THD thd,struct connection_info *cn,
   cn->query_id= 0;
   cn->query_length= 0;
   cn->log_always= 0;
+  cn->sync_statement= 0;
   cn->thread_id= event->thread_id;
   get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
             event->database.str, event->database.length);
