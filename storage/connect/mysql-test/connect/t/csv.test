@@ -32,8 +32,7 @@ INSERT INTO t1 VALUES ('RONALD','1980-02-26',4);
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/people.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/people.csv'),'\r\n','\n');
+--evalp SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/people.csv'),'\r\n','\n') Q1;
 
 --echo #
 --echo # Testing READONLY tables
@@ -79,8 +78,7 @@ INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/tmp.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.csv'),'\r\n','\n');
+--evalp SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.csv'),'\r\n','\n') Q2;
 
 --echo #
 --echo # Creating a CSV table from a MyISAM table
@@ -93,8 +91,7 @@ SELECT * FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t2.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.csv'),'\r\n','\n');
+--evalp SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.csv'),'\r\n','\n') Q3;
 --remove_file $MYSQLD_DATADIR/test/t2.csv
 
 --echo #
@@ -109,8 +106,7 @@ INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--evalp SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n')) Q4;
 --remove_file $MYSQLD_DATADIR/test/t1.csv
 
 CREATE TABLE t1
@@ -122,8 +118,7 @@ INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--evalp SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n')) Q5;
 --remove_file $MYSQLD_DATADIR/test/t1.csv
 
 CREATE TABLE t1
@@ -134,8 +129,7 @@ INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--evalp SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n')) Q6;
 --remove_file $MYSQLD_DATADIR/test/t1.csv
 
 CREATE TABLE t1
@@ -147,8 +141,7 @@ INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--evalp SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n')) Q7;
 --remove_file $MYSQLD_DATADIR/test/t1.csv
 
 CREATE TABLE t1
@@ -160,8 +153,7 @@ INSERT INTO t1 VALUES ('á');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--evalp SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n')) Q8;
 --remove_file $MYSQLD_DATADIR/test/t1.csv
 
 CREATE TABLE t1
@@ -173,8 +165,7 @@ INSERT INTO t1 VALUES ('á','á');
 SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/t1.csv
---replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--evalp SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n')) Q9;
 --remove_file $MYSQLD_DATADIR/test/t1.csv
 
 

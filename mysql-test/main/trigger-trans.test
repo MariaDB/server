@@ -98,7 +98,8 @@ connection default;
 #
 # Run the trigger synchronously 
 #
-select get_lock("lock_bug26141_sync", /* must not be priorly locked */ 0);
+--echo # must not be priorly locked
+select get_lock("lock_bug26141_sync", 0);
 # Will acquire the table level locks, perform the insert into t2,
 # release the sync lock and block on the wait lock.
 send insert into t1 (c) values (2);

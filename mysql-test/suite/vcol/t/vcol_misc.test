@@ -207,7 +207,9 @@ SELECT COUNT(*) FROM t1;
 INSERT INTO t1 (a,tsv) VALUES (5,DEFAULT);
 INSERT DELAYED INTO t1 (a,tsv) VALUES (6,DEFAULT);
 FLUSH TABLES WITH READ LOCK;
+--disable_view_protocol
 SELECT COUNT(*) FROM t1;
+--enable_view_protocol
 set GLOBAL debug_dbug= @old_debug;
 unlock tables;
 DROP TABLE t1;

@@ -7,6 +7,10 @@
 
 --source include/add_anonymous_users.inc
 
+# let's not use service connection here otherwise
+# it'll be constantly reexecuting init-connect
+--disable_service_connection
+
 connect (con0,localhost,root,,);
 connection con0;
 select hex(@a);
@@ -35,11 +39,13 @@ connection con0;
 set GLOBAL init_connect="adsfsdfsdfs";
 connect (con5,localhost,user_1,,test);
 connection con5;
+--disable_view_protocol
 # BUG#11755281/47032: ERROR 2006 / ERROR 2013 INSTEAD OF PROPER ERROR MESSAGE
 # We now throw a proper error message here:
 --replace_regex /connection .* to/connection to/
 --error ER_NEW_ABORTING_CONNECTION
 select @a;
+--enable_view_protocol
 # We got disconnected after receiving the above error message; any further
 # requests should fail with a notice that no one's listening to us.
 # --error CR_SERVER_GONE_ERROR,CR_SERVER_LOST

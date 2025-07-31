@@ -61,7 +61,7 @@ DROP USER u1, u2, u3;
 Warnings:
 Note	4227	Dropped users 'u1'@'%','u3'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
 # None of the users u1, u2, u3 should be present in the system
-SELECT user, host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+SELECT User, Host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
 User	Host
 disconnect con1;
 disconnect con3;
@@ -86,7 +86,7 @@ DROP USER u1, u2, u3;
 ERROR HY000: Operation DROP USER failed for 'u1'@'%','u3'@'%'
 # It is expected to see two users in output of the query: u1 and u3,
 # u2 should be dropped since it doesn't have active connection at the moment
-SELECT user, host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+SELECT User, Host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
 User	Host
 u1	%
 u3	%

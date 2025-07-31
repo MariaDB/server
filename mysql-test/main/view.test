@@ -2,6 +2,7 @@
 --source include/default_optimizer_switch.inc
 --source include/have_innodb.inc
 --source include/test_db_charset_latin1.inc
+--source include/no_view_protocol.inc
 
 SET optimizer_switch='outer_join_with_cache=off';
 

@@ -1,6 +1,8 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 --source include/have_partition.inc
+--source include/no_view_protocol.inc
+
 set optimizer_record_context=ON;
 --echo #
 show variables like 'optimizer_record_context';

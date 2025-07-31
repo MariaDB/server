@@ -136,8 +136,10 @@ select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
+--disable_view_protocol
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 select * from t1 for system_time as of now() for update;
+--enable_view_protocol
 
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
 select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;

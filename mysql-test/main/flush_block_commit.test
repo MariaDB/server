@@ -4,6 +4,7 @@
 # This is intended to mimick how mysqldump and innobackup work.
 
 # And it requires InnoDB
+--source include/no_view_protocol.inc
 --source include/have_innodb.inc
 
 connect (con1,localhost,root,,);

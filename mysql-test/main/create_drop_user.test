@@ -68,7 +68,7 @@ GRANT ALL on test.* to u3;
 DROP USER u1, u2, u3;
 
 --echo # None of the users u1, u2, u3 should be present in the system
-SELECT user, host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+SELECT User, Host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
 
 --disconnect con1
 --disconnect con3
@@ -98,7 +98,7 @@ DROP USER u1, u2, u3;
 
 --echo # It is expected to see two users in output of the query: u1 and u3,
 --echo # u2 should be dropped since it doesn't have active connection at the moment
-SELECT user, host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
+SELECT User, Host FROM mysql.user WHERE user IN ('u1', 'u2', 'u3');
 SET sql_mode= @save_sql_mode;
 
 --disconnect con1

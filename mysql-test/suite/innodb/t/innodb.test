@@ -1,5 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
+# autocommit=0 everywhere below, so
+-- source include/no_view_protocol.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 

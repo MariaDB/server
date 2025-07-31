@@ -32,15 +32,11 @@ eval create table t1 (
 with system versioning;
 set timestamp= unix_timestamp('2000-01-01 00:00:00');
 insert into t1 values(1, 1, 1);
---disable_cursor_protocol
 select sys_trx_start into @tmp1 from t1;
---enable_cursor_protocol
 set timestamp= unix_timestamp('2000-01-01 01:00:00');
 update t1 set x= 11, y= 11 where id = 1;
 select @tmp1 < sys_trx_start as A1, x, y from t1;
---disable_cursor_protocol
 select sys_trx_start into @tmp1 from t1;
---enable_cursor_protocol
 set timestamp= unix_timestamp('2000-01-01 02:00:00');
 update t1 set y= 1 where id = 1;
 select @tmp1 = sys_trx_start as A2, x from t1;
@@ -143,18 +139,14 @@ create table t2 like t1;
 insert into t1 values (1, "Jeremy", 3000);
 insert into t2 values (1, "Jeremy", 4000);
 
---disable_cursor_protocol
 select sys_trx_start into @tmp1 from t1;
 select sys_trx_start into @tmp2 from t2;
---enable_cursor_protocol
 update t1, t2 set t1.name= "Jerry", t2.name= "Jerry" where t1.id = t2.id and t1.name = "Jeremy";
 select @tmp1 < sys_trx_start as A1, name from t1;
 select @tmp2 < sys_trx_start as A2, name from t2;
 
---disable_cursor_protocol
 select sys_trx_start into @tmp1 from t1;
 select sys_trx_start into @tmp2 from t2;
---enable_cursor_protocol
 update t1, t2 set t1.salary= 2500, t2.salary= 2500 where t1.id = t2.id and t1.name = "Jerry";
 select @tmp1 = sys_trx_start as B1, salary from t1;
 select @tmp2 = sys_trx_start as B2, salary from t2;
@@ -348,9 +340,7 @@ drop tables t1, t2, t3;
 create or replace table t1 (x int) with system versioning;
 insert t1 values (1);
 update t1 set x= 1;
---disable_cursor_protocol
 select row_start into @r from t1;
---enable_cursor_protocol
 select check_row_ts(row_start, row_end) from t1 for system_time all where row_start = @r;
 drop table t1;
 

@@ -3,6 +3,9 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_partition.inc
 
+# FederatedX select handler doesn't support views
+--source include/no_view_protocol.inc
+
 connection default;
 ALTER DATABASE federated CHARACTER SET latin1;
 

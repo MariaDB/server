@@ -3,6 +3,7 @@
 
 # embedded server causes different stat
 -- source include/not_embedded.inc
+-- source include/no_view_protocol.inc
 
 # Disable concurrent inserts to avoid sporadic test failures as it might
 # affect the the value of variables used throughout the test case.

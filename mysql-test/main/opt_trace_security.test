@@ -1,4 +1,6 @@
 --source include/not_embedded.inc
+--disable_service_connection
+
 create database db1;
 use db1;
 create table t1(a int);
