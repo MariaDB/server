@@ -7993,16 +7993,16 @@ json_detailed(json_extract(histogram, '$**.histogram_hb'))
 ]
 select hex(col1) from t1;
 hex(col1)
-22D0B9
-22D0B8
-22D0B7
-22D0B6
-22D0B5
-22D0B4
-22D0B3
-22D0B2
-22D0B1
 22D0B0
+22D0B1
+22D0B2
+22D0B3
+22D0B4
+22D0B5
+22D0B6
+22D0B7
+22D0B8
+22D0B9
 explain extended select * from t1 where col1 < '"а';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	Using where
@@ -8526,8 +8526,8 @@ json_detailed(json_extract(histogram, '$**.histogram_hb'))
             "ndv": 1
         },
         {
-            "start": "\"😺",
-            "end": "\"😺",
+            "start": "\"𝄞",
+            "end": "\"𝄞",
             "size": 0.6,
             "ndv": 1
         }
@@ -8539,11 +8539,11 @@ col1	hex(col1)
 "б	0000002200000431
 "ꕫ	000000220000A56B
 "Ꙃ	000000220000A642
-"🌀	000000220001F300
-"😀	000000220001F600
-"🂡	000000220001F0A1
-"🌚	000000220001F31A
 "😺	000000220001F63A
+"🌚	000000220001F31A
+"🂡	000000220001F0A1
+"😀	000000220001F600
+"🌀	000000220001F300
 "𝄞	000000220001D11E
 analyze select * from t1 where col1 < '"d';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
