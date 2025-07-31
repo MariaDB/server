@@ -2169,6 +2169,7 @@ sub environment_setup {
   $ENV{'LC_CTYPE'}=           "C";
   $ENV{'LC_COLLATE'}=         "C";
 
+  $ENV{'GNUTLS_SYSTEM_PRIORITY_FILE'}='/dev/null';
   $ENV{'OPENSSL_CONF'}= $mysqld_variables{'version-ssl-library'} gt 'OpenSSL 1.1.1'
                        ? "$glob_mysql_test_dir/lib/openssl.cnf" : '/dev/null';
 
