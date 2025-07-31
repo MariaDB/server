@@ -41,32 +41,6 @@ public:
   using StringBuffer::StringBuffer;
 };
 
-/*
-  Support class to rollback the change list when append_to_log is called.
-  The following query for example:
-    INSERT INTO t1 VALUES (first_names(TRIM(nick || ' ')));
-
-  will create a new item during fix_fields.
-
-  The raii in the class suffix denotes that this class will
-  automatically rollback the change list upon destruction.
-*/
-class Item_change_list_savepoint_raii : public Item_change_list_savepoint
-{
-private:
-  THD *m_thd;
-public:
-  Item_change_list_savepoint_raii(THD *thd)
-    : Item_change_list_savepoint(thd)
-    , m_thd(thd)
-  { }
-  ~Item_change_list_savepoint_raii()
-  {
-    rollback(m_thd);
-  }
-};
-
-
 class Item_field_packable
 {
 protected:
@@ -536,7 +510,6 @@ public:
 
   bool append_for_log(THD *thd, String *str) override
   {
-    Item_change_list_savepoint_raii savepoint(thd);
     if (T::fix_fields_if_needed(thd, NULL))
       return true;
 
@@ -2196,8 +2169,6 @@ void Item_splocal_assoc_array_element_field::print(String *str,
 
 bool Item_splocal_assoc_array_element::append_for_log(THD *thd, String *str)
 {
-  Item_change_list_savepoint_raii savepoint(thd);
-
   if (fix_fields_if_needed(thd, NULL))
     return true;
 
@@ -2218,8 +2189,6 @@ bool Item_splocal_assoc_array_element::append_for_log(THD *thd, String *str)
 bool Item_splocal_assoc_array_element_field::append_for_log(THD *thd,
                                                             String *str)
 {
-  Item_change_list_savepoint_raii savepoint(thd);
-
   if (fix_fields_if_needed(thd, NULL))
     return true;
 
