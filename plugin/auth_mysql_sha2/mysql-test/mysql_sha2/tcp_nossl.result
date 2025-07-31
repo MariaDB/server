@@ -1,0 +1,159 @@
+call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+call mtr.add_suppression('Authentication requires either RSA keys or secure transport');
+call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+show status like 'caching_sha2_password%';
+Variable_name	Value
+Caching_sha2_password_rsa_public_key	
+create user test1@'%' identified via caching_sha2_password using PASSWORD('pwd');
+create user test2@'%' identified via caching_sha2_password;
+show grants for test2@'%';
+Grants for test2@%
+GRANT USAGE ON *.* TO `test2`@`%` IDENTIFIED VIA caching_sha2_password
+create procedure checkme() sql security invoker
+select user(), current_user(), variable_value > '' as 'have_ssl'
+    from information_schema.session_status
+where variable_name='ssl_cipher';
+grant execute on test.* to test1@'%', test2@'%';
+select * from information_schema.system_variables where variable_name like 'caching_sha2_password%' order by 1;
+VARIABLE_NAME	CACHING_SHA2_PASSWORD_AUTO_GENERATE_RSA_KEYS
+SESSION_VALUE	NULL
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMMAND-LINE
+DEFAULT_VALUE	ON
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Auto generate RSA keys at server startup if key paths are not explicitly set and key files are not present at their default locations
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	OPTIONAL
+GLOBAL_VALUE_PATH	NULL
+VARIABLE_NAME	CACHING_SHA2_PASSWORD_DIGEST_ROUNDS
+SESSION_VALUE	NULL
+GLOBAL_VALUE	5000
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	5000
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Number of SHA2 rounds to be performed when computing a password hash
+NUMERIC_MIN_VALUE	5000
+NUMERIC_MAX_VALUE	4095000
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+GLOBAL_VALUE_PATH	NULL
+VARIABLE_NAME	CACHING_SHA2_PASSWORD_PRIVATE_KEY_PATH
+SESSION_VALUE	NULL
+GLOBAL_VALUE	private_key.pem
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	private_key.pem
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	A path to the private RSA key used for authentication
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+GLOBAL_VALUE_PATH	NULL
+VARIABLE_NAME	CACHING_SHA2_PASSWORD_PUBLIC_KEY_PATH
+SESSION_VALUE	NULL
+GLOBAL_VALUE	public_key.pem
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	public_key.pem
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	A path to the public RSA key used for authentication
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+GLOBAL_VALUE_PATH	NULL
+create user test3@'%' identified via caching_sha2_password using 'pwd';
+ERROR HY000: Password hash should be 70 characters long
+create user test3@'%' identified via caching_sha2_password using '0000000000000000000000000000000000000000000000000000000000000000000000';
+ERROR HY000: Invalid password hash
+connect(localhost,test1,pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con1, localhost,test1,pwd,,,,TCP NOSSL;
+ERROR HY000: Couldn't read RSA public key from server
+connect(localhost,test1,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con3, localhost,test1,wrong_pwd,,,,TCP NOSSL;
+ERROR HY000: Couldn't read RSA public key from server
+connect con4, localhost,test2,,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test2@localhost	test2@%	0
+disconnect con4;
+connect(localhost,test2 pwd,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con5, localhost,test2 pwd,,,,,TCP NOSSL;
+ERROR 28000: Access denied for user 'test2 pwd'@'localhost' (using password: NO)
+connection default;
+# restart: --caching_sha2_password-auto_generate_rsa_keys
+select length(variable_value) from information_schema.global_status
+where variable_name like 'caching_sha2_password%';
+length(variable_value)
+451
+# restart: --caching_sha2_password-auto_generate_rsa_keys
+select variable_value="$pubkey" as 'key did not change'
+        from information_schema.global_status
+where variable_name like 'caching_sha2_password%';
+key did not change
+1
+connect con1, localhost,test1,pwd,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test1@localhost	test1@%	0
+disconnect con1;
+connect con2, localhost,test1,pwd,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test1@localhost	test1@%	0
+disconnect con2;
+connect(localhost,test1,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con3, localhost,test1,wrong_pwd,,,,TCP NOSSL;
+ERROR 28000: Access denied for user 'test1'@'localhost' (using password: YES)
+connect con4, localhost,test2,,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+test2@localhost	test2@%	0
+disconnect con4;
+connect(localhost,test2 pwd,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect con5, localhost,test2 pwd,,,,,TCP NOSSL;
+ERROR 28000: Access denied for user 'test2 pwd'@'localhost' (using password: NO)
+connection default;
+create user u1@localhost identified via caching_sha2_password using '$A$005$5dx;X)z |kX]\ZNx7QTrl0oTy2C0/f4bggQMFIDnSDeZ7koLoO417jc9D';
+create user u2@localhost identified via caching_sha2_password using '$A$005$dL\Zq]<7d[YAbk}x!;^.qMuuUUBmB5aF7x7GsAKZzpb24p94NCCs8qPgwAvwc1';
+create user u3@localhost identified via caching_sha2_password using '$A$005$L9\ZKiwT''=%dMoqrPGFbywI9G8NecJqiy9D04S2abTLRvD32powG8nIxI9';
+grant execute on test.* to u1@localhost, u2@localhost, u3@localhost;
+connect u1,localhost,u1,abcd,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+u1@localhost	u1@localhost	0
+disconnect u1;
+connect u2,localhost,u2,efghi,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+u2@localhost	u2@localhost	0
+disconnect u2;
+connect u3,localhost,u3,xyz,,,,TCP NOSSL;
+call checkme();
+user()	current_user()	have_ssl
+u3@localhost	u3@localhost	0
+disconnect u3;
+connection default;
+drop user u1@localhost;
+drop user u2@localhost;
+drop user u3@localhost;
+# restart
+show status like 'caching_sha2_password%';
+Variable_name	Value
+Caching_sha2_password_rsa_public_key	
+drop procedure checkme;
+drop user test1@'%';
+drop user test2@'%';

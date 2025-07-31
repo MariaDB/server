@@ -33411,8 +33411,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     double new_cost;
     if (test_if_cheaper_ordering(FALSE, NULL, order, table,
                                  table->keys_in_use_for_order_by, -1, limit,
-                                 &key, &direction, &limit, &new_cost) &&
-        !is_key_used(table, key, table->write_set))
+                                 &key, &direction, &limit, &new_cost))
     {
       *need_sort= FALSE;
       *scanned_limit= limit;
@@ -34122,6 +34121,21 @@ void JOIN::init_join_cache_and_keyread()
           tuple.
       */
       table->mark_index_columns(table->file->keyread, table->read_set);
+      /*
+        Also mark in the read_set vcol fields whose "extra" index
+        coverings contain the keyread key, so that they are included
+        in filesort and satisfy an assertion later.
+      */
+      if (table->vfield)
+      {
+        for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
+        {
+          Field *vf= *vfield_ptr;
+          if (!vf->vcol_direct_part_of_key.is_set(table->file->keyread) &&
+              vf->part_of_key.is_set(table->file->keyread))
+            bitmap_set_bit(table->read_set, vf->field_index);
+        }
+      }
     }
     bool init_for_explain= false;
 

@@ -338,8 +338,8 @@ NULL
 100
 SELECT fld2 FROM t FORCE INDEX(fld1);
 fld2
-100
 NULL
+100
 Warnings:
 Warning	1365	Division by 0
 disconnect stop_purge;
