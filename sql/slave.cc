@@ -7591,6 +7591,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   int slave_was_killed;
   int last_errno= -2;                           // impossible error
   ulong err_count=0;
+  DBUG_EXECUTE_IF("set_slave_err_count_near_overflow", err_count = ULONG_MAX - 2;);
   my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
   set_slave_max_allowed_packet(thd, mysql);
@@ -7639,13 +7640,20 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       do not want to have election triggered on the first failure to
       connect
     */
-    if (++err_count == master_retry_count)
+    if ((++err_count == master_retry_count) && master_retry_count )
     {
       slave_was_killed=1;
       if (reconnect)
         change_rpl_status(RPL_ACTIVE_SLAVE,RPL_LOST_SOLDIER);
       break;
     }
+
+    DBUG_EXECUTE_IF("sync_master_retry",
+      debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL master_retry_sleep WAIT_FOR master_retry_continue"
+      ));
+    );
+
     slave_sleep(thd,mi->connect_retry,io_slave_killed, mi);
   }
 
