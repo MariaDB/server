@@ -7592,6 +7592,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   int last_errno= -2;                           // impossible error
   ulong err_count=0;
   DBUG_EXECUTE_IF("set_slave_err_count_near_overflow", err_count = ULONG_MAX - 2;);
+  ulong limit_cnt = 5;
   my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
   set_slave_max_allowed_packet(thd, mysql);

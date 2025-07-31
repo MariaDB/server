@@ -22,5 +22,6 @@ SET DEBUG_SYNC= 'RESET';
 SET @@GLOBAL.debug_dbug = @saved_dbug;
 connection master;
 connection slave;
+connection slave;
 Slave_IO_Running: Yes
 include/rpl_end.inc
