@@ -29,10 +29,7 @@
 #include <my_dir.h>
 #include "field.h"
 
-extern "C" {
-  struct st_maria_plugin *mysql_mandatory_plugins[] = { NULL };
-  struct st_maria_plugin *mysql_optional_plugins[] = { NULL };
-}
+
 
 
 static handlerton mock_hton;
@@ -72,29 +69,8 @@ static plugin_ref mock_plugin_ref = (plugin_ref)&mock_plugin_int;
 extern mysql_mutex_t LOCK_plugin;
 static bool plugin_system_initialized = false;
 
-static void init_minimal_plugin_system()
-{
-  if (plugin_system_initialized)
-    return;
-    
-  printf("DEBUG: Initializing minimal plugin system\n");
-  fflush(stdout);
-  
-  plugin_mutex_init();
-  
-  plugin_system_initialized = true;
-  
-  printf("DEBUG: Plugin system initialized\n");
-  fflush(stdout);
-}
 
-static void cleanup_minimal_plugin_system()
-{
-  if (plugin_system_initialized) {
-    mysql_mutex_destroy(&LOCK_plugin);
-    plugin_system_initialized = false;
-  }
-}
+
 
 #define ha_resolve_by_name(thd, name, tmp) (mock_plugin_ref)
 #define ha_checktype(thd, type, check) (&mock_hton)
@@ -158,8 +134,6 @@ static FakeTHD* init_fake_thd()
   printf("DEBUG: Entering init_fake_thd\n");
   fflush(stdout);
 
-  init_minimal_plugin_system();
-
   FakeTHD *fake_thd = (FakeTHD*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(FakeTHD), MYF(MY_ZEROFILL));
   if (!fake_thd)
     return NULL;
@@ -193,7 +167,6 @@ static void cleanup_fake_thd(FakeTHD *fake_thd)
     my_free(fake_thd);
   }
   
-  cleanup_minimal_plugin_system();
 }
 
 /**
