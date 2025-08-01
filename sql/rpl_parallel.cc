@@ -104,6 +104,17 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
       (e->force_abort && !rli->stop_for_until))
     return;
 
+  #ifdef ENABLED_DEBUG_SYNC
+    DBUG_EXECUTE_IF("pause_sql_thread_on_fde",
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue"
+      )));
+      DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+        "now SIGNAL main_sql_thread_continue"
+      )));
+    );
+  #endif
+
   mysql_mutex_lock(&rli->data_lock);
   cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
@@ -1541,6 +1552,14 @@ handle_rpl_parallel_thread(void *arg)
           else
             rgi->mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
+#ifdef ENABLED_DEBUG_SYNC
+          DBUG_EXECUTE_IF("halt_past_mark_start_commit",
+          {
+            DBUG_ASSERT(!debug_sync_set_action
+                        (thd, STRING_WITH_LEN("now WAIT_FOR past_mark_continue")));
+            DBUG_SET_INITIAL("-d,halt_past_mark_start_commit");
+          };);
+#endif
         }
       }
 
@@ -3054,13 +3073,21 @@ rpl_parallel::stop_during_until()
 }
 
 
-bool
-rpl_parallel::workers_idle(Relay_log_info *rli)
+bool Relay_log_info::are_sql_threads_caught_up()
 {
-  mysql_mutex_assert_owner(&rli->data_lock);
-  return !rli->last_inuse_relaylog ||
-    rli->last_inuse_relaylog->queued_count ==
-    rli->last_inuse_relaylog->dequeued_count;
+  mysql_mutex_assert_owner(&data_lock);
+  if (!sql_thread_caught_up)
+    return false;
+  /*
+    The SQL thread sets @ref worker_threads_caught_up to `false` but not `true`.
+    Therefore, this place needs to check if it can now be `true`.
+  */
+  if (!worker_threads_caught_up && ( // No need to re-check if already `true`.
+    !last_inuse_relaylog || // `nullptr` case
+      last_inuse_relaylog->queued_count == last_inuse_relaylog->dequeued_count
+  ))
+    worker_threads_caught_up= true; // Refresh
+  return worker_threads_caught_up;
 }
 
 

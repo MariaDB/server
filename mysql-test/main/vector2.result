@@ -453,4 +453,49 @@ select * from t;
 v
 1111
 drop table t;
+#
+# MDEV-36758 - LeakSanitizer errors in MHNSW_Share::alloc_node after DML on empty table with vector key
+#
+create table t (v vector(1) not null, vector(v)) engine=myisam;
+delete from t;
+insert into t values (0x31313131);
+delete from t;
+drop table t;
+#
+# MDEV-37055 UBSAN: 32801 is outside the range of representable values of type 'short'
+#
+create table t1 (v vector (1) not null,vector index (v));
+insert into t1 values (0xf0a08080);
+insert into t1 values (0xfa000000);
+drop table t1;
+#
+# MDEV-37022 Assertion when adding FK to MyISAM/Aria table with a vector index
+#
+create table t1 (v vector(1) not null,vector (v));
+alter table t1 add x int references t1(x),add y int constraint c references t1(y);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `v` vector(1) NOT NULL,
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  KEY `x` (`x`),
+  KEY `c` (`y`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+#
+# MDEV-37025 Incorrect error/docs for Vector column lengths (max = 65532)
+#
+create table t1(v vector (16384) not null,vector (v));
+ERROR 42000: Column length too big for column 'v' (max = 16383); use BLOB or TEXT instead
+#
+# overflow/inf in vec_distance_euclidean
+#
+select vec_totext(0x03CA397B);
+vec_totext(0x03CA397B)
+[9.64672e35]
+select vec_distance_euclidean(0x03CA397B, vec_fromtext('[0]'));
+vec_distance_euclidean(0x03CA397B, vec_fromtext('[0]'))
+9.64672e35
 # End of 11.8 tests

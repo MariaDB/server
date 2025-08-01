@@ -38,7 +38,7 @@ do {							\
    if (swap_ptrs)					\
    {							\
      reg1 char **a = (char**) (A), **b = (char**) (B);  \
-     char *tmp = *a; *a++ = *b; *b++ = tmp;		\
+     char *tmp = *a; *a = *b; *b = tmp;			\
    }							\
    else							\
    {							\
@@ -190,16 +190,16 @@ qsort_t my_qsort(void *base_ptr, size_t count, size_t size, qsort_cmp cmp)
        This ensures that the stack is kept small.
     */
 
-    if ((int) (high_ptr - low) <= 0)
+    if ((longlong) (high_ptr - low) <= 0)
     {
-      if ((int) (high - low_ptr) <= 0)
+      if ((longlong) (high - low_ptr) <= 0)
       {
 	POP(low, high);			/* Nothing more to sort */
       }
       else
 	low = low_ptr;			/* Ignore small left part. */
     }
-    else if ((int) (high - low_ptr) <= 0)
+    else if ((longlong) (high - low_ptr) <= 0)
       high = high_ptr;			/* Ignore small right part. */
     else if ((high_ptr - low) > (high - low_ptr))
     {

@@ -3,6 +3,7 @@
 -- source include/not_embedded.inc
 -- source include/have_innodb.inc
 -- source include/testdb_only.inc
+-- source include/hostname_is_not_localhost.inc
 
 set local sql_mode="";
 set global sql_mode="";

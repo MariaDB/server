@@ -978,9 +978,7 @@ FROM (SELECT * FROM json_test) AS json_test_values;
 json_object("a", json_compact(a), "b", json_compact(b))
 {"a": [1,2,3], "b": {"a":"foo"}}
 DROP TABLE json_test;
-#
 # End of 10.2 tests
-#
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
 #
@@ -1513,9 +1511,7 @@ JSON_VALID(' {"number": 01E-4}')
 select JSON_VALID(' {"number": 0E-4.0}');
 JSON_VALID(' {"number": 0E-4.0}')
 0
-#
 # End of 10.4 tests
-#
 #
 # MDEV-16620 JSON_ARRAYAGG
 #
@@ -1748,9 +1744,7 @@ NULL
 Warnings:
 Warning	4036	Character disallowed in JSON in argument 1 to function 'json_extract' at position 2
 SET @@collation_connection= @save_collation_connection;
-#
 # End of 10.5 tests
-#
 #
 # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 #
@@ -1786,6 +1780,15 @@ data
 FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
 data
 <root language="de"></root>
+#
+# MDEV-21530: json_extract STILL crashes in Item_func_json_extract::read_json
+#
+select null<=>json_extract('1',json_object(null,'{ }',null,null),'{}');
+null<=>json_extract('1',json_object(null,'{ }',null,null),'{}')
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+# End of 10.6 tests
 #
 # MDEV-35614 JSON_UNQUOTE doesn't work with emojis
 #
@@ -1824,9 +1827,6 @@ show warnings;
 Level	Code	Message
 Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 13
 #
-# End of 10.6 tests
-#
-#
 # MDEV-31147 json_normalize does not work correctly with MSAN build
 #
 CREATE TABLE t1 (val JSON);
@@ -1836,9 +1836,7 @@ SELECT * FROM t1;
 val	normalized_json
 15	1.5E1
 DROP TABLE t1;
-#
 # End of 10.8 tests
-#
 #
 # MDEV-27677: Implement JSON_OVERLAPS()
 #
@@ -2691,9 +2689,7 @@ SELECT JSON_VALUE(@json,'$.A[last-1][last-1].key1');
 JSON_VALUE(@json,'$.A[last-1][last-1].key1')
 NULL
 SET @@collation_connection= @save_collation_connection;
-#
 # End of 10.9 Test
-#
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)
 #             as first character in key
@@ -4883,7 +4879,6 @@ SELECT JSON_SCHEMA_VALID(@a,'{}');
 JSON_SCHEMA_VALID(@a,'{}')
 NULL
 # End of 11.1 test
-# Beginning of 11.2
 #
 # MDEV-30145: JSON_TABLE: allow to retrieve the key when iterating on JSON objects
 #
@@ -5074,9 +5069,6 @@ FROM JSON_TABLE(
 JSON_KEY_VALUE('{"key1":{"a":1, "b": [1,2,3, {"some_key":"some_val", "c":3}]}, "key2":"val2"}', '$.key1.b[0]'), '$[*]'
     COLUMNS (k VARCHAR(20) PATH '$.key', v VARCHAR(20) PATH '$.value', id FOR ORDINALITY)) AS jt;
 k	v	id
-# End of 11.2 test
-#
-# Beginning of 11.2 tests
 #
 # MDEV-26182: Implement json_array_intersect()
 #
@@ -5273,6 +5265,4 @@ SET @obj1='{ "a": 1,"b": 2,"c": 3}';
 SELECT JSON_OBJECT_FILTER_KEYS (@obj1,@arr1);
 JSON_OBJECT_FILTER_KEYS (@obj1,@arr1)
 NULL
-#
 # End of 11.2 Test
-#

@@ -269,11 +269,18 @@ set global innodb_force_primary_key=1;
 insert into t values (0x31313131);
 insert into t values (0x32323232);
 drop table t;
-
-# vector index table has no PK, so cannot be created:
---error ER_REQUIRES_PRIMARY_KEY
-create table t (v vector (1) not null,vector index (v)) engine=innodb;
 set global innodb_force_primary_key=0;
+
+--echo #
+--echo # MDEV-36777 create vector table failed with VECTOR INDEX when innodb_force_primary_key=on
+--echo #
+set global innodb_force_primary_key=on;
+--error ER_REQUIRES_PRIMARY_KEY
+create table t1 (v vector(5) not null, vector index (v)) engine=innodb;
+create table t1 (id int primary key, v vector(5) not null, vector index (v)) engine=innodb;
+show create table t1;
+drop table t1;
+set global innodb_force_primary_key=default;
 
 --echo #
 --echo # MDEV-35922 Server crashes in mhnsw_read_first upon using vector key with views
@@ -348,5 +355,17 @@ drop table t;
 --echo #
 --error ER_TOO_LONG_KEY
 create table t (c1 varchar(1024) not null,c2 vector(1) not null,  unique key c1(c1), vector key c2 (c2)) engine=innodb default charset=utf8mb3 ;
+
+--echo #
+--echo # MDEV-37068 Can't find record in 't1' on INSERT to Vector table
+--echo #
+SET sql_mode='';
+create table t1 (v vector (1) not null,vector vec (v),unique vu (v)) engine=innodb;
+start transaction;
+--error ER_DUP_ENTRY
+insert t1 values (10), (20);
+insert t1 values (1);
+drop table t1;
+set sql_mode=default;
 
 --echo # End of 11.8 tests

@@ -2838,9 +2838,17 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
   DEBUG_SYNC(thd, "wsrep_before_toi_begin");
 
-  if (wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
+  if (!wsrep_ready ||
+      wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
     WSREP_DEBUG("No TOI for %s", wsrep_thd_query(thd));
+    if (!wsrep_ready)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_WARN,
+                          ER_GALERA_REPLICATION_NOT_SUPPORTED,
+                          "Galera cluster is not ready to execute replication");
+    }
     return 1;
   }
 

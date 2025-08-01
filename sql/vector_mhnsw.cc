@@ -291,6 +291,7 @@ struct FVector
     // Round up to process full vector, including padding
     size_t base= ((len + POWER_dims - 1) / POWER_dims) * POWER_dims;
 
+    #pragma GCC unroll 4
     for (size_t i= 0; i < base; i+= POWER_dims)
     {
       vector short x= vec_ld(0, &v1[i]);
@@ -741,8 +742,11 @@ int MHNSW_Trx::do_savepoint_rollback(THD *thd, void *)
   return 0;
 }
 
-int MHNSW_Trx::do_rollback(THD *thd, bool)
+int MHNSW_Trx::do_rollback(THD *thd, bool all)
 {
+  if (!all && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    return do_savepoint_rollback(thd, nullptr);
+
   MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx_next)
@@ -754,8 +758,11 @@ int MHNSW_Trx::do_rollback(THD *thd, bool)
   return 0;
 }
 
-int MHNSW_Trx::do_commit(THD *thd, bool)
+int MHNSW_Trx::do_commit(THD *thd, bool all)
 {
+  if (!all && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    return 0;
+
   MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &tp));
        trx; trx= trx_next)
@@ -825,8 +832,9 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
     thd_set_ha_data(thd, &tp, trx);
     if (!trx->next)
     {
-      bool all= thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN);
-      trans_register_ha(thd, all, &tp, 0);
+      if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+        trans_register_ha(thd, true, &tp, 0);
+      trans_register_ha(thd, false, &tp, 0);
     }
   }
   trx->refcnt++;
@@ -891,11 +899,12 @@ const FVector *FVector::create(const MHNSW_Share *ctx, void *mem, const void *sr
 {
   float scale=0, *v= (float *)src;
   for (size_t i= 0; i < ctx->vec_len; i++)
-    if (std::abs(scale) < std::abs(get_float(v + i)))
-      scale= get_float(v + i);
+    scale= std::max(scale, std::abs(get_float(v + i)));
 
   FVector *vec= align_ptr(mem);
   vec->scale= scale ? scale/32767 : 1;
+  if (std::round(scale/vec->scale) > 32767)
+    vec->scale= std::nextafter(vec->scale, FLT_MAX);
   for (size_t i= 0; i < ctx->vec_len; i++)
     vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
   vec->postprocess(ctx->use_subdist, ctx->vec_len);
@@ -1617,7 +1626,7 @@ int mhnsw_read_next(TABLE *table)
       result->found.links[i]= node;
     }
     ctx->release(false, table->s);      // release shared ctx
-    result->ctx= trx;                   // replace it with trx
+    result->ctx= trx->dup(false);       // replace it with trx
     result->ctx_version= trx->version;
     std::swap(trx, ctx);        // free shared ctx in this scope, keep trx
   }
@@ -1710,9 +1719,9 @@ int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
   if (!MHNSW_Share::acquire(&ctx, table, true))
   {
     ctx->reset(table->s);
-    ctx->release(table);
   }
 
+  ctx->release(table);
   return 0;
 }
 

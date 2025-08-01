@@ -1516,10 +1516,10 @@ error:
     check_opt   The options for repair. We do not use it currently.
 
   DESCRIPTION
-    If the file is empty, change # of rows in the file and complete recovery.
-    Otherwise, scan the table looking for bad rows. If none were found,
+    Scan the table looking for bad rows. If none were found,
     we mark file as a good one and return. If a bad row was encountered,
     we truncate the datafile up to the last good row.
+    If the file is empty, then do nothing and complete recovery.
 
    TODO: Make repair more clever - it should try to recover subsequent
          rows (after the first bad one) as well.
@@ -1537,10 +1537,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
 
   /* empty file */
   if (!share->saved_data_file_length)
-  {
-    share->rows_recorded= 0;
     goto end;
-  }
 
   /* Don't assert in field::val() functions */
   table->use_all_columns();

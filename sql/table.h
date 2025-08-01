@@ -1169,6 +1169,11 @@ struct TABLE_SHARE
     return (tmp_table == SYSTEM_TMP_TABLE) ? 0 : table_map_id;
   }
 
+  bool is_optimizer_tmp_table()
+  {
+    return tmp_table == INTERNAL_TMP_TABLE && !db.length && table_name.length;
+  }
+
   bool visit_subgraph(Wait_for_flush *waiting_ticket,
                       MDL_wait_for_graph_visitor *gvisitor);
 
@@ -1861,6 +1866,7 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
+  bool check_sequence_privileges(THD *thd);
   bool vcol_fix_expr(THD *thd);
   bool vcol_cleanup_expr(THD *thd);
   Field *find_field_by_name(const LEX_CSTRING *str) const;
@@ -2304,6 +2310,8 @@ struct vers_history_point_t
   Item *item;
 };
 
+struct vers_select_conds_t;
+
 class Vers_history_point : public vers_history_point_t
 {
   void fix_item();
@@ -2324,7 +2332,8 @@ public:
   }
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
-  bool check_unit(THD *thd);
+  bool check_unit(THD *thd, vers_select_conds_t *vers_conds);
+  bool has_param() const;
   bool eq(const vers_history_point_t &point) const;
 };
 
@@ -2334,6 +2343,7 @@ struct vers_select_conds_t
   vers_system_time_t orig_type;
   bool used:1;
   bool delete_history:1;
+  bool has_param:1;
   Vers_history_point start;
   Vers_history_point end;
   Lex_ident_column name;
@@ -2349,6 +2359,7 @@ struct vers_select_conds_t
     orig_type= SYSTEM_TIME_UNSPECIFIED;
     used= false;
     delete_history= false;
+    has_param= false;
     start.empty();
     end.empty();
   }
@@ -2363,6 +2374,7 @@ struct vers_select_conds_t
     used= false;
     delete_history= (type == SYSTEM_TIME_HISTORY ||
       type == SYSTEM_TIME_BEFORE);
+    has_param= false;
     start= _start;
     end= _end;
     name= _name;

@@ -1,6 +1,5 @@
 -- source include/not_embedded.inc
 --source include/have_debug.inc
---source include/not_asan.inc
 
 --echo #
 --echo # MDEV-28762: recursive call of some json functions without stack control
@@ -8,6 +7,10 @@
 
 SET @saved_dbug = @@debug_dbug;
 SET debug_dbug='+d,json_check_min_stack_requirement';
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT * from JSON_TABLE('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 
 SET @json1= '{"key1":"val1"}';
 SET @json2= '{"key1":"val1"}';

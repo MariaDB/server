@@ -380,6 +380,17 @@ disconnect con1;
 connection default;
 drop user u@localhost;
 drop database db;
+#
+# MDEV-37328 Assertion failure in make_empty_rec upon CONVERT PARTITION
+#
+create table t (f1 int, f2 int, f3 int, f4 int, f5 int, f6 int, f7 int) engine=myisam
+partition by list (f3) (
+partition p0 values in (null,0),
+partition p1 values in (1,2,3),
+partition p2 default
+);
+alter table t convert partition p0 to table tp;
+drop table if exists tp, t;
 # End of 10.11 tests
 #
 # MDEV-22164 without validation for exchange partition/convert in

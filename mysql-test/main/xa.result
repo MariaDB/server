@@ -135,11 +135,13 @@ connection con2;
 update t1 set c = 'aa' where a = 1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select count(*) from t1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+xa end 'a','c';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
+xa rollback 'a','c';
+select count(*) from t1;
 count(*)
 2
-xa end 'a','c';
-ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
-xa rollback 'a','c';
 disconnect con2;
 connect  con3,localhost,root,,;
 connection con3;
@@ -207,7 +209,7 @@ connection default;
 UPDATE t1 SET a=5 WHERE a=1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 XA END 'xid1';
-ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ROLLBACK ONLY state
 XA ROLLBACK 'xid1';
 XA START 'xid1';
 XA END 'xid1';
@@ -594,3 +596,94 @@ xa rollback '4';
 ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
 set @@global.read_only=@sav_read_only;
 # End of 10.5 tests
+#
+# MDEV-24981 LOAD INDEX may cause rollback of prepared XA transaction
+#
+create table t1 (f1 integer primary key) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+xa start 'a';
+insert into t1 values (1);
+xa end 'a';
+xa prepare 'a';
+load index into cache t1 key(primary);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+xa commit 'a';
+select count(*) from t1;
+count(*)
+1
+drop table t1;
+#
+# MDEV-37315 Assertion `!xid_state.xid_cache_element' failed in trans_xa_rollback
+#
+create table t1 (a int) engine=innodb;
+create table t2 (b int) engine=innodb;
+create table t3 (c int) engine=innodb;
+insert t1 values (1);
+insert t2 values (2);
+connect con1,localhost,root;
+xa start 'r:foo';
+insert t3 values (3);
+xa end 'r:foo';
+xa prepare 'r:foo';
+disconnect con1;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	5	0	r:foo
+xa start 'r:bar';
+select * from t1 for update;
+a
+1
+connect con2,localhost,root;
+xa start 'r:baz';
+update t2 set b=12;
+update t1 set a=13;
+connection default;
+xa rollback 'r:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+select * from t2 for update;
+Got one of the listed errors
+xa rollback 'r:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+connection con2;
+disconnect con2;
+connection default;
+xa rollback 'r:bar';
+xa rollback 'r:foo';
+connect con1,localhost,root;
+xa start 'c:foo';
+insert t3 values (103);
+xa end 'c:foo';
+xa prepare 'c:foo';
+disconnect con1;
+connection default;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	5	0	c:foo
+xa start 'c:bar';
+select * from t1 for update;
+a
+1
+connect con2,localhost,root;
+xa start 'c:baz';
+update t2 set b=102;
+update t1 set a=103;
+connection default;
+xa commit 'c:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+select * from t2 for update;
+Got one of the listed errors
+xa commit 'c:foo';
+ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+connection con2;
+disconnect con2;
+connection default;
+xa rollback 'c:bar';
+xa commit 'c:foo';
+drop table t1,t2,t3;
+# End of 10.11 tests

@@ -563,12 +563,36 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 {
 	MYSQL_RES *mysql_result;
 	char query[1000];
-	char buf[100];
+	char buf[NAME_LEN*2+3];
+
+	size_t opt_incremental_history_name_len= 0;
+	size_t opt_incremental_history_uuid_len= 0;
+
+	if (opt_incremental_history_name)
+		opt_incremental_history_name_len=
+                  strlen(opt_incremental_history_name);
+
+	if (opt_incremental_history_uuid)
+		opt_incremental_history_uuid_len=
+                  strlen(opt_incremental_history_uuid);
+
+	if (opt_incremental_history_name_len*2 > sizeof(buf))
+		die("Incremental history table name '%s' is too long.",
+		    opt_incremental_history_name);
+
+	if (opt_incremental_history_uuid_len*2 > sizeof(buf))
+		die("Incremental history uuid '%s' is too long.",
+		    opt_incremental_history_uuid);
+
+	if (opt_incremental_history_name && opt_incremental_history_name[0]
+	    && opt_incremental_history_uuid && opt_incremental_history_uuid[0])
+		die("It is allowed to use either --incremental-history-name "
+		    "or --incremental-history-uuid, but not both.");
 
 	if (opt_incremental_history_name) {
 		mysql_real_escape_string(mysql_connection, buf,
 				opt_incremental_history_name,
-				(unsigned long)strlen(opt_incremental_history_name));
+				(unsigned long) opt_incremental_history_name_len);
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
 			"FROM " XB_HISTORY_TABLE " "
@@ -577,11 +601,10 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 			"ORDER BY innodb_to_lsn DESC LIMIT 1",
 			buf);
 	}
-
-	if (opt_incremental_history_uuid) {
+	else if (opt_incremental_history_uuid) {
 		mysql_real_escape_string(mysql_connection, buf,
 				opt_incremental_history_uuid,
-				(unsigned long)strlen(opt_incremental_history_uuid));
+				(unsigned long) opt_incremental_history_uuid_len);
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
 			"FROM " XB_HISTORY_TABLE " "
@@ -591,6 +614,8 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 			buf);
 	}
 
+	/* xb_mysql_query(..,.., true) will die on error, so
+	mysql_result can't be nullptr */
 	mysql_result = xb_mysql_query(mysql_connection, query, true);
 
 	ut_ad(mysql_num_fields(mysql_result) == 1);
@@ -1691,7 +1716,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 	char buf_end_time[100];
 	tm tm;
 	std::ostringstream oss;
-	const char *xb_stream_name[] = {"file", "tar", "xbstream"};
+	const char *xb_stream_name[] = {"file", "mbstream"};
 
 	uuid = read_mysql_one_value(connection, "SELECT UUID()");
 	server_version = read_mysql_one_value(connection, "SELECT VERSION()");
@@ -1775,6 +1800,10 @@ write_xtrabackup_info(ds_ctxt *datasink,
 	}
 
 	xb_mysql_query(connection,
+		"ALTER TABLE IF EXISTS " XB_HISTORY_TABLE
+		" MODIFY format ENUM('file', 'tar', 'mbstream') DEFAULT NULL", false);
+
+	xb_mysql_query(connection,
 		"CREATE TABLE IF NOT EXISTS " XB_HISTORY_TABLE "("
 		"uuid VARCHAR(40) NOT NULL PRIMARY KEY,"
 		"name VARCHAR(255) DEFAULT NULL,"
@@ -1791,7 +1820,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 		"innodb_to_lsn BIGINT UNSIGNED DEFAULT NULL,"
 		"partial ENUM('Y', 'N') DEFAULT NULL,"
 		"incremental ENUM('Y', 'N') DEFAULT NULL,"
-		"format ENUM('file', 'tar', 'xbstream') DEFAULT NULL,"
+		"format ENUM('file', 'tar', 'mbstream') DEFAULT NULL,"
 		"compressed ENUM('Y', 'N') DEFAULT NULL"
 		") CHARACTER SET utf8 ENGINE=innodb", false);
 
@@ -1942,7 +1971,7 @@ void
 capture_tool_command(int argc, char **argv)
 {
 	/* capture tool name tool args */
-	tool_name = strrchr(argv[0], '/');
+	tool_name = strrchr(argv[0], IF_WIN('\\', '/'));
 	tool_name = tool_name ? tool_name + 1 : argv[0];
 
 	make_argv(tool_args, sizeof(tool_args), argc, argv);

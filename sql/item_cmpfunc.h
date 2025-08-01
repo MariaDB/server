@@ -1210,6 +1210,7 @@ public:
   Type_ref_null ref_op(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override
   {
+    update_nullability_post_fix_fields();
     if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
       return TRUE;
     fix_attributes(args, arg_count);
@@ -1302,17 +1303,7 @@ public:
   Type_ref_null ref_op(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override
   {
-    /*
-      Set nullability from args[1] by default.
-      Note, some type handlers may reset maybe_null
-      in Item_hybrid_func_fix_attributes() if args[1]
-      is NOT NULL but cannot always be converted to
-      the data type of "this" safely.
-      E.g. Type_handler_inet6 does:
-        IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
-        IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
-    */
-    copy_flags(args[1], item_base_t::MAYBE_NULL);
+    update_nullability_post_fix_fields();
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
@@ -2362,15 +2353,8 @@ public:
     @param [OUT] idx  - In case if a value that is equal to the predicant
                         was found, the index of the matching value is returned
                         here. Otherwise, *idx is not changed.
-    @param [IN/OUT] found_unknown_values - how to handle UNKNOWN results.
-                        If found_unknown_values is NULL (e.g. Item_func_case),
-                        cmp() returns immediately when the first UNKNOWN
-                        result is found.
-                        If found_unknown_values is non-NULL (Item_func_in),
-                        cmp() does not return when an UNKNOWN result is found,
-                        sets *found_unknown_values to true, and continues
-                        to compare the remaining pairs to find FALSE
-                        (i.e. the value that is equal to the predicant).
+    @param [OUT] found_unknown_values - set to true if the result of at least
+                        one comparison was UNKNOWN
 
     @retval     false - Found a value that is equal to the predicant
     @retval     true  - Didn't find an equal value
@@ -2387,11 +2371,7 @@ public:
         return false; // Found a matching value
       }
       if (rc == UNKNOWN)
-      {
-        if (!found_unknown_values)
-          return true;
         *found_unknown_values= true;
-      }
     }
     return true; // Not found
   }

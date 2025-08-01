@@ -25,3 +25,15 @@ i
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t21;
+#
+# MDEV-36287 maribackup ignores tables-file option
+#
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 values(1);
+# Only backup table t1 by creating tables_file
+# Backup with --tables-file option
+# table t2 is skipped. Shows only t1
+t1.frm
+t1.ibd
+DROP TABLE t2, t1;

@@ -113,7 +113,7 @@ test.t	repair	status	OK
 check table t extended;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-select v from t order by vec_distance_euclidean(0x323233232,v) limit 1;
+select v from t order by vec_distance_euclidean(0x32323232,v) limit 1;
 v
-0000
+1111
 drop table t;

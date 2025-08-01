@@ -5,6 +5,9 @@
 --echo # MDEV-28800 SIGABRT due to running out of memory for InnoDB locks
 --echo #
 
+SET @save_ahi=@@GLOBAL.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index=OFF;
+
 CREATE TABLE t1 (col1 INT) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES (1),(2),(3),(4);
@@ -27,3 +30,4 @@ COMMIT;
 SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
+SET GLOBAL innodb_adaptive_hash_index=@save_ahi;

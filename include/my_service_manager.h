@@ -44,7 +44,7 @@
 #define SD_LISTEN_FDS_START (0)
 #define sd_notify(X, Y)
 #define sd_notifyf(E, F, ...)
-#ifdef _WIN32
+#if defined (_WIN32) && !defined(EMBEDDED_LIBRARY)
   #define service_manager_extend_timeout(I, F, ...) \
     mysqld_win_extend_service_timeout(I)
 #else

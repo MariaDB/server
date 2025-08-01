@@ -120,8 +120,6 @@ simple_thread_local ha_handler_stats *mariadb_stats;
 #include <myisamchk.h>                          // TT_FOR_UPGRADE
 #include "sql_type_vector.h"
 
-#define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
-
 extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
 unsigned long long thd_get_query_id(const MYSQL_THD thd);
 void thd_clear_error(MYSQL_THD thd);
@@ -326,6 +324,25 @@ static const char* innodb_stats_method_names[] = {
 This is the same as "myisam_stats_method_typelib" */
 static TYPELIB innodb_stats_method_typelib =
 			CREATE_TYPELIB_FOR(innodb_stats_method_names);
+
+/** Possible values for system variable "innodb_linux_aio" */
+#ifdef __linux__
+const char* innodb_linux_aio_names[] = {
+	"auto",     /* SRV_LINUX_AIO_AUTO */
+	"io_uring", /* SRV_LINUX_AIO_IO_URING */
+	"aio",      /* SRV_LINUX_AIO_LIBAIO */
+	NullS
+};
+
+/** Used to define an enumerate type of the system variable
+innodb_linux_aio. Used by mariadb-backup too. */
+TYPELIB innodb_linux_aio_typelib = {
+	array_elements(innodb_linux_aio_names) - 1,
+	"innodb_linux_aio_typelib",
+	innodb_linux_aio_names,
+	NULL
+};
+#endif
 
 /** Possible values of the parameter innodb_checksum_algorithm */
 const char* innodb_checksum_algorithm_names[] = {
@@ -799,14 +816,16 @@ innodb_tmpdir_validate(
 	return(0);
 }
 
-/******************************************************************//**
-Maps a MySQL trx isolation level code to the InnoDB isolation level code
-@return	InnoDB isolation level */
-static inline
-uint
-innobase_map_isolation_level(
-/*=========================*/
-	enum_tx_isolation	iso);	/*!< in: MySQL isolation level code */
+/** @return the current transaction isolation level */
+static inline uint innodb_isolation_level(const THD *thd) noexcept
+{
+  static_assert(ISO_REPEATABLE_READ == TRX_ISO_REPEATABLE_READ, "");
+  static_assert(ISO_SERIALIZABLE == TRX_ISO_SERIALIZABLE, "");
+  static_assert(ISO_READ_COMMITTED == TRX_ISO_READ_COMMITTED, "");
+  static_assert(ISO_READ_UNCOMMITTED == TRX_ISO_READ_UNCOMMITTED, "");
+  return high_level_read_only
+    ? ISO_READ_UNCOMMITTED : (thd_tx_isolation(thd) & 3);
+}
 
 /** Gets field offset for a field in a table.
 @param[in]	table	MySQL table object
@@ -4054,12 +4073,8 @@ static int innodb_init_params()
 skip_buffering_tweak:
 #endif
 
-#if !defined LINUX_NATIVE_AIO && !defined HAVE_URING && !defined _WIN32
-  /* Currently native AIO is supported only on windows and linux
-  and that also when the support is compiled in. In all other
-  cases, we ignore the setting of innodb_use_native_aio. */
-  srv_use_native_aio= FALSE;
-#endif
+  if (!tpool::supports_native_aio())
+    srv_use_native_aio= FALSE;
 
   DBUG_RETURN(0);
 }
@@ -4351,21 +4366,18 @@ innobase_start_trx_and_assign_read_view(
 
 	trx_start_if_not_started_xa(trx, false);
 
-	/* Assign a read view if the transaction does not have it yet.
-	Do this only if transaction is using REPEATABLE READ isolation
-	level. */
-	trx->isolation_level = innobase_map_isolation_level(
-		thd_get_trx_isolation(thd)) & 3;
+	/* Assign a read view if the transaction does not have one yet.
+	Skip this for the READ UNCOMMITTED isolation level. */
+	trx->isolation_level = innodb_isolation_level(thd) & 3;
 
-	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
+	if (trx->isolation_level != TRX_ISO_READ_UNCOMMITTED) {
 		trx->read_view.open(trx);
 	} else {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    HA_ERR_UNSUPPORTED,
 				    "InnoDB: WITH CONSISTENT SNAPSHOT"
-				    " was ignored because this phrase"
-				    " can only be used with"
-				    " REPEATABLE READ isolation level.");
+				    " is ignored at READ UNCOMMITTED"
+				    " isolation level.");
 	}
 
 	/* Set the MySQL flag to mark that there is an active transaction */
@@ -4974,7 +4986,7 @@ ha_innobase::table_flags() const
 	called before prebuilt is inited. */
 
 	if (thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
-		return(flags);
+		return(flags | HA_CHECK_UNIQUE_AFTER_WRITE);
 	}
 
 	return(flags | HA_BINLOG_STMT_CAPABLE);
@@ -14014,10 +14026,10 @@ int ha_innobase::truncate()
                 trx);
     if (!err)
     {
+      trx->commit(deleted);
       m_prebuilt->table->acquire();
       create_table_info_t::create_table_update_dict(m_prebuilt->table,
                                                     m_user_thd, info, *table);
-      trx->commit(deleted);
     }
     else
     {
@@ -16171,31 +16183,6 @@ ha_innobase::start_stmt(
 }
 
 /******************************************************************//**
-Maps a MySQL trx isolation level code to the InnoDB isolation level code
-@return InnoDB isolation level */
-static inline
-uint
-innobase_map_isolation_level(
-/*=========================*/
-	enum_tx_isolation	iso)	/*!< in: MySQL isolation level code */
-{
-	if (UNIV_UNLIKELY(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN)
-	    || UNIV_UNLIKELY(srv_read_only_mode)) {
-		return TRX_ISO_READ_UNCOMMITTED;
-	}
-	switch (iso) {
-	case ISO_REPEATABLE_READ:	return(TRX_ISO_REPEATABLE_READ);
-	case ISO_READ_COMMITTED:	return(TRX_ISO_READ_COMMITTED);
-	case ISO_SERIALIZABLE:		return(TRX_ISO_SERIALIZABLE);
-	case ISO_READ_UNCOMMITTED:	return(TRX_ISO_READ_UNCOMMITTED);
-	}
-
-	ut_error;
-
-	return(0);
-}
-
-/******************************************************************//**
 As MySQL will execute an external lock for every new table it uses when it
 starts to process an SQL statement (an exception is when MySQL calls
 start_stmt for the handle) we can use this function to store the pointer to
@@ -16664,19 +16651,30 @@ ha_innobase::store_lock(
 	Be careful to ignore TL_IGNORE if we are going to do something with
 	only 'real' locks! */
 
-	/* If no MySQL table is in use, we need to set the isolation level
+	/* If no table handle is open, we need to set the isolation level
 	of the transaction. */
 
 	if (lock_type != TL_IGNORE
 	    && trx->n_mysql_tables_in_use == 0) {
-		trx->isolation_level = innobase_map_isolation_level(
-			(enum_tx_isolation) thd_tx_isolation(thd)) & 3;
-
-		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
-
+		switch ((trx->isolation_level
+			 = innodb_isolation_level(thd) & 3)) {
+		case ISO_REPEATABLE_READ:
+			break;
+		case ISO_READ_COMMITTED:
+		case ISO_READ_UNCOMMITTED:
 			/* At low transaction isolation levels we let
 			each consistent read set its own snapshot */
 			trx->read_view.close();
+			break;
+		case ISO_SERIALIZABLE:
+			auto trx_state = trx->state;
+			if (trx_state != TRX_STATE_NOT_STARTED) {
+				ut_ad(trx_state == TRX_STATE_ACTIVE);
+			} else if (trx->snapshot_isolation) {
+				trx->will_lock = true;
+				trx_start_if_not_started(trx, false);
+				trx->read_view.open(trx);
+			}
 		}
 	}
 
@@ -19765,6 +19763,15 @@ static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   "Use native AIO if supported on this platform",
   NULL, NULL, TRUE);
 
+#ifdef __linux__
+static MYSQL_SYSVAR_ENUM(linux_aio, srv_linux_aio_method,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Specifies which Linux AIO implementation should be used."
+  " Possible value are \"auto\" (default) to select io_uring"
+  " and fallback to aio, or explicit \"io_uring\" or \"aio\"",
+  nullptr, nullptr, SRV_LINUX_AIO_AUTO, &innodb_linux_aio_typelib);
+#endif
+
 #ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -20121,6 +20128,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(autoinc_lock_mode),
   MYSQL_SYSVAR(use_native_aio),
+#ifdef __linux__
+  MYSQL_SYSVAR(linux_aio),
+#endif
 #ifdef HAVE_LIBNUMA
   MYSQL_SYSVAR(numa_interleave),
 #endif /* HAVE_LIBNUMA */

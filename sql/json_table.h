@@ -284,7 +284,7 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc);
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 
 table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
-                                          table_map nest_tables);
+                                          table_map nest_tables, bool *error);
 
 #endif /* JSON_TABLE_INCLUDED */
 

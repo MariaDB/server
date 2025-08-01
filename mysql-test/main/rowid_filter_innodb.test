@@ -13,8 +13,17 @@ SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent=0;
 
+SET @save_ahi=@@GLOBAL.innodb_adaptive_hash_index;
+if ($MTR_COMBINATION_AHI) {
+SET GLOBAL innodb_adaptive_hash_index=ON;
+}
+if (!$MTR_COMBINATION_AHI) {
+SET GLOBAL innodb_adaptive_hash_index=OFF;
+}
+
 --source rowid_filter.test
 
+SET GLOBAL innodb_adaptive_hash_index=@save_ahi;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 
 --source include/have_sequence.inc

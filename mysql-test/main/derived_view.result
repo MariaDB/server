@@ -2912,7 +2912,7 @@ FROM t2, t1 GROUP BY t2.useraccessfamily, picturesubuser) y
 WHERE x.useraccessfamily = y.useraccessfamily;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	x	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	1539	const	0	
 2	DERIVED	t2	system	NULL	NULL	NULL	NULL	1	
 2	DERIVED	t1	index	NULL	index_td_familyid_id	772	NULL	2	Using index
 SELECT * FROM t2 x,

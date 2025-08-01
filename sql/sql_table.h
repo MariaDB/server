@@ -57,11 +57,13 @@ enum enum_explain_filename_mode
 /* depends on errmsg.txt Database `db`, Table `t` ... */
 #define EXPLAIN_FILENAME_MAX_EXTRA_LENGTH 63
 
+/* See mysql_write_frm function comment for explanations of these flags */
 #define WFRM_WRITE_SHADOW 1
 #define WFRM_INSTALL_SHADOW 2
 #define WFRM_KEEP_SHARE 4
 #define WFRM_WRITE_CONVERTED_TO 8
 #define WFRM_BACKUP_ORIGINAL 16
+#define WFRM_ALTER_INFO_PREPARED 32
 
 /* Flags for conversion functions. */
 static constexpr uint FN_FROM_IS_TMP=  1 << 0;

@@ -4559,7 +4559,7 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
-     qr|InnoDB: liburing disabled|,
+     qr|InnoDB: io_uring failed: falling back to libaio|,
      qr/InnoDB: Failed to set O_DIRECT on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|failed to retrieve the MAC address|,
