@@ -10,6 +10,9 @@ PORT = int(sys.argv[1])
 SUCCESS_RESPONSES_FILENAME = sys.argv[2]
 WRONG_JSON_PATH_FILENAME = sys.argv[3]
 
+with open(SUCCESS_RESPONSES_FILENAME, 'r') as file:
+    responses = json.load(file)
+
 def get_response(filename, status_code):
     if not os.path.exists(filename):
         print(f"File {filename} not found.")
@@ -27,8 +30,6 @@ def handle_request(request):
         if path == "/success" and method in ("GET", "POST"):
             parsed_input = json.loads(request.splitlines()[-1])["input"]
             print(parsed_input)
-            with open(SUCCESS_RESPONSES_FILENAME, 'r') as file:
-                responses = json.load(file)
             if parsed_input in responses:
                 print(f"Input '{parsed_input}' found in {SUCCESS_RESPONSES_FILENAME}.")
                 return_text = responses[parsed_input]
