@@ -34,11 +34,14 @@ ERROR 42000: Variable 'server_audit_excl_users' can't be set to the value of ''r
 show variables like 'server_audit_excl_users';
 Variable_name	Value
 server_audit_excl_users	
+Line count in file: 5
 connect  con1,localhost,root,,mysql;
 disconnect con1;
+Line count in file: 7
 connect(localhost,no_such_user,,mysql,MASTER_PORT,MASTER_SOCKET);
 connect  con1,localhost,no_such_user,,mysql;
 ERROR 28000: Access denied for user 'no_such_user'@'localhost' (using password: NO)
+Line count in file: 9
 connection default;
 set global server_audit_incl_users='odin, dva, tri';
 create table t1 (id int);
@@ -100,6 +103,7 @@ server_audit_syslog_priority	LOG_INFO
 set global server_audit_mode=1;
 set global server_audit_events='';
 create database sa_db;
+Line count in file: 47
 connect  con1,localhost,root,,test;
 create table t1 (id2 int);
 insert into t1 values (1), (2);
@@ -114,6 +118,7 @@ insert into sa_t1 values (1), (2);
 drop table sa_t1;
 drop database sa_db;
 disconnect con1;
+Line count in file: 80
 connection default;
 create database sa_db;
 use sa_db;
