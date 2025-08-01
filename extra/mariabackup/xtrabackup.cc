@@ -2086,7 +2086,7 @@ struct my_option xb_server_options[] =
    "(for --backup): Force an InnoDB checkpoint",
    (G_PTR*)&innodb_log_checkpoint_now,
    (G_PTR*)&innodb_log_checkpoint_now,
-   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
+   0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
      "All arguments that follow this argument are considered as server "
