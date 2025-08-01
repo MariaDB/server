@@ -104,6 +104,12 @@ select replace('aaaa','a','bbbb');
 --enable_view_protocol
 select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') as exp;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
+select soundex('','0'),soundex('he','0'),soundex('hello all folks','0'),soundex('#3556 in bugdb','0');
+select soundex('','1'),soundex('he','1'),soundex('hello all folks','1'),soundex('#3556 in bugdb','1');
+select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
+select soundex('',0),soundex('he',0),soundex('hello all folks',0),soundex('#3556 in bugdb',0);
+select soundex('',1),soundex('he',1),soundex('hello all folks',1),soundex('#3556 in bugdb',1);
+select soundex('hello'), soundex('all'),soundex('folks');
 select 'mood' sounds like 'mud';
 select 'Glazgo' sounds like 'Liverpool';
 select null sounds like 'null';
