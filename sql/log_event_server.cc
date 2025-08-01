@@ -7665,7 +7665,6 @@ Write_rows_log_event::do_before_row_operations(rpl_group_info *rgi,
       };
     }
     new (write_record) Write_record(thd, m_table, copy_info,
-                                    m_vers_from_plain &&
                                     m_table->versioned(VERS_TIMESTAMP),
                                     m_table->triggers && do_invoke_trigger(),
                                     NULL, callback, this, rgi);
