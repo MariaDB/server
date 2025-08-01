@@ -18,7 +18,7 @@
 #include <mysql_com.h>
 #include <mysql.h>
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 /* Get the length of next field. Change parameter to point at fieldstart */
 ulong net_field_length(uchar **packet)
 {

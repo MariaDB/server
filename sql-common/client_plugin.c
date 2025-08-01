@@ -44,7 +44,7 @@ PSI_memory_key key_memory_load_env_plugins;
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key key_mutex_LOCK_load_client_plugin;
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static PSI_mutex_info all_client_plugin_mutexes[]=
 {
   {&key_mutex_LOCK_load_client_plugin, "LOCK_load_client_plugin", PSI_FLAG_GLOBAL}
@@ -76,7 +76,7 @@ struct st_client_plugin_int {
   struct st_mysql_client_plugin *plugin;
 };
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static my_bool initialized= 0;
 static MEM_ROOT mem_root;
 

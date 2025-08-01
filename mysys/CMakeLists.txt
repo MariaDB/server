@@ -16,7 +16,6 @@
 
 INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/mysys)
 
-ADD_DEFINITIONS(-DDO_NOT_USE_CONC)
 SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
                 get_password.c
 				errors.c hash.c list.c

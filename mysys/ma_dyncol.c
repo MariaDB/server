@@ -113,7 +113,7 @@ enum enum_dyncol_format
 
 #define DYNCOL_NUM_CHAR 6
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 my_bool mariadb_dyncol_has_names(DYNAMIC_COLUMN *str)
 {
   if (str->length < 1)
@@ -141,7 +141,7 @@ dynamic_column_get_internal(DYNAMIC_COLUMN *str,
 static enum enum_dyncol_func_result
 dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
                                LEX_STRING *str_key);
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 static enum enum_dyncol_func_result
 dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
                                uint add_column_count,
@@ -224,7 +224,7 @@ static int column_sort_num(const void *a, const void *b)
   return **((uint **)a) - **((uint **)b);
 }
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Comparator function for references on column numbers for qsort
   (names format)
@@ -679,7 +679,7 @@ init_read_hdr(DYN_HEADER *hdr, DYNAMIC_COLUMN *str)
 }
 
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Initialize dynamic column string with (make it empty but correct format)
 
@@ -1182,7 +1182,7 @@ void dynamic_column_prepare_decimal(DYNAMIC_COLUMN_VALUE *value)
 
 
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Read decimal value of given length from the string
 
@@ -1598,7 +1598,7 @@ static void set_fixed_header(DYNAMIC_COLUMN *str,
   DBUG_ASSERT((str->str[0] & (~DYNCOL_FLG_KNOWN)) == 0);
 }
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Adds columns into the empty string
 
@@ -2196,7 +2196,7 @@ static inline my_bool read_fixed_header(DYN_HEADER *hdr,
 }
 
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Get dynamic column value by column number
 
@@ -2344,7 +2344,7 @@ dynamic_column_exists(DYNAMIC_COLUMN *str, uint column_nr)
   return dynamic_column_exists_internal(str, column_nr, NULL);
 }
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 enum enum_dyncol_func_result
 mariadb_dyncol_exists_num(DYNAMIC_COLUMN *str, uint column_nr)
 {
@@ -2403,7 +2403,7 @@ dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
 }
 
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   List not-null columns in the packed string (only numeric format)
 
@@ -2707,7 +2707,7 @@ static int plan_sort_named(const void *a, const void *b)
     (C)= TRUE;                      \
   }
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Update dynamic column by copying in a new record (string).
 
@@ -4419,7 +4419,7 @@ void mariadb_dyncol_unpack_free(LEX_STRING *names, DYNAMIC_COLUMN_VALUE *vals)
   my_free(vals);
 }
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 /**
   Get not NULL column count
 

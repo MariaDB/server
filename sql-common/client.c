@@ -156,7 +156,7 @@ void init_client_psi_keys(void)
 
 #endif /* HAVE_PSI_INTERFACE */
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 uint            mariadb_deinitialize_ssl= 1;
 uint		mysql_port=0;
 char		*mysql_unix_port= 0;
@@ -165,13 +165,13 @@ const char	*unknown_sqlstate= "HY000";
 const char	*not_error_sqlstate= "00000";
 const char	*cant_connect_sqlstate= "08001";
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static void mysql_close_free_options(MYSQL *mysql);
 static void mysql_close_free(MYSQL *mysql);
 #endif
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static my_bool parse_ok_packet(MYSQL *mysql, ulong length);
 #endif
 
@@ -181,7 +181,7 @@ CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 unsigned int mysql_server_last_errno;
 char mysql_server_last_error[MYSQL_ERRMSG_SIZE];
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 /**
   Convert the connect timeout option to a timeout value for VIO
   functions (vio_socket_connect() and vio_io_wait()).
@@ -466,7 +466,7 @@ restart:
   return len;
 }
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 void free_rows(MYSQL_DATA *cur)
 {
   if (cur)
@@ -644,7 +644,7 @@ my_bool opt_flush_ok_packet(MYSQL *mysql, my_bool *is_ok_packet)
 }
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 /*
   Flush result set sent from server
 */
@@ -757,7 +757,7 @@ void end_server(MYSQL *mysql)
 }
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 void STDCALL
 mysql_free_result(MYSQL_RES *result)
 {
@@ -886,7 +886,7 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
 #define EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, dup)            \
   EXTENSION_SET_STRING_X((OPTS), X, (STR), dup);
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static char *set_ssl_option_unpack_path(const char *arg, myf flags)
 {
   char buff[FN_REFLEN + 1];
@@ -1104,7 +1104,7 @@ void mysql_read_default_options(struct st_mysql_options *options,
 }
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 /**************************************************************************
   Get column lengths of the current row
   If one uses mysql_use_result, res->lengths contains the length information,
@@ -1383,7 +1383,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
 */
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static int
 read_one_row(MYSQL *mysql,uint fields,MYSQL_ROW row, ulong *lengths)
 {
@@ -1679,7 +1679,7 @@ int cli_read_change_user_result(MYSQL *mysql)
   return cli_safe_read(mysql);
 }
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static MYSQL_METHODS client_methods=
 {
   cli_read_query_result,                       /* read_query_result */
@@ -1788,7 +1788,7 @@ C_MODE_END
 /*********** client side authentication support **************************/
 
 typedef struct st_mysql_client_plugin_AUTHENTICATION auth_plugin_t;
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static int client_mpvio_write_packet(struct st_plugin_vio*, const uchar*, int);
 static int native_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql);
 static int native_password_auth_hash(MYSQL *mysql, uchar *out, size_t *outlen);
@@ -1886,7 +1886,7 @@ send_client_connect_attrs(MYSQL *mysql, uchar *buf)
 }
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 static size_t get_length_store_length(size_t length)
 {
   /* as defined in net_store_length */
@@ -1919,7 +1919,7 @@ typedef struct {
 } MCPVIO_EXT;
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 /*
   Write 1-8 bytes of string length header information to dest depending on
   value of src_len, then copy src_len bytes from src to dest.
@@ -3314,7 +3314,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   Set current database
 **************************************************************************/
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 int STDCALL
 mysql_select_db(MYSQL *mysql, const char *db)
 {
@@ -3467,7 +3467,7 @@ void mysql_detach_stmt_list(LIST **stmt_list __attribute__((unused)),
   (As some clients call this after mysql_real_connect() fails)
 */
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 /*
   mysql_close() can actually block, at least in theory, if the socket buffer
   is full when sending the COM_QUIT command.
@@ -3980,7 +3980,7 @@ get_attr_key(const void *part_, size_t *length,
   return (const uchar *) part[0].str;
 }
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 int STDCALL
 mysql_options4(MYSQL *mysql,enum mysql_option option,
                const void *arg1, const void *arg2)
@@ -4321,7 +4321,7 @@ int STDCALL mysql_cancel(MYSQL *mysql)
 }
 
 
-#ifdef EMBEDDED_LIBRARY
+#ifndef USE_CONC
 MYSQL_RES *STDCALL mysql_use_result(MYSQL *mysql)
 {
   return (*mysql->methods->use_result)(mysql);

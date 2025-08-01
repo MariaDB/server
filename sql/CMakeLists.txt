@@ -238,7 +238,7 @@ ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
-  mariadbclient
+  libmariadb
   mysys mysys_ssl dbug strings vio pcre2-8
   tpool
   online_alter_log

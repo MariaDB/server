@@ -61,7 +61,7 @@ test_copy_and_compare()
 
 }
 
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
 static int
 test_decimal2string()
 {
@@ -98,7 +98,7 @@ int main()
   diag("Testing my_decimal constructor and assignment operators");
 
   test_copy_and_compare();
-#ifdef DO_NOT_USE_CONC
+#ifndef USE_CONC
   test_decimal2string();
 #endif
 

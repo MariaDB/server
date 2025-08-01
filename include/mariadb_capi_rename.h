@@ -14,8 +14,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Renaming C API symbols inside server
- * client.c defines a number of functions from the C API that
- * mariadb-backup and a number of storage engine plugins use.
+ * client.c defines a number of functions from the C API, that are used in number of storage engine plugins.
  * That can cause a problem if a plugin loads libmariadb/libmysql or a library, that has dependency on them. The known case is ODBC driver.
  * Thus the header re-names those functions for internal use.
  */
