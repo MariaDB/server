@@ -363,6 +363,13 @@ protected:
 };
 
 
+enum class HintsResolution {
+    Pending,    // Resolution pending
+    Deferred,   // Would've been resolved except for a VIEW
+    Complete    // Resolution complete
+};
+
+
 /**
   Global level hints.  Currently, it's only MAX_EXECUTION_TIME.
 */
@@ -371,6 +378,7 @@ class Opt_hints_global : public Opt_hints
 {
 public:
   const Parser::Max_execution_time_hint *max_exec_time_hint= nullptr;
+  HintsResolution hints_resolution{HintsResolution::Pending};
 
   /*
     If MAX_EXECUTION_TIME() hint was provided, this pointer is set to

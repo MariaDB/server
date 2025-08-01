@@ -1529,10 +1529,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
     /* Parse the query. */
-
+    // this is where we parse the VIEW's SQL
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
 
     view_select= lex->first_select_lex();
+//    lex->inner_hint_resolver(view_select);
 
     /* Restore environment. */
 

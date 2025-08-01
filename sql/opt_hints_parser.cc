@@ -565,6 +565,22 @@ bool Parser::Qb_name_hint::resolve(Parse_context *pc) const
   }
 
   qb->set_name(qb_name_sys);
+
+  /*
+    If the QB_NAME hint has more than one argument, then those arguments from
+    the second onward are the path to a table, via VIEWs, to which a hint
+    specified by the outermost query applies.  Mark the Opt_hints_qb for
+    deferred resolution, after the VIEW is opened, which is when the first
+    parameter of QB_NAME will be valid as it will map onto a query block name
+    defined in the associated VIEW.
+
+    Marking for resolution now prevents us from sending unresolved hint
+    warnings to the client as we now know they could be resolved by the VIEW.
+  */
+  Lex_ident_sys view_ref_name= Table_name::to_ident_sys(pc->thd);
+  if (view_ref_name.length)  // has length iff is present
+    ((Opt_hints_global*)qb->get_parent())->hints_resolution= HintsResolution::Deferred;
+
   return false;
 }
 

@@ -3760,6 +3760,8 @@ public:
     DBUG_RETURN(select_lex);
   }
 
+  void inner_hint_resolver(SELECT_LEX *query_block);
+
   void resolve_optimizer_hints_in_last_select();
 
   bool discard_optimizer_hints_in_last_select();

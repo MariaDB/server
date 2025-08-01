@@ -299,7 +299,9 @@ Opt_hints_qb *find_qb_hints(Parse_context *pc,
   // if (qb == nullptr)
   //    look in VIEW here?  Is it one of the SELECTs on pc::select?  Or via THD?
 
-  if (qb == nullptr)
+  Opt_hints_global *ohg= (Opt_hints_global*)(pc->select->opt_hints_qb ?
+                                             pc->select->opt_hints_qb->get_parent() : nullptr);
+  if (qb == nullptr && ohg->hints_resolution != HintsResolution::Deferred)  // need to inspect global hints here and see if marked
     print_warn(pc->thd, ER_WARN_UNKNOWN_QB_NAME, hint_type, hint_state,  // emitted now because hint<-->view linkage nonexistent
                &qb_name, NULL, NULL, NULL);
 

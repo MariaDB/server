@@ -663,7 +663,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (!unit)
     DBUG_RETURN(FALSE);
 
-  first_select= unit->first_select();  // put breakpoint here and look at backtrace
+  first_select= unit->first_select();  // put breakpoint here and look at backtrace.  This is the VIEW select.
   /*
     If rownum() is used we have to preserve the insert row order
     to make GROUP BY and ORDER BY with filesort work.

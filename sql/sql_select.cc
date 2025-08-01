@@ -626,6 +626,13 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   {
     SELECT_LEX_UNIT *unit= &lex->unit;
     unit->set_limit(unit->global_parameters());
+
+    // SELECT_LEX_UNIT represents a single SELECT or when there's
+    // a UNION, it represents the entire UNION and has drives the
+    // prepare/optimize/execute pipeline on its own.
+    DBUG_ASSERT(unit->first_select() == lex->first_select_lex());
+    DBUG_ASSERT(select_lex == unit->first_select());
+
     /*
       'options' of mysql_select will be set in JOIN, as far as JOIN for
       every PS/SP execution new, we will not need reset this flag if 
@@ -1453,7 +1460,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   */
   if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
       create_explain_query_if_not_exists(thd->lex, thd->mem_root);
-// select_lex::parsed_optimizer_hints is a thing here, but will have already been parsed during sql_yacc.yy stage at LEX::resolve_optimizer_hints_in_last_select
+// select_lex::parsed_optimizer_hints is a thing here, but will have already been parsed during sql_yacc.yy stage at LEX::resolve_optimizer_hints_in_last_select.  dbug_print(select_lex) doesn't show all hints because t4@v5 was not resolved.  Do we need to delay hint parsing or redo it once we have derived tables 'compiled'?
   if (select_lex->handle_derived(thd->lex, DT_PREPARE)) // the entire list of derived tables which includes the VIEW derived table
     DBUG_RETURN(-1);
 
