@@ -106,12 +106,12 @@ class Item_func_gen_embedding: public Item_str_func
     // Convert the input to cs_openai charset
     uint errors= 0;
     CHARSET_INFO *cs= input->charset();
-    CHARSET_INFO cs_openai = my_charset_utf8mb4_general_ci;  
-    size_t dst_length= cs_openai.mbmaxlen * input->length() + 1;
+    CHARSET_INFO *cs_openai = &my_charset_utf8mb4_general_ci;
+    size_t dst_length= cs_openai->mbmaxlen * input->length() + 1;
     MEM_ROOT *root= current_thd->active_stmt_arena_to_use()->mem_root;
     char *converted_input_buff;
     converted_input_buff= (char *) alloc_root(root, dst_length);
-    uint32 actual_len = copy_and_convert(converted_input_buff, dst_length, &cs_openai, input->ptr(), input->length(),
+    uint32 actual_len = copy_and_convert(converted_input_buff, dst_length, cs_openai, input->ptr(), input->length(),
       cs, &errors);
     if (errors != 0) {
       my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
@@ -120,7 +120,7 @@ class Item_func_gen_embedding: public Item_str_func
       return 1;
     }
     converted_input_buff[actual_len] = '\0';
-    String *converted_input_str = new String(converted_input_buff, actual_len, &cs_openai);
+    String *converted_input_str = new String(converted_input_buff, actual_len, cs_openai);
 
     CURLcode ret;
     CURL *hnd;
@@ -133,9 +133,9 @@ class Item_func_gen_embedding: public Item_str_func
     // Escape the input string
     const int jsLen = converted_input_str->length();
     const char* rawJS = converted_input_str->ptr();
-    int strLen = jsLen * 12 * cs_openai.mbmaxlen / cs_openai.mbminlen;
+    int strLen = jsLen * 12 * cs_openai->mbmaxlen / cs_openai->mbminlen;
     char* buf = (char*)alloca(strLen);
-    if ((strLen = json_escape(&cs_openai, (const uchar*)rawJS, (const uchar*)rawJS + jsLen, &cs_openai, (uchar*)buf,
+    if ((strLen = json_escape(cs_openai, (const uchar*)rawJS, (const uchar*)rawJS + jsLen, cs_openai, (uchar*)buf,
                             (uchar*)buf + strLen)) < 0) {
                               null_value = true;
                               goto cleanup;
