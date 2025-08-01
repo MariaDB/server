@@ -3442,11 +3442,9 @@ static bool xtrabackup_copy_mmap_logfile()
   for (unsigned retry_count{0};;)
   {
     const byte *start= &log_sys.buf[recv_sys.offset];
-    auto r= recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false);
-
-    if (r == recv_sys_t::GOT_EOF)
-      break;
-    else if (r == recv_sys_t::OK)
+    recv_sys_t::parse_mtr_result r=
+        recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false);
+    if (r == recv_sys_t::OK)
     {
       const byte *end;
       do
@@ -3486,6 +3484,8 @@ static bool xtrabackup_copy_mmap_logfile()
 
       retry_count= 0;
     }
+    else if (r == recv_sys_t::GOT_EOF)
+      break;
     else
     {
       if (metadata_to_lsn)
@@ -5452,20 +5452,17 @@ static bool xtrabackup_backup_func()
 
 	/* cd to datadir */
 
-	if (my_setwd(mysql_real_data_home,MYF(MY_WME)))
-	{
+	if (my_setwd(mysql_real_data_home,MYF(MY_WME))) {
 		msg("my_setwd() failed , %s", mysql_real_data_home);
 		return(false);
 	}
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
-	if (innodb_log_checkpoint_now)
-	{
+	if (innodb_log_checkpoint_now) {
 		msg("Initiating checkpoint");
 		if (mysql_send_query(mysql_connection,
 		    C_STRING_WITH_LEN("SET GLOBAL "
-				      "innodb_log_checkpoint_now=ON;")))
-		{
+				      "innodb_log_checkpoint_now=ON;"))) {
 			msg("initiating checkpoint failed");
 			return(false);
 		}
