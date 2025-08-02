@@ -1534,6 +1534,8 @@ public:
   /* used in RBR Triggers */
   bool master_had_triggers;
 #endif
+  /* Temporary value used by binlog_write_table_maps(). Does not need init */
+  bool restore_row_logging;
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;

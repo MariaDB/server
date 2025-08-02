@@ -11580,7 +11580,11 @@ do_continue:;
       binlog_as_create_select= 1;
       DBUG_ASSERT(new_table->file->row_logging);
       new_table->mark_columns_needed_for_insert();
-      thd->binlog_write_table_map(new_table, 1);
+      if (thd->binlog_write_annotated_row(new_table->file->row_logging_has_trans ||
+                                          (thd->variables.option_bits &
+                                           OPTION_GTID_BEGIN)) ||
+          thd->binlog_write_table_map(new_table))
+        goto err_new_table_cleanup;
     }
     if (copy_data_between_tables(thd, table, new_table, ignore, order_num,
                                  order, &copied, &deleted, alter_info,
