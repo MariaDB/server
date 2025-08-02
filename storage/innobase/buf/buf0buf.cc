@@ -3888,6 +3888,8 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node) noexcept
   ut_ad(!!zip.ssize == !!zip.data);
 
   const byte *read_frame= zip.data ? zip.data : frame;
+  MEM_MAKE_DEFINED(read_frame, physical_size());
+
   ut_ad(read_frame);
 
   dberr_t err;
