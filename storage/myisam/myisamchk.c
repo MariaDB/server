@@ -144,7 +144,7 @@ enum options_mc {
   OPT_READ_BUFFER_SIZE, OPT_WRITE_BUFFER_SIZE, OPT_SORT_BUFFER_SIZE,
   OPT_SORT_KEY_BLOCKS, OPT_DECODE_BITS, OPT_FT_MIN_WORD_LEN,
   OPT_FT_MAX_WORD_LEN, OPT_FT_STOPWORD_FILE,
-  OPT_MAX_RECORD_LENGTH, OPT_STATS_METHOD, OPT_ACTIVE_KEYS, OPT_
+  OPT_MAX_RECORD_LENGTH, OPT_STATS_METHOD, OPT_ACTIVE_KEYS
 };
 
 static struct my_option my_long_options[] =
@@ -212,7 +212,7 @@ static struct my_option my_long_options[] =
    &check_param.keys_in_use,
    0, GET_ULL, REQUIRED_ARG, -1, 0, 0, 0, 0, 0},
   {"keys-active", OPT_ACTIVE_KEYS,
-   "Threat all not listed keys as disabled. If used with repair, the keys "
+   "Treat all not listed keys as disabled. If used with repair, the keys "
    "will be disabled permanently. The argument is a list of key numbers, "
    "starting from 1, separated by ','. "
    "keys-active and keys-used are two ways to do the same thing",

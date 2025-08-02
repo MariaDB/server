@@ -120,6 +120,7 @@ ERROR 42S02: Table 'test.t_y' doesn't exist
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into ti_pk set a=1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.ta)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
