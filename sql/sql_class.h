@@ -894,6 +894,7 @@ typedef struct system_variables
   my_bool session_track_user_variables;
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
+  my_bool optimizer_record_context;
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
   plugin_ref enforced_table_plugin;
@@ -7403,6 +7404,75 @@ public:
 };
 
 
+class Qualified_ident: public Sql_alloc
+{
+protected:
+  Lex_ident_cli_st m_pos;
+  Lex_ident_sys m_parts[3];
+  sp_variable *m_spvar;
+  uint m_defined_parts;
+public:
+  Qualified_ident(THD *thd, const Lex_ident_cli_st &a);
+  Qualified_ident(THD *thd,
+                  const Lex_ident_cli_st &a,
+                  const Lex_ident_cli_st &b);
+  Qualified_ident(THD *thd,
+                  const Lex_ident_cli_st &a,
+                  const Lex_ident_cli_st &b,
+                  const Lex_ident_cli_st &c);
+
+  Qualified_ident(const Lex_ident_sys_st &a);
+  /*
+    Returns the client query fragment starting at the first character
+    of the leftmost identifier and ending at after the last character
+    of the rightmist identifier.
+  */
+  const Lex_ident_cli_st &pos() const
+  {
+    return m_pos;
+  }
+
+  sp_variable *spvar() const
+  {
+    return m_spvar;
+  }
+
+  const Lex_ident_sys &part(uint i) const
+  {
+    DBUG_ASSERT(i < array_elements(m_parts));
+    return m_parts[i];
+  }
+
+  uint defined_parts() const
+  {
+    return m_defined_parts;
+  }
+
+  /*
+    When initializing m_parts[n] in the constructor, a EOM could happen.
+    This method checks that all defined parts were initialized without error.
+  */
+  bool is_sane() const
+  {
+    for (uint i= 0; i < m_defined_parts; i++)
+    {
+      if (m_parts[i].is_null())
+        return false; // E.g. EOM happened in the constructor
+    }
+    return true;
+  }
+
+  void set_pos(const Lex_ident_cli_st &pos)
+  {
+    m_pos= pos;
+  }
+  void set_spvar(sp_variable *spvar)
+  {
+    m_spvar= spvar;
+  }
+};
+
+
 // this is needed for user_vars hash
 class user_var_entry: public Type_handler_hybrid_field_type
 {
@@ -7540,47 +7610,53 @@ public:
   virtual my_var_sp *get_my_var_sp() { return NULL; }
 };
 
-class my_var_sp: public my_var {
-  const Sp_rcontext_handler *m_rcontext_handler;
+class my_var_sp: public my_var,
+                 public sp_rcontext_addr
+{
   const Type_handler *m_type_handler;
 public:
-  uint offset;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const Sp_rcontext_handler *rcontext_handler,
-            const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
-            sp_head *s)
-    : my_var(j, LOCAL_VAR),
-      m_rcontext_handler(rcontext_handler),
-      m_type_handler(type_handler), offset(o), sp(s) { }
+  my_var_sp(const Lex_ident_sys_st &name, const sp_rcontext_addr &addr,
+            const Type_handler *type_handler, sp_head *s)
+    : my_var(&name, LOCAL_VAR),
+      sp_rcontext_addr(addr), m_type_handler(type_handler), sp(s) { }
   ~my_var_sp() = default;
   bool set(THD *thd, Item *val) override;
+  virtual bool set_row(THD *thd, List<Item> &select_list)
+  {
+    DBUG_ASSERT(0);
+    return set(thd, select_list.head());
+  }
   my_var_sp *get_my_var_sp() override { return this; }
   const Type_handler *type_handler() const
   { return m_type_handler; }
   sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
+  /*
+    Check if the value list is compatible with the INTO variable.
+    This method is called if there is only one variable in the INTO list, e.g.:
+      SELECT <select list> INTO spvar_varchar; -- scalar variable
+  */
+  virtual bool check_assignability(THD *thd,
+                                   const List<Item> &select_list,
+                                   bool *assign_as_row) const
+  {
+    // The ROW data type has its own my_var_sp. See sql_type_row.cc.
+    DBUG_ASSERT(type_handler() != &type_handler_row);
+    /*
+      If the variable is not scalar (and it's also known not to be ROW),
+      then it's not compatible with the select list, because Items
+      in the select list can only be scalar.
+    */
+    *assign_as_row= false;
+    return select_list.elements != 1 ||
+           !type_handler()->is_scalar_type() /*e.g. assoc array */;
+  }
 };
 
-/*
-  This class handles fields of a ROW SP variable when it's used as a OUT
-  parameter in a stored procedure.
-*/
-class my_var_sp_row_field: public my_var_sp
-{
-  uint m_field_offset;
-public:
-  my_var_sp_row_field(const Sp_rcontext_handler *rcontext_handler,
-                      const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
-                      uint var_idx, uint field_idx, sp_head *s)
-   :my_var_sp(rcontext_handler, varname, var_idx,
-              &type_handler_double/*Not really used*/, s),
-    m_field_offset(field_idx)
-  { }
-  bool set(THD *thd, Item *val) override;
-};
 
 class my_var_user: public my_var {
 public:

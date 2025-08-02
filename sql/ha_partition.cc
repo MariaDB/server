@@ -2381,7 +2381,17 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(part < m_file_tot_parts);
         DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
-        m_file[part]->update_create_info(&dummy_info);
+        /*
+          store_table_definitions_in_trace()/show_create_table() may attempt
+          to produce DDL for a table which has only some partitions open.
+
+          We can't get options for unopened partitions. They are not relevant
+          for purpose, so it's ok to skip printing their options.
+        */
+        if (m_file[part]->is_open())
+          m_file[part]->update_create_info(&dummy_info);
+        else
+          dummy_info.init();
         sub_elem->data_file_name = (char*) dummy_info.data_file_name;
         sub_elem->index_file_name = (char*) dummy_info.index_file_name;
       }
@@ -2390,7 +2400,14 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
     {
       DBUG_ASSERT(m_file[i]);
       dummy_info.data_file_name= dummy_info.index_file_name= NULL;
-      m_file[i]->update_create_info(&dummy_info);
+      /*
+        A partition might not be open, see above note about
+        store_table_definitions_in_trace()
+      */
+      if (m_file[i]->is_open())
+        m_file[i]->update_create_info(&dummy_info);
+      else
+        dummy_info.init();
       part_elem->data_file_name = (char*) dummy_info.data_file_name;
       part_elem->index_file_name = (char*) dummy_info.index_file_name;
     }

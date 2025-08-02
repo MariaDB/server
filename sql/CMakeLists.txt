@@ -187,6 +187,7 @@ SET (SQL_SOURCE
                rowid_filter.cc rowid_filter.h
                optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
+               opt_trace_ddl_info.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
@@ -195,6 +196,9 @@ SET (SQL_SOURCE
                opt_vcol_substitution.cc
                opt_hints_parser.cc opt_hints_parser.h scan_char.h
                opt_hints.cc opt_hints.h
+               sql_type_row.cc
+               sql_type_composite.cc sql_type_composite.h
+               item_composite.cc item_composite.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

@@ -1,0 +1,486 @@
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+SELECT @@SESSION.max_allowed_packet;
+@@SESSION.max_allowed_packet
+33554432
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+SET debug_dbug='d,assoc_array_pack';
+CREATE TABLE dtypes
+(
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+dtype VARCHAR(128),
+val LONGTEXT
+);
+INSERT INTO dtypes (dtype, val) VALUES
+('bit(1)',                             'bit:1'),
+('bit(8)',                             'bit:255'),
+('bit(16)',                            'bit:65535'),
+('bit(64)',                            'bit:18446744073709551615'),
+('tinyint',                            '123'),
+('tinyint unsigned',                   '123'),
+('smallint',                           '123'),
+('smallint unsigned',                  '123'),
+('int',                                '123'),
+('int unsigned',                       '123'),
+('mediumint',                          '123'),
+('mediumint unsigned',                 '123'),
+('bigint',                             '123'),
+('bigint unsigned',                    '123'),
+('decimal(10,2)',                      '123.45'),
+('float',                              '123e5'),
+('double',                             '123e5'),
+('mariadb_schema.date',                '2001-01-01'),
+('time',                               '800:59:59'),
+('time(6)',                            '800:59:59.123456'),
+('datetime',                           '2001-01-01 23:59:59'),
+('datetime(6)',                        '2001-01-01 23:59:59.123456'),
+('timestamp',                          '2001-01-01 23:59:59'),
+('timestamp(6)',                       '2001-01-01 23:59:59.123456'),
+('binary(10)',                         'test'),
+('binary(20)',                         'test'),
+('binary(10)',                         'test test'),
+('binary(20)',                         'test test'),
+('char(10) character set latin1',      'test'),
+('char(10) character set utf8mb4',     'test'),
+('varchar(10) character set latin1',   'test'),
+('varchar(10) character set utf8mb4',  'test'),
+('tinytext character set latin1',      'test'),
+('tinytext character set utf8mb4',     'test'),
+('text character set latin1',          'test'),
+('text character set utf8mb4',         'test'),
+('mediumtext character set latin1',    'test'),
+('mediumtext character set utf8mb4',   'test'),
+('longtext character set latin1',      'test'),
+('longtext character set utf8mb4',     'test'),
+('char(255) character set latin1',     REPEAT('test ',50)),
+('char(255) character set utf8mb4',    REPEAT('test ',50)),
+('varchar(255) character set latin1',  REPEAT('test ',50)),
+('varchar(255) character set utf8mb4', REPEAT('test ',50)),
+('tinytext character set latin1',      REPEAT('test ',50)),
+('tinytext character set utf8mb4',     REPEAT('test ',50)),
+('text character set latin1',          REPEAT('test ',50)),
+('text character set utf8mb4',         REPEAT('test ',50)),
+('mediumtext character set latin1',    REPEAT('test ',50)),
+('mediumtext character set utf8mb4',   REPEAT('test ',50)),
+('longtext character set latin1',      REPEAT('test ',50)),
+('longtext character set utf8mb4',     REPEAT('test ',50)),
+('text character set latin1',          REPEAT('test ',(256*256-1)/5)),
+('text character set utf8mb4',         REPEAT('test ',(256*256-1)/5)),
+('mediumtext character set latin1',    REPEAT('test ',(256*256-1)/5)),
+('mediumtext character set utf8mb4',   REPEAT('test ',(256*256-1)/5)),
+('longtext character set latin1',      REPEAT('test ',(256*256-1)/5)),
+('longtext character set utf8mb4',     REPEAT('test ',(256*256-1)/5)),
+('mediumtext character set utf8mb4',   REPEAT('test ',(256*256*256-1)/5)),
+('longtext character set utf8mb4',     REPEAT('test ',(256*256*256-1)/5 + 1));
+CREATE PROCEDURE test_type(rec dtypes%ROWTYPE) AS
+TYPE assoc_t IS TABLE OF t1.val%TYPE INDEX BY INTEGER;
+assoc assoc_t;
+val LONGTEXT;
+BEGIN
+IF rec.val LIKE 'bit:%'
+  THEN
+assoc(0) := CAST(REPLACE(rec.val,'bit:','') AS UNSIGNED);
+SHOW WARNINGS;
+SELECT assoc(0)+0 AS `assoc(0)`;
+ELSIF rec.dtype LIKE 'binary%'
+  THEN
+assoc(0):= rec.val;
+SHOW WARNINGS;
+SELECT HEX(assoc(0)), LENGTH(assoc(0));
+ELSE
+assoc(0) := rec.val;
+SHOW WARNINGS;
+IF LENGTH(rec.val) > 64
+THEN
+SELECT LEFT(assoc(0),30) ||
+'..' || LENGTH(assoc(0)) || '.. ' ||
+RIGHT(assoc(0),30) AS `assoc(0)`;
+ELSE
+SELECT assoc(0);
+END IF;
+END IF;
+END;
+$$
+CREATE PROCEDURE test_types AS
+BEGIN
+FOR rec IN (SELECT * FROM dtypes)
+LOOP
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (val DTYPE)','DTYPE',rec.dtype);
+SELECT
+COLUMN_TYPE AS ``, COALESCE(CHARACTER_SET_NAME,'') AS ``
+    FROM
+INFORMATION_SCHEMA.COLUMNS
+WHERE
+TABLE_SCHEMA='test' AND TABLE_NAME='t1' AND COLUMN_NAME='val';
+INSERT INTO t1 VALUES (rec.val);
+CALL test_type(rec);
+DROP TABLE t1;
+END LOOP;
+END;
+$$
+CALL test_types;
+	
+bit(1)	
+Level	Code	Message
+Note	1003	pack=1 plen=1 ; mdlen=1 flen=1 ; `assoc` bit(1)
+assoc(0)
+1
+	
+bit(8)	
+Level	Code	Message
+Note	1003	pack=1 plen=1 ; mdlen=1 flen=8 ; `assoc` bit(8)
+assoc(0)
+255
+	
+bit(16)	
+Level	Code	Message
+Note	1003	pack=2 plen=2 ; mdlen=2 flen=16 ; `assoc` bit(16)
+assoc(0)
+65535
+	
+bit(64)	
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=8 flen=64 ; `assoc` bit(64)
+assoc(0)
+18446744073709551615
+	
+tinyint(4)	
+Level	Code	Message
+Note	1003	pack=1 plen=1 ; mdlen=1 flen=4 ; `assoc` tinyint(4)
+assoc(0)
+123
+	
+tinyint(3) unsigned	
+Level	Code	Message
+Note	1003	pack=1 plen=1 ; mdlen=1 flen=3 ; `assoc` tinyint(3) unsigned
+assoc(0)
+123
+	
+smallint(6)	
+Level	Code	Message
+Note	1003	pack=2 plen=2 ; mdlen=2 flen=6 ; `assoc` smallint(6)
+assoc(0)
+123
+	
+smallint(5) unsigned	
+Level	Code	Message
+Note	1003	pack=2 plen=2 ; mdlen=2 flen=5 ; `assoc` smallint(5) unsigned
+assoc(0)
+123
+	
+int(11)	
+Level	Code	Message
+Note	1003	pack=4 plen=4 ; mdlen=4 flen=11 ; `assoc` int(11)
+assoc(0)
+123
+	
+int(10) unsigned	
+Level	Code	Message
+Note	1003	pack=4 plen=4 ; mdlen=4 flen=10 ; `assoc` int(10) unsigned
+assoc(0)
+123
+	
+mediumint(9)	
+Level	Code	Message
+Note	1003	pack=3 plen=3 ; mdlen=3 flen=9 ; `assoc` mediumint(9)
+assoc(0)
+123
+	
+mediumint(8) unsigned	
+Level	Code	Message
+Note	1003	pack=3 plen=3 ; mdlen=3 flen=8 ; `assoc` mediumint(8) unsigned
+assoc(0)
+123
+	
+bigint(20)	
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=8 flen=20 ; `assoc` bigint(20)
+assoc(0)
+123
+	
+bigint(20) unsigned	
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=8 flen=20 ; `assoc` bigint(20) unsigned
+assoc(0)
+123
+	
+decimal(10,2)	
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=5 flen=12 ; `assoc` decimal(10,2)
+assoc(0)
+123.45
+	
+float	
+Level	Code	Message
+Note	1003	pack=4 plen=4 ; mdlen=4 flen=12 ; `assoc` float
+assoc(0)
+12300000
+	
+double	
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=8 flen=22 ; `assoc` double
+assoc(0)
+12300000
+	
+date	
+Level	Code	Message
+Note	1003	pack=3 plen=3 ; mdlen=3 flen=10 ; `assoc` date
+assoc(0)
+2001-01-01
+	
+time	
+Level	Code	Message
+Note	1003	pack=3 plen=3 ; mdlen=3 flen=10 ; `assoc` time
+assoc(0)
+800:59:59
+	
+time(6)	
+Level	Code	Message
+Note	1003	pack=6 plen=6 ; mdlen=6 flen=17 ; `assoc` time(6)
+assoc(0)
+800:59:59.123456
+	
+datetime	
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=5 flen=19 ; `assoc` datetime
+assoc(0)
+2001-01-01 23:59:59
+	
+datetime(6)	
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=8 flen=26 ; `assoc` datetime(6)
+assoc(0)
+2001-01-01 23:59:59.123456
+	
+timestamp	
+Level	Code	Message
+Note	1003	pack=4 plen=4 ; mdlen=4 flen=19 ; `assoc` timestamp
+assoc(0)
+2001-01-01 23:59:59
+	
+timestamp(6)	
+Level	Code	Message
+Note	1003	pack=7 plen=7 ; mdlen=7 flen=26 ; `assoc` timestamp(6)
+assoc(0)
+2001-01-01 23:59:59.123456
+	
+binary(10)	
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=10 flen=10 ; `assoc` binary(10)
+HEX(assoc(0))	LENGTH(assoc(0))
+74657374000000000000	10
+	
+binary(20)	
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=20 flen=20 ; `assoc` binary(20)
+HEX(assoc(0))	LENGTH(assoc(0))
+7465737400000000000000000000000000000000	20
+	
+binary(10)	
+Level	Code	Message
+Note	1003	pack=10 plen=10 ; mdlen=10 flen=10 ; `assoc` binary(10)
+HEX(assoc(0))	LENGTH(assoc(0))
+74657374207465737400	10
+	
+binary(20)	
+Level	Code	Message
+Note	1003	pack=10 plen=10 ; mdlen=20 flen=20 ; `assoc` binary(20)
+HEX(assoc(0))	LENGTH(assoc(0))
+7465737420746573740000000000000000000000	20
+	
+char(10)	latin1
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=10 flen=10 ; `assoc` char(10)
+assoc(0)
+test
+	
+char(10)	utf8mb4
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=40 flen=40 ; `assoc` char(10)
+assoc(0)
+test
+	
+varchar(10)	latin1
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=11 flen=10 ; `assoc` varchar(10)
+assoc(0)
+test
+	
+varchar(10)	utf8mb4
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=41 flen=40 ; `assoc` varchar(10)
+assoc(0)
+test
+	
+tinytext	latin1
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=255 flen=255 ; `assoc` tinytext
+assoc(0)
+test
+	
+tinytext	utf8mb4
+Level	Code	Message
+Note	1003	pack=5 plen=5 ; mdlen=255 flen=255 ; `assoc` tinytext
+assoc(0)
+test
+	
+text	latin1
+Level	Code	Message
+Note	1003	pack=6 plen=6 ; mdlen=65535 flen=65535 ; `assoc` text
+assoc(0)
+test
+	
+text	utf8mb4
+Level	Code	Message
+Note	1003	pack=6 plen=6 ; mdlen=65535 flen=65535 ; `assoc` text
+assoc(0)
+test
+	
+mediumtext	latin1
+Level	Code	Message
+Note	1003	pack=7 plen=7 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test
+	
+mediumtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=7 plen=7 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test
+	
+longtext	latin1
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test
+	
+longtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=8 plen=8 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test
+	
+char(255)	latin1
+Level	Code	Message
+Note	1003	pack=250 plen=250 ; mdlen=255 flen=255 ; `assoc` char(255)
+assoc(0)
+test test test test test test ..249..  test test test test test test
+	
+char(255)	utf8mb4
+Level	Code	Message
+Note	1003	pack=251 plen=251 ; mdlen=1020 flen=1020 ; `assoc` char(255)
+assoc(0)
+test test test test test test ..249..  test test test test test test
+	
+varchar(255)	latin1
+Level	Code	Message
+Note	1003	pack=251 plen=251 ; mdlen=256 flen=255 ; `assoc` varchar(255)
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+varchar(255)	utf8mb4
+Level	Code	Message
+Note	1003	pack=252 plen=252 ; mdlen=1022 flen=1020 ; `assoc` varchar(255)
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+tinytext	latin1
+Level	Code	Message
+Note	1003	pack=251 plen=251 ; mdlen=255 flen=255 ; `assoc` tinytext
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+tinytext	utf8mb4
+Level	Code	Message
+Note	1003	pack=251 plen=251 ; mdlen=255 flen=255 ; `assoc` tinytext
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+text	latin1
+Level	Code	Message
+Note	1003	pack=252 plen=252 ; mdlen=65535 flen=65535 ; `assoc` text
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+text	utf8mb4
+Level	Code	Message
+Note	1003	pack=252 plen=252 ; mdlen=65535 flen=65535 ; `assoc` text
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+mediumtext	latin1
+Level	Code	Message
+Note	1003	pack=253 plen=253 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+mediumtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=253 plen=253 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+longtext	latin1
+Level	Code	Message
+Note	1003	pack=254 plen=254 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+longtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=254 plen=254 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test test test test test test ..250.. test test test test test test 
+	
+text	latin1
+Level	Code	Message
+Note	1003	pack=65537 plen=65537 ; mdlen=65535 flen=65535 ; `assoc` text
+assoc(0)
+test test test test test test ..65535.. test test test test test test 
+	
+text	utf8mb4
+Level	Code	Message
+Note	1003	pack=65537 plen=65537 ; mdlen=65535 flen=65535 ; `assoc` text
+assoc(0)
+test test test test test test ..65535.. test test test test test test 
+	
+mediumtext	latin1
+Level	Code	Message
+Note	1003	pack=65538 plen=65538 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test test test test test test ..65535.. test test test test test test 
+	
+mediumtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=65538 plen=65538 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test test test test test test ..65535.. test test test test test test 
+	
+longtext	latin1
+Level	Code	Message
+Note	1003	pack=65539 plen=65539 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test test test test test test ..65535.. test test test test test test 
+	
+longtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=65539 plen=65539 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test test test test test test ..65535.. test test test test test test 
+	
+mediumtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=16777218 plen=16777218 ; mdlen=16777215 flen=16777215 ; `assoc` mediumtext
+assoc(0)
+test test test test test test ..16777215.. test test test test test test 
+	
+longtext	utf8mb4
+Level	Code	Message
+Note	1003	pack=16777224 plen=16777224 ; mdlen=4294967295 flen=4294967295 ; `assoc` longtext
+assoc(0)
+test test test test test test ..16777220.. test test test test test test 
+DROP PROCEDURE test_type;
+DROP PROCEDURE test_types;
+DROP TABLE dtypes;

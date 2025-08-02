@@ -150,9 +150,9 @@ public:
     Used in Field::pack(), and in filesort to store the addon fields.
     By default, do what BINARY(N) does.
   */
-  static uchar *pack(uchar *to, const uchar *from, uint max_length)
+  static uchar *pack(uchar *to, const uchar *from)
   {
-    return StringPack(&my_charset_bin, binary_length()).pack(to, from, max_length);
+    return StringPack(&my_charset_bin, binary_length()).pack(to, from);
   }
 
   /*

@@ -1,0 +1,2896 @@
+#
+# MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+#
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+#
+# Wrong of ASSOCIATIVE_ARRAY
+#
+CREATE TABLE t1 (a ASSOCIATIVE_ARRAY);
+ERROR HY000: 'associative_array' is not allowed in this context
+CREATE FUNCTION f1() RETURN ASSOCIATIVE_ARRAY RETURN 0;
+ERROR HY000: 'associative_array' is not allowed in this context
+CREATE FUNCTION f1(a ASSOCIATIVE_ARRAY) RETURN INT RETURN 0;
+ERROR HY000: 'associative_array' is not allowed in this context
+CREATE FUNCTION f1(a ROW(a ASSOCIATIVE_ARRAY, b INT)) RETURN INT RETURN 0;
+ERROR HY000: 'associative_array' is not allowed in this context
+DECLARE
+a ASSOCIATIVE_ARRAY;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: 'associative_array' is not allowed in this context
+DECLARE
+r ROW(a ASSOCIATIVE_ARRAY, b INT);
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: 'associative_array' is not allowed in this context
+DECLARE
+TYPE table_of_aa_t IS TABLE OF ASSOCIATIVE_ARRAY INDEX BY VARCHAR2(20);
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: 'associative_array' is not allowed in this context
+DECLARE
+TYPE rec_t IS RECORD (a ASSOCIATIVE_ARRAY, b INT);
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: 'associative_array' is not allowed in this context
+#
+# Bad key data type
+#
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DOUBLE;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type double for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY POINT;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type point for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY DATE;
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type datetime for operation '<array index data type>'
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY ROW(a INT, b INT);
+assoc assoc_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT, b INT);
+assoc assoc_t;
+BEGIN
+NULL;
+END' at line 2
+#
+# RECORD element type
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t;
+nick VARCHAR(20);
+temp person_t;
+BEGIN
+person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+nick:= person_by_nickname.FIRST;
+WHILE nick IS NOT NULL
+LOOP
+temp:= person_by_nickname(nick);
+SELECT nick, temp.first_name, temp.last_name FROM DUAL;
+nick:= person_by_nickname.NEXT(nick);
+END LOOP;
+END;
+$$
+nick	temp.first_name	temp.last_name
+Monty	Michael	Widenius
+nick	temp.first_name	temp.last_name
+Serg	Sergei 	Golubchik
+#
+# RECORD element type with initialization
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t:=
+table_of_peson_t(
+'Monty' => person_t('Michael', 'Widenius'),
+'Serg' => person_t('Sergei ', 'Golubchik')) ;
+nick VARCHAR(20);
+BEGIN
+nick:= person_by_nickname.FIRST;
+WHILE nick IS NOT NULL
+LOOP
+SELECT
+nick, person_by_nickname(nick).first_name,
+person_by_nickname(nick).last_name
+FROM DUAL;
+nick:= person_by_nickname.NEXT(nick);
+END LOOP;
+END;
+$$
+nick	person_by_nickname(nick).first_name	person_by_nickname(nick).last_name
+Monty	Michael	Widenius
+nick	person_by_nickname(nick).first_name	person_by_nickname(nick).last_name
+Serg	Sergei 	Golubchik
+#
+# SCALAR element type
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+id INTEGER;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+id:= marks.FIRST;
+WHILE id IS NOT NULL
+LOOP
+SELECT marks(id), id;
+id:= marks.NEXT(id);
+END LOOP;
+SELECT marks(0) + marks(1) as total, POW(marks(0), 2), POW(marks(1), 2);
+marks(1) := NULL;
+SELECT marks(0), marks(1);
+END;
+$$
+marks(id)	id
+62	0
+marks(id)	id
+78	1
+total	POW(marks(0), 2)	POW(marks(1), 2)
+140	3844	6084
+marks(0)	marks(1)
+62	NULL
+#
+# SCALAR element type with initialization
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+id INTEGER;
+BEGIN
+id:= marks.FIRST;
+WHILE id IS NOT NULL
+LOOP
+SELECT marks(id), id;
+id:= marks.NEXT(id);
+END LOOP;
+END;
+$$
+marks(id)	id
+62	1
+marks(id)	id
+78	2
+marks(id)	id
+99	3
+#
+# SCALAR element type with initialization (2)
+# NUMBER element type initialized with string
+# On Oracle error PLS-00306 will be raised
+# In this implementation we just convert
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+id INTEGER;
+BEGIN
+id:= marks.FIRST;
+WHILE id IS NOT NULL
+LOOP
+SELECT marks(id), id;
+id:= marks.NEXT(id);
+END LOOP;
+END;
+$$
+marks(id)	id
+62	1
+marks(id)	id
+78	2
+marks(id)	id
+99	3
+#
+# Initialization without named association
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(62, 78, 99);
+id INTEGER;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Initializing marks_t requires named association
+#
+# Initialization without named association (2)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 62, 2 => 78, 99);
+id INTEGER;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ');
+id INTEGER;
+BEGIN
+NULL;
+END' at line 3
+#
+# Wrong use: assoc_array_var;
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+assoc0;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'assoc0;
+END' at line 5
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+`assoc0`;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`assoc0`;
+END' at line 5
+#
+# Wrong use: assoc_array_var(1);
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+assoc0(1);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'assoc0(1);
+END' at line 5
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+`assoc0`(1);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`assoc0`(1);
+END' at line 5
+#
+# Wrong use: assoc_array_var.x(1)
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks.x(1):= 10;
+SELECT marks(1);  
+END;
+$$
+ERROR HY000: Illegal parameter data type associative_array for operation '`marks`.`x`(..)'
+#
+# Wrong use: assoc_array_var.x.y(1)
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks.x.y(1):= 10;
+SELECT marks(1);  
+END;
+$$
+ERROR HY000: Illegal parameter data type associative_array for operation '`marks`.`x`.`y`(..)'
+#
+# Wrong use: assoc_array_var.x.y.z(1)
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks.x.y.z(1):= 10;
+SELECT marks(1);  
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'marks.x.y.z(1):= 10;
+SELECT marks(1);  
+END' at line 5
+#
+# Initialization with empty elements
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t();
+id INTEGER;
+BEGIN
+SELECT marks.first;
+END;
+$$
+marks.first
+NULL
+#
+# Initialization with duplicate key
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 1, 2 => 2, 1 => 3);
+id INTEGER;
+BEGIN
+SELECT marks.first;
+END;
+$$
+ERROR 23000: Duplicate entry for key '1'
+#
+# RECORD array assignment
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t:=
+table_of_peson_t(
+'Monty' => person_t('Michael', 'Widenius'),
+'Serg' => person_t('Sergei ', 'Golubchik')) ;
+person_by_nickname_copy table_of_peson_t;
+nick VARCHAR(20);
+BEGIN
+person_by_nickname_copy:= person_by_nickname;
+nick:= person_by_nickname_copy.FIRST;
+WHILE nick IS NOT NULL
+LOOP
+SELECT
+nick, person_by_nickname_copy(nick).first_name,
+person_by_nickname_copy(nick).last_name
+FROM DUAL;
+nick:= person_by_nickname_copy.NEXT(nick);
+END LOOP;
+person_by_nickname_copy('Alex'):= NULL;
+SELECT person_by_nickname_copy('Alex').first_name;
+person_by_nickname_copy('Alex'):= person_by_nickname('Monty');
+SELECT person_by_nickname_copy('Alex').first_name;
+END;
+$$
+nick	person_by_nickname_copy(nick).first_name	person_by_nickname_copy(nick).last_name
+Monty	Michael	Widenius
+nick	person_by_nickname_copy(nick).first_name	person_by_nickname_copy(nick).last_name
+Serg	Sergei 	Golubchik
+person_by_nickname_copy('Alex').first_name
+NULL
+person_by_nickname_copy('Alex').first_name
+Michael
+#
+# SCALAR array assignment
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+marks2 marks_t;
+id INTEGER;
+BEGIN
+marks2:= marks;
+id:= marks2.FIRST;
+WHILE id IS NOT NULL
+LOOP
+SELECT marks2(id), id;
+id:= marks2.NEXT(id);
+END LOOP;
+END;
+$$
+marks2(id)	id
+62	1
+marks2(id)	id
+78	2
+marks2(id)	id
+99	3
+#
+# SCALAR array assignment with differing element types
+# Oracle do not allow this (PLS-00382: expression is of wrong type)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+TYPE names_t IS TABLE OF VARCHAR(64) INDEX BY VARCHAR2(20);
+marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+names2 names_t:= names_t('1' => 'Klaus', '2' => 'Lee', '3' => 'Arun');
+id INTEGER;
+BEGIN
+marks:= names2;
+id:= marks.FIRST;
+WHILE id IS NOT NULL
+LOOP
+id:= marks.NEXT(id);
+END LOOP;
+END;
+$$
+Warnings:
+Warning	1366	Incorrect double value: 'Klaus' for column ``.``.`marks` at row 0
+Warning	1366	Incorrect double value: 'Lee' for column ``.``.`marks` at row 0
+Warning	1366	Incorrect double value: 'Arun' for column ``.``.`marks` at row 0
+#
+# Anchored ROWTYPE for array element
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30)
+);
+DECLARE
+TYPE depts_t IS TABLE OF t1%ROWTYPE INDEX BY INTEGER;
+depts depts_t;
+t INTEGER;
+BEGIN
+depts(666666) := ROW(1, 'HR');
+depts(777777) := ROW(2, 'Accounting');
+t:= depts.FIRST;
+WHILE t IS NOT NULL
+LOOP
+SELECT depts(t).dept_name, t;
+t:= depts.NEXT(t);
+END LOOP;
+END;
+$$
+depts(t).dept_name	t
+HR	666666
+depts(t).dept_name	t
+Accounting	777777
+DROP TABLE t1;
+#
+# Anchored column TYPE for array element
+#
+CREATE TABLE t1
+(
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30)
+);
+DECLARE
+TYPE depts_t IS TABLE OF t1.dept_name%TYPE INDEX BY INTEGER;
+depts depts_t;
+t INTEGER;
+BEGIN
+depts(666666) := 'HR';
+depts(777777) := 'Accounting';
+depts(-1) := 'Engineering';
+t:= depts.FIRST;
+WHILE t IS NOT NULL
+LOOP
+SELECT depts(t), t;
+t:= depts.NEXT(t);
+END LOOP;
+END;
+$$
+depts(t)	t
+Engineering	-1
+depts(t)	t
+HR	666666
+depts(t)	t
+Accounting	777777
+DROP TABLE t1;
+#
+# Retrieve keys from uninitialized array
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+nick VARCHAR2(20);
+BEGIN
+nick:= person_by_nickname.FIRST;
+SELECT nick FROM DUAL;
+nick:= person_by_nickname.LAST;
+SELECT nick FROM DUAL;
+nick:= person_by_nickname.NEXT(nick);
+SELECT nick FROM DUAL;
+END;
+$$
+nick
+NULL
+nick
+NULL
+nick
+NULL
+#
+# Retrieve keys from initialized array
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+nick VARCHAR2(20);
+BEGIN
+person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+person_by_nickname('Zam') := person_t('Kitamura ', 'Motoyasu');
+nick:= person_by_nickname.LAST;
+SELECT nick FROM DUAL;
+nick:= person_by_nickname.FIRST;
+SELECT nick FROM DUAL;
+nick:= person_by_nickname.NEXT(nick);
+SELECT nick FROM DUAL;
+END;
+$$
+nick
+Zam
+nick
+Monty
+nick
+Serg
+#
+# NEXT
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.NEXT(marks.FIRST), marks.NEXT(marks.LAST), marks.NEXT(NULL),
+marks.next(marks.FIRST);
+END;
+$$
+marks.NEXT(marks.FIRST)	marks.NEXT(marks.LAST)	marks.NEXT(NULL)	marks.next(marks.FIRST)
+1	NULL	NULL	1
+#
+# NEXT, argument count error 1
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.NEXT();
+END;
+$$
+ERROR 42000: Incorrect number of arguments for NEXT ; expected 1, got 0
+#
+# NEXT, argument count error 2
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.NEXT(0, 1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for NEXT ; expected 1, got 2
+#
+# NEXT, NULL array
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT marks.NEXT(0);
+END;
+$$
+marks.NEXT(0)
+NULL
+#
+# NEXT on scalar
+#
+DECLARE
+marks INTEGER;
+BEGIN
+SELECT marks.NEXT(1);
+END;
+$$
+ERROR 42000: FUNCTION marks.NEXT does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+#
+# PRIOR
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.PRIOR(marks.LAST), marks.PRIOR(marks.FIRST), marks.PRIOR(NULL),
+marks.prior(marks.LAST);
+END;
+$$
+marks.PRIOR(marks.LAST)	marks.PRIOR(marks.FIRST)	marks.PRIOR(NULL)	marks.prior(marks.LAST)
+0	NULL	NULL	0
+#
+# PRIOR, argument count error 1
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.PRIOR();
+END;
+$$
+ERROR 42000: Incorrect number of arguments for PRIOR ; expected 1, got 0
+#
+# PRIOR, argument count error 2
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.PRIOR(0, 1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for PRIOR ; expected 1, got 2
+#
+# PRIOR, NULL array
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT marks.PRIOR(0);
+END;
+$$
+marks.PRIOR(0)
+NULL
+#
+# PRIOR on scalar
+#
+DECLARE
+marks INTEGER;
+BEGIN
+SELECT marks.PRIOR(1);
+END;
+$$
+ERROR 42000: FUNCTION marks.PRIOR does not exist
+#
+# EXISTS
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+SELECT marks.EXISTS(1), marks.EXISTS(4),
+marks.exists(1);
+END;
+$$
+marks.EXISTS(1)	marks.EXISTS(4)	marks.exists(1)
+1	0	1
+#
+# EXISTS, argument count error
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.EXISTS();
+END;
+$$
+ERROR 42000: Incorrect number of arguments for EXISTS ; expected 1, got 0
+#
+# EXISTS, NULL key
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.EXISTS(NULL);
+END;
+$$
+marks.EXISTS(NULL)
+0
+#
+# EXISTS on scalar
+#
+DECLARE
+marks INTEGER;
+BEGIN
+SELECT marks.EXISTS(1);
+END;
+$$
+ERROR 42000: FUNCTION marks.EXISTS does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+#
+# EXISTS, NULL array
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT marks.EXISTS(4);
+END;
+$$
+marks.EXISTS(4)
+0
+#
+# Make sure DELETE does not work as a method-function
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.DELETE;
+END;
+$$
+ERROR 42000: FUNCTION marks.DELETE does not exist
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+DO marks.DELETE;
+END;
+$$
+ERROR 42000: FUNCTION marks.DELETE does not exist
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+SELECT marks.DELETE(0);
+END;
+$$
+ERROR 42000: FUNCTION marks.DELETE does not exist
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+DO marks.DELETE(0);
+END;
+$$
+ERROR 42000: FUNCTION marks.DELETE does not exist
+#
+# DELETE
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+marks(2) := 99;
+marks.DELETE(1);
+SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
+marks.DELETE;
+SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
+END;
+$$
+marks.EXISTS(0)	marks.EXISTS(1)	marks.EXISTS(2)
+1	0	1
+marks.EXISTS(0)	marks.EXISTS(1)	marks.EXISTS(2)
+0	0	0
+#
+# DELETE, argument count error
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+marks(2) := 99;
+marks.DELETE(1, 2);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for DELETE ; expected 1, got 2
+#
+# DELETE, NULL key
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.DELETE(NULL);
+END;
+$$
+#
+# DELETE on scalar
+#
+DECLARE
+marks INTEGER;
+BEGIN
+marks.DELETE(1);
+END;
+$$
+ERROR 42000: PROCEDURE marks.DELETE does not exist
+#
+# Make sure COUNT does not work as a method-procedure
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.COUNT;
+END;
+$$
+ERROR 42000: PROCEDURE marks.COUNT does not exist
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks.COUNT();
+END;
+$$
+ERROR 42000: PROCEDURE marks.COUNT does not exist
+#
+# COUNT
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+marks(1) := 78;
+marks(2) := 99;
+SELECT marks.COUNT;
+marks(3) := 44;
+SELECT marks.COUNT;
+marks.DELETE(1);
+SELECT marks.COUNT;
+END;
+$$
+marks.COUNT
+3
+marks.COUNT
+4
+marks.COUNT
+3
+#
+# COUNT on scalar
+#
+DECLARE
+marks INTEGER;
+BEGIN
+SELECT marks.COUNT;
+END;
+$$
+ERROR 42S02: Unknown table 'marks' in SELECT
+#
+# VARCHAR2 key length error
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(10);
+marks marks_t;
+BEGIN
+marks('Clementine Montgomery') := 99;
+END;
+$$
+ERROR HY000: String 'Clementine Montgomery' is too long for INDEX BY (should be no longer than 10)
+#
+# VARCHAR2 key fix
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(10);
+marks marks_t;
+BEGIN
+marks('Cle' || 'mentine') := 99;
+SELECT marks('Cleme' || 'ntine');
+END;
+$$
+marks('Cleme' || 'ntine')
+99
+#
+# Key collation, case insensitive, accent insensitive
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+marks marks_t;
+id VARCHAR2(20) CHARACTER SET utf8mb4:= 'Stéve';
+BEGIN
+marks(id) := 62;
+id:= 'steve';
+SELECT marks(id);
+END;
+$$
+marks(id)
+62
+#
+# Key collation, case sensitive, accent insensitive (1)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4 COLLATE uca1400_ai_cs;
+marks marks_t;
+id VARCHAR2(20) CHARACTER SET utf8mb4:= 'Stéve';
+BEGIN
+marks(id) := 62;
+SELECT marks('Steve');
+END;
+$$
+marks('Steve')
+62
+#
+# Key collation, case sensitive, accent insensitive (2)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4 COLLATE uca1400_ai_cs;
+marks marks_t;
+id VARCHAR2(20) CHARACTER SET utf8mb4:= 'Stéve';
+BEGIN
+marks(id) := 62;
+SELECT marks('steve');
+END;
+$$
+ERROR HY000: Element not found with key 'steve'
+#
+# Key ascii charset
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4;
+marks marks_t;
+id VARCHAR2(20) CHARACTER SET ascii:= 'Stéve';
+BEGIN
+marks('Stéve') := 62;
+SELECT marks(id);
+END;
+$$
+ERROR HY000: Element not found with key 'St?ve'
+#
+# VARCHAR2 key with numeric key retrival
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+marks marks_t;
+BEGIN
+marks('1') := 62;
+SELECT marks(1);
+END;
+$$
+marks(1)
+62
+#
+# INTEGER key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(-2147483649) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-2147483649'
+#
+# INTEGER key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(2147483648) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '2147483648'
+#
+# INTEGER UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# INTEGER UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+marks marks_t;
+BEGIN
+marks(4294967296) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '4294967296'
+#
+# INTEGER UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+marks marks_t;
+BEGIN
+marks(4294967295) := 62;
+SELECT marks(4294967295);
+END;
+$$
+marks(4294967295)
+62
+#
+# TINYINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+marks marks_t;
+BEGIN
+marks(-129) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-129'
+#
+# TINYINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+marks marks_t;
+BEGIN
+marks(128) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '128'
+#
+# TINYINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# TINYINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# TINYINT UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(256) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '256'
+#
+# TINYINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(255) := 62;
+SELECT marks(255);
+END;
+$$
+marks(255)
+62
+#
+# SMALLINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+marks marks_t;
+BEGIN
+marks(-32769) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-32769'
+#
+# SMALLINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+marks marks_t;
+BEGIN
+marks(32768) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '32768'
+#
+# SMALLINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# SMALLINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# SMALLINT UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(65536) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '65536'
+#
+# SMALLINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(65535) := 62;
+SELECT marks(65535);
+END;
+$$
+marks(65535)
+62
+#
+# MEDIUMINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+marks marks_t;
+BEGIN
+marks(-8388609) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-8388609'
+#
+# MEDIUMINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+marks marks_t;
+BEGIN
+marks(8388608) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '8388608'
+#
+# MEDIUMINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# MEDIUMINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# MEDIUMINT UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(16777216) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '16777216'
+#
+# MEDIUMINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(16777215) := 62;
+SELECT marks(16777215);
+END;
+$$
+marks(16777215)
+62
+#
+# BIGINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+marks marks_t;
+BEGIN
+marks(-9223372036854775809) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-9223372036854775809'
+#
+# BIGINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+marks marks_t;
+BEGIN
+marks(9223372036854775808) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '9223372036854775808'
+#
+# BIGINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# BIGINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# BIGINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(18446744073709551615) := 62;
+SELECT marks(18446744073709551615);
+END;
+$$
+marks(18446744073709551615)
+62
+#
+# INTEGER key, sort order
+#
+DECLARE
+TYPE depts_t IS TABLE OF VARCHAR2(30) INDEX BY INTEGER;
+depts depts_t;
+t INTEGER;
+BEGIN
+depts(999) := 'Security';
+depts(99) := 'HR';
+depts(9) := 'Accounting';
+depts(-9) := 'Engineering';
+depts(-99) := 'Marketing';
+depts(-999) := 'Sales';
+t:= depts.FIRST;
+WHILE t IS NOT NULL
+LOOP
+SELECT depts(t), t;
+t:= depts.NEXT(t);
+END LOOP;
+END;
+$$
+depts(t)	t
+Sales	-999
+depts(t)	t
+Marketing	-99
+depts(t)	t
+Engineering	-9
+depts(t)	t
+Accounting	9
+depts(t)	t
+HR	99
+depts(t)	t
+Security	999
+#
+# Key numeric, character access (convertable to integer)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 62;
+SELECT marks('01');
+END;
+$$
+marks('01')
+62
+#
+# Key numeric, character access
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks('Test') := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: 'Test'
+#
+# NULL key when assigning variable (LHS)
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(NULL):= 62;
+END;
+$$
+ERROR HY000: NULL key used for associative array 'marks'
+#
+# NULL key when assigning variable (RHS)
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+n NUMBER;
+BEGIN
+n:= marks(NULL) + 5;
+END;
+$$
+ERROR HY000: NULL key used for associative array 'marks'
+#
+# NULL key when accessing elements
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1):= 62;
+SELECT marks(NULL);
+END;
+$$
+ERROR HY000: NULL key used for associative array 'marks'
+#
+# NULL key when assigning variable (LHS)
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+p table_of_person_t;
+BEGIN
+p(NULL).first_name:= 'aa';
+END;
+$$
+ERROR HY000: NULL key used for associative array 'p'
+#
+# NULL key when assigning variable (RHS)
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+p table_of_person_t;
+n VARCHAR(64);
+BEGIN
+n:= p(NULL).first_name;
+END;
+$$
+ERROR HY000: NULL key used for associative array 'p'
+#
+# NULL key when accessing elements
+# On Oracle ORA-06502
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+p table_of_person_t;
+BEGIN
+p('cc'):= person_t('aa', 'bb');
+SELECT p(NULL).first_name;
+END;
+$$
+ERROR HY000: NULL key used for associative array 'p'
+#
+# Nested tables (INDEX BY is not specified)
+# This is not supported yet
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER;
+marks marks_t:= marks_t(62, 78, 99);
+id INTEGER;
+BEGIN
+marks:= names2;
+id:= marks.FIRST;
+WHILE id IS NOT NULL
+LOOP
+-- SELECT marks(id), id;
+id:= marks.NEXT(id);
+END LOOP;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+marks marks_t:= marks_t(62, 78, 99);
+id INTEGER;
+BEGIN
+marks:= names2;
+id:=...' at line 2
+#
+# Element access for scalar variable
+#
+DECLARE
+marks INTEGER;
+BEGIN
+marks(1):= 62;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':= 62;
+END' at line 4
+#
+# Element assignment with wrong argument count
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1, 2):= 62;
+END;
+$$
+ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY KEY .; expected 1, got 2
+#
+# Element assignment with wrong argument count (2)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks():= 62;
+END;
+$$
+ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY KEY .; expected 1, got 0
+#
+# Element access with wrong argument count
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1):= 62;
+SELECT marks(1, 2);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY_ELEMENT .; expected 1, got 2
+#
+# Element access with wrong argument count (2)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT marks();
+END;
+$$
+ERROR 42000: Incorrect number of arguments for ASSOC_ARRAY_ELEMENT .; expected 1, got 0
+#
+# Non-existant field access
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+BEGIN
+person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+SELECT person_by_nickname('Monty').email;
+END;
+$$
+ERROR HY000: Row variable 'person_by_nickname' does not have a field 'email'
+#
+# Field access on array with scalar element
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 1;
+SELECT marks(1).name;
+END;
+$$
+ERROR 42S22: Unknown column 'name' in 'marks'
+#
+# Field assignment
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+BEGIN
+person_by_nickname('Monty'):= person_t('Michael', 'Widenius');
+person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+person_by_nickname('Monty').first_name:= 'Mike';
+SELECT person_by_nickname('Monty').first_name,
+person_by_nickname('Monty').last_name;
+SELECT person_by_nickname('Serg').first_name,
+person_by_nickname('Serg').last_name;
+person_by_nickname('Serg').first_name:= NULL;
+SELECT person_by_nickname('Serg').first_name, person_by_nickname('Serg').first_name IS NULL;
+END;
+$$
+person_by_nickname('Monty').first_name	person_by_nickname('Monty').last_name
+Mike	Widenius
+person_by_nickname('Serg').first_name	person_by_nickname('Serg').last_name
+Sergei 	Golubchik
+person_by_nickname('Serg').first_name	person_by_nickname('Serg').first_name IS NULL
+NULL	1
+#
+# Field access - non-existant key
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+BEGIN
+SELECT person_by_nickname('Monty').first_name;
+END;
+$$
+ERROR HY000: Element not found with key 'Monty'
+#
+# Field assignment - non-existant key
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+BEGIN
+person_by_nickname('Monty'):= person_t('Michael', 'Widenius');
+person_by_nickname('Jeff').nick_name:= 'Mike';
+SELECT person_by_nickname('Monty').first_name,
+person_by_nickname('Monty').last_name;
+END;
+$$
+ERROR HY000: Element not found with key 'Jeff'
+#
+# Field assignment - non existant field
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+BEGIN
+person_by_nickname('Monty'):= person_t('Michael', 'Widenius');
+person_by_nickname('Monty').nick_name:= 'Mike';
+SELECT person_by_nickname('Monty').first_name,
+person_by_nickname('Monty').last_name;
+END;
+$$
+ERROR HY000: Row variable 'person_by_nickname' does not have a field 'nick_name'
+#
+# Key access using another array's element
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+marks marks_t;
+fname VARCHAR2(20);
+TYPE hist_t IS TABLE OF NUMBER INDEX BY INTEGER;
+hist hist_t;
+hist_bin INTEGER;
+BEGIN
+marks('Steve') := 62;
+marks('Mark') := 77;
+marks('Lee') := 79;
+marks('John') := 31;
+fname:= marks.FIRST;
+WHILE fname IS NOT NULL
+LOOP
+IF hist.EXISTS(FLOOR(marks(fname) / 10)) THEN
+hist(FLOOR(marks(fname) / 10)):= hist(FLOOR(marks(fname) / 10)) + 1;
+ELSE
+hist(FLOOR(marks(fname) / 10)):= 1;
+END IF;
+fname:= marks.NEXT(fname);
+END LOOP;
+hist_bin:= hist.FIRST;
+WHILE hist_bin IS NOT NULL
+LOOP
+SELECT hist_bin, hist(hist_bin);
+hist_bin:= hist.NEXT(hist_bin);
+END LOOP;
+END;
+$$
+hist_bin	hist(hist_bin)
+3	1
+hist_bin	hist(hist_bin)
+6	1
+hist_bin	hist(hist_bin)
+7	2
+#
+# ASSOC ARRAY type used in a stored PROCEDURE
+#
+CREATE PROCEDURE p1(v NUMBER) AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+marks marks_t;
+BEGIN
+marks(1) := 62;
+SELECT marks(1);
+END;
+$$
+CALL p1(4);
+marks(1)
+62
+DROP PROCEDURE p1;
+#
+# ASSOC ARRAY type used in a stored FUNCTION
+#
+CREATE FUNCTION f1(v NUMBER)
+RETURN NUMBER IS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+marks marks_t;
+BEGIN
+marks(1) := 62;
+RETURN marks(1);
+END;
+$$
+SELECT f1(4);
+f1(4)
+62
+DROP FUNCTION f1;
+#
+# Accessing member fields from constructor should fail
+# for RECORD type
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+first_name VARCHAR(64):= person_t('First', 'Last').first_name;
+BEGIN
+SELECT first_name;
+END;
+$$
+ERROR 42S22: Unknown column 'first_name' in 'person_t'
+#
+# Accessing member fields from constructor should fail
+# for ASSOC ARRAY type
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+first_name VARCHAR(64):= table_of_person_t('1' => person_t('First', 'Last')).first_name;
+BEGIN
+SELECT first_name;
+END;
+$$
+ERROR 42S22: Unknown column 'first_name' in 'table_of_person_t'
+#
+# Selecting assoc array
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:=marks_t(1 AS '1');
+BEGIN
+SELECT marks;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Assoc array compare - scalar element
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:=marks_t(1 => 1);
+prev_marks marks_t:=marks_t(1 => 1);
+BEGIN
+IF marks = prev_marks THEN
+SELECT 'Equal';
+END IF;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Assoc array compare - record element
+#
+DECLARE
+TYPE subjects_t IS RECORD
+(
+english INTEGER,
+math INTEGER
+);
+TYPE marks_t IS TABLE OF subjects_t INDEX BY VARCHAR2(64);
+marks marks_t:=marks_t('Nur' => subjects_t(80, 90));
+prev_marks marks_t:=marks_t('Nur' => subjects_t(75, 69));
+BEGIN
+IF marks = prev_marks THEN
+SELECT 'Equal';
+END IF;
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Assoc array SUM
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+SELECT SUM(marks);
+END;
+$$
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Assoc array IN
+#
+CREATE TABLE t1 (a INT);
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+SELECT marks(2) IN (2, 3);
+END;
+$$
+marks(2) IN (2, 3)
+1
+DROP TABLE t1;
+#
+# Assoc array IN (2)
+#
+CREATE TABLE t1 (a INT);
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+persons('Monty') := person_t('Michael', 'Widenius');
+persons('Serg') := person_t('Sergei ', 'Golubchik');
+SELECT persons('Monty') IN (person_t('Michael', 'Widenius'));
+END;
+$$
+persons('Monty') IN (person_t('Michael', 'Widenius'))
+1
+DROP TABLE t1;
+#
+# Assoc array IN (2)
+#
+CREATE TABLE t1 (a INT);
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+persons('Monty') := person_t('Michael', 'Widenius');
+persons('Serg') := person_t('Sergei ', 'Golubchik');
+SELECT persons('Monty').first_name IN ('Michael', 'Sergei ');
+SELECT persons('Monty').last_name IN ('Michael', 'Sergei ');
+END;
+$$
+persons('Monty').first_name IN ('Michael', 'Sergei ')
+1
+persons('Monty').last_name IN ('Michael', 'Sergei ')
+0
+DROP TABLE t1;
+#
+# IN Assoc array element
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+SELECT * FROM t1 WHERE a IN (marks(2), marks(3));
+END;
+$$
+a
+2
+3
+DROP TABLE t1;
+#
+# IN Assoc array, not going to support this, test just
+# to ensure that we don't crash the server
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+SELECT 2 IN (marks);
+END;
+$$
+ERROR HY000: Illegal parameter data types int and associative_array for operation '='
+#
+# SELECT .. INTO spvar_assoc_array
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1 INTO marks;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT 1,2 INTO marks;
+END;
+$$
+CALL p1;
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP PROCEDURE p1;
+#
+# SELECT INTO ASSOC ARRAY scalar element
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT * FROM t1 WHERE a = 2 INTO marks(200);
+SELECT marks(200);
+END;
+$$
+marks(200)
+2
+DROP TABLE t1;
+#
+# SELECT INTO ASSOC ARRAY non-scalar element
+#
+CREATE TABLE t1 (first_name VARCHAR(64), last_name VARCHAR(64));
+INSERT INTO t1 VALUES ('Anwar', 'Ibrahim');
+INSERT INTO t1 VALUES ('Najib', 'Razak');
+INSERT INTO t1 VALUES ('Muhyiddin', 'Yassin');
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+SELECT * FROM t1 WHERE first_name = 'Anwar' INTO persons('Nuau');
+SELECT persons('Nuau').last_name;
+END;
+$$
+persons('Nuau').last_name
+Ibrahim
+DROP TABLE t1;
+#
+# SELECT INTO ASSOC ARRAY for a field of a non-scalar element
+#
+CREATE TABLE t1 (first_name VARCHAR(64), last_name VARCHAR(64));
+INSERT INTO t1 VALUES ('Anwar', 'Ibrahim');
+INSERT INTO t1 VALUES ('Najib', 'Razak');
+INSERT INTO t1 VALUES ('Muhyiddin', 'Yassin');
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+SELECT * FROM t1 WHERE first_name = 'Anwar' INTO persons('Nuau');
+SELECT * FROM t1 WHERE first_name= 'Muhyiddin' INTO persons('Muhyiddin');
+SELECT 'ibn Arabi' INTO persons('Muhyiddin').last_name;
+SELECT persons('Muhyiddin').first_name, persons('Muhyiddin').last_name;
+END;
+$$
+persons('Muhyiddin').first_name	persons('Muhyiddin').last_name
+Muhyiddin	ibn Arabi
+DROP TABLE t1;
+#
+# SELECT INTO ASSOC ARRAY for a field of a non-scalar element
+# for a non-existing key
+#
+CREATE PROCEDURE p1 IS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+SELECT 'ibn Arabi' INTO persons('Muhyiddin').last_name;
+SELECT persons('Muhyiddin').first_name, persons('Muhyiddin').last_name;
+END;
+$$
+CALL p1;
+ERROR HY000: Element not found with key 'Muhyiddin'
+DROP PROCEDURE p1;
+#
+# SELECT INTO assoc_array_of_scalars('key').field
+# Fails during the CREATE time.
+#
+CREATE PROCEDURE p1 IS
+TYPE assoc_t IS TABLE OF VARCHAR2(20) INDEX BY VARCHAR2(20);
+assoc assoc_t;
+BEGIN
+SELECT 'ibn Arabi' INTO assoc('Muhyiddin').last_name;
+END;
+$$
+ERROR HY000: Illegal parameter data type varchar for operation '`assoc`(..).`last_name`'
+#
+# SELECT scalar INTO ASSOC ARRAY non-scalar element
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+SELECT * FROM t1 WHERE a = 3 INTO persons('Nuau');
+SELECT persons('Nuau').last_name;
+END;
+$$
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+#
+# SELECT non-scalar INTO ASSOC ARRAY scalar element
+#
+CREATE TABLE t1 (first_name VARCHAR(64), last_name VARCHAR(64));
+INSERT INTO t1 VALUES ('Anwar', 'Ibrahim');
+INSERT INTO t1 VALUES ('Najib', 'Razak');
+INSERT INTO t1 VALUES ('Muhyiddin', 'Yassin');
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+SELECT * FROM t1 WHERE first_name = 'Najib' INTO marks(200);
+SELECT marks(200);
+END;
+$$
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+#
+# SELECT scalar INTO scalar variable with non-existant key
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DECLARE
+id INTEGER;
+BEGIN
+SELECT * FROM t1 WHERE a = 3 INTO id('Nuau');
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation '`id`(..)'
+DECLARE
+id INTEGER;
+BEGIN
+EXPLAIN SELECT * FROM t1 WHERE a = 3 INTO id('Nuau');
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation '`id`(..)'
+DROP TABLE t1;
+#
+# SELECT scalar INTO non-existant variable with key
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DECLARE
+id INTEGER;
+BEGIN
+SELECT * FROM t1 WHERE a = 3 INTO missing_var('Nuau');
+END;
+$$
+ERROR 42000: Undeclared variable: missing_var
+DROP TABLE t1;
+#
+# SELECT scalar INTO ASSOC_ARRAY's element field
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+persons('Monty') := person_t('Michael', 'Widenius');
+SELECT 'Mike' INTO persons('Monty').first_name;
+SELECT persons('Monty').first_name;
+END;
+$$
+persons('Monty').first_name
+Mike
+#
+# SELECT non-scalar INTO ASSOC ARRAY scalar element's field
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+persons('Monty') := person_t('Michael', 'Widenius');
+SELECT 'Mike','Widenius' INTO persons('Monty').first_name;
+SELECT persons('Monty').first_name;
+END;
+$$
+ERROR 21000: The used SELECT statements have a different number of columns
+#
+# SELECT scalar INTO scalar element's field with non-existant key
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+persons('Monty') := person_t('Michael', 'Widenius');
+SELECT 'Mike' INTO persons('Serg').first_name;
+END;
+$$
+ERROR HY000: Element not found with key 'Serg'
+#
+# SELECT scalar INTO non-existant variable with key
+#
+DECLARE
+BEGIN
+SELECT 'Mike' INTO missing_var('Serg').first_name;
+END;
+$$
+ERROR 42000: Undeclared variable: missing_var
+#
+# Use field on scalar element with SELECT .. INTO
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(200):= 88;
+SELECT 1 INTO marks(200).non_exist;
+END;
+$$
+ERROR HY000: Illegal parameter data type double for operation '`marks`(..).`non_exist`'
+#
+# Use field on scalar variable with SELECT .. INTO
+#
+DECLARE
+marks INTEGER;
+BEGIN
+SELECT 1 INTO marks(200).non_exist;
+END;
+$$
+ERROR HY000: Illegal parameter data type int for operation '`marks`(..)'
+#
+# SELECT scalar INTO scalar variable with non-existant field
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+persons table_of_person_t;
+BEGIN
+persons('Monty') := person_t('Michael', 'Widenius');
+SELECT 'Mike' INTO persons('Monty').first_namex;
+END;
+$$
+ERROR 42S22: Unknown column 'first_namex' in 'persons'
+SET sql_mode=default;
+#
+# Basic ASSOC ARRAY, anonymous block sql_mode=default;
+#
+BEGIN NOT ATOMIC
+DECLARE TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+DECLARE marks marks_t;
+END;
+$$
+ERROR HY000: Unknown data type: 'marks_t'
+#
+# Basic ASSOC ARRAY, stored procedure sql_mode=default;
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+DECLARE marks marks_t;
+END;
+$$
+ERROR HY000: Unknown data type: 'marks_t'
+CALL p1();
+ERROR 42000: PROCEDURE test.p1 does not exist
+DROP PROCEDURE p1;
+ERROR 42000: PROCEDURE test.p1 does not exist
+#
+# Basic ASSOC ARRAY, stored function sql_mode=default;
+#
+CREATE OR REPLACE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+DECLARE marks marks_t;
+RETURN marks(1);
+END;
+$$
+ERROR HY000: Unknown data type: 'marks_t'
+SELECT f1();
+ERROR 42000: FUNCTION test.f1 does not exist
+DROP FUNCTION f1;
+ERROR 42000: FUNCTION test.f1 does not exist
+SET sql_mode=ORACLE;
+#
+# Ensure that nested assoc array types are properly parsed (without crash, etc)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+TYPE classes_t IS TABLE OF marks_t INDEX BY INTEGER;
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Illegal parameter data type associative_array for operation '<array element data type>'
+#
+# Ensure that nested assoc array types cannot be used for record field
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+TYPE rec_t IS RECORD (a INT, b marks_t);
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Unknown data type: 'marks_t'
+#
+# Ensure that DATE element maps correctly to MariaDB
+# DATETIME
+#
+DECLARE
+TYPE dates_t IS TABLE OF DATE INDEX BY INTEGER;
+dates dates_t:= dates_t(1 => '2021-01-01 10:20:30');
+BEGIN
+SELECT dates(1);
+END;
+$$
+dates(1)
+2021-01-01 10:20:30
+#
+# Multiple variable declaration
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+m1,m2,m3 marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+id INTEGER;
+BEGIN
+id:= m1.FIRST;
+WHILE id IS NOT NULL
+LOOP
+SELECT m1(id) || m2(id) || m3(id) AS m;
+id:= m1.NEXT(id);
+END LOOP;
+END;
+$$
+m
+626262
+m
+787878
+m
+999999
+#
+# EXPLAIN SELECT for element of array
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t;
+BEGIN
+person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+SELECT person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'));
+EXPLAIN EXTENDED SELECT person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'));
+END;
+$$
+person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'))
+1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select ('Michael','Widenius') = person_by_nickname@0['Monty'] AS "person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'))"
+#
+# EXPLAIN SELECT for field of element of array
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t;
+BEGIN
+person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+EXPLAIN EXTENDED SELECT person_by_nickname('Monty').first_name;
+END;
+$$
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select person_by_nickname@0['Monty'].first_name AS "person_by_nickname('Monty').first_name"
+#
+# EXPLAIN SELECT for IS NULL with array argument
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+pbn table_of_peson_t;
+BEGIN
+pbn('Monty') := person_t('Michael', 'Widenius');
+SELECT pbn IS NULL;
+EXPLAIN EXTENDED SELECT pbn IS NULL;
+END;
+$$
+pbn IS NULL
+0
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select pbn@0 is null AS "pbn IS NULL"
+#
+# EXPLAIN SELECT for IS NOT NULL with array argument
+#
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+pbn table_of_peson_t;
+BEGIN
+pbn('Monty') := person_t('Michael', 'Widenius');
+SELECT pbn IS NOT NULL;
+EXPLAIN EXTENDED SELECT pbn IS NOT NULL;
+END;
+$$
+pbn IS NOT NULL
+1
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select pbn@0 is not null AS "pbn IS NOT NULL"
+#
+# IS NULL, IS NOT NULL
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 marks_t:= marks_t(1 => 62);
+m2 marks_t;
+m3 marks_t:= marks_t(1 => 62);
+id INTEGER;
+BEGIN
+SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+m1:= m2;
+SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+m2:= marks_t(1 => 62);
+SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+m1:= m3;
+SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+END;
+$$
+m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
+0	1	1	0
+m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
+1	0	1	0
+m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
+1	0	0	1
+m1 IS NULL	m1 IS NOT NULL	m2 is NULL	m2 IS NOT NULL
+0	1	0	1
+#
+# Call an associative array procedure method directly
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 marks_t:= marks_t(1 => 61, 2 => 62, 3 => 63);
+BEGIN
+SELECT m1.count;
+m1.delete(2);
+SELECT m1.count, m1(1), m1(3);
+m1.delete;
+SELECT m1.count;
+END;
+$$
+m1.count
+3
+m1.count	m1(1)	m1(3)
+2	61	63
+m1.count
+0
+#
+# Create an associative array type sharing the same name as a built-in function
+# TODO: This should be allowed
+#
+DECLARE
+TYPE trim IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 trim:= trim(1=>1);
+BEGIN
+SELECT m1(1);
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '=>1);
+BEGIN
+SELECT m1(1);
+END' at line 3
+#
+# Create an associative array type sharing the same name as a built-in function (2)
+# TODO: This should be allowed
+#
+DECLARE
+TYPE acos IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 acos:= acos(1=>1);
+BEGIN
+SELECT m1(1);
+END;
+$$
+ERROR 42000: Incorrect parameters in the call to native function 'acos'
+#
+# Create an associative array type sharing the same name as a stored procedure
+#
+CREATE PROCEDURE p1() AS
+BEGIN
+SELECT 'p1()';
+END;
+$$
+DECLARE
+TYPE p1 IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 p1:= p1(1=>1);
+BEGIN
+SELECT m1(1);
+END;
+$$
+m1(1)
+1
+DROP PROCEDURE p1;
+#
+# Create an associative array type sharing the same name as a package
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1() AS
+BEGIN
+SELECT 'p1()';
+END;
+END;
+$$
+DECLARE
+TYPE pkg1 IS TABLE OF NUMBER INDEX BY INTEGER;
+m1 pkg1:= pkg1(1=>1);
+BEGIN
+SELECT m1(1);
+END;
+$$
+m1(1)
+1
+DROP PACKAGE pkg1;
+#
+# Create an associative array sharing the same name as a package
+# The expected behaviour is that the associative array local variable
+# will hide the package. On the other hand prepared statements
+# will not see the local variable.
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE prior(a VARCHAR);
+PROCEDURE prior1(a VARCHAR);
+FUNCTION prior(a VARCHAR) RETURN VARCHAR;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE prior(a VARCHAR) AS
+BEGIN
+SELECT 'pkg1.prior()';
+END;
+PROCEDURE prior1(a VARCHAR) AS
+BEGIN
+SELECT 'pkg1.prior1()';
+END;
+FUNCTION prior(a VARCHAR) RETURN VARCHAR AS
+BEGIN
+RETURN 'pkg1.prior()';
+END;
+END;
+$$
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+pkg1 marks_t:= marks_t('1'=>1,'2'=>2);
+BEGIN
+SELECT pkg1.prior('2');
+CALL pkg1.prior('2');
+EXECUTE IMMEDIATE 'CALL pkg1.prior(2)';
+EXECUTE IMMEDIATE 'CALL pkg1.prior1(2)';
+END;
+$$
+pkg1.prior('2')
+1
+pkg1.prior()
+pkg1.prior()
+pkg1.prior()
+pkg1.prior()
+pkg1.prior1()
+pkg1.prior1()
+DROP PACKAGE pkg1;
+#
+# A scalar variable does not shadow a package
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1;
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+p1 INT;
+PROCEDURE p1 AS
+BEGIN
+SELECT 'pkg.p1';
+END;
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN 'pkg.f1';
+END;
+END;
+$$
+CREATE PROCEDURE p1 AS
+pkg INT; -- This scalar variable does not shadow the package 'pkg'
+BEGIN
+pkg.p1();        -- This is resolved to the package procedure call
+SELECT pkg.f1(); -- This is resolved to the package function call
+END;
+$$
+CALL p1;
+pkg.p1
+pkg.p1
+pkg.f1()
+pkg.f1
+DROP PROCEDURE p1;
+DROP PACKAGE pkg;
+#
+# A ROW variable does not shadow a package
+#
+CREATE PACKAGE pkg AS
+PROCEDURE p1;
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+p1 INT;
+PROCEDURE p1 AS
+BEGIN
+SELECT 'pkg.p1';
+END;
+FUNCTION f1 RETURN TEXT AS
+BEGIN
+RETURN 'pkg.f1';
+END;
+END;
+$$
+CREATE PROCEDURE p1 AS
+pkg ROW(p1 INT,p2 INT); -- This ROW variable does not shadow the package 'pkg'
+BEGIN
+pkg.p1();        -- This is resolved to the package procedure call
+SELECT pkg.f1(); -- This is resolved to the package function call
+END;
+$$
+CALL p1;
+pkg.p1
+pkg.p1
+pkg.f1()
+pkg.f1
+DROP PROCEDURE p1;
+DROP PACKAGE pkg;
+#
+# Checking that when the routine execution leaves
+# a DECLARE..BEGIN..END block with an assoc array declared,
+# the memory used by the assoc array is freed.
+#
+CREATE FUNCTION memory_used() RETURN BIGINT AS
+BEGIN
+RETURN (SELECT variable_value FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE variable_name='memory_used');
+END;
+/
+CREATE PROCEDURE p1 AS
+memory_used0 BIGINT:= memory_used();
+BEGIN
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_peson_t;
+BEGIN
+FOR i IN 1..3
+LOOP
+person_by_nickname(i):= person_t(CONCAT('first_name',i),
+CONCAT('last_name',i));
+SELECT i, memory_used()-memory_used0 >0 AS diff;
+END LOOP;
+END;
+SELECT memory_used()-memory_used0 >0 AS diff1;
+END;
+/
+CALL p1;
+i	diff
+1	1
+i	diff
+2	1
+i	diff
+3	1
+diff1
+0
+DROP PROCEDURE p1;
+DROP FUNCTION memory_used;
+#
+# Ensure that subqueries are disallowed for keys
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1);
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 78);
+BEGIN
+SELECT marks((SELECT * FROM t1));
+END;
+$$
+ERROR HY000: '(select "*" from "test"."t1")' is not allowed in this context
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 78);
+BEGIN
+SELECT marks((SELECT 1));
+END;
+$$
+ERROR HY000: '(select 1)' is not allowed in this context
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY INTEGER;
+p table_of_peson_t:=  table_of_peson_t(1 => person_t('Michael', 'Widenius'));
+BEGIN
+SELECT p((SELECT * FROM t1)).first_name;
+END;
+$$
+ERROR HY000: '(select "*" from "test"."t1")' is not allowed in this context
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY INTEGER;
+p table_of_peson_t:=  table_of_peson_t(1 => person_t('Michael', 'Widenius'));
+BEGIN
+SELECT p((SELECT 1)).first_name;
+END;
+$$
+ERROR HY000: '(select 1)' is not allowed in this context
+#
+# Ensure that fields are disallowed for keys
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 78);
+BEGIN
+SELECT marks(t1.a) FROM t1;
+END;
+$$
+ERROR HY000: '"t1"."a"' is not allowed in this context
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY INTEGER;
+p table_of_peson_t:=  table_of_peson_t(1 => person_t('Michael', 'Widenius'));
+BEGIN
+SELECT p(t1.a).first_name FROM t1;
+END;
+$$
+ERROR HY000: '"t1"."a"' is not allowed in this context
+#
+# Ensure that ROWNUM is disallowed for keys
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 78);
+BEGIN
+SELECT marks(ROWNUM) FROM t1;
+END;
+$$
+ERROR HY000: 'rownum()' is not allowed in this context
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY INTEGER;
+p table_of_peson_t:=  table_of_peson_t(1 => person_t('Michael', 'Widenius'));
+BEGIN
+SELECT p(ROWNUM).first_name FROM t1;
+END;
+$$
+ERROR HY000: 'rownum()' is not allowed in this context
+#
+# Ensure that WINDOW functions are disallowed for keys
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t:= marks_t(1 => 78);
+BEGIN
+SELECT marks(COUNT(t1.a)) FROM t1;
+END;
+$$
+ERROR HY000: 'count("t1"."a")' is not allowed in this context
+DECLARE
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_peson_t IS TABLE OF person_t INDEX BY INTEGER;
+p table_of_peson_t:=  table_of_peson_t(1 => person_t('Michael', 'Widenius'));
+BEGIN
+SELECT p(COUNT(t1.a)).first_name FROM t1;
+END;
+$$
+ERROR HY000: 'count("t1"."a")' is not allowed in this context
+DROP TABLE t1;
+#
+# Non-constant expressions are not allowed as a key: a scalar value
+#
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT marks(rand());
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT marks(78+rand());
+END;
+$$
+CALL p1;
+ERROR HY000: '78 + rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(rand()) := 78;
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 78;
+SELECT 79 INTO marks(rand());
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+#
+# Non-constant expressions are not allowed as a key: a row value field
+#
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+assoc assoc_t:= assoc_t (1 => person_t('Iqbal','Hassan'));
+BEGIN
+SELECT assoc(rand()).first_name;
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+assoc assoc_t:= assoc_t(1 => person_t('Iqbal','Hassan'));
+BEGIN
+assoc(rand()).first_name:= 'John';
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE assoc_t IS TABLE OF person_t INDEX BY INTEGER;
+assoc assoc_t:= assoc_t(1 => person_t('Iqbal','Hassan'));
+BEGIN
+SELECT 'John' INTO assoc(rand()).first_name;
+END;
+$$
+CALL p1;
+ERROR HY000: 'rand()' is not allowed in this context
+DROP PROCEDURE p1;
+#
+# The below script with a scalar element produces a warning.
+# Make sure the variable name is correct in the warning.
+#
+CREATE PROCEDURE p1 AS
+TYPE assoc0_t IS TABLE OF INT INDEX BY INT;
+assoc0 assoc0_t;
+BEGIN
+assoc0(1):= 10e10;
+SELECT assoc0(1) AS c1;
+END;
+$$
+CALL p1;
+c1
+2147483647
+Warnings:
+Warning	1264	Out of range value for column 'assoc0' at row 0
+DROP PROCEDURE p1;
+#
+# The below script with a record element produces a warning.
+# Make sure the variable name is correct in the warning.
+#
+CREATE PROCEDURE p1 AS
+TYPE rec_t IS RECORD (i INT);
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+assoc0 assoc0_t := assoc0_t(1 => rec_t(0));
+BEGIN
+assoc0(1).i := 10e10;
+SELECT assoc0(1).i AS c1;
+END;
+$$
+CALL p1;
+c1
+2147483647
+Warnings:
+Warning	1264	Out of range value for column 'i' at row 0
+DROP PROCEDURE p1;

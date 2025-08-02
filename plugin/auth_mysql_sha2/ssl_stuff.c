@@ -56,71 +56,61 @@ int ssl_decrypt(EVP_PKEY *pkey, unsigned char *src, size_t srclen,
 */
 int ssl_genkeys()
 {
-#ifdef OPENSSL_IS_WOLFSSL
-  /*
-    doesn't have few functions from below and libmariadb doesn't support RSA
-    encryption anyway, so not worth bothering
-  */
-  my_printf_error(1, SELF ": cannot auto-generate keys with WolfSSL",
-                  ME_ERROR_LOG_ONLY);
-  return 1;
-#else
   EVP_PKEY *pkey;
-  FILE *f= NULL;
+  BIO *bio= NULL;
 
   if (!(pkey= EVP_RSA_gen(2048)))
     goto err;
 
-  if (!(f= fopen(private_key_path, "w")))
+  if (!(bio= BIO_new_file(private_key_path, "w")))
     FILE_ERROR("write", private_key_path);
 
-  if (PEM_write_PrivateKey(f, pkey, NULL, NULL, 0, NULL, NULL) != 1)
+  if (PEM_write_bio_PrivateKey(bio, pkey, NULL, NULL, 0, NULL, NULL) != 1)
     SSL_ERROR("write", private_key_path);
-  fclose(f);
+  BIO_free(bio);
 
-  if (!(f= fopen(public_key_path, "w")))
+  if (!(bio= BIO_new_file(public_key_path, "w")))
     FILE_ERROR("write", public_key_path);
 
-  if (PEM_write_PUBKEY(f, pkey) != 1)
+  if (PEM_write_bio_PUBKEY(bio, pkey) <= 0)
     SSL_ERROR("write", public_key_path);
-  fclose(f);
+  BIO_free(bio);
 
   EVP_PKEY_free(pkey);
   return 0;
 
 err:
-  if (f)
-    fclose(f);
+  if (bio)
+    BIO_free(bio);
   if (pkey)
     EVP_PKEY_free(pkey);
   return 1;
-#endif
 }
 
 int ssl_loadkeys()
 {
   EVP_PKEY *pkey= 0;
-  FILE *f;
+  BIO *bio;
   size_t len;
 
-  if (!(f= fopen(private_key_path, "r")))
+  if (!(bio= BIO_new_file(private_key_path, "r")))
     FILE_ERROR("read", private_key_path);
 
-  if (!(pkey= PEM_read_PrivateKey(f, NULL, NULL, NULL)))
+  if (!(pkey= PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL)))
     SSL_ERROR("read", private_key_path);
-  fclose(f);
+  BIO_free(bio);
 
-  if (!(f= fopen(public_key_path, "r")))
+  if (!(bio= BIO_new_file(public_key_path, "r")))
     FILE_ERROR("read", public_key_path);
-  len= fread(public_key, 1, sizeof(public_key)-1, f);
+  len= BIO_read(bio, public_key, sizeof(public_key));
 
-  if (!feof(f))
+  if (len == sizeof(public_key))
   {
     my_printf_error(1, SELF ": failed to read %s: larger than %zu",
                     ME_ERROR_LOG_ONLY, private_key_path, sizeof(public_key)-1);
     goto err;
   }
-  fclose(f);
+  BIO_free(bio);
 
   public_key[len]= 0;
   public_key_len= len;
@@ -128,8 +118,8 @@ int ssl_loadkeys()
   return 0;
 
 err:
-  if (f)
-    fclose(f);
+  if (bio)
+    BIO_free(bio);
   if (pkey)
     EVP_PKEY_free(pkey);
   return 1;

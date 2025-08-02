@@ -136,6 +136,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_schema.cc
            ../sql/lex_charset.cc ../sql/charset_collations.cc
            ../sql/sql_type.cc ../sql/sql_type.h
+           ../sql/sql_type_composite.cc ../sql/item_composite.cc
+           ../sql/sql_type_row.cc
            ../sql/sql_mode.cc
            ../sql/sql_type_string.cc
            ../sql/sql_type_json.cc
@@ -161,6 +163,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_hints_parser.cc ../sql/opt_hints_parser.h
            ../sql/scan_char.h
            ../sql/opt_hints.cc ../sql/opt_hints.h
+	   ../sql/opt_trace_ddl_info.cc ../sql/opt_trace_ddl_info.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

@@ -1,0 +1,66 @@
+--source include/have_ucs2.inc
+--source include/have_sjis.inc
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-36850 SIGSEGV in Item_sp_variable::save_in_field | fill_record
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(64));
+SET character_set_database=sjis;
+SET collation_connection=ucs2_general_ci;
+delimiter $$;
+DECLARE
+  TYPE first_names_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+  first_names first_names_t;
+  nick VARCHAR(64):= 'Monty';
+BEGIN
+  first_names('Monty') := 'Michael';
+  INSERT INTO t1 VALUES (first_names(nick));
+  INSERT INTO t1 VALUES (first_names(TRIM(nick || ' ')));
+END;
+$$
+delimiter ;$$
+SELECT * FROM t1;
+DROP TABLE t1;
+SET character_set_database=DEFAULT;
+SET collation_connection=DEFAULT;
+
+
+delimiter $$;
+CREATE PROCEDURE p1 AS
+  TYPE first_names_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20) CHARACTER SET latin1;
+  first_names first_names_t;
+  nick VARCHAR(64) CHARACTER SET latin1:= 'Monty';
+BEGIN
+  CREATE OR REPLACE TABLE t1 (a VARCHAR(64));
+  first_names('Monty') := 'Michael';
+  INSERT INTO t1 VALUES (first_names(nick || CONVERT(' ' USING ucs2)));
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+delimiter ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+delimiter $$;
+CREATE PROCEDURE p1 AS
+  TYPE person_t IS RECORD (first_name VARCHAR(64), last_name VARCHAR(64));
+  TYPE persons_t IS TABLE OF person_t INDEX BY VARCHAR2(20) CHARACTER SET latin1;
+  persons persons_t;
+  nick VARCHAR(64) CHARACTER SET latin1:= 'Monty';
+  person person_t := ('Michael','Widenius');
+BEGIN
+  CREATE OR REPLACE TABLE t1 (a VARCHAR(64));
+  persons(nick) := person;
+  INSERT INTO t1 VALUES (persons(nick || CONVERT(' ' USING ucs2)).first_name);
+  SELECT * FROM t1;
+  DROP TABLE t1;
+END;
+$$
+delimiter ;$$
+CALL p1;
+DROP PROCEDURE p1;
