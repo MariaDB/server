@@ -1520,6 +1520,7 @@ public:
   */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
+  bool restore_row_logging;          /* Used by binlog_write_table_maps */
   List<Virtual_column_info> vcol_refix_list;
 private:
   bool m_needs_reopen;
