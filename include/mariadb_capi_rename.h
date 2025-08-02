@@ -14,7 +14,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Renaming C API symbols inside server
- * client.c defines a number of functions from the C API, that are used in replication, in number of storage engine plugins, mariadb-backup.
+ * client.c defines a number of functions from the C API, that are used in number of storage engine plugins.
  * That can cause a problem if a plugin loads libmariadb/libmysql or a library, that has dependency on them. The known case is ODBC driver.
  * Thus the header re-names those functions for internal use.
  */
@@ -22,7 +22,8 @@
 #ifndef MARIADB_CAPI_RENAME_INCLUDED
 #define MARIADB_CAPI_RENAME_INCLUDED
 
-#if !defined(EMBEDDED_LIBRARY) && !defined(MYSQL_DYNAMIC_PLUGIN)
+#if !defined(MYSQL_SERVER) && !defined(MARIABACKUP) && \
+  !defined(EMBEDDED_LIBRARY) && !defined(MYSQL_DYNAMIC_PLUGIN)
 
 #define MARIADB_ADD_PREFIX(_SYMBOL) server_##_SYMBOL
 #define mysql_real_connect      MARIADB_ADD_PREFIX(mysql_real_connect)
