@@ -20,7 +20,6 @@ server_audit_syslog_ident	mysql-server_auditing
 server_audit_syslog_info	
 server_audit_syslog_priority	LOG_INFO
 set global server_audit_logging=on;
-Line count in file: 1
 set global server_audit_sync_log_file=on;
 Line count in file: 52
 set global server_audit_file_buffer_size= 16384;
