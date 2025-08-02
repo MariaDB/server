@@ -1,0 +1,7 @@
+set generate_embedding_openai_host="notavalidurl:5000";
+call mtr.add_suppression("GENERATE_EMBEDDING_OPENAI: curl returned this error code: 6 with the following error message: Couldn't resolve host name");
+select vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'));
+vec_totext(generate_embedding_openai('abc', 'text-embedding-ada-002'))
+NULL
+Warnings:
+Warning	1	GENERATE_EMBEDDING_OPENAI: curl returned this error code: 6 with the following error message: Couldn't resolve host name
