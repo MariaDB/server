@@ -24,6 +24,12 @@ enum legacy_db_type ha_checktype(THD *thd, enum legacy_db_type database_type, bo
     return DB_TYPE_MYISAM;
 }
 
+static handlerton mock_handlerton = {0};
+
+handlerton *ha_default_handlerton(THD *thd) {
+    return &mock_handlerton;
+}
+
 
 
 

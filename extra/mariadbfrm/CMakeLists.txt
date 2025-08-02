@@ -32,5 +32,8 @@ TARGET_LINK_LIBRARIES(mariadb-frm
     ${SSL_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
+if(NOT APPLE)
+    target_link_options(mariadb-frm PRIVATE "LINKER:--allow-multiple-definition")
+endif()
 
 ADD_DEPENDENCIES(mariadb-frm GenError)

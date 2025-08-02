@@ -20,17 +20,78 @@
 
 #include "mariadb.h"
 
-#include "mysqld.h"
-#include "sql_class.h"
-#include "table.h"
-#include "sql_table.h"
-#include "sql_parse.h"
-#include "sql_plugin.h"
-#include <my_dir.h>
+#include "mariadb.h"
+#include "my_sys.h"
+#include "mysql_com.h"
+#include "m_ctype.h"
 #include "field.h"
 
 
+class Security_context;
+class LEX;
+class Transaction_state;
 
+class THD {
+public:
+  MEM_ROOT mem_root;
+  char *thread_stack;
+  Diagnostics_area *m_stmt_da;
+  Security_context *security_ctx;
+  Security_context *main_security_ctx;
+  LEX *lex;
+  Transaction_state *transaction;
+  ulong thread_id;
+  
+  struct {
+    const CHARSET_INFO *character_set_client;
+    const CHARSET_INFO *collation_connection; 
+    const CHARSET_INFO *collation_database;
+    const CHARSET_INFO *character_set_results;
+    const CHARSET_INFO *character_set_filesystem;
+    ulong sql_mode;
+    ulong max_allowed_packet;
+    ulong net_buffer_length;
+    plugin_ref table_plugin;
+    plugin_ref tmp_table_plugin;
+  } variables;
+  
+  struct {
+    ulong feature_system_versioning;
+    ulong feature_application_time_periods;
+  } status_var;
+
+  THD() : m_stmt_da(nullptr), security_ctx(nullptr), lex(nullptr), 
+          transaction(nullptr), thread_id(1) {
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &mem_root, 1024, 0, MYF(0));
+  }
+  
+  ~THD() {
+    free_root(&mem_root, MYF(0));
+  }
+
+  bool is_error() const { 
+    printf("DEBUG: is_error() called, m_stmt_da = %p\n", m_stmt_da);
+    return m_stmt_da ? m_stmt_da->is_error() : false; 
+  }
+};
+
+
+
+class Security_context {
+public:
+  ulong master_access;
+  Security_context() : master_access(0) {}
+};
+
+class LEX {
+public:
+  LEX() {}
+};
+
+class Transaction_state {
+public:
+  Transaction_state() {}
+};
 
 static handlerton mock_hton;
 
@@ -106,67 +167,52 @@ static void mock_plugin_unlock(THD *thd, plugin_ref ptr) {
 #define plugin_lock(thd, ptr) mock_plugin_lock(thd, ptr)
 #define plugin_unlock(thd, ptr) mock_plugin_unlock(thd, ptr)
 
-/**
-  Fake THD structure that contains only fields needed for FRM parsing
-*/
-struct FakeTHD {
-  MEM_ROOT mem_root;
-  char *thread_stack;
-  
-  struct {
-    const CHARSET_INFO *character_set_client;
-    const CHARSET_INFO *collation_connection;
-    const CHARSET_INFO *collation_database;
-    const CHARSET_INFO *character_set_results;
-  } variables;
-  
-  struct {
-    ulong feature_system_versioning;
-    ulong feature_application_time_periods;
-  } status_var;
-};
 
 /**
   Initialize fake THD structure
 */
-static FakeTHD* init_fake_thd()
-{
-  printf("DEBUG: Entering init_fake_thd\n");
-  fflush(stdout);
-
-  FakeTHD *fake_thd = (FakeTHD*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(FakeTHD), MYF(MY_ZEROFILL));
-  if (!fake_thd)
-    return NULL;
+static THD* create_minimal_thd() {
+    THD *thd = new THD();
     
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &fake_thd->mem_root, 8192, 0, MYF(0));
-  
-  char stack_dummy;
-  fake_thd->thread_stack = &stack_dummy;
-  
-  fake_thd->variables.character_set_client = &my_charset_utf8mb4_general_ci;
-  fake_thd->variables.collation_connection = &my_charset_utf8mb4_general_ci;
-  fake_thd->variables.collation_database = &my_charset_utf8mb4_general_ci;
-  fake_thd->variables.character_set_results = &my_charset_utf8mb4_general_ci;
-  
-  fake_thd->status_var.feature_system_versioning = 0;
-  fake_thd->status_var.feature_application_time_periods = 0;
-
-  printf("DEBUG: Fake THD initialized successfully\n");
-  fflush(stdout);
-  return fake_thd;
+    char stack_dummy;
+    thd->thread_stack = &stack_dummy;
+    
+    thd->m_stmt_da = new Diagnostics_area(false);
+    
+    thd->variables.character_set_client = &my_charset_utf8mb4_general_ci;
+    thd->variables.collation_connection = &my_charset_utf8mb4_general_ci;
+    thd->variables.collation_database = &my_charset_utf8mb4_general_ci;
+    thd->variables.character_set_results = &my_charset_utf8mb4_general_ci;
+    thd->variables.character_set_filesystem = &my_charset_bin;
+    thd->variables.sql_mode = 0;
+    thd->variables.max_allowed_packet = 1024 * 1024 * 1024;
+    thd->variables.net_buffer_length = 16384;
+    thd->variables.table_plugin = nullptr;
+    thd->variables.tmp_table_plugin = nullptr;
+    
+    thd->status_var.feature_system_versioning = 0;
+    thd->status_var.feature_application_time_periods = 0;
+    
+    thd->security_ctx = thd->main_security_ctx;
+    thd->lex = new LEX();
+    thd->transaction = new Transaction_state();
+    
+    return thd;
 }
 
-/**
-  Cleanup fake THD
-*/
-static void cleanup_fake_thd(FakeTHD *fake_thd)
-{
-  if (fake_thd)
-  {
-    free_root(&fake_thd->mem_root, MYF(0));
-    my_free(fake_thd);
-  }
-  
+
+static void cleanup_thd(THD *thd) {
+    if (thd) {
+        if (thd->lex) {
+            delete thd->lex;
+            thd->lex = nullptr;
+        }
+        if (thd->transaction) {
+            delete thd->transaction;
+            thd->transaction = nullptr;
+        }
+        delete thd;
+    }
 }
 
 /**
@@ -271,7 +317,7 @@ static bool extract_db_table_names(const char *frm_path,
 /**
   Parse FRM file and create TABLE_SHARE and TABLE structures
 */
-static bool parse_frm_file(FakeTHD *fake_thd, const char *frm_path)
+static bool parse_frm_file(THD *fake_thd, const char *frm_path)
 {
   printf("DEBUG: Entering parse_frm_file\n");
   fflush(stdout);
@@ -394,7 +440,7 @@ int main(int argc, char **argv)
   printf("DEBUG: MY_INIT completed\n");
   fflush(stdout);
   
-  FakeTHD *fake_thd= NULL;
+  THD *fake_thd= NULL;
   int exit_code= 0;
 
   if (argc < 2)
@@ -411,7 +457,7 @@ int main(int argc, char **argv)
 
   my_thread_init();
   my_mutex_init();
-  fake_thd= init_fake_thd();
+  fake_thd= create_minimal_thd();
   if (!fake_thd)
   {
     fprintf(stderr, "Error: Cannot initialize THD\n");
@@ -431,7 +477,7 @@ int main(int argc, char **argv)
   fflush(stdout);
 
   exit:
-    cleanup_fake_thd(fake_thd);
+    cleanup_thd(fake_thd);
   my_thread_end();
   my_mutex_end();
   my_end(0);
