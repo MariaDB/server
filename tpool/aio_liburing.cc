@@ -17,6 +17,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include "tpool.h"
 #include "mysql/service_my_print_error.h"
 #include "mysqld_error.h"
+#include "my_valgrind.h"
 
 #include <liburing.h>
 
@@ -174,6 +175,10 @@ private:
       {
         iocb->m_err= 0;
         iocb->m_ret_len= res;
+#if __has_feature(memory_sanitizer) || defined HAVE_valgrind
+        if (iocb->m_opcode == tpool::aio_opcode::AIO_PREAD)
+          MEM_MAKE_DEFINED(iocb->m_buffer, iocb->m_ret_len);
+#endif
       }
 
       io_uring_cqe_seen(&aio->uring_, cqe);
