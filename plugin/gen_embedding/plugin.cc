@@ -29,7 +29,7 @@ static char *host, *api_key;
 ulonglong curl_requests= 0; /* Number of total curl requests */
 ulonglong successful_curl_requests= 0; /* Number of successful curl requests */
 
-static std::string JSON_EMBEDDING_PATH = "$.data[0].embedding";
+static const char* JSON_EMBEDDING_PATH = "$.data[0].embedding";
 
 static MYSQL_THDVAR_STR(host,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -281,7 +281,7 @@ String *Item_func_gen_embedding::read_json(String *str,
     return 0;
 
   c_path->p.types_used= JSON_PATH_KEY_NULL;
-  const uchar* s_p = (const uchar*) JSON_EMBEDDING_PATH.c_str();
+  const uchar* s_p = (const uchar*) JSON_EMBEDDING_PATH;
   if (s_p)
   {
     if (json_path_setup(&c_path->p,&my_charset_utf8mb4_general_ci, s_p,
