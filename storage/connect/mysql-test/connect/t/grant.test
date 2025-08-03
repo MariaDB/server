@@ -27,8 +27,10 @@ CREATE TABLE t1 (
   size DOUBLE(12,0) NOT NULL flag=5
 ) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.*' CHARSET=latin1;
 # "size>0" to skip directory names on Windows
+--disable_view_protocol
 --replace_result $MYSQLD_DATADIR DATADIR/
 SELECT fname, ftype, size FROM t1 WHERE size>0 AND ftype!='.opt';
+--enable_view_protocol
 
 --connection user
 SELECT user();

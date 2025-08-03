@@ -673,7 +673,7 @@ then
     echo
     echo "Two all-privilege accounts were created."
     echo "One is root@localhost, it has no password, but you need to"
-    echo "be system 'root' user to connect. Use, for example, sudo mysql"
+    echo "be system 'root' user to connect. Use, for example, sudo mariadb"
     echo "The second is $auth_root_socket_user@localhost, it has no password either, but"
     echo "you need to be the system '$auth_root_socket_user' user to connect."
     echo "After connecting you can set the password, if you would need to be"

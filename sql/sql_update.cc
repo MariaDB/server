@@ -1935,8 +1935,6 @@ int multi_update::prepare(List<Item> &not_used_values,
     TABLE *table= table_ref->table;
     table->read_set= &table->def_read_set;
     bitmap_union(table->read_set, &table->tmp_set);
-    if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
-      table->file->prepare_for_modify(true, true);
   }
 
   /*
@@ -2151,6 +2149,8 @@ multi_update::initialize_tables(JOIN *join)
     List<Item> temp_fields;
     ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
+
+    table->file->prepare_for_modify(true, true);
 
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
@@ -3184,6 +3184,11 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     table_list->table->no_cache= true;
   }
 
+  {
+    List_iterator_fast<Item> fs(select_lex->item_list), vs(lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
 
   free_join= false;
 

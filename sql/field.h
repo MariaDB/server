@@ -656,6 +656,7 @@ public:
   bool fix_session_expr(THD *thd);
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
+  bool check_access(THD *thd);
   inline bool is_equal(const Virtual_column_info* vcol) const;
   /* Same as is_equal() but for comparing with different table */
   bool is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vcol_share,
@@ -1636,7 +1637,14 @@ public:
   {
     ptr=ADD_TO_PTR(ptr,ptr_diff, uchar*);
     if (null_ptr)
+    {
       null_ptr=ADD_TO_PTR(null_ptr,ptr_diff,uchar*);
+      if (table)
+      {
+        DBUG_ASSERT(null_ptr < ptr);
+        DBUG_ASSERT(ptr - null_ptr <= (int)table->s->rec_buff_length);
+      }
+    }
   }
 
   /*
@@ -4435,6 +4443,7 @@ private:
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
   Binlog_type_info binlog_type_info() const override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
 };
 
 
@@ -4876,6 +4885,7 @@ private:
     override
   { DBUG_ASSERT(0); return 0; }
   Binlog_type_info binlog_type_info() const override;
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type) override;
 };
 
 

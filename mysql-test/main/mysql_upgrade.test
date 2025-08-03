@@ -3,6 +3,7 @@
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
 -- source include/have_partition.inc
+-- source include/hostname_is_not_localhost.inc
 
 let majorminor=`select substring_index(version(), '.', 2)`;
 # for major upgrade test, see below

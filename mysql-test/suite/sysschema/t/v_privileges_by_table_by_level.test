@@ -1,4 +1,5 @@
 -- source include/not_embedded.inc
+-- source include/hostname_is_not_localhost.inc
 # Tests for sys schema
 # Verify the sys.privileges_by_table_by_level view
 

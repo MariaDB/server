@@ -638,7 +638,7 @@ bool Arg_comparator::set_cmp_func_string(THD *thd)
     else if ((*b)->type() == Item::FUNC_ITEM &&
              ((Item_func *) (*b))->functype() == Item_func::JSON_EXTRACT_FUNC)
     {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_json_str:
+      func= is_owner_equal_func() ? &Arg_comparator::compare_e_str_json:
                                     &Arg_comparator::compare_str_json;
       return 0;
     }
@@ -3185,7 +3185,8 @@ Item *Item_func_case_simple::find_item()
 {
   /* Compare every WHEN argument with it and return the first match */
   uint idx;
-  if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
+  bool found_unknown_values;
+  if (!Predicant_to_list_comparator::cmp(this, &idx, &found_unknown_values))
     return args[idx + when_count()];
   Item **pos= Item_func_case_simple::else_expr_addr();
   return pos ? pos[0] : 0;

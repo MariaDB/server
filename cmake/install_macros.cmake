@@ -255,6 +255,7 @@ FUNCTION(INSTALL_RUNTIME_DEPS)
   GET_PROPERTY(installed_targets GLOBAL PROPERTY INSTALLED_TARGETS)
   # Exclude all dependencies that are shared libraries from the
   # same build.
+  FILE(TO_CMAKE_PATH "$ENV{PATH}" _path_list)
   FOREACH(tgt ${installed_targets})
     SET(exclude_libs)
     GET_TARGET_PROPERTY(link_libraries ${tgt} LINK_LIBRARIES)
@@ -286,8 +287,9 @@ FUNCTION(INSTALL_RUNTIME_DEPS)
       ".*system32/.*\\.dll" # Windows stuff
       POST_INCLUDE_REGEXES
       DIRECTORIES
-      ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
-      $<$<CONFIG:Debug>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>
+      $<$<BOOL:${VCPKG_INSTALLED_DIR}>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin
+      $<$<AND:$<CONFIG:Debug>,$<BOOL:${VCPKG_INSTALLED_DIR}>>:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin>
+      ${_path_list}
     )
   ENDFOREACH()
 ENDFUNCTION()

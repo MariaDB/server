@@ -27,7 +27,7 @@
 #include <cstdlib>
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
-#include "wsrep_plugin.h" /* wsrep_provider_plugin_is_enabled() */
+#include "wsrep_plugin.h" /* wsrep_provider_plugin_enabled() */
 
 ulong   wsrep_reject_queries;
 
@@ -130,6 +130,14 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
       if (wsrep_init())
       {
         my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, errno, "wsrep_init failed");
+        saved_wsrep_on= false;
+      }
+
+      if (!wsrep_ready_get())
+      {
+        my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+        WSREP_INFO("Failed to start Galera replication. Please check your "
+                   "configuration.");
         saved_wsrep_on= false;
       }
 
