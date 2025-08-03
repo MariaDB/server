@@ -6837,12 +6837,29 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
   }
 
+  Query_arena *arena, backup;
+  /*
+    Allocation an instance of Item_func_sp used for initialization of
+    sp_result_field taken place inside the method init_result_field() is done
+    on sp_head's mem_root since Item_sp also allocated on this memory root.
+
+    Switching to SP/PS memory root is done explicitly before calling the method
+    init_result_field() instead doing that inside init_result_field()
+    since for the case when rollup aggregate function is handled
+    (@see Item_sum_sp::copy_or_same, @see JOIN::rollup_make_fields)
+    the runtime arena used for operations, so switching to SP/PS arena for this
+    case would result in assertion failure on second execution of the same
+    prepared statement because the memory root be already marked as read only.
+  */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
   /*
     We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
   res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
 
   if (res)
     DBUG_RETURN(TRUE);

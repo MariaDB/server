@@ -124,9 +124,6 @@ int main(int argc, char **argv)
   my_end(check_param.testflag & T_INFO ? MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   rc= (uchar) error;
   exit(rc);
-#ifndef _lint
-  return 0;				/* No compiler warning */
-#endif
 } /* main */
 
 

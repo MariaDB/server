@@ -5816,6 +5816,11 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
+  virtual ~Item_sp()
+  {
+    delete sp_result_field;
+    sp_result_field= NULL;
+  }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
