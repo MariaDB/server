@@ -112,10 +112,15 @@ bool Item_sum::init_sum_func_check(THD *thd)
   thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
+  if ((thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ||
+      (thd->active_stmt_arena_to_use()->state ==
+       Query_arena::STMT_SP_QUERY_ARGUMENTS))
+  {
   aggr_level= -1;
   aggr_sel= NULL;
   max_arg_level= -1;
   max_sum_func_level= -1;
+  }
   outer_fields.empty();
   return FALSE;
 }
@@ -432,7 +437,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
          sl= sl->master_unit()->outer_select() )
       sl->master_unit()->item->with_flags|= item_with_t::SUM_FUNC;
   }
-  if (aggr_sel)
+  if (aggr_sel  && aggr_sel != thd->lex->current_select )
     thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
 
   if ((thd->lex->describe & DESCRIBE_EXTENDED) && aggr_sel)

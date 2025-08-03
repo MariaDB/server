@@ -1052,6 +1052,8 @@ public:
 
   bool can_be_merged();
 
+  uint ub_eq_for_exists2_in();
+
   friend class st_select_lex;
 
 private:
@@ -1154,12 +1156,16 @@ public:
   select_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
   st_select_lex *merged_into; /* select which this select is merged into */
-                              /* (not 0 only for views/derived tables)   */
   const char *type;           /* type of select for EXPLAIN          */
 
 
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /* List of Items that are in inner selects but resolved here */
+  List<Item_ident> outer_references_resolved_here;
+  bool add_outer_reference_resolved_here(THD *thd, Item_ident *dependency);
+
   List<Item> attach_to_conds;
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
@@ -1242,6 +1248,7 @@ public:
   List<Item> *save_insert_list;
 
   bool                is_item_list_lookup:1;
+
   /*
     Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
     of EXPLAIN
@@ -1290,6 +1297,8 @@ public:
 
   /// Array of pointers to top elements of all_fields list
   Ref_ptr_array ref_pointer_array;
+  Ref_ptr_array save_ref_ptrs;
+  uint card_of_ref_ptrs_slice;
   ulong table_join_options;
 
   /*
@@ -1310,6 +1319,7 @@ public:
   uint order_group_num;
   /* reserved for exists 2 in */
   uint select_n_reserved;
+  uint select_n_eq;
   /*
    it counts the number of bit fields in the SELECT list. These are used when
    DISTINCT is converted to a GROUP BY involving BIT fields.
@@ -1330,6 +1340,7 @@ public:
   uint curr_tvc_name;
   /* true <=> select has been created a TVC wrapper */
   bool is_tvc_wrapper;
+  uint fields_added_by_fix_inner_refs;
   uint fields_in_window_functions;
   uint insert_tables;
   enum_parsing_place parsing_place; /* where we are parsing expression */
@@ -1373,6 +1384,8 @@ public:
     case of an error during prepare the PS is not created.
   */
   uint8 changed_elements; // see TOUCHED_SEL_*
+  uint8 save_uncacheable;
+  uint8 save_master_uncacheable;
 
   /**
     The set of those tables whose fields are referenced in the select list of
@@ -1504,6 +1517,8 @@ public:
   }
   bool setup_ref_array(THD *thd, uint order_group_num);
   uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
+  bool save_ref_ptrs_after_persistent_rewrites(THD *thd);
+  bool save_ref_ptrs_if_needed(THD *thd);
   void print(THD *thd, String *str, enum_query_type query_type);
   void print_lock_type(String *str);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
@@ -5276,6 +5291,8 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
                                 bool need_set_keyword= true);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
+
+struct nest_updater {int inc; SELECT_LEX_UNIT *base;};
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */
