@@ -103,25 +103,7 @@ class Item_func_gen_embedding: public Item_str_func
       return 1;
     }
 
-    // Convert the input to cs_openai charset
-    uint errors= 0;
-    CHARSET_INFO *cs= input->charset();
     CHARSET_INFO *cs_openai = &my_charset_utf8mb4_general_ci;
-    size_t dst_length= cs_openai->mbmaxlen * input->length() + 1;
-    MEM_ROOT *root= current_thd->active_stmt_arena_to_use()->mem_root;
-    char *converted_input_buff;
-    converted_input_buff= (char *) alloc_root(root, dst_length);
-    uint32 actual_len = copy_and_convert(converted_input_buff, dst_length, cs_openai, input->ptr(), input->length(),
-      cs, &errors);
-    if (errors != 0) {
-      my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
-        "Error converting input string from %s to UTF-8 charset", ME_ERROR_LOG | ME_WARNING, cs->cs_name.str);
-      null_value = true;
-      return 1;
-    }
-    converted_input_buff[actual_len] = '\0';
-    String *converted_input_str = new String(converted_input_buff, actual_len, cs_openai);
-
     CURLcode ret;
     CURL *hnd;
     std::ostringstream read_data_stream;
@@ -130,13 +112,16 @@ class Item_func_gen_embedding: public Item_str_func
     long http_response_code;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
     
-    // Escape the input string
-    const int jsLen = converted_input_str->length();
-    const char* rawJS = converted_input_str->ptr();
-    int strLen = jsLen * 12 * cs_openai->mbmaxlen / cs_openai->mbminlen;
+    // Convert the input to cs_openai charset and escape it at the same time with json_escape
+    size_t dst_length= cs_openai->mbmaxlen * input->length() + 1;
+    int strLen = dst_length * 12 * cs_openai->mbmaxlen / cs_openai->mbminlen;
     char* buf = (char*)alloca(strLen);
-    if ((strLen = json_escape(cs_openai, (const uchar*)rawJS, (const uchar*)rawJS + jsLen, cs_openai, (uchar*)buf,
-                            (uchar*)buf + strLen)) < 0) {
+    if ((strLen = json_escape(input->charset(), (const uchar*)input->ptr(), (const uchar*)input->ptr() + input->length(),
+                             cs_openai, (uchar*)buf, (uchar*)buf + strLen)) < 0) {
+                              if (strLen == JSON_ERROR_ILLEGAL_SYMBOL) {
+                                my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
+                                  "Error converting input string from %s to UTF-8 charset", ME_ERROR_LOG | ME_WARNING, input->charset()->cs_name.str);
+                              }
                               null_value = true;
                               goto cleanup;
                             }
