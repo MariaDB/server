@@ -76,6 +76,9 @@
 #define WOLFSSL_SP_4096
 #endif
 
+// do not use 128-bit type.
+#define SQR_MUL_ASM
+
 #cmakedefine WOLFSSL_AESNI
 #cmakedefine HAVE_INTEL_RDSEED
 #cmakedefine HAVE_INTEL_RDRAND
@@ -83,5 +86,11 @@
 #cmakedefine WOLFSSL_X86_64_BUILD
 #cmakedefine WOLFSSL_SP_X86_64
 #cmakedefine WOLFSSL_SP_X86_64_ASM
+#cmakedefine WOLFSSL_ARMASM
+#cmakedefine WOLFSSL_SP_ARM64
+#cmakedefine WOLFSSL_SP_ARM64_ASM
+#cmakedefine TFM_ARM
+#cmakedefine WOLFSSL_AARCH64_BUILD
+#cmakedefine POLY130564
 
 #endif  /* WOLFSSL_USER_SETTINGS_H */

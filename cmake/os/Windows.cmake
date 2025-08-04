@@ -178,6 +178,7 @@ if(MSVC)
     if((CMAKE_SIZEOF_VOID_P MATCHES 8) AND MSVC_INTEL)
       add_compile_options(-mpclmul -msse4.2)
     endif()
+    add_compile_options(/EHsc)
   endif()
 
   # Mark 32 bit executables large address aware so they can 
