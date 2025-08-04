@@ -105,10 +105,10 @@ class Item_func_gen_embedding: public Item_str_func
 
     CHARSET_INFO *cs_openai = &my_charset_utf8mb4_general_ci;
     CURLcode ret;
-    CURL *hnd;
+    CURL *hnd=NULL;
     std::ostringstream read_data_stream;
     std::string response, post_fields, escaped_input_str;
-    struct curl_slist *slist1;
+    struct curl_slist *slist1=NULL;
     long http_response_code;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
     
