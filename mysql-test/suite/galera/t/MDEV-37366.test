@@ -1,0 +1,51 @@
+#
+# MDEV-37366: Inconsistency detected - create sequence
+# Failed 'SELECT NEXT VALUE' on applier node.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+--source include/have_log_bin.inc
+
+#
+# Save original auto_increment_offset values.
+#
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+#
+# Verify there are two nodes in galera cluster.
+#
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+#
+# Create a sequence table on node1.
+#
+SET SESSION binlog_row_image=minimal;
+CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE TABLE seq_test;
+
+#
+# Execute 'SELECT NEXT VALUE' which should not fail on applier node.
+#
+SELECT NEXT VALUE FOR seq_test;
+SELECT NEXT VALUE FOR seq_test;
+
+#
+# Verify there are two nodes in galera cluster.
+#
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+#
+# Cleanup
+#
+--connection node_2
+
+DROP SEQUENCE seq_test;
+
+# Restore original variable values.
+--source ../galera/include/auto_increment_offset_restore.inc
