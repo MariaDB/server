@@ -298,34 +298,26 @@ bool store_tables_context_in_trace(THD *thd)
 
 Optimizer_Stats_Context_Recorder::Optimizer_Stats_Context_Recorder(THD *thd)
 {
-  tbl_trace_ctx_hash= (HASH *) thd->calloc(sizeof(HASH));
-  my_hash_init(key_memory_trace_ddl_info, tbl_trace_ctx_hash,
+  my_hash_init(key_memory_trace_ddl_info, &tbl_trace_ctx_hash,
                system_charset_info, 16, 0, 0, get_tbl_trace_ctx_key, 0,
                HASH_UNIQUE);
 }
 
 Optimizer_Stats_Context_Recorder::~Optimizer_Stats_Context_Recorder()
 {
-  clear();
-}
-
-void Optimizer_Stats_Context_Recorder::clear()
-{
-  if (tbl_trace_ctx_hash != NULL)
-    my_hash_free(tbl_trace_ctx_hash);
-  tbl_trace_ctx_hash= NULL;
+  my_hash_free(&tbl_trace_ctx_hash);
 }
 
 bool Optimizer_Stats_Context_Recorder::has_records()
 {
-  return this->tbl_trace_ctx_hash && this->tbl_trace_ctx_hash->records > 0;
+  return tbl_trace_ctx_hash.records > 0;
 }
 
 trace_table_index_range_context *
 Optimizer_Stats_Context_Recorder::search(uchar *tbl_name, size_t tbl_name_len)
 {
-  return (trace_table_index_range_context *) my_hash_search(
-      this->tbl_trace_ctx_hash, tbl_name, tbl_name_len);
+  return (trace_table_index_range_context *) 
+            my_hash_search(&tbl_trace_ctx_hash, tbl_name, tbl_name_len);
 }
 
 void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
@@ -367,7 +359,7 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
     table_ctx->name= create_new_copy(thd, tbl_name.c_ptr());
     table_ctx->name_len= tbl_name.length();
     table_ctx->index.empty();
-    my_hash_insert(this->tbl_trace_ctx_hash, (uchar *) table_ctx);
+    my_hash_insert(&tbl_trace_ctx_hash, (uchar *) table_ctx);
   }
 
   index_ctx->idx_name= create_new_copy(thd, index_name);

@@ -1584,8 +1584,7 @@ void THD::change_user(void)
                Lex_ident_fs::charset_info(), SEQUENCES_HASH_SIZE, 0, 0,
                get_sequence_last_key, free_sequence_last,
                HASH_THREAD_SPECIFIC);
-  if (stats_ctx_recorder)
-    stats_ctx_recorder->clear();
+  delete stats_ctx_recorder;
   stats_ctx_recorder= NULL;
   /* cannot clear caches if it'll free the currently running routine */
   DBUG_ASSERT(!spcont);
@@ -1728,8 +1727,7 @@ void THD::cleanup(void)
 
   my_hash_free(&user_vars);
   my_hash_free(&sequences);
-  if (stats_ctx_recorder)
-    stats_ctx_recorder->clear();
+  delete stats_ctx_recorder;
   stats_ctx_recorder= NULL;
   sp_caches_clear();
   statement_rcontext_reinit();
@@ -2523,8 +2521,7 @@ void THD::cleanup_after_query()
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
-  if (stats_ctx_recorder)
-    stats_ctx_recorder->clear();
+  delete stats_ctx_recorder;
   stats_ctx_recorder= NULL;
   DBUG_VOID_RETURN;
 }

@@ -73,14 +73,12 @@ private:
     all the ranges of indexes that are used
     in the current query, into the trace
   */
-  HASH *tbl_trace_ctx_hash;
+  HASH tbl_trace_ctx_hash;
 
 public:
   Optimizer_Stats_Context_Recorder(THD *thd);
 
   ~Optimizer_Stats_Context_Recorder();
-
-  void clear();
 
   bool has_records();
 
