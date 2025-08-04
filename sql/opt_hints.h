@@ -290,7 +290,7 @@ public:
   */
   bool are_all_fixed() const
   {
-    return fixed;
+    return fixed == Fixed_state::FIXED;
   }
 
   /*

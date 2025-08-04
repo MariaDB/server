@@ -127,7 +127,6 @@ public:
     keyword_NO_MERGE,
     keyword_SPLIT_MATERIALIZED,
     keyword_NO_SPLIT_MATERIALIZED,
-    keyword_JOIN_FIXED_ORDER,
     keyword_INDEX,
     keyword_NO_INDEX,
     keyword_JOIN_INDEX,

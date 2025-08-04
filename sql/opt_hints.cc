@@ -439,7 +439,7 @@ void Opt_hints_qb::fix_hints_for_derived_table(TABLE_LIST *table_list)
     If this is fixed and the corresponding Opt_hints_table doesn't exist (or it
     exists and is fixed) then there's nothing to do, so return early.
   */
-  if (is_fixed() && (!tab || tab->is_fixed()))
+  if (are_all_fixed() && (!tab || tab->are_all_fixed()))
     return;
 
   /*
