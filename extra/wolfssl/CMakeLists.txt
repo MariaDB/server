@@ -123,6 +123,33 @@ if(WOLFSSL_INTELASM)
   endif()
 endif()
 
+if (MSVC_ARM64 AND (CMAKE_C_COMPILER_ID MATCHES Clang))
+  # Compile flags
+  MESSAGE("WolfSSL - Activate ARM64 optimizations")
+  set(WOLFSSL_ARM64_ASM 1)
+  set(WOLFSSL_SP_ARM64 1)
+  set(WOLFSSL_ARMASM 1)
+  set(WOLFSSL_SP_ARM64_ASM 1)
+  set(TFM_ARM 1)
+  set(WOLFSSL_AARCH64_BUILD 1)
+  set(POLY130564 1)
+  set(SQR_MUL_ASM 1)
+
+  target_compile_options(wolfssl PRIVATE -march=armv8-a+crc+crypto)
+  set(WOLFCRYPT_PORT_SRCDIR ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl/wolfcrypt/src/port/arm)
+  target_sources(wolfssl PRIVATE
+    ${WOLFCRYPT_SRCDIR}/cpuid.c
+    ${WOLFCRYPT_SRCDIR}/sp_arm64.c
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-aes.c
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-aes.c
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-chacha.c
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-sha256.c
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-sha512.c
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-sha512-asm.S
+    ${WOLFCRYPT_PORT_SRCDIR}/armv8-sha512-asm_c.c
+  )
+endif()
+
 # Silence some warnings
 if(MSVC)
   # truncation warnings

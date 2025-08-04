@@ -84,4 +84,15 @@
 #cmakedefine WOLFSSL_SP_X86_64
 #cmakedefine WOLFSSL_SP_X86_64_ASM
 
+/* ARM64 flags */
+#cmakedefine WOLFSSL_ARMASM
+#cmakedefine WOLFSSL_SP_ARM64
+#cmakedefine WOLFSSL_SP_ARM64_ASM
+#cmakedefine TFM_ARM
+#cmakedefine WOLFSSL_AARCH64_BUILD
+#cmakedefine POLY130564
+
+/* ??? */
+#cmakedefine SQR_MUL_ASM
+
 #endif  /* WOLFSSL_USER_SETTINGS_H */
