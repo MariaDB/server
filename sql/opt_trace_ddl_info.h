@@ -22,14 +22,29 @@
 #include "sql_list.h"
 #include "table.h"
 
-struct trace_range_context{
-   char *range;
+/* 
+  One index range, aka interval.
+
+  Currently we store the interval's text representation, like
+    "1 < (key1) < 2"
+*/
+struct trace_range_context
+{
+  char *range;
 };
 
-struct trace_index_range_context {
+
+/*
+  A record of one multi_range_read_info_const() call:
+   - index name
+   - number of records
+   - list of ranges.
+*/
+struct trace_index_range_context 
+{
    char *idx_name;
    size_t num_records;
-   List<trace_range_context> *list_range_context;
+   List<trace_range_context> range_list;
 };
 
 struct trace_table_index_range_context

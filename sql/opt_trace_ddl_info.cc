@@ -124,7 +124,7 @@ static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
   {
     Json_writer_object irc_wrapper(thd);
     irc_wrapper.add("index_name", irc->idx_name);
-    List_iterator rc_li(*irc->list_range_context);
+    List_iterator rc_li(irc->range_list);
     Json_writer_array ranges_wrapper(thd, "ranges");
     while (trace_range_context *rc= rc_li++)
     {
@@ -334,10 +334,11 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
 {
   String tbl_name;
 
-  List<trace_range_context> *list_trc=
-      (List<trace_range_context> *) thd->calloc(
-          sizeof(List<trace_range_context>));
-  list_trc->empty();
+  trace_index_range_context *index_ctx=
+      (trace_index_range_context *) thd->calloc(
+          sizeof(trace_index_range_context));
+
+  index_ctx->range_list.empty();
   List_iterator<char> li(*range_list);
   char *range;
   while ((range=li++))
@@ -345,7 +346,7 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
     trace_range_context *trc=
         (trace_range_context *) thd->calloc(sizeof(trace_range_context));
     trc->range= range;
-    list_trc->push_back(trc);
+    index_ctx->range_list.push_back(trc);
   }
   /*
     Create a new table context if it is not already present in the
@@ -369,11 +370,7 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
     my_hash_insert(this->tbl_trace_ctx_hash, (uchar *) table_ctx);
   }
 
-  trace_index_range_context *index_ctx=
-      (trace_index_range_context *) thd->calloc(
-          sizeof(trace_index_range_context));
   index_ctx->idx_name= create_new_copy(thd, index_name);
-  index_ctx->list_range_context= list_trc;
   index_ctx->num_records= found_records;
   table_ctx->index.push_back(index_ctx);
 }
