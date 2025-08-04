@@ -1,14 +1,12 @@
---disable_warnings
-DROP TABLE IF EXISTS t1,t2,t3,t4;
---enable_warnings
-
 ######## Running INSERT tests for YEAR(4) ########
 
 # Create tables
 CREATE TABLE t1(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME, PRIMARY KEY(c1), UNIQUE INDEX(c2));
 CREATE TABLE t2(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME, PRIMARY KEY(c1,c2));
+--enable_prepare_warnings
 CREATE TABLE t3(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME, UNIQUE INDEX idx(c1,c2));
 CREATE TABLE t4(c1 YEAR(4) NOT NULL, c2 YEAR(4) NULL, c3 DATE, c4 DATETIME);
+--disable_prepare_warnings
 # Insert some rows with targeted values
 
 # As a four-digit string in the range '1901' to '2155'
@@ -761,10 +759,12 @@ DROP TABLE t1,t2,t3,t4;
 ######## Running INSERT tests for YEAR(2) ########
 
 # Create tables
+--enable_prepare_warnings
 CREATE TABLE t1(c1 YEAR(2) NOT NULL, c2 YEAR(2) NULL, c3 DATE, c4 DATETIME, PRIMARY KEY(c1), UNIQUE INDEX(c2));
 CREATE TABLE t2(c1 YEAR(2) NOT NULL, c2 YEAR(2) NULL, c3 DATE, c4 DATETIME, PRIMARY KEY(c1,c2));
 CREATE TABLE t3(c1 YEAR(2) NOT NULL, c2 YEAR(2) NULL, c3 DATE, c4 DATETIME, UNIQUE INDEX idx(c1,c2));
 CREATE TABLE t4(c1 YEAR(2) NOT NULL, c2 YEAR(2) NULL, c3 DATE, c4 DATETIME);
+--disable_prepare_warnings
 # Insert some rows with targeted values
 
 # As a four-digit string in the range '1901' to '2155'
