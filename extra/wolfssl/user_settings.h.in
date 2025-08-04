@@ -91,6 +91,7 @@
 #cmakedefine TFM_ARM
 #cmakedefine WOLFSSL_AARCH64_BUILD
 #cmakedefine POLY130564
+#cmakedefine WOLFSSL_ARMASM_CRYPTO_SHA512
 
 /* ??? */
 #cmakedefine SQR_MUL_ASM
