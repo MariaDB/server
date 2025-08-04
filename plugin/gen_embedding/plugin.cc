@@ -216,9 +216,8 @@ cleanup:
       }
 
       decimals= 0;
-      MEM_ROOT *root= thd->active_stmt_arena_to_use()->mem_root;
-      uint n_paths = 1;
-      paths= (json_path_with_flags *) alloc_root(root, sizeof(json_path_with_flags) * n_paths);
+      MEM_ROOT *root= thd->mem_root;
+      paths= (json_path_with_flags *) alloc_root(root, sizeof(json_path_with_flags));
       // We want to store max_dimensions floats, each 4 bytes 
       fix_length_and_charset(max_dimensions * 4, &my_charset_bin);
       set_maybe_null();
