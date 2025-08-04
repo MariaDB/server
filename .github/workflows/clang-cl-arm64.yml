@@ -38,6 +38,10 @@ jobs:
            Invoke-WebRequest $url -OutFile $installer
            Start-Process -Wait -FilePath $installer -ArgumentList "/S", "/D=C:\LLVM"
 
+      - name: Use preinstalled vcpkg to install dependencies
+        run: |
+          C:\vcpkg\vcpkg.exe install openssl --triplet arm64-windows
+
       - name: Build
         run: |
           git config submodule.storage/columnstore/columnstore.update none
@@ -46,10 +50,11 @@ jobs:
           git config submodule.wsrep-lib.update none
           mkdir bld
           cd bld
-          set PATH=C:\LLVM\bin;%PATH%
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" arm64
-          cmake .. -DWITH_SSL=bundled -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_LINKER=lld-link -GNinja -DCMAKE_SYSTEM_PROCESSOR=ARM64
+          set PATH=C:\LLVM\bin;%PATH%;C:\vcpkg\installed\arm64-windows\bin;C:\vcpkg\installed\arm64-windows\debug\bin
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=arm64-windows -DWITH_SSL=system -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_LINKER=lld-link -GNinja -DCMAKE_SYSTEM_PROCESSOR=ARM64
           cmake --build . --verbose
+          cmake --install . --prefix install_prefix
         shell: cmd
 
       - name: Test
