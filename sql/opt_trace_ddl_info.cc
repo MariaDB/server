@@ -119,7 +119,7 @@ static void dump_index_range_stats_to_trace(THD *thd, uchar *tbl_name,
     return;
 
   Json_writer_array list_ranges_wrapper(thd, "list_ranges");
-  List_iterator irc_li(*context->list_index_range_context);
+  List_iterator irc_li(context->index);
   while (trace_index_range_context *irc= irc_li++)
   {
     Json_writer_object irc_wrapper(thd);
@@ -365,10 +365,7 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
         sizeof(trace_table_index_range_context));
     table_ctx->name= create_new_copy(thd, tbl_name.c_ptr());
     table_ctx->name_len= tbl_name.length();
-    table_ctx->list_index_range_context=
-        (List<trace_index_range_context> *) thd->calloc(
-            sizeof(List<trace_index_range_context>));
-    table_ctx->list_index_range_context->empty();
+    table_ctx->index.empty();
     my_hash_insert(this->tbl_trace_ctx_hash, (uchar *) table_ctx);
   }
 
@@ -378,7 +375,7 @@ void Optimizer_Stats_Context_Recorder::record_ranges_for_tbl(
   index_ctx->idx_name= create_new_copy(thd, index_name);
   index_ctx->list_range_context= list_trc;
   index_ctx->num_records= found_records;
-  table_ctx->list_index_range_context->push_back(index_ctx);
+  table_ctx->index.push_back(index_ctx);
 }
 
 /*

@@ -40,7 +40,7 @@ struct trace_table_index_range_context
    */
    char *name;
    size_t name_len;
-   List<trace_index_range_context> *list_index_range_context;
+   List<trace_index_range_context> index;
 };
 
 bool store_tables_context_in_trace(THD *thd);
