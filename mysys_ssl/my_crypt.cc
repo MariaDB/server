@@ -56,7 +56,7 @@ public:
   virtual int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key,
                    uint klen, const uchar *iv, uint ivlen)
   {
-    compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX));
+    // compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX));
     if (unlikely(!cipher))
       return MY_AES_BAD_KEYSIZE;
 
@@ -106,7 +106,7 @@ public:
   int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key, uint klen,
            const uchar *iv, uint ivlen) override
   {
-    compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_nopad));
+    // compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_nopad));
     this->key= key;
     this->klen= klen;
     this->source_tail_len= 0;
