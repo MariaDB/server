@@ -70,7 +70,7 @@ my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size)
   */
   info->s->file_map= (uchar*)
                   my_mmap(0, (size_t)(size + MEMMAP_EXTRA_MARGIN),
-                          info->s->mode==O_RDONLY ? PROT_READ :
+                          info->s->index_mode==O_RDONLY ? PROT_READ :
                           PROT_READ | PROT_WRITE,
                           MAP_SHARED | MAP_NORESERVE,
                           info->dfile.file, 0L);

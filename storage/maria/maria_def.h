@@ -765,7 +765,8 @@ typedef struct st_maria_share
   PAGECACHE_FILE kfile;			/* Shared keyfile */
   S3_INFO *s3_path;                     /* Connection and path in s3 */
   File data_file;			/* Shared data file */
-  int mode;				/* mode of file on open */
+  int	index_mode;			/* mode on index file on open */
+  int	data_mode;			/* mode of data file on open */
   uint reopen;				/* How many times opened */
   uint in_trans;                        /* Number of references by trn */
   uint w_locks, r_locks, tot_locks;	/* Number of read/write locks */
