@@ -2332,7 +2332,8 @@ retry_share:
                                                  mdl_ticket);
         if (unlikely(err))
           goto err_lock;
-        DBUG_RETURN(FALSE);
+        table= table_list->table;
+        goto finalize;
       }
 
       // ALTER and DROP open a real table handle. Don't reuse it.
@@ -2503,6 +2504,7 @@ retry_share:
     DBUG_RETURN(true);
   }
 #endif
+finalize:
   if (table_list->sequence && table->s->table_type != TABLE_TYPE_SEQUENCE)
   {
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
