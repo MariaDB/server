@@ -137,7 +137,7 @@ if (MSVC_ARM64 AND (CMAKE_C_COMPILER_ID MATCHES Clang))
   set(POLY130564 1)
   set(SQR_MUL_ASM 1)
 
-  target_compile_options(wolfssl PRIVATE -march=armv8-a+crc+crypto)
+  target_compile_options(wolfssl PRIVATE -march=armv8.2-a+crc+crypto+sha3)
   set(WOLFCRYPT_PORT_SRCDIR ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl/wolfcrypt/src/port/arm)
   target_sources(wolfssl PRIVATE
     ${WOLFCRYPT_SRCDIR}/cpuid.c
