@@ -675,4 +675,9 @@ drop table t1;
 # CREATE GTT ... ENGINE=INNODB SELECT, ASAN heap-use-after-free in unlock_external
 create global temporary table t (c int) engine=innodb as select 1;
 drop table t;
+# MDEV-37369 SIGSEGV on NEXTVAL from Global temporary table
+create global temporary table t(c int);
+select nextval(t);
+ERROR 42S02: 'test.t' is not a SEQUENCE
+drop table t;
 disconnect con1;
