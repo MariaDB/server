@@ -1,5 +1,6 @@
 -- source include/have_query_cache.inc
 -- source include/not_embedded.inc
+-- source include/no_view_protocol.inc
 
 #
 # Tests with query cache

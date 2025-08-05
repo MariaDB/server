@@ -31,7 +31,7 @@ n
 connection master;
 DROP USER rpl@127.0.0.1;
 Warnings:
-Note	4240	Dropped users 'rpl'@'127.0.0.1' have active connections. Use KILL CONNECTION if they should not be used anymore.
+Note	4227	Dropped users 'rpl'@'127.0.0.1' have active connections. Use KILL CONNECTION if they should not be used anymore.
 FLUSH PRIVILEGES;
 connection slave;
 ==== Restart slave without privileges =====

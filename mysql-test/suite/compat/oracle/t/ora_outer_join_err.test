@@ -1,0 +1,138 @@
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Cycles
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+
+--echo # b - cyrcle
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+select * from t1, t2, t3
+  where t1.a = t2.b(+) AND t2.b = t3.c(+) AND
+        t3.c = t2.b(+);
+--echo # O - cyrcle
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+select * from t1, t2, t3
+  where t1.a = t2.b(+) AND t2.b = t3.c(+) AND
+        t3.c = t1.a(+);
+--echo # self-reference cyrcle
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+select * from t1, t2, t3
+  where t1.a = t2.b(+) AND t2.b = t3.c(+) AND
+        t3.c = t3.c(+);
+
+DROP TABLE t1,t2,t3;
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+create table t5 (e int);
+
+--echo # complex case
+--error ER_INVALID_USE_OF_ORA_JOIN_CYCLE
+select * from t1, t2, t3, t4, t5
+  where
+    t3.c = t4.d(+) AND t4.d = t3.c(+) AND
+    t1.a = t5.e(+) AND t2.b = t5.e(+) AND
+    t2.b = t3.c(+)
+    ;
+
+DROP TABLE t1,t2,t3,t4,t5;
+
+--echo #
+--echo # mix with other join operatirs
+--echo #
+
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+
+--echo # mixing with left join
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+select * from t1, t2 left join t3 on (t2.a = t3.a)
+  where t1.a = t2.a(+);
+
+--echo # mixing with right join
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+select * from t1, t2 right join t3 on (t2.a = t3.a)
+  where t1.a = t2.a(+);
+
+--echo # mixing with natural join
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+select * from t1, t2 natural join t3
+  where t1.a = t2.a(+);
+
+--echo # mixing with nested join
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+select * from t1, t2 join t3
+  where t1.a = t2.a(+);
+
+--echo # mixing with nested join
+--error ER_INVALID_USE_OF_ORA_JOIN_MIX
+select * from t1, (t2, t3)
+  where t1.a = t2.a(+);
+
+DROP TABLE t1,t2,t3;
+
+
+--echo #
+--echo # misplaced usage of (+)
+--echo #
+
+create table t1 (a int);
+create table t2 (a int);
+
+--error ER_PARSE_ERROR
+select t1.a(+), t2.a from t1,t2;
+--error ER_PARSE_ERROR
+select t1.a, t2.a from t1,t2 HAVING t1.a(+) = t2.a;
+--error ER_PARSE_ERROR
+select t1.a, t2.a from t1 join t2 on (t1.a(+) = t2.a);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # outer reference
+--echo #
+create table t1 (a int);
+create table t2 (a int);
+
+--error ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF
+select u2.a, (select t1.a, t2.a from t1,t2 where u1.a(+) = t2.a)
+  from t1 as u1, t2 as u2 where  u1.a(+) = u2.a;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-36883: Oracle outer join syntax (+): operator (+) is not
+--echo # processed in condition like "(t2.b(+) , t1.b) in (select ...)"
+--echo #
+create table t1 ( c int, b char(1));
+insert into t1 values (1,'b');
+
+create table t2 ( a int  , b char(1));
+insert into t2 values (1,'a');
+
+create table t3 (c1 char(1), c2 char(2));
+insert into t3 values ('c','d');
+insert into t3 values ('c','d');
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT t2.b
+FROM t1, t2 WHERE t1.c = t2.a(+) AND (t2.b(+), t1.b) IN (SELECT * from t3);
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT t2.b
+FROM t1, t2 WHERE t1.c = t2.a(+) AND (t2.b(+), t1.b) IN (('a','a'),('b','b'));
+
+--error ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC
+SELECT t2.b
+FROM t1, t2 WHERE t1.c = t2.a(+) AND (t2.b(+), t1.b) = (SELECT * from t3
+ORDER BY a LIMIT 1);
+
+drop tables t1,t2,t3;

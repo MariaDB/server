@@ -1022,6 +1022,37 @@ select 'evil-doing', sleep(1.1)
 select 'after evil-doing', sleep(0.2)
 set global log_output=default;
 drop user u@localhost;
+# End of 10.5 tests
+#
+# MDEV-34928 CREATE TABLE does not check valid engine for log tables
+#
+set global general_log='on';
+show create table mysql.general_log;
+Table	Create Table
+general_log	CREATE TABLE `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci COMMENT='General log'
+create or replace table mysql.general_log (a int) engine=innodb;
+ERROR HY000: Storage engine InnoDB cannot be used for log tables
+create or replace table mysql.slow_log (a int) engine=innodb;
+ERROR HY000: Storage engine InnoDB cannot be used for log tables
+create temporary table t (c int) engine=innodb;
+insert into t values (1);
+set global log_output='table';
+set session autocommit=0;
+update t set c=0;
+truncate t;
+select a;
+ERROR 42S22: Unknown column 'a' in 'SELECT'
+drop temporary table t;
+set @@global.log_output=       @old_log_output;
+set @@global.general_log=      @old_general_log;
+# End of 10.6 tests
 SET @@global.log_output=       @old_log_output;
 SET @@global.slow_query_log=   @old_slow_query_log;
 SET @@global.general_log=      @old_general_log;

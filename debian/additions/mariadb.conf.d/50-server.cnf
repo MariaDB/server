@@ -110,7 +110,7 @@ expire_logs_days        = 10
 # you can put MariaDB-only options here
 [mariadbd]
 
-# This group is only read by MariaDB-12.1 servers.
+# This group is only read by MariaDB-12.2 servers.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-12.1]
+[mariadb-12.2]

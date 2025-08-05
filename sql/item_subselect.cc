@@ -365,7 +365,7 @@ bool Item_subselect::enumerate_field_refs_processor(void *arg)
   while ((upper= it++))
   {
     if (upper->item &&
-        upper->item->walk(&Item::enumerate_field_refs_processor, FALSE, arg))
+        upper->item->walk(&Item::enumerate_field_refs_processor, arg, 0))
       return TRUE;
   }
   return FALSE;
@@ -429,7 +429,7 @@ bool Item_subselect::update_table_bitmaps_processor(void *arg)
   while ((upper= it++))
   {
     if (upper->item &&
-        upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, arg))
+        upper->item->walk(&Item::update_table_bitmaps_processor, arg, 0))
       return TRUE;
   }
   return FALSE;
@@ -534,9 +534,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
           Field_fixer fixer;
           fixer.used_tables= 0;
           fixer.new_parent= new_parent;
-          upper->item->walk(&Item::enumerate_field_refs_processor, 0, &fixer);
+          upper->item->walk(&Item::enumerate_field_refs_processor, &fixer, 0);
           used_tables_cache |= fixer.used_tables;
-          upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
+          upper->item->walk(&Item::update_table_bitmaps_processor, 0, 0);
 /*
           if (after_pullout)
             upper->item->fix_after_pullout(new_parent, &(upper->item));
@@ -658,7 +658,8 @@ bool Item_subselect::is_expensive()
 
 static
 int walk_items_for_table_list(Item_processor processor,
-                              bool walk_subquery, void *argument,
+                              void *argument,
+                              item_walk_flags flags,
                               List<TABLE_LIST>& join_list)
 {
   List_iterator<TABLE_LIST> li(join_list);
@@ -667,12 +668,12 @@ int walk_items_for_table_list(Item_processor processor,
   {
     if (table->on_expr)
     {
-      if ((res= table->on_expr->walk(processor, walk_subquery, argument)))
+      if ((res= table->on_expr->walk(processor, argument, flags)))
         return res;
     }
     if (Table_function_json_table *tf= table->table_function)
     {
-      if ((res= tf->walk_items(processor, walk_subquery, argument)))
+      if ((res= tf->walk_items(processor, argument, flags)))
       {
         return res;
       }
@@ -680,7 +681,7 @@ int walk_items_for_table_list(Item_processor processor,
 
     if (table->nested_join)
     {
-      if ((res= walk_items_for_table_list(processor, walk_subquery, argument,
+      if ((res= walk_items_for_table_list(processor, argument, flags,
                                           table->nested_join->join_list)))
         return res;
     }
@@ -708,14 +709,14 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
     List_iterator<Item> li(lex->item_list);
     Item *item;
     if (lex->where && (lex->where)->walk(&Item::unknown_splocal_processor,
-                                         false, argument))
+                                         argument, 0))
       return true;
     if (lex->having && (lex->having)->walk(&Item::unknown_splocal_processor,
-                                           false, argument))
+                                           argument, 0))
       return true;
     while ((item=li++))
     {
-      if (item->walk(&Item::unknown_splocal_processor, false, argument))
+      if (item->walk(&Item::unknown_splocal_processor, argument, 0))
         return true;
     }
   }
@@ -723,8 +724,8 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
 }
 
 
-bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
-                          void *argument)
+bool Item_subselect::walk(Item_processor processor, void *argument,
+                          item_walk_flags flags)
 {
   if (!(unit->uncacheable & ~UNCACHEABLE_DEPENDENT) && engine->is_executed() &&
       !unit->describe)
@@ -741,36 +742,35 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
     return (this->*processor)(argument);
   }
 
-  if (walk_subquery)
+  if (flags & WALK_SUBQUERY)
   {
     for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
     {
       List_iterator<Item> li(lex->item_list);
       ORDER *order;
 
-      if (lex->where && (lex->where)->walk(processor, walk_subquery, argument))
+      if (lex->where && (lex->where)->walk(processor, argument, flags))
         return 1;
-      if (lex->having && (lex->having)->walk(processor, walk_subquery,
-                                             argument))
+      if (lex->having && (lex->having)->walk(processor,argument, flags))
         return 1;
 
-      if (walk_items_for_table_list(processor, walk_subquery, argument,
+      if (walk_items_for_table_list(processor, argument, flags,
                                     *lex->join_list))
         return 1;
 
       while (Item *item= li++)
       {
-        if (item->walk(processor, walk_subquery, argument))
+        if (item->walk(processor, argument, flags))
           return 1;
       }
       for (order= lex->order_list.first ; order; order= order->next)
       {
-        if ((*order->item)->walk(processor, walk_subquery, argument))
+        if ((*order->item)->walk(processor, argument, flags))
           return 1;
       }
       for (order= lex->group_list.first ; order; order= order->next)
       {
-        if ((*order->item)->walk(processor, walk_subquery, argument))
+        if ((*order->item)->walk(processor, argument, flags))
           return 1;
       }
     }
@@ -836,7 +836,7 @@ void Item_subselect::get_cache_parameters(List<Item> &parameters)
     unit->first_select()->nest_level,      // nest_level
     TRUE                                   // collect
   };
-  walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+  walk(&Item::collect_outer_ref_processor,&prm,  WALK_SUBQUERY);
 }
 
 int Item_in_subselect::optimize(double *out_rows, double *cost)
@@ -2093,8 +2093,8 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       remove the dependence mark since the item is moved to upper
       select and is not outer anymore.
     */
-    where_item->walk(&Item::remove_dependence_processor, 0,
-                     select_lex->outer_select());
+    where_item->walk(&Item::remove_dependence_processor,
+                     select_lex->outer_select(), 0);
     /*
       fix_field of substitution item will be done in time of
       substituting.
@@ -3193,7 +3193,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
       unit->first_select()->nest_level,      // nest_level
       FALSE                                  // collect
     };
-    walk(&Item::collect_outer_ref_processor, TRUE, &prm);
+    walk(&Item::collect_outer_ref_processor, &prm, WALK_SUBQUERY);
     DBUG_ASSERT(prm.count > 0);
     DBUG_ASSERT(prm.count >= (uint)eqs.elements());
     will_be_correlated= prm.count > (uint)eqs.elements();
@@ -3329,7 +3329,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         uint i;
         for (i= 0; i < (uint)eqs.elements(); i++)
           if (eqs.at(i).outer_exp->
-              walk(&Item::find_item_processor, TRUE, upper->item))
+              walk(&Item::find_item_processor, upper->item, WALK_SUBQUERY))
             break;
         DBUG_ASSERT(thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
                     thd->stmt_arena->is_conventional());
@@ -3614,11 +3614,13 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     }
   }
 
-  if (left_expr && left_expr->fix_fields_if_needed(thd_arg, &left_expr))
+  if (!left_expr || left_expr->fix_fields_if_needed(thd_arg, &left_expr))
     goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
     goto err;
+  if (left_expr->with_ora_join())
+    copy_flags(left_expr, item_with_t::ORA_JOIN);
   base_flags|= item_base_t::FIXED;
   thd->where= save_where;
   DBUG_RETURN(FALSE);

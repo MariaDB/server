@@ -1165,8 +1165,8 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     if (eq_mod->field)
     {
       /* Regular tbl.col=expr(tblX1.col1, tblY1.col2, ...) */
-      eq_mod->expr->walk(&Item::enumerate_field_refs_processor, FALSE, 
-                               &deps_recorder);
+      eq_mod->expr->walk(&Item::enumerate_field_refs_processor,
+                               &deps_recorder, 0);
     }
     else 
     {
@@ -1591,6 +1591,13 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
     Field *field= ((Item_field*)left->real_item())->field;
     if (field->can_optimize_outer_join_table_elimination(cond, right) !=
         Data_type_compatibility::OK)
+      return;
+    /*
+      UNIQUE indexes over nullable columns may have duplicate NULL values.
+      This means, a condition like "field IS NULL" or "field <=> right_expr"
+      may match multiple rows. Dis-qualify such conditions.
+    */
+    if (field->real_maybe_null() && right->maybe_null())
       return;
     Dep_value_field *field_val;
     if ((field_val= ctx->get_field_value(field)))
@@ -2079,7 +2086,7 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl,
   }
 
   if (tbl->on_expr)
-    tbl->on_expr->walk(&Item::mark_as_eliminated_processor, FALSE, NULL);
+    tbl->on_expr->walk(&Item::mark_as_eliminated_processor, 0, 0);
 }
 
 #ifndef DBUG_OFF

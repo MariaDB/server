@@ -807,6 +807,9 @@ public:
     null_value=0;
     return false;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1271,6 +1274,9 @@ public:
     null_value= 0;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   void cleanup() override
   {
     bits= reset_bits;

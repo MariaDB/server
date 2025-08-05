@@ -279,6 +279,9 @@ public:
   {
     return negated_item(thd);
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
@@ -458,7 +461,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
   bool invisible_mode();
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   void reset_cache() { cache= NULL; }
   void print(String *str, enum_query_type query_type) override;
   void restore_first_argument();
@@ -886,6 +890,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_equal>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1190,6 +1197,9 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_interval>(thd, this); }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
 };
 
 
@@ -1210,10 +1220,17 @@ public:
   Type_ref_null ref_op(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override
   {
+    update_nullability_post_fix_fields();
     if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
       return TRUE;
     fix_attributes(args, arg_count);
     return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
+    return 0;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1302,20 +1319,16 @@ public:
   Type_ref_null ref_op(THD *thd) override;
   bool fix_length_and_dec(THD *thd) override
   {
-    /*
-      Set nullability from args[1] by default.
-      Note, some type handlers may reset maybe_null
-      in Item_hybrid_func_fix_attributes() if args[1]
-      is NOT NULL but cannot always be converted to
-      the data type of "this" safely.
-      E.g. Type_handler_inet6 does:
-        IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
-        IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
-    */
-    copy_flags(args[1], item_base_t::MAYBE_NULL);
+    update_nullability_post_fix_fields();
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && is_all_arg_maybe_null())
+      set_maybe_null();
+    return 0;
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1502,7 +1515,8 @@ public:
     return Type_ref_null();
   }
   bool fix_length_and_dec(THD *thd) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("nullif") };
@@ -2362,15 +2376,8 @@ public:
     @param [OUT] idx  - In case if a value that is equal to the predicant
                         was found, the index of the matching value is returned
                         here. Otherwise, *idx is not changed.
-    @param [IN/OUT] found_unknown_values - how to handle UNKNOWN results.
-                        If found_unknown_values is NULL (e.g. Item_func_case),
-                        cmp() returns immediately when the first UNKNOWN
-                        result is found.
-                        If found_unknown_values is non-NULL (Item_func_in),
-                        cmp() does not return when an UNKNOWN result is found,
-                        sets *found_unknown_values to true, and continues
-                        to compare the remaining pairs to find FALSE
-                        (i.e. the value that is equal to the predicant).
+    @param [OUT] found_unknown_values - set to true if the result of at least
+                        one comparison was UNKNOWN
 
     @retval     false - Found a value that is equal to the predicant
     @retval     true  - Didn't find an equal value
@@ -2387,11 +2394,7 @@ public:
         return false; // Found a matching value
       }
       if (rc == UNKNOWN)
-      {
-        if (!found_unknown_values)
-          return true;
         *found_unknown_values= true;
-      }
     }
     return true; // Not found
   }
@@ -2763,6 +2766,7 @@ public:
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
+  bool ora_join_processor(void *arg) override;
 };
 
 class cmp_item_row :public cmp_item
@@ -2824,6 +2828,7 @@ protected:
                        Item_func::Functype type, Item *value) override;
 public:
   Item_func_null_predicate(THD *thd, Item *a): Item_bool_func(thd, a) { }
+  bool check_arguments() const override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;
@@ -2844,6 +2849,9 @@ public:
     base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
+  // block standard processor for never null
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  { return 0; }
   bool count_sargable_conds(void *arg) override;
 
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
@@ -3116,10 +3124,11 @@ public:
     return this;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return (walk_args(processor, walk_subquery, arg) ||
-            escape_item->walk(processor, walk_subquery, arg) ||
+    return (walk_args(processor, arg, flags) ||
+            escape_item->walk(processor, arg, flags) ||
             (this->*processor)(arg));
   }
 
@@ -3337,9 +3346,10 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                       List<Item> &fields, uint flags) override;
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
-                         COND **conds);
+                         COND **conds, List<Item> *all_fields);
   void copy_andor_arguments(THD *thd, Item_cond *item);
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   Item *do_transform(THD *thd, Item_transformer transformer, uchar *arg,
                      bool toplevel);
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override
@@ -3548,7 +3558,8 @@ public:
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables) override;
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   void print(String *str, enum_query_type query_type) override;
   const Type_handler *compare_type_handler() const { return m_compare_handler; }
@@ -3756,6 +3767,15 @@ public:
   table_map not_null_tables() const override { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd) override;
   Item *neg_transformer(THD *thd) override;
+  bool ora_join_processor(void *arg) override
+  {
+    if (with_ora_join())
+    {
+      // Oracle join operator is used in this OR clause.
+      ((ora_join_processor_param *) arg)->or_present= true;
+    }
+    return (FALSE);
+  }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cond_or>(thd, this); }
 };

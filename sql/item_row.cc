@@ -25,15 +25,6 @@
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
 
-void Item_row::illegal_method_call(const char *method)
-{
-  DBUG_ENTER("Item_row::illegal_method_call");
-  DBUG_PRINT("error", ("!!! %s method was called for row item", method));
-  DBUG_ASSERT(0);
-  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-  DBUG_VOID_RETURN;
-}
-
 bool Item_row::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);

@@ -38,6 +38,8 @@ if($my_socket_debug)
   --echo IPV6=$check_ipv6_supported, IPV4_MAPPED=$check_ipv4_mapped_supported, LOCALHOST=$my_localhost
 }
 
+--disable_service_connection
+
 # This test only runs when IPv6 is supported (see include/check_ipv6.inc), so
 # the server will listen on both IPv4 and IPv6 wildcard addresses. That's why
 # the expected number of TCP/IP listeners is always 2.

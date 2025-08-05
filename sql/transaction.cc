@@ -441,11 +441,11 @@ bool trans_rollback_implicit(THD *thd)
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, true);
   /*
-    We don't reset OPTION_BEGIN flag below to simulate implicit start
-    of new transaction in @@autocommit=1 mode. This is necessary to
-    preserve backward compatibility.
+    Implicit rollback should reset OPTION_BEGIN flag to avoid starting a
+    new transaction implicitly in next statement. It makes the behaviour
+    uniform with direct commit and rollback.
   */
-  thd->variables.option_bits&= ~(OPTION_BINLOG_THIS_TRX);
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_BINLOG_THIS_TRX);
   thd->transaction->all.reset();
 
   /* Rollback should clear transaction_rollback_request flag. */
@@ -784,3 +784,13 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
 
   DBUG_RETURN(MY_TEST(res));
 }
+
+#ifdef WITH_WSREP
+/* check if a named savepoint exists for the current transaction */
+bool trans_savepoint_exists(THD *thd, LEX_CSTRING name)
+{
+  SAVEPOINT **sv = find_savepoint(thd, Lex_ident_savepoint(name));
+
+  return (*sv != NULL);
+}
+#endif /* WITH_WSREP */

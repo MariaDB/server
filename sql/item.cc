@@ -929,7 +929,8 @@ bool Item_field::register_field_in_read_map(void *arg)
   if (field->vcol_info &&
       !bitmap_fast_test_and_set(field->table->read_set, field->field_index))
   {
-    res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,1,arg);
+    res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                      arg, WALK_SUBQUERY);
   }
   else
     bitmap_set_bit(field->table->read_set, field->field_index);
@@ -1017,7 +1018,7 @@ bool Item_field::update_vcol_processor(void *arg)
   if (field->vcol_info &&
       !bitmap_fast_test_and_set(map, field->field_index))
   {
-    field->vcol_info->expr->walk(&Item::update_vcol_processor, 0, arg);
+    field->vcol_info->expr->walk(&Item::update_vcol_processor, arg, 0);
     field->vcol_info->expr->save_in_field(field, 0);
   }
   return 0;
@@ -1357,8 +1358,8 @@ Item *Item::multiple_equality_transformer(THD *thd, uchar *arg)
       remove_immutable_flag_processor processor.
     */
     int16 new_flag= MARKER_IMMUTABLE;
-    this->walk(&Item::set_extraction_flag_processor, false,
-               (void*)&new_flag);
+    this->walk(&Item::set_extraction_flag_processor,
+               (void*)&new_flag, 0);
   }
   return this;
 }
@@ -3511,6 +3512,11 @@ void Item_ident::print(String *str, enum_query_type query_type)
     str->append('.');
   }
   append_identifier(thd, str, &field_name);
+
+  if (with_ora_join())
+  {
+    str->append(STRING_WITH_LEN(" (+)"));
+  }
 }
 
 /* ARGSUSED */
@@ -5192,6 +5198,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
+  current_thd->lex->default_used= true;
   state= DEFAULT_VALUE;
   /*
     When Item_param is set to DEFAULT_VALUE:
@@ -5361,14 +5368,46 @@ static Field *make_default_field(THD *thd, Field *field_arg)
     if (!newptr)
       return nullptr;
 
+    /* Don't check privileges, if it's parse_vcol_defs() */
+    if (def_field->table->pos_in_table_list &&
+        def_field->default_value->check_access(thd))
+      return nullptr;
+
     if (should_mark_column(thd->column_usage))
       def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr + 1, def_field->maybe_null() ? newptr : 0, 1);
   }
   else
-    def_field->move_field_offset((my_ptrdiff_t)
-                                 (def_field->table->s->default_values -
-                                  def_field->table->record[0]));
+  {
+    if (field_arg->table->s->field != nullptr)
+    {
+      /*
+        Use fields array from TABLE_SHARE for referencing to null byte and
+        field's value on construction of a Field object for default value of
+        table column
+      */
+      Field *target= field_arg->table->s->field[field_arg->field_index];
+
+      /*
+        Set up table field's pointers ptr, null_ptr to point to corresponding
+        s->default_values parts.
+      */
+      def_field->move_field(target->ptr, target->null_ptr, target->null_bit);
+    }
+    else
+    {
+      /*
+        We get to here in case the field references a temporary table.
+        Triggers in not associated with a temporary table. Check these
+        invariants by DBUG_ASSERTs.
+      */
+      DBUG_ASSERT(field_arg->table->s->tmp_table != NO_TMP_TABLE);
+      DBUG_ASSERT(field_arg->table->triggers == nullptr);
+      def_field->move_field_offset((my_ptrdiff_t)
+                                   (def_field->table->s->default_values -
+                                    def_field->table->record[0]));
+    }
+  }
   return def_field;
 }
 
@@ -5890,6 +5929,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
       DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
+    if (group_by_ref && (*group_by_ref)->type() == Item::REF_ITEM)
+      return ((Item_ref*)(*group_by_ref))->ref;
     if (group_by_ref)
       return group_by_ref;
     DBUG_ASSERT(FALSE);
@@ -6296,6 +6337,22 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   return 1;
 }
 
+bool Item_field::check_ora_join(Item **reference, bool outer_ref_fixed)
+{
+  if(with_ora_join())
+  {
+    if (outer_ref_fixed) // Oracle join operator is local
+    {
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_OUTER_REF, MYF(0), name.str);
+      return TRUE;
+    }
+    // Keep flag about oracle join if view fied was resolved
+    if (reference[0] != this) // resolved to a new field
+      reference[0]->copy_flags(this, item_with_t::ORA_JOIN);
+  }
+  return FALSE;
+}
+
 
 /**
   Resolve the name of a column reference.
@@ -6430,7 +6487,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             set_max_sum_func_level(thd, select);
             set_field(new_field);
             depended_from= (*((Item_field**)res))->depended_from;
-            return 0;
+            return check_ora_join(reference, false);
           }
           else
           {
@@ -6457,7 +6514,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               its arguments are not defined.
             */
             set_max_sum_func_level(thd, select);
-            return FALSE;
+            return check_ora_join(reference, false);
           }
         }
       }
@@ -6512,7 +6569,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       Also we suppose that view can't be changed during PS/SP life.
     */
     if (from_field == view_ref_found)
-      return FALSE;
+      return check_ora_join(reference, outer_fixed);
 
     set_field(from_field);
   }
@@ -6560,6 +6617,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   base_flags|= item_base_t::FIXED;
+  if (check_ora_join(reference, outer_fixed))
+    goto error;
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       select &&
@@ -6608,7 +6667,7 @@ mark_non_agg_field:
         select_lex->set_non_agg_field_used(true);
     }
   }
-  return FALSE;
+  return check_ora_join(reference, outer_fixed);
 
 error:
   context->process_error(thd);
@@ -6632,8 +6691,8 @@ bool Item_field::check_valid_arguments_processor(void *bool_arg)
   Virtual_column_info *vcol= field->vcol_info;
   if (!vcol)
     return FALSE;
-  return vcol->expr->walk(&Item::check_partition_func_processor, 0, NULL)
-      || vcol->expr->walk(&Item::check_valid_arguments_processor, 0, NULL);
+  return vcol->expr->walk(&Item::check_partition_func_processor, 0, 0)
+      || vcol->expr->walk(&Item::check_valid_arguments_processor, 0, 0);
 }
 
 void Item_field::cleanup()
@@ -7767,6 +7826,17 @@ bool Item_time_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
 bool Item_null::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store_null();
+}
+
+
+/*
+  Create a List<Item> consisting of one element -
+  a single Item_join_operator_plus instance.
+*/
+List<Item> *Item_join_operator_plus::make_as_item_list(THD *thd)
+{
+  Item *item= new (thd->mem_root) Item_join_operator_plus(thd);
+  return item ? List<Item>::make(thd->mem_root, item) : nullptr;
 }
 
 
@@ -9630,6 +9700,14 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
   return FALSE;
 }
 
+
+bool Item_direct_view_ref::add_maybe_null_after_ora_join_processor(void *arg)
+{
+  if (!maybe_null() && view->table && view->table->maybe_null)
+    set_maybe_null();
+  return 0;
+}
+
 /*
   Prepare referenced outer field then call usual Item_direct_ref::fix_fields
 
@@ -10139,6 +10217,115 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
 }
 
 
+/*
+  We're processing an expression with a (+) operator somewhere.
+  We encounter reference to 'table.column' (with the(+) or not).
+  Add table to the oracle outer join structure we're building
+*/
+
+bool Item_ident::ora_join_add_table_ref(ora_join_processor_param *arg,
+                                        TABLE_LIST *table)
+{
+  DBUG_ASSERT(fixed());
+  TABLE_LIST *err_table= NULL;
+
+  if (with_ora_join())
+  {
+    // This an item with (+) operator, the referred table is INNER.
+    if (arg->inner == NULL)
+    {
+      arg->inner= table;
+      // Make sure this table is not also in the list of OUTER tables.
+      List_iterator_fast<TABLE_LIST> it(arg->outer);
+      TABLE_LIST *t;
+      while ((t= it++))
+      {
+        if (t == table)
+        {
+          err_table= t;
+          goto err;
+        }
+      }
+    }
+    else
+    {
+      // Cannot have two INNER tables, like t1.col=t2.col(+) + t3.col(+)
+      if (arg->inner != table)
+      {
+        err_table= arg->inner;
+        goto err;
+      }
+    }
+  }
+  else
+  {
+    // No (+) operator, this is an outer table.
+    List_iterator_fast<TABLE_LIST> it(arg->outer);
+    TABLE_LIST *t;
+
+    // Check if this table is already in the list of outer tables
+    while ((t= it++))
+    {
+      if (t == table)
+        break;
+    }
+    if (t == NULL)
+    {
+      // Check that this table is also used as INNER by this condition
+      if (table == arg->inner)
+      {
+        err_table= arg->inner;
+        goto err;
+      }
+      arg->outer.push_back(table);
+    }
+  }
+  return FALSE;
+err:
+  // it is not marked all tables as outer or several inner or outer tables
+  if (table == err_table)
+  {
+    // self reference (simple case of cyclic reference)
+    my_error(ER_INVALID_USE_OF_ORA_JOIN_CYCLE, MYF(0));
+  }
+  else
+  {
+    my_error(ER_INVALID_USE_OF_ORA_JOIN_ONE_TABLE, MYF(0),
+             err_table->alias.str,
+             table->alias.str,
+             (with_ora_join()?"INNER":"OUTER"));
+  }
+  return TRUE;
+}
+
+
+bool Item_field::ora_join_processor(void *arg)
+{
+  DBUG_ASSERT(field->table->pos_in_table_list);
+  return Item_ident::ora_join_add_table_ref((ora_join_processor_param *)arg,
+                                            field->table->pos_in_table_list);
+}
+
+
+bool Item_direct_view_ref::ora_join_processor(void *arg)
+{
+  DBUG_ASSERT(view);
+  return Item_ident::ora_join_add_table_ref((ora_join_processor_param *)arg,
+                                            view);
+}
+
+
+bool Item_ref::ora_join_processor(void *arg)
+{
+  if (with_ora_join())
+  {
+    // It should not happened
+    my_error(ER_INVALID_USE_OF_ORA_JOIN, MYF(0));
+    return TRUE;
+  }
+  return FALSE;
+}
+
 table_map Item_default_value::used_tables() const
 {
   if (!field || !field->default_value)
@@ -10155,7 +10342,8 @@ bool Item_default_value::register_field_in_read_map(void *arg)
   if (!table || (table && table == field->table))
   {
     if (field->default_value && field->default_value->expr)
-      res= field->default_value->expr->walk(&Item::register_field_in_read_map,1,arg);
+      res= field->default_value->expr->walk(&Item::register_field_in_read_map,
+                                            arg, WALK_SUBQUERY);
   }
   else if (result_field && table == result_field->table)
   {
@@ -10680,7 +10868,11 @@ bool Item_cache_bool::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_bool_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= false;
   return true;
@@ -10692,7 +10884,11 @@ bool  Item_cache_int::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_int_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
@@ -10769,7 +10965,11 @@ bool Item_cache_temporal::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_datetime_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_datetime_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10780,7 +10980,11 @@ bool Item_cache_time::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  value= example->val_time_packed_result(current_thd);
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
+  value= example->val_time_packed_result(thd);
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return true;
 }
@@ -10908,8 +11112,12 @@ bool Item_cache_timestamp::cache_value()
   if (!example)
     return false;
   value_cached= true;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   null_value_inside= null_value=
-    example->val_native_with_conversion_result(current_thd, &m_native, type_handler());
+    example->val_native_with_conversion_result(thd, &m_native, type_handler());
+  if (!err && thd->is_error())
+    value_cached= false;
   return true;
 }
 
@@ -10919,7 +11127,11 @@ bool Item_cache_real::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value= example->val_result();
+  if (!err && thd->is_error())
+    value_cached= false;
   null_value_inside= null_value= example->null_value;
   return TRUE;
 }
@@ -10986,7 +11198,11 @@ bool Item_cache_decimal::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   my_decimal *val= example->val_decimal_result(&decimal_value);
+  if (!err && thd->is_error())
+    value_cached= false;
   if (!(null_value_inside= null_value= example->null_value) &&
         val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
@@ -11042,8 +11258,12 @@ bool Item_cache_str::cache_value()
     return FALSE;
   }
   value_cached= TRUE;
+  THD *thd= current_thd;
+  const bool err= thd->is_error();
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
+  if (!err && thd->is_error())
+    value_cached= false;
   if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)

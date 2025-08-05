@@ -235,7 +235,8 @@ public:
   */
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override;
   bool unknown_splocal_processor(void *arg) override;
   bool mark_as_eliminated_processor(void *arg) override;
   bool eliminate_subselect_processor(void *arg) override;
@@ -644,6 +645,7 @@ public:
     value= 0;
     null_value= 0;
     was_null= 0;
+    is_jtbm_const_tab= 0;
   }
   bool select_transformer(JOIN *join) override;
   bool create_in_to_exists_cond(JOIN *join_arg);
@@ -763,10 +765,11 @@ public:
     DBUG_VOID_RETURN;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, void *arg,
+            item_walk_flags flags) override
   {
-    return left_expr->walk(processor, walk_subquery, arg) ||
-           Item_subselect::walk(processor, walk_subquery, arg);
+    return left_expr->walk(processor, arg, flags) ||
+           Item_subselect::walk(processor, arg, flags);
   }
 
   bool exists2in_processor(void *opt_arg __attribute__((unused))) override
@@ -788,6 +791,22 @@ public:
   Subq_materialization_tracker *get_materialization_tracker() const
   { return materialization_tracker; }
 
+  bool ora_join_processor(void *arg) override
+  {
+    if (left_expr->with_ora_join() && left_expr->cols() > 1)
+    {
+      // used in ROW operaton
+      my_error(ER_INVALID_USE_OF_ORA_JOIN_WRONG_FUNC, MYF(0));
+      return TRUE;
+    }
+    return FALSE;
+  }
+  bool add_maybe_null_after_ora_join_processor(void *arg) override
+  {
+    if (!maybe_null() && left_expr->maybe_null())
+      set_maybe_null();
+    return 0;
+  }
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
   friend class Item_in_optimizer;

@@ -80,7 +80,7 @@ Note
    lib             Libraries
    man             Unix manual pages
    mysql-test      MySQL test suite
-   scripts         Contains the mysql_install_db script
+   scripts         Contains the mariadb-install-db script
    share/mysql     Error message files
    sql-bench       Benchmarks
    support-files   Scripts and sample configuration files
@@ -288,7 +288,7 @@ Note
    /usr/libexec                The mariadbd server
    /usr/share/man              Unix manual pages
    /usr/share/mysql/mysql-test MySQL test suite
-   /usr/share/mysql            Contains the mysql_install_db script
+   /usr/share/mysql            Contains the mariadb-install-db script
    /var/mysql/mysql.sock       The location of the MySQL Unix socket
 
 Note

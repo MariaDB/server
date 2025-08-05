@@ -27,6 +27,10 @@
 #include "create_tmp_table.h"
 #include "sql_parse.h"
 
+#ifndef DBUG_OFF
+int dbug_json_check_min_stack_requirement();
+#endif
+
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
 class table_function_handlerton
@@ -104,13 +108,9 @@ int get_disallowed_table_deps_for_list(MEM_ROOT *mem_root,
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  return -dbug_json_check_min_stack_requirement(););
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
-    return 1;
+    return -1;
 
   while ((table= li++))
   {
@@ -1202,9 +1202,9 @@ bool Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
 }
 
 int Table_function_json_table::walk_items(Item_processor processor,
-                                          bool walk_subquery, void *argument)
+                                          void *argument, item_walk_flags flags)
 {
-  return m_json->walk(processor, walk_subquery, argument);
+  return m_json->walk(processor, argument, flags);
 }
 
 void Table_function_json_table::get_estimates(ha_rows *out_rows,
@@ -1343,21 +1343,20 @@ void Table_function_json_table::fix_after_pullout(TABLE_LIST *sql_table,
 /*
   @brief
      Recursively make all tables in the join_list also depend on deps.
+
+  @return - boolean - true if error (out of memory).
 */
 
-static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
+static bool add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
 {
   TABLE_LIST *table;
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  dbug_json_check_min_stack_requirement(); return true;);
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
-    return;
+    return true;
+
   while ((table= li++))
   {
     table->dep_tables |= deps;
@@ -1365,9 +1364,11 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
     if ((nested_join= table->nested_join))
     {
        // set the deps inside, too
-       add_extra_deps(&nested_join->join_list, deps);
+       if (add_extra_deps(&nested_join->join_list, deps))
+         return true;
     }
   }
+  return false;
 }
 
 
@@ -1435,25 +1436,29 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
   @param  join_list    List of tables to process. Initial invocation should
                        supply the JOIN's top-level table list.
   @param  nest_tables  Bitmap of all tables in the join list.
+  @param  error        Pointer to value which is set to true on stack overrun
+                       error.
 
-  @return Bitmap of all outside references that tables in join_list have
+  @return Bitmap of all outside references that tables in join_list have,
+    or 0 on out of stack overrun error (in addition to *error= true).
 */
 
 table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
-                                          table_map nest_tables)
+                                          table_map nest_tables,
+					  bool *error)
 {
   TABLE_LIST *table;
   table_map res= 0;
   List_iterator<TABLE_LIST> li(*join_list);
 
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
-                  {
-                    long arbitrary_var;
-                    long stack_used_up= (available_stack_size(current_thd->thread_stack, &arbitrary_var));
-                    ALLOCATE_MEM_ON_STACK(my_thread_stack_size-stack_used_up-STACK_MIN_SIZE);
-                  });
+                  if (dbug_json_check_min_stack_requirement())
+		    { *error= true; return 0; });
   if ((res=check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL)))
-    return res;
+  {
+    *error= true;
+    return 0;
+  }
 
   // Recursively compute extra dependencies
   while ((table= li++))
@@ -1462,7 +1467,9 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
     if ((nested_join= table->nested_join))
     {
       res |= add_table_function_dependencies(&nested_join->join_list,
-                                             nested_join->used_tables);
+                                             nested_join->used_tables, error);
+      if (*error)
+	return 0;
     }
     else if (table->table_function)
     {
@@ -1473,7 +1480,13 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
   res= res & ~nest_tables & ~PSEUDO_TABLE_BITS;
   // Then, make all "peers" have them:
   if (res)
-    add_extra_deps(join_list,  res);
+  {
+    if (add_extra_deps(join_list,  res))
+    {
+      *error= true;
+      return 0;
+    }
+  }
 
   return res;
 }

@@ -60,6 +60,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
@@ -747,6 +748,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    ,
    wsrep_applier(is_wsrep_applier),
    wsrep_applier_closing(false),
+   wsrep_applier_in_rollback(false),
    wsrep_client_thread(false),
    wsrep_retry_counter(0),
    wsrep_PA_safe(true),
@@ -910,7 +912,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
 #ifdef WITH_WSREP
   mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
-  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state();
@@ -4110,14 +4111,13 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   m_var_sp_row= NULL;
 
   if (var_list.elements == 1 &&
-      (mvsp= var_list.head()->get_my_var_sp()) &&
-      mvsp->type_handler() == &type_handler_row)
+      (mvsp= var_list.head()->get_my_var_sp()))
   {
-    // SELECT INTO row_type_sp_variable
-    if (mvsp->get_rcontext(thd->spcont)->get_variable(mvsp->offset)->cols() !=
-        list.elements)
+    bool assign_as_row= false;
+    if (mvsp->check_assignability(thd, list, &assign_as_row))
       goto error;
-    m_var_sp_row= mvsp;
+    if (assign_as_row)
+      m_var_sp_row= mvsp;
     return 0;
   }
 
@@ -4596,13 +4596,7 @@ sp_rcontext *my_var_sp::get_rcontext(sp_rcontext *local_ctx) const
 
 bool my_var_sp::set(THD *thd, Item *item)
 {
-  return get_rcontext(thd->spcont)->set_variable(thd, offset, &item);
-}
-
-bool my_var_sp_row_field::set(THD *thd, Item *item)
-{
-  return get_rcontext(thd->spcont)->
-           set_variable_row_field(thd, offset, m_field_offset, &item);
+  return get_rcontext(thd->spcont)->set_variable(thd, offset(), &item);
 }
 
 
@@ -4643,10 +4637,12 @@ int select_dumpvar::send_data(List<Item> &items)
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
-  if (m_var_sp_row ?
-      m_var_sp_row->get_rcontext(thd->spcont)->
-        set_variable_row(thd, m_var_sp_row->offset, items) :
-      send_data_to_var_list(items))
+  if (m_var_sp_row)
+  {
+    if (m_var_sp_row->set_row(thd, items))
+      DBUG_RETURN(1);
+  }
+  else if (send_data_to_var_list(items))
     DBUG_RETURN(1);
 
   DBUG_RETURN(thd->is_error());
@@ -8958,6 +8954,53 @@ bool Qualified_column_ident::append_to(THD *thd, String *str) const
 }
 
 
+Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a)
+ :m_pos(Lex_ident_cli(a.pos(), a.end() - a.pos())),
+  m_spvar(nullptr),
+  m_defined_parts(1)
+{
+  m_parts[0]= Lex_ident_sys(thd, &a);
+  m_parts[1]= m_parts[2]= Lex_ident_sys();
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a,
+                                 const Lex_ident_cli_st &b)
+ :m_pos(Lex_ident_cli(a.pos(), b.end() - a.pos())),
+  m_spvar(nullptr),
+  m_defined_parts(2)
+{
+  DBUG_ASSERT(a.pos() < b.end());
+  m_parts[0]= Lex_ident_sys(thd, &a);
+  m_parts[1]= Lex_ident_sys(thd, &b);
+  m_parts[2]= Lex_ident_sys();
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a,
+                                 const Lex_ident_cli_st &b,
+                                 const Lex_ident_cli_st &c)
+ :m_pos(Lex_ident_cli(a.pos(), c.end() - a.pos())),
+  m_spvar(nullptr),
+  m_defined_parts(3)
+{
+  DBUG_ASSERT(a.pos() < c.end());
+  m_parts[0]= Lex_ident_sys(thd, &a);
+  m_parts[1]= Lex_ident_sys(thd, &b);
+  m_parts[2]= Lex_ident_sys(thd, &c);
+}
+
+
+Qualified_ident::Qualified_ident(const Lex_ident_sys_st &a)
+ :m_pos(Lex_ident_cli((const char *) nullptr, 0)),
+  m_spvar(nullptr),
+  m_defined_parts(1)
+{
+  m_parts[0]= a;
+  m_parts[1]= m_parts[2]= Lex_ident_sys();
+}
+
+
 #endif /* !defined(MYSQL_CLIENT) */
 
 
@@ -9051,6 +9094,12 @@ void Charset_loader_server::raise_not_applicable_error(const char *cs,
                                                        const char *cl) const
 {
   my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl, cs);
+}
+
+
+bool THD::is_cursor_execution() const
+{
+  return dynamic_cast<Select_materialize*>(this->lex->result);
 }
 
 

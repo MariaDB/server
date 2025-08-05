@@ -9516,6 +9516,7 @@ int util_query(MYSQL* org_mysql, const char* query){
       /* enable local infile, in non-binary builds often disabled by default */
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&(org_mysql->options.protocol));
       SET_SSL_OPTS(mysql);
       safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
           org_mysql->passwd, org_mysql->db, org_mysql->port,
@@ -9637,7 +9638,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   dynstr_set(&ds_res, 0);
 
   if (view_protocol_enabled && mysql &&
-      complete_query &&
+      complete_query && !(mysql->server_status & SERVER_STATUS_IN_TRANS) &&
       match_re(&view_re, query))
   {
     /*

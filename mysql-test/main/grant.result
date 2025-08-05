@@ -854,7 +854,7 @@ create user mysqltest_8;
 ERROR HY000: Operation CREATE USER failed for 'mysqltest_8'@'%'
 create user mysqltest_8@host8;
 ERROR HY000: Operation CREATE USER failed for 'mysqltest_8'@'host8'
-select user, QUOTE(host) from mysql.user where user="mysqltest_8";
+select User, QUOTE(host) from mysql.user where user="mysqltest_8";
 User	QUOTE(host)
 mysqltest_8	'%'
 mysqltest_8	'host8'
@@ -1948,7 +1948,7 @@ DROP DATABASE db2;
 #
 grant usage on Foo.* to myuser@Localhost identified by 'foo';
 grant select on Foo.* to myuser@localhost;
-select host,user from mysql.user where User='myuser';
+select Host,User from mysql.user where User='myuser';
 Host	User
 localhost	myuser
 revoke select on Foo.* from myuser@localhost;
