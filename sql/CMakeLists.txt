@@ -14,7 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-add_definitions(-DSERVER_NET_INIT)
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
   SET(WSREP_SOURCES

@@ -27,7 +27,7 @@
 */
 
 extern "C" {
-void my_net_local_init_server(NET *net)
+void my_net_local_init(NET *net)
 {
 #ifndef EMBEDDED_LIBRARY
   net->max_packet=   (uint) global_system_variables.net_buffer_length;
