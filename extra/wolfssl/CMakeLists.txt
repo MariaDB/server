@@ -150,6 +150,8 @@ if (MSVC_ARM64 AND (CMAKE_C_COMPILER_ID MATCHES Clang))
     ${WOLFCRYPT_PORT_SRCDIR}/armv8-sha512-asm.S
     ${WOLFCRYPT_PORT_SRCDIR}/armv8-sha512-asm_c.c
   )
+  set(HAVE_CHACHA 1)
+  set(HAVE_POLY1305 1)
 else()
  set(HAVE_CHACHA 1)
  set(HAVE_POLY1305 1)
