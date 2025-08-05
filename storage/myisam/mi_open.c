@@ -913,12 +913,16 @@ static void setup_key_functions(register MI_KEYDEF *keyinfo)
 
 uint mi_state_info_write(File file, MI_STATE_INFO *state, uint pWrite)
 {
-  uchar  buff[MI_STATE_INFO_SIZE + MI_STATE_EXTRA_SIZE];
-  uchar *ptr=buff;
+  uchar  *buff, *ptr;
   uint	i, keys= (uint) state->header.keys,
-	key_blocks=state->header.max_block_size_index;
+        key_blocks=state->header.max_block_size_index,
+        key_parts= mi_uint2korr(state->header.key_parts);
+  int   res;
   DBUG_ENTER("mi_state_info_write");
 
+  buff= my_alloca(MI_STATE_INFO_SIZE + MI_STATE_EXTRA_SIZE(keys, key_parts));
+
+  ptr= buff;
   memcpy(ptr, &state->header, sizeof(state->header));
   ptr+=sizeof(state->header);
 
@@ -952,7 +956,6 @@ uint mi_state_info_write(File file, MI_STATE_INFO *state, uint pWrite)
   }
   if (pWrite & 2)				/* From isamchk */
   {
-    uint key_parts= mi_uint2korr(state->header.key_parts);
     mi_int4store(ptr,state->sec_index_changed); ptr +=4;
     mi_int4store(ptr,state->sec_index_used);	ptr +=4;
     mi_int4store(ptr,state->version);		ptr +=4;
@@ -968,10 +971,13 @@ uint mi_state_info_write(File file, MI_STATE_INFO *state, uint pWrite)
   }
 
   if (pWrite & 1)
-    DBUG_RETURN(mysql_file_pwrite(file, buff, (size_t) (ptr-buff), 0L,
-                                  MYF(MY_NABP | MY_THREADSAFE)) != 0);
-  DBUG_RETURN(mysql_file_write(file, buff, (size_t) (ptr-buff),
-                               MYF(MY_NABP)) != 0);
+    res= mysql_file_pwrite(file, buff, (size_t) (ptr-buff), 0L,
+                           MYF(MY_NABP | MY_THREADSAFE)) != 0;
+  else
+    res= mysql_file_write(file, buff, (size_t) (ptr-buff),
+                          MYF(MY_NABP)) != 0;
+  my_afree(buff);
+  DBUG_RETURN(res);
 }
 
 
@@ -1040,20 +1046,24 @@ uchar *mi_state_info_read(uchar *ptr, MI_STATE_INFO *state)
 
 uint mi_state_info_read_dsk(File file, MI_STATE_INFO *state, my_bool pRead)
 {
-  uchar	buff[MI_STATE_INFO_SIZE + MI_STATE_EXTRA_SIZE];
+  uchar *buff= my_alloca(state->state_length);
 
   if (!myisam_single_user)
   {
     if (pRead)
     {
       if (mysql_file_pread(file, buff, state->state_length, 0L, MYF(MY_NABP)))
-	return 1;
+        goto err;
     }
     else if (mysql_file_read(file, buff, state->state_length, MYF(MY_NABP)))
-      return 1;
+      goto err;
     mi_state_info_read(buff, state);
   }
+  my_afree(buff);
   return 0;
+err:
+  my_afree(buff);
+  return 1;
 }
 
 
