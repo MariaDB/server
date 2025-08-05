@@ -44,10 +44,10 @@ jobs:
           mkdir bld
           cd bld
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" arm64
-          # set PATH=C:\LLVM\bin;%PATH%
+          rem set PATH=C:\LLVM\bin;%PATH%
           cmake .. -DWITH_SSL=bundled -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_LINKER=lld-link -GNinja -DCMAKE_SYSTEM_PROCESSOR=ARM64
           cmake --build .
-          # cmake --install . --prefix install_prefix
+          rem cmake --install . --prefix install_prefix
         shell: cmd
 
       - name: Test
