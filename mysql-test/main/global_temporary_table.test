@@ -513,4 +513,10 @@ select * from t;
 
 drop table t;
 
+--echo # MDEV-37369 SIGSEGV on NEXTVAL from Global temporary table
+create global temporary table t(c int);
+--error ER_NOT_SEQUENCE
+select nextval(t);
+drop table t;
+
 --disconnect con1
