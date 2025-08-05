@@ -70,7 +70,6 @@ extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t l
 
 Rpl_filter *binlog_filter= 0;
 
-#define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
 
 /* Needed for Rpl_filter */
