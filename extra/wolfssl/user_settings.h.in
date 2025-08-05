@@ -33,8 +33,8 @@
 #define HAVE_TLS_EXTENSIONS
 #define HAVE_AES_ECB
 #define HAVE_AESGCM
-#define HAVE_CHACHA
-#define HAVE_POLY1305
+#cmakedefine HAVE_CHACHA
+#cmakedefine HAVE_POLY1305
 #define HAVE_THREAD_LS
 #define WOLFSSL_AES_COUNTER
 #define NO_WOLFSSL_STUB
