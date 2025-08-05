@@ -1028,12 +1028,21 @@ struct xid_recovery_member
   XID *full_xid;           // needed by wsrep or past it recovery
   decltype(::server_id) server_id;         // server id of original server
 
+#ifdef WITH_WSREP
+  /* Wsrep XID. Initialized if wsrep meta data is recovered during binlog recovery. */
+  XID *wsrep_xid;
+#endif /* WITH_WSREP */
+
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
                       XID *full_xid_arg, decltype(::server_id) server_id_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
       decided_to_commit(decided_arg),
       binlog_coord(Binlog_offset(MAX_binlog_id, MAX_off_t)),
-      full_xid(full_xid_arg), server_id(server_id_arg) {};
+      full_xid(full_xid_arg), server_id(server_id_arg)
+#ifdef WITH_WSREP
+    ,wsrep_xid{}
+#endif /* WITH_WSREP */
+  {}
 };
 
 /* for recover() handlerton call */
