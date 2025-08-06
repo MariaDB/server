@@ -697,6 +697,216 @@ void display_optimizer_trace(struct st_connection *con,
 
 static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql);
 
+
+typedef String My_string;
+
+/*
+  Expression evaluation support for mysqltest.
+  Provides arithmetic and logical operations with $() syntax.
+*/
+enum Expression_value_type
+{
+  EXPR_INT,
+  EXPR_BOOL,
+  EXPR_STRING,
+  EXPR_DATE, // TODO: add date support
+  EXPR_NULL
+};
+
+
+struct Expression_value
+{
+  Expression_value_type type;
+  unsigned long long int_val;
+  bool is_numeric;
+  bool is_unsigned;
+  My_string str_val;
+
+
+  Expression_value()
+  {
+    type= EXPR_NULL;
+    is_numeric= false;
+    is_unsigned= false;
+  }
+
+
+  void set_int(long long value)
+  {
+    int_val= value;
+    is_numeric= true;
+    is_unsigned= false;
+    type= EXPR_INT;
+  }
+
+
+  void set_uint(unsigned long long value)
+  {
+    int_val= value;
+    is_numeric= true;
+    is_unsigned= true;
+    type= EXPR_INT;
+  }
+
+
+  void set_string(const char *value, size_t len)
+  {
+    type= EXPR_STRING;
+    is_numeric= false;
+    str_val.copy(value, len, charset_info);
+  }
+
+
+  void set_bool(bool value)
+  {
+    type= EXPR_BOOL;
+    is_numeric= true;
+    is_unsigned= false;
+    int_val= value ? 1 : 0;
+  }
+
+
+  long long to_int() const 
+  {
+    if (is_numeric)
+      return (long long)int_val;
+    return strtoll(str_val.ptr(), NULL, 10);
+  }
+
+
+  unsigned long long to_uint() const 
+  {
+    if (is_numeric)
+      return int_val;
+    return strtoull(str_val.ptr(), NULL, 10);
+  }
+
+
+  bool to_bool() const 
+  {
+    if (is_numeric)
+      return int_val != 0;
+    return str_val.length() > 0;
+  }
+
+
+  My_string to_string() const
+  {
+    My_string buffer;
+  
+    if (type == EXPR_NULL)
+    {
+      buffer.set("NULL", 4, charset_info);
+      return buffer;
+    }
+  
+    if (is_numeric)
+    {
+      buffer.set_int(int_val, is_unsigned, charset_info);
+      return buffer;
+    }
+  
+    if (type == EXPR_STRING)
+    {
+      buffer.copy(str_val);
+      return buffer;
+    }
+  
+    buffer.set("", 0, charset_info);
+    return buffer;
+  }
+
+
+  Expression_value& operator=(const Expression_value& other)
+  {
+    if (this != &other)
+    {
+      type= other.type;
+      int_val= other.int_val;
+      is_numeric= other.is_numeric;
+      is_unsigned= other.is_unsigned;
+      if (other.type == EXPR_STRING)
+      {
+        str_val.copy(other.str_val);
+      }
+    }
+    return *this;
+  }
+
+  void reset()
+  {
+    // My_string memory is kept allocated for reuse
+    type= EXPR_NULL;
+    is_numeric= false;
+    is_unsigned= false;
+  }
+
+  void init(const char* token_start, size_t token_len)
+  {
+    char *endptr;
+    unsigned long long parsed_int;
+    int base= 10;
+
+    // Check for boolean literals (case insensitive)
+    if (token_len == 4 && strncasecmp(token_start, "true", 4) == 0)
+    {
+      set_bool(true);
+      return;
+    }
+
+    if (token_len == 5 && strncasecmp(token_start, "false", 5) == 0)
+    {
+      set_bool(false);
+      return;
+    }
+
+    // Check for special prefixes (0x, 0b)
+    if (token_len >= 3 && token_start[0] == '0')
+    {
+      if (token_start[1] == 'x')
+      {
+        base= 16;
+      }
+      else if (token_start[1] == 'b')
+      {
+        base= 2;
+        token_start+= 2; // Skip "0b" prefix for strtol
+        token_len-= 2;
+      }
+    }
+
+    errno= 0;
+    parsed_int= strtoull(token_start, &endptr, base);
+    if (errno == ERANGE)
+      die("Range error: value out of range for Integer type");
+
+    // If the entire token was parsed as an integer, set the type to integer
+    if (endptr == token_start + token_len)
+    {
+      if (base == 16 || base == 2 || parsed_int > LLONG_MAX)
+        set_uint(parsed_int);
+      else
+        set_int((long long)parsed_int);
+      return;
+    }
+
+    set_string(token_start, token_len);
+  }
+};
+
+
+/* Core expression parsing functions */
+static void expr(Expression_value *result, const char **s);
+static void logical_or(Expression_value *result, const char **s);
+static void logical_and(Expression_value *result, const char **s);
+static void equality(Expression_value *result, const char **s);
+static void comparison(Expression_value *result, const char **s);
+static void term(Expression_value *result, const char **s);
+static void factor(Expression_value *result, const char **s);
+static void unary(Expression_value *result, const char **s);
+static void primary(Expression_value *result, const char **s);
+
+
 class LogFile {
   FILE* m_file;
   char m_file_name[FN_REFLEN];
@@ -1172,14 +1382,55 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 	escaped= 0;
 	dynstr_append_mem(query_eval, p, 1);
       }
+      else if (p < query_end && *(p + 1) == '(')
+      {
+        const char* expr_start= p + 2;
+        int paren_level= 1;
+        const char* expr_end= expr_start;
+
+        // Find the matching closing parenthesis
+        while (*expr_end && paren_level > 0)
+        {
+          if (*expr_end == '(') paren_level++;
+          if (*expr_end == ')') paren_level--;
+          expr_end++;
+        }
+        if (paren_level != 0)
+          die("Unmatched parenthesis in expression starting at '%.*s'", 10, p);
+        expr_end--; // Go back to the ')'
+
+        // Recursively evaluate the content of the expression
+        DYNAMIC_STRING sub_expr_eval;
+        init_dynamic_string(&sub_expr_eval, "", 256, 1024);
+        do_eval(&sub_expr_eval, expr_start, expr_end, FALSE);
+
+        const char* eval_ptr= sub_expr_eval.str;
+        Expression_value result_val;
+        expr(&result_val, &eval_ptr);
+
+        while(*eval_ptr && my_isspace(charset_info, *eval_ptr))
+          eval_ptr++;
+
+        if (*eval_ptr != '\0')
+          die("Syntax error in sub-expression '%.*s'", (int)sub_expr_eval.length, sub_expr_eval.str);
+
+        My_string result_buf= result_val.to_string();
+        dynstr_append_mem(query_eval, result_buf.c_ptr(), result_buf.length());
+
+        dynstr_free(&sub_expr_eval);
+        p= expr_end;
+      }
       else
       {
-	if (!(v= var_get(p, &p, 0, 0)))
+	if (!(v= var_get(p, &p, 0, 1)))
         {
-          report_or_die( "Bad variable in eval");
-          DBUG_VOID_RETURN;
+          // TODO: This is a hack to allow for $ in regexp
+          // report_or_die( "Bad variable in eval");
+          // DBUG_VOID_RETURN;
+          dynstr_append_mem(query_eval, p, 1);
+        }else{
+          dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
         }
-	dynstr_append_mem(query_eval, v->str_val, v->str_val_len);
       }
       break;
     case '\\':
@@ -5041,6 +5292,1384 @@ int do_save_master_pos()
 }
 
 
+/* Built-in functions available in expressions */
+enum func_type
+{
+  FUNC_ABS,
+  FUNC_MAX,
+  FUNC_MIN,
+  FUNC_CONV,
+  FUNC_BIN,
+  FUNC_OCT,
+  FUNC_HEX,
+  FUNC_UNHEX,
+  FUNC_INSTR,
+  FUNC_REPLACE,
+  FUNC_SUBSTR,
+  FUNC_LOCATE,
+  FUNC_CONCAT,
+
+  FUNC_LENGTH,
+  FUNC_LOWER,
+  FUNC_UPPER,
+  FUNC_REVERSE,
+  FUNC_TRIM,
+  FUNC_LTRIM,
+  FUNC_RTRIM,
+  FUNC_LPAD,
+  FUNC_RPAD,
+  FUNC_REPEAT,
+  FUNC_INSERT,
+  FUNC_SUBSTR_IDX,
+
+  FUNC_REGEXP_INSTR,
+  FUNC_REGEXP_REPLACE,
+  FUNC_REGEXP_SUBSTR,
+
+  FUNC_UNKNOWN
+};
+
+
+enum func_type get_expr_function_type(const char *name, size_t len);
+void handle_expr_function_call(enum func_type func_type,
+                               Expression_value *result, const char **s);
+
+
+static int match(const char **s, const char *op)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+  size_t len= strlen(op);
+  if (strncmp(*s, op, len) == 0)
+  {
+    // check for ambiguous operators (e.g., distinguish | from ||)
+    if (len == 1 && strchr("&|", **s))
+    {
+      char next_char= *(*s + 1);
+      if (next_char == op[0])
+        return 0;  // don't match single & or | when && or || follows
+    }
+    *s += len;
+    return 1;
+  }
+  return 0;
+}
+
+
+/*
+  TODO: Workaround for the fact there is no quote character
+  in the expression parser
+*/
+static bool is_operator_char(char c)
+{
+  return strchr("!*%/+-<>=&|^~(),", c) != NULL;
+}
+
+
+static void primary(Expression_value *result, const char **s)
+{
+  while (my_isspace(charset_info, **s)) (*s)++;
+
+  if (match(s, "("))
+  {
+    expr(result, s);
+    if (!match(s, ")"))
+      die("Syntax error: Expected ')' in expression");
+    return;
+  }
+
+  const char *start= *s;
+  const char *end= start;
+  char quote_char= 0;
+
+  // check if this is a quoted string literal
+  if (*start == '\'' || *start == '"')
+  {
+    quote_char= *start;
+    start++;
+    end= start;
+    while (*end && (*end != quote_char || (*(end - 1) == '\\')))
+      end++;
+
+    if (*end != quote_char)
+      die("Syntax error: Unmatched quote in expression");
+
+    result->set_string(start, end - start);
+    *s= end + 1;
+    return;
+  }
+
+  /*
+    function name is a sequence of alphanumeric characters or underscores
+    followed by a '('
+  */
+  while (*end && (my_isalnum(charset_info, *end) || *end == '_'))
+    end++;
+  
+  if (*end == '(')
+  {
+    enum func_type func_type= get_expr_function_type(start,
+                                                     end - start);
+    if (func_type == FUNC_UNKNOWN)
+      die("Syntax error: Unknown function");
+    
+    *s= end + 1; // skip '('
+    handle_expr_function_call(func_type, result, s);
+  }
+  else
+  {
+    // treat unquoted string literals as strings
+    end= start;
+    while (*end && !is_operator_char(*end))
+      end++;
+
+    while (start < end && my_isspace(charset_info, *(end - 1)))
+      end--;
+
+    if (end == start)
+      die("Syntax error: invalid expression");
+
+    result->init(start, end - start);
+    *s= end;
+  }
+}
+
+
+static void unary(Expression_value *result, const char **s)
+{
+  if (match(s, "!"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: logical NOT requires an integer operand");
+    result->set_bool(!result->to_int());
+    return;
+  }
+  if (match(s, "-"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: unary minus requires an integer operand");
+    result->set_int(-result->to_int());
+    return;
+  }
+  if (match(s, "~"))
+  {
+    unary(result, s);
+    if (!result->is_numeric)
+      die("Type error: bitwise NOT requires an integer operand");
+    result->set_uint(~result->to_uint());
+    return;
+  }
+  primary(result, s);
+}
+
+
+static void bitwise_xor(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  unary(result, s);
+  while (true)
+  {
+    if (match(s, "^"))
+    {
+      rhs.reset();
+      unary(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '^' requires integer operands");
+      result->set_uint(result->to_uint() ^ rhs.to_uint());
+    }
+    else
+      break;
+  }
+}
+
+
+static void factor(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  bitwise_xor(result, s);
+  while (true)
+  {
+    if (match(s, "*"))
+    {
+      rhs.reset();
+      bitwise_xor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '*' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() * rhs.to_uint());
+      else
+        result->set_int(result->to_int() * rhs.to_int());
+    }
+    else if (match(s, "/"))
+    {
+      rhs.reset();
+      bitwise_xor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '/' requires integer operands");
+      if (rhs.to_int() == 0)
+        die("Evaluation error: Division by zero");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() / rhs.to_uint());
+      else
+        result->set_int(result->to_int() / rhs.to_int());
+    }
+    else if (match(s, "%"))
+    {
+      rhs.reset();
+      bitwise_xor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '%%' requires integer operands");
+      if (rhs.to_int() == 0)
+        die("Evaluation error: Modulo by zero");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() % rhs.to_uint());
+      else
+        result->set_int(result->to_int() % rhs.to_int());
+    }
+    else
+      break;
+  }
+}
+
+
+static void term(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  factor(result, s);
+  while (true)
+  {
+    if (match(s, "+"))
+    {
+      rhs.reset();
+      factor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '+' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() + rhs.to_uint());
+      else
+        result->set_int(result->to_int() + rhs.to_int());
+    }
+    else if (match(s, "-"))
+    {
+      rhs.reset();
+      factor(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '-' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_uint(result->to_uint() - rhs.to_uint());
+      else
+        result->set_int(result->to_int() - rhs.to_int());
+    }
+    else
+      break;
+  }
+}
+
+
+static void bitwise_shift(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  term(result, s);
+  while (true)
+  {
+    if (match(s, "<<"))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<<' requires integer operands");
+      if (rhs.to_int() < 0 || rhs.to_int() >= 64)
+        die("Evaluation error: Invalid shift amount");
+      result->set_uint(result->to_uint() << rhs.to_int());
+    }
+    else if (match(s, ">>"))
+    {
+      rhs.reset();
+      term(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>>' requires integer operands");
+      if (rhs.to_int() < 0 || rhs.to_int() >= 64)
+        die("Evaluation error: Invalid shift amount");
+      result->set_uint(result->to_uint() >> rhs.to_int());
+    }
+    else
+      break;
+  }
+}
+
+
+static void bitwise_and(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  bitwise_shift(result, s);
+  while (true)
+  {
+    if (match(s, "&") && !match(s, "&&"))
+    {
+      rhs.reset();
+      bitwise_shift(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '&' requires integer operands");
+      result->set_uint(result->to_uint() & rhs.to_uint());
+    }
+    else
+      break;
+  }
+}
+
+
+static void bitwise_or(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  bitwise_and(result, s);
+  while (true)
+  {
+    if (match(s, "|") && !match(s, "||"))
+    {
+      rhs.reset();
+      bitwise_and(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '|' requires integer operands");
+      result->set_uint(result->to_uint() | rhs.to_uint());
+    }
+    else
+      break;
+  }
+}
+
+
+static void comparison(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  bitwise_or(result, s);
+  while (true)
+  {
+    if (match(s, "<="))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<=' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_bool(result->to_uint() <= rhs.to_uint());
+      else
+        result->set_bool(result->to_int() <= rhs.to_int());
+    }
+    else if (match(s, ">="))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>=' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_bool(result->to_uint() >= rhs.to_uint());
+      else
+        result->set_bool(result->to_int() >= rhs.to_int());
+    }
+    else if (match(s, "<"))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '<' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_bool(result->to_uint() < rhs.to_uint());
+      else
+        result->set_bool(result->to_int() < rhs.to_int());
+    }
+    else if (match(s, ">"))
+    {
+      rhs.reset();
+      bitwise_or(&rhs, s);
+      if (!result->is_numeric || !rhs.is_numeric)
+        die("Type error: operator '>' requires integer operands");
+      if (result->is_unsigned || rhs.is_unsigned)
+        result->set_bool(result->to_uint() > rhs.to_uint());
+      else
+        result->set_bool(result->to_int() > rhs.to_int());
+    }
+    else
+      break;
+  }
+}
+
+
+static void equality(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+  
+  comparison(result, s);
+  while (true)
+  {
+    if (match(s, "=="))
+    {
+      rhs.reset();
+      comparison(&rhs, s);
+      if (result->is_numeric && rhs.is_numeric)
+      {
+        if (result->is_unsigned || rhs.is_unsigned)
+          result->set_bool(result->to_uint() == rhs.to_uint());
+        else
+          result->set_bool(result->to_int() == rhs.to_int());
+      }
+      else
+        result->set_bool(!strcmp(result->str_val.c_ptr(), rhs.str_val.c_ptr()));
+    }
+    else if (match(s, "!="))
+    {
+      rhs.reset();
+      comparison(&rhs, s);
+      if (result->is_numeric && rhs.is_numeric)
+      {
+        if (result->is_unsigned || rhs.is_unsigned)
+          result->set_bool(result->to_uint() != rhs.to_uint());
+        else
+          result->set_bool(result->to_int() != rhs.to_int());
+      }
+      else
+        result->set_bool(strcmp(result->str_val.c_ptr(), rhs.str_val.c_ptr()));
+    }
+    else
+      break;
+  }
+}
+
+
+static void logical_and(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+
+  equality(result, s);
+  while (match(s, "&&"))
+  {
+    rhs.reset();
+    equality(&rhs, s);
+    if (!result->is_numeric || !rhs.is_numeric)
+      die("Type error: operator '&&' requires integer operands");
+    result->set_bool(result->to_int() && rhs.to_int());
+  }
+}
+
+
+static void logical_or(Expression_value *result, const char **s)
+{
+  static Expression_value rhs;
+
+  logical_and(result, s);
+  while (match(s, "||"))
+  {
+    rhs.reset();
+    logical_and(&rhs, s);
+    if (!result->is_numeric || !rhs.is_numeric)
+      die("Type error: operator '||' requires integer operands");
+    result->set_bool(result->to_int() || rhs.to_int());
+  }
+}
+
+
+static void expr(Expression_value *result, const char **s)
+{
+  logical_or(result, s);
+}
+
+
+/* Expression function handling */
+#define MAX_FUNC_ARGS 100
+
+static struct {
+  const char *name;
+  enum func_type type;
+} function_table[]= {
+    {"abs", FUNC_ABS},
+    {"max", FUNC_MAX},
+    {"min", FUNC_MIN},
+    {"conv", FUNC_CONV},
+    {"bin", FUNC_BIN},
+    {"oct", FUNC_OCT},
+    {"hex", FUNC_HEX},
+    {"unhex", FUNC_UNHEX},
+    {"instr", FUNC_INSTR},
+    {"locate", FUNC_LOCATE},
+    {"replace", FUNC_REPLACE},
+    {"substr", FUNC_SUBSTR},
+    {"substring", FUNC_SUBSTR},
+    {"concat", FUNC_CONCAT},
+    {"length", FUNC_LENGTH},
+    {"lower", FUNC_LOWER},
+    {"lcase", FUNC_LOWER},
+    {"upper", FUNC_UPPER},
+    {"ucase", FUNC_UPPER},
+    {"reverse", FUNC_REVERSE},
+    {"trim", FUNC_TRIM},
+    {"ltrim", FUNC_LTRIM},
+    {"rtrim", FUNC_RTRIM},
+    {"lpad", FUNC_LPAD},
+    {"rpad", FUNC_RPAD},
+    {"repeat", FUNC_REPEAT},
+    {"insert", FUNC_INSERT},
+    {"substring_index", FUNC_SUBSTR_IDX},
+    {"regexp_instr", FUNC_REGEXP_INSTR},
+    {"regexp_replace", FUNC_REGEXP_REPLACE},
+    {"regexp_substr", FUNC_REGEXP_SUBSTR},
+  {NULL, FUNC_UNKNOWN}
+};
+
+
+static void convert_base_helper(const My_string &str, int from_base, int to_base,
+                                Expression_value *value)
+{
+  char temp_buffer[66]; // should be enough for any base
+  long long result;
+  char *endptr;
+  int err;
+  size_t str_len= str.length();
+
+  if (from_base < 0) // Negative base = treat input as SIGNED
+    result= my_strntoll_8bit(charset_info, str.ptr(), str_len, -from_base,
+                             &endptr, &err);
+  else // Positive base = treat input as UNSIGNED
+    result= (long long) my_strntoull_8bit(charset_info, str.ptr(), str_len,
+                                          from_base, &endptr, &err);
+
+  if (err == ERANGE)
+    die("Range error: value out of range for Integer type");
+
+  if (err != 0 || endptr != str.ptr() + str_len)
+    die("invalid number '%.*s' for base %d", (int)str_len, str.ptr(), from_base);
+
+  endptr = longlong2str(result, temp_buffer, to_base);
+  if (!endptr)
+    die("could not convert number '%.*s' for base %d",
+        (int)str_len, str.ptr(), to_base);
+  
+  value->set_string(temp_buffer, endptr - temp_buffer);
+}
+
+
+/* Expression Built-in Function Implementations */
+void func_abs(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("abs() expects 1 argument, got %d", count);
+    
+  if (!args[0].is_numeric)
+    die("abs() requires numeric argument");
+    
+  result->set_int(abs(args[0].to_int()));
+}
+
+
+void func_max(Expression_value args[], int count, Expression_value *result)
+{
+  if (count == 0)
+    die("max() expects at least 1 argument");
+
+  result->set_int(args[0].to_int());
+  for (int i= 1; i < count; ++i)
+  {
+    if (!args[i].is_numeric)
+      die("max() requires all arguments to be numeric");
+      
+    if (args[i].to_int() > result->to_int())
+      result->set_int(args[i].to_int());
+  }
+}
+
+
+void func_min(Expression_value args[], int count, Expression_value *result)
+{
+  if (count == 0)
+    die("min() expects at least 1 argument");
+
+  result->set_int(args[0].to_int());
+  for (int i= 1; i < count; ++i)
+  {
+    if (!args[i].is_numeric)
+      die("min() requires all arguments to be numeric");
+      
+    if (args[i].to_int() < result->to_int())
+      result->set_int(args[i].to_int());
+  }
+}
+
+
+void func_conv(Expression_value args[], int count, Expression_value *result)
+{
+  int from_base;
+  int to_base;
+  
+  if (count != 3)
+    die("conv() expects 3 arguments (N, from_base, to_base), got %d", count);
+    
+  from_base = (int)args[1].to_int();
+  to_base = (int)args[2].to_int();
+
+  if (!args[1].is_numeric || !args[2].is_numeric)
+    die("conv() bases must be numeric");
+
+  if (abs(from_base) < 2 || abs(from_base) > 62)
+    die("conv() from_base must be between 2 and 62, got %d", from_base);
+  if (abs(to_base) < 2 || abs(to_base) > 62)
+    die("conv() to_base must be between 2 and 62, got %d", to_base);
+
+  convert_base_helper(args[0].to_string(), from_base, to_base, result);
+}
+
+
+void func_bin(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("bin() expects 1 argument, got %d", count);
+
+  convert_base_helper(args[0].to_string(), 10, 2, result);
+}
+
+
+void func_oct(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("oct() expects 1 argument, got %d", count);
+
+  convert_base_helper(args[0].to_string(), 10, 8, result);
+}
+
+
+void func_hex(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("hex() expects 1 argument, got %d", count);
+
+  convert_base_helper(args[0].to_string(), 10, 16, result);
+}
+
+
+void func_instr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2)
+    die("instr() expects 2 arguments (str, substr), got %d", count);
+
+  my_match_t match;
+  My_string str= args[0].to_string();
+  My_string substr= args[1].to_string();
+
+  if (charset_info->coll->instr(charset_info, str.ptr(), str.length(),
+                                substr.ptr(), substr.length(), &match, 1))
+    result->set_int(match.mb_len + 1);
+  else
+    result->set_int(0);
+}
+
+
+void func_locate(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2 || count > 3)
+    die("locate() expects 2 or 3 arguments (substr, str [, start]), got %d", count);
+
+  if (count == 3 && !args[2].is_numeric)
+    die("locate() start position must be numeric");
+
+  My_string substr = args[0].to_string();
+  My_string str = args[1].to_string();
+  
+  long long start= 0;
+  long long start0= 0;
+  my_match_t match;
+  
+  if (count == 3)
+  {
+    start0= start = args[2].to_int() - 1;
+    
+    if (start < 0 || start > (longlong)str.length())
+    {
+      result->set_int(0);
+      return;
+    }
+
+    start= str.charpos((int) start);
+
+    // Substring is longer than str at start position.
+    if (start + substr.length() > str.length())
+    {
+      result->set_int(0);
+      return;
+    }
+  }
+
+  if (!substr.length())
+  {
+    result->set_int(start + 1);
+    return;
+  }
+
+  if (charset_info->coll->instr(charset_info, str.ptr() + start,
+                                 (uint)(str.length() - start),
+                                 substr.ptr(), substr.length(), &match, 1))
+    result->set_int((longlong)match.mb_len + start0 + 1);
+  else
+    result->set_int(0);
+}
+
+
+void func_replace(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 3)
+    die("replace() expects 3 arguments (str, from, to), got %d", count);
+
+  if (args[0].is_numeric || args[1].is_numeric || args[2].is_numeric)
+    die("replace() arguments must be strings");
+
+  My_string str = args[0].str_val;
+  My_string from_str = args[1].str_val;
+  My_string to_str = args[2].str_val;
+
+  if (from_str.length() == 0)
+  {
+    result->set_string(str.ptr(), str.length());
+    return;
+  }
+
+  My_string result_str;
+  result_str.copy(str);
+
+  int pos = 0;
+  while ((pos = result_str.strstr(from_str.ptr(), from_str.length(), pos)) >= 0)
+  {
+    result_str.replace(pos, from_str.length(), to_str.ptr(), to_str.length());
+    pos += to_str.length();
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+void func_substr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count < 2 || count > 3)
+    die("substr() expects 2 or 3 arguments (str, start [, length]), got %d", count);
+
+  if (args[0].is_numeric)
+    die("substr() first argument must be a string");
+
+  if (!args[1].is_numeric)
+    die("substr() start position must be numeric");
+
+  if (count == 3 && !args[2].is_numeric)
+    die("substr() length must be numeric");
+
+  My_string str = args[0].str_val;
+  int start = (int)args[1].to_int();
+  int length = count == 3 ? (int)args[2].to_int() : str.length();
+
+  if (start == 0 || start > (int)str.length() || length <= 0)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (start < 0)
+    start= str.length() + start;
+  else
+    start--;
+
+  int end = str.length();
+  if (count == 3)
+  {
+    end = start + length;
+    if (end > (int)str.length())
+      end = str.length();
+  }
+
+  if (start >= end || start >= (int)str.length() || start < 0)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  result->set_string(str.ptr() + start, end - start);
+}
+
+
+void func_concat(Expression_value args[], int count, Expression_value *result)
+{
+  if (count == 0)
+    die("concat() expects at least 1 argument");
+
+  My_string result_str = args[0].to_string();
+  
+  for (int i= 1; i < count; ++i)
+  {
+    My_string arg_str = args[i].to_string();
+    result_str.append(arg_str.ptr(), arg_str.length());
+  }
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+void func_lower(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("lower() expects 1 argument, got %d", count);
+
+  My_string result_str;
+  result_str.copy_casedn(charset_info, args[0].to_string().to_lex_cstring());
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+void func_upper(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("upper() expects 1 argument, got %d", count);
+
+  My_string result_str;
+  result_str.copy_caseup(charset_info, args[0].to_string().to_lex_cstring());
+
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+void func_reverse(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("reverse() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+
+  size_t len= str.length();
+  for (size_t i= 0; i < len / 2; ++i)
+  {
+    char temp= str.c_ptr()[i];
+    str.c_ptr()[i]= str.c_ptr()[len - 1 - i];
+    str.c_ptr()[len - 1 - i]= temp;
+  }
+  
+  result->set_string(str.ptr(), str.length());
+}
+
+
+void func_trim(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("trim() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+  
+  int start= 0;
+  while (start < (int)str.length() && my_isspace(charset_info, str.ptr()[start]))
+    start++;
+  
+  int end= (int)str.length();
+  while (end > start && my_isspace(charset_info, str.ptr()[end - 1]))
+    end--;
+  
+  result->set_string(str.ptr() + start, end - start);
+}
+
+
+void func_ltrim(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("ltrim() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+  
+  int start= 0;
+  while (start < (int)str.length() && my_isspace(charset_info, str.ptr()[start]))
+    start++;
+  
+  result->set_string(str.ptr() + start, (int)str.length() - start);
+}
+
+
+void func_rtrim(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("rtrim() expects 1 argument, got %d", count);
+
+  My_string str= args[0].to_string();
+  
+  int end= (int)str.length();
+  while (end > 0 && my_isspace(charset_info, str.ptr()[end - 1]))
+    end--;
+  
+  result->set_string(str.ptr(), end);
+}
+
+
+void func_lpad(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2 && count != 3)
+    die("lpad() expects 2 or 3 arguments (str, length [, padstr]), got %d", count);
+
+  if (!args[1].is_numeric)
+    die("lpad() length must be numeric");
+
+  My_string str= args[0].to_string();
+  int length= (int)args[1].to_int();
+  My_string padstr= count == 3 ? args[2].to_string() : My_string();
+  My_string result_str;
+  
+  if (length < 0)
+    die("lpad() length cannot be negative");
+
+  if (count == 3 && padstr.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (length <= (int) str.length())
+  {
+    result->set_string(str.ptr(), length);
+    return;
+  }
+
+  int padding_needed= length - (int)str.length();
+  if (count == 2)
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      result_str.append(" ", 1);
+  }
+  else
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      result_str.append(&padstr.ptr()[i % padstr.length()], 1);
+  }
+  
+  result_str.append(str.ptr(), str.length());
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+void func_rpad(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2 && count != 3)
+    die("rpad() expects 2 or 3 arguments (str, length [, padstr]), got %d", count);
+
+  if (!args[1].is_numeric)
+    die("rpad() length must be numeric");
+
+  My_string str= args[0].to_string();
+  int length= (int)args[1].to_int();
+  My_string padstr= count == 3 ? args[2].to_string() : My_string();
+  
+  if (length < 0)
+    die("rpad() length cannot be negative");
+
+  if (count == 3 && padstr.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if (length <= (int)str.length())
+  {
+    result->set_string(str.ptr(), length);
+    return;
+  }
+
+  int padding_needed= length - (int)str.length();
+
+  if (count == 2)
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      str.append(" ", 1);
+  }
+  else
+  {
+    for (int i= 0; i < padding_needed; ++i)
+      str.append(&padstr.ptr()[i % padstr.length()], 1);
+  }
+  
+  result->set_string(str.ptr(), str.length());
+}
+
+
+void func_length(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 1)
+    die("length() expects 1 argument, got %d", count);
+
+  result->set_int((long long) args[0].to_string().length());
+}
+
+
+void func_substring_index(Expression_value args[], int count,
+                          Expression_value *result)
+{
+  if (count != 3)
+    die("substring_index() expects 3 arguments (str, delimiter, count), got %d", count);
+
+  if (!args[2].is_numeric)
+    die("substring_index() count must be numeric");
+
+  My_string str= args[0].to_string();
+  My_string delimiter= args[1].to_string();
+  int count_val= (int)args[2].to_int();  
+
+  if (str.is_empty() || delimiter.is_empty() || !count_val)
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  const char *str_ptr= str.ptr();
+  const char *str_end= str.end();
+  const char *delim_ptr= delimiter.ptr();
+  int delim_len= (int)delimiter.length();
+  
+  if (count_val > 0)
+  {
+    const char *current_pos= str_ptr;
+    int found_count= 0;
+    
+    while (current_pos < str_end && found_count < count_val)
+    {
+      const char *found= strstr(current_pos, delim_ptr);
+      if (!found)
+        break;
+      
+      found_count++;
+      if (found_count < count_val)
+        current_pos= found + delim_len;
+      else
+        current_pos= found;
+    }
+    
+    if (found_count < count_val)
+      result->set_string(str.ptr(), str.length());
+    else
+      result->set_string(str.ptr(), current_pos - str_ptr);
+  }
+  else
+  {
+    count_val= -count_val;
+    const char *current_pos= str_end;
+    int found_count= 0;
+    
+    while (current_pos > str_ptr && found_count < count_val)
+    {
+      const char *found = NULL;
+      const char *search_pos = str_ptr;
+      
+      while (search_pos < current_pos)
+      {
+        const char *temp_found = strstr(search_pos, delim_ptr);
+        if (!temp_found || temp_found >= current_pos)
+          break;
+        found= temp_found;
+        search_pos= temp_found + delim_len;
+      }
+      
+      if (!found)
+        break;
+      
+      found_count++;
+      if (found_count < count_val)
+        current_pos= found;
+      else
+        current_pos= found + delim_len;
+    }
+    
+    if (found_count < count_val)
+      result->set_string(str.ptr(), str.length());
+    else
+      result->set_string(current_pos, str_end - current_pos);
+  }
+}
+
+
+void func_regexp_instr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("regexp_instr() expects 2 arguments (subject, pattern), got %d", count);
+
+  regex_t regex;
+  regmatch_t match;
+  int err_code;
+  int cflags = REG_EXTENDED | REG_DOTALL | REG_ICASE;
+  My_string subject = args[0].to_string();
+  My_string pattern = args[1].to_string();
+
+  if (pattern.is_empty())
+  {
+    result->set_int(1);
+    return;
+  }
+
+  if (subject.is_empty())
+  {
+    result->set_int(0);
+    return;
+  }
+
+  if ((err_code = regcomp(&regex, pattern.ptr(), cflags)))
+  {
+    char err_buf[1024];
+    regerror(err_code, &regex, err_buf, sizeof(err_buf));
+    die("Regex error: %s\n", err_buf);
+  }
+
+  err_code = regexec(&regex, subject.ptr(), 1, &match, 0);
+  regfree(&regex);
+
+  result->set_int(err_code ? 0 : (int)(match.rm_so + 1));
+}
+
+
+void func_regexp_substr(Expression_value args[], int count, Expression_value *result)
+{
+  if (count != 2)
+    die("regexp_substr() expects 2 arguments (subject, pattern), got %d", count);
+
+  regex_t regex;
+  regmatch_t matches[1];
+  int err_code;
+  int cflags = REG_EXTENDED | REG_DOTALL | REG_ICASE;
+  My_string subject = args[0].to_string();
+  My_string pattern = args[1].to_string();
+
+  if (subject.is_empty())
+  {
+    result->set_string("", 0);
+    return;
+  }
+
+  if ((err_code = regcomp(&regex, pattern.ptr(), cflags)))
+  {
+    char err_buf[1024];
+    regerror(err_code, &regex, err_buf, sizeof(err_buf));
+    die("Regex error: %s\n", err_buf);
+  }
+
+  err_code = regexec(&regex, subject.ptr(), 1, matches, 0);
+  regfree(&regex);
+
+  if (err_code)
+  {
+    result->set_string("", 0);
+  }
+  else
+  {
+    regoff_t start = matches[0].rm_so;
+    regoff_t end = matches[0].rm_eo;
+    result->set_string(subject.ptr() + start, end - start);
+  }
+}
+
+
+void func_regexp_replace(Expression_value args[], int count,
+                         Expression_value *result)
+{
+  if (count != 3)
+    die("regexp_replace() expects 3 arguments (subject, pattern, replace), got %d", count);
+
+  regex_t regex;
+  regmatch_t matches[10];  // Array to store up to 10 matches (0=full match, 1-9=capture groups)
+  int err_code;
+  int cflags= REG_EXTENDED | REG_DOTALL | REG_ICASE;
+  My_string result_str;
+  My_string subject= args[0].to_string();
+  My_string pattern= args[1].to_string();
+  My_string replace= args[2].to_string();
+  const char *current_pos= subject.ptr();
+  const char *end_pos= subject.end();
+  const char *replace_ptr;
+  const char *replace_end;
+
+  if (pattern.is_empty())
+  {
+    result->set_string(subject.ptr(), subject.length());
+    return;
+  }
+
+  if ((err_code= regcomp(&regex, pattern.ptr(), cflags)))
+  {
+    char err_buf[1024];
+    regerror(err_code, &regex, err_buf, sizeof(err_buf));
+    die("Regex error: %s\n", err_buf);
+  }
+
+  while (current_pos < end_pos)
+  {
+    err_code= regexec(&regex, current_pos, 10, matches, 0);
+    if (err_code)
+    {
+      result_str.append(current_pos, end_pos - current_pos);
+      break;
+    }
+
+    // Append the text before the match
+    if (matches[0].rm_so > 0)
+      result_str.append(current_pos, matches[0].rm_so);
+
+    // Process replacement string with backreferences
+    replace_ptr= replace.ptr();
+    replace_end= replace.end();
+
+    while (replace_ptr < replace_end)
+    {
+      if (*replace_ptr == '\\' && replace_ptr + 1 < replace_end)
+      {
+        int back_ref_num= (int) (*(replace_ptr + 1) - '0');
+        regoff_t start_off, end_off;
+        if (back_ref_num >= 0 && back_ref_num <= 9 &&
+            (start_off=matches[back_ref_num].rm_so) > -1 &&
+            (end_off=matches[back_ref_num].rm_eo) > -1)
+        {
+          result_str.append(current_pos + start_off, end_off - start_off);
+        }
+        else
+        {
+          result_str.append(replace_ptr, 2);
+        }
+        replace_ptr+= 2;
+        continue;
+      }
+      result_str.append(replace_ptr, 1);
+      replace_ptr++;
+    }
+
+    current_pos+= matches[0].rm_eo;
+
+    if (matches[0].rm_so == matches[0].rm_eo)
+      current_pos++;
+  }
+  
+  regfree(&regex);
+  result->set_string(result_str.ptr(), result_str.length());
+}
+
+
+enum func_type get_expr_function_type(const char *name, size_t len)
+{
+  for (int i= 0; function_table[i].name; ++i)
+  {
+    if (!strncasecmp(function_table[i].name, name, len))
+      return function_table[i].type;
+  }
+  return FUNC_UNKNOWN;
+}
+
+
+void handle_expr_function_call(enum func_type func_type,
+                               Expression_value *result, const char **s)
+{
+  Expression_value args[MAX_FUNC_ARGS];
+  int arg_count= 0;
+
+  while (!match(s, ")"))
+  {
+    if (arg_count >= MAX_FUNC_ARGS)
+      die("Too many function arguments (max %d)", MAX_FUNC_ARGS);
+
+    expr(&args[arg_count], s);
+    arg_count++;
+
+    /* if the next character is a comma, skip it */
+    if (match(s, ","))
+      continue;
+
+    if (match(s, ")"))
+      break;
+    
+    die("Syntax error: Expected ',' or ')' in function call");
+  }
+
+  switch (func_type) {
+  case FUNC_ABS:
+    func_abs(args, arg_count, result);
+    break;
+  case FUNC_MAX:
+    func_max(args, arg_count, result);
+    break;
+  case FUNC_MIN:
+    func_min(args, arg_count, result);
+    break;
+  case FUNC_CONV:
+    func_conv(args, arg_count, result);
+    break;
+  case FUNC_BIN:
+    func_bin(args, arg_count, result);
+    break;
+  case FUNC_OCT:
+    func_oct(args, arg_count, result);
+    break;
+  case FUNC_HEX:
+    func_hex(args, arg_count, result);
+    break;
+  case FUNC_INSTR:
+    func_instr(args, arg_count, result);
+    break;
+  case FUNC_LOCATE:
+    func_locate(args, arg_count, result);
+    break;
+  case FUNC_REPLACE:
+    func_replace(args, arg_count, result);
+    break;
+  case FUNC_SUBSTR:
+    func_substr(args, arg_count, result);
+    break;
+  case FUNC_CONCAT:
+    func_concat(args, arg_count, result);
+    break;
+  case FUNC_LOWER:
+    func_lower(args, arg_count, result);
+    break;
+  case FUNC_UPPER:
+    func_upper(args, arg_count, result);
+    break;
+  case FUNC_REVERSE:
+    func_reverse(args, arg_count, result);
+    break;
+  case FUNC_TRIM:
+    func_trim(args, arg_count, result);
+    break;
+  case FUNC_LTRIM:
+    func_ltrim(args, arg_count, result);
+    break;
+  case FUNC_RTRIM:
+    func_rtrim(args, arg_count, result);
+    break;
+  case FUNC_LPAD:
+    func_lpad(args, arg_count, result);
+    break;
+  case FUNC_RPAD:
+    func_rpad(args, arg_count, result);
+    break;
+  case FUNC_LENGTH:
+    func_length(args, arg_count, result);
+    break;
+  case FUNC_SUBSTR_IDX:
+    func_substring_index(args, arg_count, result);
+    break;
+  case FUNC_REGEXP_INSTR:
+    func_regexp_instr(args, arg_count, result);
+    break;
+  case FUNC_REGEXP_SUBSTR:
+    func_regexp_substr(args, arg_count, result);
+    break;
+  case FUNC_REGEXP_REPLACE:
+    func_regexp_replace(args, arg_count, result);
+    break;
+  case FUNC_UNKNOWN:
+  default:
+    die("Unknown function");
+    break;
+  }
+}
+
+
 /*
   Assign the variable <var_name> with <var_val>
 
@@ -6581,6 +8210,64 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   if (*p && *p != '{')
     die("Missing '{' after %s. Found \"%s\"", cmd_name, p);
 
+  if (*expr_start == '$' && *(expr_start + 1) == '(')
+  {
+    const char *paren_scanner= expr_start + 2;
+    int paren_level= 1;
+    while (*paren_scanner && paren_level > 0)
+    {
+      if (*paren_scanner == '(') paren_level++;
+      if (*paren_scanner == ')') paren_level--;
+      paren_scanner++;
+    }
+
+    const char *end_ptr= expr_end;
+    while(end_ptr > expr_start && my_isspace(charset_info, *(end_ptr - 1)))
+      end_ptr--;
+
+    // if the $(...) is the entire condition, evaluate it
+    if (paren_scanner == end_ptr)
+    {
+      DYNAMIC_STRING evaluated_expr;
+      init_dynamic_string(&evaluated_expr, "", 64, 256);
+
+      do_eval(&evaluated_expr, expr_start, expr_end, FALSE);
+
+      char* result_str= evaluated_expr.str;
+      while (*result_str && my_isspace(charset_info, *result_str))
+        result_str++;
+
+      /*
+        Setup the next block on the stack
+        This logic is borrowed from the end of this function
+        Any non-empty string which does not begin with 0 is TRUE
+      */
+      cur_block++;
+      cur_block->cmd= cmd;
+      cur_block->ok= (*result_str && *result_str != '0');
+
+      if (not_expr)
+        cur_block->ok= !cur_block->ok;
+
+      if (cur_block->ok)
+      {
+        cur_block->delim[0]= '\0';
+      }
+      else
+      {
+        /* Remember "old" delimiter if entering a false if block */
+        if (safe_strcpy_truncated(cur_block->delim, sizeof cur_block->delim,
+                                  delimiter))
+          die("Delimiter too long, truncated");
+      }
+
+      DBUG_PRINT("info", ("OK: %d", cur_block->ok));
+
+      dynstr_free(&evaluated_expr);
+      DBUG_VOID_RETURN;
+    }
+  }
+  
   var_init(&v,0,0,0,0);
 
   /* If expression starts with a variable, it may be a compare condition */
