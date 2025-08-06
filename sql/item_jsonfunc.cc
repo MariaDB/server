@@ -422,14 +422,9 @@ handle_value:
       if (mode == Item_func_json_format::DETAILED && 
           value_size == 1 && je->state != JST_OBJ_END)
       {
-        for (auto i = 0; i < value_len; i++)
-        {
-          nice_js->chop();
-        }
+        nice_js->length(nice_js->length() - value_len);
         for (auto i = 0; i < (depth + 1) * tab_size + 1; i++)
-        {
           nice_js->chop();
-        }
         nice_js->append(curr_str);
       }
       
