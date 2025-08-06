@@ -67,7 +67,7 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 
 class Item_func_gen_embedding: public Item_str_func 
 {
-  String tmp_js, api_response, tmp_str;
+  String tmp_js, api_response, tmp_str, post_fields;
   std::unordered_map<std::string, int> model_dimensions = {
     {"text-embedding-3-small", 1536},
     {"text-embedding-ada-002", 1536},
@@ -107,17 +107,34 @@ class Item_func_gen_embedding: public Item_str_func
     CURLcode ret;
     CURL *hnd=NULL;
     std::ostringstream read_data_stream;
-    std::string response, post_fields, escaped_input_str;
+    std::string response;
     struct curl_slist *slist1=NULL;
     long http_response_code;
     std::string authorization = std::string("Authorization: Bearer ") + api_key;
     
-    // Convert the input to cs_openai charset and escape it at the same time with json_escape
-    size_t dst_length= cs_openai->mbmaxlen * input->length() + 1;
-    int strLen = dst_length * 12 * cs_openai->mbmaxlen / cs_openai->mbminlen;
-    char* buf = (char*)alloca(strLen);
+    /*
+      post_fields contains the JSON string to be passed to CURL
+      It is in the format:
+      {"input": "escaped_input_str", "model": "model_name", "encoding_format": "float"}
+      where escaped_input_str is the input string escaped for JSON and converted to UTF-8
+      and model_name is the name of the model to be used for embedding generation.
+      We need to allocate enough space for the JSON string
+      At worst case, each input character needs to be escaped, hence the 2 multiplier below
+    */
+    size_t max_chars = 2 * input->length()/input->charset()->mbminlen +  model->length()/model->charset()->mbminlen
+                      + strlen("{\"input\": \"") + strlen("\", \"model\": \"") 
+                      + strlen("\",\"encoding_format\": \"float\"}") + 1;
+    int strLen = max_chars * cs_openai->mbmaxlen;
+    post_fields.realloc_with_extra_if_needed(strLen);
+    post_fields.length(0);
+    post_fields.append(STRING_WITH_LEN("{\"input\": \""));;
+    /*
+      It is essential to escape the input string to ensure the input of the API call is a valid JSON
+      json_escape also handles conversion to cs_openai (UTF-8) charset
+      The model name does not need escaping as it is a valid string
+    */
     if ((strLen = json_escape(input->charset(), (const uchar*)input->ptr(), (const uchar*)input->ptr() + input->length(),
-                             cs_openai, (uchar*)buf, (uchar*)buf + strLen)) < 0) {
+                             cs_openai, (uchar*)post_fields.end(), (uchar*)post_fields.ptr() + strLen)) < 0) {
                               if (strLen == JSON_ERROR_ILLEGAL_SYMBOL) {
                                 my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
                                   "Error converting input string from %s to UTF-8 charset", ME_ERROR_LOG | ME_WARNING, input->charset()->cs_name.str);
@@ -125,17 +142,10 @@ class Item_func_gen_embedding: public Item_str_func
                               null_value = true;
                               goto cleanup;
                             }
-    buf[strLen] = '\0';
-    escaped_input_str = std::string(buf);
-    // It is essential to escape the input string to ensure the input of the API call is a valid JSON
-    // The model name does not need escaping as it is a valid string
-    // Validity of the model name is checked later in this function 
-    post_fields =
-      std::string("{\"input\": \"") +
-      escaped_input_str + 
-      "\", \"model\": \"" +
-      model->c_ptr() +
-      "\",\"encoding_format\": \"float\"}";
+    post_fields.length(post_fields.length()+strLen); // We need to manually update the length
+    post_fields.append(STRING_WITH_LEN("\", \"model\": \""));
+    post_fields.append(model->c_ptr(), model->length());
+    post_fields.append(STRING_WITH_LEN("\",\"encoding_format\": \"float\"}"));
     
     // Prepare the request to OpenAI API
     slist1 = NULL;
@@ -145,7 +155,7 @@ class Item_func_gen_embedding: public Item_str_func
     curl_easy_setopt(hnd, CURLOPT_BUFFERSIZE, 102400L);
     curl_easy_setopt(hnd, CURLOPT_URL, host);
     curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
-    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, post_fields.c_str());
+    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, post_fields.ptr());
     curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)post_fields.length());
     curl_easy_setopt(hnd, CURLOPT_HTTPHEADER, slist1);
     curl_easy_setopt(hnd, CURLOPT_USERAGENT, "curl/8.5.0");
