@@ -5657,7 +5657,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
-          else if (schema_table_idx == SCH_TRIGGERS &&
+          else if ((schema_table_idx == SCH_TRIGGERS ||
+                   schema_table_idx == SCH_TRIGGERED_UPDATE_COLUMNS) &&
                    db_name == &INFORMATION_SCHEMA_NAME)
           {
             continue;
@@ -7849,6 +7850,95 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     }
   }
 ret:
+  DBUG_RETURN(0);
+}
+
+
+static bool
+store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
+                               Trigger *trigger, TABLE *table,
+                               const LEX_CSTRING *db_name,
+                               const LEX_CSTRING *table_name)
+{
+  bool error= 0;
+  CHARSET_INFO *cs= system_charset_info;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  LEX_STRING definer_buffer;
+  LEX_CSTRING trigger_stmt, trigger_body;
+  definer_buffer.str= definer_holder;
+  trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
+  List_iterator_fast<LEX_CSTRING> it(*trigger->updatable_columns);
+
+  /*
+    For TRIGGERED_UPDATE_COLUMNS table, the SQL standard requires the user to
+    have any non-SELECT privilege on the column and no table level privilege
+    is necessary.
+  */
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool need_column_checks=
+    !get_schema_privileges_for_show(thd, tbl, (INSERT_ACL|UPDATE_ACL), false);
+#endif
+
+  restore_record(table, s->default_values);
+  while(LEX_CSTRING *trigger_column= it++)
+  {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    if (need_column_checks)
+    {
+      Lex_ident_column col(*trigger_column);
+      ulonglong col_access=
+        get_column_grant(thd, &tbl->grant, db_name->str, table_name->str, col) &
+        (INSERT_ACL | UPDATE_ACL); // non-SELECT privilege on the column
+      if (!col_access)
+        continue;
+    }
+#endif
+
+    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[1]->store(db_name->str, db_name->length, cs);
+    table->field[2]->store(trigger->name.str, trigger->name.length, cs);
+    table->field[3]->store(STRING_WITH_LEN("def"), cs);
+    table->field[4]->store(db_name->str, db_name->length, cs);
+    table->field[5]->store(table_name->str, table_name->length, cs);
+    table->field[6]->store(trigger_column->str, trigger_column->length, cs);
+
+    if (schema_table_store_record(thd, table))
+    {
+      error= 1;
+      break;
+    }
+  }
+  return error;
+}
+
+
+static int
+get_schema_triggered_update_columns_record(THD *thd, TABLE_LIST *tables,
+                                           TABLE *table, bool res,
+                                           const LEX_CSTRING *db_name,
+                                           const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_schema_triggered_updatable_columns_record");
+  if (!tables->view && tables->table->triggers)
+  {
+    Table_triggers_list *triggers= tables->table->triggers;
+    int timing;
+
+    for (timing= 0; timing < (int)TRG_ACTION_MAX; timing++)
+    {
+      Trigger *trigger;
+      for (trigger= triggers->
+              get_trigger(TRG_EVENT_UPDATE, (enum trg_action_time_type) timing);
+            trigger;
+            trigger= trigger->next[TRG_EVENT_UPDATE])
+      {
+        if (trigger->updatable_columns &&
+            store_triggered_update_columns(thd, tables, trigger,
+                                           table, db_name, table_name))
+          DBUG_RETURN(1);
+      }
+    }
+  }
   DBUG_RETURN(0);
 }
 
@@ -10709,6 +10799,18 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   CEnd()
 };
 
+ST_FIELD_INFO triggered_update_columns_info[]=
+{
+  Column("TRIGGER_CATALOG",       Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("TRIGGER_SCHEMA",        Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("TRIGGER_NAME",          Name(), NOT_NULL, "Trigger",  OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_CATALOG",  Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_SCHEMA",   Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_TABLE",    Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_COLUMN",   Name(), NOT_NULL, "Column",   OPEN_FRM_ONLY),
+  CEnd()
+};
+
 
 #ifdef HAVE_REPLICATION
 ST_FIELD_INFO slave_status_info[]=
@@ -10922,6 +11024,10 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
+   OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+  {"TRIGGERED_UPDATE_COLUMNS"_Lex_ident_i_s_table,
+   Show::triggered_update_columns_info, 0, get_all_tables, 0,
+   get_schema_triggered_update_columns_record, 4, 5, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
   {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
    0, 0, -1, -1, 0, 0},
