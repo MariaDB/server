@@ -30,7 +30,8 @@ sub openai_start {
     &::mtr_add_arg($args, "$ENV{OPENAI_PORT}");
     &::mtr_add_arg($args, $success_file_path);
     &::mtr_add_arg($args, $wrong_json_path_file_path);
-    my $http_server_log= "openai.log";
+    # This can be changed to include the PORT or other info, perhaps in combination with append => 0
+    $http_server_log= "openai.log"; 
 
     $openai->{'proc'}= My::SafeProcess->new
     (
@@ -45,9 +46,12 @@ sub openai_start {
 }
 
 sub openai_wait {
-    my ($opneai, $test) = @_; # My::Config::Group, My::Test
-    my $cmd= "echo Waiting for openai mockup server at port $ENV{OPENAI_PORT}"; 
-    system $cmd;
+    my ($openai, $test) = @_; # My::Config::Group, My::Test
+    open(LOG, '<', $http_server_log);
+    do {
+      sleep 1 and seek LOG,0,1 until $_=<LOG>;
+    } until /Started mockup API server on PORT:$ENV{OPENAI_PORT} .../;
+    return 0;
 }
 
 sub servers {

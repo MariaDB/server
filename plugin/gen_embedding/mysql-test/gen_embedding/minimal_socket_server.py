@@ -15,7 +15,7 @@ with open(SUCCESS_RESPONSES_FILENAME, 'r') as file:
 
 def get_response(filename, status_code):
     if not os.path.exists(filename):
-        print(f"File {filename} not found.")
+        print(f"File {filename} not found.", flush=True)
         return build_response(json.dumps({"error": "File not found"}), 404)
 
     with open(filename, 'r') as file:
@@ -29,13 +29,13 @@ def handle_request(request):
         method, path, _ = request_line.split()
         if path == "/success" and method in ("GET", "POST"):
             parsed_input = json.loads(request.splitlines()[-1])["input"]
-            print(parsed_input)
+            print(parsed_input, flush=True)
             if parsed_input in responses:
-                print(f"Input '{parsed_input}' found in {SUCCESS_RESPONSES_FILENAME}.")
+                print(f"Input '{parsed_input}' found in {SUCCESS_RESPONSES_FILENAME}.", flush=True)
                 return_text = responses[parsed_input]
                 return build_response(json.dumps(return_text), 200)
             else:
-                print(f"Input '{parsed_input}' not found in {SUCCESS_RESPONSES_FILENAME}.")
+                print(f"Input '{parsed_input}' not found in {SUCCESS_RESPONSES_FILENAME}.", flush=True)
                 # In our tests we always provide a valid input, but we can return some form of error here
                 return build_response(json.dumps({"error": "Not Found"}), 400)
         elif path == "/errorcode" and method in ("GET", "POST"):
@@ -72,18 +72,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
     try:
         server_socket.bind((HOST, PORT))
     except OSError as e:
-        print(f"Error binding to port {PORT}: {e}")
+        print(f"Error binding to port {PORT}: {e}", flush=True)
         sys.exit(0)
     server_socket.listen(1)
 
-    print(f"Started mockup API server on http://{HOST}:{PORT} ...")
+    print(f"Started mockup API server on PORT:{PORT} ...", flush=True)
 
     while True:
         client_connection, client_address = server_socket.accept()
         with client_connection:
             request = client_connection.recv(4096).decode('utf-8')
             if request:
-                print("Received request:")
-                print(request)
+                print("Received request:", flush=True)
+                print(request, flush=True)
                 response = handle_request(request)
                 client_connection.sendall(response)
