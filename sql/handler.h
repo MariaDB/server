@@ -1278,9 +1278,6 @@ enum Ha_clone_stage {
   /* New Non-Transactional DMLs blocked. */
   HA_CLONE_STAGE_NT_DML_BLOCKED,
 
-  /* All existing Non-Transactional DMLs finished. */
-  HA_CLONE_STAGE_NT_DML_FINISHED,
-
   /* All DDL blocked. For Server owned metadata files (FRM)
   and SE's needing DDL to be blocked.  */
   HA_CLONE_STAGE_DDL_BLOCKED,

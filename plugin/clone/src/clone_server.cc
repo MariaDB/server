@@ -217,32 +217,82 @@ int Server::get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
                                bool lock)
 {
   int err= 0;
+  THD *thd= get_thd();
+  const char *err_msg= nullptr;
   switch (sub_cmd)
   {
     case SUBCOM_EXEC_CONCURRENT:
       if (lock)
-        /* TODO: master: Block concurrent Backup. */
-        err= 0;
+      {
+        log_error(thd, false, 0, "Acquiring locks for BACKUP STAGE "
+                                 "START");
+        err= clone_set_backup_stage(thd, START);
+	if (err)
+	{
+          err_msg= "Failed to acquire locks for BACKUP STAGE START";
+          goto err_exit;
+	}
+	log_error(thd, false, 0, "Acquired locks for BACKUP STAGE "
+                                 "START");
+      }
       stage= HA_CLONE_STAGE_CONCURRENT;
       break;
     case SUBCOM_EXEC_BLOCK_NT_DML:
-      /* TODO: master: Block Non Transactional DMLs. */
+      if (lock)
+      {
+        log_error(thd, false, 0, "Acquiring locks for BACKUP STAGE "
+                                 "FLUSH");
+        err= clone_set_backup_stage(thd, FLUSH);
+	if (err)
+	{
+          err_msg= "Failed to acquire locks for BACKUP STAGE FLUSH";
+          goto err_exit;
+	}
+	log_error(thd, false, 0, "Acquired locks for BACKUP STAGE "
+                                 "FLUSH");
+      }
       stage= HA_CLONE_STAGE_NT_DML_BLOCKED;
       break;
-    case SUBCOM_EXEC_FINISH_NT_DML:
-      /* TODO: master: Wait for all existing Non Transactional DMLs. */
-      stage= HA_CLONE_STAGE_NT_DML_FINISHED;
-      break;
     case SUBCOM_EXEC_BLOCK_DDL:
-      /* TODO: master: Block all DDLs. */
+      if (lock)
+      {
+        log_error(thd, false, 0, "Acquiring locks for BACKUP STAGE "
+                                 "BLOCK_DDL");
+        err= clone_set_backup_stage(thd, BLOCK_DDL);
+	if (err)
+	{
+          err_msg= "Failed to acquire locks for BACKUP STAGE BLOCK_DDL";
+          goto err_exit;
+	}
+	log_error(thd, false, 0, "Acquired locks for BACKUP STAGE "
+                                 "BLOCK_DDL");
+      }
       stage= HA_CLONE_STAGE_DDL_BLOCKED;
       break;
     case SUBCOM_EXEC_SNAPSHOT:
       /* TODO: master: Block All Commit. */
       assert(lock);
+      log_error(thd, false, 0, "Acquiring locks for BACKUP STAGE "
+                               "BLOCK_COMMIT");
+      err= clone_set_backup_stage(thd, BLOCK_COMMIT);
+      if (err)
+      {
+        err_msg= "Failed to acquire locks for BACKUP STAGE BLOCK_COMMIT";
+        goto err_exit;
+      }
+      log_error(thd, false, 0, "Acquired locks for BACKUP STAGE "
+                               "BLOCK_COMMIT");
       stage= HA_CLONE_STAGE_SNAPSHOT;
       break;
     case SUBCOM_EXEC_END:
+      log_error(thd, false, 0, "Executing BACKUP STAGE END");
+      err= clone_set_backup_stage(thd, END);
+      if (err)
+      {
+        err_msg= "Failed to release BACKUP LOCKS";
+        goto err_exit;
+      }
+      log_error(thd, false, 0, "Released BACKUP LOCKS");
       stage= HA_CLONE_STAGE_END;
       break;
     case SUBCOM_MAX:
@@ -250,6 +300,12 @@ int Server::get_stage_and_lock(Sub_Command sub_cmd, Ha_clone_stage &stage,
       err= ER_CLONE_PROTOCOL;
       my_error(err, MYF(0), "Wrong Clone RPC: Invalid Execution Request");
       log_error(get_thd(), false, err, "COM_EXECUTE");
+  }
+err_exit:
+  if (err_msg)
+  {
+    err= ER_INTERNAL_ERROR;
+    my_error(err, MYF(0), err_msg);
   }
   return err;
 }

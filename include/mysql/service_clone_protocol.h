@@ -213,6 +213,29 @@ extern struct clone_protocol_service_st {
   @return error code.
 */
   int (*send_error_fn)(MYSQL_THD thd, unsigned char err_cmd, bool is_fatal);
+
+/**
+  Set server to desired backup stage
+  @param[in,out] thd	server session THD
+  @param[in]	 stage	backup stage
+  @return error code.
+*/
+  int (*set_backup_stage_fn)(MYSQL_THD thd, unsigned char stage);
+/**
+  Set backup lock on the given table
+  @param thd server session thread
+  @param db  database name
+  @param tbl table name
+  @return error code.
+*/
+  int (*backup_lock_fn)(MYSQL_THD thd, const char *db, const char *tbl);
+/**
+  Unlock the backup lock on the table
+  @param thd server session thread
+  @return error code
+*/
+  int (*backup_unlock_fn)(MYSQL_THD thd);
+
 } *clone_protocol_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -268,6 +291,14 @@ extern struct clone_protocol_service_st {
 #define clone_send_error(thd, err_cmd, is_fatal) \
   (clone_protocol_service->send_error_fn((thd), (err_cmd), (is_fatal)))
 
+#define clone_set_backup_stage(thd, stage) \
+   (clone_protocol_service->set_backup_stage_fn((thd), (stage)))
+
+#define clone_backup_lock(thd, db, tbl) \
+   (clone_protocol_service->backup_lock_fn((thd), (db), (tbl)))
+
+#define clone_backup_unlock(thd) \
+   (clone_protocol_service->backup_unlock_fn((thd)))
 #else
   MYSQL_THD clone_start_statement(MYSQL_THD thd, unsigned int thread_key,
                                   unsigned int statement_key);
@@ -308,6 +339,11 @@ extern struct clone_protocol_service_st {
                           size_t length);
 
   int clone_send_error(MYSQL_THD thd, unsigned char err_cmd, bool is_fatal);
+
+  int clone_set_backup_stage(MYSQL_THD thd, unsigned char stage);
+
+  int clone_backup_lock(MYSQL_THD thd, const char *db, const char *tbl);
+  int clone_backup_unlock(MYSQL_THD thd);
 #endif
 
 #ifdef __cplusplus
