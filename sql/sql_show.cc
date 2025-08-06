@@ -5230,6 +5230,8 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
                                            table_name, &tbl, 1))
     {
       table_list.table= &tbl;
+      if (get_schema_table_idx(schema_table) == SCH_TRIGGERED_UPDATE_COLUMNS)
+        table_list.schema_table= schema_table;
       res= schema_table->process_table(thd, &table_list, table,
                                        res, db_name, table_name);
       delete tbl.triggers;
@@ -5651,7 +5653,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
-          else if (schema_table_idx == SCH_TRIGGERS &&
+          else if ((schema_table_idx == SCH_TRIGGERS ||
+                   schema_table_idx == SCH_TRIGGERED_UPDATE_COLUMNS) &&
                    db_name == &INFORMATION_SCHEMA_NAME)
           {
             continue;
@@ -7809,6 +7812,51 @@ static bool store_trigger(THD *thd, Trigger *trigger,
 }
 
 
+static bool
+store_trigger_updatable_columns(THD *thd, Trigger *trigger,
+                                TABLE *table, GRANT_INFO *grant_info,
+                                const LEX_CSTRING *db_name,
+                                const LEX_CSTRING *table_name)
+{
+  bool error= 0;
+  CHARSET_INFO *cs= system_charset_info;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  LEX_STRING definer_buffer;
+  LEX_CSTRING trigger_stmt, trigger_body;
+  definer_buffer.str= definer_holder;
+  trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
+  List_iterator_fast<LEX_CSTRING> it(*trigger->updatable_columns);
+
+  restore_record(table, s->default_values);
+  while(LEX_CSTRING *trigger_column= it++)
+  {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    Lex_ident_column col(*trigger_column);
+    ulonglong col_access=
+      get_column_grant(thd, grant_info, db_name->str, table_name->str, col) &
+      (COL_ACLS & ~SELECT_ACL);
+    if (!col_access)
+      continue;
+#endif
+
+    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[1]->store(db_name->str, db_name->length, cs);
+    table->field[2]->store(trigger->name.str, trigger->name.length, cs);
+    table->field[3]->store(STRING_WITH_LEN("def"), cs);
+    table->field[4]->store(db_name->str, db_name->length, cs);
+    table->field[5]->store(table_name->str, table_name->length, cs);
+    table->field[6]->store(trigger_column->str, trigger_column->length, cs);
+
+    if (schema_table_store_record(thd, table))
+    {
+      error= 1;
+      break;
+    }
+  }
+  return error;
+}
+
+
 static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
 				      TABLE *table, bool res,
 				      const LEX_CSTRING *db_name,
@@ -7819,8 +7867,24 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
   {
     Table_triggers_list *triggers= tables->table->triggers;
     int event, timing;
+    enum enum_schema_tables schema_table_idx=
+                              get_schema_table_idx(tables->schema_table);
 
-    if (check_table_access(thd, TRIGGER_ACL, tables, FALSE, 1, TRUE))
+    /*
+     * The privilege check for trigger-related INFORMATION_SCHEMA tables here
+     * is intentionally conditional to align with SQL standards.
+     *
+     * For TRIGGERS table, the standard requires the user to be a schema owner
+     * to see information about the trigger. Since MariaDB doesn't have concept
+     * of schema owners, similar behavior is achieved by checking the TRIGGER
+     * privilege(TRIGGER_ACL).
+     *
+     * For TRIGGERED_UPDATE_COLUMNS table, the standards requires the user to
+     * have any non-SELECT privilege on the column and no table level privilege
+     * is necessary.
+     */
+    if ((schema_table_idx != SCH_TRIGGERED_UPDATE_COLUMNS) &&
+        check_table_access(thd, TRIGGER_ACL, tables, FALSE, 1, TRUE))
       goto ret;
 
     for (event= 0; event < (int)TRG_EVENT_MAX; event++)
@@ -7834,10 +7898,20 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
              trigger;
              trigger= trigger->next[event])
         {
-          if (is_the_right_most_event_bit(trigger->events,
-                                          (trg_event_type)event) &&
+          if (schema_table_idx == SCH_TRIGGERED_UPDATE_COLUMNS)
+          {
+            if (trigger->updatable_columns &&
+                store_trigger_updatable_columns(thd, trigger, table,
+                                          &tables->grant, db_name, table_name))
+              DBUG_RETURN(1);
+          }
+          else
+          {
+            if (is_the_right_most_event_bit(trigger->events,
+                                            (trg_event_type)event) &&
               store_trigger(thd, trigger, table, db_name, table_name))
-            DBUG_RETURN(1);
+              DBUG_RETURN(1);
+          }
         }
       }
     }
@@ -10703,6 +10777,18 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   CEnd()
 };
 
+ST_FIELD_INFO triggered_update_columns_info[]=
+{
+  Column("TRIGGER_CATALOG",       Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("TRIGGER_SCHEMA",        Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("TRIGGER_NAME",          Name(), NOT_NULL, "Trigger",  OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_CATALOG",  Catalog(), NOT_NULL,          OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_SCHEMA",   Name(), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_TABLE",    Name(), NOT_NULL, "Table",    OPEN_FRM_ONLY),
+  Column("EVENT_OBJECT_COLUMN",   Name(), NOT_NULL, "Column",   OPEN_FRM_ONLY),
+  CEnd()
+};
+
 
 #ifdef HAVE_REPLICATION
 ST_FIELD_INFO slave_status_info[]=
@@ -10917,6 +11003,9 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+  {"TRIGGERED_UPDATE_COLUMNS"_Lex_ident_i_s_table,
+   Show::triggered_update_columns_info, 0, get_all_tables, 0,
+   get_schema_triggers_record, 4, 5, 0, OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
   {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
    0, 0, -1, -1, 0, 0},
   {"USER_PRIVILEGES"_Lex_ident_i_s_table,
