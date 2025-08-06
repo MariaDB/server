@@ -540,7 +540,7 @@ int innodb_clone_copy(THD *thd, const byte *loc, uint loc_len, uint task_id,
 
   auto err= clone_hdl->check_error(thd);
 
-  if (err != 0 || stage != HA_CLONE_STAGE_CONCURRENT)
+  if (err != 0 || stage != HA_CLONE_STAGE_DDL_BLOCKED)
     return err;
 
   /* Start data copy. */

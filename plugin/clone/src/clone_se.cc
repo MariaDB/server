@@ -226,7 +226,8 @@ class Table
   virtual ~Table() {}
 
   void add_file_name(const char *file_name) { m_fnames.push_back(file_name); }
-  virtual int copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize);
+  virtual int copy(THD *thd, Ha_clone_cbk *cbk_ctx, bool no_lock,
+                   bool finalize);
 
   std::string &get_db() { return m_db; }
   std::string &get_table() { return m_table; }
@@ -240,7 +241,7 @@ class Table
   std::vector<std::string> m_fnames;
 };
 
-int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
+int Table::copy(THD *thd, Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
 {
   static const size_t buf_size = 10 * 1024 * 1024;
   std::unique_ptr<uchar[]> buf;
@@ -253,8 +254,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
   std::string full_tname("`");
   full_tname.append(m_db).append("`.`").append(m_table).append("`");
 
-  no_lock= true; // TODO: Remove after implementing lock
-  if (!no_lock /* TODO: && ! cbk_ctx->backup_lock(full_tname) */)
+  if (!no_lock && clone_backup_lock(thd, m_db.c_str(), m_table.c_str()))
   {
     my_printf_error(ER_INTERNAL_ERROR,
         "Error on executing BACKUP LOCK for table %s", ME_ERROR_LOG,
@@ -291,7 +291,7 @@ int Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool)
     files.push_back(file);
   }
 
-  if (locked /* TODO: && !cbk_ctx->backup_unlock() */)
+  if (locked && clone_backup_unlock(thd))
   {
     my_printf_error(ER_INTERNAL_ERROR,
         "Error on executing BACKUP UNLOCK for table %s", ME_ERROR_LOG,
@@ -333,7 +333,7 @@ exit:
     mysql_file_close(frm_file, MYF(0));
   }
 
-  if (locked /* TODO: && !backup_unlock(con) */)
+  if (locked && !clone_backup_unlock(thd))
   {
     my_printf_error(ER_INTERNAL_ERROR, "Error on BACKUP UNLOCK for table %s",
                     ME_ERROR_LOG, full_tname.c_str());
@@ -353,7 +353,7 @@ class Log_Table : public Table
 
   virtual ~Log_Table() { (void)close(); }
 
-  int copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize) override;
+  int copy(THD *thd, Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize) override;
   int close();
 
  private:
@@ -419,7 +419,7 @@ int Log_Table::close()
   return 0;
 }
 
-int Log_Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize)
+int Log_Table::copy(THD *thd, Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize)
 {
   int err= 0;
   static const size_t buf_size= 10 * 1024 * 1024;
@@ -462,11 +462,12 @@ int Log_Table::copy(Ha_clone_cbk *cbk_ctx, bool no_lock, bool finalize)
 class Job_Repository
 {
  public:
-  using Job= std::function<int(Ha_clone_cbk *, uint32_t, int)>;
+  using Job= std::function<int(THD *,Ha_clone_cbk *, uint32_t, int)>;
   void add_one(Job &&job);
   void finish(int err, Ha_clone_stage stage);
-  int consume(uint32_t thread_id, Ha_clone_cbk *cbk, Ha_clone_stage stage,
-              int err);
+  int consume(THD *thd, uint32_t thread_id, Ha_clone_cbk *cbk,
+              Ha_clone_stage stage, int err);
+  Ha_clone_stage last_finished_stage();
  private:
   std::mutex m_mutex;
   std::condition_variable m_cv;
@@ -494,7 +495,7 @@ void Job_Repository::finish(int err, Ha_clone_stage stage)
   m_cv.notify_all();
 }
 
-int Job_Repository::consume(uint32_t thread_id, Ha_clone_cbk *cbk,
+int Job_Repository::consume(THD *thd, uint32_t thread_id, Ha_clone_cbk *cbk,
                             Ha_clone_stage stage, int err)
 {
   std::unique_lock<std::mutex> lock(m_mutex);
@@ -508,7 +509,7 @@ int Job_Repository::consume(uint32_t thread_id, Ha_clone_cbk *cbk,
       /* Even after an error, we need to keep consuming all jobs added as jobs
       could hold table object ownership that needs to be freed. The input
       error would ensure we don't actually transfer any data after an error. */
-      err= job(cbk, thread_id, err);
+      err= job(thd, cbk, thread_id, err);
       lock.lock();
     }
     if (m_error && !err)
@@ -529,6 +530,24 @@ int Job_Repository::consume(uint32_t thread_id, Ha_clone_cbk *cbk,
     });
   }
   return err;
+}
+
+Ha_clone_stage Job_Repository::last_finished_stage()
+{
+  Ha_clone_stage last_stage= HA_CLONE_STAGE_MAX;
+  std::unique_lock<std::mutex> lock(m_mutex);
+  auto stage= HA_CLONE_STAGE_CONCURRENT;
+  while (stage < HA_CLONE_STAGE_MAX)
+  {
+    if (m_finished[stage] == false)
+    {
+      last_stage= stage;
+      break;
+    }
+    stage= static_cast<Ha_clone_stage>(stage + 1);
+  }
+  lock.unlock();
+  return last_stage;
 }
 
 using table_key_t= std::string;
@@ -599,7 +618,11 @@ class Clone_Handle
   void set_error(int err);
   int check_error(THD *thd);
 
-  int clone(uint32_t task_id, Ha_clone_stage stage, Ha_clone_cbk *cbk);
+  int clone_low(THD *thd, uint32_t task_id,
+		Ha_clone_stage stage, Ha_clone_cbk *cbk);
+
+  int clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
+            Ha_clone_cbk *cbk);
   int apply(THD *thd, uint32_t task_id, Ha_clone_cbk *cbk);
 
   size_t attach();
@@ -622,9 +645,9 @@ class Clone_Handle
   void copy_stats_tables();
 
   int copy_table_job(Table *table, bool no_lock, bool delete_table,
-                     bool finalize, Ha_clone_cbk *cbk, uint32_t thread_id,
-                     int in_error);
-  int copy_file_job(std::string *file_name, Ha_clone_cbk *cbk,
+                     bool finalize, THD *thd, Ha_clone_cbk *cbk,
+		     uint32_t thread_id, int in_error);
+  int copy_file_job(std::string *file_name, THD *thd, Ha_clone_cbk *cbk,
                     uint32_t thread_id, int in_error);
 
  private:
@@ -669,7 +692,8 @@ bool Clone_Handle::detach(size_t id)
   return (0 == --m_num_threads);
 }
 
-int Clone_Handle::copy_file_job(std::string *file_name, Ha_clone_cbk *cbk,
+int Clone_Handle::copy_file_job(std::string *file_name, THD *thd,
+                                Ha_clone_cbk *cbk,
                                 uint32_t, int in_error)
 {
   int err= in_error;
@@ -701,10 +725,11 @@ int Clone_Handle::copy_file_job(std::string *file_name, Ha_clone_cbk *cbk,
 }
 
 int Clone_Handle::copy_table_job(Table *table, bool no_lock, bool delete_table,
-                                 bool finalize, Ha_clone_cbk *cbk, uint32_t,
+                                 bool finalize, THD *thd,
+				 Ha_clone_cbk *cbk, uint32_t,
                                  int in_error)
 {
-  int err= in_error ? in_error : table->copy(cbk, no_lock, finalize);
+  int err= in_error ? in_error : table->copy(thd, cbk, no_lock, finalize);
 
   /* TODO: Post Copy Hook for DDL */
   // if (!err && m_table_post_copy_hook)
@@ -809,7 +834,7 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
       auto file_name= std::make_unique<std::string>(file_path);
       using namespace std::placeholders;
       m_jobs.add_one(std::bind(&Clone_Handle::copy_file_job, this,
-                               file_name.release(), _1, _2, _3));
+                               file_name.release(), _1, _2, _3, _4));
       return;
     }
     else if (clone_common::is_log_table(std::get<0>(db_table_fs).c_str(),
@@ -842,7 +867,7 @@ int Clone_Handle::scan(const std::unordered_set<table_key_t> &exclude_tables,
     using namespace std::placeholders;
     m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
                              table_it.second.release(), no_lock,
-                             true, false, _1, _2, _3));
+                             true, false, _1, _2, _3, _4));
     if (add_processed)
       m_processed_tables.insert(table_it.first);
   }
@@ -862,10 +887,10 @@ void Clone_Handle::copy_log_tables(bool finalize)
     if (finalize)
       /* In final state release the table objects */
       m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
-                     table_it.second.release(), true, true, true, _1, _2, _3));
+                     table_it.second.release(), true, true, true, _1, _2, _3, _4));
     else
       m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
-                     table_it.second.get(), true, false, false, _1, _2, _3));
+                     table_it.second.get(), true, false, false, _1, _2, _3, _4));
   }
   if (finalize)
     m_log_tables.clear();
@@ -880,7 +905,7 @@ void Clone_Handle::copy_stats_tables()
     // Delete stats table object after copy (see copy_table_job())
     using namespace std::placeholders;
     m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
-                   table_it.second.release(), true, true, false, _1, _2, _3));
+                   table_it.second.release(), true, true, false, _1, _2, _3, _4));
   }
   m_stats_tables.clear();
 }
@@ -1072,8 +1097,8 @@ int Clone_Handle::apply(THD *thd, uint32_t task_id, Ha_clone_cbk *cbk)
   return cbk->apply_file_cbk(file);
 }
 
-int Clone_Handle::clone(uint32_t task_id, Ha_clone_stage stage,
-                        Ha_clone_cbk *cbk)
+int Clone_Handle::clone_low(THD *thd, uint32_t task_id,
+			    Ha_clone_stage stage, Ha_clone_cbk *cbk)
 {
   int err= 0;
   std::unordered_set<std::string> tables_in_use;
@@ -1087,8 +1112,6 @@ int Clone_Handle::clone(uint32_t task_id, Ha_clone_stage stage,
         break;
       /* TODO: get_tables_in_use() : "SHOW OPEN TABLES WHERE In_use = 1" */
       err= scan(tables_in_use, true, false, true);
-      break;
-    case HA_CLONE_STAGE_NT_DML_FINISHED:
       break;
     case HA_CLONE_STAGE_DDL_BLOCKED:
       if (task_id != 0)
@@ -1113,8 +1136,21 @@ int Clone_Handle::clone(uint32_t task_id, Ha_clone_stage stage,
   }
   if (task_id == 0)
     m_jobs.finish(err, stage);
-  err= m_jobs.consume(task_id, cbk, stage, err);
+  err= m_jobs.consume(thd, task_id, cbk, stage, err);
   set_error(err);
+  return err;
+}
+
+int Clone_Handle::clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
+                        Ha_clone_cbk *cbk)
+{
+  int err= 0;
+  Ha_clone_stage cur_stage= m_jobs.last_finished_stage();
+  while (!err && cur_stage <= stage)
+  {
+    err= clone_low(thd, task_id, cur_stage, cbk);
+    cur_stage= static_cast<Ha_clone_stage>(cur_stage + 1);
+  }
   return err;
 }
 } // namespace common_engine
@@ -1184,7 +1220,7 @@ static int clone_copy(THD *thd, const uchar *loc, uint loc_len, uint task_id,
   if (!clone_hdl || err != 0)
     return err;
 
-  return clone_hdl->clone(task_id, stage, cbk);
+  return clone_hdl->clone(thd, task_id, stage, cbk);
 }
 
 static int clone_ack(THD *, const uchar *loc, uint loc_len,

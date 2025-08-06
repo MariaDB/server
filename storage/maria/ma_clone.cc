@@ -278,7 +278,7 @@ class Table
     m_partitions.push_back(partition.m_partitions[0]);
   }
 
-  int open(bool no_lock);
+  int open(THD *thd, bool no_lock);
   int copy(Ha_clone_cbk *cbk_ctx);
   void close();
 
@@ -337,15 +337,14 @@ Table::Table(std::string &db, std::string &table, std::string &frm_name,
   m_partitions.push_back(std::move(partition));
 }
 
-int Table::open(bool no_lock)
+int Table::open(THD *thd, bool no_lock)
 {
   int error= 0;
   bool have_capabilities= false;
   File frm_file= -1;
   bool locked= false;
 
-  no_lock= true; // TODO: Remove after implementing lock
-  if (!no_lock /* && !backup_lock(con, m_full_name.c_str())*/)
+  if (!no_lock && clone_backup_lock(thd, m_db.c_str(), m_table.c_str()))
   {
     my_printf_error(ER_INTERNAL_ERROR,
         "Error on executing BACKUP LOCK for ARIA table %s", ME_ERROR_LOG,
@@ -405,7 +404,7 @@ int Table::open(bool no_lock)
   }
 
 exit:
-  if (locked /* TODO: && !backup_unlock(con) */)
+  if (locked && clone_backup_unlock(thd))
   {
     my_printf_error(ER_INTERNAL_ERROR,
                     "Error on BACKUP UNLOCK for ARIA table %s",
@@ -612,12 +611,13 @@ Log_Files::Log_Files(const char *datadir, uint32_t max_log_no,
 class Job_Repository
 {
  public:
-  using Job= std::function<int(Ha_clone_cbk *, uint32_t, int)>;
+  using Job= std::function<int(THD *, Ha_clone_cbk *, uint32_t, int)>;
   void add_one(Job &&job);
   void finish(int err, Ha_clone_stage stage);
   int consume(THD *thd, uint32_t thread_id, Ha_clone_cbk *cbk,
               Ha_clone_stage stage, int err);
   int wait_pending(THD *thd);
+  Ha_clone_stage last_finished_stage();
 
  private:
   std::mutex m_mutex;
@@ -695,7 +695,7 @@ int Job_Repository::consume(THD *thd, uint32_t thread_id, Ha_clone_cbk *cbk,
       /* Even after an error, we need to keep consuming all jobs added as jobs
       could hold table object ownership that needs to be freed. The input
       error would ensure we don't actually transfer any data after an error. */
-      err= job(cbk, thread_id, err);
+      err= job(thd, cbk, thread_id, err);
       DBUG_ASSERT(n_pending > 0);
       --n_pending;
       if (thd_killed(thd))
@@ -723,6 +723,24 @@ int Job_Repository::consume(THD *thd, uint32_t thread_id, Ha_clone_cbk *cbk,
     });
   }
   return err;
+}
+
+Ha_clone_stage Job_Repository::last_finished_stage()
+{
+  Ha_clone_stage last_stage= HA_CLONE_STAGE_MAX;
+  std::unique_lock<std::mutex> lock(m_mutex);
+  auto stage= HA_CLONE_STAGE_CONCURRENT;
+  while (stage < HA_CLONE_STAGE_MAX)
+  {
+    if (m_finished[stage] == false)
+    {
+      last_stage= stage;
+      break;
+    }
+    stage= static_cast<Ha_clone_stage>(stage + 1);
+  }
+  lock.unlock();
+  return last_stage;
 }
 
 using table_key_t= std::string;
@@ -836,6 +854,8 @@ class Clone_Handle
   void set_error(int err);
   int check_error(THD *thd);
 
+  int clone_low(THD *thd, uint32_t task_id, Ha_clone_stage stage,
+		Ha_clone_cbk *cbk);
   int clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
             Ha_clone_cbk *cbk);
   int apply(THD *thd, uint32_t task_id, Ha_clone_cbk *cbk);
@@ -859,11 +879,11 @@ class Clone_Handle
   int copy_log_tail(THD *thd, Ha_clone_cbk *cbk_ctx, bool finalize);
 
   int copy_table_job(Table *table_ptr, bool online_only, bool copy_stats,
-                     bool no_lock, Ha_clone_cbk *cbk, uint32_t thread_id,
+                     bool no_lock, THD *thd, Ha_clone_cbk *cbk, uint32_t thread_id,
                      int in_error);
 
-  int copy_file_job(std::string *file_name_ptr, bool is_log, Ha_clone_cbk *cbk,
-                    uint32_t thread_id, int in_error);
+  int copy_file_job(std::string *file_name_ptr, bool is_log, THD *thd,
+		    Ha_clone_cbk *cbk, uint32_t thread_id, int in_error);
 
   int copy_partial_tail(Ha_clone_cbk *cbk_ctx);
 
@@ -916,7 +936,7 @@ bool Clone_Handle::detach(size_t id)
 }
 
 int Clone_Handle::copy_file_job(std::string *file_name_ptr, bool is_log,
-                                Ha_clone_cbk *cbk, uint32_t, int in_error)
+                                THD *thd, Ha_clone_cbk *cbk, uint32_t, int in_error)
 {
   std::unique_ptr<std::string> file_name(file_name_ptr);
   int err= in_error;
@@ -959,14 +979,14 @@ int Clone_Handle::copy_file_job(std::string *file_name_ptr, bool is_log,
 
 int Clone_Handle::copy_table_job(Table *table_ptr, bool online_only,
                                  bool copy_stats, bool no_lock,
-                                 Ha_clone_cbk *cbk, uint32_t,
+                                 THD *thd, Ha_clone_cbk *cbk, uint32_t,
                                  int in_error)
 {
   std::unique_ptr<Table> table(table_ptr);
   if (in_error)
     return in_error;
 
-  int err= table->open(no_lock);
+  int err= table->open(thd, no_lock);
   if (err)
     return err;
 
@@ -998,7 +1018,7 @@ int Clone_Handle::scan(bool no_lock)
 
   using namespace std::placeholders;
   m_jobs.add_one(std::bind(&Clone_Handle::copy_file_job, this,
-                           ctrl_file_name.release(), true, _1, _2, _3));
+                           ctrl_file_name.release(), true, _1, _2, _3, _4));
 
   my_printf_error(ER_CLONE_SERVER_TRACE, "ARIA SE: Start scanning engine table"
                   "s, need backup locks: %d",
@@ -1039,13 +1059,13 @@ int Clone_Handle::scan(bool no_lock)
     }
     using namespace std::placeholders;
     m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
-        table.release(), true, false, no_lock,_1, _2, _3));
+        table.release(), true, false, no_lock,_1, _2, _3, _4));
   }, ext_list);
 
   for (auto &table_it : partitioned_tables)
   {
     m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
-        table_it.second.release(), true, false, no_lock, _1, _2, _3));
+        table_it.second.release(), true, false, no_lock, _1, _2, _3, _4));
   }
 
   auto horizon= translog_get_horizon();
@@ -1061,7 +1081,7 @@ int Clone_Handle::scan(bool no_lock)
   {
     auto log_file= std::make_unique<std::string>(Log_Files::name_by_index(i));
     m_jobs.add_one(std::bind(&Clone_Handle::copy_file_job, this,
-                   log_file.release(), true, _1, _2, _3));
+                   log_file.release(), true, _1, _2, _3, _4));
   }
   m_last_log_num= logs.last();
   m_last_log_offset= 0;
@@ -1092,7 +1112,7 @@ int Clone_Handle::copy_offline_tables(
     }
     using namespace std::placeholders;
     m_jobs.add_one(std::bind(&Clone_Handle::copy_table_job, this,
-        table.release(), false, copy_stats, no_lock, _1, _2, _3));
+        table.release(), false, copy_stats, no_lock, _1, _2, _3, _4));
   }
   if (!ignored_tables.empty())
   {
@@ -1115,7 +1135,7 @@ int Clone_Handle::copy_finish_tail(Ha_clone_cbk *cbk_ctx)
 
   /* If the tail log file is not opened yet, send the entire log file. */
   if (ctx.m_log_file == -1)
-    return copy_file_job(log_file.release(), true, cbk_ctx, 0, 0);
+    return copy_file_job(log_file.release(), true, nullptr, cbk_ctx, 0, 0);
 
   /* Send the rest of the log file. */
   size_t copy_size= 0;
@@ -1237,7 +1257,7 @@ int Clone_Handle::copy_log_tail(THD *thd, Ha_clone_cbk *cbk_ctx, bool finalize)
   for (auto i= logs.first(); i < logs.last(); ++i)
   {
     auto log_file= std::make_unique<std::string>(Log_Files::name_by_index(i));
-    if ((err= copy_file_job(log_file.release(), true, cbk_ctx, 0, 0)))
+    if ((err= copy_file_job(log_file.release(), true, nullptr, cbk_ctx, 0, 0)))
       return err;
   }
   /* Set new tail log. */
@@ -1444,13 +1464,12 @@ int Clone_Handle::apply(THD *thd, uint32_t task_id, Ha_clone_cbk *cbk)
   return cbk->apply_file_cbk(file);
 }
 
-int Clone_Handle::clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
-                        Ha_clone_cbk *cbk)
+int Clone_Handle::clone_low(THD *thd, uint32_t task_id, Ha_clone_stage stage,
+                     Ha_clone_cbk *cbk)
 {
   int err= 0;
-  std::unordered_set<std::string> tables_in_use;
   bool copy_tail= false;
-
+  std::unordered_set<std::string> tables_in_use;
   switch (stage)
   {
     case HA_CLONE_STAGE_CONCURRENT:
@@ -1465,8 +1484,6 @@ int Clone_Handle::clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
       /* TODO: get_tables_in_use() : "SHOW OPEN TABLES WHERE In_use = 1" */
       err= copy_offline_tables(tables_in_use, false, false);
       copy_tail= true;
-      break;
-    case HA_CLONE_STAGE_NT_DML_FINISHED:
       break;
     case HA_CLONE_STAGE_DDL_BLOCKED:
       if (task_id != 0)
@@ -1499,6 +1516,19 @@ int Clone_Handle::clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
   {
     DBUG_ASSERT(task_id == 0);
     err= copy_log_tail(thd, cbk, stage == HA_CLONE_STAGE_SNAPSHOT);
+  }
+  return err;
+}
+
+int Clone_Handle::clone(THD *thd, uint32_t task_id, Ha_clone_stage stage,
+                        Ha_clone_cbk *cbk)
+{
+  int err= 0;
+  Ha_clone_stage cur_stage= m_jobs.last_finished_stage();
+  while (!err && cur_stage <= stage)
+  {
+    err= clone_low(thd, task_id, cur_stage, cbk);
+    cur_stage= static_cast<Ha_clone_stage>(cur_stage + 1);
   }
   return err;
 }

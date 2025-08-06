@@ -61,6 +61,9 @@ extern struct clone_protocol_service_st {
   int (*send_response_fn)(THD* thd, bool secure, unsigned char *packet,
                           size_t length);
   int (*send_error_fn)(THD* thd, unsigned char err_cmd, bool is_fatal);
+  int (*set_backup_stage_fn)(THD* thd, unsigned char stage);
+  int (*backup_lock_fn)(THD* thd, const char *db, const char *tbl);
+  int (*backup_unlock_fn)(THD* thd);
 } *clone_protocol_service;
   THD* clone_start_statement(THD* thd, unsigned int thread_key,
                                   unsigned int statement_key);
@@ -89,6 +92,9 @@ extern struct clone_protocol_service_st {
   int clone_send_response(THD* thd, bool secure, unsigned char *packet,
                           size_t length);
   int clone_send_error(THD* thd, unsigned char err_cmd, bool is_fatal);
+  int clone_set_backup_stage(THD* thd, unsigned char stage);
+  int clone_backup_lock(THD* thd, const char* db, const char* tbl);
+  int clone_backup_unlock(THD* thd);
 }
 extern "C" {
 extern void (*debug_sync_C_callback_ptr)(THD*, const char *, size_t);
