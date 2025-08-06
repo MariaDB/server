@@ -550,6 +550,13 @@ def	information_schema	TABLE_STATISTICS	ROWS_READ	3	NULL	NO	bigint	NULL	NULL	19	
 def	information_schema	TABLE_STATISTICS	ROWS_UPDATED	7	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	TABLE_NAME	2	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL	NO	NO
 def	information_schema	TABLE_STATISTICS	TABLE_SCHEMA	1	NULL	NO	varchar	192	576	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(192)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_CATALOG	4	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_COLUMN	7	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_SCHEMA	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_TABLE	6	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
+def	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_SCHEMA	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	ACTION_CONDITION	9	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	longtext			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	ACTION_ORDER	8	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL	NO	NO
 def	information_schema	TRIGGERS	ACTION_ORIENTATION	11	NULL	NO	varchar	9	27	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(9)			select		NEVER	NULL	NO	NO
@@ -1229,6 +1236,13 @@ NULL	information_schema	TABLE_STATISTICS	KEY_READ_HITS	bigint	NULL	NULL	NULL	NUL
 NULL	information_schema	TABLE_STATISTICS	KEY_READ_MISSES	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	TABLE_STATISTICS	PAGES_ACCESSED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	TABLE_STATISTICS	PAGES_READ_FROM_DISK	bigint	NULL	NULL	NULL	NULL	bigint(21)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	TRIGGER_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_TABLE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	TRIGGERED_UPDATE_COLUMNS	EVENT_OBJECT_COLUMN	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	TRIGGERS	TRIGGER_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	TRIGGERS	TRIGGER_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	TRIGGERS	TRIGGER_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
