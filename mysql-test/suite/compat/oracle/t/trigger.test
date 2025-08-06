@@ -104,3 +104,104 @@ DELIMITER ;$$
 INSERT INTO t1 (a,b) VALUES (10, 20);
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-36996: Implement INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS table
+--echo # Tests for oralce mode
+--echo #
+
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, 3);
+CREATE TABLE t1 (a_old INT, b_old INT, a_new INT, b_new INT);
+CREATE TABLE t2 (a_old INT, b_old INT, a_new INT, b_new INT);
+
+--echo # Test BEFORE UPDATE trigger
+CREATE TRIGGER trigger_before_update BEFORE UPDATE OF a, b ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+
+UPDATE t SET a = 10 WHERE a = 1;
+SELECT * FROM t;
+SELECT * FROM t1;
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER trigger_before_update;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_before_update';
+
+--echo # Test AFTER UPDATE trigger
+CREATE TRIGGER trigger_after_update AFTER UPDATE OF a, b ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b, NEW.a, NEW.b);
+
+UPDATE t SET a = -10 WHERE a = 10;
+SELECT * FROM t;
+SELECT * FROM t2;
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER trigger_after_update;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_after_update';
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # Multiple triggers on same table but on different columns
+CREATE TABLE t1 (a_old INT, a_new INT);
+CREATE TABLE t2 (b_old INT, b_new INT);
+CREATE TABLE t3 (c_old INT, c_new INT);
+
+CREATE TRIGGER t_bu1 BEFORE UPDATE OF a ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, NEW.a);
+CREATE TRIGGER t_bu2 BEFORE UPDATE OF b ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.b, NEW.b);
+CREATE TRIGGER t_au1 AFTER UPDATE OF c ON t FOR EACH ROW INSERT INTO t3 VALUES (OLD.c, NEW.c);
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER t_bu1;
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER t_bu2;
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER t_au1;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME LIKE 't\_%';
+
+# Cleanup
+DROP TABLE t1, t2, t3, t;
+
+--echo # Tests with Multi-update
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, -3), (2, 3, -4);
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+
+--echo # Test Multi-update with BEFORE_UPDATE trigger
+CREATE TRIGGER trigger_before_update BEFORE UPDATE OF b ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b);
+UPDATE t, t1 SET t.c = t.c + 10 WHERE t.b = t1.a;
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER trigger_before_update;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_before_update';
+
+--echo # Test Multi-update with AFTER_UPDATE trigger
+CREATE TRIGGER trigger_after_update AFTER UPDATE OF a ON t FOR EACH ROW INSERT INTO t2 VALUES (OLD.a, OLD.b);
+
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER trigger_after_update;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_after_update';
+
+# Cleanup
+DROP TABLE t, t1, t2;
+
+--echo # Test with normal trigger without list of columns. This should not list any rows in TRIGGERED_UPDATE_COLUMNS
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1, 2, -3), (2, 3, -4);
+CREATE TABLE t1 (a INT, b INT);
+
+CREATE TRIGGER trigger_before_update BEFORE UPDATE ON t FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b);
+--replace_column 2 # 4 # 5 # 6 # 7 # 8 #
+SHOW CREATE TRIGGER trigger_before_update;
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 'trigger_before_update';
+
+--echo # Trigger on view is not supported in mariadb
+CREATE VIEW vt AS SELECT * FROM t;
+--error ER_WRONG_OBJECT
+CREATE TRIGGER t_on_view BEFORE UPDATE OF a, b ON vt FOR EACH ROW INSERT INTO t1 VALUES (OLD.a, OLD.b);
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERED_UPDATE_COLUMNS WHERE TRIGGER_NAME = 't_on_view';
+
+# Cleanup
+DROP VIEW IF EXISTS vt;
+DROP TABLE t, t1;
+
+--echo # End of 12.2 tests
