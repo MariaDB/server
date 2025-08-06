@@ -1108,6 +1108,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  STAGE_SYM
 %token  <kwd>  STARTS_SYM
 %token  <kwd>  START_SYM                     /* SQL-2003-R */
+%token  <kwd>  STARTUP_SYM
 %token  <kwd>  STATEMENT_SYM
 %token  <kwd>  STATUS_SYM
 %token  <kwd>  STOP_SYM
@@ -1860,7 +1861,8 @@ rule:
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
-        trigger_tail event_tail
+        trigger_tail_common trigger_tail trigger_tail_dml
+        trigger_tail_sys event_tail
         install uninstall partition_entry binlog_base64_event
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -4835,6 +4837,18 @@ trg_event:
 trg_events:
             trg_event
           | trg_events OR_SYM trg_event
+          ;
+
+trg_sys_event:
+            STARTUP_SYM
+            { Lex->trg_chistics.events|= sys_trg2bit(TRG_EVENT_STARTUP); }
+          | SHUTDOWN
+            { Lex->trg_chistics.events|= sys_trg2bit(TRG_EVENT_SHUTDOWN); }
+          ;
+
+trg_sys_events:
+            trg_sys_event
+          | trg_sys_events OR_SYM trg_sys_event
           ;
 
 create_body:
@@ -16855,6 +16869,7 @@ keyword_func_sp_var_and_label:
         | SQL_THREAD
         | STAGE_SYM
         | STARTS_SYM
+        | STARTUP_SYM
         | STATEMENT_SYM
         | STATUS_SYM
         | STORAGE_SYM
@@ -18739,26 +18754,56 @@ on_update_cols:
           }
 	;
 
-trigger_tail:
+trigger_tail_common:
           remember_name
           opt_if_not_exists
           {
             if (unlikely(Lex->add_create_options_with_check($2)))
               MYSQL_YYABORT;
           }
-          sp_name
+          sp_name /* $4 */
           trg_action_time
+          {
+            LEX *lex= thd->lex;
+
+            lex->stmt_definition_begin= $1;
+            lex->spname= $4;
+          }
+	;
+
+trigger_tail:
+          trigger_tail_common
+          trigger_tail_dml
+          {}
+        | trigger_tail_common
+          trigger_tail_sys
+          {}
+        ;
+
+trigger_tail_sys:
+          trg_sys_events
+          sp_proc_stmt
+          {
+            LEX *lex= Lex;
+
+            lex->sql_command= SQLCOM_CREATE_TRIGGER;
+            if (lex->sp_body_finalize_trigger(thd))
+              MYSQL_YYABORT;
+          }
+	;
+
+trigger_tail_dml:
           trg_events
           opt_on_update_cols
           ON
-          remember_name /* $9 */
-          { /* $10 */
+          remember_name /* $4 */
+          { /* $5 */
             Lex->raw_trg_on_table_name_begin= YYLIP->get_tok_start();
           }
-          table_ident /* $11 */
+          table_ident /* $6 */
           FOR_SYM
-          remember_name /* $13 */
-          { /* $14 */
+          remember_name /* $8 */
+          { /* $9 */
             Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
           }
           EACH_SYM
@@ -18766,29 +18811,29 @@ trigger_tail:
           {
             Lex->trg_chistics.ordering_clause_begin= YYLIP->get_cpp_ptr();
           }
-          trigger_follows_precedes_clause /* $18 */
-          { /* $19 */
+          trigger_follows_precedes_clause /* $13 */
+          { /* $14 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
             if (unlikely(lex->sphead))
               my_yyabort_error((ER_SP_NO_RECURSIVE_CREATE, MYF(0), "TRIGGER"));
 
-            lex->stmt_definition_begin= $1;
-            lex->ident.str= $9;
-            lex->ident.length= $13 - $9;
-            lex->spname= $4;
-            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($18);
+            lex->ident.str= $4;
+            lex->ident.length= $8 - $4;
+
+            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($13);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
-            if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger,
+            if (unlikely(!lex->make_sp_head(thd, lex->spname,
+                                            &sp_handler_trigger,
                                             DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $20 */ force_lookahead /* $21 */
-          { /* $22 */
+          sp_proc_stmt /* $15 */ force_lookahead /* $16 */
+          { /* $17 */
             LEX *lex= Lex;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
@@ -18801,7 +18846,7 @@ trigger_tail:
               lex->query_tables can be wiped out.
             */
             if (!lex->first_select_lex()->
-                 add_table_to_list(thd, $11, (LEX_CSTRING*) 0,
+                 add_table_to_list(thd, $6, (LEX_CSTRING*) 0,
                                    TL_OPTION_UPDATING, TL_READ_NO_INSERT,
                                    MDL_SHARED_NO_WRITE))
               MYSQL_YYABORT;

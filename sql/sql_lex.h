@@ -1631,7 +1631,7 @@ public:
 struct st_trg_chistics: public st_trg_execution_order
 {
   enum trg_action_time_type action_time;
-  trg_event_set events;
+  trg_all_events_set events;
 
   const char *ordering_clause_begin;
   const char *ordering_clause_end;
