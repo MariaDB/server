@@ -357,6 +357,9 @@ static struct clone_protocol_service_st clone_protocol_handler= {
   clone_get_command,
   clone_send_response,
   clone_send_error,
+  clone_set_backup_stage,
+  clone_backup_lock,
+  clone_backup_unlock
 };
 
 static struct st_service_ref list_of_services[]=

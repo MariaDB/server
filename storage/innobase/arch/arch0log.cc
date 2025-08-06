@@ -204,7 +204,7 @@ void Log_Arch_Client_Ctx::release()
 
 os_offset_t Arch_Log_Sys::get_recommended_file_size() const
 {
-  if (!log_sys.is_opened())
+  if (!log_sys.is_opened() && !log_sys.is_mmap())
   {
     ut_d(ut_error);
     /* This shouldn't be executed, but if there was a bug,
@@ -590,7 +590,7 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
 
   auto need_to_abort= (is_abort || is_shutdown);
   *to_archive= 0;
-
+  lsn_t last_write_lsn= 0;
   arch_mutex_enter();
 
   switch (m_state) {
@@ -611,10 +611,13 @@ Arch_State Arch_Log_Sys::check_set_state(bool is_abort, lsn_t *archived_lsn,
 
       lsn_t lsn_diff;
 
+      last_write_lsn= log_sys.is_mmap()
+                      ? log_sys.get_flushed_lsn()
+                      : log_sys.write_lsn.load();
       /* Check redo log data ready to archive. */
-      ut_ad(log_sys.write_lsn.load() >= m_archived_lsn.load());
+      ut_ad(last_write_lsn >= m_archived_lsn.load());
 
-      lsn_diff= log_sys.write_lsn.load() - m_archived_lsn.load();
+      lsn_diff= last_write_lsn - m_archived_lsn.load();
 
       lsn_diff= ut_uint64_align_down(lsn_diff, OS_FILE_LOG_BLOCK_SIZE);
 
@@ -823,8 +826,11 @@ int Arch_Log_Sys::wait_archive_complete(lsn_t target_lsn)
           auto archived_lsn= m_archived_lsn.load();
           result= (archived_lsn < target_lsn);
 
+          lsn_t last_write_lsn= log_sys.is_mmap()
+				? log_sys.get_flushed_lsn()
+				: log_sys.write_lsn.load();
           /* Trigger flush if needed */
-          auto flush= log_sys.write_lsn.load() < target_lsn;
+          auto flush= last_write_lsn < target_lsn;
 
           if (result)
           {

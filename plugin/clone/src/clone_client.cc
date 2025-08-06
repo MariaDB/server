@@ -759,9 +759,6 @@ const char *sub_command_str(Sub_Command sub_com)
     case SUBCOM_EXEC_BLOCK_NT_DML:
       ret= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_NT_DML";
       break;
-    case SUBCOM_EXEC_FINISH_NT_DML:
-      ret= "COM_EXECUTE: SUBCOM_EXEC_FINISH_NT_DML";
-      break;
     case SUBCOM_EXEC_BLOCK_DDL:
       ret= "COM_EXECUTE: SUBCOM_EXEC_BLOCK_DDL";
       break;

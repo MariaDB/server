@@ -177,7 +177,7 @@ int Local::clone_exec() {
       auto share= m_clone_client.get_share();
       share->m_state.update_current_state(error ? SUBCOM_MAX : sub_state);
     }
-    if (!error)
+    if (!error && sub_state >= SUBCOM_EXEC_BLOCK_DDL)
     {
       Ha_clone_cbk *clone_callback = new Local_Callback(this);
 

@@ -37,6 +37,8 @@
 // #include "ssl_init_callback.h"
 #include "sys_vars_shared.h"
 #include "sql_common.h"
+#include "backup.h"
+#include "mdl.h"
 
 /** The minimum idle timeout in seconds. It is kept at 8 hours which is also
 the Server default. Currently recipient sends ACK during state transition.
@@ -786,4 +788,30 @@ int clone_validate_configs(MYSQL_THD thd, void *configs)
     /* Continue and check for all other configuration mismatch. */
   }
   return last_error;
+}
+
+int clone_set_backup_stage(MYSQL_THD thd, uchar stage)
+{
+  return run_backup_stage(thd, static_cast<backup_stages>(stage));
+}
+
+int clone_backup_lock(MYSQL_THD thd, const char *db,
+                      const char *tbl)
+{
+  MDL_request request;
+  MDL_REQUEST_INIT(&request,MDL_key::TABLE, db, tbl,
+                   MDL_SHARED_HIGH_PRIO, MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&request,
+                                    thd->variables.lock_wait_timeout))
+    return 1;
+  thd->mdl_backup_lock = request.ticket;
+  return 0;
+}
+
+int clone_backup_unlock(MYSQL_THD thd)
+{
+  if (thd->mdl_backup_lock)
+    thd->mdl_context.release_lock(thd->mdl_backup_lock);
+  thd->mdl_backup_lock= 0;
+  return 0;
 }

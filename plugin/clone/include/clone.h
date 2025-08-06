@@ -167,9 +167,6 @@ typedef enum Type_Sub_Command : uchar {
   /** Execution blocking non-transactional DML. */
   SUBCOM_EXEC_BLOCK_NT_DML,
 
-  /** Execution waiting for all non-transactional DML. */
-  SUBCOM_EXEC_FINISH_NT_DML,
-
   /** Execution blocking DDL. */
   SUBCOM_EXEC_BLOCK_DDL,
 
@@ -223,6 +220,20 @@ typedef enum Type_Command_Response : uchar {
   /** Limit value for clone RPC response */
   COM_RES_MAX
 } Command_Response;
+
+/** Clone protocol backup lock stages. */
+enum Type_Command_Stages : uchar {
+  /* Same as BACKUP STAGE START */
+  START,
+  /* BACKUP STAGE FLUSH */
+  FLUSH,
+  /* BACKUP STAGE BLOCK_DDL */
+  BLOCK_DDL,
+  /* BACKUP STAGE BLOCK_COMMIT */
+  BLOCK_COMMIT,
+  /* BACKUP STAGE END */
+  END
+};
 
 using String_Key = std::string;
 using String_Keys = std::vector<String_Key>;
