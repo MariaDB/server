@@ -48,8 +48,8 @@ static struct st_mysql_sys_var* system_variables[]= {
 };
 
 static SHOW_VAR status_variables[]= {
-  {"successful_curl_requests", (char*) &successful_curl_requests, SHOW_LONGLONG},
-  {"total_curl_requests", (char*) &curl_requests, SHOW_LONGLONG},
+  {"successful_http_requests", (char*) &successful_curl_requests, SHOW_LONGLONG},
+  {"total_http_requests", (char*) &curl_requests, SHOW_LONGLONG},
 
   {NullS, NullS, SHOW_LONG}
 };
