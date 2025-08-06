@@ -2669,3 +2669,21 @@ JSON_VALUE(@json,'$.A[last-1][last-1].key1')
 NULL
 SET @@collation_connection= @save_collation_connection;
 # End of 10.9 Test
+#
+# MDEV-30691 Assertion `strlen(Ptr) == str_length' failed in void Binary_string::chop()
+#
+set @@collation_connection=utf32_czech_ci;
+select json_detailed('[[123],456]');
+json_detailed('[[123],456]')
+[
+    [123],
+    456
+]
+set @@collation_connection=@save_collation_connection;
+select json_detailed('[[123],456]');
+json_detailed('[[123],456]')
+[
+    [123],
+    456
+]
+# End of 10.11 Test
