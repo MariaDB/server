@@ -201,7 +201,7 @@ cleanup:
   
   int parse_vector(String *buf, json_engine_t je, CHARSET_INFO *cs, const uchar *start, const uchar *end);
   String *read_json(String *str, json_value_types *type, char **out_val);
-  json_path_with_flags *paths;
+  json_path_with_flags *json_path;
   
   public:
     using Item_str_func::Item_str_func;
@@ -227,7 +227,7 @@ cleanup:
 
       decimals= 0;
       MEM_ROOT *root= thd->mem_root;
-      paths= (json_path_with_flags *) alloc_root(root, sizeof(json_path_with_flags));
+      json_path= (json_path_with_flags *) alloc_root(root, sizeof(json_path_with_flags));
       // We want to store max_dimensions floats, each 4 bytes 
       fix_length_and_charset(max_dimensions * 4, &my_charset_bin);
       set_maybe_null();
@@ -284,30 +284,21 @@ String *Item_func_gen_embedding::read_json(String *str,
   int not_first_value= 0, count_path= 0;
   size_t v_len;
   int array_size_counter[JSON_DEPTH_LIMIT];
-  json_path_with_flags *c_path= paths;
-
+  
   if ((null_value= args[0]->null_value))
     return 0;
 
-  c_path->p.types_used= JSON_PATH_KEY_NULL;
-  const uchar* s_p = (const uchar*) JSON_EMBEDDING_PATH;
-  if (s_p)
-  {
-    if (json_path_setup(&c_path->p,&my_charset_utf8mb4_general_ci, s_p,
-                      s_p + strlen((const char *) s_p)))
-    {
-    //  report_path_error(s_p, &c_path->p, n_arg);
-      goto return_null;
-    }
-  }
+  json_path->p.types_used= JSON_PATH_KEY_NULL;
+  const uchar* s_p= (const uchar*) JSON_EMBEDDING_PATH; 
+  if (json_path_setup(&json_path->p,&my_charset_utf8mb4_general_ci, s_p,
+                    s_p + strlen((const char *) s_p)))
+    goto return_null;
 
   *type= JSON_VALUE_NULL;
 
-  if (str)
-  {
-    str->set_charset(js->charset());
-    str->length(0);
-  }
+  // str will never be NULL here, since it comes from val_str()
+  str->set_charset(&my_charset_bin);
+  str->length(0);
 
   json_get_path_start(&je, js->charset(),(const uchar *) js->ptr(),
                       (const uchar *) js->ptr() + js->length(), &p);
@@ -315,7 +306,7 @@ String *Item_func_gen_embedding::read_json(String *str,
   while (json_get_path_next(&je, &p) == 0)
   {
 
-    if (!(count_path= path_exact(paths, arg_count-1, &p, je.value_type,
+    if (!(count_path= path_exact(json_path, arg_count-1, &p, je.value_type,
                                  array_size_counter)))
       continue;
 
@@ -326,11 +317,6 @@ String *Item_func_gen_embedding::read_json(String *str,
       *type= je.value_type;
       *out_val= (char *) je.value;
       // value_len= je.value_len;
-    }
-    if (!str)
-    {
-      /* If str is NULL, we only care about the first found value. */
-      goto return_ok;
     }
 
     if (json_value_scalar(&je))
@@ -358,10 +344,6 @@ String *Item_func_gen_embedding::read_json(String *str,
     /* Nothing was found. */
     goto return_null;
   }
-
-
-return_ok:
-  return str;
 
 error:
   report_json_error(js, &je, 0);
