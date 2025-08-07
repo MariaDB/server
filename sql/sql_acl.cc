@@ -13053,6 +13053,13 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
     DBUG_VOID_RETURN;
   }
 
+  /* JSON_TABLE and other db detached table */
+  if (db == any_db.str)
+  {
+    grant->privilege= SELECT_ACL;
+    DBUG_VOID_RETURN;
+  }
+
   /* global privileges */
   grant->privilege= sctx->master_access;
 
