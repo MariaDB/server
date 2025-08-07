@@ -69,6 +69,12 @@ select * from v1	{
         "select_id": 1,
         "steps": [
           {
+            "transformations_to_joins": {
+              "transformations": ["JOIN_condition_to_WHERE", "parenthesis_removal"],
+              "expanded_query": "select t1.a AS a,t1.b AS b from t1"
+            }
+          },
+          {
             "condition_processing": {
               "condition": "WHERE",
               "original_condition": "t1.a = 1",
@@ -233,6 +239,12 @@ select * from (select * from t1 where t1.a=1)q	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "transformations_to_joins": {
+              "transformations": ["JOIN_condition_to_WHERE", "parenthesis_removal"],
+              "expanded_query": "select t1.a AS a,t1.b AS b from t1"
+            }
+          },
           {
             "condition_processing": {
               "condition": "WHERE",
@@ -699,6 +711,12 @@ explain select * from v2	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "transformations_to_joins": {
+              "transformations": ["parenthesis_removal"],
+              "expanded_query": "select t2.a AS a from t2"
+            }
+          },
           {
             "table_dependencies": [
               {
@@ -2655,6 +2673,12 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
         "select_id": 1,
         "steps": [
           {
+            "transformations_to_joins": {
+              "transformations": ["parenthesis_removal"],
+              "expanded_query": "select t1.a AS a from t1 left join t2 on(t1.a = t2.a)"
+            }
+          },
+          {
             "build_equal_items": {
               "condition": "ON expr",
               "attached_to": "t2",
@@ -2808,6 +2832,12 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "transformations_to_joins": {
+              "transformations": ["parenthesis_removal"],
+              "expanded_query": "select t1.a AS a,t2.a AS a,t2.b AS b from t1 left join t2 on(t2.a = t1.a)"
+            }
+          },
           {
             "build_equal_items": {
               "condition": "ON expr",
@@ -3017,6 +3047,12 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "transformations_to_joins": {
+              "transformations": ["JOIN_condition_to_WHERE", "parenthesis_removal"],
+              "expanded_query": "select t1.a AS a from t1 left join (t2 join t3) on(t2.a = t1.a and t3.a = t1.a and t2.b = t3.b)"
+            }
+          },
           {
             "build_equal_items": {
               "condition": "ON expr",
@@ -3254,6 +3290,12 @@ explain extended select * from t1 where a in (select p from t2)	{
               "from": "IN (SELECT)",
               "to": "semijoin",
               "converted_to_semi_join": true
+            }
+          },
+          {
+            "transformations_to_joins": {
+              "transformations": ["semijoin"],
+              "expanded_query": "select t1.a AS a,t1.b AS b from (t2) join t1 where 1 and t1.a = t2.p"
             }
           },
           {
@@ -5032,6 +5074,12 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             }
           },
           {
+            "transformations_to_joins": {
+              "transformations": ["semijoin"],
+              "expanded_query": "select t1.a AS a from (t1 t_inner_1 join t1 t_inner_2) join t1 where 1 and t1.a = t_inner_1.a"
+            }
+          },
+          {
             "condition_processing": {
               "condition": "WHERE",
               "original_condition": "1 and t1.a = t_inner_1.a",
@@ -5644,6 +5692,12 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
               "from": "IN (SELECT)",
               "to": "semijoin",
               "converted_to_semi_join": true
+            }
+          },
+          {
+            "transformations_to_joins": {
+              "transformations": ["semijoin"],
+              "expanded_query": "select t_outer_1.a AS a,t_outer_2.a AS a from (t2 t_inner_3 join t1 t_inner_4) join (t2 t_inner_2 join t1 t_inner_1) join t1 t_outer_1 join t2 t_outer_2 where 1 and 1 and t_outer_1.a = t_inner_1.a and t_outer_2.a = t_inner_3.a"
             }
           },
           {
@@ -8046,6 +8100,12 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
               "from": "IN (SELECT)",
               "to": "semijoin",
               "converted_to_semi_join": true
+            }
+          },
+          {
+            "transformations_to_joins": {
+              "transformations": ["semijoin"],
+              "expanded_query": "select t_outer_1.a AS a,t_outer_2.a AS a from (t2 t_inner_3 join t1 t_inner_4) join (t2 t_inner_2 join t1 t_inner_1) join t1 t_outer_1 join t2 t_outer_2 where 1 and 1 and t_outer_1.a = t_inner_1.a and t_outer_2.a = t_inner_3.a"
             }
           },
           {
@@ -13858,6 +13918,41 @@ out1
     }
 ]
 drop table t1;
+#
+# MDEV-33436 Transform OUTER JOIN to INNER JOIN in subqueries used with IN operator
+#            (test presence of the transformation in the trace)
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+CREATE TABLE t3 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t2 VALUES (1,1), (2,2), (3,3);
+INSERT INTO t3 VALUES (1,1), (2,2), (3,3);
+SET @save_optimizer_switch_mdev33436 = @@optimizer_switch;
+SET optimizer_switch='semijoin=off';
+# LEFT JOIN transformed to INNER JOIN
+SELECT a
+FROM t1
+WHERE a IN (SELECT t3.a + t2.a
+FROM t2 LEFT JOIN t3 ON t3.b = t2.a);
+a
+2
+SELECT json_detailed(json_extract(trace, '$**.transformations_to_joins')) AS out1
+FROM information_schema.optimizer_trace;
+out1
+[
+    {
+        "transformations": 
+        [
+            "outer_join_to_inner_join",
+            "JOIN_condition_to_WHERE",
+            "parenthesis_removal"
+        ],
+        "expanded_query": "/* select#2 */ select t3.a + t2.a from t2 join t3"
+    }
+]
+DROP TABLE t1, t2, t3;
+SET optimizer_switch = @save_optimizer_switch_mdev33436;
 set  @@optimizer_switch= @save_optimizer_switch;
 set  @@use_stat_tables= @save_use_stat_tables;
 set  @@histogram_size= @save_histogram_size;
