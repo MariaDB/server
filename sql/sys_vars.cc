@@ -6281,6 +6281,13 @@ static Sys_var_charptr Sys_wsrep_patch_version(
        READ_ONLY GLOBAL_VAR(wsrep_patch_version_ptr), CMD_LINE_HELP_ONLY,
        DEFAULT(WSREP_PATCH_VERSION));
 
+
+static Sys_var_uint Sys_wsrep_applier_retry_count (
+       "wsrep_applier_retry_count", "Maximum number of applier retry attempts",
+       GLOBAL_VAR(wsrep_applier_retry_count), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
