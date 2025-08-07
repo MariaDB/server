@@ -314,14 +314,14 @@ public:
   inline void unlock_shared();
 };
 
-typedef sux_lock<ssux_lock_impl<true>> block_lock;
+typedef sux_lock<ssux_lock_impl<false>> block_lock;
 
 #ifndef UNIV_PFS_RWLOCK
-typedef sux_lock<ssux_lock_impl<true>> index_lock;
+typedef sux_lock<ssux_lock_impl<false>> index_lock;
 #else
 typedef sux_lock<ssux_lock> index_lock;
 
-template<> inline void sux_lock<ssux_lock_impl<true>>::init()
+template<> inline void sux_lock<ssux_lock_impl<false>>::init()
 {
   lock.init();
   ut_ad(!writer.load(std::memory_order_relaxed));
