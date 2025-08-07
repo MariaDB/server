@@ -5359,6 +5359,21 @@ c	x	u1	b1
 drop view v10, v20, v11, v21;
 drop table t10, t20, t30;
 #
-# End of 11.7 tests
+# MDEV-36474 Prepared statement with derived table column name
+#   specification within used view causing memory use-after-free
+#
+create table t1 (a int, b int);
+insert into t1  values (1,1),(2,2),(3,3);
+create view v1 as select * from (select * from (select a+b from t1)dt) dt2 (c);
+prepare stmt from "select * from v1";
+execute stmt;
+c
+2
+4
+6
+drop view v1;
+drop table t1;
+#
+# End of 11.8 tests
 #
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

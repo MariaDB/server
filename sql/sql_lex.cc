@@ -10966,7 +10966,7 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
     // pre-allocate space to save item_list names
     res->original_names= new (thd->mem_root) List<Lex_ident_sys>;
     for (uint i= 0; i < column_names->elements; i++)
-      res->original_names->push_back( new Lex_ident_sys );
+      res->original_names->push_back( new (thd->mem_root) Lex_ident_sys );
   }
   return res;
 }
