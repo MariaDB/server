@@ -80,6 +80,7 @@ SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 
 call mtr.add_suppression("test/articles.? contains 3 indexes inside InnoDB");
+call mtr.add_suppression("updating stats for table .*");
 alter table articles force;
 flush tables;
 show create table articles;
