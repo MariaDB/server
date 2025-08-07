@@ -8662,7 +8662,8 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         const char *field_db_name= field_iterator.get_db_name();
         const char *field_table_name= field_iterator.get_table_name();
 
-        if (!tables->schema_table && 
+        if (tables->db.str != any_db.str &&
+	    !tables->schema_table &&
             !(fld->have_privileges=
               (get_column_grant(thd, field_iterator.grant(),
                                 field_db_name,

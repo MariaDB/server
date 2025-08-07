@@ -6440,9 +6440,19 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (any_privileges)
   {
     const char *db, *tab;
-    db=  field->table->s->db.str;
+    LEX_CSTRING db_s= field->table->s->db;
+    db=  db_s.str;
     tab= field->table->s->table_name.str;
-    if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
+    if (db_s.length == 0)
+    {
+      /*
+        if there's no database, like JSON_TABLE columns
+        assume you can only SELECT. get_column_grant
+        will fail unless you have global privileges.
+      */
+      have_privileges= SELECT_ACL;
+    }
+    else if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
                                              db, tab, field_name.str) &
                             VIEW_ANY_ACL)))
     {
