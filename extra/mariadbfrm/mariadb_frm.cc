@@ -26,7 +26,13 @@
 #include "m_ctype.h"
 #include "field.h"
 #include "sql_class.h"
+#include "table_cache.h"
+#include "../../storage/blackhole/ha_blackhole.h"
 #include "sql_error.h"
+#include "sql_table.h"
+
+#define DEBUG(fmt, ...) do { fprintf(stderr, "DEBUG: " fmt, ##__VA_ARGS__); fflush(stderr); } while(0)
+
 
 
 extern mysql_mutex_t LOCK_start_thread, LOCK_status, LOCK_global_system_variables, LOCK_user_conn, LOCK_thread_id;
@@ -60,13 +66,17 @@ extern int mysqld_server_initialized;
 extern int sf_leaking_memory;
 
 
-static handlerton mock_hton;
+static handlerton mock_hton {
+  .create=[](handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root) -> handler* {
+    return new (mem_root) ha_blackhole(hton, table);
+  },
+};
 
 static st_maria_plugin mock_plugin = {
   .type = MYSQL_STORAGE_ENGINE_PLUGIN,
   .info = &mock_hton,
   .name = "MOCK_ENGINE",
-  .author = "Mock Author",
+  .author = "Nikita Malyavin",
   .descr = "Mock storage engine for FRM parsing",
   .license = PLUGIN_LICENSE_GPL,
   .init = NULL,
@@ -81,6 +91,7 @@ static st_maria_plugin mock_plugin = {
 static st_plugin_int mock_plugin_int = {
   .name = {const_cast<char*>("mock_storage_engine"), 19},
   .plugin = &mock_plugin,
+  .data= &mock_hton, 
   .plugin_dl = NULL,
   .state = PLUGIN_IS_READY,
   .ref_count = 1,
@@ -92,47 +103,11 @@ static st_plugin_int mock_plugin_int = {
   .ptr_backup = NULL
 };
 
-static plugin_ref mock_plugin_ref = (plugin_ref)&mock_plugin_int;
+static st_plugin_int *mock_plugin_ptr= &mock_plugin_int;
+static plugin_ref mock_plugin_ref= &mock_plugin_ptr;
+
 
 extern mysql_mutex_t LOCK_plugin;
-static bool plugin_system_initialized = false;
-
-
-
-
-#define ha_resolve_by_name(thd, name, tmp) (mock_plugin_ref)
-#define ha_checktype(thd, type, check) (&mock_hton)
-#define ha_lock_engine(thd, hton) (mock_plugin_ref)
-#define plugin_hton(plugin) (&mock_hton)
-#define get_new_handler(share, root, hton) (NULL)
-
-#define plugin_lock_by_name(thd, name, type) (mock_plugin_ref)
-#define plugin_find_by_type(type) (mock_plugin_ref)
-#define ha_resolve_by_legacy_type(thd, type) (mock_plugin_ref)
-#define plugin_find_internal(name, type) (&mock_plugin_int)
-#define plugin_int_to_ref(plugin) (mock_plugin_ref)
-#define plugin_ref_to_int(plugin) (&mock_plugin_int)
-
-#define ha_default_handlerton(thd) (&mock_hton)
-#define ha_storage_engine_is_enabled(hton) (true)
-
-#define enum_value_with_check(thd, share, name, value, max_val) ((value <= max_val) ? value : 0)
-
-#define status_var_increment(x) do { } while(0)
-
-static plugin_ref mock_plugin_lock(THD *thd, plugin_ref ptr) {
-  printf("DEBUG: mock_plugin_lock called with ptr=%p\n", ptr);
-  fflush(stdout);
-  return ptr ? ptr : mock_plugin_ref;
-}
-
-static void mock_plugin_unlock(THD *thd, plugin_ref ptr) {
-  printf("DEBUG: mock_plugin_unlock called with ptr=%p\n", ptr);
-  fflush(stdout);
-}
-
-#define plugin_lock(thd, ptr) mock_plugin_lock(thd, ptr)
-#define plugin_unlock(thd, ptr) mock_plugin_unlock(thd, ptr)
 
 
 static int init_thread_environment()
@@ -149,12 +124,13 @@ static int init_thread_environment()
 
 static int mysql_init_variables()
 {
-  // Initialize critical global variables that THD depends on
   global_system_variables.character_set_client = &my_charset_utf8mb3_general_ci;
   global_system_variables.collation_connection = &my_charset_utf8mb3_general_ci;
   global_system_variables.collation_database = &my_charset_utf8mb3_general_ci;
   global_system_variables.character_set_results = &my_charset_utf8mb3_general_ci;
   global_system_variables.character_set_filesystem = &my_charset_bin;
+  global_system_variables.table_plugin = mock_plugin_ref;
+  global_system_variables.tmp_table_plugin = mock_plugin_ref;
 
   return 0;
 }
@@ -182,12 +158,15 @@ static int init_character_sets()
 static int init_plugin_system_complete()
 {
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_SLOW);
+  my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
 
   plugin_array_size = 16;  // Start with 16 slots
   plugin_array = static_cast<struct st_plugin_int **>(my_malloc(
       PSI_NOT_INSTRUMENTED, plugin_array_size * sizeof(struct st_plugin_int *),
       MYF(MY_WME | MY_ZEROFILL)));
 
+  mock_hton.flags = HTON_CAN_RECREATE;
+  mock_hton.db_type = DB_TYPE_BLACKHOLE_DB;
   if (!plugin_array)
     return 1;
 
@@ -204,43 +183,9 @@ static THD* create_minimal_thd() {
     char stack_dummy;
     thd->thread_stack = &stack_dummy;
     
-    // thd->m_stmt_da = new Diagnostics_area(false);
-    
-    thd->variables.character_set_client = &my_charset_utf8mb4_general_ci;
-    thd->variables.collation_connection = &my_charset_utf8mb4_general_ci;
-    thd->variables.collation_database = &my_charset_utf8mb4_general_ci;
-    thd->variables.character_set_results = &my_charset_utf8mb4_general_ci;
-    thd->variables.character_set_filesystem = &my_charset_bin;
-    thd->variables.sql_mode = 0;
-    thd->variables.max_allowed_packet = 1024 * 1024 * 1024;
-    thd->variables.net_buffer_length = 16384;
-    thd->variables.table_plugin = nullptr;
-    thd->variables.tmp_table_plugin = nullptr;
-    
-    thd->status_var.feature_system_versioning = 0;
-    thd->status_var.feature_application_time_periods = 0;
-    
-    thd->security_ctx = &thd->main_security_ctx;
-    thd->lex = new LEX();
-    // thd->transaction = new Transaction_state();
-    
     return thd;
 }
 
-
-static void cleanup_thd(THD *thd) {
-    if (thd) {
-        if (thd->lex) {
-            delete thd->lex;
-            thd->lex = nullptr;
-        }
-        if (thd->transaction) {
-            delete thd->transaction;
-            thd->transaction = nullptr;
-        }
-        delete thd;
-    }
-}
 
 /**
   Read FRM file into memory
@@ -253,7 +198,7 @@ static uchar* read_frm_file(const char *filename, size_t *length)
   
   if (my_stat(filename, &stat_info, MYF(0)) == NULL)
   {
-    fprintf(stderr, "Error: Cannot stat file '%s': %s\n", 
+    DEBUG("Error: Cannot stat file '%s': %s\n", 
             filename, strerror(errno));
     return NULL;
   }
@@ -262,13 +207,13 @@ static uchar* read_frm_file(const char *filename, size_t *length)
   
   if (!(buffer= (uchar*)my_malloc(PSI_NOT_INSTRUMENTED, *length, MYF(MY_WME))))
   {
-    fprintf(stderr, "Error: Cannot allocate memory for FRM file\n");
+    DEBUG("Error: Cannot allocate memory for FRM file\n");
     return NULL;
   }
   
   if ((file= mysql_file_open(key_file_frm, filename, O_RDONLY | O_SHARE, MYF(0))) < 0)
   {
-    fprintf(stderr, "Error: Cannot open file '%s': %s\n", 
+    DEBUG("Error: Cannot open file '%s': %s\n", 
             filename, strerror(errno));
     my_free(buffer);
     return NULL;
@@ -276,7 +221,7 @@ static uchar* read_frm_file(const char *filename, size_t *length)
   
   if (mysql_file_read(file, buffer, *length, MYF(MY_NABP)))
   {
-    fprintf(stderr, "Error: Cannot read file '%s': %s\n", 
+    DEBUG("Error: Cannot read file '%s': %s\n", 
             filename, strerror(errno));
     my_free(buffer);
     mysql_file_close(file, MYF(0));
@@ -346,87 +291,137 @@ static bool extract_db_table_names(const char *frm_path,
 */
 static bool parse_frm_file(THD *fake_thd, const char *frm_path)
 {
-  printf("DEBUG: Entering parse_frm_file\n");
-  fflush(stdout);
+  DEBUG("DEBUG: Entering parse_frm_file\n");
   
   TABLE_LIST table_list;
   uchar *frm_data= NULL;
   size_t frm_length= 0;
   TABLE_SHARE *share= NULL;
   TABLE *table= NULL;
-  LEX_CSTRING db_name, table_name;
+  LEX_CSTRING db_name{}, table_name{};
   bool error= true;
+  TDC_element tdc {.ref_count = 1};
   
   memset(&table_list, 0, sizeof(table_list));
-  printf("DEBUG: table_list initialized\n");
-  fflush(stdout);
+  DEBUG("DEBUG: table_list initialized\n");
 
-  printf("DEBUG: About to read FRM file: %s\n", frm_path);
-  fflush(stdout);
+  DEBUG("DEBUG: About to read FRM file: %s\n", frm_path);
   
   frm_data= read_frm_file(frm_path, &frm_length);
-  if (!frm_data)
-    goto cleanup;
-  
-  printf("DEBUG: FRM file read successfully, size: %zu bytes\n", frm_length);
-  fflush(stdout);
 
-  printf("DEBUG: Extracting database and table names\n");
-  fflush(stdout);
+  if (!frm_data)
+    return 1;
+  DEBUG("DEBUG: FRM header check:\n");
+  DEBUG("  - Magic byte[0]: 0x%02x (should be 0xFE)\n", frm_data[0]);
+  DEBUG("  - FRM version: %d\n", frm_data[2]);
+  DEBUG("  - Extra2 length: %d\n", uint2korr(frm_data+4));
+  {
+    uint extra2_len = uint2korr(frm_data + 4);
+    DEBUG("  - Extra2 length (detailed): %u\n", extra2_len);
+    if (64 + extra2_len < frm_length) {
+      uint forminfo_offset = uint4korr(frm_data + 64 + extra2_len);
+      DEBUG("  - Forminfo offset should be at byte: %u\n", forminfo_offset);
+
+      if (forminfo_offset + 290 < frm_length) {
+        const uchar *forminfo = frm_data + forminfo_offset;
+        uint fields = uint2korr(forminfo + 258);
+        DEBUG("  - Field count (manual read): %u\n", fields);
+        uint keys = forminfo[280];  // Number of keys
+        uint key_parts = forminfo[281];  // Number of key parts
+        DEBUG("  - Keys (manual read): %u\n", keys);
+        DEBUG("  - Key parts (manual read): %u\n", key_parts);
+      } else {
+        DEBUG("  - ERROR: Forminfo offset %u is beyond file size!\n", forminfo_offset);
+      }
+    }
+  }
+  
+  DEBUG("DEBUG: FRM file read successfully, size: %zu bytes\n", frm_length);
+
+  DEBUG("DEBUG: Extracting database and table names\n");
   
   if (extract_db_table_names(frm_path, &db_name, &table_name))
   {
-    fprintf(stderr, "Error: Cannot extract database and table names from path\n");
-    goto cleanup;
+    DEBUG("Error: Cannot extract database and table names from path\n");
+    return 1;
   }
   
-  printf("DEBUG: Names extracted - db: %.*s, table: %.*s\n", 
+  DEBUG("DEBUG: Names extracted - db: %.*s, table: %.*s\n", 
          (int)db_name.length, db_name.str, (int)table_name.length, table_name.str);
-  fflush(stdout);
 
-  printf("DEBUG: Allocating TABLE_SHARE manually\n");
-  fflush(stdout);
-  
+  DEBUG("DEBUG: Allocating TABLE_SHARE manually\n");
+
   share = (TABLE_SHARE*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(TABLE_SHARE), MYF(MY_ZEROFILL));
   if (!share)
   {
-    fprintf(stderr, "Error: Cannot allocate TABLE_SHARE\n");
-    goto cleanup;
+    DEBUG("Error: Cannot allocate TABLE_SHARE\n");
+    return 1;
   }
   
   share->db.str = db_name.str;
   share->db.length = db_name.length;
   share->table_name.str = table_name.str;
   share->table_name.length = table_name.length;
+  share->tdc = &tdc;
   
   init_alloc_root(PSI_NOT_INSTRUMENTED, &share->mem_root, 1024, 0, MYF(0));
   
   fake_thd->mem_root = &share->mem_root;
   
-  printf("DEBUG: TABLE_SHARE allocated and initialized successfully\n");
-  fflush(stdout);
+  DEBUG("DEBUG: TABLE_SHARE allocated and initialized successfully\n");
   
-  printf("DEBUG: About to call init_from_binary_frm_image\n");
-  fflush(stdout);
-  
+  DEBUG("DEBUG: About to call init_from_binary_frm_image\n");
+  size_t key_length = db_name.length + 1 + table_name.length + 1;
+  char *key_buff = (char*)alloc_root(&share->mem_root, key_length);
+  if (key_buff) {
+    memcpy(key_buff, db_name.str, db_name.length);
+    key_buff[db_name.length] = '\0';
+    memcpy(key_buff + db_name.length + 1, table_name.str, table_name.length);
+    key_buff[db_name.length + 1 + table_name.length] = '\0';
+
+    share->table_cache_key.str = key_buff;
+    share->table_cache_key.length = key_length;
+  }
+  char path_buff[512];
+  snprintf(path_buff, sizeof(path_buff), "%s/%s", db_name.str, table_name.str);
+  char *norm_path = (char*)alloc_root(&share->mem_root, strlen(path_buff) + 1);
+  if (norm_path) {
+    strcpy(norm_path, path_buff);
+    share->normalized_path.str = norm_path;
+    share->normalized_path.length = strlen(norm_path);
+  }
+
+  share->path = share->normalized_path;
+  share->table_category = TABLE_CATEGORY_USER;
+  share->tmp_table = NO_TMP_TABLE;
+  share->db_plugin = mock_plugin_ref;
+
+
+  DEBUG("DEBUG: Share details before parsing:\n");
+  DEBUG("  - db_plugin: %p\n", (void*)share->db_plugin);
+  DEBUG("  - table_category: %d\n", share->table_category);
+  DEBUG("  - tmp_table: %d\n", share->tmp_table);
   if (share->init_from_binary_frm_image((THD*)fake_thd, false, frm_data, frm_length))
   {
-    fprintf(stderr, "Error: Cannot parse FRM file - init_from_binary_frm_image failed\n");
+    DEBUG("Error: Cannot parse FRM file - init_from_binary_frm_image failed with error %d: %s\n",my_errno, 
+    strerror(my_errno));
     goto cleanup;
   }
   
-  printf("DEBUG: init_from_binary_frm_image completed successfully\n");
-  fflush(stdout);
+  DEBUG("DEBUG: init_from_binary_frm_image completed successfully\n");
   
 
   table= static_cast<TABLE *>(
       my_malloc(PSI_NOT_INSTRUMENTED, sizeof(TABLE), MYF(MY_ZEROFILL)));
   if (!table)
   {
-    fprintf(stderr, "Error: Cannot allocate TABLE structure\n");
+    DEBUG("Error: Cannot allocate TABLE structure\n");
     goto cleanup;
   }
-  
+ open_table_from_share(fake_thd, share, &table_name, HA_OPEN_KEYFILE,
+                      EXTRA_RECORD, 0,
+                      table, false); // todo error handling
+ 
   table->s= share;
   table->in_use= (THD*)fake_thd;
   
@@ -460,64 +455,50 @@ cleanup:
 */
 int main(int argc, char **argv)
 {
-  printf("DEBUG: Starting frm_parser...\n");
-  fflush(stdout);
+  DEBUG("DEBUG: Starting frm_parser...\n");
   
   MY_INIT(argv[0]);
-  printf("DEBUG: MY_INIT completed\n");
-  fflush(stdout);
+  DEBUG("DEBUG: MY_INIT completed\n");
   
   THD *fake_thd= NULL;
   int exit_code= 0;
 
   if (argc < 2)
   {
-    fprintf(stderr, "Usage: %s <frm_file>\n", argv[0]);
+    DEBUG("Usage: %s <frm_file>\n", argv[0]);
     return 1;
   }
 
-  printf("DEBUG: Arguments validated, FRM file: %s\n", argv[1]);
-  fflush(stdout);
+  DEBUG("DEBUG: Arguments validated, FRM file: %s\n", argv[1]);
 
-  printf("DEBUG: About to initialize THD...\n");
-  fflush(stdout);
+  DEBUG("DEBUG: About to initialize THD...\n");
 
 
-  if (init_early_variables() ||
-     init_thread_environment() ||
-     mysql_init_variables() ||
-     init_character_sets() ||
-     init_plugin_system_complete())  // This is the key addition
+  init_character_sets();
+  init_thread_environment();
+  init_early_variables();
+  mysql_init_variables();
+  if (init_plugin_system_complete())
   {
-    fprintf(stderr, "Error: Cannot initialize required subsystems\n");
+    DEBUG("Error: Cannot initialize required subsystems\n");
     return 1;
   }
 
   my_thread_init();
 
   fake_thd= create_minimal_thd();
-  if (!fake_thd)
-  {
-    fprintf(stderr, "Error: Cannot initialize THD\n");
-    exit_code= 1;
-    goto exit;
-  }
-  
-  printf("DEBUG: THD initialized successfully, about to parse FRM file...\n");
-  fflush(stdout);
+
+  DEBUG("DEBUG: THD initialized successfully, about to parse FRM file...\n");
 
   if (parse_frm_file(fake_thd, argv[1]))
   {
     exit_code= 1;
   }
   
-  printf("DEBUG: FRM parsing completed\n");
-  fflush(stdout);
+  DEBUG("DEBUG: FRM parsing completed\n");
 
-  exit:
-  if (fake_thd)
-    cleanup_thd(fake_thd);
 
+  delete fake_thd;
   mysql_mutex_destroy(&LOCK_start_thread);
   mysql_mutex_destroy(&LOCK_status);
   mysql_mutex_destroy(&LOCK_global_system_variables);

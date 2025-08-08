@@ -14,12 +14,13 @@ INCLUDE_DIRECTORIES(
 
 SET(FRM_PARSER_SOURCES mariadb_frm.cc frm_mocks.cc 
     ${CMAKE_SOURCE_DIR}/unittest/sql/dummy_builtins.cc
+    ../../storage/blackhole/ha_blackhole.cc
 )
 
 
 MYSQL_ADD_EXECUTABLE(mariadb-frm ${FRM_PARSER_SOURCES})
 
-TARGET_COMPILE_DEFINITIONS(mariadb-frm PRIVATE MYSQL_SERVER -DDBUG_OFF)
+TARGET_COMPILE_DEFINITIONS(mariadb-frm PRIVATE MYSQL_SERVER)
 
 TARGET_LINK_LIBRARIES(mariadb-frm
     sql
@@ -33,7 +34,10 @@ TARGET_LINK_LIBRARIES(mariadb-frm
     ${CMAKE_THREAD_LIBS_INIT}
 )
 if(NOT APPLE)
-    target_link_options(mariadb-frm PRIVATE "LINKER:--allow-multiple-definition")
+    target_link_options(mariadb-frm PRIVATE -flto
+                        "LINKER:--allow-multiple-definition"
+                        "-ffunction-sections"
+                        "LINKER:--gc-sections")
 endif()
 
 ADD_DEPENDENCIES(mariadb-frm GenError)
