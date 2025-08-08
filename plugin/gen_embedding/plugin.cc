@@ -114,7 +114,7 @@ class Item_func_gen_embedding: public Item_str_func
     if (model_dimensions.find(model_name) == model_dimensions.end())
     {
       my_printf_error(1, "GENERATE_EMBEDDING_OPENAI: "
-        "Model %s is not supported", ME_ERROR_LOG | ME_WARNING, model_name.c_str());
+        "Model %s is not supported", ME_WARNING, model_name.c_str());
       null_value= true;
       return 1;
     }
