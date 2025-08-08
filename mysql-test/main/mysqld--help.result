@@ -1475,9 +1475,10 @@ The following specify which files/extra groups are read (specified before remain
  --slave-type-conversions=name 
  Set of slave type conversions that are enabled. If the
  variable is empty, no conversions are allowed and it is
- expected that the types match exactly. Any combination
- of: ALL_LOSSY, ALL_NON_LOSSY, or ALL to set all
- combinations
+ expected that the types match exactly. In this case one
+ will also not get any warnings about missing columns on
+ the slave. Any combination of: ALL_LOSSY, ALL_NON_LOSSY, 
+ ERROR_IF_MISSING_FIELD, or ALL to set all combinations
  --slow-launch-time=# 
  If creating the thread takes longer than this value (in
  seconds), the Slow_launch_threads counter will be

@@ -3729,17 +3729,18 @@ Slave_run_triggers_for_rbr(
        slave_run_triggers_for_rbr_names,
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
 
-static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
-static Sys_var_on_access_global<Sys_var_set,
-                              PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
-Slave_type_conversions(
-       "slave_type_conversions",
-       "Set of slave type conversions that are enabled."
-       " If the variable is empty, no conversions are"
-       " allowed and it is expected that the types match exactly",
-       GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
-       slave_type_conversions_name,
-       DEFAULT(0));
+static const char *slave_type_conversions_name[]=
+{"ALL_LOSSY", "ALL_NON_LOSSY", "ERROR_IF_MISSING_FIELD" };
+static Sys_var_on_access_global<
+    Sys_var_set, PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_TYPE_CONVERSIONS>
+    Slave_type_conversions(
+        "slave_type_conversions",
+        "Set of slave type conversions that are enabled. If the variable is "
+        "empty, no conversions are allowed and it is expected that the types "
+        "match exactly. In this case one will also not get any warnings about "
+        "missing columns on the slave",
+        GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
+        slave_type_conversions_name, DEFAULT(0));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                            PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_SQL_VERIFY_CHECKSUM>

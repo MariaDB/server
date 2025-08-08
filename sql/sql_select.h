@@ -2435,6 +2435,16 @@ public:
   */
   bool open();
 
+  /*
+    Set pre-allocated field count to real field count
+    This can be used when the real number of fields used fields
+    are less than what was estimated at init
+  */
+  void fix_field_count()
+  {
+    m_alloced_field_count= s->fields;
+  }
+
   void set_all_fields_to_null()
   {
     for (uint i= 0; i < s->fields; i++)

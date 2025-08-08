@@ -1,0 +1,57 @@
+#
+# Test provides the fundamental functionality that if slave tables have their
+# columns organized differently than their master, that the slave can still
+# correctly replicate the events.  That is, the slave will use column names,
+# if available (supplied when binlog_row_metadata=FULL), to identify the
+# correct columns to store the row data.
+#
+# Test rpl_master_slave_mismatched_columns_full.test ensures the behavior is
+# correct with a much wider range of intermixed features and configurations.
+#
+# References:
+#   MDEV-36290: ALTER TABLE with multi-master can cause data loss
+#
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Setup
+create table t1 (a int primary key, b int) engine = innodb;
+insert into t1 values(100,100), (200,200);
+--sync_slave_with_master
+
+
+--echo # Add a column on the slave-side only which will change the index order,
+--echo # i.e., b on master is at index 2; and b on slave will be at index 3.
+--connection slave
+alter table t1 add column c int after a;
+
+--echo #
+--echo # Test: Insert will put the b values in the correct field
+--connection master
+insert into t1 values(300,301), (400,401);
+select * from t1;
+--sync_slave_with_master
+select * from t1;
+
+
+--connection master
+--let $master_b_val= `select b from t1 where a=300`
+--connection slave
+--let $slave_b_val= `select b from t1 where a=300`
+--echo # Ensuring slave inserts to the correct column it is in a different position than on the master..
+if ($master_b_val != $slave_b_val)
+{
+  --echo # ..FAIL : b value on master: $master_b_val; b value on slave: $slave_b_val
+  --die Slave did not insert to the correct field
+}
+--echo # ..PASS
+
+
+--echo #
+--echo # Cleanup
+connection master;
+drop table t1;
+--source include/rpl_end.inc
