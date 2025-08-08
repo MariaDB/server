@@ -680,4 +680,44 @@ create global temporary table t(c int);
 select nextval(t);
 ERROR 42S02: 'test.t' is not a SEQUENCE
 drop table t;
+# MDEV-37383 crash in end_read_record after REPAIR of Global temporary table
+create global temporary table t (c int) engine=innodb;
+repair local table t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	note	The storage engine for the table doesn't support repair
+delete from t;
+truncate t;
+drop table t;
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+repair local table t;
+Table	Op	Msg_type	Msg_text
+test.t	repair	note	The storage engine for the table doesn't support repair
+delete from t;
+truncate t;
+drop table t;
+create global temporary table t (c int) engine=innodb;
+optimize table t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	note	The storage engine for the table doesn't support optimize
+analyze table t;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	note	The storage engine for the table doesn't support analyze
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	note	The storage engine for the table doesn't support check
+delete from t;
+drop table t;
+create global temporary table t (c int) engine=innodb on commit preserve rows;
+optimize table t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	note	The storage engine for the table doesn't support optimize
+analyze table t;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	note	The storage engine for the table doesn't support analyze
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	note	The storage engine for the table doesn't support check
+delete from t;
+truncate t;
+drop table t;
 disconnect con1;
