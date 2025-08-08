@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SET SESSION binlog_row_image=minimal;
+CREATE SEQUENCE `seq_test` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE TABLE seq_test;
+Table	Create Table
+seq_test	CREATE TABLE `seq_test` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=InnoDB SEQUENCE=1
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+1
+SELECT NEXT VALUE FOR seq_test;
+NEXT VALUE FOR seq_test
+3
+connection node_2;
+DROP SEQUENCE seq_test;
