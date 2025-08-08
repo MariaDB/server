@@ -558,11 +558,10 @@ static size_t log_encrypt_buf(byte iv[MY_AES_BLOCK_SIZE],
   return 0;
 }
 
-/** Encrypt the log */
-ATTRIBUTE_NOINLINE void mtr_t::encrypt()
+ATTRIBUTE_NOINLINE size_t mtr_t::encrypt() noexcept
 {
   ut_ad(log_sys.format == log_t::FORMAT_ENC_10_8);
-  ut_ad(m_log.size());
+  ut_ad(!m_log.empty());
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
 
@@ -572,18 +571,19 @@ ATTRIBUTE_NOINLINE void mtr_t::encrypt()
   byte *dst= static_cast<byte*>(alloca(srv_page_size));
   mach_write_to_8(iv, m_commit_lsn);
   mtr_buf_t::block_t *start= nullptr;
-  size_t size= 0, start_size= 0;
+  size_t size= 0, start_size= 0, log_size= 5;
   m_crc= 0;
 
-  m_log.for_each_block([&](mtr_buf_t::block_t *b)
+  for (mtr_buf_t::block_t &b : m_log)
   {
     ut_ad(t - tmp + size <= srv_page_size);
-    byte *buf= b->begin();
+    log_size+= b.used();
+    byte *buf= b.begin();
     if (!start)
     {
     parse:
       ut_ad(t == tmp);
-      size= log_encrypt_buf(iv, t, buf, b->end());
+      size= log_encrypt_buf(iv, t, buf, b.end());
       if (!size)
       {
         ut_ad(t == tmp);
@@ -591,16 +591,16 @@ ATTRIBUTE_NOINLINE void mtr_t::encrypt()
       }
       else
       {
-        start= b;
+        start= &b;
         start_size= t - tmp;
       }
-      m_crc= my_crc32c(m_crc, buf, b->end() - buf - start_size);
+      m_crc= my_crc32c(m_crc, buf, b.end() - buf - start_size);
     }
-    else if (size > b->used())
+    else if (size > b.used())
     {
-      ::memcpy(t, buf, b->used());
-      t+= b->used();
-      size-= b->used();
+      ::memcpy(t, buf, b.used());
+      t+= b.used();
+      size-= b.used();
     }
     else
     {
@@ -620,22 +620,22 @@ ATTRIBUTE_NOINLINE void mtr_t::encrypt()
       /* Copy the encrypted data back to the log snippets. */
       ::memcpy(start->end() - start_size, dst, start_size);
       t= dst + start_size;
-      for (ilist<mtr_buf_t::block_t>::iterator i(start); &*++i != b;)
+      for (ilist<mtr_buf_t::block_t>::iterator i(start); &*++i != &b;)
       {
         const size_t l{i->used()};
         ::memcpy(i->begin(), t, l);
         t+= l;
       }
-      ::memcpy(b->begin(), t, size);
+      ::memcpy(b.begin(), t, size);
       ut_ad(t + size == dst + len);
       t= tmp;
       start= nullptr;
       goto parse;
     }
-    return true;
-  });
+  }
 
   ut_ad(t == tmp);
   ut_ad(!start);
   ut_ad(!size);
+  return log_size;
 }
