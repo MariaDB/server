@@ -7,14 +7,19 @@ set global query_cache_type=ON;
 set local query_cache_type=ON;
 set global query_cache_size=1355776;
 
-create table t1 (a int not null);
+create table t1 (a int not null) with system versioning;
 insert into t1 values (1),(2),(3);
+create table t2 (a timestamp);
+insert t2 () values (0);
 --disable_cursor_protocol
 --disable_ps2_protocol
 select * from t1;
+select * from t1 for system_time as of timestamp'2016-01-30 08:07:06';
+select * from t2;
 --enable_ps2_protocol
 --enable_cursor_protocol
-select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
+select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info
+order by statement_schema, statement_text;
 
 --disable_cursor_protocol
 select @@time_zone into @time_zone;
