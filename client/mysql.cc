@@ -1387,9 +1387,7 @@ int main(int argc,char *argv[])
   if (opt_outfile)
     end_tee();
   mysql_end(0);
-#ifndef _lint
-  DBUG_RETURN(0);				// Keep compiler happy
-#endif
+  DBUG_RETURN(0);
 }
 
 sig_handler mysql_end(int sig)
@@ -3201,20 +3199,17 @@ static int reconnect(void)
 }
 
 #ifndef EMBEDDED_LIBRARY
-static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
+static void status_info_cb(void *data, enum enum_mariadb_status_info type,
+  enum enum_session_state_type state_type, MARIADB_CONST_STRING *val)
 {
-  va_list ap;
-  va_start(ap, type);
-  if (type == SESSION_TRACK_TYPE && va_arg(ap, int) == SESSION_TRACK_SCHEMA)
+  if (type == SESSION_TRACK_TYPE && state_type == SESSION_TRACK_SCHEMA)
   {
-    MARIADB_CONST_STRING *val= va_arg(ap, MARIADB_CONST_STRING *);
     my_free(current_db);
     if (val->length)
       current_db= my_strndup(PSI_NOT_INSTRUMENTED, val->str, val->length, MYF(MY_FAE));
     else
       current_db= NULL;
   }
-  va_end(ap);
 }
 #else
 #define mysql_optionsv(A,B,C,D) do { } while(0)
@@ -3499,8 +3494,6 @@ static int com_go(String *buffer, char *)
     old_buffer.copy();
   }
 
-  /* Remove garbage for nicer messages */
-  LINT_INIT_STRUCT(buff[0]);
   remove_cntrl(*buffer);
 
   if (buffer->is_empty())

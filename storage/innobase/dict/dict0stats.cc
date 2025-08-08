@@ -25,7 +25,6 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "dict0stats.h"
-#include "dyn0buf.h"
 #include "row0sel.h"
 #include "trx0trx.h"
 #include "lock0lock.h"

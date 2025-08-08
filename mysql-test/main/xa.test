@@ -765,4 +765,73 @@ xa commit 'a';
 select count(*) from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-37315 Assertion `!xid_state.xid_cache_element' failed in trans_xa_rollback
+--echo #
+create table t1 (a int) engine=innodb;
+create table t2 (b int) engine=innodb;
+create table t3 (c int) engine=innodb;
+insert t1 values (1);
+insert t2 values (2);
+
+connect con1,localhost,root;
+xa start 'r:foo';
+insert t3 values (3);
+xa end 'r:foo';
+xa prepare 'r:foo';
+disconnect con1;
+connection default;
+xa recover;
+
+xa start 'r:bar';
+select * from t1 for update;
+connect con2,localhost,root;
+xa start 'r:baz';
+update t2 set b=12;
+send update t1 set a=13;
+connection default;
+--error ER_XAER_OUTSIDE
+xa rollback 'r:foo';
+--error ER_LOCK_DEADLOCK,ER_XAER_RMFAIL
+select * from t2 for update;
+--error ER_XAER_OUTSIDE
+xa rollback 'r:foo';
+connection con2;
+reap;
+disconnect con2;
+connection default;
+xa rollback 'r:bar';
+xa rollback 'r:foo';
+
+connect con1,localhost,root;
+xa start 'c:foo';
+insert t3 values (103);
+xa end 'c:foo';
+xa prepare 'c:foo';
+disconnect con1;
+connection default;
+xa recover;
+
+xa start 'c:bar';
+select * from t1 for update;
+connect con2,localhost,root;
+xa start 'c:baz';
+update t2 set b=102;
+send update t1 set a=103;
+connection default;
+--error ER_XAER_OUTSIDE
+xa commit 'c:foo';
+--error ER_LOCK_DEADLOCK,ER_XAER_RMFAIL
+select * from t2 for update;
+--error ER_XAER_OUTSIDE
+xa commit 'c:foo';
+connection con2;
+reap;
+disconnect con2;
+connection default;
+xa rollback 'c:bar';
+xa commit 'c:foo';
+
+drop table t1,t2,t3;
+
 --echo # End of 10.11 tests

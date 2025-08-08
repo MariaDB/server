@@ -612,7 +612,7 @@ int mysql_update(THD *thd,
       Currently they rely on the user checking DA for
       errors when unwinding the stack after calling Item::val_xxx().
     */
-    if (error || thd->is_error())
+    if (error || thd->killed || thd->is_error())
     {
       DBUG_RETURN(1);				// Error in where
     }
