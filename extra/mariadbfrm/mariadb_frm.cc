@@ -25,73 +25,40 @@
 #include "mysql_com.h"
 #include "m_ctype.h"
 #include "field.h"
+#include "sql_class.h"
+#include "sql_error.h"
 
 
-class Security_context;
-class LEX;
-class Transaction_state;
+extern mysql_mutex_t LOCK_start_thread, LOCK_status, LOCK_global_system_variables, LOCK_user_conn, LOCK_thread_id;
+extern mysql_cond_t COND_start_thread;
+extern struct system_variables global_system_variables;
 
-class THD {
-public:
-  MEM_ROOT mem_root;
-  char *thread_stack;
-  Diagnostics_area *m_stmt_da;
-  Security_context *security_ctx;
-  Security_context *main_security_ctx;
-  LEX *lex;
-  Transaction_state *transaction;
-  ulong thread_id;
-  
-  struct {
-    const CHARSET_INFO *character_set_client;
-    const CHARSET_INFO *collation_connection; 
-    const CHARSET_INFO *collation_database;
-    const CHARSET_INFO *character_set_results;
-    const CHARSET_INFO *character_set_filesystem;
-    ulong sql_mode;
-    ulong max_allowed_packet;
-    ulong net_buffer_length;
-    plugin_ref table_plugin;
-    plugin_ref tmp_table_plugin;
-  } variables;
-  
-  struct {
-    ulong feature_system_versioning;
-    ulong feature_application_time_periods;
-  } status_var;
-
-  THD() : m_stmt_da(nullptr), security_ctx(nullptr), lex(nullptr), 
-          transaction(nullptr), thread_id(1) {
-    init_alloc_root(PSI_NOT_INSTRUMENTED, &mem_root, 1024, 0, MYF(0));
-  }
-  
-  ~THD() {
-    free_root(&mem_root, MYF(0));
-  }
-
-  bool is_error() const { 
-    printf("DEBUG: is_error() called, m_stmt_da = %p\n", m_stmt_da);
-    return m_stmt_da ? m_stmt_da->is_error() : false; 
-  }
-};
+PSI_mutex_key key_LOCK_start_thread = 0;
+PSI_mutex_key key_LOCK_status = 0;
+PSI_mutex_key key_LOCK_global_system_variables = 0;
+PSI_mutex_key key_LOCK_user_conn = 0;
+PSI_mutex_key key_LOCK_thread_id = 0;
+PSI_cond_key key_COND_start_thread = 0;
+PSI_mutex_key key_LOCK_plugin = 0;
 
 
+bool plugins_are_initialized = false;
+mysql_mutex_t LOCK_plugin;
+struct st_plugin_int **plugin_array = nullptr;
+uint plugin_array_size = 0;
 
-class Security_context {
-public:
-  ulong master_access;
-  Security_context() : master_access(0) {}
-};
 
-class LEX {
-public:
-  LEX() {}
-};
+CHARSET_INFO *system_charset_info = nullptr;
+CHARSET_INFO *files_charset_info = nullptr;
+CHARSET_INFO *national_charset_info = nullptr;
+CHARSET_INFO *table_alias_charset = nullptr;
+CHARSET_INFO *character_set_filesystem = nullptr;
+CHARSET_INFO *default_charset_info = nullptr;
 
-class Transaction_state {
-public:
-  Transaction_state() {}
-};
+extern int mysqld_server_started;
+extern int mysqld_server_initialized;
+extern int sf_leaking_memory;
+
 
 static handlerton mock_hton;
 
@@ -168,16 +135,76 @@ static void mock_plugin_unlock(THD *thd, plugin_ref ptr) {
 #define plugin_unlock(thd, ptr) mock_plugin_unlock(thd, ptr)
 
 
+static int init_thread_environment()
+{
+  mysql_mutex_init(key_LOCK_start_thread, &LOCK_start_thread, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_status, &LOCK_status, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_global_system_variables, &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_user_conn, &LOCK_user_conn, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_thread_id, &LOCK_thread_id, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_start_thread, &COND_start_thread, NULL);
+
+  return 0;
+}
+
+static int mysql_init_variables()
+{
+  // Initialize critical global variables that THD depends on
+  global_system_variables.character_set_client = &my_charset_utf8mb3_general_ci;
+  global_system_variables.collation_connection = &my_charset_utf8mb3_general_ci;
+  global_system_variables.collation_database = &my_charset_utf8mb3_general_ci;
+  global_system_variables.character_set_results = &my_charset_utf8mb3_general_ci;
+  global_system_variables.character_set_filesystem = &my_charset_bin;
+
+  return 0;
+}
+
+static int init_early_variables()
+{
+  sf_leaking_memory = 1;
+  mysqld_server_started = mysqld_server_initialized = 0;
+  
+  return 0;
+}
+
+static int init_character_sets()
+{
+  system_charset_info = &my_charset_utf8mb3_general_ci;
+  files_charset_info = &my_charset_utf8mb3_general_ci;
+  national_charset_info = &my_charset_utf8mb3_general_ci;
+  table_alias_charset = &my_charset_bin;
+  character_set_filesystem = &my_charset_bin;
+  default_charset_info = &my_charset_utf8mb3_general_ci;
+  
+  return 0;
+}
+
+static int init_plugin_system_complete()
+{
+  mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_SLOW);
+
+  plugin_array_size = 16;  // Start with 16 slots
+  plugin_array = static_cast<struct st_plugin_int **>(my_malloc(
+      PSI_NOT_INSTRUMENTED, plugin_array_size * sizeof(struct st_plugin_int *),
+      MYF(MY_WME | MY_ZEROFILL)));
+
+  if (!plugin_array)
+    return 1;
+
+  plugins_are_initialized = true;
+
+  return 0;
+}
 /**
   Initialize fake THD structure
 */
 static THD* create_minimal_thd() {
-    THD *thd = new THD();
+    THD *thd = new THD(1, false);
     
     char stack_dummy;
     thd->thread_stack = &stack_dummy;
     
-    thd->m_stmt_da = new Diagnostics_area(false);
+    // thd->m_stmt_da = new Diagnostics_area(false);
     
     thd->variables.character_set_client = &my_charset_utf8mb4_general_ci;
     thd->variables.collation_connection = &my_charset_utf8mb4_general_ci;
@@ -193,9 +220,9 @@ static THD* create_minimal_thd() {
     thd->status_var.feature_system_versioning = 0;
     thd->status_var.feature_application_time_periods = 0;
     
-    thd->security_ctx = thd->main_security_ctx;
+    thd->security_ctx = &thd->main_security_ctx;
     thd->lex = new LEX();
-    thd->transaction = new Transaction_state();
+    // thd->transaction = new Transaction_state();
     
     return thd;
 }
@@ -374,7 +401,7 @@ static bool parse_frm_file(THD *fake_thd, const char *frm_path)
   
   init_alloc_root(PSI_NOT_INSTRUMENTED, &share->mem_root, 1024, 0, MYF(0));
   
-  fake_thd->mem_root = share->mem_root;
+  fake_thd->mem_root = &share->mem_root;
   
   printf("DEBUG: TABLE_SHARE allocated and initialized successfully\n");
   fflush(stdout);
@@ -455,8 +482,19 @@ int main(int argc, char **argv)
   printf("DEBUG: About to initialize THD...\n");
   fflush(stdout);
 
+
+  if (init_early_variables() ||
+     init_thread_environment() ||
+     mysql_init_variables() ||
+     init_character_sets() ||
+     init_plugin_system_complete())  // This is the key addition
+  {
+    fprintf(stderr, "Error: Cannot initialize required subsystems\n");
+    return 1;
+  }
+
   my_thread_init();
-  my_mutex_init();
+
   fake_thd= create_minimal_thd();
   if (!fake_thd)
   {
@@ -477,9 +515,17 @@ int main(int argc, char **argv)
   fflush(stdout);
 
   exit:
+  if (fake_thd)
     cleanup_thd(fake_thd);
+
+  mysql_mutex_destroy(&LOCK_start_thread);
+  mysql_mutex_destroy(&LOCK_status);
+  mysql_mutex_destroy(&LOCK_global_system_variables);
+  mysql_mutex_destroy(&LOCK_user_conn);
+  mysql_mutex_destroy(&LOCK_thread_id);
+  mysql_cond_destroy(&COND_start_thread);
+
   my_thread_end();
-  my_mutex_end();
   my_end(0);
   return exit_code;
 }
