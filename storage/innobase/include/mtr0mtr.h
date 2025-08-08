@@ -435,10 +435,8 @@ public:
     m_memo.emplace_back(mtr_memo_slot_t{object, type});
   }
 
-  /** @return the size of the log is empty */
-  size_t get_log_size() const { return m_log.size(); }
   /** @return whether the log and memo are empty */
-  bool is_empty() const { return !get_savepoint() && !get_log_size(); }
+  bool is_empty() const { return !get_savepoint() && m_log.empty(); }
 
   /** Write an OPT_PAGE_CHECKSUM record. */
   inline void page_checksum(const buf_page_t &bpage);
@@ -618,10 +616,11 @@ public:
   @param type           file operation
   @param space_id       tablespace identifier
   @param path           file path
-  @param new_path       new file path for type=FILE_RENAME */
-  inline void log_file_op(mfile_type_t type, uint32_t space_id,
-                          const char *path,
-                          const char *new_path= nullptr);
+  @param new_path       new file path for type=FILE_RENAME
+  @return number of bytes written */
+  inline size_t log_file_op(mfile_type_t type, uint32_t space_id,
+                            const char *path,
+                            const char *new_path= nullptr) noexcept;
 
   /** Add freed page numbers to freed_pages */
   void add_freed_offset(fil_space_t *space, uint32_t page)
@@ -692,8 +691,13 @@ private:
   tablespace was modified for the first time since fil_names_clear(). */
   ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write() noexcept;
 
-  /** Encrypt the log */
-  ATTRIBUTE_NOINLINE void encrypt();
+  /** Encrypt the log
+  @return the total size in bytes, excluding the 8-byte nonce */
+  ATTRIBUTE_NOINLINE size_t encrypt() noexcept;
+
+  /** Calculate m_crc of m_log.
+  @return the total size in bytes, including the 5-byte trailer and CRC-32C */
+  ATTRIBUTE_NOINLINE size_t crc32c() noexcept;
 
   /** Commit the mini-transaction log.
   @tparam pmem log_sys.is_mmap()
