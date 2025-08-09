@@ -20,15 +20,12 @@
 
 #include "mariadb.h"
 
-#include "mariadb.h"
 #include "my_sys.h"
 #include "mysql_com.h"
 #include "m_ctype.h"
 #include "field.h"
 #include "sql_class.h"
 #include "table_cache.h"
-#include "../../storage/blackhole/ha_blackhole.h"
-#include "sql_error.h"
 #include "sql_table.h"
 
 #define DEBUG(fmt, ...) do { fprintf(stderr, "DEBUG: " fmt, ##__VA_ARGS__); fflush(stderr); } while(0)
@@ -53,6 +50,16 @@ mysql_mutex_t LOCK_plugin;
 struct st_plugin_int **plugin_array = nullptr;
 uint plugin_array_size = 0;
 
+ulong server_id = 1;
+char server_uuid[MY_UUID_SIZE+1];
+ulong binlog_cache_use = 0;
+ulong binlog_cache_disk_use = 0;
+ulong aborted_threads = 0;
+ulong aborted_connects = 0;
+unsigned long opt_readonly = 0;
+unsigned long long test_flags = 0;
+ulong thread_id = 1;
+
 
 CHARSET_INFO *system_charset_info = nullptr;
 CHARSET_INFO *files_charset_info = nullptr;
@@ -64,13 +71,10 @@ CHARSET_INFO *default_charset_info = nullptr;
 extern int mysqld_server_started;
 extern int mysqld_server_initialized;
 extern int sf_leaking_memory;
+extern handlerton* get_frm_mock_handlerton();
 
 
-static handlerton mock_hton {
-  .create=[](handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root) -> handler* {
-    return new (mem_root) ha_blackhole(hton, table);
-  },
-};
+handlerton* mock_hton = get_frm_mock_handlerton();
 
 static st_maria_plugin mock_plugin = {
   .type = MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -139,7 +143,9 @@ static int init_early_variables()
 {
   sf_leaking_memory = 1;
   mysqld_server_started = mysqld_server_initialized = 0;
-  
+
+  strcpy(server_uuid, "12345678-1234-1234-1234-123456789012");
+
   return 0;
 }
 
@@ -165,8 +171,8 @@ static int init_plugin_system_complete()
       PSI_NOT_INSTRUMENTED, plugin_array_size * sizeof(struct st_plugin_int *),
       MYF(MY_WME | MY_ZEROFILL)));
 
-  mock_hton.flags = HTON_CAN_RECREATE;
-  mock_hton.db_type = DB_TYPE_BLACKHOLE_DB;
+  mock_hton->flags = HTON_CAN_RECREATE;
+  mock_hton->db_type = DB_TYPE_BLACKHOLE_DB;
   if (!plugin_array)
     return 1;
 
@@ -326,8 +332,8 @@ static bool parse_frm_file(THD *fake_thd, const char *frm_path)
         const uchar *forminfo = frm_data + forminfo_offset;
         uint fields = uint2korr(forminfo + 258);
         DEBUG("  - Field count (manual read): %u\n", fields);
-        uint keys = forminfo[280];  // Number of keys
-        uint key_parts = forminfo[281];  // Number of key parts
+        uint keys = forminfo[260];  // Number of keys
+        uint key_parts = forminfo[261];  // Number of key parts
         DEBUG("  - Keys (manual read): %u\n", keys);
         DEBUG("  - Key parts (manual read): %u\n", key_parts);
       } else {
@@ -357,6 +363,9 @@ static bool parse_frm_file(THD *fake_thd, const char *frm_path)
     DEBUG("Error: Cannot allocate TABLE_SHARE\n");
     return 1;
   }
+
+mysql_mutex_init(0, &share->LOCK_share, MY_MUTEX_INIT_FAST);
+
   
   share->db.str = db_name.str;
   share->db.length = db_name.length;
@@ -396,12 +405,16 @@ static bool parse_frm_file(THD *fake_thd, const char *frm_path)
   share->tmp_table = NO_TMP_TABLE;
   share->db_plugin = mock_plugin_ref;
 
+  share->field= nullptr;
+  share->fields= 0;
+
 
   DEBUG("DEBUG: Share details before parsing:\n");
   DEBUG("  - db_plugin: %p\n", (void*)share->db_plugin);
   DEBUG("  - table_category: %d\n", share->table_category);
   DEBUG("  - tmp_table: %d\n", share->tmp_table);
-  if (share->init_from_binary_frm_image((THD*)fake_thd, false, frm_data, frm_length))
+  int parse_error = share->init_from_binary_frm_image((THD*)fake_thd, false, frm_data, frm_length);
+  if (parse_error != 0)
   {
     DEBUG("Error: Cannot parse FRM file - init_from_binary_frm_image failed with error %d: %s\n",my_errno, 
     strerror(my_errno));
@@ -485,7 +498,6 @@ int main(int argc, char **argv)
   }
 
   my_thread_init();
-
   fake_thd= create_minimal_thd();
 
   DEBUG("DEBUG: THD initialized successfully, about to parse FRM file...\n");
@@ -505,7 +517,6 @@ int main(int argc, char **argv)
   mysql_mutex_destroy(&LOCK_user_conn);
   mysql_mutex_destroy(&LOCK_thread_id);
   mysql_cond_destroy(&COND_start_thread);
-
   my_thread_end();
   my_end(0);
   return exit_code;

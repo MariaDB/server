@@ -14,7 +14,6 @@ INCLUDE_DIRECTORIES(
 
 SET(FRM_PARSER_SOURCES mariadb_frm.cc frm_mocks.cc 
     ${CMAKE_SOURCE_DIR}/unittest/sql/dummy_builtins.cc
-    ../../storage/blackhole/ha_blackhole.cc
 )
 
 
