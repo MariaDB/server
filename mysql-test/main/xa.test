@@ -80,6 +80,7 @@ xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 
 select * from t1;
 disconnect con1;
+# this needs to be removed in 12.1, here and everywhere below
 --source include/wait_until_count_sessions.inc
 xa rollback 'testb',0x2030405060,11;
 xa recover;
@@ -781,6 +782,7 @@ xa end 'r:foo';
 xa prepare 'r:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'r:bar';
@@ -810,6 +812,7 @@ xa end 'c:foo';
 xa prepare 'c:foo';
 disconnect con1;
 connection default;
+--source include/wait_until_count_sessions.inc
 xa recover;
 
 xa start 'c:bar';
