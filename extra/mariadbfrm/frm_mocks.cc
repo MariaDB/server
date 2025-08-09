@@ -169,3 +169,11 @@ bool change_to_partiton_engine(plugin_ref *se_plugin) {
 void TABLE_SHARE::update_optimizer_costs(handlerton *hton) {
     return;
 }
+
+bool require_quotes(const char *name, size_t name_length) {
+  return false;
+}
+
+char get_quote_char_for_identifier(THD *thd, const char *name, size_t length) {
+  return '`';
+}

@@ -25,6 +25,7 @@
 #include "m_ctype.h"
 #include "field.h"
 #include "sql_class.h"
+#include "sql_show.h"
 #include "table_cache.h"
 #include "sql_table.h"
 
@@ -35,6 +36,7 @@
 extern mysql_mutex_t LOCK_start_thread, LOCK_status, LOCK_global_system_variables, LOCK_user_conn, LOCK_thread_id;
 extern mysql_cond_t COND_start_thread;
 extern struct system_variables global_system_variables;
+
 
 PSI_mutex_key key_LOCK_start_thread = 0;
 PSI_mutex_key key_LOCK_status = 0;
@@ -72,13 +74,14 @@ extern int mysqld_server_started;
 extern int mysqld_server_initialized;
 extern int sf_leaking_memory;
 extern handlerton* get_frm_mock_handlerton();
+st_plugin_int *hton2plugin[MAX_HA];
 
 
-handlerton* mock_hton = get_frm_mock_handlerton();
+
 
 static st_maria_plugin mock_plugin = {
   .type = MYSQL_STORAGE_ENGINE_PLUGIN,
-  .info = &mock_hton,
+  .info = nullptr,
   .name = "MOCK_ENGINE",
   .author = "Nikita Malyavin",
   .descr = "Mock storage engine for FRM parsing",
@@ -95,7 +98,7 @@ static st_maria_plugin mock_plugin = {
 static st_plugin_int mock_plugin_int = {
   .name = {const_cast<char*>("mock_storage_engine"), 19},
   .plugin = &mock_plugin,
-  .data= &mock_hton, 
+  .data= nullptr, 
   .plugin_dl = NULL,
   .state = PLUGIN_IS_READY,
   .ref_count = 1,
@@ -166,16 +169,27 @@ static int init_plugin_system_complete()
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_SLOW);
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
 
-  plugin_array_size = 16;  // Start with 16 slots
+  plugin_array_size = 16;
   plugin_array = static_cast<struct st_plugin_int **>(my_malloc(
       PSI_NOT_INSTRUMENTED, plugin_array_size * sizeof(struct st_plugin_int *),
       MYF(MY_WME | MY_ZEROFILL)));
 
-  mock_hton->flags = HTON_CAN_RECREATE;
-  mock_hton->db_type = DB_TYPE_BLACKHOLE_DB;
+  handlerton* actual_hton = get_frm_mock_handlerton();
+  
+  mock_plugin.info = actual_hton;
+  
+  mock_plugin_int.data = actual_hton;
+  
+  actual_hton->flags = HTON_CAN_RECREATE;
+  actual_hton->db_type = DB_TYPE_BLACKHOLE_DB;
+  actual_hton->slot = 0;
+  hton2plugin[0] = &mock_plugin_int;
   if (!plugin_array)
     return 1;
 
+    hton2plugin[0] = &mock_plugin_int;
+    
+    
   plugins_are_initialized = true;
 
   return 0;
@@ -188,6 +202,7 @@ static THD* create_minimal_thd() {
     
     char stack_dummy;
     thd->thread_stack = &stack_dummy;
+    thd->variables.sql_mode = 0;
     
     return thd;
 }
@@ -317,35 +332,6 @@ static bool parse_frm_file(THD *fake_thd, const char *frm_path)
 
   if (!frm_data)
     return 1;
-  DEBUG("DEBUG: FRM header check:\n");
-  DEBUG("  - Magic byte[0]: 0x%02x (should be 0xFE)\n", frm_data[0]);
-  DEBUG("  - FRM version: %d\n", frm_data[2]);
-  DEBUG("  - Extra2 length: %d\n", uint2korr(frm_data+4));
-  {
-    uint extra2_len = uint2korr(frm_data + 4);
-    DEBUG("  - Extra2 length (detailed): %u\n", extra2_len);
-    if (64 + extra2_len < frm_length) {
-      uint forminfo_offset = uint4korr(frm_data + 64 + extra2_len);
-      DEBUG("  - Forminfo offset should be at byte: %u\n", forminfo_offset);
-
-      if (forminfo_offset + 290 < frm_length) {
-        const uchar *forminfo = frm_data + forminfo_offset;
-        uint fields = uint2korr(forminfo + 258);
-        DEBUG("  - Field count (manual read): %u\n", fields);
-        uint keys = forminfo[260];  // Number of keys
-        uint key_parts = forminfo[261];  // Number of key parts
-        DEBUG("  - Keys (manual read): %u\n", keys);
-        DEBUG("  - Key parts (manual read): %u\n", key_parts);
-      } else {
-        DEBUG("  - ERROR: Forminfo offset %u is beyond file size!\n", forminfo_offset);
-      }
-    }
-  }
-  
-  DEBUG("DEBUG: FRM file read successfully, size: %zu bytes\n", frm_length);
-
-  DEBUG("DEBUG: Extracting database and table names\n");
-  
   if (extract_db_table_names(frm_path, &db_name, &table_name))
   {
     DEBUG("Error: Cannot extract database and table names from path\n");
@@ -409,16 +395,11 @@ mysql_mutex_init(0, &share->LOCK_share, MY_MUTEX_INIT_FAST);
   share->fields= 0;
 
 
-  DEBUG("DEBUG: Share details before parsing:\n");
-  DEBUG("  - db_plugin: %p\n", (void*)share->db_plugin);
-  DEBUG("  - table_category: %d\n", share->table_category);
-  DEBUG("  - tmp_table: %d\n", share->tmp_table);
   int parse_error = share->init_from_binary_frm_image((THD*)fake_thd, false, frm_data, frm_length);
   if (parse_error != 0)
   {
     DEBUG("Error: Cannot parse FRM file - init_from_binary_frm_image failed with error %d: %s\n",my_errno, 
     strerror(my_errno));
-    goto cleanup;
   }
   
   DEBUG("DEBUG: init_from_binary_frm_image completed successfully\n");
@@ -429,7 +410,6 @@ mysql_mutex_init(0, &share->LOCK_share, MY_MUTEX_INIT_FAST);
   if (!table)
   {
     DEBUG("Error: Cannot allocate TABLE structure\n");
-    goto cleanup;
   }
  open_table_from_share(fake_thd, share, &table_name, HA_OPEN_KEYFILE,
                       EXTRA_RECORD, 0,
@@ -441,13 +421,19 @@ mysql_mutex_init(0, &share->LOCK_share, MY_MUTEX_INIT_FAST);
   table_list.table_name= Lex_ident_table(table_name);
   table_list.db= Lex_ident_db(db_name);
   table_list.alias= Lex_ident_table(table_name);
-  
-  table->init((THD*)fake_thd, &table_list);
-  
-  printf("Table: %.*s.%.*s\n", (int)db_name.length, db_name.str, (int)table_name.length, table_name.str);
-  printf("Fields: %d\n", share->fields);
-  printf("Keys: %d\n", share->keys);
-  
+  table_list.table = table;
+
+  String ddl_buffer;
+
+  printf("====WITHOUT HEADER:\n\n");
+  show_create_table(fake_thd, &table_list, &ddl_buffer, NULL, WITHOUT_DB_NAME);
+  printf("%s\n", ddl_buffer.c_ptr());
+
+  printf("\n====WITH HEADER:\n\n");
+  ddl_buffer.length(0);
+  show_create_table(fake_thd, &table_list, &ddl_buffer, NULL, WITH_DB_NAME);
+  printf("--\n-- Table structure for table `%s`\n--\n\n%s\n",
+         table_name.str, ddl_buffer.c_ptr());
   error= false;
   
 cleanup:
@@ -462,6 +448,7 @@ cleanup:
   my_free((void*)table_name.str);
   return error;
 }
+
 
 /**
   Main function
