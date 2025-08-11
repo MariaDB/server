@@ -69,7 +69,6 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   backup_mysql.cc
   backup_copy.cc
   encryption_plugin.cc
-  ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
   aria_backup_client.cc
   thread_pool.cc
   ddl_log.cc

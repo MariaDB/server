@@ -123,8 +123,11 @@ static my_bool net_write_buff(NET *, const uchar *, size_t len);
 
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
 
-/** Init with packet info. */
+#ifdef MYSQL_SERVER
+extern "C" void my_net_local_init_server(NET *net);
+#endif
 
+/** Init with packet info. */
 my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
 {
   DBUG_ENTER("my_net_init");
@@ -132,7 +135,11 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   net->vio = vio;
   net->read_timeout= 0;
   net->write_timeout= 0;
-  my_net_local_init(net);			/* Set some limits */
+#ifdef MYSQL_SERVER
+  my_net_local_init_server(net);
+#else
+  my_net_local_init(net);
+#endif
 
   if (net_allocate_new_packet(net, thd, my_flags))
     DBUG_RETURN(1);
