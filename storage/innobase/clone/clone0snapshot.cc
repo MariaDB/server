@@ -801,11 +801,14 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
   data_size= page_size;
   auto zip_size= fil_space_t::zip_size(file_meta->m_fsp_flags);
 
+  dberr_t error= DB_SUCCESS;
   /* Space header page is modified with SX latch while extending. Also,
   we would like to serialize with page flush to disk. */
   auto block =
       buf_page_get_gen(page_id, zip_size, RW_SX_LATCH, nullptr,
-                       BUF_GET_POSSIBLY_FREED, &mtr);
+                       BUF_GET_POSSIBLY_FREED, &mtr, &error);
+  if (block == nullptr)
+    return error;
   auto bpage = &block->page;
 
   ut_ad(!fsp_is_system_temporary(bpage->id().space()));
