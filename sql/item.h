@@ -2397,7 +2397,6 @@ public:
   virtual bool check_partition_func_processor(void *arg) { return true; }
   virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
   virtual bool rename_fields_processor(void *arg) { return 0; }
-  virtual bool rename_table_processor(void *arg) { return 0; }
   /*
     TRUE if the function is knowingly TRUE or FALSE.
     Not to be used for AND/OR formulas.
@@ -2425,13 +2424,6 @@ public:
     LEX_CSTRING db_name;
     LEX_CSTRING table_name;
     List<Create_field> fields;
-  };
-  struct func_processor_rename_table
-  {
-    Lex_ident_db old_db;
-    Lex_ident_table old_table;
-    Lex_ident_db new_db;
-    Lex_ident_table new_table;
   };
   virtual bool check_vcol_func_processor(void *arg)
   {
@@ -3892,7 +3884,6 @@ public:
   bool switch_to_nullable_fields_processor(void *arg) override;
   bool update_vcol_processor(void *arg) override;
   bool rename_fields_processor(void *arg) override;
-  bool rename_table_processor(void *arg) override;
   bool check_vcol_func_processor(void *arg) override;
   bool set_fields_as_dependent_processor(void *arg) override
   {

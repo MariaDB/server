@@ -7522,12 +7522,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      bool err;
-      if (!field->vcol_info->is_equivalent(thd, table->s, create_info->table->s,
-                                           tmp_new_field->field->vcol_info, err))
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info))
         DBUG_RETURN(false);
-      if (err)
-        DBUG_RETURN(true);
     }
 
     /*

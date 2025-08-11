@@ -845,30 +845,6 @@ bool Item_field::rename_fields_processor(void *arg)
   return 0;
 }
 
-/**
-   Rename table and clean field for EXCHANGE comparison
-*/
-
-bool Item_field::rename_table_processor(void *arg)
-{
-  Item::func_processor_rename_table *p= (Item::func_processor_rename_table*) arg;
-
-  /* If (db_name, table_name) matches (p->old_db, p->old_table)
-     rename to (p->new_db, p->new_table) */
-  if (((!db_name.str && !p->old_db.str) ||
-       db_name.streq(p->old_db)) &&
-      ((!table_name.str && !p->old_table.str) ||
-       table_name.streq(p->old_table)))
-  {
-    db_name= p->new_db;
-    table_name= p->new_table;
-  }
-
-  /* Item_field equality is done by field pointer if it is set, we need to avoid that */
-  field= NULL;
-  return 0;
-}
-
 
 /**
   Check if an Item_field references some field from a list of fields.
