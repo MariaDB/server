@@ -1,0 +1,26 @@
+--source include/have_sequence.inc
+
+create table t1 (a int not null, key(a));
+insert into t1 (a) select seq/100 from seq_1_to_1000;
+
+create table t2 (a int not null, key(a));
+insert into t2 (a) select seq from seq_1_to_10000;
+
+create table t3 (a int not null, key(a));
+insert into t3 (a) select seq from seq_1_to_20000;
+
+set join_cache_level=0;
+
+set optimizer_prune_level=1;
+
+/* 1 */ explain format=json select *
+from t1, t2, t3
+where t2.a = t3.a and t1.a = 3;
+
+set optimizer_prune_level=0;
+
+/* 2 */ explain format=json select *
+from t1, t2, t3
+where t2.a = t3.a and t1.a = 3;
+
+drop table t1,t2,t3;

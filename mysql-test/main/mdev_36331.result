@@ -1,0 +1,128 @@
+create table t1 (a int not null, key(a));
+insert into t1 (a) select seq/100 from seq_1_to_1000;
+create table t2 (a int not null, key(a));
+insert into t2 (a) select seq from seq_1_to_10000;
+create table t3 (a int not null, key(a));
+insert into t3 (a) select seq from seq_1_to_20000;
+set join_cache_level=0;
+set optimizer_prune_level=1;
+/* 1 */ explain format=json select *
+from t1, t2, t3
+where t2.a = t3.a and t1.a = 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 845.7300205,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 98,
+          "cost": 0.014341002,
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "index",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 98,
+          "rows": 10000,
+          "cost": 136.1704027,
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["test.t2.a"],
+          "loops": 980000,
+          "rows": 1,
+          "cost": 709.5452768,
+          "filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+set optimizer_prune_level=0;
+/* 2 */ explain format=json select *
+from t1, t2, t3
+where t2.a = t3.a and t1.a = 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 150.0120449,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "index",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 10000,
+          "cost": 1.396183342,
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["test.t2.a"],
+          "loops": 10000,
+          "rows": 1,
+          "cost": 7.2536368,
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "loops": 10000,
+          "rows": 98,
+          "cost": 141.3622248,
+          "filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+drop table t1,t2,t3;
