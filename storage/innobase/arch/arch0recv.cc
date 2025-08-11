@@ -639,7 +639,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_stop_points(bool last_file,
   ut_ad(!m_file_ctx.is_closed());
 
   uint64_t offset;
-  byte buf[ARCH_PAGE_BLK_SIZE];
+  auto buf= std::make_unique<byte[]>(ARCH_PAGE_BLK_SIZE);
 
   auto phy_size= m_file_ctx.get_phy_size();
 
@@ -651,24 +651,24 @@ dberr_t Arch_File_Ctx::Recovery::parse_stop_points(bool last_file,
   if (phy_size < offset + ARCH_PAGE_BLK_SIZE)
     return DB_ERROR;
 
-  auto err= m_file_ctx.read(buf, offset, ARCH_PAGE_BLK_SIZE);
+  auto err= m_file_ctx.read(buf.get(), offset, ARCH_PAGE_BLK_SIZE);
   if (err != DB_SUCCESS)
     return err;
 
-  auto stop_lsn= Arch_Block::get_stop_lsn(buf);
+  auto stop_lsn= Arch_Block::get_stop_lsn(buf.get());
   m_file_ctx.m_stop_points.push_back(stop_lsn);
 
   if (last_file)
   {
     info.m_last_stop_lsn= stop_lsn;
-    memcpy(info.m_last_data_block, buf, ARCH_PAGE_BLK_SIZE);
+    memcpy(info.m_last_data_block, buf.get(), ARCH_PAGE_BLK_SIZE);
   }
 
   info.m_write_pos.init();
   info.m_write_pos.m_block_num=
-      static_cast<uint32_t>(Arch_Block::get_block_number(buf));
+      static_cast<uint32_t>(Arch_Block::get_block_number(buf.get()));
   info.m_write_pos.m_offset=
-      Arch_Block::get_data_len(buf) + ARCH_PAGE_BLK_HEADER_LENGTH;
+      Arch_Block::get_data_len(buf.get()) + ARCH_PAGE_BLK_HEADER_LENGTH;
 
   return err;
 }
@@ -679,24 +679,25 @@ dberr_t Arch_File_Ctx::Recovery::parse_reset_points(
   ut_ad(!m_file_ctx.is_closed());
   ut_ad(m_file_ctx.m_index == file_index);
 
-  byte buf[ARCH_PAGE_BLK_SIZE];
+  auto buf= std::make_unique<byte[]>(ARCH_PAGE_BLK_SIZE);
 
   if (m_file_ctx.get_phy_size() < ARCH_PAGE_BLK_SIZE)
     return DB_ERROR;
 
   /* Read reset block to fetch reset points. */
-  auto err= m_file_ctx.read(buf, 0, ARCH_PAGE_BLK_SIZE);
+  auto err= m_file_ctx.read(buf.get(), 0, ARCH_PAGE_BLK_SIZE);
   if (err != DB_SUCCESS)
     return err;
 
-  auto block_num= static_cast<uint32_t>(Arch_Block::get_block_number(buf));
-  auto data_len= Arch_Block::get_data_len(buf);
+  auto block_num= static_cast<uint32_t>(
+      Arch_Block::get_block_number(buf.get()));
+  auto data_len= Arch_Block::get_data_len(buf.get());
 
   if (file_index != block_num)
   {
     /* This means there was no reset for this file and hence the
     reset block was not flushed. */
-    ut_ad(Arch_Block::is_zeros(buf, ARCH_PAGE_BLK_SIZE));
+    ut_ad(Arch_Block::is_zeros(buf.get(), ARCH_PAGE_BLK_SIZE));
     info.m_reset_pos.init();
     info.m_reset_pos.m_block_num= file_index;
     return err;
@@ -707,7 +708,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_reset_points(
   info.m_reset_pos.m_offset= data_len + ARCH_PAGE_BLK_HEADER_LENGTH;
 
   if (last_file)
-    memcpy(info.m_last_reset_block, buf, ARCH_PAGE_BLK_SIZE);
+    memcpy(info.m_last_reset_block, buf.get(), ARCH_PAGE_BLK_SIZE);
 
   Arch_Reset_File reset_file;
   reset_file.init();
@@ -716,7 +717,7 @@ dberr_t Arch_File_Ctx::Recovery::parse_reset_points(
   if (data_len != 0)
   {
     uint length= 0;
-    byte *buf1= buf + ARCH_PAGE_BLK_HEADER_LENGTH;
+    byte *buf1= buf.get() + ARCH_PAGE_BLK_HEADER_LENGTH;
 
     ut_ad(data_len >= ARCH_PAGE_FILE_HEADER_RESET_LSN_SIZE +
                           ARCH_PAGE_FILE_HEADER_RESET_POS_SIZE);
@@ -755,18 +756,18 @@ lsn_t Arch_File_Ctx::fetch_reset_lsn(uint64_t block_num)
   ut_ad(!is_closed());
   ut_ad(Arch_Block::get_file_index(block_num, ARCH_DATA_BLOCK) == m_index);
 
-  byte buf[ARCH_PAGE_BLK_SIZE];
+  auto buf= std::make_unique<byte[]>(ARCH_PAGE_BLK_SIZE);
 
   auto offset= Arch_Block::get_file_offset(block_num, ARCH_DATA_BLOCK);
 
   ut_ad(offset + ARCH_PAGE_BLK_SIZE <= get_phy_size());
 
-  auto err= read(buf, offset, ARCH_PAGE_BLK_HEADER_LENGTH);
+  auto err= read(buf.get(), offset, ARCH_PAGE_BLK_HEADER_LENGTH);
 
   if (err != DB_SUCCESS)
     return (LSN_MAX);
 
-  auto lsn= Arch_Block::get_reset_lsn(buf);
+  auto lsn= Arch_Block::get_reset_lsn(buf.get());
 
   ut_ad(lsn != LSN_MAX);
   return lsn;

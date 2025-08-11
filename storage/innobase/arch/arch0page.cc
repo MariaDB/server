@@ -556,18 +556,17 @@ bool Arch_File_Ctx::validate_stop_point_in_file(Arch_Group *group,
   else
     offset= Arch_Block::get_file_offset(group->get_stop_pos().m_block_num,
                                          ARCH_DATA_BLOCK);
-
-  byte buf[ARCH_PAGE_BLK_SIZE];
+  auto buf= std::make_unique<byte[]>(ARCH_PAGE_BLK_SIZE);
 
   /* Read the entire reset block. */
   dberr_t err=
-      os_file_read(IORequestRead, file, buf, offset, ARCH_PAGE_BLK_SIZE,
+      os_file_read(IORequestRead, file, buf.get(), offset, ARCH_PAGE_BLK_SIZE,
                    nullptr);
 
   if (err != DB_SUCCESS)
     return false;
 
-  stop_lsn = Arch_Block::get_stop_lsn(buf);
+  stop_lsn = Arch_Block::get_stop_lsn(buf.get());
 
   if (stop_lsn != m_stop_points[file_index])
     ut_error;
@@ -581,16 +580,16 @@ bool Arch_File_Ctx::validate_reset_block_in_file(pfs_os_file_t file,
                                                  uint &reset_count)
 {
   /* Read from file to the user buffer. */
-  byte buf[ARCH_PAGE_BLK_SIZE];
+  auto buf= std::make_unique<byte[]>(ARCH_PAGE_BLK_SIZE);
 
   /* Read the entire reset block. */
   dberr_t err=
-      os_file_read(IORequestRead, file, buf, 0, ARCH_PAGE_BLK_SIZE, nullptr);
-
+      os_file_read(IORequestRead, file, buf.get(), 0, ARCH_PAGE_BLK_SIZE,
+                   nullptr);
   if (err != DB_SUCCESS)
     return false;
 
-  auto data_length= Arch_Block::get_data_len(buf);
+  auto data_length= Arch_Block::get_data_len(buf.get());
 
   if (data_length == 0)
     /* No reset, move to the next file. */
@@ -609,7 +608,7 @@ bool Arch_File_Ctx::validate_reset_block_in_file(pfs_os_file_t file,
   if (reset_file.m_file_index != file_index)
     ut_error;
 
-  byte *block_data= buf + ARCH_PAGE_BLK_HEADER_LENGTH;
+  byte *block_data= buf.get() + ARCH_PAGE_BLK_HEADER_LENGTH;
 
   lsn_t file_reset_lsn= mach_read_from_8(block_data);
   uint length= ARCH_PAGE_FILE_HEADER_RESET_LSN_SIZE;
@@ -956,7 +955,7 @@ int Page_Arch_Client_Ctx::stop(lsn_t *stop_id)
   arch_client_mutex_exit();
 
   ib::info() << "Clone Stop  PAGE ARCH : end   LSN : " << m_stop_lsn
-             << ", log sys LSN : " << log_sys.get_lsn();
+             << ", log sys LSN : " << log_sys.get_lsn_approx();
 
   return err;
 }

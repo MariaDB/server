@@ -826,7 +826,7 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
 
   memcpy(page_data, src_data, data_size);
 
-  auto cur_lsn = log_sys.get_lsn(std::memory_order_seq_cst);
+  auto cur_lsn = log_sys.get_lsn_approx();
   auto frame_lsn=
       static_cast<lsn_t>(mach_read_from_8(page_data + FIL_PAGE_LSN));
 

@@ -1245,11 +1245,11 @@ void log_t::get_last_block(lsn_t &last_lsn, byte *last_block,
   ut_ad(block_len <= write_size);
 
   latch.wr_lock(SRW_LOCK_CALL);
-  last_lsn= get_lsn(std::memory_order_relaxed);
+  last_lsn= get_lsn();
 
   auto block_len_1= static_cast<size_t>(block_len - 1);
 
-  size_t data_len{buf_free.load(std::memory_order_relaxed)};
+  size_t data_len= write_lsn_offset & (WRITE_BACKOFF - 1);
   size_t offset= data_len & ~block_len_1;
 
   data_len&= block_len_1;

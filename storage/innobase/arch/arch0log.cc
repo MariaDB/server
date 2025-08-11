@@ -383,9 +383,10 @@ void Arch_Group::adjust_end_lsn(lsn_t &stop_lsn, uint32_t &blk_len)
 
   /* Increase Stop LSN 64 bytes ahead of file end not exceeding
   redo block size. */
-  DBUG_EXECUTE_IF(
-      "clone_arch_log_extra_bytes", blk_len = OS_FILE_LOG_BLOCK_SIZE;
-      stop_lsn+= 64; stop_lsn = std::min(stop_lsn, log_sys.get_lsn()););
+  DBUG_EXECUTE_IF("clone_arch_log_extra_bytes",
+      blk_len= OS_FILE_LOG_BLOCK_SIZE;
+      stop_lsn+= 64;
+      stop_lsn= std::min(stop_lsn, log_sys.get_lsn_approx()););
 }
 
 void Arch_Group::adjust_copy_length(lsn_t arch_lsn, uint32_t &copy_len)
