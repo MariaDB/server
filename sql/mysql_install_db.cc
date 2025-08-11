@@ -950,6 +950,9 @@ static int create_db_instance(const char *datadir)
     fflush(in);
   }
 
+  fputs("FLUSH TABLES mysql.global_priv;\n",in);
+  fflush(in);
+
   /*
     On some reason, bootstrap chokes if last command sent via stdin ends with
     newline, so we supply a dummy comment, that does not end with newline.
