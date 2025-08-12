@@ -720,4 +720,9 @@ test.t	check	note	The storage engine for the table doesn't support check
 delete from t;
 truncate t;
 drop table t;
+MDEV-37368 Assertion failed in close_thread_tables on UPDATE referring to bad field
+create global temporary table t(c int);
+update t set foo= 1;
+ERROR 42S22: Unknown column 'foo' in 'SET'
+drop table t;
 disconnect con1;
