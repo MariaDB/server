@@ -42,7 +42,7 @@ SET SESSION wsrep_sync_wait=0;
 --send CREATE UNIQUE INDEX i1 ON t1(f2);
 
 --connection node_1a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'acquiring total order%' or STATE LIKE 'Waiting for table metadata%'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'acquiring total order isolation%' OR STATE LIKE 'Waiting to execute in isolation%';
 --source include/wait_condition.inc
 
 --echo # Signal DDL 1

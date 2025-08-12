@@ -46,6 +46,8 @@ SELECT VARIABLE_VALUE AS expect_Primary FROM INFORMATION_SCHEMA.GLOBAL_STATUS WH
 
 --connection node_2
 SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE AS expect_Disconnected FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 SET SESSION wsrep_on=ON;
 
