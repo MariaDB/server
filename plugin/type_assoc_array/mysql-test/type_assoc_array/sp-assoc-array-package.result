@@ -65,3 +65,115 @@ x02a
 marks(v2)
 x02b
 DROP PACKAGE pkg;
+#
+# MDEV-37430 sql_mode=ORACLE: TYPE definitions in PACKAGE BODY
+# TYPEs in PACKAGE BODY, variables in PROCEDURE
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE record_t IS RECORD (a INT, b VARCHAR(32));
+TYPE assoc0_t IS TABLE OF record_t INDEX BY INT;
+TYPE assoc1_t IS TABLE OF VARCHAR(32) INDEX BY INT;
+PROCEDURE p1 AS
+a0 assoc0_t;
+a1 assoc1_t;
+BEGIN
+a0(10):= record_t(10,'test');
+SELECT a0(10).a AS a, a0(10).b AS b;
+CREATE TABLE t1 AS SELECT a0(10).a AS a, a0(10).b AS b;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+a1(10):= 'test';
+SELECT a1(10) AS a1;
+CREATE TABLE t1 AS SELECT a1(10) AS a;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+END;
+$$
+CALL pkg1.p1;
+a	b
+10	test
+a	b
+10	test
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "b" varchar(32) DEFAULT NULL
+)
+a	b
+10	test
+a1
+test
+a
+test
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" varchar(32) DEFAULT NULL
+)
+a
+test
+DROP PACKAGE pkg1;
+#
+# MDEV-37430 sql_mode=ORACLE: TYPE definitions in PACKAGE BODY
+# TYPEs in PACKAGE BODY, variables in PACKAGE BODY
+#
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE record_t IS RECORD (a INT, b VARCHAR(32));
+TYPE assoc0_t IS TABLE OF record_t INDEX BY INT;
+TYPE assoc1_t IS TABLE OF VARCHAR(32) INDEX BY INT;
+a0 assoc0_t;
+a1 assoc1_t;
+PROCEDURE p1 AS
+BEGIN
+a0(10):= record_t(10,'test');
+SELECT a0(10).a AS a, a0(10).b AS b;
+CREATE TABLE t1 AS SELECT a0(10).a AS a, a0(10).b AS b;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+a1(10):= 'test';
+SELECT a1(10) AS a1;
+CREATE TABLE t1 AS SELECT a1(10) AS a;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+END;
+$$
+CALL pkg1.p1;
+a	b
+10	test
+a	b
+10	test
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "b" varchar(32) DEFAULT NULL
+)
+a	b
+10	test
+a1
+test
+a
+test
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" varchar(32) DEFAULT NULL
+)
+a
+test
+DROP PACKAGE pkg1;

@@ -6760,6 +6760,27 @@ void LEX::set_stmt_init()
 
 
 /**
+  Find a local or a package body type declaration by name
+  @param IN name - the data type name
+  @retval        - the data type (if found), or NULL otherwise.
+*/
+const sp_type_def *LEX::find_type_def(const LEX_CSTRING &name) const
+{
+  DBUG_ASSERT(spcont);
+  const sp_type_def *def= spcont->find_type_def(name, false);
+  if (def)
+    return def;
+  if (sphead->m_parent)
+  {
+    // Find a package body type definition
+    return sphead->m_parent->get_parse_context()->
+             child_context(0)->find_type_def(name, true);
+  }
+  return nullptr;
+}
+
+
+/**
   Find a local or a package body variable by name.
   @param IN  name    - the variable name
   @param OUT ctx     - NULL, if the variable was not found,
@@ -10176,8 +10197,9 @@ bool LEX::call_statement_start_or_lvalue_assign(THD *thd,
                                                Qualified_ident *ident)
 {
   sp_variable *spv;
+  const Sp_rcontext_handler *rh;
   if (spcont &&
-      (spv= spcont->find_variable(&ident->part(0), false)) &&
+      (spv= find_variable(&ident->part(0), &rh)) &&
       (likely(spv->field_def.type_handler()->has_methods())))
   {
     ident->set_spvar(spv);
@@ -12992,7 +13014,7 @@ bool LEX::set_field_type_typedef(Lex_field_type_st *type,
   *is_typedef= false;
   if (spcont)
   {
-    if (const sp_type_def *composite= spcont->find_type_def(name, false))
+    if (const sp_type_def *composite= find_type_def(name))
     {
       type->set(composite->type_handler(), NULL);
       last_field->set_attr_const_void_ptr(0, composite);

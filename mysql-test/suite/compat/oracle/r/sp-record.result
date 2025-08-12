@@ -773,3 +773,39 @@ $$
 r0	t1	r2
 1a	1a	1a
 # End of 11.8 tests
+# Start of 12.2 tests
+#
+# MDEV-37430 sql_mode=ORACLE: TYPE definitions in PACKAGE BODY
+#
+#
+# PACKAGE BODY wide record declarations
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+TYPE record_t IS RECORD (a INT, b VARCHAR(32));
+PROCEDURE p1 AS
+r record_t;
+BEGIN
+r.a:= 10;
+r.b:= 'test';
+CREATE TABLE t1 AS SELECT r.a AS a, r.b AS b;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+END;
+$$
+CALL pkg1.p1;
+a	b
+10	test
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "b" varchar(32) DEFAULT NULL
+)
+DROP PACKAGE pkg1;
+# End of 12.2 tests
