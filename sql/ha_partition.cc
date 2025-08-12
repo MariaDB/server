@@ -6065,6 +6065,7 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
   }
   DBUG_PRINT("info", ("m_ordered %u m_o_scan_ong %u have_start_key %u",
                       m_ordered, m_ordered_scan_ongoing, have_start_key));
+  assert(m_ordered_scan_ongoing || m_part_spec.start_part == m_part_spec.end_part);
   if (!m_ordered_scan_ongoing)
    {
     /*
@@ -7815,6 +7816,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   {
     m_part_spec.start_part++;                    // Start using next part
     error= handle_unordered_scan_next_partition(buf);
+    assert(error);
   }
   DBUG_RETURN(error);
 }
