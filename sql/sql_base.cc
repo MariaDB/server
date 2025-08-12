@@ -5902,9 +5902,12 @@ bool open_tables_for_query(THD *thd, TABLE_LIST *tables,
                   thd->stmt_arena->is_stmt_prepare() ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
                   prelocking_strategy))
   {
-    close_thread_tables(thd);
-    /* Don't keep locks for a failed statement. */
-    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    if (thd->in_sub_stmt)
+    {
+      close_thread_tables(thd);
+      /* Don't keep locks for a failed statement. */
+      thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    }
     return true;
   }
 
