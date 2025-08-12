@@ -707,7 +707,8 @@ dberr_t Arch_Log_Sys::copy_log(Arch_File_Ctx *file_ctx, lsn_t start_lsn,
     /* Current file is over, switch to next file. */
     if (len_left == 0)
     {
-      err= file_ctx->open_next(LSN_MAX, log_t::START_OFFSET, 0);
+      err= file_ctx->open_next(LSN_MAX, log_t::START_OFFSET,
+                               get_recommended_file_size());
       if (err != DB_SUCCESS)
         return (err);
 

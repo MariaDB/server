@@ -803,9 +803,21 @@ int Clone_Snapshot::get_page_for_write(const page_id_t &page_id,
 
   /* Space header page is modified with SX latch while extending. Also,
   we would like to serialize with page flush to disk. */
+  dberr_t error= DB_SUCCESS;
   auto block =
       buf_page_get_gen(page_id, zip_size, RW_SX_LATCH, nullptr,
-                       BUF_GET_POSSIBLY_FREED, &mtr);
+                       BUF_GET_POSSIBLY_FREED, &mtr, &error);
+  if (!block)
+  {
+    if (error == DB_SUCCESS)
+    {
+      /* In case of freed page, fill the page with full of zeroes */
+      memcpy(page_data, field_ref_zero, data_size);
+      return 0;
+    }
+    /* In case of corruption, return error */
+    return ER_INTERNAL_ERROR;
+  }
   auto bpage = &block->page;
 
   ut_ad(!fsp_is_system_temporary(bpage->id().space()));

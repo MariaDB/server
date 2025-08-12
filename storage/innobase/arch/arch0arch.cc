@@ -468,8 +468,9 @@ dberr_t Arch_File_Ctx::open_new(lsn_t start_lsn, uint64_t new_file_size,
 dberr_t Arch_File_Ctx::open_next(lsn_t start_lsn, uint64_t file_offset,
                                  uint64_t file_size)
 {
-  /* Get next file index. */
-  ++m_index;
+  m_index++;
+  /* Reopen the same file */
+  if (m_index == m_count) m_index= 0;
 
   /* Open next file. */
   auto error= open(true, start_lsn, m_index, file_offset, file_size);
