@@ -44,7 +44,7 @@ namespace myclone {
 static void clone_local(Client_Share *share, Server *server, uint32_t index) {
   /* Create a session statement and set PFS keys */
   auto thd= clone_start_statement(nullptr, clone_local_thd_key,
-                                  PSI_NOT_INSTRUMENTED);
+                                  PSI_NOT_INSTRUMENTED, "clone_local");
   Local clone_inst(thd, server, share, index, false);
 
   /* Worker task has already reported the error. We ignore any error

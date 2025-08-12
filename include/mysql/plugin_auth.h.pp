@@ -35,7 +35,8 @@ typedef struct mysql_clone_ssl_context_t {
 } mysql_clone_ssl_context;
 extern struct clone_protocol_service_st {
   THD* (*start_statement_fn)(THD* thd, unsigned int thread_key,
-                                  unsigned int statement_key);
+                             unsigned int statement_key,
+                             const char* thd_name);
   void (*finish_statement_fn)(THD* thd);
   int (*get_charsets_fn)(THD* thd, void *char_sets);
   int (*validate_charsets_fn)(THD* thd, void *char_sets);
@@ -66,7 +67,8 @@ extern struct clone_protocol_service_st {
   int (*backup_unlock_fn)(THD* thd);
 } *clone_protocol_service;
   THD* clone_start_statement(THD* thd, unsigned int thread_key,
-                                  unsigned int statement_key);
+                             unsigned int statement_key,
+                             const char* thd_name);
   void clone_finish_statement(THD* thd);
   int clone_get_charsets(THD* thd, void *char_sets);
   int clone_validate_charsets(THD* thd, void *char_sets);

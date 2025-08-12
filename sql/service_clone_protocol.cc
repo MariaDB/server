@@ -89,7 +89,8 @@ MYSQL_THD create_thd();
 void destroy_thd(MYSQL_THD thd);
 
 THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
-                           PSI_statement_key statement_key)
+                           PSI_statement_key statement_key,
+			   const char *thd_name)
 {
   if (!thd) {
     my_thread_init();
@@ -98,7 +99,7 @@ THD* clone_start_statement(THD *thd, PSI_thread_key thread_key,
     auto psi= PSI_CALL_new_thread(thread_key, NULL, 0);
     PSI_CALL_set_thread_os_id(psi);
     PSI_CALL_set_thread(psi);
-    my_thread_set_name("clone_task");
+    my_thread_set_name(thd_name);
   }
 
   /* Create and set PFS statement key */

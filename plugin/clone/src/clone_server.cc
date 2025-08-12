@@ -146,7 +146,7 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
 
   if (m_is_master) {
     /* Set statement type for master thread */
-    clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_server_key);
+    clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_server_key, nullptr);
 
     /* Acquire backup lock */
     if (block_ddl()) {

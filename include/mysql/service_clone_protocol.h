@@ -70,9 +70,11 @@ extern struct clone_protocol_service_st {
   @param[in,out] thd  server session THD
   @param[in]     thread_key  PSI key for thread
   @param[in]     statement_key  PSI Key for statement
+  @param[in]	 thd_name	thread name based on PSI key
 */
   MYSQL_THD (*start_statement_fn)(MYSQL_THD thd, unsigned int thread_key,
-                                  unsigned int statement_key);
+                                  unsigned int statement_key,
+				  const char* thd_name);
 /**
   Finish statement and session
   @param[in,out]  thd    server session THD
@@ -239,8 +241,8 @@ extern struct clone_protocol_service_st {
 } *clone_protocol_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
-#define clone_start_statement(thd, thd_key, stmt_key) \
-  (clone_protocol_service->start_statement_fn((thd), (thd_key), (stmt_key)))
+#define clone_start_statement(thd, thd_key, stmt_key, thd_name) \
+  (clone_protocol_service->start_statement_fn((thd), (thd_key), (stmt_key), (thd_name)))
 
 #define clone_finish_statement(thd) \
   (clone_protocol_service->finish_statement_fn(thd))
@@ -301,7 +303,8 @@ extern struct clone_protocol_service_st {
    (clone_protocol_service->backup_unlock_fn((thd)))
 #else
   MYSQL_THD clone_start_statement(MYSQL_THD thd, unsigned int thread_key,
-                                  unsigned int statement_key);
+                                  unsigned int statement_key,
+				  const char* thd_name);
   void clone_finish_statement(MYSQL_THD thd);
 
   int clone_get_charsets(MYSQL_THD thd, void *char_sets);

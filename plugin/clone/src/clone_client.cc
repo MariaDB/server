@@ -55,7 +55,7 @@ static void clone_client(Client_Share *share, uint32_t index)
 {
   /* Create a session statement and set PFS keys */
   auto thd= clone_start_statement(nullptr, clone_client_thd_key,
-                                  PSI_NOT_INSTRUMENTED);
+                                  PSI_NOT_INSTRUMENTED, "clone_client");
   Client clone_inst(thd, share, index, false);
 
   clone_inst.clone();

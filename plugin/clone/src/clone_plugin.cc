@@ -419,7 +419,7 @@ static int plugin_clone_local(THD *thd, const char *data_dir)
 
   /* Update session and statement PFS keys */
   assert(thd != nullptr);
-  clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_local_key);
+  clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_local_key, nullptr);
 
   myclone::Local clone_inst(thd, &server, &client_share, 0, true);
 
@@ -453,7 +453,7 @@ static int plugin_clone_remote_client(THD *thd, const char *remote_host,
   /* Update session and statement PFS keys */
   assert(thd != nullptr);
 
-  clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_client_key);
+  clone_start_statement(thd, PSI_NOT_INSTRUMENTED, clone_stmt_client_key, nullptr);
 
   myclone::Client clone_inst(thd, &client_share, 0, true);
 
