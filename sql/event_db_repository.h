@@ -53,6 +53,9 @@ enum enum_events_table_field
   ET_FIELD_COLLATION_CONNECTION,
   ET_FIELD_DB_COLLATION,
   ET_FIELD_BODY_UTF8,
+  ET_FIELD_KIND,
+  ET_FIELD_WHEN,
+  ET_FIELD_DDL_TYPE,
   ET_FIELD_COUNT /* a cool trick to count the number of fields :) */
 };
 
