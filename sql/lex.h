@@ -603,6 +603,7 @@ SYMBOL symbols[] = {
   { "SOUNDS",		SYM(SOUNDS_SYM)},
   { "SOURCE",           SYM(SOURCE_SYM)},
   { "STAGE",            SYM(STAGE_SYM)},
+  { "STARTUP",          SYM(STARTUP_SYM)},
   { "STORED",           SYM(STORED_SYM)},
   { "SPATIAL",		SYM(SPATIAL_SYM)},
   { "SPECIFIC",         SYM(SPECIFIC_SYM)},

@@ -42,18 +42,48 @@ enum trg_event_type
   TRG_EVENT_MAX
 };
 
+/**
+  Type representing events for system triggers (on logon, on logoff,
+  on startup, on shutdown) and ddl triggers
+*/
+enum trg_sys_event_type
+{
+  TRG_SYS_EVENT_MIN= TRG_EVENT_MAX,
+  TRG_EVENT_LOGON= TRG_SYS_EVENT_MIN,
+  TRG_EVENT_LOGOFF,
+  TRG_EVENT_STARTUP,
+  TRG_EVENT_SHUTDOWN,
+  TRG_EVENT_DDL,
+  TRG_SYS_EVENT_MAX
+};
+
 typedef uint8 trg_event_set;
 
-static inline uint8 trg2bit(enum trg_event_type trg)
-{ return static_cast<uint8>(1 << static_cast<int>(trg)); }
+/**
+  Type covering a value of any event type used both in DML triggers and
+  system triggers. Values of this type is produced by the parser.
+    (@see LEX::st_trg_chistics.events)
+*/
+typedef uint32 trg_all_events_set;
+
+static inline trg_event_set trg2bit(enum trg_event_type trg)
+{ return static_cast<trg_event_set>(1 << static_cast<int>(trg)); }
+
+static inline trg_all_events_set sys_trg2bit(enum trg_sys_event_type trg)
+{ return static_cast<trg_all_events_set>(1 << static_cast<int>(trg)); }
 
 /**
-  Check whether the specified trigger event type is set in
+  Check whether the specified DML trigger event type is set in
   the trigger's event mask
 */
-static inline bool is_trg_event_on(uint8 trg_event_mask,
+static inline bool is_trg_event_on(trg_all_events_set trg_event_mask,
                                    enum trg_event_type event_type)
 {
+  /*
+    This function must be called only from places
+    where dml triggers are expected
+  */
+  DBUG_ASSERT((trg_event_mask & ~0x07) == 0);
   return (trg_event_mask & trg2bit(event_type)) != 0;
 }
 
