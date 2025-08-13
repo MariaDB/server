@@ -99,8 +99,15 @@ void Item_subselect::init(st_select_lex *select_lex,
   {
     engine= unit->item->engine;
     parsing_place= unit->item->parsing_place;
-    if (unit->item->substype() == EXISTS_SUBS &&
-        ((Item_exists_subselect *)unit->item)->exists_transformed)
+
+    enum subs_type substype= unit->item->substype();
+    if ((substype == EXISTS_SUBS &&
+        ((Item_exists_subselect *)unit->item)->exists_transformed) ||
+        ((substype == ALL_SUBS || substype == ANY_SUBS) &&
+         (((Item_in_subselect *)(unit->item))->
+                                 test_set_strategy(SUBS_MAXMIN_INJECTED) ||
+          ((Item_in_subselect *)(unit->item))->
+                                 test_set_strategy(SUBS_MAXMIN_ENGINE))))
     {
       /* it is permanent transformation of EXISTS to IN */
       unit->item= this;
@@ -166,6 +173,7 @@ void Item_subselect::cleanup()
   value_assigned= 0;
   expr_cache= 0;
   forced_const= FALSE;
+  const_item_cache= TRUE;
   DBUG_PRINT("info", ("exec_counter: %d", exec_counter));
 #ifndef DBUG_OFF
   exec_counter= 0;
@@ -201,21 +209,6 @@ void Item_in_subselect::cleanup()
   pushed_cond_guards= NULL;
   Item_subselect::cleanup();
   DBUG_VOID_RETURN;
-}
-
-
-void Item_allany_subselect::cleanup()
-{
-  /*
-    The MAX/MIN transformation through injection is reverted through the
-    change_item_tree() mechanism. Revert the select_lex object of the
-    query to its initial state.
-  */
-  for (SELECT_LEX *sl= unit->first_select();
-       sl; sl= sl->next_select())
-    if (test_set_strategy(SUBS_MAXMIN_INJECTED))
-      sl->with_sum_func= false;
-  Item_in_subselect::cleanup();
 }
 
 
@@ -1049,6 +1042,12 @@ void Item_subselect::update_used_tables()
 {
   if (!forced_const)
   {
+    /*
+      upper_refs not built on 2nd execution, so for the moment, do not
+      recalculate our used_tables_cache
+    */
+    if (!unit->thd->is_first_query_execution())
+      return;
     recalc_used_tables(parent_select, FALSE);
     if (!(engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
     {
@@ -1101,6 +1100,7 @@ Item_singlerow_subselect::Item_singlerow_subselect(THD *thd, st_select_lex *sele
   init(select_lex, new (thd->mem_root) select_singlerow_subselect(thd, this));
   set_maybe_null();
   max_columns= UINT_MAX;
+  strategy= 0;
   DBUG_VOID_RETURN;
 }
 
@@ -1726,17 +1726,24 @@ bool Item_exists_subselect::fix_length_and_dec()
       (unit->global_parameters()->limit_params.select_limit->basic_const_item() &&
        unit->global_parameters()->limit_params.select_limit->val_int() > 1))
   {
-    /*
-       We need only 1 row to determine existence (i.e. any EXISTS that is not
-       an IN always requires LIMIT 1)
-     */
-    Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
-    if (!item)
-      DBUG_RETURN(TRUE);
-    thd->change_item_tree(&unit->global_parameters()->limit_params.select_limit,
-                          item);
-    unit->global_parameters()->limit_params.explicit_limit= 1; // we set the limit
-    DBUG_PRINT("info", ("Set limit to 1"));
+    if (thd->is_first_query_execution())
+    {
+      /*
+         We need only 1 row to determine existence (i.e. any EXISTS that is not
+         an IN always requires LIMIT 1)
+         This is a permanent transformation and should be allocated on statement
+         memory and not reversed.
+       */
+      Query_arena backup, *arena= thd->activate_stmt_arena_if_needed(&backup);
+      Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      if (!item)
+        DBUG_RETURN(TRUE);
+      unit->global_parameters()->limit_params.select_limit= item;
+      unit->global_parameters()->limit_params.explicit_limit= 1; // we set the limit
+      DBUG_PRINT("info", ("Set limit to 1"));
+    }
   }
   DBUG_RETURN(FALSE);
 }
@@ -2118,8 +2125,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
 
 
 /**
-  Apply transformation max/min  transwormation to ALL/ANY subquery if it is
-  possible.
+  Permanently transform ALL/ANY subquery to min/max if it is possible.
 
   @param join  Join object of the subquery (i.e. 'child' join).
 
@@ -2188,13 +2194,16 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
       item= new (thd->mem_root) Item_sum_min(thd,
                                              select_lex->ref_pointer_array[0]);
     }
+    if (!item)
+      DBUG_RETURN(TRUE);
+
     if (upper_item)
       upper_item->set_sum_test(item);
-    thd->change_item_tree(&select_lex->ref_pointer_array[0], item);
+    select_lex->ref_pointer_array[0]= item;
     {
       List_iterator<Item> it(select_lex->item_list);
       it++;
-      thd->change_item_tree(it.ref(), item);
+      it.replace(item);
     }
 
     DBUG_EXECUTE("where",
@@ -2215,32 +2224,35 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                       0);
     if (join->prepare_stage2())
       DBUG_RETURN(true);
-    subs= new (thd->mem_root) Item_singlerow_subselect(thd, select_lex);
 
     /*
       Remove other strategies if any (we already changed the query and
       can't apply other strategy).
     */
     set_strategy(SUBS_MAXMIN_INJECTED);
+    subs= new (thd->mem_root) Item_singlerow_subselect(thd, select_lex);
+    ((Item_singlerow_subselect *)subs)->set_strategy(SUBS_MAXMIN_INJECTED);
   }
   else
   {
     Item_maxmin_subselect *item;
-    subs= item= new (thd->mem_root) Item_maxmin_subselect(thd, this, select_lex, func->l_op());
-    if (upper_item)
-      upper_item->set_sub_test(item);
     /*
       Remove other strategies if any (we already changed the query and
       can't apply other strategy).
     */
     set_strategy(SUBS_MAXMIN_ENGINE);
+    subs= item= new (thd->mem_root) Item_maxmin_subselect(thd, this, select_lex,
+                                                          func->l_op());
+    ((Item_maxmin_subselect *)subs)->set_strategy(SUBS_MAXMIN_ENGINE);
+    if (upper_item)
+      upper_item->set_sub_test(item);
   }
   /*
     The swap is needed for expressions of type 'f1 < ALL ( SELECT ....)'
     where we want to evaluate the sub query even if f1 would be null.
   */
   subs= func->create_swap(thd, expr, subs);
-  thd->change_item_tree(place, subs);
+  *place= subs;
   if (subs->fix_fields(thd, &subs))
     DBUG_RETURN(true);
   DBUG_ASSERT(subs == (*place)); // There was no substitutions
@@ -7174,4 +7186,22 @@ Item_subselect::subselect_table_finder_processor(void *arg)
     }
   }
   return FALSE;
-};
+}
+
+
+bool Item_singlerow_subselect::test_set_strategy(uchar strategy_arg)
+{
+  DBUG_ASSERT(strategy_arg &&
+              !(strategy_arg & ~(SUBS_MAXMIN_INJECTED | SUBS_MAXMIN_ENGINE)));
+  return ((strategy & SUBS_STRATEGY_CHOSEN) && (strategy & strategy_arg));
+}
+
+
+void Item_singlerow_subselect::set_strategy(uchar strategy_arg)
+{
+  DBUG_ENTER("Item_singlerow_subselect::set_strategy");
+  DBUG_ASSERT(strategy_arg == SUBS_MAXMIN_INJECTED ||
+              strategy_arg == SUBS_MAXMIN_ENGINE);
+  strategy= (SUBS_STRATEGY_CHOSEN | strategy_arg);
+  DBUG_VOID_RETURN;
+}

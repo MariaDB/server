@@ -361,8 +361,8 @@ public:
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
   Item_sum *next; /* next in the circular chain of registered objects  */
-  Item_sum *in_sum_func;  /* embedding set function if any */ 
-  st_select_lex * aggr_sel; /* select where the function is aggregated       */ 
+  Item_sum *in_sum_func;  /* embedding set function if any */
+  st_select_lex * aggr_sel; /* select where the function is aggregated  */
   int8 nest_level;        /* number of the nesting level of the set function */
   int8 aggr_level;        /* nesting level of the aggregating subquery       */
   int8 max_arg_level;     /* max level of unbound column references          */
