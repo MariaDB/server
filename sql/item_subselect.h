@@ -206,7 +206,7 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
-    const_item_cache= 0;
+    const_item_cache= TRUE;
     forced_const= TRUE; 
   }
   virtual bool fix_length_and_dec();
@@ -301,12 +301,16 @@ protected:
 class Item_cache;
 class Item_singlerow_subselect :public Item_subselect
 {
+private:
+  uint16 strategy;
 protected:
   Item_cache *value, **row;
 public:
   Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
   {}
+
+  uint16 get_strategy() { return strategy; }
 
   void cleanup() override;
   subs_type substype() override { return SINGLEROW_SUBS; }
@@ -348,6 +352,10 @@ public:
   st_select_lex* invalidate_and_restore_select_lex();
 
   Item* expr_cache_insert_transformer(THD *thd, uchar *unused) override;
+
+  bool test_set_strategy(uchar strategy_arg);
+
+  void set_strategy(uchar strategy_arg);
 
   friend class select_singlerow_subselect;
 };
@@ -806,7 +814,6 @@ public:
                         chooser_compare_func_creator fc,
                         st_select_lex *select_lex, bool all);
 
-  void cleanup() override;
   // only ALL subquery has upper not
   subs_type substype() override { return all?ALL_SUBS:ANY_SUBS; }
   bool select_transformer(JOIN *join) override;

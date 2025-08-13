@@ -8325,6 +8325,13 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->item_ptr= item;
   order->item= &order->item_ptr;
   order->direction= (asc ? ORDER::ORDER_ASC : ORDER::ORDER_DESC);
+  order->used=0;
+  order->view_ref= 0;   // may be read in find_order_in_list() before being set
+  order->resolution= NOT_RESOLVED;
+  order->select_item= nullptr;
+  order->from_field= nullptr;
+  order->counter_used= 0;
+  order->fast_field_copier_setup= 0;
   if (thd->lex->clause_winfuncs.is_empty())
     order->window_funcs.empty();
   else if (order->window_funcs.copy(&thd->lex->clause_winfuncs, thd->mem_root))

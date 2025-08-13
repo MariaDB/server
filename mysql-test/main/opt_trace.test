@@ -441,14 +441,11 @@ create table t1 ( a int, b int, key a_b(a,b));
 insert into t1 select a,a from one_k;
 set optimizer_trace='enabled=on';
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 explain select * from t1 force index (a_b) where a=2 and b=4;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 explain select * from t1 where a >= 900 and b between 10 and 20;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 
 drop table t0,t1;
 
@@ -457,10 +454,7 @@ create table t1 (start_date date, end_date date, filler char(100), key(start_dat
 insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
 --enable_warnings
 explain select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 drop table t1,one_k;
 
 create table ten(a int);
@@ -475,10 +469,7 @@ create table t1 (
 
 insert into t1 select a,a, a,a from ten;
 explain select * from t1 force index(a_b_c) where a between 1 and 4 and b < 50;
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 drop table ten,t1;
 
 --echo # Ported test from MYSQL for ranges involving Binary column
@@ -487,14 +478,11 @@ CREATE TABLE t1(i INT PRIMARY KEY, b BINARY(16), INDEX i_b(b));
 INSERT INTO t1 VALUES (1, x'D95B94336A9946A39CF5B58CFE772D8C');
 INSERT INTO t1 VALUES (2, NULL);
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 EXPLAIN SELECT * FROM t1 WHERE b IN (0xD95B94336A9946A39CF5B58CFE772D8C);
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 
 drop table t1;
 
@@ -507,8 +495,6 @@ INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, NULL);
 set optimizer_trace=1;
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 ALTER TABLE t1 modify column b BINARY(10) AFTER i;
@@ -552,7 +538,6 @@ insert into t1 select date_add(now(), interval a day), date_add(now(), interval 
 --enable_warnings
 explain format=json select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 drop table t1, t0, one_k;
 
 --echo #
@@ -584,19 +569,13 @@ set optimizer_trace=1;
 --echo #   but for joins using condition selectivity it is not as trivial. So,
 --echo #   now we are printing it)
 explain select * from t0 A, one_k B where A.a<5 and B.a<800;
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 
 set join_cache_level=@tmp_jcl;
 
 --echo # This shows post-join selectivity
 explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 drop table t0, one_k;
 
 --echo #
@@ -608,10 +587,7 @@ insert into t1 values ('foo'), ('bar');
 
 EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
 SELECT * FROM t1 WHERE a= REPEAT('a', 0);
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 DROP TABLE t1;
 
 --echo #
@@ -629,10 +605,7 @@ insert into t3 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 explain 
 select * from t3 where (a,a) in (select t1.a, t2.a from t1, t2 where t1.b=t2.b);
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 
 drop table t1,t2,t3;
 
@@ -644,10 +617,7 @@ create table t1 (kp1 int, kp2 int, key(kp1, kp2));
 insert into t1 values (1,1),(1,5),(5,1),(5,5);
 set optimizer_trace=1;
 select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 drop table t1;
 
 --echo #
@@ -661,10 +631,7 @@ INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
 
 SET OPTIMIZER_TRACE=1;
 EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 DROP TABLE t1,t2;
 
 --echo #
@@ -676,15 +643,12 @@ CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
 SET optimizer_trace=1;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
-#Enable after fix MDEV-32034
---disable_view_protocol
 EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 drop table t1;
 
 --echo #
@@ -695,10 +659,7 @@ drop table t1;
 CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
 SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
 UPDATE t1 SET b=10 WHERE a=1;
-#Enable after fix MDEV-32034
---disable_view_protocol
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
---enable_view_protocol
 DROP TABLE t1;
 
 set optimizer_trace='enabled=off';
@@ -759,13 +720,10 @@ where
   c5 in (1,2,3,4,5,6,7,8,9,10) and
   c6 in (1,2,3,4);
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.setup_range_conditions'))
 from
   information_schema.optimizer_trace;
---enable_view_protocol
 
 drop table t1;
 
@@ -874,14 +832,11 @@ set optimizer_trace=DEFAULT;
 --echo # MDEV-29179 Condition pushdown from HAVING into WHERE is not shown in optimizer trace
 --echo #
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 CREATE TABLE t1 (a INT, b VARCHAR(1), KEY (a), KEY(b,a)) ENGINE=MEMORY;
 INSERT INTO t1 VALUES (4,'n'),(1,'h'),(NULL,'w');
 SET optimizer_trace= 'enabled=on';
 SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7; SELECT json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') ) exp1, JSON_VALID(trace) exp2 FROM information_schema.optimizer_trace;
 DROP TABLE t1;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-30334 Optimizer trace produces invalid JSON with WHERE subquery
@@ -933,11 +888,8 @@ insert into t3 select a,a from t0;
 explain
 select * from t1 left join (t2 join t3 on t3.pk=1000) on t2.a=t1.a and t2.pk is null;
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const')) as jd
 from information_schema.optimizer_trace;
---disable_view_protocol
 
 drop table t0, t1, t2, t3;
 
@@ -953,27 +905,18 @@ set in_predicate_conversion_threshold=3;
 
 explain select * from t0 where a in (1,2,3,4,5,6);
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
---enable_view_protocol
 
 explain select * from t0 where a in (1,2,3,4,5,a+1);
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
---enable_view_protocol
 
 explain select * from t0 where a in ('1','2','3','4','5','6');
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion')) as jd
 from information_schema.optimizer_trace;
---enable_view_protocol
 
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
@@ -1081,13 +1024,10 @@ where a=3
 group by b,b
 having a+b < 10;
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
---enable_view_protocol
 
 --echo # Check ON expression
 explain 
@@ -1097,13 +1037,10 @@ from t1 left join t2 on t2.a=t1.a and t2.a<3
 where 
   t1.b > 5555;
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
---enable_view_protocol
 
 --echo # Check nested ON expression
 explain 
@@ -1119,12 +1056,9 @@ select
   json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
   information_schema.optimizer_trace;
---enable_view_protocol
 
 --echo # The next query is test for:
 --echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
-#Enable after fix MDEV-32034
---disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.condition_processing'))
 from
@@ -1169,13 +1103,10 @@ where t1.b < 3;
 # Just show that choose_best_splitting function has coverage in the 
 # optimizer trace and re-optmization of child select inside it is distinct 
 # from the rest of join optimization.
-#Check after fix MDEV-32034
---disable_view_protocol
 select
   json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
 from
   information_schema.optimizer_trace;
---enable_view_protocol
 
 drop table t1,t2;
 
@@ -1193,11 +1124,8 @@ SELECT * FROM t1 WHERE id IN
          JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
 --enable_view_protocol
 
-#Enable after fix MDEV-32034
---disable_view_protocol
 select json_detailed(json_extract(trace, '$**.best_join_order'))
     from information_schema.OPTIMIZER_TRACE;
---enable_view_protocol
 
 DROP TABLE t1;
 
