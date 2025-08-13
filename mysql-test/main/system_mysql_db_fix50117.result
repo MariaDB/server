@@ -209,6 +209,9 @@ event	CREATE TABLE `event` (
   `collation_connection` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
   `db_collation` char(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin DEFAULT NULL,
   `body_utf8` longblob DEFAULT NULL,
+  `kind` set('SCHEDULE','STARTUP','SHUTDOWN','LOGON','LOGOFF','DDL') NOT NULL DEFAULT 'SCHEDULE',
+  `when` enum('BEFORE','AFTER') DEFAULT NULL,
+  `ddl_type` set('CREATE','ALTER','DROP','TRUNCATE','ANALYZE','RENAME','GRANT','REVOKE') DEFAULT NULL,
   PRIMARY KEY (`db`,`name`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Events'
 show create table general_log;

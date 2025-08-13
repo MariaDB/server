@@ -52,11 +52,13 @@ def	mysql	event	comment	16	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	
 def	mysql	event	created	8	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	db	1	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	db_collation	21	NULL	YES	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	event	ddl_type	25	NULL	YES	set	54	162	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	set('CREATE','ALTER','DROP','TRUNCATE','ANALYZE','RENAME','GRANT','REVOKE')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	definer	4	''	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(384)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	ends	12	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	execute_at	5	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	interval_field	7	NULL	YES	enum	18	54	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	interval_value	6	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	event	kind	23	'SCHEDULE'	NO	set	42	126	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	set('SCHEDULE','STARTUP','SHUTDOWN','LOGON','LOGOFF','DDL')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	last_executed	10	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	modified	9	'0000-00-00 00:00:00'	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	name	2	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
@@ -66,6 +68,7 @@ def	mysql	event	sql_mode	15	''	NO	set	561	1683	NULL	NULL	NULL	utf8mb3	utf8mb3_ge
 def	mysql	event	starts	11	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	status	13	'ENABLED'	NO	enum	18	54	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	time_zone	18	'SYSTEM'	NO	char	64	64	NULL	NULL	NULL	latin1	latin1_swedish_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	event	when	24	NULL	YES	enum	6	18	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('BEFORE','AFTER')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	func	dl	3	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(128)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	func	name	1	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)	PRI		select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	func	ret	2	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)			select,insert,update,references		NEVER	NULL	NO	NO
@@ -395,6 +398,9 @@ NULL	mysql	event	originator	int	NULL	NULL	NULL	NULL	int(10) unsigned
 3.0000	mysql	event	collation_connection	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 3.0000	mysql	event	db_collation	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 1.0000	mysql	event	body_utf8	longblob	4294967295	4294967295	NULL	NULL	longblob
+3.0000	mysql	event	kind	set	42	126	utf8mb3	utf8mb3_general_ci	set('SCHEDULE','STARTUP','SHUTDOWN','LOGON','LOGOFF','DDL')
+3.0000	mysql	event	when	enum	6	18	utf8mb3	utf8mb3_general_ci	enum('BEFORE','AFTER')
+3.0000	mysql	event	ddl_type	set	54	162	utf8mb3	utf8mb3_general_ci	set('CREATE','ALTER','DROP','TRUNCATE','ANALYZE','RENAME','GRANT','REVOKE')
 3.0000	mysql	func	name	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 NULL	mysql	func	ret	tinyint	NULL	NULL	NULL	NULL	tinyint(1)
 3.0000	mysql	func	dl	char	128	384	utf8mb3	utf8mb3_bin	char(128)
