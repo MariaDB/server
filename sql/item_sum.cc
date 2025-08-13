@@ -89,7 +89,7 @@ static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
     FALSE  otherwise
 */
  
-bool Item_sum::init_sum_func_check(THD *thd)
+bool Item_sum::init_sum_func_check(THD *thd, bool force)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
   if (curr_sel && curr_sel->name_visibility_map.is_clear_all())
@@ -111,11 +111,17 @@ bool Item_sum::init_sum_func_check(THD *thd)
   /* Save a pointer to object to be used in items for nested set functions */
   thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
-  ref_by= 0;
-  aggr_level= -1;
-  aggr_sel= NULL;
-  max_arg_level= -1;
-  max_sum_func_level= -1;
+  if (force ||
+      (thd->stmt_arena->state != Query_arena::STMT_EXECUTED) ||
+      (thd->active_stmt_arena_to_use()->state ==
+       Query_arena::STMT_SP_QUERY_ARGUMENTS))
+  {
+    ref_by= NULL;
+    aggr_level= -1;
+    aggr_sel= NULL;
+    max_arg_level= -1;
+    max_sum_func_level= -1;
+  }
   outer_fields.empty();
   return FALSE;
 }
@@ -432,7 +438,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
          sl= sl->master_unit()->outer_select() )
       sl->master_unit()->item->with_flags|= item_with_t::SUM_FUNC;
   }
-  if (aggr_sel)
+  if (aggr_sel && aggr_sel != thd->lex->current_select)
     thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
 
   if ((thd->lex->describe & DESCRIBE_EXTENDED) && aggr_sel)

@@ -5514,4 +5514,87 @@ EXECUTE stmt USING DEFAULT;
 
 DROP TABLE t;
 
---echo # End of 10.11 test
+--echo #
+--echo # MDEV-30073 Wrong result on 2nd execution of PS for query with NOT EXISTS
+--echo #
+
+CREATE TABLE t1 (
+  product_key int,
+  dealerid int
+);
+INSERT INTO t1 VALUES
+(3569, 4),
+(3569, 112);
+
+CREATE TABLE t2 (
+  id int,
+  product_key int
+);
+INSERT INTO t2 VALUES
+(16494, 3569),
+(16494, 3569);
+
+CREATE TABLE t3 (
+  dealerid int
+);
+INSERT INTO t3 VALUES (4), (5);
+
+set optimizer_switch='subquery_cache=off';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+ SELECT dt.id
+ FROM (SELECT id, product_key FROM t2) dt, t3
+ WHERE
+   dt.product_key = t1.product_key AND
+   t3.dealerid = t1.dealerid
+);
+
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+ SELECT dt.id
+ FROM (SELECT id, product_key FROM t2) dt, t3
+ WHERE
+   dt.product_key = t1.product_key AND
+   t3.dealerid = t1.dealerid
+);
+
+PREPARE stmt FROM "
+SELECT * FROM t1
+WHERE
+! EXISTS
+(
+ SELECT dt.id
+ FROM (SELECT id, product_key FROM t2) dt, t3
+ WHERE
+   dt.product_key = t1.product_key AND
+   t3.dealerid = t1.dealerid
+)";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (3569, 4), (3569, 112);
+
+CREATE TABLE t2 (c int, a int);
+INSERT INTO t2 VALUES (16494, 3569), (16494, 3569);
+PREPARE stmt FROM "
+SELECT * FROM t1
+WHERE EXISTS (SELECT dt.c  FROM (SELECT c, a FROM t2) dt WHERE dt.a = t1.a)
+";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
