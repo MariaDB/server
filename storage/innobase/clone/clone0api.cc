@@ -53,6 +53,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 constexpr space_id_t SPACE_UNKNOWN = std::numeric_limits<space_id_t>::max();
 
+extern void ignore_db_dirs_append(const char *dirname_arg);
+
 /** Check if clone status file exists.
 @param[in]      file_name       file name
 @return true if file exists. */
@@ -1621,6 +1623,7 @@ dberr_t clone_init()
   if (os_file_exists(CLONE_INNODB_IN_PROGRESS_FILE))
     return DB_ABORT_INCOMPLETE_CLONE;
 
+  ignore_db_dirs_append(CLONE_FILES_DIR);
   /* Initialize clone files before starting recovery. */
   clone_files_recovery(false);
 

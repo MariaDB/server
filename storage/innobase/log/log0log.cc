@@ -1248,9 +1248,17 @@ void log_t::get_last_block(lsn_t &last_lsn, byte *last_block,
   last_lsn= get_lsn();
 
   auto block_len_1= static_cast<size_t>(block_len - 1);
-
   size_t data_len= write_lsn_offset & (WRITE_BACKOFF - 1);
   size_t offset= data_len & ~block_len_1;
+  if (is_mmap())
+  {
+    lsn_t aligned_lsn=
+      ut_uint64_align_down(last_lsn,
+                           OS_FILE_LOG_BLOCK_SIZE);
+    offset= log_sys.calc_lsn_offset(aligned_lsn);
+    data_len= last_lsn - aligned_lsn;
+
+  }
 
   data_len&= block_len_1;
   std::memcpy(last_block, buf + offset, data_len);

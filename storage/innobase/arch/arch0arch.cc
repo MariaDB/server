@@ -35,6 +35,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0start.h"
 #include "log.h"
 
+extern void ignore_db_dirs_append(const char *dirname_arg);
+
 /** PFS thread key for log archiver background. */
 mysql_pfs_key_t archiver_thread_key;
 
@@ -46,6 +48,7 @@ dberr_t Arch_Sys::init()
   if (!arch_sys)
     arch_sys= UT_NEW(Arch_Sys(), mem_key_archive);
 
+  ignore_db_dirs_append(ARCH_DIR);
   return arch_sys ? DB_SUCCESS : DB_OUT_OF_MEMORY;
 }
 

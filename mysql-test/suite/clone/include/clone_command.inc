@@ -28,11 +28,6 @@
 # 8. Test clone command forcing SSL certificate validation
 # --let clone_require_ssl_certificate = 1
 #
-
-if ($disabled_redo) {
-  ALTER INSTANCE ENABLE INNODB REDO_LOG;
-}
-
 --let $remote_dir_clause = DATA DIRECTORY = '$CLONE_DATADIR'
 
 if ($clone_remote_replace) {
@@ -41,14 +36,8 @@ if ($clone_remote_replace) {
 }
 
 if ($clone_err != ER_PLUGIN_IS_NOT_LOADED) {
-  if (!$clone_auto_tune) {
-    SET GLOBAL clone_autotune_concurrency = OFF;
-    SET GLOBAL clone_max_concurrency = 8;
-  }
-
   if ($clone_throttle) {
     SET GLOBAL clone_max_data_bandwidth = 5;
-    SET GLOBAL clone_max_network_bandwidth = 4;
   }
 
   if($remote_clone) {
@@ -194,31 +183,4 @@ if (!$remote_clone) {
     --replace_result $CLONE_DATADIR CLONE_DATADIR
     --eval CLONE LOCAL DATA DIRECTORY = '$CLONE_DATADIR'
   }
-}
-
-# PFS views are not available if clone plugin is not installed
-if ($clone_err != ER_PLUGIN_IS_NOT_LOADED) {
-  if (!$clone_recovery_error) {
-    select ID, STATE, ERROR_NO from performance_schema.clone_status;
-  }
-
-  if ($clone_recovery_error) {
-    select ID, STATE, ERROR_NO, ERROR_MESSAGE from performance_schema.clone_status;
-  }
-
-  select ID, STAGE, STATE from performance_schema.clone_progress;
-
-  # For covering the code fetching all columns
-  if ($clone_auto_tune) {
-    --disable_query_log
-    CREATE TABLE dup_status as select * from performance_schema.clone_status;
-    CREATE TABLE dup_progress as select * from performance_schema.clone_progress;
-    DROP TABLE dup_status;
-    DROP TABLE dup_progress;
-    --enable_query_log
-  }
-}
-
-if ($disabled_redo) {
-  ALTER INSTANCE DISABLE INNODB REDO_LOG;
 }

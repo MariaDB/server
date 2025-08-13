@@ -16,7 +16,7 @@
 # --source clone_connection_begin.inc
 # ...
 # --source clone_connection_end.inc
-
+--disable_query_log
 if (!$clone_user) {
   --let $clone_user = 'root'
 }
@@ -28,6 +28,7 @@ if (!$clone_connections) {
 # A. Drop the connections
 --connection clone_conn_1
 # In case server is restarted, we need to reconnect
+--enable_reconnect
 --source include/wait_until_connected_again.inc
 
 # Get Server ID
@@ -78,3 +79,4 @@ if ($SERVER_ID != 1) {
 
 # Switch to default connection
 --connection default
+--enable_query_log

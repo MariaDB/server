@@ -25,6 +25,7 @@
 # ...
 # --source clone_connection_end.inc
 
+--disable_query_log
 if (!$clone_user) {
   --let $clone_user = 'root'
 }
@@ -54,8 +55,8 @@ if ($clone_inst_number) {
 
 if ($SERVER_ID != 1) {
   --echo Install clone plugin on recipient server
-  --replace_result $CLONE_PLUGIN CLONE_PLUGIN
-  --eval INSTALL PLUGIN clone SONAME '$CLONE_PLUGIN'
+  --replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+  --eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 }
 
 # A. Check if we need monitoring process. Taken from mysqld_safe.test
@@ -135,3 +136,4 @@ while ($conn_nummber <= $clone_connections)
   --inc $conn_nummber
 }
 --connection default
+--enable_query_log

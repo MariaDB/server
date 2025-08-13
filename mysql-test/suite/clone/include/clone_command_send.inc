@@ -14,10 +14,6 @@
 #
 
 if ($clone_err != ER_PLUGIN_IS_NOT_LOADED) {
-  if (!$clone_auto_tune) {
-    SET GLOBAL clone_autotune_concurrency = OFF;
-    SET GLOBAL clone_max_concurrency = 8;
-  }
   if($remote_clone) {
     if(!$skip_donor_config) {
       --replace_result $HOST HOST $PORT PORT

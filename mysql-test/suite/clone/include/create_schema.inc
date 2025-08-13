@@ -1,7 +1,7 @@
 ## Create test schema
-CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB);
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB)ENGINE=InnoDB;
 
-CREATE TABLE t2(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB)
+CREATE TABLE t2(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB) ENGINE=InnoDB
 PARTITION BY KEY(col1) PARTITIONS 5;
 
 DELIMITER |;
