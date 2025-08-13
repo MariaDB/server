@@ -4142,6 +4142,8 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 
 void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 {
+  if (!set)
+    return;
   DBUG_ENTER("THD::restore_active_arena");
   DBUG_ASSERT(backup->is_backup_arena);
   set->set_query_arena(this);

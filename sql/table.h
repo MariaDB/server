@@ -243,6 +243,7 @@ typedef struct st_order {
   fast_field_copier fast_field_copier_func;
   /* Field for which above optimizer function setup */
   Field  *fast_field_copier_setup;
+  Item       *orig_item;              /* copy of *item for find_order_in_list */
   int    counter;                       /* position in SELECT list, correct
                                            only if counter_used is true*/
   enum enum_order {
