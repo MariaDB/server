@@ -2939,6 +2939,14 @@ public:
     return static_cast<PSI_thread*>(my_atomic_loadptr((void*volatile*)&m_psi));
   }
 
+  /* True only during the first execution of the statement */
+  inline bool is_first_query_execution()
+  {
+    return
+      stmt_arena->state != Query_arena::STMT_EXECUTED &&
+      stmt_arena->state != Query_arena::STMT_INITIALIZED;  // needed for PS
+  }
+
 private:
   unsigned int m_current_stage_key;
 
@@ -4710,6 +4718,8 @@ public:
 
   void change_item_tree(Item **place, Item *new_value)
   {
+    if (*place == new_value)
+      return;
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));

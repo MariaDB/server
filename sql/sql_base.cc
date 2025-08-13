@@ -6312,17 +6312,14 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
   {
     if (!my_strcasecmp(system_charset_info, field_it.name()->str, name))
     {
-      // in PS use own arena or data will be freed after prepare
-      if (register_tree_change &&
-          thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute())
+      if (register_tree_change)
         arena= thd->activate_stmt_arena_if_needed(&backup);
       /*
         create_item() may, or may not create a new Item, depending on
         the column reference. See create_view_field() for details.
       */
       Item *item= field_it.create_item(thd);
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
+      thd->restore_active_arena(arena, &backup);
       
       if (!item)
         DBUG_RETURN(0);
@@ -6334,11 +6331,25 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
        the replacing item.
       */
       if (*ref && (*ref)->is_explicit_name())
+      {
+        // allocate any name on same mem_root as item above
+        arena=0;
+        if (thd->is_first_query_execution())
+          arena= thd->activate_stmt_arena_if_needed(&backup);
         item->set_name(thd, (*ref)->name);
-      if (register_tree_change)
-        thd->change_item_tree(ref, item);
-      else
-        *ref= item;
+        thd->restore_active_arena(arena, &backup);
+      }
+      if (item != *ref)
+      {
+        /*
+          Prepare or 2nd+ execution should be rolled back to 1st execution
+          transformation
+        */
+        if (thd->stmt_arena->state != Query_arena::STMT_INITIALIZED)
+          *ref= item;
+        else
+          thd->change_item_tree(ref, item);
+      }
       DBUG_RETURN((Field*) view_ref_found);
     }
   }
