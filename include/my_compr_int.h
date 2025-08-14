@@ -15,17 +15,17 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
-/******************************************************************//**
-@file include/ut0bitop.h
-Reading and writing of compressed integers.
 
-Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
-*******************************************************/
+/*
+  Reading and writing of compressed integers.
 
-#ifndef INNOBASE_UT0COMPR_INT_H
-#define INNOBASE_UT0COMPR_INT_H
+  Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
+*/
 
-#include "ut0bitop.h"
+#ifndef MY_COMPR_INT_H
+#define MY_COMPR_INT_H
+
+#include "my_bit.h"
 #include <stdint.h>
 #include <utility>
 
@@ -69,4 +69,4 @@ extern unsigned char *compr_int_write(unsigned char *p, uint64_t v);
 extern std::pair<uint64_t, const unsigned char *>
   compr_int_read(const unsigned char *p);
 
-#endif /* INNOBASE_UT0COMPR_INT_H */
+#endif  /* MY_COMPR_INT_H */

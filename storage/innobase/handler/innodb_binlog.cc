@@ -29,7 +29,6 @@ InnoDB implementation of binlog.
 #include <my_global.h>
 #include "sql_class.h"
 
-#include "ut0compr_int.h"
 #include "innodb_binlog.h"
 #include "mtr0log.h"
 #include "fsp0fsp.h"
@@ -38,8 +37,9 @@ InnoDB implementation of binlog.
 #include "small_vector.h"
 
 #include "mysys_err.h"
+#include "my_compr_int.h"
 #include "rpl_gtid_base.h"
-#include "handler.h"
+#include "handler_binlog_reader.h"
 #include "log.h"
 
 

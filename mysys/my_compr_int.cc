@@ -15,15 +15,15 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
-/******************************************************************//**
-@file include/ut0bitop.h
-Reading and writing of compressed integers.
 
-Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
-*******************************************************/
+/*
+  Reading and writing of compressed integers.
 
-#include "univ.i"
-#include "ut0compr_int.h"
+  Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
+*/
+
+#include "mysys_priv.h"
+#include "my_compr_int.h"
 
 /* Read and write compressed (up to) 64-bit integers. */
 
@@ -33,7 +33,7 @@ Created 2024-10-01 Kristian Nielsen <knielsen@knielsen-hq.org>
 */
 unsigned char *compr_int_write(unsigned char *p, uint64_t v) {
   // Compute bytes needed to store the value v plus 3 bits encoding length.
-  uint32_t needed_bits_minus_1= 66 - nlz(v|1);
+  uint32_t needed_bits_minus_1= 66 - my_nlz(v|1);
   uint32_t needed_bytes= (needed_bits_minus_1 >> 3) + 1;
 
   // Compute the encoding of the length.
@@ -128,7 +128,7 @@ compr_int_read(const unsigned char *p)
 // that there are up to 8 scratch bytes available after the value written.
 unsigned char *compr_int_write_le_unaligned_buffer(unsigned char *p, uint64_t v) {
   // Compute bytes needed to store the value v plus 3 bits encoding length.
-  uint32_t needed_bits_minus_1= 66 - nlz(v|1);
+  uint32_t needed_bits_minus_1= 66 - my_nlz(v|1);
   uint32_t needed_bytes= (needed_bits_minus_1 >> 3) + 1;
 
   // Compute the encoding of the length.
@@ -148,7 +148,7 @@ unsigned char *compr_int_write_le_unaligned_buffer(unsigned char *p, uint64_t v)
 // Generic version without assumptions.
 unsigned char *compr_int_write_generic(unsigned char *p, uint64_t v) {
   // Compute bytes needed to store the value v plus 3 bits encoding length.
-  uint32_t needed_bits_minus_1= 66 - nlz(v|1);
+  uint32_t needed_bits_minus_1= 66 - my_nlz(v|1);
   uint32_t needed_bytes= (needed_bits_minus_1 >> 3) + 1;
 
   // Compute the encoding of the length.
