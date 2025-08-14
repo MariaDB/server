@@ -960,3 +960,189 @@ drop table t1,t2,t3;
 --enable_view_protocol
 
 --echo End of 10.0 tests
+
+--echo #
+--echo # MDEV-36055 Optimise reorderable LEFT JOINs
+--echo #
+
+--source include/have_sequence.inc
+
+set @old_optimizer_prune_level=@@optimizer_prune_level;
+set optimizer_prune_level=1;
+
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_10000;
+
+create table t2 (
+  a int,
+  b int,
+  index(a)
+);
+insert into t2
+select
+  A.seq,
+  B.seq
+from
+  seq_1_to_10000 A,
+  seq_1_to_100 B;
+
+create table t3 (
+  a int,
+  b int,
+  index(a)
+);
+insert into t3
+select
+  A.seq,
+  A.seq
+from
+  seq_1_to_10000 A;
+
+analyze table t1,t2,t3;
+
+--echo # Left join reordering: simple case
+explain format=json
+select *
+from
+  t1
+  left join t3 on t3.a=t1.a
+  left join t2 on t2.a=t1.a;
+
+explain format=json
+select *
+from
+  t1
+  left join t2 on t2.a=t1.a
+  left join t3 on t3.a=t1.a;
+
+drop table t1, t2, t3;
+
+--echo # Join reordering: heuristic pruning removes good join orders
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_10000;
+
+create table t2 (
+  a int,
+  b int,
+  index(a)
+);
+insert into t2
+select
+  A.seq,
+  B.seq
+from
+  seq_1_to_10000 A,
+  seq_1_to_100 B;
+
+create table t3 (
+  a int,
+  b int,
+  index(a)
+);
+insert into t3
+select
+  A.seq,
+  B.seq
+from
+  seq_1_to_10000 A,
+  seq_1_to_10 B;
+
+analyze table t1,t2,t3;
+
+--echo ## Heuristic pruning disabled (default)
+set @old_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='heuristic_prune_always=off';
+
+explain format=json
+select *
+from
+  t1
+  left join t3 on t3.a=t1.a and t3.b in (1,2,3,4)
+  left join t2 on t2.a=t1.a and t2.b in (1,2,3,4);
+
+explain format=json
+select *
+from
+  t1
+  left join t2 on t2.a=t1.a and t2.b in (1,2,3,4)
+  left join t3 on t3.a=t1.a and t3.b in (1,2,3,4);
+
+explain format=json
+select *
+from
+  t1
+  join t3 on t3.a=t1.a and t3.b in (1,2,3,4)
+  join t2 on t2.a=t1.a and t2.b in (1,2,3,4);
+
+explain format=json
+select *
+from
+  t1
+  join t2 on t2.a=t1.a and t2.b in (1,2,3,4)
+  join t3 on t3.a=t1.a and t3.b in (1,2,3,4);
+
+--echo ## Heuristic pruning enabled
+set optimizer_switch='heuristic_prune_always=on';
+
+explain format=json
+select *
+from
+  t1
+  left join t3 on t3.a=t1.a and t3.b in (1,2,3,4)
+  left join t2 on t2.a=t1.a and t2.b in (1,2,3,4);
+
+explain format=json
+select *
+from
+  t1
+  join t2 on t2.a=t1.a and t2.b in (1,2,3,4)
+  join t3 on t3.a=t1.a and t3.b in (1,2,3,4);
+
+explain format=json
+select *
+from
+  t1
+  join t3 on t3.a=t1.a and t3.b in (1,2,3,4)
+  join t2 on t2.a=t1.a and t2.b in (1,2,3,4);
+
+explain format=json
+select *
+from
+  t1
+  join t2 on t2.a=t1.a and t2.b in (1,2,3,4)
+  join t3 on t3.a=t1.a and t3.b in (1,2,3,4);
+
+set optimizer_switch=@old_optimizer_switch;
+
+drop table t1, t2, t3;
+
+--echo # MDEV-36331 simplified case
+
+create table t2 (a int not null, key(a));
+insert into t2 (a) select seq from seq_1_to_10000;
+
+create table t3 (a int not null, key(a));
+insert into t3 (a) select seq from seq_1_to_20000;
+
+create table t4 (a int not null, key(a));
+insert into t4 (a) select seq/100 from seq_1_to_300;
+
+set @old_optimizer_switch=@@optimizer_switch;
+--echo ## Heuristic pruning disabled (default)
+set optimizer_switch='heuristic_prune_always=off';
+
+explain format=json select * from t4, (t2 left join t3 on t2.a = t3.a);
+explain format=json select * from t4, t2, t3 where t2.a = t3.a;
+
+--echo ## Heuristic pruning enabled
+set optimizer_switch='heuristic_prune_always=on';
+
+explain format=json select * from t4, (t2 left join t3 on t2.a = t3.a);
+explain format=json select * from t4, t2, t3 where t2.a = t3.a;
+
+set @old_optimizer_switch=@@optimizer_switch;
+set optimizer_prune_level=@old_optimizer_prune_level;
+
+drop table t2, t3, t4;
+
+--echo End of 12.2 tests

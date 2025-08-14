@@ -504,8 +504,8 @@ select t1.b from t1,tt where t1.a=tt.c))
 select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	131	func	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
@@ -520,8 +520,8 @@ where t1.a=tt.c)) as t
 where t1.a=t.a  group by t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	131	func	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # with clause in the specification of a derived table

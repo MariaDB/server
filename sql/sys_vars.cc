@@ -3090,7 +3090,7 @@ export const char *optimizer_switch_names[]=
   "not_null_range_scan",
   "hash_join_cardinality",
   "cset_narrowing",
-  "sargable_casefold",
+  "sargable_casefold","heuristic_prune_always",
   "default",
   NullS
 };

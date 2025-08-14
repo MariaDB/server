@@ -1491,10 +1491,10 @@ public:
   /* A copy of thd->variables.optimizer_prune_level */
   uint prune_level;
   /*
-    If true, do extra heuristic pruning (enabled based on
-    optimizer_extra_pruning_depth)
+    0: no heuristic pruning. 1: do heuristic pruning. 2: do extra
+    heuristic pruning (enabled based on optimizer_extra_pruning_depth)
   */
-  bool extra_heuristic_pruning;
+  uint heuristic_pruning_level;
 #ifndef DBUG_OFF
   void dbug_verify_sj_inner_tables(uint n_positions) const;
   int dbug_join_tab_array_size;

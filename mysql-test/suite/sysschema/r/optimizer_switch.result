@@ -36,6 +36,7 @@ subquery_cache	on
 table_elimination	on
 call sys.optimizer_switch_off();
 option	opt
+heuristic_prune_always	off
 index_merge_sort_intersection	off
 mrr	off
 mrr_cost_based	off

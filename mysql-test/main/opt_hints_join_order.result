@@ -773,9 +773,9 @@ RIGHT JOIN t3 ON 1
 JOIN t4 ON  1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Warning	4219	Hint JOIN_ORDER(`t2`,`t4`,`t1`) is ignored as conflicting/duplicated
 Note	1003	select 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
@@ -807,9 +807,9 @@ RIGHT JOIN t3 ON 1
 JOIN t4 ON  1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select /*+ JOIN_ORDER(@`select#1` `t3`,`t4`) */ 1 AS `1` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(1 and 1) join `test`.`t4` where 1
 EXPLAIN SELECT /*+ JOIN_ORDER(t4, t3)  */ 1  FROM t1

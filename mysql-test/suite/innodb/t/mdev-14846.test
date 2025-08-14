@@ -62,12 +62,12 @@ disconnect con2;
 SET DEBUG_SYNC='now WAIT_FOR con1_dml2';
 --replace_column 9 #
 explain UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
+--error ER_LOCK_DEADLOCK
 UPDATE v4, t1 SET t1.pk = 76 WHERE t1.f2 IN ( SELECT t2.f FROM t2 INNER JOIN t3 );
 # It holds the record lock on table t1 and tries to acquire record lock on t3.
 # leads to deadlock (con1 trx is waiting for default trx and vice versa)
 
 --connection default
---error ER_LOCK_DEADLOCK
 --reap
 
 connection con1;

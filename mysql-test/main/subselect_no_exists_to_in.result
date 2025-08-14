@@ -4718,8 +4718,8 @@ WHERE outr.int_key NOT IN (SELECT t1.pk FROM t1, t2)
 ORDER BY outr.pk;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 x	x	outr	ALL	x	x	x	x	x	x
-x	x	t1	eq_ref	x	x	x	x	x	x
 x	x	t2	index	x	x	x	x	x	x
+x	x	t1	eq_ref	x	x	x	x	x	x
 # should not crash on debug binaries
 SELECT * FROM t2 outr
 WHERE outr.int_key NOT IN (SELECT t1.pk FROM t1, t2)  

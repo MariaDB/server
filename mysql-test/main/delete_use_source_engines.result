@@ -3122,8 +3122,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	a	ref	t1_c2	t1_c2	5	const	8	Using index; FirstMatch(t1)
 explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 = 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	const	8	Using index; LooseScan
 1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	8	
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	const	8	Using index; FirstMatch(t1)
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 = 3;
 affected rows: 8
 select * from t1;
@@ -5527,8 +5527,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	a	ref	t1_c2	t1_c2	5	const	8	Using index; FirstMatch(t1)
 explain delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 = 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ref	t1_c2	t1_c2	5	const	8	Using index; LooseScan
 1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	8	
-1	PRIMARY	a	ref	t1_c2	t1_c2	5	const	8	Using index; FirstMatch(t1)
 delete from t1 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 = 3;
 affected rows: 8
 select * from t1;

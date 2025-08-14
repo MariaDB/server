@@ -692,9 +692,9 @@ GROUP BY t2.e
 )
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t3.y	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1,v1
 WHERE t1.c>20 AND t1.c=v1_y AND
@@ -714,29 +714,13 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t3",
+          "table_name": "t1",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 8,
+          "rows": 16,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t3.y > 20 and t3.x <= 3 and t3.y is not null"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "loops": 8,
-            "rows": 16,
-            "cost": "COST_REPLACED",
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "119",
-          "join_type": "BNL",
-          "attached_condition": "t1.c = t3.y and t1.a is not null"
+          "attached_condition": "t1.c > 20 and t1.a is not null and t1.c is not null"
         }
       },
       {
@@ -747,8 +731,8 @@ EXPLAIN
           "key": "distinct_key",
           "key_length": "8",
           "used_key_parts": ["e", "MAX(t2.g)"],
-          "ref": ["test.t1.a", "test.t3.y"],
-          "loops": 128,
+          "ref": ["test.t1.a", "test.t1.c"],
+          "loops": 16,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -777,6 +761,23 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t3",
+            "access_type": "ALL",
+            "loops": 16,
+            "rows": 8,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t3.x <= 3"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "521",
+          "join_type": "BNL",
+          "attached_condition": "t3.y = t1.c"
         }
       }
     ]
@@ -1796,9 +1797,9 @@ GROUP BY t2.e
 )
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t3.x,test.t1.c	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1,v1
 WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
@@ -1818,29 +1819,13 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t3",
+          "table_name": "t1",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 8,
+          "rows": 16,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t3.x < 2 and t3.y > 30 and t3.x <= 3 and t3.x is not null"
-        }
-      },
-      {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "loops": 8,
-            "rows": 16,
-            "cost": "COST_REPLACED",
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "119",
-          "join_type": "BNL",
-          "attached_condition": "t1.a = t3.x and t1.c is not null"
+          "attached_condition": "t1.a < 2 and t1.a <= 3 and t1.a is not null and t1.c is not null"
         }
       },
       {
@@ -1851,8 +1836,8 @@ EXPLAIN
           "key": "distinct_key",
           "key_length": "8",
           "used_key_parts": ["e", "MAX(t2.g)"],
-          "ref": ["test.t3.x", "test.t1.c"],
-          "loops": 128,
+          "ref": ["test.t1.a", "test.t1.c"],
+          "loops": 16,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -1880,6 +1865,23 @@ EXPLAIN
               }
             }
           }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t3",
+            "access_type": "ALL",
+            "loops": 16,
+            "rows": 8,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "t3.y > 30"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "521",
+          "join_type": "BNL",
+          "attached_condition": "t3.x = t1.a"
         }
       }
     ]

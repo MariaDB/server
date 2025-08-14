@@ -161,6 +161,7 @@ best_extension_by_limited_search(JOIN *join,
                                  uint use_cond_selectivity,
                                  table_map *processed_eq_ref_tables);
 static uint determine_search_depth(JOIN* join);
+static void set_heuristic_pruning_level(JOIN *join, uint search_depth);
 C_MODE_START
 static int join_tab_cmp(void *dummy, const void* ptr1, const void* ptr2);
 static int join_tab_cmp_straight(void *dummy, const void* ptr1, const void* ptr2);
@@ -10205,7 +10206,6 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
 
   join->limit_optimization_mode= false;
   join->cur_embedding_map= 0;
-  join->extra_heuristic_pruning= false;
   join->prune_level= join->thd->variables.optimizer_prune_level;
 
   reset_nj_counters(join, join->join_list);
@@ -10272,11 +10272,7 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
       /* Automatically determine a reasonable value for 'search_depth' */
       search_depth= determine_search_depth(join);
 
-    if (join->prune_level >= 1 &&
-        search_depth >= thd->variables.optimizer_extra_pruning_depth)
-    {
-      join->extra_heuristic_pruning= true;
-    }
+    set_heuristic_pruning_level(join, search_depth);
 
     double limit_cost= DBL_MAX;
     double limit_record_count;
@@ -10553,6 +10549,36 @@ determine_search_depth(JOIN *join)
     search_depth= max_tables_for_exhaustive_opt; // use greedy search
 
   return search_depth;
+}
+
+static void set_heuristic_pruning_level(JOIN *join, uint search_depth)
+{
+  bool enable_heuristic_pruning=
+    optimizer_flag(join->thd, OPTIMIZER_SWITCH_HEURISTIC_PRUNE_ALWAYS);
+  uint n_tables=  join->table_count - join->const_tables;
+  if (!enable_heuristic_pruning && n_tables > 10)
+  {
+    uint k= MY_MIN(n_tables, search_depth);
+    uint count= n_tables - k + 1;
+    /*
+      20000 ~ (10 - 7 + 1) * 7! which is the default upper bound of
+      search combinations for 10 tables when optimizer_search_depth=0
+    */
+    while (k > 0 && count <= 20000)
+    {
+      count*= k;
+      k--;
+    }
+    enable_heuristic_pruning= (k > 0);
+  }
+  if (!enable_heuristic_pruning)
+    join->heuristic_pruning_level= 0;
+  else if (join->prune_level >= 1 &&
+           search_depth >=
+             join->thd->variables.optimizer_extra_pruning_depth)
+    join->heuristic_pruning_level= 2;
+  else
+    join->heuristic_pruning_level= 1;
 }
 
 
@@ -12256,13 +12282,13 @@ best_extension_by_limited_search(JOIN      *join,
         Prune some less promising partial plans. This heuristic may miss
         the optimal QEPs, thus it results in a non-exhaustive search.
       */
-      if (join->prune_level >= 1)
+      if (join->prune_level >= 1 && join->heuristic_pruning_level >= 1)
       {
         // Collect the members with min_cost and min_read_time.
         bool min_rec_hit= false;
         bool min_cost_hit= false;
 
-        if (join->extra_heuristic_pruning &&
+        if (join->heuristic_pruning_level >= 2 &&
             (!(position->key_dependent & allowed_tables) ||
              position->records_read < 2.0))
         {
@@ -19980,7 +20006,6 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       {
         /* If the ON expression is still there, it's an outer join */
         DBUG_ASSERT(prev_table->outer_join);
-        prev_table->dep_tables|= table->on_expr_dep_tables;
         table_map prev_used_tables= prev_table->nested_join ?
 	                            prev_table->nested_join->used_tables :
 	                            prev_table->get_map();

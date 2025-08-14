@@ -38,12 +38,33 @@ JS
             }
         ],
         "rows": 1
+    },
+    {
+        "hash_join_columns": 
+        [
+            {
+                "field": "a",
+                "avg_frequency": 1
+            },
+            {
+                "field": "a",
+                "avg_frequency": 1
+            },
+            {
+                "field": "c",
+                "avg_frequency": 3.8462
+            }
+        ],
+        "rows": 1
     }
 ]
 select json_detailed(json_extract(@json, '$**.rest_of_plan[*].rows_for_plan'))
 as ROWS_FOR_PLAN;
 ROWS_FOR_PLAN
-[100]
+[
+    100,
+    200
+]
 explain select *
 from t1, t2 where t1.c=t2.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -62,12 +83,25 @@ JS
             }
         ],
         "rows": 3.9216
+    },
+    {
+        "hash_join_columns": 
+        [
+            {
+                "field": "c",
+                "avg_frequency": 3.8462
+            }
+        ],
+        "rows": 3.8462
     }
 ]
 select json_detailed(json_extract(@json, '$**.rest_of_plan[*].rows_for_plan'))
 as ROWS_FOR_PLAN;
 ROWS_FOR_PLAN
-[392.16]
+[
+    392.16,
+    769.24
+]
 explain select *
 from t1 straight_join t2 where t1.c=t2.c and t2.a<30;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
