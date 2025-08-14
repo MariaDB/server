@@ -22,13 +22,13 @@ InnoDB implementation of binlog.
 *******************************************************/
 
 #include <type_traits>
-#include "ut0bitop.h"
 #include "fsp0fsp.h"
 #include "buf0flu.h"
 #include "trx0trx.h"
 #include "fsp_binlog.h"
 #include "innodb_binlog.h"
 
+#include "my_bit.h"
 #include "rpl_gtid_base.h"
 #include "log.h"
 
@@ -1422,7 +1422,7 @@ fsp_binlog_write_rec(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type,
       /* Must be a power of two. */
       ut_ad(current_binlog_state_interval == 0 ||
             current_binlog_state_interval ==
-            (uint64_t)1 << (63 - nlz(current_binlog_state_interval)));
+            (uint64_t)1 << (63 - my_nlz(current_binlog_state_interval)));
 
       if (page_no == 1 ||
           0 == (page_no & (current_binlog_state_interval - 1))) {
