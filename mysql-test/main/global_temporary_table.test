@@ -553,4 +553,10 @@ create global temporary table t(c int);
 update t set foo= 1;
 drop table t;
 
+--echo MDEV-37378 SIGSEGV or Assertion failed on CREATE TRIGGER
+create global temporary table t (c int);
+--error ER_TRG_ON_VIEW_OR_TEMP_TABLE
+create trigger tr after insert on t for each row insert into t values (1);
+drop table t;
+
 --disconnect con1
