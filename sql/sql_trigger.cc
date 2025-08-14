@@ -620,6 +620,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
   table= tables->table;
 
+  if (table->s->global_tmp_table())
+  {
+    my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), table->s->table_name.str);
+    goto end;
+  }
+
 #ifdef WITH_WSREP
   /* Resolve should we replicate creation of the trigger.
      It should be replicated if storage engine(s) associated
