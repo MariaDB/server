@@ -2664,3 +2664,12 @@ drop table t1,t2,t3;
 
 --echo # End of 10.4 tests
 
+--echo #
+--echo # MDEV-29300 Assertion `*ref && (*ref)->fixed()' failed in Item_field::fix_outer_field on SELECT
+--echo #
+
+CREATE TABLE t(c INT);
+SELECT (SELECT 0 GROUP BY c HAVING (SELECT c)) FROM t GROUP BY c;
+DROP TABLE t;
+
+--echo # End of 10.11 tests

@@ -21,7 +21,6 @@ INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
-${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
 ${PCRE_INCLUDE_DIRS}
 ${LIBFMT_INCLUDE_DIR}
@@ -93,6 +92,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_lex.cc ../sql/keycaches.cc
            ../sql/sql_list.cc ../sql/sql_load.cc ../sql/sql_locale.cc 
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
+           ../sql/sql_oracle_outer_join.cc
            ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
            ../sql/sql_partition.cc ../sql/sql_plugin.cc 
            ../sql/debug_sync.cc ../sql/debug.cc
@@ -136,6 +136,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_schema.cc
            ../sql/lex_charset.cc ../sql/charset_collations.cc
            ../sql/sql_type.cc ../sql/sql_type.h
+           ../sql/sql_type_composite.cc ../sql/item_composite.cc
+           ../sql/sql_type_row.cc
            ../sql/sql_mode.cc
            ../sql/sql_type_string.cc
            ../sql/sql_type_json.cc
@@ -161,6 +163,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_hints_parser.cc ../sql/opt_hints_parser.h
            ../sql/scan_char.h
            ../sql/opt_hints.cc ../sql/opt_hints.h
+	   ../sql/opt_trace_ddl_info.cc ../sql/opt_trace_ddl_info.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

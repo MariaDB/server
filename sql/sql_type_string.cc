@@ -20,31 +20,52 @@
 #include "sql_type_string.h"
 
 
-uchar *
-StringPack::pack(uchar *to, const uchar *from, uint max_length) const
+// Trim trailing spaces for CHAR or 0x00 bytes for BINARY
+uint StringPack::rtrimmed_length(const char *from) const
 {
-  size_t length=      MY_MIN(m_octet_length, max_length);
-  size_t local_char_length= char_length();
-  DBUG_PRINT("debug", ("length: %zu ", length));
+  DBUG_PRINT("debug", ("length: %u ", (uint) m_octet_length));
 
-  if (length > local_char_length)
-    local_char_length= charset()->charpos(from, from + length,
-                                          local_char_length);
-  set_if_smaller(length, local_char_length);
- 
+  if (mbmaxlen() > 1)
+  {
+    /*
+      Suppose we have CHAR(100) CHARACTER SET utf8mb4.
+      Its octet_length is 400.
+      - In case of ASCII characters only, the leftmost 100 bytes
+        contain real data, the other 300 bytes are padding spaces.
+      - In case of 100 2-byte characters, the leftmost 200 bytes
+        contain real data, the other 200 bytes are padding spaces.
+      - All 400 bytes contain real data (without padding spaces)
+        only in case of 100 4-byte characters, which is a rare scenario.
+
+      There are two approaches possible to trim the data:
+      1. Left-to-right: call charpos() to find the end of the 100th
+         character, then switch to a right-to-left loop to trim trailing spaces.
+      2. Right-to-left: trim characters from the position "from+400" towards
+         the beginning.
+
+      N1 should be faster in an average case, and is much faster for pure ASCII.
+    */
+    size_t length= charset()->charpos(from, from+m_octet_length, char_length());
+    return (uint) charset()->lengthsp((const char*) from, length);
+  }
+
   /*
      TODO: change charset interface to add a new function that does 
            the following or add a flag to lengthsp to do it itself 
            (this is for not packing padding adding bytes in BINARY 
            fields).
   */
-  if (mbmaxlen() == 1)
-  {
-    while (length && from[length-1] == charset()->pad_char)
-      length --;
-  }
-  else
-    length= charset()->lengthsp((const char*) from, length);
+  size_t length= m_octet_length;
+  while (length && from[length - 1] == charset()->pad_char)
+    length --;
+  return (uint) length;
+}
+
+
+uchar *
+StringPack::pack(uchar *to, const uchar *from) const
+{
+  size_t length= rtrimmed_length((const char *) from);
 
   // Length always stored little-endian
   *to++= (uchar) length;

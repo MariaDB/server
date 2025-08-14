@@ -6,10 +6,8 @@
 # A transactional engine
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
+--source include/no_view_protocol.inc
 # As non transactional engine we have MyISAM anyway.
-
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
 
 let $old_lock_wait_timeout = `SELECT @@global.lock_wait_timeout`;
 
@@ -384,4 +382,3 @@ SET GLOBAL lock_wait_timeout = $old_lock_wait_timeout;
 --disconnect backup
 
 --connection default
---source include/wait_until_count_sessions.inc

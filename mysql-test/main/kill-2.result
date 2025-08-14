@@ -36,6 +36,8 @@ Id	User	Host	db	Command	Time	State	Info	Progress
 kill user b;
 ERROR HY000: Operation KILL USER failed for b@%
 connection default;
+disconnect a;
+disconnect b;
 drop user a@'127.0.0.1';
 drop user b@'127.0.0.1';
 #

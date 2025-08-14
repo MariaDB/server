@@ -1135,162 +1135,164 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   SEQUENCE *seq;
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
+  {
 #if defined(HAVE_REPLICATION)
-  /* No wakeup():s of subsequent commits is allowed in this function. */
-  wait_for_commit_raii suspend_wfc(thd);
+    /* No wakeup():s of subsequent commits is allowed in this function. */
+    wait_for_commit_raii suspend_wfc(thd);
 #endif
 
-  if (check_access(thd, ALTER_ACL, first_table->db.str,
-                   &first_table->grant.privilege,
-                   &first_table->grant.m_internal,
-                   0, 0))
-    DBUG_RETURN(TRUE);                  /* purecov: inspected */
+    if (check_access(thd, ALTER_ACL, first_table->db.str,
+                     &first_table->grant.privilege,
+                     &first_table->grant.m_internal,
+                     0, 0))
+      DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
-  if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
-    DBUG_RETURN(TRUE);                  /* purecov: inspected */
+    if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
+      DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && wsrep_thd_is_local(thd))
-  {
-    const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
-    if (wsrep_check_sequence(thd, new_seq, used_engine))
-      DBUG_RETURN(TRUE);
-
-    if (wsrep_to_isolation_begin(thd, first_table->db.str,
-                                 first_table->table_name.str,
-                                 first_table))
+    if (WSREP(thd) && wsrep_thd_is_local(thd))
     {
-      DBUG_RETURN(TRUE);
+      const bool used_engine= lex->create_info.used_fields & HA_CREATE_USED_ENGINE;
+      if (wsrep_check_sequence(thd, new_seq, used_engine))
+        DBUG_RETURN(TRUE);
+
+      if (wsrep_to_isolation_begin(thd, first_table->db.str,
+                                   first_table->table_name.str,
+                                   first_table))
+      {
+        DBUG_RETURN(TRUE);
+      }
     }
-  }
 #endif /* WITH_WSREP */
 
-  if (new_seq->used_fields & seq_field_used_as)
-  {
-    /* This should have been prevented during parsing. */
-    DBUG_ASSERT(!(new_seq->used_fields - seq_field_used_as));
+    if (new_seq->used_fields & seq_field_used_as)
+    {
+      /* This should have been prevented during parsing. */
+      DBUG_ASSERT(!(new_seq->used_fields - seq_field_used_as));
 
-    first_table->lock_type= TL_READ_NO_INSERT;
-    first_table->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-    Alter_info alter_info;
-    alter_info.flags= ALTER_CHANGE_COLUMN;
-    if (new_seq->prepare_sequence_fields(&alter_info.create_list, true))
-      DBUG_RETURN(TRUE);
-    Table_specification_st create_info;
-    create_info.init();
-    create_info.alter_info= &alter_info;
+      first_table->lock_type= TL_READ_NO_INSERT;
+      first_table->mdl_request.set_type(MDL_SHARED_NO_WRITE);
+      Alter_info alter_info;
+      alter_info.flags= ALTER_CHANGE_COLUMN;
+      if (new_seq->prepare_sequence_fields(&alter_info.create_list, true))
+        DBUG_RETURN(TRUE);
+      Table_specification_st create_info;
+      create_info.init();
+      create_info.alter_info= &alter_info;
+      if (if_exists())
+        thd->push_internal_handler(&no_such_table_handler);
+      Recreate_info recreate_info;
+      error= mysql_alter_table(thd, &null_clex_str, &null_clex_str,
+                               &create_info, first_table, &recreate_info,
+                               &alter_info, 0, (ORDER *) 0, 0, 0);
+      if (if_exists())
+      {
+        trapped_errors= no_such_table_handler.safely_trapped_errors();
+        thd->pop_internal_handler();
+      }
+      /* Do we need to store the sequence value in table share, like below? */
+      DBUG_RETURN(error);
+    }
+
     if (if_exists())
       thd->push_internal_handler(&no_such_table_handler);
-    Recreate_info recreate_info;
-    error= mysql_alter_table(thd, &null_clex_str, &null_clex_str,
-                             &create_info, first_table, &recreate_info,
-                             &alter_info, 0, (ORDER *) 0, 0, 0);
+    error= open_and_lock_tables(thd, first_table, FALSE, 0);
     if (if_exists())
     {
       trapped_errors= no_such_table_handler.safely_trapped_errors();
       thd->pop_internal_handler();
     }
-    /* Do we need to store the sequence value in table share, like below? */
-    DBUG_RETURN(error);
-  }
-
-  if (if_exists())
-    thd->push_internal_handler(&no_such_table_handler);
-  error= open_and_lock_tables(thd, first_table, FALSE, 0);
-  if (if_exists())
-  {
-    trapped_errors= no_such_table_handler.safely_trapped_errors();
-    thd->pop_internal_handler();
-  }
-  if (unlikely(error))
-  {
-    if (trapped_errors)
+    if (unlikely(error))
     {
-      StringBuffer<FN_REFLEN> tbl_name;
-      tbl_name.append(&first_table->db);
-      tbl_name.append('.');
-      tbl_name.append(&first_table->table_name);
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_UNKNOWN_SEQUENCES,
-                          ER_THD(thd, ER_UNKNOWN_SEQUENCES),
-                          tbl_name.c_ptr_safe());
-      my_ok(thd);
-      DBUG_RETURN(FALSE);
+      if (trapped_errors)
+      {
+        StringBuffer<FN_REFLEN> tbl_name;
+        tbl_name.append(&first_table->db);
+        tbl_name.append('.');
+        tbl_name.append(&first_table->table_name);
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_UNKNOWN_SEQUENCES,
+                            ER_THD(thd, ER_UNKNOWN_SEQUENCES),
+                            tbl_name.c_ptr_safe());
+        my_ok(thd);
+        DBUG_RETURN(FALSE);
+      }
+      DBUG_RETURN(TRUE);
     }
-    DBUG_RETURN(TRUE);
-  }
 
-  table= first_table->table;
-  seq= table->s->sequence;
+    table= first_table->table;
+    seq= table->s->sequence;
 
-  seq->write_lock(table);
-  new_seq->reserved_until= seq->reserved_until;
+    seq->write_lock(table);
+    new_seq->reserved_until= seq->reserved_until;
 
-  /* Copy from old sequence those fields that the user didn't specified */
-  if (!(new_seq->used_fields & seq_field_used_increment))
-    new_seq->increment= seq->increment;
-  /*
-    We need to assign to foo_from_parser so that things get handled
-    properly in check_and_adjust() later
-  */
-  if (!(new_seq->used_fields & seq_field_used_min_value))
-    new_seq->min_value_from_parser= Longlong_hybrid(seq->min_value, seq->is_unsigned);
-  if (!(new_seq->used_fields & seq_field_used_max_value))
-    new_seq->max_value_from_parser= Longlong_hybrid(seq->max_value, seq->is_unsigned);
-  if (!(new_seq->used_fields & seq_field_used_start))
-    new_seq->start_from_parser= Longlong_hybrid(seq->start, seq->is_unsigned);
-  if (!(new_seq->used_fields & seq_field_used_cache))
-    new_seq->cache= seq->cache;
-  if (!(new_seq->used_fields & seq_field_used_cycle))
-    new_seq->cycle= seq->cycle;
-  /* This should have been prevented during parsing. */
-  DBUG_ASSERT(!(new_seq->used_fields & seq_field_used_as));
-  new_seq->value_type= seq->value_type;
-  new_seq->is_unsigned= seq->is_unsigned;
-
-  /* If we should restart from a new value */
-  if (new_seq->used_fields & seq_field_used_restart)
-  {
-    if (!(new_seq->used_fields & seq_field_used_restart_value))
-      new_seq->restart_from_parser=      new_seq->start_from_parser;
+    /* Copy from old sequence those fields that the user didn't specified */
+    if (!(new_seq->used_fields & seq_field_used_increment))
+      new_seq->increment= seq->increment;
     /*
-      Similar to start, we just need to truncate reserved_until and
-      the errors will be reported in check_and_adjust if truncation
-      happens on the wrong end.
+      We need to assign to foo_from_parser so that things get handled
+      properly in check_and_adjust() later
     */
-    new_seq->reserved_until=
-      new_seq->truncate_value(new_seq->restart_from_parser);
-  }
+    if (!(new_seq->used_fields & seq_field_used_min_value))
+      new_seq->min_value_from_parser= Longlong_hybrid(seq->min_value, seq->is_unsigned);
+    if (!(new_seq->used_fields & seq_field_used_max_value))
+      new_seq->max_value_from_parser= Longlong_hybrid(seq->max_value, seq->is_unsigned);
+    if (!(new_seq->used_fields & seq_field_used_start))
+      new_seq->start_from_parser= Longlong_hybrid(seq->start, seq->is_unsigned);
+    if (!(new_seq->used_fields & seq_field_used_cache))
+      new_seq->cache= seq->cache;
+    if (!(new_seq->used_fields & seq_field_used_cycle))
+      new_seq->cycle= seq->cycle;
+    /* This should have been prevented during parsing. */
+    DBUG_ASSERT(!(new_seq->used_fields & seq_field_used_as));
+    new_seq->value_type= seq->value_type;
+    new_seq->is_unsigned= seq->is_unsigned;
 
-  /* Let check_and_adjust think all fields are used */
-  new_seq->used_fields= ~0;
-  if (new_seq->check_and_adjust(thd, 0))
-  {
-    my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
-             first_table->db.str,
-             first_table->table_name.str);
-    error= 1;
+    /* If we should restart from a new value */
+    if (new_seq->used_fields & seq_field_used_restart)
+    {
+      if (!(new_seq->used_fields & seq_field_used_restart_value))
+        new_seq->restart_from_parser=      new_seq->start_from_parser;
+      /*
+        Similar to start, we just need to truncate reserved_until and
+        the errors will be reported in check_and_adjust if truncation
+        happens on the wrong end.
+      */
+      new_seq->reserved_until=
+        new_seq->truncate_value(new_seq->restart_from_parser);
+    }
+
+    /* Let check_and_adjust think all fields are used */
+    new_seq->used_fields= ~0;
+    if (new_seq->check_and_adjust(thd, 0))
+    {
+      my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
+               first_table->db.str,
+               first_table->table_name.str);
+      error= 1;
+      seq->write_unlock(table);
+      goto end;
+    }
+
+    if (likely(!(error= new_seq->write(table, 1))))
+    {
+      /* Store the sequence values in table share */
+      seq->copy(new_seq);
+    }
+    else
+      table->file->print_error(error, MYF(0));
     seq->write_unlock(table);
-    goto end;
+    if (trans_commit_stmt(thd))
+      error= 1;
+    if (trans_commit_implicit(thd))
+      error= 1;
+    DBUG_EXECUTE_IF("hold_worker_on_schedule",
+                    {
+                      /* delay binlogging of a parent trx in rpl_parallel_seq */
+                      my_sleep(100000);
+                    });
   }
-
-  if (likely(!(error= new_seq->write(table, 1))))
-  {
-    /* Store the sequence values in table share */
-    seq->copy(new_seq);
-  }
-  else
-    table->file->print_error(error, MYF(0));
-  seq->write_unlock(table);
-  if (trans_commit_stmt(thd))
-    error= 1;
-  if (trans_commit_implicit(thd))
-    error= 1;
-  DBUG_EXECUTE_IF("hold_worker_on_schedule",
-                  {
-                    /* delay binlogging of a parent trx in rpl_parallel_seq */
-                    my_sleep(100000);
-                  });
   if (likely(!error))
     error= write_bin_log(thd, 1, thd->query(), thd->query_length());
   if (likely(!error))

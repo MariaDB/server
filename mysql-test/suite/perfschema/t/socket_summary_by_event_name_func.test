@@ -317,16 +317,12 @@ if (`SELECT @tables_match = 0`)
 --echo #
 --echo # 5.1 Disconnect con1
 --echo #
---connection con1
 --disconnect con1
---source include/wait_until_disconnected.inc
 
 --echo #
 --echo # 5.2 Disconnect con2
 --echo #
---connection con2
 --disconnect con2
---source include/wait_until_disconnected.inc
 
 --echo #
 --echo # 5.3 Drop mysqltest

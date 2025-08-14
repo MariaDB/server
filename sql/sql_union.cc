@@ -1135,7 +1135,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
   {
     for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
     {
-      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+      (*ord->item)->walk(&Item::eliminate_subselect_processor, 0, 0);
     }
   }
   DBUG_RETURN(false);
@@ -1852,7 +1852,7 @@ cont:
       ORDER *ord;
       Item_func::Functype ft=  Item_func::FT_FUNC;
       for (ord= global_parameters()->order_list.first; ord; ord= ord->next)
-        if ((*ord->item)->walk (&Item::find_function_processor, FALSE, &ft))
+        if ((*ord->item)->walk (&Item::find_function_processor, &ft, 0))
         {
           my_error (ER_CANT_USE_OPTION_HERE, MYF(0), "MATCH()");
           goto err;
@@ -2586,9 +2586,7 @@ bool st_select_lex_unit::exec_inner()
 
       fake_select_lex->table_list.empty();
       if (likely(!saved_error))
-      {
-	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-      }
+        thd->limit_found_rows= (ulonglong)table->file->stats.records + add_rows;
       /*
 	Mark for slow query log if any of the union parts didn't use
 	indexes efficiently

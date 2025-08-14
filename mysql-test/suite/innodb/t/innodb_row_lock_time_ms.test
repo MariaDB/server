@@ -1,5 +1,4 @@
 --source include/have_innodb.inc
---source include/count_sessions.inc
 
 CREATE TABLE `t`(`id` INT, PRIMARY KEY(`id`)) ENGINE=InnoDB STATS_PERSISTENT=0;
 
@@ -57,5 +56,3 @@ SET GLOBAL innodb_monitor_enable=default;
 SET GLOBAL innodb_monitor_disable=default;
 SET GLOBAL innodb_monitor_reset_all=default;
 --enable_warnings
-
---source include/wait_until_count_sessions.inc

@@ -1318,8 +1318,6 @@ SELECT LENGTH(my_t3_fld1) FROM t3;
 
 # Cleanup
 --disconnect con1
---source include/wait_until_disconnected.inc
-
 --connection default
 DROP TABLE t1, t2, t3;
 
@@ -1569,8 +1567,6 @@ connection con1;
 --echo # Reaping: ALTER TABLE t1 DISABLE KEYS
 --reap
 disconnect con1;
---source include/wait_until_disconnected.inc
-
 connection default;
 DROP TABLE t1;
 
@@ -1583,10 +1579,6 @@ DROP TABLE t1;
 --echo # --enable_info allows us to see how many rows were updated
 --echo # by ALTER TABLE. in-place will show 0 rows, while copy > 0.
 --echo #
-
---disable_warnings
-DROP TABLE IF EXISTS ti1, ti2, ti3, tm1, tm2, tm3;
---enable_warnings
 
 --echo # Single operation tests
 
@@ -2402,6 +2394,30 @@ create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign ke
 --error ER_CANT_DROP_FIELD_OR_KEY
 alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-29001 DROP DEFAULT makes SHOW CREATE non-idempotent
+--echo #
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=strict_all_tables;
+create table t1 (
+  a int,
+  b int default 0,
+  c int not null,
+  d int not null default 1);
+show create table t1;
+alter table t1
+  alter a drop default,
+  alter b drop default,
+  alter c drop default,
+  alter d drop default;
+SHOW create table t1;
+--error ER_NO_DEFAULT_FOR_FIELD
+insert t1 values (default, default, default, default);
+insert t1 values (default, default, 0, 0);
+
+drop table t1;
+set sql_mode= @save_sql_mode;
 
 --echo #
 --echo # End of 10.6 tests

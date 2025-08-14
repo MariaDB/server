@@ -36,7 +36,9 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES ('foobar',1);
 INSERT INTO t1 VALUES ('foobar',2);
 FLUSH TABLE WITH READ LOCK;
+--disable_view_protocol
 SELECT * FROM t1;
+--enable_view_protocol
 
 --echo
 --echo # Restart server with keysbad3.txt

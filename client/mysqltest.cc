@@ -5829,8 +5829,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-  {
     mariadb_cancel(con->mysql);
+  else
+  {
+    simple_command(con->mysql,COM_QUIT,0,0,0);
+    if (con->util_mysql)
+      simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
@@ -9512,6 +9516,7 @@ int util_query(MYSQL* org_mysql, const char* query){
       /* enable local infile, in non-binary builds often disabled by default */
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
+      mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&(org_mysql->options.protocol));
       SET_SSL_OPTS(mysql);
       safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
           org_mysql->passwd, org_mysql->db, org_mysql->port,
@@ -9633,7 +9638,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   dynstr_set(&ds_res, 0);
 
   if (view_protocol_enabled && mysql &&
-      complete_query &&
+      complete_query && !(mysql->server_status & SERVER_STATUS_IN_TRANS) &&
       match_re(&view_re, query))
   {
     /*

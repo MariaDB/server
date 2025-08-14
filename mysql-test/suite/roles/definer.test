@@ -327,7 +327,9 @@ drop view test.v1, test.v2, test.v3, test.v4, test.v5;
 drop table t1, t2;
 drop role role1, role2;
 drop user foo@localhost;
+--disable_warnings
 drop database mysqltest1;
+--enable_warnings
 use test;
 
 ##################################################
@@ -459,6 +461,9 @@ drop role r1;
 drop role r2;
 drop role r3;
 drop role user_like_role;
+disconnect foo;
+disconnect user1;
+disconnect user_like_role;
 drop user user1;
 drop user foo;
 drop user user_like_role;

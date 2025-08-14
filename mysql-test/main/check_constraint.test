@@ -244,9 +244,65 @@ insert t1 (a) values (1);
 insert t1 (a) values (-1);
 drop table t1;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-36662 CHECK constraint does not repeat in case of error
+--echo #
+create table t1 (d date check (d > 2020-01-01));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2023-12-05');
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT into t1 values ('2024-12-05');
+create or replace table t1 (d time check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('22:30');
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('23:30');
+create or replace table t1 (d datetime check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2023-12-05');
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2024-12-05');
+create or replace table t1 (d timestamp check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2023-12-05');
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2024-12-05');
+create or replace table t1 (d year check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2023');
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ('2024');
+create or replace table t1 (d int check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (0);
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (1);
+create or replace table t1 (d real check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (0.1);
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (1.1);
+create or replace table t1 (d decimal check (d > "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (0);
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (1);
+create or replace table t1 (d bool check (d != "a"));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (0);
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values (1);
+drop table t1;
+create or replace table t1 (d varchar(30) check (d != 1));
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ("a");
+--error ER_TRUNCATED_WRONG_VALUE
+insert into t1 values ("b");
+drop table t1;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-32439 INSERT IGNORE VALUES (one row) errors on constraint
@@ -276,6 +332,4 @@ SHOW WARNINGS;
 SELECT * FROM t1;
 DROP TABLE t1;
 
---echo #
 --echo # End of 11.4 tests
---echo #

@@ -2,13 +2,6 @@ select priv into @root_priv from mysql.global_priv where user='root' and host='l
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
 SET NAMES binary;
-drop database if exists mysqltest;
-drop database if exists mysqltest_1;
-delete from mysql.user where user like 'mysqltest\_%';
-delete from mysql.db where user like 'mysqltest\_%';
-delete from mysql.tables_priv where user like 'mysqltest\_%';
-delete from mysql.columns_priv where user like 'mysqltest\_%';
-flush privileges;
 grant all privileges on `my\_1`.* to mysqltest_1@localhost with grant option;
 grant create user on *.* to mysqltest_1@localhost;
 create user mysqltest_2@localhost;
@@ -181,7 +174,7 @@ grant select on *.* to 'mysqltest_2';
 grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
 grant update (c2) on test.t2 to 'mysqltest_2';
-select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+select Host,User,Password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
 Host	User	Password	plugin	authentication_string
 %	mysqltest_1		mysql_native_password	
 %	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1	mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
@@ -206,7 +199,7 @@ GRANT INSERT ON "test".* TO "mysqltest_2"@"%"
 GRANT UPDATE ("c2") ON "test"."t2" TO "mysqltest_2"@"%"
 GRANT UPDATE ON "test"."t1" TO "mysqltest_2"@"%"
 drop user 'mysqltest_1';
-select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
+select Host,User,Password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
 Host	User	Password	plugin	authentication_string
 %	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1	mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
 %	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff	mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
@@ -223,7 +216,7 @@ host	db	user	table_name	column_name
 show grants for 'mysqltest_1';
 ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 rename user 'mysqltest_2' to 'mysqltest_1';
-select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
+select Host,User,Password,plugin,authentication_string from mysql.user where user like 'mysqltest_%' ;
 Host	User	Password	plugin	authentication_string
 %	mysqltest_1	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1	mysql_native_password	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
 %	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff	mysql_native_password	fffffffffffffffffffffffffffffffffffffffff
@@ -367,7 +360,7 @@ mysqltest_1@127.0.0.1
 set password = password('changed');
 disconnect b12302;
 connection default;
-select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+select Host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
 Host	length(authentication_string)
 127.0.0.1	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.1';
@@ -382,7 +375,7 @@ mysqltest_1@127.0.0.0/255.0.0.0
 set password = password('changed');
 disconnect b12302_2;
 connection default;
-select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+select Host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
 Host	length(authentication_string)
 127.0.0.0/255.0.0.0	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';

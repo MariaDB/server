@@ -1242,6 +1242,7 @@ t1	CREATE TABLE `t1` (
 insert into t1 value(concat(repeat('s',3000),'1'));
 insert into t1 value(concat(repeat('s',3000),'2'));
 ERROR 23000: Duplicate entry 'sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss...' for key 'a'
+update t1 set a=     concat(repeat('s',3000),'2');
 insert into t1 value(concat(repeat('a',3000),'2'));
 drop table t1;
 create table t1(a varchar(4000), b longblob , c varchar(5000), d longblob, 

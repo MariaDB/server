@@ -1991,6 +1991,14 @@ static Sys_var_ulong Sys_metadata_locks_hash_instances(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
        DEPRECATED(1105, ""));
 
+static Sys_var_uint Sys_metadata_locks_instances(
+       "metadata_locks_instances",
+       "Number of fast lanes to create for metadata locks. Can be used to "
+       "improve DML scalability by eliminating MDL_lock::rwlock load. "
+       "Use 1 to disable MDL fast lanes. Supported MDL namespaces: BACKUP",
+       READ_ONLY GLOBAL_VAR(mdl_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 256), DEFAULT(8), BLOCK_SIZE(1));
+
 static Sys_var_on_access_session<Sys_var_ulonglong,
                                  PRIV_SET_SYSTEM_SESSION_VAR_PSEUDO_THREAD_ID>
 Sys_pseudo_thread_id(
@@ -3120,6 +3128,13 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     "Maximum allowed size of an optimizer trace",
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_optimizer_record_context(
+    "optimizer_record_context",
+    "Controls storing of optmizer context of all the tables "
+    "that are referenced in a query",
+    SESSION_VAR(optimizer_record_context), CMD_LINE(OPT_ARG),
+    DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_optimizer_adjust_secondary_key_costs(
     "optimizer_adjust_secondary_key_costs",
@@ -6684,6 +6699,12 @@ static Sys_var_charptr Sys_wsrep_allowlist(
        "wsrep_allowlist", "Allowed IP addresses split by comma delimiter",
        READ_ONLY GLOBAL_VAR(wsrep_allowlist), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
+
+static Sys_var_uint Sys_wsrep_applier_retry_count (
+       "wsrep_applier_retry_count", "Maximum number of applier retry attempts",
+       GLOBAL_VAR(wsrep_applier_retry_count), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 #endif /* WITH_WSREP */
 

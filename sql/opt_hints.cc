@@ -47,6 +47,11 @@ struct st_opt_hint_info opt_hint_info[]=
   {{STRING_WITH_LEN("JOIN_FIXED_ORDER")}, false, true, false},
   {{STRING_WITH_LEN("DERIVED_CONDITION_PUSHDOWN")}, false, false, false},
   {{STRING_WITH_LEN("MERGE")}, false, false, false},
+  {{STRING_WITH_LEN("SPLIT_MATERIALIZED")}, false, false, false},
+  {{STRING_WITH_LEN("INDEX")}, false, true, false},
+  {{STRING_WITH_LEN("JOIN_INDEX")}, false, true, false},
+  {{STRING_WITH_LEN("GROUP_INDEX")}, false, true, false},
+  {{STRING_WITH_LEN("ORDER_INDEX")}, false, true, false},
   {null_clex_str, 0, 0, 0}
 };
 
@@ -78,6 +83,22 @@ void push_warning_safe(THD *thd, Sql_condition::enum_warning_level level,
   DBUG_VOID_RETURN;
 }
 
+/*
+  Function prepares and prints a warning message related to hints parsing or
+  resolving.
+
+  @param thd             Pointer to THD object for session.
+         err_code        Enumerated code of the warning
+         hint_type       Enumerated hint type
+         hint_state      true: enabling hint (HINT(...),
+                         false: disabling (NO_HINT(...))
+         qb_name_arg     optional query block name
+         table_name_arg  optional table name
+         key_name_arg    optional key (index) name
+         hint            optional pointer to the parsed hint object
+         add_info        optional string, if given then will be appended to
+                         the end of the message embraced in brackets
+*/
 
 void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
@@ -153,8 +174,8 @@ void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
 
     hint->append_args(thd, &str);
   }
-
   str.append(')');
+
   push_warning_safe(thd, Sql_condition::WARN_LEVEL_WARN,
                     err_code, ER_THD(thd, err_code), str.c_ptr_safe());
 }
@@ -298,19 +319,13 @@ Opt_hints* Opt_hints::find_by_name(const LEX_CSTRING &name_arg) const
 
 void Opt_hints::print(THD *thd, String *str)
 {
-  /* Do not print the hint if we couldn't attach it to its object */
-  if (!is_fixed())
-    return;
-
   // Print the hints stored in the bitmap
   for (uint i= 0; i < MAX_HINT_ENUM; i++)
   {
-    if (opt_hint_info[i].irregular_hint)
-      continue;
-    opt_hints_enum hint_type= static_cast<opt_hints_enum>(i);
-    if (is_specified(hint_type))
+    opt_hints_enum hint= static_cast<opt_hints_enum>(i);
+    if (is_specified(hint) && !ignore_print(hint) && is_fixed(hint))
     {
-      append_hint_type(str, hint_type);
+      append_hint_type(str, hint);
       str->append(STRING_WITH_LEN("("));
       uint32 len_before_name= str->length();
       append_name(thd, str);
@@ -318,7 +333,7 @@ void Opt_hints::print(THD *thd, String *str)
       if (len_after_name > len_before_name)
         str->append(' ');
       if (opt_hint_info[i].has_arguments)
-        append_hint_arguments(thd, hint_type, str);
+        append_hint_arguments(thd, hint, str);
       if (str->length() == len_after_name + 1)
       {
         // No additional arguments were printed, trim the space added before
@@ -332,6 +347,12 @@ void Opt_hints::print(THD *thd, String *str)
 
   for (uint i= 0; i < child_array.size(); i++)
     child_array[i]->print(thd, str);
+}
+
+
+bool Opt_hints::ignore_print(opt_hints_enum type_arg) const
+{
+  return opt_hint_info[type_arg].irregular_hint;
 }
 
 
@@ -376,7 +397,7 @@ void Opt_hints::print_unfixed_warnings(THD *thd)
 
 void Opt_hints::check_unfixed(THD *thd)
 {
-  if (!is_fixed())
+  if (!are_all_fixed())
     print_unfixed_warnings(thd);
 
   if (!are_children_fully_fixed())
@@ -418,7 +439,7 @@ void Opt_hints_qb::fix_hints_for_derived_table(TABLE_LIST *table_list)
     If this is fixed and the corresponding Opt_hints_table doesn't exist (or it
     exists and is fixed) then there's nothing to do, so return early.
   */
-  if (is_fixed() && (!tab || tab->is_fixed()))
+  if (are_all_fixed() && (!tab || tab->are_all_fixed()))
     return;
 
   /*
@@ -453,7 +474,7 @@ Opt_hints_table *Opt_hints_qb::fix_hints_for_table(TABLE *table,
   if (!tab)                            // Tables not found
     return NULL;
 
-  if (!tab->fix_hint(table))
+  if (!tab->fix_key_hints(table))
     incr_fully_fixed_children();
 
   return tab;
@@ -524,16 +545,13 @@ void Opt_hints_qb::append_hint_arguments(THD *thd, opt_hints_enum hint,
     For each index IDX, put its hints into keyinfo_array[IDX]
 */
 
-bool Opt_hints_table::fix_hint(TABLE *table)
+bool Opt_hints_table::fix_key_hints(TABLE *table)
 {
   /*
     Ok, there's a table we attach to. Mark this hint as fixed and proceed to
     fixing the child objects.
   */
   set_fixed();
-
-  if (child_array_ptr()->size() == 0)  // No key level hints
-    return false; // Ok, fully fixed
 
   /* Make sure that adjustment is called only once. */
   DBUG_ASSERT(keyinfo_array.size() == 0);
@@ -550,8 +568,29 @@ bool Opt_hints_table::fix_hint(TABLE *table)
         (*hint)->set_fixed();
         keyinfo_array[j]= static_cast<Opt_hints_key *>(*hint);
         incr_fully_fixed_children();
+        set_compound_key_hint_map(*hint, j);
         break;
       }
+    }
+  }
+
+  /*
+    Fixing compound index hints. A compound hint is fixed in two cases:
+    - it is a table-level hint, i.e. does not have a list of index names
+          (like ORDER_INDEX(t1);
+    - it has a list of index names, and at least one of listed
+      index names is resolved successfully. So, NO_INDEX(t1 bad_idx) does not
+      become a table-level hint NO_INDEX(t1) if `bad_idx` cannnot be resolved.
+  */
+  for (opt_hints_enum
+           hint_type : { INDEX_HINT_ENUM, JOIN_INDEX_HINT_ENUM,
+                         GROUP_INDEX_HINT_ENUM, ORDER_INDEX_HINT_ENUM })
+  {
+    if (is_specified(hint_type))
+    {
+      Opt_hints_key_bitmap *bitmap= get_key_hint_bitmap(hint_type);
+      if (bitmap->is_table_level() || bitmap->bits_set() > 0)
+        bitmap->set_fixed();
     }
   }
 
@@ -559,6 +598,216 @@ bool Opt_hints_table::fix_hint(TABLE *table)
     return false;
 
   return true; // Some children are not fully fixed
+}
+
+
+static bool table_or_key_hint_type_specified(Opt_hints_table *table_hint,
+                                             Opt_hints_key *key_hint,
+                                             opt_hints_enum type)
+{
+  DBUG_ASSERT(table_hint || key_hint );
+  return key_hint ? key_hint->is_specified(type) :
+                    table_hint->is_specified(type);
+}
+
+
+bool Opt_hints_table::is_fixed(opt_hints_enum type_arg)
+{
+  if (is_compound_hint(type_arg))
+    return Opt_hints::is_fixed(type_arg) &&
+           get_key_hint_bitmap(type_arg)->is_fixed();
+  return Opt_hints::is_fixed(type_arg);
+}
+
+
+void Opt_hints_table::set_compound_key_hint_map(Opt_hints *hint, uint keynr)
+{
+  if (hint->is_specified(INDEX_HINT_ENUM))
+    global_index_map.set_key_map(keynr);
+  if (hint->is_specified(JOIN_INDEX_HINT_ENUM))
+    join_index_map.set_key_map(keynr);
+  if (hint->is_specified(GROUP_INDEX_HINT_ENUM))
+    group_index_map.set_key_map(keynr);
+  if (hint->is_specified(ORDER_INDEX_HINT_ENUM))
+    order_index_map.set_key_map(keynr);
+}
+
+
+Opt_hints_key_bitmap *Opt_hints_table::get_key_hint_bitmap(opt_hints_enum type)
+{
+  switch (type) {
+    case INDEX_HINT_ENUM:
+      return &global_index_map;
+    case JOIN_INDEX_HINT_ENUM:
+      return &join_index_map;
+    case GROUP_INDEX_HINT_ENUM:
+      return &group_index_map;
+    case ORDER_INDEX_HINT_ENUM:
+      return &order_index_map;
+    default:
+      DBUG_ASSERT(0);
+      return nullptr;
+  }
+}
+
+
+/**
+  Function updates key_to_use key map depending on index hint state.
+
+  @param keys_to_use            key to use
+  @param available_keys_to_use  available keys to use
+  @param type_arg               hint type
+*/
+
+void Opt_hints_table::update_index_hint_map(Key_map *keys_to_use,
+                                            const Key_map *available_keys_to_use,
+                                            opt_hints_enum type_arg)
+{
+  // Check if hint is resolved.
+  if (is_fixed(type_arg))
+  {
+    Key_map *keys_specified_in_hint=
+        get_key_hint_bitmap(type_arg)->get_key_map();
+    if (get_switch(type_arg))
+    {
+      if (keys_specified_in_hint->is_clear_all())
+      {
+        /*
+          If the hint is on and no keys are specified in the hint,
+          then set "keys_to_use" to all the available keys.
+        */
+        keys_to_use->merge(*available_keys_to_use);
+      }
+      else
+      {
+        /*
+          If the hint is on and there are keys specified in the hint, then add
+          the specified keys to "keys_to_use" taking care of the disabled keys
+          (available_keys_to_use).
+        */
+        keys_to_use->merge(*keys_specified_in_hint);
+        keys_to_use->intersect(*available_keys_to_use);
+      }
+    }
+    else
+    {
+      if (keys_specified_in_hint->is_clear_all())
+      {
+        /*
+          If the hint is off and there are no keys specified in the hint, then
+          we clear "keys_to_use".
+        */
+        keys_to_use->clear_all();
+      }
+      else
+      {
+        /*
+          If hint is off and some keys are specified in the hint, then remove
+          the specified keys from "keys_to_use.
+        */
+        keys_to_use->subtract(*keys_specified_in_hint);
+      }
+    }
+  }
+}
+
+
+/**
+  @brief
+    Set TABLE::keys_in_use_for_XXXX and other members according to the
+    specified index hints for this table
+
+  @detail
+    For each index hint that is not ignored, include the index in
+    - tbl->keys_in_use_for_query if the hint is INDEX or JOIN_INDEX
+    - tbl->keys_in_use_for_group_by if the hint is INDEX or
+      GROUP_INDEX
+    - tbl->keys_in_use_for_order_by if the hint is INDEX or
+      ORDER_INDEX
+    conversely, subtract the index from the corresponding
+    tbl->keys_in_use_for_... map if the hint is prefixed with NO_.
+
+  See also: TABLE_LIST::process_index_hints(), which handles similar logic
+  for old-style index hints.
+
+  @param thd            pointer to THD object
+  @param tbl            pointer to TABLE object
+
+  @return
+    false if no index hint is specified
+    true otherwise.
+*/
+
+bool Opt_hints_table::update_index_hint_maps(THD *thd, TABLE *tbl)
+{
+  if (!is_fixed(INDEX_HINT_ENUM) && !is_fixed(JOIN_INDEX_HINT_ENUM) &&
+      !is_fixed(GROUP_INDEX_HINT_ENUM) && !is_fixed(ORDER_INDEX_HINT_ENUM))
+    return false;  // No index hint is specified
+
+  Key_map usable_index_map(tbl->s->usable_indexes(thd));
+  tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by=
+      tbl->keys_in_use_for_order_by= usable_index_map;
+
+  bool is_force= is_force_index_hint(INDEX_HINT_ENUM);
+  tbl->force_index_join=
+      (is_force || is_force_index_hint(JOIN_INDEX_HINT_ENUM));
+  tbl->force_index_group=
+      (is_force || is_force_index_hint(GROUP_INDEX_HINT_ENUM));
+  tbl->force_index_order=
+      (is_force || is_force_index_hint(ORDER_INDEX_HINT_ENUM));
+
+  if (tbl->force_index_join)
+    tbl->keys_in_use_for_query.clear_all();
+  if (tbl->force_index_group)
+    tbl->keys_in_use_for_group_by.clear_all();
+  if (tbl->force_index_order)
+    tbl->keys_in_use_for_order_by.clear_all();
+
+  // See comment to the identical code at TABLE_LIST::process_index_hints
+  tbl->force_index= (tbl->force_index_order | tbl->force_index_group |
+                     tbl->force_index_join);
+
+  update_index_hint_map(&tbl->keys_in_use_for_query, &usable_index_map,
+                        INDEX_HINT_ENUM);
+  update_index_hint_map(&tbl->keys_in_use_for_group_by, &usable_index_map,
+                        INDEX_HINT_ENUM);
+  update_index_hint_map(&tbl->keys_in_use_for_order_by, &usable_index_map,
+                        INDEX_HINT_ENUM);
+  update_index_hint_map(&tbl->keys_in_use_for_query, &usable_index_map,
+                        JOIN_INDEX_HINT_ENUM);
+  update_index_hint_map(&tbl->keys_in_use_for_group_by, &usable_index_map,
+                        GROUP_INDEX_HINT_ENUM);
+  update_index_hint_map(&tbl->keys_in_use_for_order_by, &usable_index_map,
+                        ORDER_INDEX_HINT_ENUM);
+  /* Make sure "covering_keys" does not include indexes disabled with a hint */
+  Key_map covering_keys(tbl->keys_in_use_for_query);
+  covering_keys.merge(tbl->keys_in_use_for_group_by);
+  covering_keys.merge(tbl->keys_in_use_for_order_by);
+  tbl->covering_keys.intersect(covering_keys);
+  return true;
+}
+
+
+void Opt_hints_table::append_hint_arguments(THD *thd, opt_hints_enum hint,
+                                            String *str)
+{
+  switch (hint)
+  {
+    case INDEX_HINT_ENUM:
+      global_index_map.parsed_hint->append_args(thd, str);
+      break;
+    case JOIN_INDEX_HINT_ENUM:
+      join_index_map.parsed_hint->append_args(thd, str);
+      break;
+    case GROUP_INDEX_HINT_ENUM:
+      group_index_map.parsed_hint->append_args(thd, str);
+      break;
+    case ORDER_INDEX_HINT_ENUM:
+      order_index_map.parsed_hint->append_args(thd, str);
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
 }
 
 
@@ -605,6 +854,54 @@ static bool get_hint_state(Opt_hints *hint,
     DBUG_ASSERT(0);
   }
   return false;
+}
+
+
+/*
+  In addition to indicating the state of a hint, also indicates
+  if the hint is present or not.  Serves to disambiguate cases
+  that the other version of hint_table_state cannot, such as
+  when a hint is forcing a behavior in the optimizer that it
+  would not normally do and the corresponding optimizer switch
+  is enabled.
+
+  @param thd        Current thread connection state
+  @param table_list Table having the hint
+  @param type_arg   The hint kind in question
+
+  @return appropriate value from hint_state enumeration
+          indicating hint enabled/disabled (if present) or
+          if the hint was not present.
+ */
+
+hint_state hint_table_state(const THD *thd,
+                            const TABLE_LIST *table_list,
+                            opt_hints_enum type_arg)
+{
+  if (!table_list->opt_hints_qb)
+    return hint_state::NOT_PRESENT;
+
+  DBUG_ASSERT(!opt_hint_info[type_arg].has_arguments);
+
+  Opt_hints *hint= table_list->opt_hints_table;
+  Opt_hints *parent_hint= table_list->opt_hints_qb;
+
+  if (hint && hint->is_specified(type_arg))
+  {
+    const bool hint_value= hint->get_switch(type_arg);
+    return hint_value ? hint_state::ENABLED :
+                        hint_state::DISABLED;
+  }
+
+  if (opt_hint_info[type_arg].check_upper_lvl &&
+      parent_hint->is_specified(type_arg))
+  {
+    const bool hint_value= parent_hint->get_switch(type_arg);
+    return hint_value ? hint_state::ENABLED :
+                        hint_state::DISABLED;
+  }
+
+  return hint_state::NOT_PRESENT;
 }
 
 
@@ -1041,6 +1338,43 @@ bool Opt_hints_global::fix_hint(THD *thd)
   }
   set_fixed();
   return false;
+}
+
+
+/**
+  Function checks if an INDEX (resp. JOIN_INDEX, GROUP_INDEX or
+  ORDER_INDEX) hint conflicts with any JOIN_INDEX, GROUP_INDEX or
+  ORDER_INDEX (resp. INDEX) hints, by checking if any of the latter is
+  already specified at table level or index level.
+
+  @param table_hint         pointer to table hint
+  @param key_hint           pointer to key hint
+  @param hint_type          enumerated hint type
+
+  @return false if no conflict, true otherwise.
+*/
+
+bool is_index_hint_conflicting(Opt_hints_table *table_hint,
+                               Opt_hints_key *key_hint,
+                               opt_hints_enum hint_type)
+{
+  if (hint_type != INDEX_HINT_ENUM)
+    return table_or_key_hint_type_specified(table_hint, key_hint,
+                                            INDEX_HINT_ENUM);
+  return (table_or_key_hint_type_specified(table_hint, key_hint,
+                                           JOIN_INDEX_HINT_ENUM) ||
+          table_or_key_hint_type_specified(table_hint, key_hint,
+                                           ORDER_INDEX_HINT_ENUM) ||
+          table_or_key_hint_type_specified(table_hint, key_hint,
+                                           GROUP_INDEX_HINT_ENUM));
+}
+
+
+bool is_compound_hint(opt_hints_enum type_arg)
+{
+  return (
+      type_arg == INDEX_HINT_ENUM || type_arg == JOIN_INDEX_HINT_ENUM ||
+      type_arg == GROUP_INDEX_HINT_ENUM || type_arg == ORDER_INDEX_HINT_ENUM);
 }
 
 

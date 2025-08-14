@@ -690,9 +690,10 @@ SELECT * FROM t1;
 a	b
 1	root@localhost
 connection default;
+disconnect unsecure;
 DROP DATABASE mysqltest1;
 DROP USER untrusted@localhost;
-Bug#32580 mysqlbinlog cannot read binlog event with user variables
+# Bug#32580 mysqlbinlog cannot read binlog event with user variables
 connection default;
 USE test;
 SET BINLOG_FORMAT = STATEMENT;

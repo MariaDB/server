@@ -60,6 +60,11 @@ select * from s1;
 #
 
 connection default;
+disconnect normal;
+disconnect read_only;
+disconnect read_write;
+disconnect alter;
+disconnect only_alter;
 drop user 'normal'@'%';
 drop user 'read_only'@'%';
 drop user 'read_write'@'%';
@@ -106,12 +111,121 @@ create table t1 (a int not null default(nextval(s1)),
 --connection default
 drop user u;
 
-#
-# Cleanup
-#
-
+# ALTER for table with DEFAULT NEXTVAL(seq) column needs INSERT/SELECT on seq
+# just like CREATE does in the example above
+create user u_alter;
+create table t1 (id int);
+grant alter on t1 to u_alter;
+--connect(con_alter,localhost,u_alter,,mysqltest_1)
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 modify id int default nextval(s1);
+--connection default
+grant insert, select on s1 to u_alter;
+--connection con_alter
+alter table t1 modify id int default nextval(s1);
+--disconnect con_alter
+--connection default
+drop user u_alter;
 drop database mysqltest_1;
 
 --echo #
---echo # End of 10.11 tests
+--echo # MDEV-36870 Spurious unrelated permission error when selecting from table with default that uses nextval(sequence)
 --echo #
+
+# various tests for permission checking on sequences
+create database db1;
+use db1;
+create sequence s1 cache 0;
+create table t1 (id int unsigned default (10+nextval(s1)));
+insert t1 values ();
+
+create table t2 (id int unsigned default nextval(s1), b int default(default(id)));
+insert t2 values ();
+
+# INSERT affects prelocking, but is never actually executed
+delimiter |;
+create function f1(x int) returns int sql security invoker
+begin
+  select id+x into x from t1;
+  return x;
+  insert t1 values ();
+end|
+delimiter ;|
+
+create user u1@localhost;
+grant select on db1.* to u1@localhost;
+grant execute on db1.* to u1@localhost;
+grant all privileges on test.* to u1@localhost;
+
+use test;
+create table t3 (id int unsigned default (20+nextval(db1.s1)), b int);
+insert t3 values ();
+
+create sequence s2 cache 0;
+create table t4 (id int unsigned default (10+nextval(s2)), b int);
+insert t4 values ();
+
+connect u1,localhost,u1,,db1;
+
+# table already in the cache. must be re-fixed
+# SELECT * - no error
+select * from t1;
+
+# not in cache
+connection default;
+flush tables;
+connection u1;
+# SELECT * - no error
+select * from t1;
+
+# SELECT DEFAULT() - error
+--error ER_TABLEACCESS_DENIED_ERROR
+select default(id) from t1;
+
+# default(default(nextval))
+select * from t2;
+
+# SELECT but table has TL_WRITE because of prelocking
+select f1(100);
+
+# opening the table for I_S
+select column_name, data_type, column_default from information_schema.columns where table_schema='db1' and table_name='t1';
+
+use test;
+# insert
+--error ER_TABLEACCESS_DENIED_ERROR
+insert t3 values ();
+insert t4 values ();
+#insert select
+--error ER_TABLEACCESS_DENIED_ERROR
+insert t3 (b) select 5;
+insert t4 (b) select 5;
+#update
+--error ER_TABLEACCESS_DENIED_ERROR
+update t3 set id=default;
+update t4 set id=default;
+
+# PS UPDATE with ? = DEFAULT
+prepare stmt from "update t3 set id=?";
+--error ER_TABLEACCESS_DENIED_ERROR
+execute stmt using default;
+prepare stmt from "update t4 set id=?";
+execute stmt using default;
+deallocate prepare stmt;
+
+# SELECT * in a subquery, like INSERT t3 VALUES ((SELECT * FROM t1));
+#   with sequences both on t3 and t1
+insert t4 (b) values ((select * from db1.t1));
+--error ER_TABLEACCESS_DENIED_ERROR
+insert t4 (b) values ((select default(id) from db1.t1));
+
+connection default;
+disconnect u1;
+--disable_ps2_protocol
+select nextval(db1.s1) as 'must be 5';
+--enable_ps2_protocol
+drop user u1@localhost;
+drop database db1;
+drop table t3, t4, s2;
+
+--echo # End of 10.6 tests

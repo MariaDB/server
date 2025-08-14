@@ -1127,6 +1127,25 @@ Item_func_hash *TABLE_SHARE::make_long_hash_func(THD *thd,
   return new (mem_root) Item_func_hash(thd, *field_list);
 }
 
+/*
+  Update index covering for a vcol field, by merging its existing
+  index covering with the intersection of all index coverings of leaf
+  fields of the vcol expr
+*/
+static void update_vcol_key_covering(Field *vcol_field)
+{
+  Item *item= vcol_field->vcol_info->expr;
+  /* Collect indexes that cover vcol's expression */
+  key_map part_of_key= vcol_field->table->s->keys_for_keyread;
+  item->walk(&Item::intersect_field_part_of_key, &part_of_key, WALK_SUBQUERY);
+
+  vcol_field->vcol_direct_part_of_key= vcol_field->part_of_key;
+  /*
+    part_of_key includes indexes that cover vcol and also indexes that cover
+    vcol's expression
+  */
+  vcol_field->part_of_key.merge(part_of_key);
+}
 
 /** Parse TABLE_SHARE::vcol_defs
 
@@ -1158,7 +1177,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     static bool check(Field *field, Virtual_column_info *vcol)
     {
       return vcol &&
-             vcol->expr->walk(&Item::check_field_expression_processor, 0, field);
+             vcol->expr->walk(&Item::check_field_expression_processor,
+                              field, 0);
     }
     static bool check(Field *field)
     {
@@ -1266,6 +1286,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         goto end;
       }
       table->map= 0;
+      if (vcol)
+        update_vcol_key_covering(*field_ptr);
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
@@ -1390,7 +1412,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     }
     if ((*field_ptr)->check_constraint)
         (*field_ptr)->check_constraint->expr->
-          walk(&Item::update_func_default_processor, 0, *field_ptr);
+          walk(&Item::update_func_default_processor, *field_ptr, 0);
   }
 
   table->find_constraint_correlated_indexes();
@@ -1569,7 +1591,7 @@ void TABLE::find_constraint_correlated_indexes()
   for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
   {
     constraint_dependent_keys.clear_all();
-    (*chk)->expr->walk(&Item::check_index_dependence, 0, this);
+    (*chk)->expr->walk(&Item::check_index_dependence, this, 0);
 
     if (constraint_dependent_keys.bits_set() <= 1)
       continue;
@@ -2889,6 +2911,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
         hash_field->flags|= LONG_UNIQUE_HASH_FIELD;//Used in parse_vcol_defs
+        DBUG_ASSERT(hash_field->invisible == INVISIBLE_FULL);
         keyinfo->flags|= HA_NOSAME;
         share->virtual_fields++;
         share->stored_fields--;
@@ -3842,7 +3865,7 @@ Virtual_column_info::is_equivalent(THD *thd, TABLE_SHARE *share, TABLE_SHARE *vc
   param.old_table= Lex_ident_table(vcol_share->table_name);
   param.new_db=    Lex_ident_db(share->db);
   param.new_table= Lex_ident_table(share->table_name);
-  cmp_expr->walk(&Item::rename_table_processor, 1, &param);
+  cmp_expr->walk(&Item::rename_table_processor, &param, WALK_SUBQUERY);
 
   error= false;
   return type_handler()  == vcol->type_handler()
@@ -3902,6 +3925,19 @@ Vcol_expr_context::~Vcol_expr_context()
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
   thd->stmt_arena= stmt_arena;
+}
+
+
+bool TABLE::check_sequence_privileges(THD *thd)
+{
+  if (internal_tables)
+    for (Field **fp= field; *fp; fp++)
+    {
+      Virtual_column_info *vcol= (*fp)->default_value;
+      if (vcol && vcol->check_access(thd))
+        return 1;
+    }
+  return 0;
 }
 
 
@@ -4001,7 +4037,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   */
   Item::vcol_func_processor_result res;
 
-  int error= expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  int error= expr->walk(&Item::check_vcol_func_processor, &res, 0);
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
   {
     // this can only happen if the frm was corrupted
@@ -4038,6 +4074,13 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
     table->vcol_refix_list.push_back(this, &table->mem_root);
 
   DBUG_RETURN(0);
+}
+
+
+bool Virtual_column_info::check_access(THD *thd)
+{
+  return flags & VCOL_NEXTVAL &&
+         expr->walk(&Item::check_sequence_privileges, thd, 0);
 }
 
 
@@ -5831,10 +5874,9 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mysql_mutex_assert_owner(&tdc->LOCK_table_share);
   DBUG_ASSERT(tdc->flushed);
+  DBUG_ASSERT(mdl_context->m_wait.get_status() == MDL_wait::EMPTY);
 
   tdc->m_flush_tickets.push_front(&ticket);
-
-  mdl_context->m_wait.reset_status();
 
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
@@ -5852,6 +5894,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   mysql_cond_broadcast(&tdc->COND_release);
   mysql_mutex_unlock(&tdc->LOCK_table_share);
 
+  mdl_context->m_wait.reset_status();
 
   /*
     In cases when our wait was aborted by KILL statement,
@@ -8067,7 +8110,8 @@ void TABLE::mark_columns_needed_for_insert()
 }
 
 /*
-  Mark columns according the binlog row image option.
+  Mark columns according the binlog row image option
+  or mark virtual columns for slave.
 
   Columns to be written are stored in 'rpl_write_set'
 
@@ -8098,6 +8142,10 @@ void TABLE::mark_columns_needed_for_insert()
   the read_set at binlogging time (for those cases that
   we only want to log a PK and we needed other fields for
   execution).
+
+  If binlog row image is off on slave we mark virtual columns
+  for read as InnoDB requires correct field metadata which is set
+  by update_virtual_fields().
 */
 
 void TABLE::mark_columns_per_binlog_row_image()
@@ -8106,9 +8154,6 @@ void TABLE::mark_columns_per_binlog_row_image()
   DBUG_ENTER("mark_columns_per_binlog_row_image");
   DBUG_ASSERT(read_set->bitmap);
   DBUG_ASSERT(write_set->bitmap);
-
-  /* If not using row format */
-  rpl_write_set= write_set;
 
   /**
     If in RBR we may need to mark some extra columns,
@@ -8188,6 +8233,12 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
+    file->column_bitmaps_signal();
+  }
+  else
+  {
+    /* If not using row format */
+    rpl_write_set= write_set;
     file->column_bitmaps_signal();
   }
 
@@ -8330,7 +8381,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     read_set= s->check_set;
 
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
-      (*chk)->expr->walk(&Item::register_field_in_read_map, 1, 0);
+      (*chk)->expr->walk(&Item::register_field_in_read_map, 0, WALK_SUBQUERY);
     read_set= save_read_set;
   }
 
@@ -8349,7 +8400,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     {
       if ((*vfield_ptr)->flags & PART_KEY_FLAG)
         (*vfield_ptr)->vcol_info->expr->walk(&Item::add_field_to_set_processor,
-                                             1, this);
+                                             this, WALK_SUBQUERY);
     }
     for (uint i= 0 ; i < s->fields ; i++)
     {
@@ -8388,7 +8439,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
     {
       bitmap_set_bit(write_set, field->field_index);
       field->default_value->expr->
-        walk(&Item::register_field_in_read_map, 1, 0);
+        walk(&Item::register_field_in_read_map, 0, WALK_SUBQUERY);
     }
     else if (!is_insert && field->has_update_default_function())
       bitmap_set_bit(write_set, field->field_index);
@@ -8612,12 +8663,10 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
       fld_store_len+= HA_KEY_BLOB_LENGTH;
     key_len+= fld_store_len;
   }
-  /*
-    We use MI_MAX_KEY_LENGTH (myisam's default) below because it is
-    smaller than MAX_KEY_LENGTH (heap's default) and it's unknown whether
-    myisam or heap will be used for the temporary table.
-  */
-  return key_len <= MI_MAX_KEY_LENGTH;
+
+  //  We use the on-disk storage engine's limit
+  return key_len <= tmp_table_max_key_length() &&
+         key_parts <= tmp_table_max_key_parts();
 }
 
 /**
@@ -9227,8 +9276,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
-  if (h->keyread_enabled())
-    DBUG_RETURN(0);
   /*
     TODO: this imposes memory leak until table flush when save_in_field()
           does expr_arena allocation. F.ex. case in
@@ -9271,8 +9318,22 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= (!vcol_info->is_stored() &&
-               bitmap_is_set(read_set, vf->field_index));
+      if (!bitmap_is_set(read_set, vf->field_index))
+        update= false;
+      else if (h->keyread_enabled())
+      {
+        /*
+          Compute vcol if it is not directly present in the index
+          but can be computed from index columns.
+        */
+        update= (!vf->vcol_direct_part_of_key.is_set(h->keyread) &&
+                 vf->part_of_key.is_set(h->keyread));
+      }
+      else
+      {
+        /* Compute vcol if it is not stored */
+        update= !vcol_info->is_stored();
+      }
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
@@ -9371,7 +9432,7 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &tmp_set, 0);
   DBUG_FIX_WRITE_SET(vf);
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf);
@@ -10582,7 +10643,7 @@ bool TR_table::query(ulonglong trx_id)
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds, NULL))))
     return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (unlikely(error || !select))
@@ -10621,7 +10682,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
     conds= newx Item_func_ge(thd, field, value);
   else
     conds= newx Item_func_le(thd, field, value);
-  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds, NULL))))
     return false;
   // FIXME: (performance) force index 'commit_timestamp'
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
@@ -10830,8 +10891,8 @@ bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.check_unit(thd) ||
-         end.check_unit(thd);
+  return start.check_unit(thd, this) ||
+         end.check_unit(thd, this);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -10857,7 +10918,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::check_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd, vers_select_conds_t *vers_conds)
 {
   if (!item)
     return false;
@@ -10867,6 +10928,9 @@ bool Vers_history_point::check_unit(THD *thd)
              item->full_name(), "FOR SYSTEM_TIME");
     return true;
   }
+  else if (item->with_param())
+    vers_conds->has_param= true;
+
   if (item->fix_fields_if_needed(thd, &item))
     return true;
   const Type_handler *t= item->this_item()->real_type_handler();

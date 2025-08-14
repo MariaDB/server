@@ -115,6 +115,12 @@ class Vcol_subst_context
   Vcol_subst_context(THD *thd_arg) : thd(thd_arg) {}
 };
 
+static Field *is_vcol_expr(Vcol_subst_context *ctx, const Item *item);
+static
+void subst_vcol_if_compatible(Vcol_subst_context *ctx,
+                              Item_bool_func *cond,
+                              Item **vcol_expr_ref,
+                              Field *vcol_field);
 
 static
 bool collect_indexed_vcols_for_table(TABLE *table, List<Field> *vcol_fields)
@@ -193,9 +199,89 @@ void subst_vcols_in_join_list(Vcol_subst_context *ctx,
 
 
 /*
+  Substitute vcol expressions with vcol fields in ORDER BY or GROUP
+  BY, and re-initialise affected tables on substitution.
+*/
+static
+void subst_vcols_in_order(Vcol_subst_context *ctx,
+                          ORDER *order,
+                          JOIN *join,
+                          bool is_group_by)
+{
+  Field *vcol_field;
+  const char *location= is_group_by ? "GROUP BY" : "ORDER BY";
+  for (; order; order= order->next)
+  {
+    Item *item= *order->item;
+    uint old_count= ctx->subst_count;
+    /*
+      Extra safety: do not rewrite if there is no room in
+      ref_pointer_array's slices (see st_select_lex::setup_ref_array)
+      This check shouldn't fail, but it's better to have it just in
+      case.
+    */
+    if (join->all_fields.elements * 5 >=
+        join->select_lex->ref_pointer_array.size() - 1)
+      break;
+
+    if ((vcol_field= is_vcol_expr(ctx, item)))
+      subst_vcol_if_compatible(ctx, NULL, order->item, vcol_field);
+    if (ctx->subst_count > old_count)
+    {
+      Item *new_item= *order->item;
+      /*
+        If the old ORDER BY item is a SELECT item, then insert the new
+        item to all_fields and keep it in sync with ref_pointer_array.
+        Otherwise it is safe to replace the old item with the new item
+        in all_fields.
+      */
+      if (order->in_field_list)
+      {
+        uint el= join->all_fields.elements;
+        join->all_fields.push_front(new_item);
+        join->select_lex->ref_pointer_array[el]= new_item;
+        order->item= &join->select_lex->ref_pointer_array[el];
+        order->in_field_list= false;
+      }
+      /*
+        TODO: should we deduplicate by calling find_item_in_list on
+        new_item like in find_order_in_list, and remove item instead
+        of replacing it if new_item is already in all_fields?
+      */
+      else
+      {
+        List_iterator<Item> it(join->all_fields);
+        while (Item *item_in_all_fields= it++)
+        {
+          if (item_in_all_fields == item)
+            it.replace(new_item);
+        }
+      }
+      /*
+        Re-initialise index covering of affected tables, which will
+        be re-computed to account for the substitution.
+      */
+      TABLE *tab= vcol_field->table;
+      tab->covering_keys= tab->s->keys_for_keyread;
+      tab->covering_keys.intersect(tab->keys_in_use_for_query);
+      if (unlikely(ctx->thd->trace_started()))
+      {
+        Json_writer_object trace_wrapper(ctx->thd);
+        Json_writer_object trace_order_by(ctx->thd, "virtual_column_substitution");
+        trace_order_by.add("location", location);
+        trace_order_by.add("from", item);
+        trace_order_by.add("to", new_item);
+      }
+    }
+  }
+}
+
+/*
   @brief
-    Do substitution for all condition in a JOIN. This is the primary entry
-    point.
+    Do substitution for all condition in a JOIN, and all ORDER BY and
+    GROUP BY items. This is the primary entry point. Recount field
+    types and re-compute index coverings when any substitution has
+    happened in ORDER BY or GROUP BY.
 */
 
 bool substitute_indexed_vcols_for_join(JOIN *join)
@@ -211,6 +297,17 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     subst_vcols_in_item(&ctx, join->conds, "WHERE");
   if (join->join_list)
     subst_vcols_in_join_list(&ctx, join->join_list);
+  ctx.subst_count= 0;
+  if (join->order)
+    subst_vcols_in_order(&ctx, join->order, join, false);
+  if (join->group_list)
+    subst_vcols_in_order(&ctx, join->group_list, join, true);
+  if (ctx.subst_count)
+  {
+    count_field_types(join->select_lex, &join->tmp_table_param,
+                      join->all_fields, 0);
+    join->select_lex->update_used_tables();
+  }
 
   if (join->thd->is_error())
     return true; // Out of memory
@@ -224,7 +321,8 @@ bool substitute_indexed_vcols_for_join(JOIN *join)
     UPDATE/DELETE.
 */
 
-bool substitute_indexed_vcols_for_table(TABLE *table, Item *item)
+bool substitute_indexed_vcols_for_table(TABLE *table, Item *item,
+                                        ORDER *order, SELECT_LEX *select_lex)
 {
   Vcol_subst_context ctx(table->in_use);
   if (collect_indexed_vcols_for_table(table, &ctx.vcol_fields))
@@ -235,6 +333,10 @@ bool substitute_indexed_vcols_for_table(TABLE *table, Item *item)
 
   if (item)
     subst_vcols_in_item(&ctx, item, "WHERE");
+
+  ctx.subst_count= 0;           /* used in subst_vcol_in_order */
+  if (order)
+    subst_vcols_in_order(&ctx, order, select_lex->join, false);
 
   if (table->in_use->is_error())
     return true; // Out of memory
@@ -345,9 +447,12 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
       (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
     fail_cause="type mismatch";
   else
-  if (vcol_expr->collation.collation != vcol_field->charset() &&
-      cond->compare_collation() != vcol_field->charset())
-    fail_cause="collation mismatch";
+  {
+    CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
+    if (vcol_expr->collation.collation != vcol_field->charset() &&
+        cs != vcol_field->charset())
+      fail_cause="collation mismatch";
+  }
 
   if (fail_cause)
   {
@@ -454,14 +559,17 @@ Item* Item_func_null_predicate::vcol_subst_transformer(THD *thd, uchar *arg)
 Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
 {
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
+  Field *vcol_field= nullptr;
 
-  /* Check that all arguments inside IN() are constants */
-  if (!compatible_types_scalar_bisection_possible())
+  /*
+    Check that the left hand side of IN() is a virtual column expression and
+    that all arguments inside IN() are constants.
+  */
+  if (!(vcol_field= is_vcol_expr(ctx, args[0])) ||
+      !compatible_types_scalar_bisection_possible())
     return this;
 
-  Field *vcol_field;
-  if ((vcol_field= is_vcol_expr(ctx, args[0])))
-    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
   return this;
 }
 

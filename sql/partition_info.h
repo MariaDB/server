@@ -487,7 +487,13 @@ bool partition_info::vers_fix_field_list(THD * thd)
     return true;
   }
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+  if (!table->versioned(VERS_TIMESTAMP))
+  {
+    my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0),
+             table->vers_start_field()->field_name.str,
+             "TIMESTAMP(6)", table->s->table_name.str);
+    return true;
+  }
 
   Field *row_end= table->vers_end_field();
   // needed in handle_list_of_fields()

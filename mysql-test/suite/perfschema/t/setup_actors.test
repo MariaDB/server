@@ -203,9 +203,6 @@ select * from performance_schema.threads;
 select * from test.v1;
 
 --disconnect con5
---source include/wait_until_disconnected.inc
-
-
 --connection default
 
 drop view test.v1;

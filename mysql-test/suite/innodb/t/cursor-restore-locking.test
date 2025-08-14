@@ -1,5 +1,4 @@
---source include/have_innodb.inc
---source include/count_sessions.inc
+source include/have_innodb.inc;
 source include/have_debug.inc;
 source include/have_debug_sync.inc;
 
@@ -84,4 +83,3 @@ INSERT INTO t VALUES(30, 20); # trx_4
 
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
---source include/wait_until_count_sessions.inc

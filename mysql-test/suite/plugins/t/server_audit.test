@@ -1,6 +1,7 @@
 --source include/have_plugin_auth.inc
 --source include/not_embedded.inc
 --source include/have_ssl_communication.inc
+--source include/no_view_protocol.inc
 
 if (!$SERVER_AUDIT_SO) {
   skip No SERVER_AUDIT plugin;
@@ -188,8 +189,6 @@ set global server_audit_logging= off;
 set global server_audit_incl_users='root';
 set global server_audit_logging= on;
 disconnect cn1;
-let $count_sessions=1;
-source include/wait_until_count_sessions.inc;
 
 drop user user1@localhost;
 
@@ -209,8 +208,6 @@ connect(plug_con,localhost,plug,plug_dest,"*NO-ONE*");
 select USER(),CURRENT_USER();
 connection default;
 disconnect plug_con;
---sleep 2
---sleep 2
 DROP USER plug;
 DROP USER plug_dest;
 
@@ -221,7 +218,6 @@ connect (conssl1,localhost,ssl_user1,,sa_db,,,SSL);
 select variable_value > '' as 'have_ssl' from information_schema.session_status where variable_name='ssl_cipher';
 disconnect conssl1;
 connection default;
---sleep 2
 DROP USER ssl_user1@localhost;
 
 set global server_audit_query_log_limit= 15;

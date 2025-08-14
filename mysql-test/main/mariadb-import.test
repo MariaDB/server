@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/hostname_is_not_localhost.inc
 
 # Basic test case for --table (restore single table)
 create table t1(i int);

@@ -78,6 +78,12 @@ bool Type_handler_vector::Column_definition_fix_attributes(
     my_error(ER_WRONG_FIELD_SPEC, MYF(0), def->field_name.str);
     return true;
   }
+  if (def->length > MAX_FIELD_VARCHARLENGTH/sizeof(float))
+  {
+    my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), def->field_name.str,
+             static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / sizeof(float)));
+    return true;
+  }
   def->length*= sizeof(float);
   return false;
 }

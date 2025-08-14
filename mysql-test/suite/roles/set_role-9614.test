@@ -7,7 +7,6 @@
 --echo # real issue is actually apparent when the username is longer than the
 --echo # rolename.
 
---enable_connect_log
 --echo #
 --echo # We need a separate database not including test or test_% names. Due to
 --echo # default privileges given on these databases.
@@ -72,8 +71,9 @@ use bug_db;
 --echo # Cleanup
 --echo #
 connection default;
+disconnect john;
+disconnect usertestjohn;
 drop user john;
 drop user usertestjohn;
 drop role client;
 drop database bug_db;
---disable_connect_log

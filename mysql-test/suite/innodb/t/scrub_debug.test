@@ -24,5 +24,20 @@ FLUSH TABLE t1 FOR EXPORT;
 -- source include/search_pattern_in_file.inc
 UNLOCK TABLES;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-37183 innodb_immediate_scrub_data_uncompressed=ON may break
+--echo # crash recovery
+--echo #
+SET GLOBAL innodb_limit_optimistic_insert_debug=0;
+# Note: MariaDB 10.6 fails to reproduce the crash; it maps DESC to ASC.
+CREATE TABLE t(a VARCHAR(1) PRIMARY KEY,INDEX(a DESC)) ENGINE=InnoDB;
+INSERT INTO t VALUES('2'),('1'),(''),('6'),('4'),('3');
+SET GLOBAL innodb_limit_optimistic_insert_debug=3;
+INSERT INTO t VALUES('8');
+CHECK TABLE t;
+SELECT COUNT(*) FROM t;
+DROP TABLE t;
+
 SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG=@save_debug;
 SET GLOBAL INNODB_IMMEDIATE_SCRUB_DATA_UNCOMPRESSED=@save_scrub;

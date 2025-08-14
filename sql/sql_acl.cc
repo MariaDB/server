@@ -172,7 +172,7 @@ public:
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
-  const char *get_username() { return user.str; }
+  const char *get_username() const { return user.str; }
 };
 
 class ACL_USER_PARAM
@@ -205,6 +205,23 @@ public:
     DBUG_ASSERT(host.hostname[hostname_length] == '\0');
     return Lex_ident_host(host.hostname, hostname_length);
   }
+
+  void disable_new_connections()
+  {
+    dont_accept_conn= true;
+  }
+
+  bool dont_accept_new_connections() const
+  {
+    return dont_accept_conn;
+  }
+
+protected:
+  /*
+    Ephemeral state (meaning it is not stored anywhere in the Data Dictionary)
+    to disable establishing sessions in case the user is being dropped.
+  */
+  bool dont_accept_conn= false;
 };
 
 
@@ -1660,7 +1677,7 @@ class User_table_json: public User_table
     set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
   const char *unsafe_str(const char *s) const
-  { return s[0] ? s : NULL; }
+  { return s ? (s[0] ? s : NULL) : NULL; }
 
   SSL_type get_ssl_type () const override
   { return (SSL_type)get_int_value("ssl_type"); }
@@ -1759,6 +1776,8 @@ class User_table_json: public User_table
     if (get_value(key, JSV_STRING, &value_start, &value_len))
       return "";
     char *ptr= (char*)alloca(value_len);
+    if (!ptr)
+      return NULL;
     int len= json_unescape(m_table->field[2]->charset(),
                            (const uchar*)value_start,
                            (const uchar*)value_start + value_len,
@@ -8527,9 +8546,17 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       Direct SELECT of a sequence table doesn't set t_ref->sequence, so
       privileges will be checked normally, as for any table.
     */
-    if (t_ref->sequence &&
-        !(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
-      continue;
+    if (t_ref->sequence)
+    {
+      if (!(want_access & ~(SELECT_ACL | INSERT_ACL | UPDATE_ACL | DELETE_ACL)))
+        continue;
+      /*
+        If it is ALTER..SET DEFAULT= nextval(sequence), also defer checks
+        until ::fix_fields().
+      */
+      if (tl != tables && want_access == ALTER_ACL)
+        continue;
+    }
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
@@ -11345,6 +11372,66 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   DBUG_RETURN(result);
 }
 
+
+/**
+  Callback function invoked for every active THD to find a first session
+  established by specified user
+
+  @param[in] thd   Thread context
+  @param arg       Account info for that checks presence of an active
+                   connection
+
+  @return true on matching, else false
+*/
+
+static my_bool count_threads_callback(THD *thd,
+                                      LEX_USER *arg)
+{
+  if (thd->security_ctx->user)
+  {
+    /*
+      Check that hostname (if given) and user name matches.
+    */
+    if (!strcmp(arg->host.str, thd->main_security_ctx.priv_host) &&
+        !strcmp(arg->user.str, thd->main_security_ctx.priv_user) &&
+        (thd->killed & ~KILL_HARD_BIT) != KILL_CONNECTION)
+      return true;
+  }
+  return false;
+}
+
+
+/**
+  Check presence of an active connection established on behalf the user
+
+  @param[in] user  User credential for that checks presence of an active
+                   connection
+
+  @return true on presence connection, else false
+*/
+
+static bool exist_active_sessions_for_user(LEX_USER *user)
+{
+  return server_threads.iterate(count_threads_callback, user);
+}
+
+
+/**
+  Find the specified user and mark it as not accepting incoming sessions
+
+  @param user_name  the user for that accept of incoming connections
+                    should be disabled
+*/
+
+static void disable_connections_for_user(LEX_USER *user)
+{
+  ACL_USER *found_user= find_user_exact(user->host, user->user);
+
+  if (found_user != nullptr)
+    found_user->disable_new_connections();
+}
+
+
 /*
   Drop a list of users and all their privileges.
 
@@ -11381,6 +11468,11 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
+  /*
+    String for storing a comma separated list of users that specified
+    at the DROP USER statement being processed and have active connections
+  */
+  String connected_users;
   while ((tmp_user_name= user_list++))
   {
     int rc;
@@ -11401,6 +11493,28 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
+    }
+
+    if (!handle_as_role)
+    {
+      if (exist_active_sessions_for_user(user_name))
+      {
+
+        if ((thd->variables.sql_mode & MODE_ORACLE))
+        {
+          append_user(thd, &wrong_users, user_name);
+          result= TRUE;
+          continue;
+        }
+        else
+          append_user(thd, &connected_users, user_name);
+      }
+
+      /*
+        Prevent new connections to be established on behalf the user
+        being dropped.
+      */
+      disable_connections_for_user(user_name);
     }
 
     if ((rc= handle_grant_data(thd, tables, 1, user_name, NULL)) > 0)
@@ -11430,6 +11544,12 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     append_user(thd, &wrong_users, user_name);
     result= TRUE;
   }
+
+  if (!connected_users.is_empty())
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP,
+                        ER_THD(thd, ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP),
+                        connected_users.c_ptr_safe());
 
   if (!handle_as_role)
   {
@@ -13917,7 +14037,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
 
-  if (user)
+  if (user && !user->dont_accept_new_connections())
     mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -14545,11 +14665,11 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
     res= send_server_handshake_packet(mpvio, (char*) packet, packet_len);
   else if (mpvio->status == MPVIO_EXT::RESTART)
     res= send_plugin_request_packet(mpvio, packet, packet_len);
-  else if (packet_len > 0 && (*packet == 1 || *packet == 255 || *packet == 254))
+  else if (packet_len > 0 && (*packet < 2 || *packet > 253))
   {
     /*
-      we cannot allow plugin data packet to start from 255 or 254 -
-      as the client will treat it as an error or "change plugin" packet.
+      we cannot allow plugin data packet to start from 0, 255 or 254 -
+      as the client will treat it as an OK, ERROR or "change plugin" packet.
       We'll escape these bytes with \1. Consequently, we
       have to escape \1 byte too.
     */

@@ -9,9 +9,6 @@
 #   
 --source have_engine.inc
 
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
-
 connect (con1,localhost,root,,);
 SET lock_wait_timeout=1;
 
@@ -233,10 +230,6 @@ DROP TEMPORARY TABLE t1;
 SELECT a,b FROM t1;
 UNLOCK TABLES;
 DROP TABLE t1, t2;
-
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
 
 --source cleanup_engine.inc
 

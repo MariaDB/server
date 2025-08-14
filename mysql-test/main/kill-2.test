@@ -48,6 +48,8 @@ show processlist;
 --error ER_KILL_DENIED_ERROR
 kill user b;
 --connection default
+--disconnect a
+--disconnect b
 drop user a@'127.0.0.1';
 drop user b@'127.0.0.1';
 

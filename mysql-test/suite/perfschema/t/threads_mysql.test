@@ -6,6 +6,7 @@
 --source include/not_windows.inc
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/no_view_protocol.inc
 
 # Ensure that the event scheduler (started via threads_mysql-master.opt)
 # is really running.

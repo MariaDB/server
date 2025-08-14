@@ -2900,15 +2900,12 @@ connection root;
 SELECT * FROM t1;
 x
 1
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user21261'@'localhost';
+disconnect user21261;
 DROP USER 'user21261'@'localhost';
-DROP VIEW v1;
-DROP TABLE t1;
 DROP DATABASE bug21261DB;
+disconnect root;
 connection default;
 USE test;
-disconnect root;
-disconnect user21261;
 set GLOBAL sql_mode=default;
 set LOCAL sql_mode=default;
 create table t1 (f1 datetime);
@@ -7141,7 +7138,5 @@ INSERT INTO view1(x1,x) VALUES (1,1);
 ERROR HY000: The target table view1 of the INSERT is not insertable-into
 DROP VIEW view1;
 DROP TABLE table1;
-#
 # End of 10.11 test
-#
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

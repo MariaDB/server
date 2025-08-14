@@ -127,6 +127,7 @@ ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
 ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
+uint wsrep_applier_retry_count= 0;
 
 std::atomic <bool> wsrep_thread_create_failed;
 
@@ -2838,9 +2839,17 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   WSREP_DEBUG("TOI Begin: %s", wsrep_thd_query(thd));
   DEBUG_SYNC(thd, "wsrep_before_toi_begin");
 
-  if (wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
+  if (!wsrep_ready ||
+      wsrep_can_run_in_toi(thd, db, table, table_list, create_info) == false)
   {
     WSREP_DEBUG("No TOI for %s", wsrep_thd_query(thd));
+    if (!wsrep_ready)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_WARN,
+                          ER_GALERA_REPLICATION_NOT_SUPPORTED,
+                          "Galera cluster is not ready to execute replication");
+    }
     return 1;
   }
 
@@ -3996,6 +4005,16 @@ bool THD::wsrep_parallel_slave_wait_for_prior_commit()
     return wait_for_prior_commit();
   }
   return false;
+}
+
+void wsrep_parallel_slave_wakeup_subsequent_commits(void *thd_ptr)
+{
+  THD *thd = (THD*)thd_ptr;
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+      thd->wait_for_commit_ptr)
+  {
+    thd->wait_for_commit_ptr->wakeup_subsequent_commits(0);
+  }
 }
 
 /***** callbacks for wsrep service ************/

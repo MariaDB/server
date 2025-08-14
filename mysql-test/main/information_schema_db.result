@@ -45,6 +45,7 @@ call mbase.p1();
 call mbase.p1();
 call mbase.p1();
 connection default;
+disconnect user1;
 use `inf%`;
 drop user mysqltest_1@localhost;
 drop table t1;
@@ -62,7 +63,6 @@ drop function func2;
 drop database `inf%`;
 drop procedure mbase.p1;
 drop database mbase;
-disconnect user1;
 #
 # Bug#18282 INFORMATION_SCHEMA.TABLES provides inconsistent info about invalid views
 #
@@ -213,9 +213,7 @@ connection default;
 use test;
 drop view testdb_1.v1, v2, testdb_1.v3, v4;
 drop database testdb_1;
-connection testdb_1;
 disconnect testdb_1;
-connection testdb_2;
 disconnect testdb_2;
 connection default;
 drop user testdb_1@localhost;
@@ -247,11 +245,9 @@ testdb_1	v1
 show create view testdb_1.v1;
 ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table `testdb_1`.`v1`
 connection default;
+disconnect user1;
 drop user mysqltest_1@localhost;
 drop database testdb_1;
-connection user1;
-disconnect user1;
-connection default;
 set global sql_mode=default;
 #
 # MDEV-20549 SQL SECURITY DEFINER does not work for INFORMATION_SCHEMA tables
@@ -477,6 +473,8 @@ USER	PASSWORD_ERRORS	PASSWORD_EXPIRATION_TIME
 # Delete user while some connection is still alive, then select.
 connection default;
 drop user nice_user;
+Warnings:
+Note	4227	Dropped users 'nice_user'@'%' have active connections. Use KILL CONNECTION if they should not be used anymore.
 connection con2;
 select * from information_schema.users;
 ERROR 0L000: The current user is invalid

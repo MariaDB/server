@@ -17,6 +17,7 @@
 
 /* Basic functions needed by many modules */
 
+#include "lex_ident_sys.h"
 #include "mariadb.h"
 #include "sql_base.h"                           // setup_table_map
 #include "sql_list.h"
@@ -1285,7 +1286,7 @@ TABLE_LIST* unique_table_in_select_list(THD *thd, TABLE_LIST *table, SELECT_LEX 
   Item *item;
   while ((item= it++))
   {
-    if (item->walk(&Item::subselect_table_finder_processor, FALSE, &param))
+    if (item->walk(&Item::subselect_table_finder_processor, &param, 0))
     {
       if (param.dup == NULL)
         return ERROR_TABLE;
@@ -4635,10 +4636,7 @@ bool open_tables(THD *thd, const DDL_options_st &options,
     if (!table->schema_table)
     {
       if (thd->transaction->xid_state.check_has_uncommitted_xa())
-      {
-	thd->transaction->xid_state.er_xaer_rmfail();
         DBUG_RETURN(true);
-      }
       else
         break;
     }
@@ -5206,7 +5204,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
   DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE ||
               thd->lex->default_used);
 
-  if (table_list->trg_event_map)
+  if (table_list->trg_event_map && table_list->lock_type >= TL_FIRST_WRITE)
   {
     if (table->triggers)
     {
@@ -8376,8 +8374,31 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       {
         setup_table_map(table, table_list, tablenr);
 
-        if (table_list->process_index_hints(table))
-          DBUG_RETURN(1);
+        /*
+          Conditions to meet for optimizer hints resolution:
+          (1)  QB hints initialized
+          (2)  Table hints are not adjusted yet
+          (3)  Table is not in the INSERT part of INSERT..SELECT
+        */
+        if (qb_hints &&                          // (1)
+            !table_list->opt_hints_table &&      // (2)
+            !(select_insert && is_insert_part))  // (3)
+        {
+          table_list->opt_hints_table=
+              qb_hints->fix_hints_for_table(table_list->table,
+                                            table_list->alias);
+        }
+
+        if (!table_list->opt_hints_table ||
+            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+        {
+          /*
+            Old-style index hints are processed only if
+            new-style hints are not specified
+          */
+          if (table_list->process_index_hints(table))
+            DBUG_RETURN(1);
+        }
       }
       tablenr++;
       /*
@@ -8390,20 +8411,6 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         DBUG_RETURN(1);
       }
 
-      /*
-        Conditions to meet for optimizer hints resolution:
-        (1)  QB hints initialized
-        (2)  Table hints are not adjusted yet
-        (3)  Table is not in the INSERT part of INSERT..SELECT
-      */
-      if (qb_hints &&                          // (1)
-          !table_list->opt_hints_table &&      // (2)
-          !(select_insert && is_insert_part))  // (3)
-      {
-        table_list->opt_hints_table=
-            qb_hints->fix_hints_for_table(table_list->table,
-                                          table_list->alias);
-      }
     }
     if (select_insert && is_insert_part)
     {
@@ -8428,12 +8435,22 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else
       {
-        table_list->table->tablenr= table_list->tablenr_exec;
-        table_list->table->map= table_list->map_exec;
-        table_list->table->maybe_null= table_list->maybe_null_exec;
-        table_list->table->pos_in_table_list= table_list;
-        if (table_list->process_index_hints(table_list->table))
-          DBUG_RETURN(1);
+        TABLE *table= table_list->table;
+        table->tablenr= table_list->tablenr_exec;
+        table->map= table_list->map_exec;
+        table->maybe_null= table_list->maybe_null_exec;
+        table->pos_in_table_list= table_list;
+
+        if (!table_list->opt_hints_table ||
+            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+        {
+          /*
+            Old-style index hints are processed only if
+            new-style hints are not specified
+          */
+          if (table_list->process_index_hints(table))
+            DBUG_RETURN(1);
+        }
       }
       select_lex->leaf_tables.push_back(table_list);
     }
@@ -8906,15 +8923,17 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
   return FALSE;
 }
 
+
 /*
   Fix all conditions and outer join expressions.
 
   SYNOPSIS
     setup_conds()
-    thd     thread handler
-    tables  list of tables for name resolving (select_lex->table_list)
-    leaves  list of leaves of join table tree (select_lex->leaf_tables)
-    conds   WHERE clause
+    thd            thread handler
+    tables         list of tables for name resolving (select_lex->table_list)
+    leaves         list of leaves of join table tree (select_lex->leaf_tables)
+    conds          WHERE clause
+    all_fields     SELECT list + hidden fields
 
   DESCRIPTION
     TODO
@@ -8925,7 +8944,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
 */
 
 int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
-                COND **conds)
+                COND **conds, List<Item> *all_fields)
 {
   SELECT_LEX *select_lex= thd->lex->current_select;
   TABLE_LIST *table= NULL;	// For HP compilers
@@ -8977,6 +8996,10 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
       wrap_ident(thd, conds);
     (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
     if ((*conds)->fix_fields_if_needed_for_bool(thd, conds))
+      goto err_no_arena;
+
+    if (setup_oracle_join(thd, conds, tables, select_lex->table_list,
+                          &select_lex->top_join_list, all_fields))
       goto err_no_arena;
   }
 
@@ -9206,7 +9229,8 @@ void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *table)
     Item *item;
 
     while ((item= it++))
-      item->walk(&Item::switch_to_nullable_fields_processor, 1, field);
+      item->walk(&Item::switch_to_nullable_fields_processor,
+                 field, WALK_SUBQUERY);
   }
 }
 
@@ -9232,7 +9256,9 @@ void switch_defaults_to_nullable_trigger_fields(TABLE *table)
     for (Field **field_ptr= table->default_field; *field_ptr ; field_ptr++)
     {
       Field *field= (*field_ptr);
-      field->default_value->expr->walk(&Item::switch_to_nullable_fields_processor, 1, trigger_field);
+      field->default_value->expr->
+        walk(&Item::switch_to_nullable_fields_processor,
+             trigger_field, WALK_SUBQUERY);
       *field_ptr= (trigger_field[field->field_index]);
     }
   }
@@ -9938,13 +9964,10 @@ int TABLE::hlindex_open(uint nr)
     s->lock_share();
     if (!s->hlindex)
     {
-      s->unlock_share();
-      TABLE_SHARE *share;
-      char *path= NULL;
       size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
-
-      share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof(*share));
-      path= (char*)alloc_root(&s->mem_root, path_len);
+      TABLE_SHARE *share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof *share);
+      char *path= (char*)alloc_root(&s->mem_root, path_len);
+      s->unlock_share();
       if (!share || !path)
         return 1;
 

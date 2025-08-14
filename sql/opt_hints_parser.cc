@@ -73,6 +73,7 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
 
   case 5:
     if ("MERGE"_Lex_ident_column.streq(str)) return TokenID::keyword_MERGE;
+    if ("INDEX"_Lex_ident_column.streq(str)) return TokenID::keyword_INDEX;
     break;
 
   case 6:
@@ -90,10 +91,12 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
   case 8:
     if ("SEMIJOIN"_Lex_ident_column.streq(str))
       return TokenID::keyword_SEMIJOIN;
-    else if ("SUBQUERY"_Lex_ident_column.streq(str))
+    if ("SUBQUERY"_Lex_ident_column.streq(str))
       return TokenID::keyword_SUBQUERY;
-    else if ("NO_MERGE"_Lex_ident_column.streq(str))
+    if ("NO_MERGE"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_MERGE;
+    if ("NO_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_INDEX;
     break;
 
   case 9:
@@ -104,21 +107,39 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
   case 10:
     if ("FIRSTMATCH"_Lex_ident_column.streq(str))
       return TokenID::keyword_FIRSTMATCH;
-    else if ("INTOEXISTS"_Lex_ident_column.streq(str))
+    if ("INTOEXISTS"_Lex_ident_column.streq(str))
       return TokenID::keyword_INTOEXISTS;
-    else if ("JOIN_ORDER"_Lex_ident_column.streq(str))
+    if ("JOIN_ORDER"_Lex_ident_column.streq(str))
       return TokenID::keyword_JOIN_ORDER;
+    if ("JOIN_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_JOIN_INDEX;
     break;
 
   case 11:
     if ("NO_SEMIJOIN"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_SEMIJOIN;
-    else if ("DUPSWEEDOUT"_Lex_ident_column.streq(str))
+    if ("DUPSWEEDOUT"_Lex_ident_column.streq(str))
       return TokenID::keyword_DUPSWEEDOUT;
-    else if ("JOIN_PREFIX"_Lex_ident_column.streq(str))
+    if ("JOIN_PREFIX"_Lex_ident_column.streq(str))
       return TokenID::keyword_JOIN_PREFIX;
-    else if ("JOIN_SUFFIX"_Lex_ident_column.streq(str))
+    if ("JOIN_SUFFIX"_Lex_ident_column.streq(str))
       return TokenID::keyword_JOIN_SUFFIX;
+    if ("ORDER_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_ORDER_INDEX;
+    if ("GROUP_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_GROUP_INDEX;
+    break;
+
+  case 13:
+    if ("NO_JOIN_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_JOIN_INDEX;
+    break;
+
+  case 14:
+    if ("NO_ORDER_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_ORDER_INDEX;
+    if ("NO_GROUP_INDEX"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_GROUP_INDEX;
     break;
 
   case 15:
@@ -134,11 +155,15 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
   case 18:
     if ("MAX_EXECUTION_TIME"_Lex_ident_column.streq(str))
       return TokenID::keyword_MAX_EXECUTION_TIME;
+    if ("SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
+      return TokenID::keyword_SPLIT_MATERIALIZED;
     break;
 
   case 21:
     if ("NO_RANGE_OPTIMIZATION"_Lex_ident_column.streq(str))
       return TokenID::keyword_NO_RANGE_OPTIMIZATION;
+    if ("NO_SPLIT_MATERIALIZED"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_SPLIT_MATERIALIZED;
     break;
 
   case 26:
@@ -342,21 +367,29 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
     hint_state= false;
     break;
   case TokenID::keyword_DERIVED_CONDITION_PUSHDOWN:
-     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
-     hint_state= true;
-     break;
+    hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+    hint_state= true;
+    break;
   case TokenID::keyword_NO_DERIVED_CONDITION_PUSHDOWN:
-     hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
-     hint_state= false;
-     break;
+    hint_type= DERIVED_CONDITION_PUSHDOWN_HINT_ENUM;
+    hint_state= false;
+    break;
   case TokenID::keyword_MERGE:
-     hint_type= MERGE_HINT_ENUM;
-     hint_state= true;
-     break;
+    hint_type= MERGE_HINT_ENUM;
+    hint_state= true;
+    break;
   case TokenID::keyword_NO_MERGE:
-     hint_type= MERGE_HINT_ENUM;
-     hint_state= false;
-     break;
+    hint_type= MERGE_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_SPLIT_MATERIALIZED:
+    hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_SPLIT_MATERIALIZED:
+    hint_type= SPLIT_MATERIALIZED_HINT_ENUM;
+    hint_state= false;
+    break;
   default:
     DBUG_ASSERT(0);
     return true;
@@ -443,10 +476,40 @@ bool Parser::Table_level_hint::resolve(Parse_context *pc) const
   Resolve a parsed index level hint, i.e. set up proper Opt_hint_* structures
   which will be used later during query preparation and optimization.
 
-Return value:
-- false: no critical errors, warnings on duplicated hints,
-       unresolved query block names, etc. are allowed
-- true: critical errors detected, break further hints processing
+  Return value:
+  - false: no critical errors, warnings on duplicated hints,
+         unresolved query block names, etc. are allowed
+  - true: critical errors detected, break further hints processing
+
+  Taxonomy of index hints
+  - 2 levels of hints:
+    - table level hints: only table name specified but no index names
+    - index level hints: both table name and index names specified
+  - 2 kinds of hints:
+    - global: [NO_]INDEX
+    - non-global: [NO_]JOIN_INDEX, [NO_]GROUP_INDEX, [NO_]ORDER_INDEX
+  - 4 types of hints:
+    - [NO_]JOIN_INDEX
+    - [NO_]GROUP_INDEX
+    - [NO_]ORDER_INDEX
+    - [NO_]INDEX
+
+  Conflict checking
+  - A conflict happens if and only if
+    - for a table level hint
+      - a hint of the same type or opposite kind has already been specified
+        for the same table
+    - for a index level hint
+      - the same type of hint has already been specified for the same
+        table or for the same index, OR
+      - the opposite kind of hint has already been specified for the
+        same index
+  - For a multi index hint like JOIN_INDEX(t1 i1, i2, i3), it conflicts
+    with a previous hint if any of the JOIN_INDEX(t1 i1), JOIN_INDEX(t1
+    i2), JOIN_INDEX(t1 i3) conflicts with a previous hint
+
+   When a hint type is specified for an index, it is also marked as
+   specified with the same switch state for the table
 */
 bool Parser::Index_level_hint::resolve(Parse_context *pc) const
 {
@@ -472,6 +535,38 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     hint_type= NO_RANGE_HINT_ENUM;
     hint_state= true;
     break;
+  case TokenID::keyword_INDEX:
+    hint_type= INDEX_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_INDEX:
+    hint_type= INDEX_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_JOIN_INDEX:
+    hint_type= JOIN_INDEX_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_JOIN_INDEX:
+    hint_type= JOIN_INDEX_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_ORDER_INDEX:
+    hint_type= ORDER_INDEX_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_ORDER_INDEX:
+    hint_type= ORDER_INDEX_HINT_ENUM;
+    hint_state= false;
+    break;
+  case TokenID::keyword_GROUP_INDEX:
+    hint_type= GROUP_INDEX_HINT_ENUM;
+    hint_state= true;
+    break;
+  case TokenID::keyword_NO_GROUP_INDEX:
+    hint_type= GROUP_INDEX_HINT_ENUM;
+    hint_state= false;
+    break;
   default:
     DBUG_ASSERT(0);
     return true;
@@ -490,34 +585,130 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (!tab)
     return false;
 
-  if (is_empty())  // Table level hint
+  const Lex_ident_sys key_conflict(
+      STRING_WITH_LEN("another hint was already specified for this index"));
+
+  /*
+    If no index names are given, this is a table level hint, for example:
+    GROUP_INDEX(t1), NO_MRR(t2).
+    Otherwise this is a group of index-level hints:
+    NO_INDEX(t1 idx1, idx2) NO_ICP(t2 idx_a, idx_b, idx_c)
+  */
+  if (is_empty())
   {
-    if (tab->set_switch(hint_state, hint_type, false))
+    uint warn_code= 0;
+    if (is_compound_hint(hint_type) &&
+        is_index_hint_conflicting(tab, nullptr, hint_type))
     {
-      print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, nullptr, nullptr);
+      warn_code= ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_TABLE;
+    }
+    else if (tab->set_switch(hint_state, hint_type, false))
+    {
+      warn_code= ER_WARN_CONFLICTING_INDEX_HINT_FOR_TABLE;
+    }
+
+    if (warn_code != 0)
+    {
+      print_warn(pc->thd, warn_code, hint_type, hint_state, &qb_name_sys,
+                  &table_name_sys, nullptr, this);
+    }
+    else if (is_compound_hint(hint_type))
+    {
+      tab->get_key_hint_bitmap(hint_type)->parsed_hint= this;
     }
     return false;
   }
 
+  // Key names for a compound hint are first collected into the array:
+  Mem_root_array<std::pair<Opt_hints_key *,
+                           bool /* whether a new one was created */>>
+      key_hints(pc->thd->mem_root);
+  bool is_conflicting= false;
   for (const Hint_param_index &index_name : *this)
   {
     const Lex_ident_sys index_name_sys= index_name.to_ident_sys(pc->thd);
-    Opt_hints_key *idx= (Opt_hints_key *)tab->find_by_name(index_name_sys);
-    if (!idx)
+    bool new_opt_key_hint_created= false;
+    Opt_hints_key *key= (Opt_hints_key *)tab->find_by_name(index_name_sys);
+    if (!key)
     {
-      idx= new (pc->thd->mem_root)
+      key= new (pc->thd->mem_root)
         Opt_hints_key(index_name_sys, tab, pc->thd->mem_root);
-      tab->register_child(idx);
+      new_opt_key_hint_created= true;
     }
 
-    if (idx->set_switch(hint_state, hint_type, true))
+    if (!is_compound_hint(hint_type))
     {
-      print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
-                 &qb_name_sys, &table_name_sys, &index_name_sys, nullptr);
+      if (key->set_switch(hint_state, hint_type, true))
+      {
+        print_warn(pc->thd, ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY,
+                   hint_type, hint_state, &qb_name_sys, &table_name_sys,
+                   &index_name_sys, nullptr);
+        continue;
+      }
+      if (new_opt_key_hint_created)
+        tab->register_child(key);
+    }
+    else
+    {
+      bool is_specified= tab->is_specified(hint_type) ||
+                         key->is_specified(hint_type);
+      if (is_specified || is_index_hint_conflicting(tab, key, hint_type))
+      {
+        is_conflicting= true;
+        uint warn_code;
+        if (is_specified)
+        {
+          warn_code= tab->is_specified(hint_type) ?
+              ER_WARN_CONFLICTING_INDEX_HINT_FOR_TABLE :
+              ER_WARN_CONFLICTING_INDEX_HINT_FOR_KEY;
+        }
+        else
+        {
+          warn_code= ER_WARN_CONFLICTING_COMPOUND_INDEX_HINT_FOR_KEY;
+        }
+        print_warn(pc->thd, warn_code, hint_type, hint_state,
+                   &qb_name_sys, &table_name_sys, nullptr, this);
+        break;
+      }
+      key_hints.push_back({ key, new_opt_key_hint_created });
     }
   }
+
+  if (is_compound_hint(hint_type) && !is_conflicting)
+  {
+    /*
+      Process key names collected for a compound hint. They have already been
+      checked for conflicts/duplication above, so there is no need to examine
+      the `set_switch()` return value
+    */
+    for (size_t i= 0; i < key_hints.size(); i++)
+    {
+      std::pair<Opt_hints_key *, bool> key= key_hints.at(i);
+      key.first->set_switch(hint_state, hint_type, true);
+      if (key.second)
+        tab->register_child(key.first);
+    }
+
+    tab->get_key_hint_bitmap(hint_type)->parsed_hint= this;
+    tab->set_switch(hint_state, hint_type, false);
+  }
   return false;
+}
+
+
+void Parser::Index_level_hint::append_args(THD *thd, String *str) const
+{
+  if (is_empty())  // Empty list of index names, no additional info
+    return;
+
+  bool first_index_name= true;
+  for (const Hint_param_index &index_name : *this)
+  {
+    if (!first_index_name)
+      str->append(STRING_WITH_LEN(","));
+    append_identifier(thd, str, &index_name);
+    first_index_name= false;
+  }
 }
 
 

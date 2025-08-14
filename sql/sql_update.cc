@@ -471,7 +471,8 @@ bool Sql_cmd_update::update_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
     DBUG_RETURN(1); // Fatal error
 
   // Don't count on usage of 'only index' when calculating which key to use
@@ -1934,8 +1935,6 @@ int multi_update::prepare(List<Item> &not_used_values,
     TABLE *table= table_ref->table;
     table->read_set= &table->def_read_set;
     bitmap_union(table->read_set, &table->tmp_set);
-    if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
-      table->file->prepare_for_modify(true, true);
   }
 
   /*
@@ -2150,6 +2149,8 @@ multi_update::initialize_tables(JOIN *join)
     List<Item> temp_fields;
     ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
+
+    table->file->prepare_for_modify(true, true);
 
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
@@ -2621,7 +2622,8 @@ int multi_update::do_updates()
     if (Field **vf= tbl->vfield)
       for (; *vf; vf++)
         if (bitmap_is_set(tbl->read_set, (*vf)->field_index))
-          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
+          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map,
+                                       0, WALK_SUBQUERY);
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
@@ -3183,6 +3185,11 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     table_list->table->no_cache= true;
   }
 
+  {
+    List_iterator_fast<Item> fs(select_lex->item_list), vs(lex->value_list);
+    while (Item *f= fs++)
+      vs++->associate_with_target_field(thd, static_cast<Item_field*>(f));
+  }
 
   free_join= false;
 

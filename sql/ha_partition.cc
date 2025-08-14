@@ -429,7 +429,6 @@ void ha_partition::init_handler_variables()
   m_top_entry= NO_CURRENT_PART_ID;
   m_rec_length= 0;
   m_last_part= 0;
-  m_rec0= 0;
   m_err_rec= NULL;
   m_curr_key_info[0]= NULL;
   m_curr_key_info[1]= NULL;
@@ -2225,7 +2224,7 @@ int ha_partition::copy_partitions(ulonglong * const copied,
       goto init_error;
     while (TRUE)
     {
-      if ((result= file->ha_rnd_next(m_rec0)))
+      if ((result= file->ha_rnd_next(table->record[0])))
       {
         if (result != HA_ERR_END_OF_FILE)
           goto error;
@@ -2251,7 +2250,7 @@ int ha_partition::copy_partitions(ulonglong * const copied,
         /* Copy record to new handler */
         (*copied)++;
         DBUG_ASSERT(!m_new_file[new_part]->row_logging);
-        result= m_new_file[new_part]->ha_write_row(m_rec0);
+        result= m_new_file[new_part]->ha_write_row(table->record[0]);
         if (result)
           goto error;
       }
@@ -2381,7 +2380,17 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
         DBUG_ASSERT(part < m_file_tot_parts);
         DBUG_ASSERT(m_file[part]);
         dummy_info.data_file_name= dummy_info.index_file_name = NULL;
-        m_file[part]->update_create_info(&dummy_info);
+        /*
+          store_table_definitions_in_trace()/show_create_table() may attempt
+          to produce DDL for a table which has only some partitions open.
+
+          We can't get options for unopened partitions. They are not relevant
+          for purpose, so it's ok to skip printing their options.
+        */
+        if (m_file[part]->is_open())
+          m_file[part]->update_create_info(&dummy_info);
+        else
+          dummy_info.init();
         sub_elem->data_file_name = (char*) dummy_info.data_file_name;
         sub_elem->index_file_name = (char*) dummy_info.index_file_name;
       }
@@ -2390,7 +2399,14 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
     {
       DBUG_ASSERT(m_file[i]);
       dummy_info.data_file_name= dummy_info.index_file_name= NULL;
-      m_file[i]->update_create_info(&dummy_info);
+      /*
+        A partition might not be open, see above note about
+        store_table_definitions_in_trace()
+      */
+      if (m_file[i]->is_open())
+        m_file[i]->update_create_info(&dummy_info);
+      else
+        dummy_info.init();
       part_elem->data_file_name = (char*) dummy_info.data_file_name;
       part_elem->index_file_name = (char*) dummy_info.index_file_name;
     }
@@ -3837,7 +3853,6 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
   m_start_key.length= 0;
-  m_rec0= table->record[0];
   m_rec_length= table_share->reclength;
   if (!m_part_ids_sorted_by_num_of_records)
   {
@@ -4356,7 +4371,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
   if (lock_type == F_WRLCK)
   {
     if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map,
+                                   0, WALK_SUBQUERY);
     need_info_for_auto_inc();
   }
   DBUG_RETURN(0);
@@ -4489,7 +4505,8 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   if (lock_type >= TL_FIRST_WRITE)
   {
     if (m_part_info->part_expr)
-      m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
+      m_part_info->part_expr->walk(&Item::register_field_in_read_map,
+                                   0, WALK_SUBQUERY);
   }
   DBUG_RETURN(error);
 }
@@ -4750,15 +4767,15 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   */
   {
     Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
-    error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
+    error= get_part_for_buf(old_data, table->record[0], m_part_info, &old_part_id);
   }
   DBUG_ASSERT(!error);
   DBUG_ASSERT(old_part_id == m_last_part);
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), old_part_id));
 #endif
 
-  if (unlikely((error= get_part_for_buf(new_data, m_rec0, m_part_info,
-                                        &new_part_id))))
+  if (unlikely((error= get_part_for_buf(new_data, table->record[0],
+                                        m_part_info, &new_part_id))))
     goto exit;
   if (unlikely(!bitmap_is_set(&(m_part_info->lock_partitions), new_part_id)))
   {
@@ -5586,7 +5603,7 @@ int ha_partition::rnd_pos_by_record(uchar *record)
 {
   DBUG_ENTER("ha_partition::rnd_pos_by_record");
 
-  if (unlikely(get_part_for_buf(record, m_rec0, m_part_info, &m_last_part)))
+  if (unlikely(get_part_for_buf(record, table->record[0], m_part_info, &m_last_part)))
     DBUG_RETURN(1);
 
   int err= m_file[m_last_part]->rnd_pos_by_record(record);
@@ -5670,6 +5687,8 @@ bool ha_partition::init_record_priority_queue()
       blob_storage+= table->s->blob_fields;
     }
     int2store(ptr + sizeof(String **), i);
+    DBUG_ASSERT(m_rec_length == table->s->reclength);
+    memcpy(ptr + ORDERED_REC_OFFSET, table->s->default_values, m_rec_length);
     ptr+= m_priority_queue_rec_len;
   }
   m_start_key.key= (const uchar*)ptr;
@@ -6370,7 +6389,7 @@ int ha_partition::read_range_first(const key_range *start_key,
     m_start_key.key= NULL;
 
   m_index_scan_type= partition_read_range;
-  error= common_index_read(m_rec0, MY_TEST(start_key));
+  error= common_index_read(table->record[0], MY_TEST(start_key));
   DBUG_RETURN(error);
 }
 
@@ -10438,7 +10457,7 @@ void ha_partition::print_error(int error, myf errflag)
       str.append('(');
       str.append_ulonglong(m_last_part);
       str.append(STRING_WITH_LEN(" != "));
-      if (get_part_for_buf(m_err_rec, m_rec0, m_part_info, &part_id))
+      if (get_part_for_buf(m_err_rec, table->record[0], m_part_info, &part_id))
         str.append('?');
       else
         str.append_ulonglong(part_id);
@@ -11416,7 +11435,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
 
   while (true)
   {
-    if ((result= m_file[read_part_id]->ha_rnd_next(m_rec0)))
+    if ((result= m_file[read_part_id]->ha_rnd_next(table->record[0])))
     {
       if (result != HA_ERR_END_OF_FILE)
         break;
@@ -11462,7 +11481,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
           Insert row into correct partition. Notice that there are no commit
           for every N row, so the repair will be one large transaction!
         */
-        if ((result= m_file[correct_part_id]->ha_write_row(m_rec0)))
+        if ((result= m_file[correct_part_id]->ha_write_row(table->record[0])))
         {
           /*
             We have failed to insert a row, it might have been a duplicate!
@@ -11506,7 +11525,7 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
         }
 
         /* Delete row from wrong partition. */
-        if ((result= m_file[read_part_id]->ha_delete_row(m_rec0)))
+        if ((result= m_file[read_part_id]->ha_delete_row(table->record[0])))
         {
           if (m_file[correct_part_id]->has_transactions_and_rollback())
             break;

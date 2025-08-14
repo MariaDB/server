@@ -154,10 +154,8 @@ Expect 2
 # 5.0 Drop the client connections
 #==============================================================================
 # 5.1 Disconnect con1
-connection con1;
 disconnect con1;
 # 5.2 Disconnect con2
-connection con2;
 disconnect con2;
 connection default;
 #==============================================================================

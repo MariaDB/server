@@ -517,7 +517,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
                                           (uchar *) 0);
   }
 
-  if (conds && substitute_indexed_vcols_for_table(table, conds))
+  if ((conds || order) && substitute_indexed_vcols_for_table(table, conds,
+                                                             order, select_lex))
    DBUG_RETURN(1); // Fatal error
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -1419,6 +1420,8 @@ int multi_delete::send_data(List<Item> &values)
               }
               found++;
           }
+          else
+            error= 0; /* Clear HA_ERR_FOUND_DUPP_{KEY,UNIQUE} error */
       }
     }
   }

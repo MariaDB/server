@@ -1,8 +1,5 @@
 # Can't run with embedded server because we use GRANT
--- source include/not_embedded.inc
-
-# Save the initial number of concurrent sessions
---source include/count_sessions.inc
+--source include/not_embedded.inc
 
 set global sql_mode="";
 set local sql_mode="";
@@ -12,11 +9,6 @@ set local sql_mode="";
 SET NAMES binary;
 connect (master,localhost,root,,);
 connection master;
-
-# Cleanup
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 delete from mysql.user where user like 'mysqltest\_%';
 delete from mysql.db where user like 'mysqltest\_%';
@@ -50,19 +42,19 @@ grant select on test.* to CUser@localhost;
 grant select on test.* to CUser@LOCALHOST;
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, select_priv FROM mysql.db where user = 'CUser' order by 1,2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'CUser'@'LOCALHOST';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, select_priv FROM mysql.db where user = 'CUser' order by 1,2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'CUser'@'localhost';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, select_priv FROM mysql.db where user = 'CUser' order by 1,2;
 
 DROP USER CUser@localhost;
@@ -75,19 +67,19 @@ grant select on test.t1 to CUser@localhost;
 grant select on test.t1 to CUser@LOCALHOST;
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, Table_name, Table_priv, Column_priv FROM mysql.tables_priv where user = 'CUser' order by 1,2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'CUser'@'LOCALHOST';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, Table_name, Table_priv, Column_priv FROM mysql.tables_priv where user = 'CUser' order by 1,2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'CUser'@'localhost';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, Table_name, Table_priv, Column_priv FROM mysql.tables_priv where user = 'CUser' order by 1,2;
 
 DROP USER CUser@localhost;
@@ -100,19 +92,19 @@ grant select(a) on test.t1 to CUser@localhost;
 grant select(a) on test.t1 to CUser@LOCALHOST;
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, Table_name, Table_priv, Column_priv FROM mysql.tables_priv where user = 'CUser' order by 1,2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'CUser'@'LOCALHOST';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, Table_name, Table_priv, Column_priv FROM mysql.tables_priv where user = 'CUser' order by 1,2;
 
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'CUser'@'localhost';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser' order by 1,2;
 SELECT user, host, db, Table_name, Table_priv, Column_priv FROM mysql.tables_priv where user = 'CUser' order by 1,2;
 
 DROP USER CUser@localhost;
@@ -127,20 +119,20 @@ grant select on test.* to CUser2@localhost;
 grant select on test.* to CUser2@LOCALHOST;
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser2' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser2' order by 1,2;
 SELECT user, host, db, select_priv FROM mysql.db where user = 'CUser2' order by 1,2;
 
 REVOKE SELECT ON test.* FROM 'CUser2'@'LOCALHOST';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser2' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser2' order by 1,2;
 SELECT user, host, db, select_priv FROM mysql.db where user = 'CUser2' order by 1,2;
 
 --error ER_NONEXISTING_GRANT
 REVOKE SELECT ON test.* FROM 'CUser2'@'localhost';
 flush privileges;
 
-SELECT user, host FROM mysql.user where user = 'CUser2' order by 1,2;
+SELECT User, Host FROM mysql.user where user = 'CUser2' order by 1,2;
 SELECT user, host, db, select_priv FROM mysql.db where user = 'CUser2' order by 1,2;
 
 DROP USER CUser2@localhost;
@@ -237,6 +229,3 @@ disconnect foo;
 connection default;
 drop user foo@localhost;
 drop database db1;
-
-# Wait till we reached the initial number of concurrent sessions
---source include/wait_until_count_sessions.inc

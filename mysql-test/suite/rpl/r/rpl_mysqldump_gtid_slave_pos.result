@@ -51,7 +51,6 @@ after initial slave got in sync
 include/stop_slave.inc
 # 3. A
 include/stop_slave.inc
-include/stop_slave.inc
 # 4.
 set statement sql_log_bin=0 for delete from mysql.gtid_slave_pos;
 insert into mysql.gtid_slave_pos values (99 + 2, 1, 1, 1);

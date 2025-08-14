@@ -9,9 +9,8 @@
 --source include/have_debug_sync.inc
 # Parts of this test use DDL on events, BINLOG statement and
 # other statements which are not supported in embedded server.
--- source include/not_embedded.inc
-# Save the initial number of concurrent sessions.
---source include/count_sessions.inc
+--source include/not_embedded.inc
+--source include/no_view_protocol.inc
 
 set global sql_mode="";
 set local sql_mode="";
@@ -68,21 +67,6 @@ set local sql_mode="";
 
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
 
---disable_warnings
-drop tables if exists t1_base, t2_base, t3_trans;
-drop tables if exists tm_base, tm_base_temp;
-drop database if exists mysqltest1;
---echo # We're going to test ALTER DATABASE UPGRADE
-drop database if exists `#mysql50#mysqltest-2`;
-drop procedure if exists p1;
-drop function if exists f1;
-drop view if exists v1;
-drop procedure if exists p2;
-drop function if exists f2_base;
-drop function if exists f2_temp;
-drop event if exists e1;
-drop event if exists e2;
---enable_warnings
 create table t1_base(i int) engine=myisam;
 create table t2_base(j int) engine=myisam;
 create table t3_trans(i int) engine=innodb;
@@ -2144,10 +2128,6 @@ disconnect con2;
 disconnect con3;
 
 set global sql_mode=default;
-# Check that all connections opened by test cases in this file are really
-# gone so execution of other tests won't be affected by their presence.
---source include/wait_until_count_sessions.inc
-
 
 --echo #
 --echo # Deadlock between FTWRL under open handler and DDL/LOCK TABLES

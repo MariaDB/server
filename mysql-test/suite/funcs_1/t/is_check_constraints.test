@@ -10,7 +10,7 @@ SHOW GRANTS for boo1;
 CREATE user boo2;
 create database foo;
 # Connect with user boo1
-CONNECT(con1,localhost, boo1,, foo);
+connect(con1,localhost, boo1,, foo);
 
 SET check_constraint_checks=1;
 CREATE TABLE t0
@@ -76,21 +76,21 @@ CONSTRAINT b1 check (b<123456789012345678901234567890123456789012345678901234567
 --sorted_result
 SELECT * from information_schema.check_constraints;
 
-DISCONNECT con1;
-CONNECT(con2, localhost, boo2,,"*NO-ONE*");
+disconnect con1;
+connect(con2, localhost, boo2,,"*NO-ONE*");
 --sorted_result
 SELECT * from information_schema.check_constraints;
 
-DISCONNECT con2;
-CONNECT(con1, localhost, boo1,,foo);
+disconnect con2;
+connect(con1, localhost, boo1,,foo);
 DROP TABLE t0;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 DROP DATABASE foo;
 
-DISCONNECT con1;
---CONNECTION default
+disconnect con1;
+--connection default
 DROP USER boo1;
 DROP USER boo2;
 
@@ -109,12 +109,13 @@ SHOW GRANTS FOR foo;
 --sorted_result
 SELECT * FROM information_schema.check_constraints;
 
-CONNECT(con1,localhost, foo,, db);
+connect(con1,localhost, foo,, db);
 SELECT a FROM t1;
 --sorted_result
 SELECT * FROM information_schema.check_constraints;
 
---CONNECTION default
+disconnect con1;
+--connection default
 
 DROP USER foo;
 DROP DATABASE db;

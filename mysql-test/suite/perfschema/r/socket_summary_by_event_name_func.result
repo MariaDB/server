@@ -117,12 +117,10 @@ consistent with totals in socket_summary_by_instance
 #
 # 5.1 Disconnect con1
 #
-connection con1;
 disconnect con1;
 #
 # 5.2 Disconnect con2
 #
-connection con2;
 disconnect con2;
 #
 # 5.3 Drop mysqltest

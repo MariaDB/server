@@ -1,6 +1,5 @@
 -- source include/have_debug.inc
 -- source include/have_innodb.inc
--- source include/count_sessions.inc
 -- source include/have_debug_sync.inc
 # This test is slow on buildbot.
 --source include/big_test.inc
@@ -165,7 +164,6 @@ SET DEBUG_SYNC='RESET';
 DROP TABLE t1;
 
 SET DEBUG_SYNC='RESET';
---source include/wait_until_count_sessions.inc
 
 --echo #
 --echo #  BUG#21612714 ALTER TABLE SORTING SKIPPED WHEN CHANGE PK AND DROP

@@ -84,7 +84,13 @@ function check_root_accounts() {
 
   logger -p daemon.info -i -t"$0" "Checking for insecure root accounts."
 
-  ret=$(echo "SELECT count(*) FROM mysql.user WHERE user='root' and password='' and password_expired='N' and plugin in ('', 'mysql_native_password', 'mysql_old_password');" | $MARIADB --skip-column-names)
+  ret=$(echo "
+     SELECT count(*) FROM mysql.global_priv
+     WHERE user='root' AND
+           JSON_VALUE(priv, '$.plugin') in ('mysql_native_password', 'mysql_old_password', 'parsec') AND
+           JSON_VALUE(priv, '$.authentication_string') = '' AND
+           JSON_VALUE(priv, '$.password_last_changed') != 0
+     " | $MARIADB --skip-column-names)
   if [ "$ret" -ne "0" ]
   then
     logger -p daemon.warn -i -t"$0" "WARNING: mysql.user contains $ret root accounts without password!"

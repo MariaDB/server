@@ -52,6 +52,11 @@ alter sequence s1 restart= 11;
 select * from s1;
 ERROR 42000: SELECT command denied to user 'only_alter'@'localhost' for table `mysqltest_1`.`s1`
 connection default;
+disconnect normal;
+disconnect read_only;
+disconnect read_write;
+disconnect alter;
+disconnect only_alter;
 drop user 'normal'@'%';
 drop user 'read_only'@'%';
 drop user 'read_write'@'%';
@@ -97,7 +102,92 @@ ERROR 42000: SELECT, INSERT command denied to user 'u'@'localhost' for table `my
 disconnect con1;
 connection default;
 drop user u;
+create user u_alter;
+create table t1 (id int);
+grant alter on t1 to u_alter;
+connect con_alter,localhost,u_alter,,mysqltest_1;
+alter table t1 modify id int default nextval(s1);
+ERROR 42000: SELECT, INSERT command denied to user 'u_alter'@'localhost' for table `mysqltest_1`.`s1`
+connection default;
+grant insert, select on s1 to u_alter;
+connection con_alter;
+alter table t1 modify id int default nextval(s1);
+disconnect con_alter;
+connection default;
+drop user u_alter;
 drop database mysqltest_1;
 #
-# End of 10.11 tests
+# MDEV-36870 Spurious unrelated permission error when selecting from table with default that uses nextval(sequence)
 #
+create database db1;
+use db1;
+create sequence s1 cache 0;
+create table t1 (id int unsigned default (10+nextval(s1)));
+insert t1 values ();
+create table t2 (id int unsigned default nextval(s1), b int default(default(id)));
+insert t2 values ();
+create function f1(x int) returns int sql security invoker
+begin
+select id+x into x from t1;
+return x;
+insert t1 values ();
+end|
+create user u1@localhost;
+grant select on db1.* to u1@localhost;
+grant execute on db1.* to u1@localhost;
+grant all privileges on test.* to u1@localhost;
+use test;
+create table t3 (id int unsigned default (20+nextval(db1.s1)), b int);
+insert t3 values ();
+create sequence s2 cache 0;
+create table t4 (id int unsigned default (10+nextval(s2)), b int);
+insert t4 values ();
+connect u1,localhost,u1,,db1;
+select * from t1;
+id
+11
+connection default;
+flush tables;
+connection u1;
+select * from t1;
+id
+11
+select default(id) from t1;
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`s1`
+select * from t2;
+id	b
+2	3
+select f1(100);
+f1(100)
+111
+select column_name, data_type, column_default from information_schema.columns where table_schema='db1' and table_name='t1';
+column_name	data_type	column_default
+id	int	(10 + nextval(`db1`.`s1`))
+use test;
+insert t3 values ();
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`s1`
+insert t4 values ();
+insert t3 (b) select 5;
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`s1`
+insert t4 (b) select 5;
+update t3 set id=default;
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`s1`
+update t4 set id=default;
+prepare stmt from "update t3 set id=?";
+execute stmt using default;
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`s1`
+prepare stmt from "update t4 set id=?";
+execute stmt using default;
+deallocate prepare stmt;
+insert t4 (b) values ((select * from db1.t1));
+insert t4 (b) values ((select default(id) from db1.t1));
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`s1`
+connection default;
+disconnect u1;
+select nextval(db1.s1) as 'must be 5';
+must be 5
+5
+drop user u1@localhost;
+drop database db1;
+drop table t3, t4, s2;
+# End of 10.6 tests

@@ -474,8 +474,8 @@ SET NAMES utf8;
 SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
 hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci))
 0E33
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci));
-hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci))
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci)) AS 'Must be FFFD';
+Must be FFFD
 FFFD
 SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
 hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci)	hex(lower(@a))
@@ -951,9 +951,9 @@ HEX(WEIGHT_STRING(a))	HEX(CONVERT(a USING ucs2))	HEX(a)
 15D3	09B809CD	E0A6B8E0A78D
 15D4	09B909CD	E0A6B9E0A78D
 SELECT HEX(WEIGHT_STRING(a)) as wa,
-GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a) gc
 FROM t1 GROUP BY a ORDER BY a;
-wa	GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+wa	gc
 15A2	0985
 15A3	0986
 15A4	0987
