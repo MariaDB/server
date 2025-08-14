@@ -78,4 +78,3 @@ connection slave;
 include/sync_with_master_gtid.inc
 set @@global.slave_net_timeout= @restore_slave_net_timeout;
 include/rpl_end.inc
-End of tests
