@@ -3732,7 +3732,8 @@ check_rpl_semi_sync_master_enabled(sys_var *self, THD *thd, set_var *var)
 {
   if (opt_binlog_engine_hton && var->save_result.ulonglong_value)
   {
-    my_error(ER_ENGINE_BINLOG_NO_SEMISYNC, MYF(0));
+    my_error(ER_NOT_YET_SUPPORTED_ENGINE_BINLOG, MYF(0),
+             "Semi-synchronous replication");
     return true;
   }
   return false;
