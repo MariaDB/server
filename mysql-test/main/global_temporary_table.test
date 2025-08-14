@@ -559,4 +559,9 @@ create global temporary table t (c int);
 create trigger tr after insert on t for each row insert into t values (1);
 drop table t;
 
+--echo # MDEV-37394 SIGSEGV in handler::ha_external_lock on CREATE GTT ... AS,
+--echo # CREATE GTT ... ENGINE=INNODB SELECT, ASAN heap-use-after-free in unlock_external
+create global temporary table t (c int) engine=innodb as select 1;
+drop table t;
+
 --disconnect con1
