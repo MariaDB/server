@@ -2,7 +2,7 @@ SET GLOBAL rpl_semi_sync_master_enabled= 1;
 ERROR HY000: Semi-synchronous replication is not yet supported with --binlog-storage-engine
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 XA START 'a';
-ERROR HY000: Explicit XA transactions are not yet supported with --binlog-storage-engine
+ERROR HY000: Explicit XA transaction is not yet supported with --binlog-storage-engine
 INSERT INTO t1 VALUES (0, 0);
 XA END 'a';
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  NON-EXISTING state
@@ -11,3 +11,5 @@ ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction
 XA COMMIT 'a';
 ERROR XAE04: XAER_NOTA: Unknown XID
 DROP TABLE t1;
+SELECT BINLOG_GTID_POS("binlog-000000.ibb", 4096);
+ERROR HY000: BINLOG_GTID_POS() is not available when --binlog-storage-engine is enabled
