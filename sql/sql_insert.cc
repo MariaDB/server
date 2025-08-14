@@ -5337,6 +5337,36 @@ bool select_create::store_values(List<Item> &values, bool *trg_skip_row)
 }
 
 
+void select_create::unlock_tables()
+{
+  if (m_plock)
+  {
+    MYSQL_LOCK *lock= *m_plock;
+    *m_plock= NULL;
+    m_plock= NULL;
+
+    if (create_info->pos_in_locked_tables)
+    {
+      /*
+        If we are under lock tables, we have created a table that was
+        originally locked. We should add back the lock to ensure that
+        all tables in the thd->open_list are locked!
+      */
+      table->mdl_ticket= create_info->mdl_ticket;
+
+      /* The following should never fail, except if out of memory */
+      if (!thd->locked_tables_list.restore_lock(thd,
+                                                create_info->
+                                                pos_in_locked_tables,
+                                                table, lock))
+        return;                                 // ok
+      /* Fail. Continue without locking the table */
+    }
+    mysql_unlock_tables(thd, lock);
+  }
+}
+
+
 bool select_create::send_eof()
 {
   DBUG_ENTER("select_create::send_eof");
@@ -5397,6 +5427,7 @@ bool select_create::send_eof()
       DBUG_ASSERT(saved_tmp_table_share);
       thd->restore_tmp_table_share(saved_tmp_table_share);
     }
+    unlock_tables();
   }
   else
   {
@@ -5446,6 +5477,9 @@ bool select_create::send_eof()
     /* Remember xid's for the case of row based logging */
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
     ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+
+    unlock_tables();
+
     if (trans_commit_stmt(thd) ||
 	(!(thd->variables.option_bits & OPTION_GTID_BEGIN) &&
 	 trans_commit_implicit(thd)))
@@ -5507,31 +5541,6 @@ bool select_create::send_eof()
 
   send_ok_packet();
 
-  if (m_plock)
-  {
-    MYSQL_LOCK *lock= *m_plock;
-    *m_plock= NULL;
-    m_plock= NULL;
-
-    if (create_info->pos_in_locked_tables)
-    {
-      /*
-        If we are under lock tables, we have created a table that was
-        originally locked. We should add back the lock to ensure that
-        all tables in the thd->open_list are locked!
-      */
-      table->mdl_ticket= create_info->mdl_ticket;
-
-      /* The following should never fail, except if out of memory */
-      if (!thd->locked_tables_list.restore_lock(thd,
-                                                create_info->
-                                                pos_in_locked_tables,
-                                                table, lock))
-        DBUG_RETURN(false);                     // ok
-      /* Fail. Continue without locking the table */
-    }
-    mysql_unlock_tables(thd, lock);
-  }
   DBUG_RETURN(false);
 }
 
