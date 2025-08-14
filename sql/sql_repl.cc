@@ -3366,11 +3366,24 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
 
       while (!should_stop(info, true) && !reader->data_available())
       {
-        //DBUG_ASSERT(!info->heartbeat_period /* ToDo: Implement support for heartbeat events while waiting for more data. */);
-        bool ret= reader->wait_available(info->thd, nullptr /* ToDo hearthbeat period. */);
-        if (ret)
+        struct timespec ts;
+        struct timespec *ts_ptr= nullptr;
+        if (info->heartbeat_period)
         {
-          // ToDo Hearthbeat sending
+          set_timespec_nsec(ts, info->heartbeat_period);
+          ts_ptr= &ts;
+        }
+        bool ret= reader->wait_available(info->thd, ts_ptr);
+        if (info->heartbeat_period && ret)
+        {
+          char name[FN_REFLEN];
+          (*opt_binlog_engine_hton->get_filename)(name, reader->cur_file_no);
+          struct event_coordinates coord = { name, reader->cur_file_pos };
+          int err= send_heartbeat_event(info, info->net, info->packet, &coord,
+                                        BINLOG_CHECKSUM_ALG_OFF);
+          if (err)
+            return 1;
+          info->heartbeat_period= get_heartbeat_period(info->thd);
         }
       }
       continue;
