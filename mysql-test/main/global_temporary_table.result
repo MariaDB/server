@@ -725,4 +725,9 @@ create global temporary table t(c int);
 update t set foo= 1;
 ERROR 42S22: Unknown column 'foo' in 'SET'
 drop table t;
+MDEV-37378 SIGSEGV or Assertion failed on CREATE TRIGGER
+create global temporary table t (c int);
+create trigger tr after insert on t for each row insert into t values (1);
+ERROR HY000: Trigger's 't' is a view, temporary table or sequence
+drop table t;
 disconnect con1;
