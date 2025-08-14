@@ -30,7 +30,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #define MYSQL_SERVER
 #include "univ.i"
-#include "ut0bitop.h"
+#include "my_bit.h"
 
 /* Include necessary SQL headers */
 #include "ha_prototypes.h"
@@ -2479,8 +2479,8 @@ innobase_next_autoinc(
 	  operation. The snippet below calculates the product of two numbers
 	  and detects an unsigned integer overflow:
 	*/
-	unsigned int	m= nlz(need);
-	unsigned int	n= nlz(step);
+	unsigned int	m= my_nlz(need);
+	unsigned int	n= my_nlz(step);
 	if (m + n <= 8 * sizeof(ulonglong) - 2) {
 		// The bit width of the original values is too large,
 		// therefore we are guaranteed to get an overflow.
@@ -3704,7 +3704,7 @@ static int innodb_init_params()
 
 	if (innodb_binlog_state_interval == 0 ||
 	    innodb_binlog_state_interval !=
-		(ulonglong)1 << (63 - nlz(innodb_binlog_state_interval)) ||
+		(ulonglong)1 << (63 - my_nlz(innodb_binlog_state_interval)) ||
 	    innodb_binlog_state_interval % (ulonglong)ibb_page_size) {
 		ib::error() << "innodb_binlog_state_interval must be a "
 			"power-of-two multiple of the innodb binlog page size="

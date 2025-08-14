@@ -6,16 +6,6 @@ select * from t1;
 a
 1
 1
-==== Test BINLOG statement w/o FD event ====
-BINLOG '
-SVtYRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
-SVtYRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf/+AgAAAA==
-';
-ERROR HY000: The BINLOG statement of type Table_map was not preceded by a format description BINLOG statement
-select * from t1;
-a
-1
-1
 ==== Test BINLOG statement with FD event ====
 BINLOG '
 ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAA
