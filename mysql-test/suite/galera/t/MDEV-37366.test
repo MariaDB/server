@@ -31,8 +31,10 @@ SHOW CREATE TABLE seq_test;
 #
 # Execute 'SELECT NEXT VALUE' which should not fail on applier node.
 #
+--disable_ps_protocol
 SELECT NEXT VALUE FOR seq_test;
 SELECT NEXT VALUE FOR seq_test;
+--enable_ps_protocol
 
 #
 # Verify there are two nodes in galera cluster.
