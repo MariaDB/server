@@ -10572,7 +10572,10 @@ static void set_heuristic_pruning_level(JOIN *join, uint search_depth)
     enable_heuristic_pruning= (k > 0);
   }
   if (!enable_heuristic_pruning)
+  {
     join->heuristic_pruning_level= 0;
+    join->prune_level= 0;
+  }
   else if (join->prune_level >= 1 &&
            search_depth >=
              join->thd->variables.optimizer_extra_pruning_depth)
