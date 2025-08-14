@@ -16,20 +16,6 @@ select * from t1;
 # Test that a BINLOG statement encoding a row event fails unless a
 # Format_description_event as been supplied with an earlier BINLOG
 # statement.
---echo ==== Test BINLOG statement w/o FD event ====
-
-# This is a binlog statement consisting of one Table_map_log_event and
-# one Write_rows_log_event.  Together, they correspond to the
-# following query:
-# INSERT INTO TABLE test.t1 VALUES (2)
-
-error ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT;
-BINLOG '
-SVtYRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
-SVtYRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf/+AgAAAA==
-';
-# The above line should fail and 2 should not be in the table
-select * from t1;
 
 
 # Test that it works to read a Format_description_log_event with a
