@@ -1,7 +1,7 @@
-call mtr.add_suppression("\\[Warning\\] .*MY-\\d+.* \\[Server\\] Found 1 prepared XA transactions");
+call mtr.add_suppression("\\[Warning\\] Found 1 prepared XA transactions");
 INSTALL PLUGIN clone SONAME 'CLONE_PLUGIN';
-CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB);
-CREATE TABLE t2(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB)
+CREATE TABLE t1(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB)ENGINE=InnoDB;
+CREATE TABLE t2(col1 INT PRIMARY KEY, col2 int, col3 varchar(64), col4 BLOB) ENGINE=InnoDB
 PARTITION BY KEY(col1) PARTITIONS 5;
 CREATE PROCEDURE execute_dml(
 p_dml_type	INT,
@@ -61,26 +61,18 @@ END|
 call execute_dml(0, 0, 10, 10, 1, 0);
 commit;
 ## Test: Clone with XA transactions
-# In connection con1 - Start XA prepare
 XA start 'xa_trx_1';
 update t1 set col2 = 100;
 XA end 'xa_trx_1';
-SET DEBUG_SYNC = 'xa_block_clone SIGNAL start_clone WAIT_FOR resume_xa_1';
 XA prepare 'xa_trx_1';
+connect con1,localhost,root,,,;
 # In connection default - Start Cloning database
-SET DEBUG_SYNC = 'now WAIT_FOR start_clone';
-SET DEBUG_SYNC = 'clone_wait_xa SIGNAL resume_xa_1';
-SET DEBUG_SYNC = 'clone_block_xa SIGNAL resume_xa_2 WAIT_FOR resume_clone';
-SET GLOBAL clone_autotune_concurrency = OFF;
-SET GLOBAL clone_max_concurrency = 8;
 CLONE LOCAL DATA DIRECTORY = 'CLONE_DATADIR';
 # In connection con1 - Finish XA prepare, Start XA commit
-SET DEBUG_SYNC = 'now WAIT_FOR resume_xa_2';
-SET DEBUG_SYNC = 'xa_wait_clone SIGNAL resume_clone';
+connection default;
 XA commit 'xa_trx_1';
-# In connection default - Finish Cloning database
-# In connection con1 - Finish XA Commit
 # In connection default
+disconnect con1;
 SELECT count(*) from t1;
 count(*)
 10
@@ -97,16 +89,16 @@ col1	col2	col3	SUBSTRING(col4, 1000, 32)
 8	100	Clone Test Row - 8	umn Data Large Column Data Large
 9	100	Clone Test Row - 9	umn Data Large Column Data Large
 # Restart cloned database
-# restart: --datadir=CLONE_DATADIR
+# restart: --datadir=MYSQLTEST_VARDIR/tmp/data_new
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `col1` int NOT NULL,
-  `col2` int DEFAULT NULL,
+  `col1` int(11) NOT NULL,
+  `col2` int(11) DEFAULT NULL,
   `col3` varchar(64) DEFAULT NULL,
-  `col4` blob,
+  `col4` blob DEFAULT NULL,
   PRIMARY KEY (`col1`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT count(*) from t1;
 count(*)
 10
@@ -155,7 +147,7 @@ col1	col2	col3	SUBSTRING(col4, 1000, 32)
 7	70	Clone Test Row - 7	umn Data Large Column Data Large
 8	80	Clone Test Row - 8	umn Data Large Column Data Large
 9	90	Clone Test Row - 9	umn Data Large Column Data Large
-# restart:
+# restart
 DROP TABLE t1;
 DROP TABLE t2;
 DROP PROCEDURE execute_dml;

@@ -332,48 +332,6 @@ int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
                                    Clone_Alert_Func cbk) {
   ut_ad(m_snapshot_handle_type == CLONE_HDL_COPY);
   ut_ad(m_snapshot_type != HA_CLONE_BLOCKING);
-
-  /* Block external XA operations. XA prepare commit and rollback operations
-  are first logged to binlog and added to global gtid_executed before doing
-  operation in SE. Without blocking, we might persist such GTIDs from global
-  gtid_executed before the operations are persisted in Innodb. */
-  int binlog_error= 0;
-  auto thd= current_thd;
-  Clone_handler::XA_Block xa_block_guard(thd);
-
-  if (xa_block_guard.failed()) {
-    if (thd_killed(thd)) {
-      my_error(ER_QUERY_INTERRUPTED, MYF(0));
-      binlog_error = ER_QUERY_INTERRUPTED;
-    } else {
-      my_error(ER_INTERNAL_ERROR, MYF(0),
-               "Clone wait for XA operation timed out.");
-      binlog_error = ER_INTERNAL_ERROR;
-      ut_d(ut_error);
-    }
-  }
-
-  /* Before stopping redo log archiving synchronize with binlog and GTID. At
-  this point a transaction can commit only in the order they are written to
-  binary log. We have ensure this by forcing ordered commit and waiting for
-  all unordered transactions to finish. */
-
-  /* TODO: Binary log position needs to be synchronized across all SEs and we
-  need to do it in SE agnostic way after acquiring commit lock. Skip poring
-  binary log synchronization in Innodb. */
-  // if (binlog_error == 0) {
-  //   binlog_error = synchronize_binlog_gtid(cbk);
-  // }
-
-  /* Save all dynamic metadata to DD buffer table and let all future operations
-  to save data immediately after generation. This makes clone recovery
-  independent of dynamic metadata stored in redo log and avoids generating
-  redo log during recovery. */
-  /* Dynamic metadata not there for MariaDB */
-  // dict_persist_t::Enable_immediate dyn_metadata_guard(dict_persist);
-
-  /* Use it only for local clone. For remote clone, donor session is different
-  from the sessions created within mtr test case. */
   DEBUG_SYNC_C("clone_donor_after_saving_dynamic_metadata");
 
   /* Start transition to next state. */
@@ -382,10 +340,6 @@ int Clone_Snapshot::init_redo_copy(Snapshot_State new_state,
   /* Stop redo archiving even on error. */
   auto redo_error = m_redo_ctx.stop(m_redo_trailer, m_redo_trailer_size,
                                     m_redo_trailer_offset);
-
-  if (binlog_error != 0) {
-    return binlog_error; /* purecov: inspected */
-  }
 
   if (redo_error != 0) {
     return redo_error; /* purecov: inspected */

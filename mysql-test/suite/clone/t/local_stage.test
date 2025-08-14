@@ -1,5 +1,5 @@
 # Test clone with debug sync point to ensure concurrent operation and data in each stages
-
+--source include/have_innodb.inc
 --source include/no_valgrind_without_big.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
@@ -7,8 +7,8 @@
 ## Install plugin
 --let $CLONE_DATADIR = $MYSQL_TMP_DIR/data_new
 
---replace_result $CLONE_PLUGIN CLONE_PLUGIN
---eval INSTALL PLUGIN clone SONAME '$CLONE_PLUGIN'
+--replace_result $MARIADB_CLONE_SO CLONE_PLUGIN
+--eval INSTALL PLUGIN clone SONAME '$MARIADB_CLONE_SO'
 
 ## Create test schema
 --source ../include/create_schema.inc
@@ -22,16 +22,12 @@ call execute_dml(0, 0, 100, 100, 10, 0);
 SHOW CREATE TABLE t1;
 
 SELECT count(*) from t1;
---skip_if_hypergraph  # Runs out of memory due to different query plan.
 SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t1 ORDER BY col1 LIMIT 10;
---skip_if_hypergraph  # Runs out of memory due to different query plan.
 SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t1 ORDER BY col1 DESC LIMIT 10;
 
 SHOW CREATE TABLE t2;
 SELECT count(*) from t2;
---skip_if_hypergraph  # Runs out of memory due to different query plan.
 SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 LIMIT 10;
---skip_if_hypergraph  # Runs out of memory due to different query plan.
 SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 DESC LIMIT 10;
 
 --echo # In connection default - Cloning database
@@ -63,7 +59,7 @@ disconnect con1;
 
 --echo # Restart cloned database
 --replace_result $CLONE_DATADIR CLONE_DATADIR
---let restart_parameters="restart: --datadir=$CLONE_DATADIR"
+--let restart_parameters=--datadir=$CLONE_DATADIR
 --source include/restart_mysqld.inc
 
 # Check table in cloned database
@@ -88,7 +84,7 @@ SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 LIMIT 1
 SELECT col1, col2, col3, SUBSTRING(col4, 1000, 32) FROM t2 ORDER BY col1 DESC LIMIT 10;
 
 #Cleanup
---let restart_parameters="restart:"
+--let restart_parameters=
 --source include/restart_mysqld.inc
 
 --source ../include/drop_schema.inc
@@ -97,4 +93,4 @@ UNINSTALL PLUGIN clone;
 SET DEBUG_SYNC = 'RESET';
 
 --source include/wait_until_count_sessions.inc
---force-rmdir $CLONE_DATADIR
+--rmdir $CLONE_DATADIR
