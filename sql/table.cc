@@ -7978,6 +7978,19 @@ void TABLE::mark_columns_per_binlog_row_image()
   if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
+#ifdef WITH_WSREP
+    /**
+     The marking of all columns will prevent update/set column values for the
+     sequence table. For the sequence table column bitmap sent from master is
+     used.
+    */
+    if (WSREP(thd) && wsrep_thd_is_applying(thd) &&
+        s->sequence && s->primary_key >= MAX_KEY)
+    {
+      DBUG_VOID_RETURN;
+    }
+#endif /* WITH_WSREP */
+
     /* if there is no PK, then mark all columns for the BI. */
     if (s->primary_key >= MAX_KEY)
     {
