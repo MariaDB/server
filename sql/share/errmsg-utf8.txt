@@ -12298,15 +12298,13 @@ ER_CANNOT_INIT_ENGINE_BINLOG_READER
         eng "Cannot initialize binlog reader from storage engine %s"
 ER_ENGINE_BINLOG_REQUIRES_GTID
         eng "GTID starting position is required on master with --binlog-storage-engine enabled"
-ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER
-	eng "RESET MASTER TO is not available when --binlog-storage-engine is enabled"
+ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG
+	eng "%s is not available when --binlog-storage-engine is enabled"
+ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+	eng "%s is not yet supported with --binlog-storage-engine"
 ER_ENGINE_BINLOG_NO_DELETE_DOMAIN
 	eng "The binlog engine does not support DELETE_DOMAIN_ID"
 ER_BINLOG_CANNOT_READ_STATE
 	eng "Error reading GTID state from the binlog"
 ER_BINLOG_POS_INVALID
 	eng "The binlog offset %llu is invalid"
-ER_ENGINE_BINLOG_NO_SEMISYNC
-	eng "Semi-synchronous replication is not yet supported with --binlog-storage-engine"
-ER_ENGINE_BINLOG_NO_USER_XA
-	eng "Explicit XA transactions are not yet supported with --binlog-storage-engine"

@@ -444,7 +444,8 @@ bool trans_xa_start(THD *thd)
 
   if (opt_binlog_engine_hton)
   {
-    my_error(ER_ENGINE_BINLOG_NO_USER_XA, MYF(0));
+    my_error(ER_NOT_YET_SUPPORTED_ENGINE_BINLOG, MYF(0),
+             "Explicit XA transaction");
     DBUG_RETURN(TRUE);
   }
 

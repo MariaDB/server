@@ -4858,7 +4858,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     {
       if (next_log_number)
       {
-        my_error(ER_ENGINE_BINLOG_NO_RESET_FILE_NUMBER, MYF(0));
+        my_error(ER_NOT_AVAILABLE_WITH_ENGINE_BINLOG, MYF(0),
+                 "RESET MASTER TO");
         error= true;
       }
       else
