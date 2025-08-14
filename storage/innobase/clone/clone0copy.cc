@@ -669,6 +669,12 @@ dberr_t Clone_Snapshot::add_node(fil_node_t *node, bool by_ddl) {
   ut_ad(m_snapshot_handle_type == CLONE_HDL_COPY);
 
   auto space = node->space;
+  if (space->is_encrypted() || space->is_compressed())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "Encrypted and compressed "
+	                                   "tablespace ");
+    return DB_ERROR;
+  }
   bool is_page_copy = (get_state() == CLONE_SNAPSHOT_PAGE_COPY);
 
   if (by_ddl && is_page_copy && space->is_encrypted()) {

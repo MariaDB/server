@@ -916,7 +916,9 @@ int Client::execute(std::function<int(Sub_Command)> cbk)
     /* In case of any error, jump to the final state. */
     if (local_err)
     {
-      cur_st= end_st;
+      if (err)
+        return err;
+      cur_st= end_st - 1;
       err= local_err;
     }
     ++cur_st;
