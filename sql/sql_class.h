@@ -6645,6 +6645,7 @@ private:
                                   List<Item> *items,
                                   MYSQL_LOCK **lock);
   int postlock(THD *thd, TABLE **tables);
+  void unlock_tables();
 };
 
 #include <myisam.h>
