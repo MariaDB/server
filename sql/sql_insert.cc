@@ -2601,6 +2601,7 @@ public:
     thd.query_id= 0;
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
+    lex_start(&thd);
     thd.set_command(COM_DELAYED_INSERT);
     thd.lex->current_select= lex->current_select;
     thd.lex->sql_command= lex->sql_command;        // For innodb::store_lock()
@@ -3339,7 +3340,8 @@ bool Delayed_prelocking_strategy::handle_table(THD *thd,
 {
   DBUG_ASSERT(table_list->lock_type == TL_WRITE_DELAYED);
 
-  if (!(table_list->table->file->ha_table_flags() & HA_CAN_INSERT_DELAYED))
+  if (!(table_list->table->file->ha_table_flags() & HA_CAN_INSERT_DELAYED) ||
+      table_list->table->s->tmp_table)
   {
     my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), table_list->table_name.str);
     return TRUE;
