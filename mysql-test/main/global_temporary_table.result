@@ -730,4 +730,17 @@ create global temporary table t (c int);
 create trigger tr after insert on t for each row insert into t values (1);
 ERROR HY000: Trigger's 't' is a view, temporary table or sequence
 drop table t;
+# MDEV-37379 Assertion `index->is_readable()' failed on REPLACE DELAYED
+# DELAYED is transformed to a normal write when stmt logging is enabled.
+set @save_binlog_format=@@global.binlog_format;
+set global binlog_format=row;
+create global temporary table t (c int) engine=innodb;
+replace delayed t values (0);
+ERROR HY000: DELAYED option not supported for table 't'
+drop table t;
+create global temporary table t (c int) engine=myisam;
+replace delayed t values (1);
+ERROR HY000: DELAYED option not supported for table 't'
+drop table t;
+set global binlog_format=@save_binlog_format;
 disconnect con1;
