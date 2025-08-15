@@ -2586,6 +2586,18 @@ bool Item_func_ifnull::time_op(THD *thd, MYSQL_TIME *ltime)
 }
 
 
+bool Item_func_ifnull::interval_op(THD *thd, Interval *res)
+{
+  DBUG_ASSERT(fixed());
+  for (uint i= 0; i < 2; i++)
+  {
+    if (!args[i]->get_interval(thd, res))
+      return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+
 Type_ref_null Item_func_ifnull::ref_op(THD *thd)
 {
   DBUG_ASSERT(fixed());
@@ -3107,6 +3119,14 @@ Item_func_nullif::time_op(THD *thd, MYSQL_TIME *ltime)
 
 }
 
+bool Item_func_nullif::interval_op(THD *thd, Interval *res)
+{
+  DBUG_ASSERT(fixed());
+  if (!compare())
+    return (null_value= true);
+  return (null_value= args[2]->get_interval(thd, res));
+}
+
 
 bool
 Item_func_nullif::native_op(THD *thd, Native *to)
@@ -3289,6 +3309,15 @@ bool Item_func_case::time_op(THD *thd, MYSQL_TIME *ltime)
   if (!item)
     return (null_value= true);
   return (null_value= Time(thd, item).copy_to_mysql_time(ltime));
+}
+
+bool Item_func_case::interval_op(THD *thd, Interval *res)
+{
+  DBUG_ASSERT(fixed());
+  Item *item= find_item();
+  if (!item)
+    return (null_value= true);
+  return (null_value= item->get_interval(thd, res));
 }
 
 
@@ -3675,6 +3704,17 @@ bool Item_func_coalesce::time_op(THD *thd, MYSQL_TIME *ltime)
   for (uint i= 0; i < arg_count; i++)
   {
     if (!Time(thd, args[i]).copy_to_mysql_time(ltime))
+      return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+bool Item_func_coalesce::interval_op(THD *thd, Interval *res)
+{
+  DBUG_ASSERT(fixed());
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!args[i]->get_interval(thd, res))
       return (null_value= false);
   }
   return (null_value= true);

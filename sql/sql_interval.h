@@ -36,6 +36,8 @@
 #define INTERVAL_FRAC_MAX    999999 /* 0-999999 microseconds */
 #define INTERVAL_FRAC_MAX_FACTOR (INTERVAL_FRAC_MAX + 1)
 
+#define MAX_INTERVAL_STRING_REP_LENGTH 30
+
 constexpr uint8_t INTERVAL_MAX_WIDTH[INTERVAL_LAST]= {
   /* YEAR                  */ 1,  // [-]Y
   /* QUARTER               */ 1,  // [-]Q (not supported)
@@ -117,6 +119,10 @@ public:
 
   time_round_mode_t default_round_mode(THD *thd);
 
+  Interval& floor();
+
+  Interval& ceil();
+
   Interval &round(THD *thd, uint dec, time_round_mode_t mode)
   {
     switch (mode.mode()) {
@@ -176,6 +182,20 @@ public:
     int cmp(const Interval &other) const;
 
     void toggle_sign();
+
+    void reset()
+    {
+      m_interval_type = INTERVAL_LAST;
+      start_prec = 0;
+      end_prec = 0;
+      second_part = 0;
+      second = 0;
+      minute = 0;
+      hour = 0;
+      day = 0;
+      month = 0;
+      year = 0;
+    }
 };
 
 int str_to_interval(const char *str, size_t length, Interval *to,
@@ -204,4 +224,24 @@ void mysql_time_to_interval(const MYSQL_TIME &from,
                             bool subtract,
                             INTERVAL *to);
 const Type_handler *interval_type_to_handler_type(interval_type type);
+
+
+void add_intervals(const Interval *iv1, const Interval *iv2, Interval *out);
+
+bool has_day(interval_type t);
+
+bool has_hour(interval_type t);
+
+bool has_minute(interval_type t);
+
+bool has_second(interval_type t);
+
+bool has_microsecond(interval_type t);
+
+bool interval_multiply(const Interval *iv, double factor, Interval *result);
+bool interval_divide(const Interval *iv, double divisor, Interval *result);
+
+interval_type merge_intervals(interval_type a, interval_type b);
+
+
 #endif  // SQL_INTERVAL_H

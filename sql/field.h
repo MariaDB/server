@@ -980,6 +980,7 @@ public:
   virtual int  store(longlong nr, bool unsigned_val)=0;
   virtual int  store_decimal(const my_decimal *d)=0;
   virtual int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
+  virtual int  store_interval(const Interval *iv);
   virtual int  store_timestamp_dec(const my_timeval &ts, uint dec);
   int store_timestamp(my_time_t timestamp, ulong sec_part)
   {
@@ -1735,6 +1736,11 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  virtual bool get_interval(THD *thd, Interval *iv)
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   virtual longlong val_datetime_packed(THD *thd);
   virtual longlong val_time_packed(THD *thd);
   virtual const Type_extra_attributes type_extra_attributes() const
@@ -4095,7 +4101,8 @@ public:
   Binlog_type_info binlog_type_info() const override;
 };
 
-class Field_interval : public Field_temporal {
+class Field_interval : public Field_temporal
+{
 public:
   enum interval_type m_interval_type;
   uint8 start_prec;
@@ -4146,6 +4153,9 @@ public:
   int get_INTERVAL(Interval *iv, const uchar *ptr) const;
 
   bool get_date(MYSQL_TIME *to, date_mode_t mode) override;
+  bool get_interval(THD *thd, Interval *iv) override;
+
+  bool send(Protocol *) override;
 
   longlong val_int() override;
   double val_real() override;

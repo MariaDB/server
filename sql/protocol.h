@@ -144,6 +144,7 @@ public:
   virtual bool store_datetime(MYSQL_TIME *time, int decimals)=0;
   virtual bool store_date(MYSQL_TIME *time)=0;
   virtual bool store_time(MYSQL_TIME *time, int decimals)=0;
+  virtual bool store_interval(Interval *iv)=0;
   virtual bool store(Field *field)=0;
 
   // Various useful wrappers for the virtual store*() methods.
@@ -217,6 +218,7 @@ public:
   bool store_datetime(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
+  bool store_interval(Interval *iv) override;
   bool store_float(float nr, uint32 decimals) override;
   bool store_double(double from, uint32 decimals) override;
   bool store(Field *field) override;
@@ -265,6 +267,7 @@ public:
   bool store_datetime(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
+  bool store_interval(Interval *iv) override { return false; }
   bool store_float(float nr, uint32 decimals) override;
   bool store_double(double from, uint32 decimals) override;
   bool store(Field *field) override;
@@ -316,6 +319,7 @@ public:
   bool store_datetime(MYSQL_TIME *, int) override { return false; }
   bool store_date(MYSQL_TIME *) override { return false; }
   bool store_time(MYSQL_TIME *, int) override { return false; }
+  bool store_interval(Interval *) override { return false; }
   bool store_float(float, uint32) override { return false; }
   bool store_double(double, uint32) override { return false; }
   bool store(Field *) override { return false; }

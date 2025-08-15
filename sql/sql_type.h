@@ -113,7 +113,8 @@ enum protocol_send_type_t
   PROTOCOL_SEND_LONGLONG,
   PROTOCOL_SEND_DATETIME,
   PROTOCOL_SEND_DATE,
-  PROTOCOL_SEND_TIME
+  PROTOCOL_SEND_TIME,
+  PROTOCOL_SEND_INTERVAL
 };
 
 
@@ -3011,15 +3012,18 @@ public:
   }
 };
 
-class Interval_native : public NativeBuffer<STRING_BUFFER_TIMESTAMP_BINARY_SIZE + 1>
+class Interval_native : public Native
 {
+protected:
+  bool neg;
 public:
-  Interval_native() = default;
+  Interval_native();
   Interval_native(const Interval &iv, uint decimals);
   Interval_native(const Native &iv);
   int save_in_field(Field *field, uint decimals);
   int save_in_field(Field *field);
   int cmp(const Interval_native &other) const;
+  bool is_negative() { return neg; }
 };
 
 /**
@@ -3919,6 +3923,7 @@ protected:
   bool Item_send_date(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_timestamp(Item *item, Protocol *protocol, st_value *buf) const;
   bool Item_send_datetime(Item *item, Protocol *protocol, st_value *buf) const;
+  bool Item_send_interval(Item *item, Protocol *protocol, st_value *buf) const;
   bool Column_definition_prepare_stage2_legacy(Column_definition *c,
                                                enum_field_types type)
                                                const;
@@ -4681,6 +4686,11 @@ public:
                                             Temporal::Warn *,
                                             MYSQL_TIME *,
                                             date_mode_t fuzzydate) const= 0;
+  virtual
+  bool Item_func_hybrid_field_type_get_interval(THD *,
+                                          Item_func_hybrid_field_type *,
+                                          Interval *) const
+  { return false; }
   bool Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                                                 Item_func_hybrid_field_type *,
                                                 MYSQL_TIME *,
@@ -4701,6 +4711,12 @@ public:
   virtual
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
+
+  virtual
+  bool  Item_func_min_max_get_interval(THD *thd, Item_func_min_max*,
+                                Interval *) const
+  { return false; }
+
   virtual bool
   Item_func_between_fix_length_and_dec(Item_func_between *func) const= 0;
   virtual longlong
@@ -7865,9 +7881,12 @@ public:
   }
 
   protocol_send_type_t protocol_send_type() const override {
-    return PROTOCOL_SEND_STRING;
+    return PROTOCOL_SEND_INTERVAL;
   }
-
+  bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
+  {
+    return Item_send_interval(item, protocol, buf);
+  }
   enum_dynamic_column_type dyncol_type(const Type_all_attributes*) const override {
     return DYN_COL_NULL;
   }
@@ -7928,9 +7947,6 @@ public:
                    bool binary_cmp) const override;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
                           const override;
-  Item *convert_item_for_comparison(THD *thd,
-                                  Item *subject,
-                                  const Item *counterpart) const override;
   const Type_handler *type_handler_for_native_format() const override;
   int cmp_native(const Native &a, const Native &b) const override;
   bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
@@ -7938,6 +7954,22 @@ public:
   bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
                                               const override;
   const Type_handler* determine_result_type(const Type_handler* th0, const Type_handler* th1) const;
+
+  const Type_handler *determine_merged_interval_type(const Type_handler *th0, const Type_handler *th1) const;
+
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *item) const override;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *item) const override;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *item) const override;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *item) const override;
+  bool Item_func_hybrid_field_type_get_interval(THD *thd, Item_func_hybrid_field_type *item, Interval *res) const override;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const override;
+
+  void Item_update_null_value(Item *item) const override;
+
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const override;
+  bool Item_func_min_max_get_interval(THD *thd, Item_func_min_max*, Interval *) const override;
+
 };
 
 

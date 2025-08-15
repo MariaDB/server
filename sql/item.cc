@@ -397,6 +397,17 @@ int Item::save_date_in_field(Field *field, bool no_conversions)
 }
 
 
+int Item::save_interval_in_field(Field *field, bool no_conversions)
+{
+  Interval iv;
+  THD *thd= field->table->in_use;
+  if (get_interval(thd, &iv))
+    return set_field_to_null_with_conversions(field, no_conversions);
+  field->set_notnull();
+  return field->store_interval(&iv);
+}
+
+
 /*
   Store the string value in field directly
 
@@ -1815,6 +1826,16 @@ bool Item_sp_variable::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyda
   DBUG_ASSERT(fixed());
   Item *it= this_item();
   bool val= it->get_date(thd, ltime, fuzzydate);
+  null_value= it->null_value;
+  return val;
+}
+
+
+bool Item_sp_variable::get_interval(THD *thd, Interval *iv)
+{
+  DBUG_ASSERT(fixed());
+  Item *it= this_item();
+  bool val= it->get_interval(thd, iv);
   null_value= it->null_value;
   return val;
 }
@@ -3565,6 +3586,16 @@ String *Item_field::str_result(String *str)
   return result_field->val_str(str,&str_value);
 }
 
+
+bool Item_field::get_interval(THD *thd, Interval *iv)
+{
+  if ((null_value=field->is_null()) || field->get_interval(thd,iv))
+  {
+    return 1;
+  }
+  return 0;
+
+}
 bool Item_field::get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   if ((null_value=field->is_null()) || field->get_date(ltime,fuzzydate))

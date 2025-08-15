@@ -550,28 +550,73 @@ int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
   }
   return field->store_timestamp_dec(Timestamp(*this), decimals);
 }
+Interval_native::Interval_native() : Native(nullptr, 0), neg(false) {}
+
+
 Interval_native::Interval_native(const Interval &iv, uint decimals)
+  : Native(new char[my_interval_binary_length(decimals)],
+           my_interval_binary_length(decimals))
 {
   iv.to_native(this, decimals);
+  neg= iv.neg;
 }
-Interval_native::Interval_native(const Native &iv)
+
+
+Interval_native::Interval_native(const Native &iv) : Native(iv)
 {
-  *this = iv;
+  if ((Ptr[0] >> 7))
+    neg= false;
+  else
+    neg= true;
 }
+
 
 int Interval_native::save_in_field(Field *field, uint decimals)
 {
   field->set_notnull();
   return field->store_native(*this);
 }
+
+
 int Interval_native::save_in_field(Field *field)
 {
   return this->save_in_field(field, 0);
 }
+
+
 int Interval_native::cmp(const Interval_native &other) const
 {
-  return memcmp(this, &other, sizeof(Interval_native));
+  int compare_negatives= (neg & other.neg) ? -1 : 1;
+  const size_t len1= length();
+  const size_t len2= other.length();
+  const size_t min_len= std::min(len1, len2);
+
+  if (min_len > 0)
+  {
+    int prefix_cmp= memcmp(ptr(), other.ptr(), min_len);
+    if (prefix_cmp != 0)
+    {
+      return compare_negatives * prefix_cmp;
+    }
+  }
+
+  const char *longer_ptr= len1 > len2 ? ptr() + min_len : other.ptr() + min_len;
+  size_t longer_len= len1 > len2 ? len1 - min_len : len2 - min_len;
+
+  while (longer_len > 0)
+  {
+    if (*longer_ptr != 0)
+    {
+      int result= (len1 > len2) ? 1 : -1;
+      return compare_negatives * result;
+    }
+    longer_ptr++;
+    longer_len--;
+  }
+  return 0;
 }
+
+
 void Sec6::make_from_decimal(const my_decimal *d, ulong *nanoseconds)
 {
   m_neg= my_decimal2seconds(d, &m_sec, &m_usec, nanoseconds);
@@ -2079,6 +2124,10 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
       return ha;
     }
   }
+
+  if (a == INTERVAL_RESULT || b == INTERVAL_RESULT)
+    return &type_handler_interval_common;
+
   if ((a == INT_RESULT && b == STRING_RESULT) ||
       (b == INT_RESULT && a == STRING_RESULT))
     return &type_handler_newdecimal;
@@ -2149,6 +2198,11 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
         hb= &type_handler_slonglong;
     }
     return Type_collection_std::aggregate_for_result(ha, hb);
+  }
+  if (a == INTERVAL_RESULT || b == INTERVAL_RESULT)
+  {
+    enum interval_type e= std::min(ha->get_interval_type(),hb->get_interval_type());
+    return interval_type_to_handler_type(e);
   }
   if (a == TIME_RESULT || b == TIME_RESULT)
   {
@@ -2227,6 +2281,14 @@ Type_collection_std::aggregate_for_num_op(const Type_handler *h0,
   Item_result r0= h0->cmp_type();
   Item_result r1= h1->cmp_type();
 
+  if (r0 == INTERVAL_RESULT || r1 == INTERVAL_RESULT)
+  {
+    enum interval_type e= std::min(h0->get_interval_type(),h1->get_interval_type());
+    if (r0 == TIME_RESULT || r1 == TIME_RESULT)
+      return &type_handler_datetime;
+    else return interval_type_to_handler_type(e);
+  }
+
   if (r0 == REAL_RESULT || r1 == REAL_RESULT ||
       r0 == STRING_RESULT || r1 ==STRING_RESULT)
     return &type_handler_double;
@@ -2234,8 +2296,6 @@ Type_collection_std::aggregate_for_num_op(const Type_handler *h0,
   if (r0 == TIME_RESULT || r1 == TIME_RESULT)
     return &type_handler_datetime;
 
-  if (r0 == INTERVAL_RESULT || r1 == INTERVAL_RESULT)
-    return &type_handler_interval_common;
 
   if (r0 == DECIMAL_RESULT || r1 == DECIMAL_RESULT)
     return &type_handler_newdecimal;
@@ -2864,23 +2924,25 @@ void Type_handler::Item_temporal_add_interval_common(
     date_conv_mode_t base_conv_mode,
     timestamp_type ts_type) const
 {
-  MYSQL_TIME interval_time{};
+  Interval interval_time;
   date_mode_t mode(static_cast<ulonglong>(base_conv_mode) |
                   thd->variables.sql_mode);
   mode |= static_cast<date_conv_mode_t>(thd->variables.sql_mode);
 
-  if (interval_value->get_date(thd, &interval_time, mode) ||
+  if (interval_value->get_interval(thd, &interval_time) ||
       base_value->get_date(thd, result, mode))
   {
     set_zero_time(result, ts_type);
     return;
   }
 
-  INTERVAL interval;
-  mysql_time_to_interval(interval_time, subtract, &interval);
-  date_add_interval(thd, result,
-                    static_cast<interval_type>(interval_time.time_type),
-                    interval, 0);
+  if (subtract)
+  {
+    interval_time.toggle_sign();
+  }
+
+  date_add_interval(thd, result,interval_time.m_interval_type,
+                    static_cast<INTERVAL>(interval_time), 0);
 }
 
 
@@ -4555,6 +4617,14 @@ void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
 }
 
 
+void Type_handler_interval_common::Item_update_null_value(Item *item) const
+{
+  Interval iv;
+  THD *thd= current_thd;
+  (void) item->get_interval(thd, &iv);
+}
+
+
 void Type_handler_string_result::Item_update_null_value(Item *item) const
 {
   StringBuffer<MAX_FIELD_WIDTH> tmp;
@@ -4603,6 +4673,13 @@ int Type_handler_temporal_with_date::Item_save_in_field(Item *item,
   return item->save_date_in_field(field, no_conversions);
 }
 
+int Type_handler_interval_common::Item_save_in_field(Item *item,
+                                                        Field *field,
+                                                        bool no_conversions)
+                                                        const
+{
+  return item->save_interval_in_field(field, no_conversions);
+}
 
 int Type_handler_timestamp_common::Item_save_in_field(Item *item,
                                                       Field *field,
@@ -4694,6 +4771,14 @@ Type_handler_temporal_with_date::
 set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
   return cmp->set_cmp_func_datetime(thd);
+}
+
+
+bool
+Type_handler_interval_common::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_native(thd);
 }
 
 bool
@@ -5532,6 +5617,15 @@ bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                            item->field_name_or_null(), ltime, mode);
   Item_func_hybrid_field_type_get_date(thd, item, &warn, ltime, mode);
   return ltime->time_type < 0;
+}
+
+
+bool Type_handler_interval_common::Item_func_hybrid_field_type_get_interval(THD *thd,
+                                              Item_func_hybrid_field_type *item,
+                                              Interval *res) const
+{
+  item->interval_op(thd, res);
+  return false;
 }
 
 
@@ -6392,9 +6486,12 @@ String *Type_handler_timestamp_common::
 }
 
 String *Type_handler_interval_common::
-  Item_func_min_max_val_str(Item_func_min_max*, String*) const
+  Item_func_min_max_val_str(Item_func_min_max* func, String* str) const
 {
-  return nullptr;
+  THD *thd= current_thd;
+  Interval iv;
+  func->get_interval(thd, &iv);
+  return iv.to_string(str, iv.end_prec, false);
 }
 
 String *Type_handler_int_result::
@@ -6468,7 +6565,10 @@ double Type_handler_timestamp_common::
 double Type_handler_interval_common::
          Item_func_min_max_val_real(Item_func_min_max *func) const
 {
-  return 0.0;
+  THD *thd= current_thd;
+  Interval iv;
+  func->get_interval(thd, &iv);
+  return iv.to_double();
 }
 
 double Type_handler_numeric::
@@ -6517,7 +6617,10 @@ longlong Type_handler_timestamp_common::
 longlong Type_handler_interval_common::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  return 0;
+  THD *thd= current_thd;
+  Interval iv;
+  func->get_interval(thd, &iv);
+  return iv.to_longlong();
 }
 
 longlong Type_handler_numeric::
@@ -6580,7 +6683,10 @@ my_decimal *Type_handler_interval_common::
             Item_func_min_max_val_decimal(Item_func_min_max *func,
                                           my_decimal *dec) const
 {
-  return 0;
+  THD *thd= current_thd;
+  Interval iv;
+  func->get_interval(thd, &iv);
+  return iv.to_decimal(dec);
 }
 
 
@@ -6623,6 +6729,12 @@ bool Type_handler_temporal_result::
                                fuzzydate & TIME_TIME_ONLY ?
                                Datetime::Options(thd) :
                                fuzzydate);
+}
+
+bool Type_handler_interval_common::
+      Item_func_min_max_get_interval(THD *thd, Item_func_min_max *func,Interval *res) const
+{
+  return func->get_interval_native(thd, res);
 }
 
 bool Type_handler_time_common::
@@ -6876,6 +6988,7 @@ bool Type_handler_timestamp_common::
 bool Type_handler_interval_common::
         Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
+  item->fix_arg_interval();
   return false;
 }
 
@@ -6994,6 +7107,7 @@ bool Type_handler_timestamp_common::
 bool Type_handler_interval_common::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
+  item->fix_length_and_dec_interval();
   return false;
 }
 
@@ -7102,6 +7216,14 @@ bool Type_handler_temporal_result::
        Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
 {
   item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_interval_common::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  item->set_handler(&type_handler_interval_common);
   return false;
 }
 
@@ -8057,6 +8179,16 @@ bool Type_handler::
 
 
 bool Type_handler::
+        Item_send_interval(Item *item, Protocol *protocol, st_value *buf) const
+{
+  item->get_interval(protocol->thd, &buf->m_interval);
+  if (!item->null_value)
+    return protocol->store_interval(&buf->m_interval);
+  return protocol->store_null();
+}
+
+
+bool Type_handler::
        Item_send_date(Item *item, Protocol *protocol, st_value *buf) const
 {
   item->get_date(protocol->thd, &buf->value.m_time,
@@ -8285,16 +8417,6 @@ Type_handler_datetime_common::convert_item_for_comparison(
   return new (thd->mem_root) Item_timestamp_literal(thd,
                                           ts,
                                           subject->datetime_precision(thd));
-}
-
-Item *
-Type_handler_interval_common::convert_item_for_comparison(
-                                                        THD *thd,
-                                                        Item *subject,
-                                                        const Item *counterpart)
-                                                        const
-{
-  return nullptr;
 }
 
 /***************************************************************************/
@@ -9716,18 +9838,27 @@ Type_handler_interval_common::create_literal_item_for_interval(
   uint8 default_start, default_end;
   get_interval_default_precision(itype, &default_start, &default_end);
 
-  if (start_prec == 0)
+if (itype == INTERVAL_SECOND)
+{
+  end_prec= start_prec?start_prec:default_end;
+  start_prec= default_start;
+}
+  else
   {
-    start_prec= default_start;
-  }
+    if (start_prec == 0)
+    {
+      start_prec= default_start;
+    }
 
-  if (end_prec == 0)
-  {
-    end_prec= default_end;
+    if (end_prec == 0)
+    {
+      end_prec= default_end;
+    }
+
   }
 
   Interval tmp(str, length, itype, cs, start_prec, end_prec);
-  return new (thd->mem_root) Item_interval_literal(thd, &tmp, 0);
+  return new (thd->mem_root) Item_interval_literal(thd, &tmp, tmp.end_prec);
 }
 
 
@@ -9862,6 +9993,42 @@ Type_handler_interval_common::determine_result_type(const Type_handler *th0,
   return &type_handler_string;
 }
 
+bool Type_handler_interval_common::Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  item->fix_length_and_dec_interval();
+  return false;
+}
+
+bool Type_handler_interval_common::Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  item->fix_length_and_dec_interval();
+  return false;
+}
+
+bool Type_handler_interval_common::Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  return false;
+}
+
+bool Type_handler_interval_common::Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  return false;
+}
+
+
+const Type_handler *
+Type_handler_interval_common::determine_merged_interval_type(const Type_handler *th0,
+                                                    const Type_handler *th1) const
+{
+    enum interval_type result =  merge_intervals(th0->get_interval_type(), th1->get_interval_type());
+
+    if (result != INTERVAL_LAST)
+      return interval_type_to_handler_type(result);
+
+    return &type_handler_string;
+}
+
+
 bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
 {
   item->set_handler(&type_handler_string);
@@ -9901,8 +10068,6 @@ int Type_handler_timestamp_common::cmp_native(const Native &a,
 
 int Type_handler_interval_common::cmp_native(const Native &a, const Native &b) const
 {
-  if (a.length() == b.length())
-    return memcmp(a.ptr(), b.ptr(), a.length());
   return Interval_native(a).cmp(Interval_native(b));
 }
 

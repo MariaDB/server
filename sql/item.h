@@ -57,6 +57,7 @@ public:
     double m_double;
     MYSQL_TIME m_time;
   } value;
+  Interval m_interval;
   String m_string;
   my_decimal m_decimal;
 };
@@ -1760,6 +1761,7 @@ public:
 
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
+  int save_interval_in_field(Field *field, bool no_conversions);
   int save_str_in_field(Field *field, bool no_conversions);
   int save_real_in_field(Field *field, bool no_conversions);
   int save_int_in_field(Field *field, bool no_conversions);
@@ -2101,6 +2103,10 @@ public:
                        List<Item> &fields,
                        Item **ref, uint flags);
   virtual bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)= 0;
+  virtual bool get_interval(THD *thd, Interval *iv)
+  {
+    return true;
+  }
   bool get_date_from_int(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_date_from_real(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_date_from_string(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
@@ -3193,6 +3199,7 @@ public:
   String *val_str(String *sp) override;
   my_decimal *val_decimal(my_decimal *decimal_value) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool get_interval(THD *thd, Interval *iv) override;
   bool val_native(THD *thd, Native *to) override;
   Type_ref_null val_ref(THD *thd) override;
   bool is_null() override;
@@ -3842,6 +3849,7 @@ public:
   }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  bool get_interval(THD *thd, Interval *iv) override;
   bool get_date_result(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate)
     override;
   longlong val_datetime_packed(THD *thd) override;
@@ -5685,6 +5693,7 @@ public:
   int save_in_field(Field *field, bool) override
   {
     Interval_native native(m_value, decimals);
+
     return native.save_in_field(field, decimals);
   }
 
@@ -5746,6 +5755,13 @@ public:
   Item *do_get_copy(THD *thd) const override
   {
     return get_item_copy<Item_interval_literal>(thd, this);
+  }
+
+
+  bool get_interval(THD *thd, Interval *iv) override
+  {
+    *iv = m_value;
+    return false;
   }
 
 
@@ -8040,8 +8056,11 @@ class Item_cache_interval : public Item_cache
 {
   Interval_native m_native;
 public:
+public:
   Item_cache_interval(THD *thd)
-   : Item_cache(thd, &type_handler_interval_common) { }
+   : Item_cache(thd, &type_handler_interval_common),
+     m_native()
+  {}
 
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_interval>(thd, this); }

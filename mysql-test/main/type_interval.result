@@ -866,7 +866,7 @@ SET @ts3 = '2025-08-01 14:30:00.500';
 CALL modify_timestamp(@ts3, INTERVAL '0.500' SECOND);
 SELECT @ts3;
 @ts3
-2025-08-01 14:30:01
+2025-08-01 14:30:02
 DROP PROCEDURE modify_timestamp;
 CREATE PROCEDURE adjust_datetime(
 INOUT base_datetime DATETIME,
@@ -906,7 +906,7 @@ SET @result1 = NULL;
 CALL mixed_temporal('2025-08-07', INTERVAL '02:15:30.500' HOUR TO SECOND, @result1);
 SELECT @result1;
 @result1
-2025-08-07 14:15:30
+2025-08-07 14:15:31
 SET @result2 = NULL;
 CALL mixed_temporal('2025-08-07', INTERVAL '-03:30:00' HOUR TO SECOND, @result2);
 SELECT @result2;
@@ -941,3 +941,671 @@ SELECT @time3;
 @time3
 10:00:00
 DROP PROCEDURE handle_negative;
+SELECT INTERVAL '2' YEAR + INTERVAL '3' YEAR AS yr_yr;
+yr_yr
+5
+SELECT INTERVAL '1' YEAR + INTERVAL '5' MONTH AS yr_mon;
+yr_mon
+1-05
+SELECT INTERVAL '1-3' YEAR TO MONTH + INTERVAL '2-4' YEAR TO MONTH AS comp_ym;
+comp_ym
+3-07
+SELECT INTERVAL '2' DAY + INTERVAL '3' DAY AS day_day;
+day_day
+5
+SELECT INTERVAL '1' DAY + INTERVAL '12' HOUR AS day_hr;
+day_hr
+1 12
+SELECT INTERVAL '1.500' SECOND + INTERVAL '2.750' SECOND AS frac_sec;
+frac_sec
+4.250000
+SELECT INTERVAL '1 12:30:45' DAY TO SECOND + INTERVAL '2 06:15:30' DAY TO SECOND AS comp_dt;
+comp_dt
+3 18:46:15
+SELECT INTERVAL '9999' MONTH + INTERVAL '1' MONTH AS max_mon;
+max_mon
+10000
+SELECT INTERVAL '1' HOUR + INTERVAL '90' MINUTE AS hr_min;
+hr_min
+2:30
+SELECT INTERVAL '5' YEAR + NULL AS null_result, INTERVAL '1' DAY + NULL AS null_dt;
+null_result	null_dt
+NULL	NULL
+SELECT -INTERVAL '2' DAY + -INTERVAL '3' HOUR AS neg_add;
+neg_add
+-2 03
+SELECT -INTERVAL '1' YEAR + INTERVAL '6' MONTH AS neg_ym;
+neg_ym
+-0-06
+SELECT -INTERVAL '1 12:30' DAY TO MINUTE + INTERVAL '45' MINUTE AS neg_comp;
+neg_comp
+-1 11:45
+SELECT -INTERVAL '2-3' YEAR TO MONTH + -INTERVAL '1-4' YEAR TO MONTH AS dbl_neg_ym;
+dbl_neg_ym
+-3-07
+SELECT -INTERVAL '1.5' SECOND + -INTERVAL '0.25' SECOND AS neg_frac;
+neg_frac
+-1.750000
+SELECT INTERVAL '5' YEAR - INTERVAL '18' MONTH AS ym_sub;
+ym_sub
+3-06
+SELECT INTERVAL '2 06:00' DAY TO HOUR - INTERVAL '30:00' HOUR TO MINUTE AS dt_sub;
+dt_sub
+1 00:00
+SELECT INTERVAL '1.500' SECOND - INTERVAL '0.750' SECOND AS frac_sub;
+frac_sub
+0.750000
+SELECT -INTERVAL '3' DAY - -INTERVAL '12' HOUR AS neg_sub;
+neg_sub
+-2 12
+SELECT INTERVAL '1' YEAR - INTERVAL '13' MONTH AS year_boundary;
+year_boundary
+-0-01
+SELECT INTERVAL '1 12' DAY TO HOUR + INTERVAL '3:45' HOUR TO MINUTE AS day_hour_min;
+day_hour_min
+1 15:45
+SELECT INTERVAL '2:30' HOUR TO MINUTE + INTERVAL '45:59.5' MINUTE TO SECOND AS hour_min_sec;
+hour_min_sec
+3:15:59.500000
+SELECT INTERVAL '1 12:30:45' DAY TO SECOND + INTERVAL '3:45:15.5' HOUR TO SECOND AS full_comp;
+full_comp
+1 16:16:00.500000
+SELECT INTERVAL '2-3' YEAR TO MONTH + INTERVAL '5' MONTH AS ym_mon;
+ym_mon
+2-08
+SELECT (INTERVAL '1' DAY - INTERVAL '12' HOUR) + INTERVAL '30:00' MINUTE TO SECOND AS nested;
+nested
+0 12:30:00
+SELECT INTERVAL '9999' YEAR - INTERVAL '1' MONTH AS max_yr_prec;
+max_yr_prec
+9998-11
+SELECT INTERVAL '0.999999' SECOND + INTERVAL '0.000001' SECOND AS frac_overflow;
+frac_overflow
+1
+SELECT INTERVAL '100' DAY + INTERVAL '2400:00' HOUR TO MINUTE AS large_dt;
+large_dt
+200 00:00
+SELECT -INTERVAL '9999' MONTH + INTERVAL '1' YEAR AS neg_boundary;
+neg_boundary
+-832-03
+SELECT INTERVAL '0.000001' SECOND + INTERVAL '0.000002' SECOND AS micro_add;
+micro_add
+0.3
+SELECT -INTERVAL '1-6' YEAR TO MONTH - INTERVAL '3' MONTH AS neg_comp_sub;
+neg_comp_sub
+-1-09
+SELECT INTERVAL '1 12' DAY TO HOUR - INTERVAL '30' MINUTE + INTERVAL '45.5' SECOND AS chain_mix;
+chain_mix
+1 11:30:45.500000
+SELECT -INTERVAL '2:30' HOUR TO MINUTE + -INTERVAL '45:59.5' MINUTE TO SECOND AS neg_chain;
+neg_chain
+-3:15:59.500000
+SELECT (INTERVAL '1' DAY - INTERVAL '12' HOUR) + (INTERVAL '1:30' HOUR TO MINUTE - INTERVAL '00:45' MINUTE TO SECOND) AS multi_op;
+multi_op
+0 13:29:15
+SELECT -(-INTERVAL '2' DAY + -INTERVAL '3' HOUR) AS double_neg;
+double_neg
+2 03
+SELECT INTERVAL '1 06' DAY TO HOUR + INTERVAL '18:30' HOUR TO MINUTE + INTERVAL '00:45.5' MINUTE TO SECOND AS agg;
+agg
+2 00:30:45.500000
+SELECT INTERVAL '10000' DAY + INTERVAL '240000:00' HOUR TO MINUTE - INTERVAL '1 00:00:00.000001' DAY TO SECOND AS extreme;
+extreme
+19998 23:59:59.999999
+SELECT INTERVAL '1 06' DAY TO HOUR + INTERVAL '12:30:45.5' HOUR TO SECOND AS day_hr_sec;
+day_hr_sec
+1 18:30:45.500000
+SELECT INTERVAL '2-8' YEAR TO MONTH - INTERVAL '10' MONTH AS ym_sub;
+ym_sub
+1-10
+SELECT -INTERVAL '3 04:30' DAY TO MINUTE + -INTERVAL '2:45' HOUR TO MINUTE AS neg_comp_add;
+neg_comp_add
+-3 07:15
+SELECT INTERVAL '5:00' HOUR TO MINUTE - INTERVAL '30:15.5' MINUTE TO SECOND AS mixed_qual;
+mixed_qual
+4:29:44.500000
+SELECT INTERVAL '1-2' YEAR TO MONTH + INTERVAL '6' MONTH + INTERVAL '2' YEAR AS chain_ym;
+chain_ym
+3-08
+SELECT -(-INTERVAL '2 12:30' DAY TO MINUTE) AS double_neg;
+double_neg
+2 12:30
+SELECT -INTERVAL '9999' MONTH - INTERVAL '1' YEAR AS neg_boundary;
+neg_boundary
+-834-03
+SELECT -INTERVAL '0.999999' SECOND - INTERVAL '0.000001' SECOND AS neg_frac_overflow;
+neg_frac_overflow
+-1
+SELECT INTERVAL '2' DAY + -INTERVAL '48' HOUR AS mixed_sign;
+mixed_sign
+0 00
+SELECT -INTERVAL '1-1' YEAR TO MONTH - INTERVAL '6' MONTH AS neg_ym_carry;
+neg_ym_carry
+-1-07
+SELECT INTERVAL '59.999999' SECOND + INTERVAL '0.000001' SECOND AS max_frac;
+max_frac
+60
+SELECT INTERVAL '0.000001' SECOND + INTERVAL '0.000001' SECOND AS min_frac;
+min_frac
+0.2
+SELECT INTERVAL '9999' YEAR + INTERVAL '1' MONTH AS max_yr_plus;
+max_yr_plus
+9999-01
+SELECT INTERVAL '365' DAY + INTERVAL '8760:00' HOUR TO MINUTE AS year_approx;
+year_approx
+730 00:00
+SELECT INTERVAL '0.0000004' SECOND + INTERVAL '0.0000005' SECOND AS micro_round;
+micro_round
+0
+SELECT INTERVAL '0' DAY + INTERVAL '0' SECOND AS zero_add;
+zero_add
+0 00:00:00
+SELECT INTERVAL '1-00' YEAR TO MONTH - INTERVAL '1' MONTH AS month_boundary;
+month_boundary
+0-11
+SELECT INTERVAL '2' HOUR * 3 AS mul_int;
+mul_int
+6
+SELECT 1.5 * INTERVAL '4' MINUTE AS mul_decimal;
+mul_decimal
+6
+SELECT INTERVAL '1' DAY / 2 AS div_int;
+div_int
+0
+SELECT INTERVAL '60' MINUTE / 1.5 AS div_decimal;
+div_decimal
+40
+SELECT 3 * INTERVAL '2' YEAR AS comm_mul;
+comm_mul
+6
+SELECT INTERVAL '1 02:30' DAY TO MINUTE * 2 AS comp_mul;
+comp_mul
+2 05:00
+SELECT INTERVAL '2-6' YEAR TO MONTH / 2 AS comp_div;
+comp_div
+1-03
+SELECT INTERVAL '1 12:00' DAY TO HOUR * 0.5 AS half_day;
+half_day
+0 18
+SELECT INTERVAL '0.500' SECOND * 2 AS frac_preserve;
+frac_preserve
+1
+SELECT INTERVAL '11' MONTH / 2 AS month_div;
+month_div
+6
+SELECT -INTERVAL '2' HOUR * 3 AS neg_mul;
+neg_mul
+-6
+SELECT INTERVAL '3' DAY * -1 AS neg_factor;
+neg_factor
+-3
+SELECT INTERVAL '-60' MINUTE / -2 AS neg_div;
+neg_div
+30
+SELECT -INTERVAL '1-6' YEAR TO MONTH * 1.5 AS comp_neg_mul;
+comp_neg_mul
+-2-03
+SELECT -INTERVAL '2' DAY * -3 AS dbl_neg;
+dbl_neg
+6
+SELECT INTERVAL '2' HOUR * 3 + INTERVAL '30' MINUTE AS mul_add;
+mul_add
+6:30
+SELECT (INTERVAL '1' DAY - INTERVAL '12' HOUR) / 2 AS expr_div;
+expr_div
+0 06
+SELECT 2 * (INTERVAL '1' YEAR + INTERVAL '6' MONTH) AS nested_mul;
+nested_mul
+3-00
+SELECT INTERVAL '2:30' HOUR TO MINUTE * 2 - INTERVAL '10' MINUTE AS mixed_ops;
+mixed_ops
+4:50
+SELECT (INTERVAL '1' DAY / 4) * 3 + INTERVAL '6' HOUR AS chain;
+chain
+0 06
+SELECT INTERVAL '1' SECOND / 0 AS div_zero;
+div_zero
+0-00-0 00:00:00
+SELECT INTERVAL '9999' YEAR * 0 AS zero_mul;
+zero_mul
+0
+SELECT INTERVAL '0.999999' SECOND * 2 AS frac_overflow;
+frac_overflow
+1.999998
+SELECT INTERVAL '9999' MONTH * 2 AS max_prec_mul;
+max_prec_mul
+6
+SELECT INTERVAL '0.000001' SECOND / 2 AS micro_div;
+micro_div
+0.1
+SELECT INTERVAL '8' HOUR * 5 AS work_week;
+work_week
+40
+SELECT INTERVAL '1' DAY / 4 AS quarter_day;
+quarter_day
+0
+SELECT DATE '2023-01-01' + (INTERVAL '1' DAY * 7) AS next_week;
+next_week
+2023-01-08
+SELECT INTERVAL '0.5' SECOND * 1000 AS batch_time;
+batch_time
+500
+SELECT INTERVAL '1-6' YEAR TO MONTH * 2 AS loan_term;
+loan_term
+3-00
+SELECT INTERVAL '1:30' HOUR TO MINUTE * 1.5 AS comp_result;
+comp_result
+2:15
+SELECT INTERVAL '3 18:00' DAY TO HOUR / 3 AS comp_div;
+comp_div
+1 06
+SELECT -INTERVAL '2' DAY * 3 + INTERVAL '12' HOUR AS neg_combine;
+neg_combine
+-5 12
+SELECT INTERVAL '1' MONTH * 0.5 AS frac_month;
+frac_month
+1
+SELECT INTERVAL '1' DAY * 2 + INTERVAL '12' HOUR - INTERVAL '30' MINUTE AS mixed_types;
+mixed_types
+2 11:30
+SELECT INTERVAL '1-0' YEAR TO MONTH = INTERVAL '12' MONTH;
+INTERVAL '1-0' YEAR TO MONTH = INTERVAL '12' MONTH
+1
+SELECT INTERVAL '1 02:30:15' DAY TO SECOND = INTERVAL '26:30:15' HOUR TO SECOND;
+INTERVAL '1 02:30:15' DAY TO SECOND = INTERVAL '26:30:15' HOUR TO SECOND
+1
+SELECT INTERVAL '6' MONTH <> INTERVAL '5' MONTH;
+INTERVAL '6' MONTH <> INTERVAL '5' MONTH
+1
+SELECT INTERVAL '100' YEAR(3) > INTERVAL '99' YEAR(3);
+INTERVAL '100' YEAR(3) > INTERVAL '99' YEAR(3)
+1
+SELECT INTERVAL '00:00:00.000001' SECOND(6) < INTERVAL '1' MINUTE;
+INTERVAL '00:00:00.000001' SECOND(6) < INTERVAL '1' MINUTE
+1
+SELECT INTERVAL '2-6' YEAR TO MONTH = INTERVAL '30' MONTH;
+INTERVAL '2-6' YEAR TO MONTH = INTERVAL '30' MONTH
+1
+SELECT INTERVAL '1 12:00:00' DAY TO SECOND = INTERVAL '36:00:00' HOUR TO SECOND;
+INTERVAL '1 12:00:00' DAY TO SECOND = INTERVAL '36:00:00' HOUR TO SECOND
+1
+SELECT INTERVAL '-1' DAY > INTERVAL '-2' DAY;
+INTERVAL '-1' DAY > INTERVAL '-2' DAY
+1
+SELECT INTERVAL '59.999999' SECOND(6) = INTERVAL '59.999999' SECOND(5);
+INTERVAL '59.999999' SECOND(6) = INTERVAL '59.999999' SECOND(5)
+0
+SELECT INTERVAL '0' SECOND = INTERVAL '0' MINUTE;
+INTERVAL '0' SECOND = INTERVAL '0' MINUTE
+1
+SELECT INTERVAL '9999-11' YEAR TO MONTH < INTERVAL '120000' MONTH;
+INTERVAL '9999-11' YEAR TO MONTH < INTERVAL '120000' MONTH
+1
+SELECT INTERVAL '01.000001' SECOND(6) > INTERVAL '1' SECOND;
+INTERVAL '01.000001' SECOND(6) > INTERVAL '1' SECOND
+1
+SELECT INTERVAL '5 04:30:00' DAY TO SECOND > INTERVAL '124:29:59' HOUR TO SECOND;
+INTERVAL '5 04:30:00' DAY TO SECOND > INTERVAL '124:29:59' HOUR TO SECOND
+1
+SELECT INTERVAL '1000' MONTH(4) < INTERVAL '1000' MONTH(5);
+INTERVAL '1000' MONTH(4) < INTERVAL '1000' MONTH(5)
+0
+SELECT INTERVAL '9999' DAY(7) > INTERVAL '239976' HOUR(8);
+INTERVAL '9999' DAY(7) > INTERVAL '239976' HOUR(8)
+0
+SELECT INTERVAL '-1' YEAR < INTERVAL '0' MONTH;
+INTERVAL '-1' YEAR < INTERVAL '0' MONTH
+1
+SELECT INTERVAL '59.999999' SECOND(6) = INTERVAL '59.999999' SECOND(6);
+INTERVAL '59.999999' SECOND(6) = INTERVAL '59.999999' SECOND(6)
+1
+SELECT INTERVAL '3' YEAR > INTERVAL '35' MONTH;
+INTERVAL '3' YEAR > INTERVAL '35' MONTH
+1
+SELECT INTERVAL '90' MINUTE = INTERVAL '1:30' HOUR TO MINUTE;
+INTERVAL '90' MINUTE = INTERVAL '1:30' HOUR TO MINUTE
+1
+SELECT INTERVAL '1' DAY < NULL IS NULL;
+INTERVAL '1' DAY < NULL IS NULL
+1
+SELECT INTERVAL '86400.000000' SECOND(6) = INTERVAL '1' DAY;
+INTERVAL '86400.000000' SECOND(6) = INTERVAL '1' DAY
+1
+SELECT INTERVAL '0.000002' SECOND(6) <> INTERVAL '0.000001' SECOND(6);
+INTERVAL '0.000002' SECOND(6) <> INTERVAL '0.000001' SECOND(6)
+1
+SELECT INTERVAL '12' MONTH <= INTERVAL '1' YEAR;
+INTERVAL '12' MONTH <= INTERVAL '1' YEAR
+1
+SELECT INTERVAL '12' MONTH < INTERVAL '31104000.000001' SECOND(6);
+INTERVAL '12' MONTH < INTERVAL '31104000.000001' SECOND(6)
+1
+SELECT INTERVAL '9999999' DAY(7) > INTERVAL '9999998' DAY(7);
+INTERVAL '9999999' DAY(7) > INTERVAL '9999998' DAY(7)
+1
+SELECT INTERVAL '100000' MONTH(12) > INTERVAL '99999' MONTH(12);
+INTERVAL '100000' MONTH(12) > INTERVAL '99999' MONTH(12)
+1
+SELECT INTERVAL '-0.000001' SECOND(6) = INTERVAL '-0.000001' SECOND(6);
+INTERVAL '-0.000001' SECOND(6) = INTERVAL '-0.000001' SECOND(6)
+1
+SELECT INTERVAL '1 02:30:45.678' DAY TO SECOND > INTERVAL '26:30:45.677' HOUR TO SECOND;
+INTERVAL '1 02:30:45.678' DAY TO SECOND > INTERVAL '26:30:45.677' HOUR TO SECOND
+1
+SELECT INTERVAL '0.000002' SECOND(6) - INTERVAL '0.000001' SECOND(6);
+INTERVAL '0.000002' SECOND(6) - INTERVAL '0.000001' SECOND(6)
+0.1
+CREATE PROCEDURE project_timeline_calculator()
+BEGIN
+DECLARE project_start TIMESTAMP;
+DECLARE task1_duration, task2_duration, task3_duration INTERVAL DAY TO SECOND;
+DECLARE task1_end, task2_end, task3_end TIMESTAMP;
+DECLARE total_planned, actual_duration, difference INTERVAL DAY TO SECOND;
+SET project_start = '2025-01-01 12:00:00';
+SET task1_duration = INTERVAL '2 12:30:00' DAY TO SECOND;
+SET task2_duration = INTERVAL '1 18:45:15.500' DAY TO SECOND * 1.5;
+SET task3_duration = INTERVAL '3 06:15:30' DAY TO SECOND;
+SET task1_end = project_start + task1_duration;
+SET task2_end = task1_end + task2_duration;
+SET task3_end = task2_end + task3_duration;
+SET total_planned = task1_duration + task2_duration;
+SET actual_duration = task3_duration;
+SET difference = total_planned - actual_duration;
+SELECT
+project_start AS start_time,
+task1_end AS task1_completion,
+task2_end AS task2_completion,
+task3_end AS task3_completion,
+task1_duration AS task1_length,
+task2_duration AS task2_length,
+task3_duration AS task3_length,
+total_planned AS task1_plus_task2,
+difference AS planned_minus_actual;
+END /
+call project_timeline_calculator();
+start_time	task1_completion	task2_completion	task3_completion	task1_length	task2_length	task3_length	task1_plus_task2	planned_minus_actual
+2025-01-01 12:00:00	2025-01-04 00:30:00	2025-01-06 16:37:53	2025-01-09 22:53:23	2 12:30:00	2 16:07:53.250000	3 06:15:30	5 04:37:53.250000	1 22:22:23.250000
+drop procedure project_timeline_calculator;
+CREATE PROCEDURE interval_operations()
+BEGIN
+DECLARE base_datetime TIMESTAMP;
+DECLARE interval1 INTERVAL DAY TO MINUTE;
+DECLARE interval2 INTERVAL HOUR TO MINUTE;
+DECLARE interval_sum, interval_diff, interval_multiplied INTERVAL DAY TO MINUTE;
+DECLARE result_datetime TIMESTAMP;
+SET base_datetime = '2025-01-01 12:00:00';
+SET interval1 = INTERVAL '2 06:00' DAY TO MINUTE;
+SET interval2 = INTERVAL '30:00' HOUR TO MINUTE;
+SET interval_sum = interval1 + interval2;
+SET interval_diff = interval1 - interval2;
+SET interval_multiplied = interval_diff * 10;
+SET result_datetime = base_datetime + interval_multiplied;
+SELECT
+base_datetime AS base_time,
+interval1 AS first_interval,
+interval2 AS second_interval,
+interval_sum AS sum_of_intervals,
+interval_diff AS difference_of_intervals,
+interval_multiplied AS difference_times_10,
+result_datetime AS final_datetime;
+END /
+CALL interval_operations();
+base_time	first_interval	second_interval	sum_of_intervals	difference_of_intervals	difference_times_10	final_datetime
+2025-01-01 12:00:00	2 06:00	30:00	3 12:00	1 00:00	10 00:00	2025-01-11 12:00:00
+DROP PROCEDURE interval_operations;
+CREATE PROCEDURE test_interval_arithmetic(
+IN iv1 INTERVAL DAY TO SECOND,
+IN iv2 INTERVAL DAY TO SECOND,
+IN num DOUBLE,
+OUT add_result INTERVAL DAY TO SECOND,
+OUT sub_result INTERVAL DAY TO SECOND,
+OUT mul_result INTERVAL DAY TO SECOND,
+OUT div_result INTERVAL DAY TO SECOND
+)
+BEGIN
+SET add_result = iv1 + iv2;
+SET sub_result = iv1 - iv2;
+SET mul_result = iv1 * num;
+SET div_result = iv1 * num;
+END /
+SET @result1 = NULL, @result2 = NULL, @result3 = NULL, @result4 = NULL;
+CALL test_interval_arithmetic(
+INTERVAL '1 12:30:45' DAY TO SECOND,
+INTERVAL '2 06:15:30' DAY TO SECOND,
+1.5,
+@result1, @result2, @result3, @result4
+);
+SELECT @result1, @result2, @result3, @result4;
+@result1	@result2	@result3	@result4
+3 18:46:15	-0 17:44:45	2 06:46:07.500000	2 06:46:07.500000
+DROP PROCEDURE test_interval_arithmetic;
+CREATE PROCEDURE test_interval_comparisons(
+IN ym1 INTERVAL YEAR TO MONTH,
+IN ym2 INTERVAL YEAR TO MONTH,
+IN dt1 INTERVAL DAY TO SECOND,
+IN dt2 INTERVAL DAY TO SECOND,
+OUT ym_eq BOOLEAN,
+OUT ym_gt BOOLEAN,
+OUT dt_eq BOOLEAN,
+OUT dt_lt BOOLEAN
+)
+BEGIN
+SET ym_eq = ym1 = ym2;
+SET ym_gt = ym1 > ym2;
+SET dt_eq = dt1 = dt2;
+SET dt_lt = dt1 < dt2;
+END /
+SET @ym_eq = NULL, @ym_gt = NULL, @dt_eq = NULL, @dt_lt = NULL;
+CALL test_interval_comparisons(
+INTERVAL '2-6' YEAR TO MONTH,
+INTERVAL '30' MONTH,
+INTERVAL '1 12:00:00' DAY TO SECOND,
+INTERVAL '36:00:00' HOUR TO SECOND,
+@ym_eq, @ym_gt, @dt_eq, @dt_lt
+);
+SELECT @ym_eq, @ym_gt, @dt_eq, @dt_lt;
+@ym_eq	@ym_gt	@dt_eq	@dt_lt
+1	0	1	0
+DROP PROCEDURE test_interval_comparisons;
+CREATE PROCEDURE test_interval_complex(
+INOUT io_interval INTERVAL DAY TO SECOND,
+IN add_iv INTERVAL HOUR TO MINUTE,
+IN mul_factor DOUBLE
+)
+BEGIN
+SET io_interval = io_interval + add_iv;
+SET io_interval = io_interval * mul_factor;
+SET io_interval = io_interval + INTERVAL '1 06:30:45' DAY TO SECOND;
+END /
+SET @complex_iv = INTERVAL '2 12:30:45' DAY TO SECOND;
+CALL test_interval_complex(
+@complex_iv,
+INTERVAL '4:45' HOUR TO MINUTE,
+0.5
+);
+SELECT @complex_iv;
+@complex_iv
+2 15:08:37.500000
+DROP PROCEDURE test_interval_complex;
+CREATE PROCEDURE test_ym_interval(
+INOUT io_ym INTERVAL YEAR TO MONTH,
+IN add_ym INTERVAL YEAR TO MONTH,
+OUT final_result INTERVAL YEAR TO MONTH,
+OUT is_positive BOOLEAN
+)
+BEGIN
+SET io_ym = io_ym + add_ym;
+SET final_result = io_ym / 2 - INTERVAL '6' MONTH;
+SET is_positive = final_result > INTERVAL '0' YEAR;
+END |
+SET @ym_io = INTERVAL '1-6' YEAR TO MONTH;
+SET @ym_final = NULL;
+SET @ym_positive = NULL;
+CALL test_ym_interval(
+@ym_io,
+INTERVAL '2' YEAR,
+@ym_final,
+@ym_positive
+);
+SELECT @ym_io, @ym_final, @ym_positive;
+@ym_io	@ym_final	@ym_positive
+3-06	1-03	1
+DROP PROCEDURE test_ym_interval;
+CREATE PROCEDURE compare_intervals(
+IN interval1 INTERVAL DAY TO SECOND,
+IN interval2 INTERVAL DAY TO SECOND,
+OUT max_interval INTERVAL DAY TO SECOND
+)
+BEGIN
+CASE
+WHEN interval1 > interval2 THEN
+SET max_interval = interval1;
+WHEN interval2 > interval1 THEN
+SET max_interval = interval2;
+ELSE
+SET max_interval = interval1;
+END CASE;
+END /
+set @max1 =NULL;
+CALL compare_intervals(
+INTERVAL '2 12:30:45' DAY TO SECOND,
+INTERVAL '1 06:15:30' DAY TO SECOND,
+@max1
+);
+SELECT @max1;
+@max1
+2 12:30:45
+DROP PROCEDURE compare_intervals;
+SELECT NULLIF(INTERVAL '2 12:30:45' DAY TO SECOND, INTERVAL '2 12:30:46' DAY TO SECOND);
+NULLIF(INTERVAL '2 12:30:45' DAY TO SECOND, INTERVAL '2 12:30:46' DAY TO SECOND)
+2 12:30:45
+SELECT
+NULLIF(INTERVAL '2 12:30:45' DAY TO SECOND, INTERVAL '2 12:30:45' DAY TO SECOND) AS nullif_equal,
+NULLIF(INTERVAL '1' DAY, INTERVAL '2' DAY) AS nullif_different,
+NULLIF(INTERVAL '0' SECOND, INTERVAL '0' MINUTE) AS nullif_zero_equivalents;
+nullif_equal	nullif_different	nullif_zero_equivalents
+NULL	1	NULL
+SELECT
+IFNULL(NULL, INTERVAL '5' HOUR) AS ifnull_with_null,
+IFNULL(INTERVAL '2 12:30:45' DAY TO SECOND, INTERVAL '1' DAY) AS ifnull_with_value,
+IFNULL(INTERVAL '0' SECOND, INTERVAL '1' HOUR) AS ifnull_with_zero;
+ifnull_with_null	ifnull_with_value	ifnull_with_zero
+5	2 12:30:45	0
+SELECT
+COALESCE(NULL, NULL, INTERVAL '3' DAY, INTERVAL '2' HOUR) AS coalesce_first_non_null,
+COALESCE(INTERVAL '1 12:30:45' DAY TO SECOND, INTERVAL '1' DAY) AS coalesce_first_value,
+COALESCE(NULL, INTERVAL '0' SECOND, INTERVAL '5' MINUTE) AS coalesce_second_value;
+coalesce_first_non_null	coalesce_first_value	coalesce_second_value
+3	1 12:30:45	0
+SELECT
+IF(1 = 1, INTERVAL '2 12:30:45' DAY TO SECOND, INTERVAL '1' DAY) AS if_true,
+IF(1 = 0, INTERVAL '2 12:30:45' DAY TO SECOND, INTERVAL '1' DAY) AS if_false;
+if_true	if_false
+2 12:30:45	1
+SELECT
+NVL2(NULL, INTERVAL '5' HOUR, INTERVAL '2' DAY) AS nvl_null,
+NVL2(INTERVAL '1 12:30:45' DAY TO SECOND, INTERVAL '3' HOUR, INTERVAL '2' DAY) AS nvl_value;
+nvl_null	nvl_value
+2	3
+SELECT
+NVL(NULL, INTERVAL '5' HOUR) AS nvl_null_result,
+NVL(INTERVAL '1 12:30:45' DAY TO SECOND, INTERVAL '3' HOUR) AS nvl_value_result;
+nvl_null_result	nvl_value_result
+5	1 12:30:45
+SELECT
+IF(INTERVAL '2' DAY > INTERVAL '48' HOUR,
+INTERVAL '1' DAY,
+INTERVAL '12' HOUR) AS comparison_result;
+comparison_result
+12
+SELECT FLOOR(INTERVAL '1 12:30:45.123456' DAY TO SECOND) AS result;
+result
+1 12:30:45
+SELECT CEIL(INTERVAL '1 12:30:45.123456' DAY TO SECOND) AS result;
+result
+1 12:30:46
+SELECT
+ROUND(INTERVAL '1 12:30:45.567899' DAY TO SECOND, 0) AS round_0,
+ROUND(INTERVAL '1 12:30:45.567899' DAY TO SECOND, 3) AS round_3,
+ROUND(INTERVAL '1 12:30:45.567899' DAY TO SECOND, 6) AS round_6;
+round_0	round_3	round_6
+1 12:30:46	1 12:30:45.568000	1 12:30:45.567899
+SELECT
+FLOOR(INTERVAL '36:30:45.123456' HOUR TO SECOND) AS hour_floored;
+hour_floored
+36:30:45
+SELECT
+CEIL(INTERVAL '36:30:45.123456' HOUR TO SECOND) AS hour_ceiled;
+hour_ceiled
+36:30:46
+SELECT ROUND(INTERVAL '1 12:30:45.500000' DAY TO SECOND, 0) AS rounded;
+rounded
+1 12:30:46
+SELECT FLOOR(INTERVAL '1 12:30:45.000000' DAY TO SECOND) AS floored;
+floored
+1 12:30:45
+SELECT CEIL(INTERVAL '1 12:30:45.000000' DAY TO SECOND) AS ceiled;
+ceiled
+1 12:30:45
+SELECT COALESCE(
+FLOOR(INTERVAL '1 12:30:45.123456' DAY TO SECOND),
+INTERVAL '0' SECOND
+) AS result;
+result
+1 12:30:45
+SELECT
+IF(INTERVAL '2' DAY > INTERVAL '48' HOUR,
+ROUND(INTERVAL '1 12:30:45.567899' DAY TO SECOND, 2),
+ROUND(INTERVAL '12:30:45.567899' HOUR TO SECOND, 2)
+) AS result;
+result
+12:30:45.570000
+SELECT LEAST(
+INTERVAL '12:30:45' HOUR TO SECOND,
+INTERVAL '10:45:30' HOUR TO SECOND,
+INTERVAL '14:15:20' HOUR TO SECOND
+) AS least_time;
+least_time
+10:45:30
+SELECT GREATEST(
+INTERVAL '1 12:30:45' DAY TO SECOND,
+INTERVAL '1 10:45:30' DAY TO SECOND
+) AS greatest_full_interval;
+greatest_full_interval
+1 12:30:45
+SELECT GREATEST(
+COALESCE(NULL, INTERVAL '5' HOUR),
+COALESCE(INTERVAL '3' HOUR, INTERVAL '2' DAY)
+) AS coalesce_greatest;
+coalesce_greatest
+5
+SELECT
+CASE
+WHEN GREATEST(INTERVAL '2' DAY, INTERVAL '48' HOUR) = INTERVAL '2' DAY
+THEN INTERVAL '1' DAY
+ELSE INTERVAL '12' HOUR
+END AS case_result;
+case_result
+1
+SELECT LEAST(
+INTERVAL '1 12:30:45.123' DAY TO SECOND(3),
+INTERVAL '1 12:30:45.124' DAY TO SECOND(3)
+) AS least_precise;
+least_precise
+1 12:30:45.123000
+SELECT GREATEST(
+INTERVAL '2' DAY,
+INTERVAL '36' HOUR,
+INTERVAL '180' MINUTE,
+INTERVAL '10000' SECOND
+) AS complex_greatest;
+complex_greatest
+2
+SELECT
+CASE
+WHEN GREATEST(INTERVAL '2' DAY, INTERVAL '48' HOUR) = INTERVAL '2' DAY
+THEN INTERVAL '1' DAY
+ELSE INTERVAL '12' HOUR
+END AS case_result;
+case_result
+1

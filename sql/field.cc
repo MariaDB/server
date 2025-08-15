@@ -99,7 +99,7 @@ static inline int merge_type2index(enum_field_types merge_type)
   DBUG_ASSERT(merge_type < FIELDTYPE_TEAR_FROM ||
               merge_type > FIELDTYPE_TEAR_TO);
   DBUG_ASSERT(merge_type <= FIELDTYPE_LAST);
-  if (merge_type > MYSQL_TYPE_BIT && merge_type < MYSQL_TYPE_INTERVAL)
+  if (merge_type > MYSQL_TYPE_BIT && merge_type <= MYSQL_TYPE_INTERVAL)
   {
     DBUG_ASSERT(merge_type == MYSQL_TYPE_INTERVAL);
     return MYSQL_TYPE_INTERVAL - 3;
@@ -2615,6 +2615,16 @@ int Field::store_time_dec(const MYSQL_TIME *ltime, uint dec)
   char buff[MAX_DATE_STRING_REP_LENGTH];
   uint length= (uint) my_TIME_to_str(ltime, buff, dec);
   /* Avoid conversion when field character set is ASCII compatible */
+  return store(buff, length, (charset()->state & MY_CS_NONASCII) ?
+                              &my_charset_latin1 : charset());
+}
+
+
+int Field::store_interval(const Interval *iv)
+{
+  DBUG_ASSERT(marked_for_write_or_computed());
+  char buff[MAX_INTERVAL_STRING_REP_LENGTH];
+  uint length= (uint) interval_to_string(iv, iv->m_interval_type, buff, MAX_INTERVAL_STRING_REP_LENGTH);
   return store(buff, length, (charset()->state & MY_CS_NONASCII) ?
                               &my_charset_latin1 : charset());
 }
@@ -6911,6 +6921,12 @@ bool Field_date::send(Protocol *protocol)
   return protocol->store_date(&tm);
 }
 
+bool Field_interval::send(Protocol *protocol)
+{
+  Interval iv;
+  get_INTERVAL(&iv);
+  return protocol->store_interval(&iv);
+}
 
 double Field_date::val_real(void)
 {
@@ -7498,6 +7514,9 @@ int Field_interval::get_INTERVAL(Interval *iv)
   my_timeval tm;
   get_TIMEVAL(&tm);
   timeval_to_interval(tm, iv, m_interval_type);
+  iv->m_interval_type= m_interval_type;
+  iv->start_prec= start_prec;
+  iv->end_prec= end_prec;
   return is_valid_interval(m_interval_type, start_prec, end_prec, iv);
 }
 
@@ -7508,6 +7527,13 @@ int Field_interval::get_INTERVAL(Interval *iv, const uchar *ptr) const
   get_TIMEVAL(&tm, ptr);
   timeval_to_interval(tm, iv, m_interval_type);
   return is_valid_interval(m_interval_type, start_prec, end_prec, iv);
+}
+
+
+bool Field_interval::get_interval(THD *thd, Interval *iv)
+{
+  get_INTERVAL(iv);
+  return false;
 }
 
 
@@ -11163,11 +11189,9 @@ bool Column_definition::fix_attributes_interval(interval_type itype)
     my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,
              intv_length & 15);
 
-  if (!(length >> 4))
+  if (!(length >> 4) && itype != INTERVAL_SECOND)
   {
-    /*
-    length|= intv_length & 240
-    */
+    length|= intv_length & 240;
   }
   else if ((length >> 4) > (intv_length >> 4))
     my_error(ER_TOO_BIG_PRECISION, MYF(0), field_name.str,

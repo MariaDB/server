@@ -21,6 +21,7 @@ This program is free software; you can redistribute it and/or modify
 #include "structs.h"
 #include "mysql/plugin.h"
 #include "sql_type.h"
+#include "my_decimal.h"
 
 
 Interval::Interval(const Interval &other)
@@ -112,6 +113,28 @@ my_timeval Interval::to_TIMEVAL() const
   my_timeval tm={};
   interval_to_timeval(this, &tm, current_thd);
   return tm;
+}
+
+Interval& Interval::floor()
+{
+  second_part= 0;
+  return *this;
+}
+
+
+Interval& Interval::ceil()
+{
+  if (second_part)
+  {
+    second_part= 0;
+    Interval temp;
+    temp.reset();
+    temp.m_interval_type= INTERVAL_SECOND;
+    temp.second= 1;
+    temp.neg= neg;
+    add_intervals(this, &temp, this);
+  }
+  return *this;
 }
 
 bool Interval::to_bool() const
@@ -528,7 +551,7 @@ bool is_valid_interval(interval_type itype,
 int interval_to_timeval(const Interval *iv, my_timeval *tm, THD *thd)
 {
   longlong total_days= 0;
-  total_days+= static_cast<longlong>(iv->year) * 365;
+  total_days+= static_cast<longlong>(iv->year) * 360;
   total_days+= static_cast<longlong>(iv->month) * 30;
   total_days+= static_cast<longlong>(iv->day);
 
@@ -701,13 +724,13 @@ void timeval_to_interval(const my_timeval &tm, Interval *iv,
     longlong days= seconds / 86400LL;
 
     if (itype == INTERVAL_YEAR)
-      iv->year= static_cast<ulong>(days / 365);
+      iv->year= static_cast<ulong>(days / 360);
     else if (itype == INTERVAL_MONTH)
       iv->month= static_cast<ulong>(days / 30);
     else if (itype == INTERVAL_YEAR_MONTH)
     {
-      iv->year= static_cast<ulong>(days / 365);
-      iv->month= static_cast<ulong>((days % 365) / 30);
+      iv->year= static_cast<ulong>(days / 360);
+      iv->month= static_cast<ulong>((days % 360) / 30);
     }
     break;
   }
@@ -833,7 +856,7 @@ void get_interval_default_precision(interval_type type,
     break;
   case INTERVAL_YEAR_MONTH:
     *default_start= INTERVAL_YEAR_DIGITS;
-    *default_end= INTERVAL_MONTH_DIGITS;
+    *default_end= 0;
     break;
   case INTERVAL_MONTH:
     *default_start= INTERVAL_MONTH_DIGITS;
@@ -845,11 +868,11 @@ void get_interval_default_precision(interval_type type,
     break;
   case INTERVAL_DAY_HOUR:
     *default_start= INTERVAL_DAY_DIGITS;
-    *default_end= INTERVAL_HOUR_DIGITS;
+    *default_end= 0;
     break;
   case INTERVAL_DAY_MINUTE:
     *default_start= INTERVAL_DAY_DIGITS;
-    *default_end= INTERVAL_MINUTE_DIGITS;
+    *default_end= 0;
     break;
   case INTERVAL_DAY_SECOND:
     *default_start= INTERVAL_DAY_DIGITS;
@@ -861,7 +884,7 @@ void get_interval_default_precision(interval_type type,
     break;
   case INTERVAL_HOUR_MINUTE:
     *default_start= INTERVAL_HOUR_DIGITS;
-    *default_end= INTERVAL_MINUTE_DIGITS;
+    *default_end= 0;
     break;
   case INTERVAL_HOUR_SECOND:
     *default_start= INTERVAL_HOUR_DIGITS;
@@ -949,6 +972,450 @@ const Type_handler *interval_type_to_handler_type(interval_type type)
 
   case INTERVAL_LAST:
   default:
-    return nullptr; // or handle as an error
+    return &type_handler_interval_common;
   }
+}
+
+
+void add_intervals(const Interval *iv1, const Interval *iv2, Interval *out)
+{
+  interval_type merged_type= out->m_interval_type;
+
+  longlong years= 0, months= 0;
+  longlong days= 0, hours= 0, minutes= 0, seconds= 0, micros= 0;
+
+  auto add_components= [](const Interval *iv, longlong &y, longlong &m,
+                          longlong &d, longlong &h, longlong &min,
+                          longlong &s, longlong &mic) {
+    longlong sign= iv->neg ? -1 : 1;
+    y+= sign * iv->year;
+    m+= sign * iv->month;
+    d+= sign * iv->day;
+    h+= sign * iv->hour;
+    min+= sign * iv->minute;
+    s+= sign * iv->second;
+    mic+= sign * iv->second_part;
+  };
+
+  add_components(iv1, years, months, days, hours, minutes, seconds, micros);
+  add_components(iv2, years, months, days, hours, minutes, seconds, micros);
+
+  longlong total_months= years * 12 + months;
+  if (total_months < 0)
+  {
+    total_months= -total_months;
+    out->neg= true;
+  }
+  longlong norm_years= total_months / 12;
+  longlong norm_months= total_months % 12;
+
+  constexpr longlong USECS_PER_DAY= 86400000000LL;
+  constexpr longlong USECS_PER_HOUR= 3600000000LL;
+  constexpr longlong USECS_PER_MINUTE= 60000000LL;
+  constexpr longlong USECS_PER_SECOND= 1000000LL;
+
+  longlong total_micros= days * USECS_PER_DAY +
+                         hours * USECS_PER_HOUR +
+                         minutes * USECS_PER_MINUTE +
+                         seconds * USECS_PER_SECOND +
+                         micros;
+
+  if (total_micros < 0)
+  {
+    out->neg= true;
+    total_micros= -total_micros;
+  }
+
+  switch (merged_type) {
+  case INTERVAL_YEAR:
+    out->year= norm_years;
+    break;
+  case INTERVAL_MONTH:
+    out->month= total_months;
+    break;
+  case INTERVAL_YEAR_MONTH:
+    out->year= norm_years;
+    out->month= norm_months;
+    break;
+  default:
+    if (has_day(merged_type))
+    {
+      out->day= total_micros / USECS_PER_DAY;
+      total_micros %= USECS_PER_DAY;
+    }
+    if (has_hour(merged_type))
+    {
+      out->hour= total_micros / USECS_PER_HOUR;
+      total_micros %= USECS_PER_HOUR;
+    }
+    if (has_minute(merged_type))
+    {
+      out->minute= total_micros / USECS_PER_MINUTE;
+      total_micros %= USECS_PER_MINUTE;
+    }
+    if (has_second(merged_type))
+    {
+      out->second= total_micros / USECS_PER_SECOND;
+      total_micros %= USECS_PER_SECOND;
+      out->second_part= total_micros;
+    }
+    if (has_microsecond(merged_type))
+    {
+      out->second_part= total_micros;
+    }
+    break;
+  }
+}
+
+
+bool has_day(interval_type t)
+{
+  return t == INTERVAL_DAY || t == INTERVAL_DAY_HOUR ||
+         t == INTERVAL_DAY_MINUTE || t == INTERVAL_DAY_SECOND ||
+         t == INTERVAL_DAY_MICROSECOND;
+}
+
+
+bool has_hour(interval_type t)
+{
+  return t == INTERVAL_HOUR || t == INTERVAL_DAY_HOUR ||
+         t == INTERVAL_HOUR_MINUTE || t == INTERVAL_HOUR_SECOND ||
+         t == INTERVAL_HOUR_MICROSECOND || t == INTERVAL_DAY_MINUTE ||
+         t == INTERVAL_DAY_SECOND || t == INTERVAL_DAY_MICROSECOND;
+}
+
+
+bool has_minute(interval_type t)
+{
+  return t == INTERVAL_MINUTE || t == INTERVAL_MINUTE_SECOND ||
+         t == INTERVAL_MINUTE_MICROSECOND || t == INTERVAL_DAY_MINUTE ||
+         t == INTERVAL_HOUR_MINUTE || t == INTERVAL_DAY_SECOND ||
+         t == INTERVAL_HOUR_SECOND || t == INTERVAL_DAY_MICROSECOND ||
+         t == INTERVAL_HOUR_MICROSECOND;
+}
+
+
+bool has_second(interval_type t)
+{
+  return t == INTERVAL_SECOND || t == INTERVAL_DAY_SECOND ||
+         t == INTERVAL_HOUR_SECOND || t == INTERVAL_MINUTE_SECOND ||
+         t == INTERVAL_SECOND_MICROSECOND;
+}
+
+
+bool has_microsecond(interval_type t)
+{
+  return t == INTERVAL_MICROSECOND || t == INTERVAL_DAY_MICROSECOND ||
+         t == INTERVAL_HOUR_MICROSECOND || t == INTERVAL_MINUTE_MICROSECOND ||
+         t == INTERVAL_SECOND_MICROSECOND;
+}
+
+
+static longlong interval_to_usec(const Interval *iv)
+{
+  return (iv->day * 86400000000LL) +
+         (iv->hour * 3600000000LL) +
+         (iv->minute * 60000000LL) +
+         (iv->second * 1000000LL) +
+         iv->second_part;
+}
+
+
+static bool is_year_month_type(interval_type type)
+{
+  switch (type) {
+  case INTERVAL_YEAR:
+  case INTERVAL_QUARTER:
+  case INTERVAL_MONTH:
+  case INTERVAL_YEAR_MONTH:
+    return true;
+  default:
+    return false;
+  }
+}
+
+
+static void usec_to_interval(longlong usec, interval_type type, Interval *out)
+{
+  out->m_interval_type= type;
+  out->neg= (usec < 0);
+  if (out->neg)
+    usec= -usec;
+
+  out->year= out->month= out->day= 0;
+  out->hour= out->minute= out->second= 0;
+  out->second_part= 0;
+
+  if (has_day(type))
+  {
+    out->day= usec / 86400000000LL;
+    usec %= 86400000000LL;
+  }
+
+  if (has_hour(type))
+  {
+    out->hour= usec / 3600000000LL;
+    usec %= 3600000000LL;
+  }
+
+  if (has_minute(type))
+  {
+    out->minute= usec / 60000000LL;
+    usec %= 60000000LL;
+  }
+
+  if (has_second(type))
+  {
+    out->second= usec / 1000000LL;
+    usec %= 1000000LL;
+    out->second_part= usec;
+  }
+
+  if (has_microsecond(type))
+  {
+    out->second_part= usec;
+  }
+}
+
+
+bool interval_multiply(const Interval *iv, double factor, Interval *result)
+{
+  if (is_year_month_type(iv->m_interval_type))
+  {
+    long total_months= iv->year * 12 + iv->month;
+    if (iv->neg)
+      total_months= -total_months;
+
+    double res= static_cast<double>(total_months) * factor;
+    longlong rounded= static_cast<longlong>(res + (res > 0 ? 0.5 : -0.5));
+
+    if (llabs(rounded) > 120000LL)
+      return true;
+
+    result->m_interval_type= iv->m_interval_type;
+    result->neg= (rounded < 0);
+    if (result->neg)
+      rounded= -rounded;
+
+    result->year= static_cast<uint>(rounded / 12);
+    result->month= static_cast<uint>(rounded % 12);
+    result->day= result->hour= result->minute= 0;
+    result->second= result->second_part= 0;
+    return false;
+  }
+
+  longlong usec= interval_to_usec(iv);
+  if (iv->neg)
+    usec= -usec;
+
+  double total= static_cast<double>(usec) * factor;
+  longlong rounded= static_cast<longlong>(total + (total > 0 ? 0.5 : -0.5));
+
+  usec_to_interval(rounded, iv->m_interval_type, result);
+  return false;
+}
+
+
+bool interval_divide(const Interval *iv, double divisor, Interval *result)
+{
+  if (fabs(divisor) < 1e-20)
+    return true;
+
+  if (is_year_month_type(iv->m_interval_type))
+  {
+    long total_months= iv->year * 12 + iv->month;
+    if (iv->neg)
+      total_months= -total_months;
+
+    double res= static_cast<double>(total_months) / divisor;
+    longlong rounded= static_cast<longlong>(res + (res > 0 ? 0.5 : -0.5));
+
+    if (llabs(rounded) > 120000LL)
+      return true;
+
+    result->m_interval_type= iv->m_interval_type;
+    result->neg= (rounded < 0);
+    if (result->neg)
+      rounded= -rounded;
+
+    result->year= static_cast<uint>(rounded / 12);
+    result->month= static_cast<uint>(rounded % 12);
+    result->day= result->hour= result->minute= 0;
+    result->second= result->second_part= 0;
+    return false;
+  }
+
+  longlong usec= interval_to_usec(iv);
+  if (iv->neg)
+    usec= -usec;
+
+  double total= static_cast<double>(usec) / divisor;
+  longlong rounded= static_cast<longlong>(total + (total > 0 ? 0.5 : -0.5));
+
+  usec_to_interval(rounded, iv->m_interval_type, result);
+  return false;
+}
+
+
+static interval_type merge_base_intervals(interval_type a, interval_type b)
+{
+  switch (a) {
+  case INTERVAL_YEAR:
+    switch (b) {
+    case INTERVAL_MONTH:
+      return INTERVAL_YEAR_MONTH;
+    default:
+      break;
+    }
+    break;
+
+  case INTERVAL_DAY:
+    switch (b) {
+    case INTERVAL_HOUR:
+      return INTERVAL_DAY_HOUR;
+    case INTERVAL_MINUTE:
+      return INTERVAL_DAY_MINUTE;
+    case INTERVAL_SECOND:
+      return INTERVAL_DAY_SECOND;
+    case INTERVAL_MICROSECOND:
+      return INTERVAL_DAY_MICROSECOND;
+    default:
+      break;
+    }
+    break;
+
+  case INTERVAL_HOUR:
+    switch (b) {
+    case INTERVAL_MINUTE:
+      return INTERVAL_HOUR_MINUTE;
+    case INTERVAL_SECOND:
+      return INTERVAL_HOUR_SECOND;
+    case INTERVAL_MICROSECOND:
+      return INTERVAL_HOUR_MICROSECOND;
+    default:
+      break;
+    }
+    break;
+
+  case INTERVAL_MINUTE:
+    switch (b) {
+    case INTERVAL_SECOND:
+      return INTERVAL_MINUTE_SECOND;
+    case INTERVAL_MICROSECOND:
+      return INTERVAL_MINUTE_MICROSECOND;
+    default:
+      break;
+    }
+    break;
+
+  case INTERVAL_SECOND:
+    switch (b) {
+    case INTERVAL_MICROSECOND:
+      return INTERVAL_SECOND_MICROSECOND;
+    default:
+      break;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  return INTERVAL_LAST;
+}
+
+
+static enum interval_type get_start_unit(enum interval_type type)
+{
+  switch (type) {
+  case INTERVAL_YEAR:
+  case INTERVAL_QUARTER:
+  case INTERVAL_MONTH:
+  case INTERVAL_WEEK:
+  case INTERVAL_DAY:
+  case INTERVAL_HOUR:
+  case INTERVAL_MINUTE:
+  case INTERVAL_SECOND:
+  case INTERVAL_MICROSECOND:
+    return type;
+
+  case INTERVAL_YEAR_MONTH:
+    return INTERVAL_YEAR;
+  case INTERVAL_DAY_HOUR:
+    return INTERVAL_DAY;
+  case INTERVAL_DAY_MINUTE:
+    return INTERVAL_DAY;
+  case INTERVAL_DAY_SECOND:
+    return INTERVAL_DAY;
+  case INTERVAL_DAY_MICROSECOND:
+    return INTERVAL_DAY;
+  case INTERVAL_HOUR_MINUTE:
+    return INTERVAL_HOUR;
+  case INTERVAL_HOUR_SECOND:
+    return INTERVAL_HOUR;
+  case INTERVAL_HOUR_MICROSECOND:
+    return INTERVAL_HOUR;
+  case INTERVAL_MINUTE_SECOND:
+    return INTERVAL_MINUTE;
+  case INTERVAL_MINUTE_MICROSECOND:
+    return INTERVAL_MINUTE;
+  case INTERVAL_SECOND_MICROSECOND:
+    return INTERVAL_SECOND;
+  default:
+    return INTERVAL_LAST;
+  }
+}
+
+
+static enum interval_type get_end_unit(enum interval_type type)
+{
+  switch (type) {
+  case INTERVAL_YEAR:
+  case INTERVAL_QUARTER:
+  case INTERVAL_MONTH:
+  case INTERVAL_WEEK:
+  case INTERVAL_DAY:
+  case INTERVAL_HOUR:
+  case INTERVAL_MINUTE:
+  case INTERVAL_SECOND:
+  case INTERVAL_MICROSECOND:
+    return type;
+
+  case INTERVAL_YEAR_MONTH:
+    return INTERVAL_MONTH;
+  case INTERVAL_DAY_HOUR:
+    return INTERVAL_HOUR;
+  case INTERVAL_DAY_MINUTE:
+    return INTERVAL_MINUTE;
+  case INTERVAL_DAY_SECOND:
+    return INTERVAL_SECOND;
+  case INTERVAL_DAY_MICROSECOND:
+    return INTERVAL_MICROSECOND;
+  case INTERVAL_HOUR_MINUTE:
+    return INTERVAL_MINUTE;
+  case INTERVAL_HOUR_SECOND:
+    return INTERVAL_SECOND;
+  case INTERVAL_HOUR_MICROSECOND:
+    return INTERVAL_MICROSECOND;
+  case INTERVAL_MINUTE_SECOND:
+    return INTERVAL_SECOND;
+  case INTERVAL_MINUTE_MICROSECOND:
+    return INTERVAL_MICROSECOND;
+  case INTERVAL_SECOND_MICROSECOND:
+    return INTERVAL_MICROSECOND;
+  default:
+    return INTERVAL_LAST;
+  }
+}
+
+
+interval_type merge_intervals(interval_type a, interval_type b)
+{
+  enum interval_type aa= std::min(get_start_unit(a), get_start_unit(b));
+  enum interval_type bb= std::max(get_end_unit(a), get_end_unit(b));
+
+  if (aa != bb)
+    return merge_base_intervals(aa, bb);
+  else
+    return aa;
 }
