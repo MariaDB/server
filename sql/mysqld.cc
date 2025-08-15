@@ -5556,6 +5556,13 @@ static int init_server_components()
                       "with --binlog-storage-engine");
       unireg_abort(1);
     }
+    if (encrypt_binlog)
+    {
+      sql_print_error("Binlog encryption is not available with "
+                      "--binlog-storage-engine. Using full-disk encryption on "
+                      "the operating system level is recommended instead");
+      unireg_abort(1);
+    }
 #endif
   }
 
