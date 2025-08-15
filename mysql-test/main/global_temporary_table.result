@@ -688,4 +688,17 @@ drop table t;
 # CREATE GTT ... ENGINE=INNODB SELECT, ASAN heap-use-after-free in unlock_external
 create global temporary table t (c int) engine=innodb as select 1;
 drop table t;
+# MDEV-37379 Assertion `index->is_readable()' failed on REPLACE DELAYED
+# DELAYED is transformed to a normal write when stmt logging is enabled.
+set @save_binlog_format=@@global.binlog_format;
+set global binlog_format=row;
+create global temporary table t (c int) engine=innodb;
+replace delayed t values (0);
+ERROR HY000: DELAYED option not supported for table 't'
+drop table t;
+create global temporary table t (c int) engine=myisam;
+replace delayed t values (1);
+ERROR HY000: DELAYED option not supported for table 't'
+drop table t;
+set global binlog_format=@save_binlog_format;
 disconnect con1;

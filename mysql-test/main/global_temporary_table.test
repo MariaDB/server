@@ -564,4 +564,22 @@ drop table t;
 create global temporary table t (c int) engine=innodb as select 1;
 drop table t;
 
+--echo # MDEV-37379 Assertion `index->is_readable()' failed on REPLACE DELAYED
+
+--echo # DELAYED is transformed to a normal write when stmt logging is enabled.
+set @save_binlog_format=@@global.binlog_format;
+set global binlog_format=row;
+
+create global temporary table t (c int) engine=innodb;
+--error ER_DELAYED_NOT_SUPPORTED
+replace delayed t values (0);
+drop table t;
+
+create global temporary table t (c int) engine=myisam;
+--error ER_DELAYED_NOT_SUPPORTED
+replace delayed t values (1);
+drop table t;
+set global binlog_format=@save_binlog_format;
+
+
 --disconnect con1
