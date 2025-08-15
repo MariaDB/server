@@ -18,7 +18,7 @@ binlog-000001.ibb	262144
 FLUSH BINARY LOGS;
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000000.ibb	40960
+binlog-000000.ibb	65536
 binlog-000001.ibb	262144
 binlog-000002.ibb	262144
 SET STATEMENT sql_log_bin=0 FOR
@@ -82,42 +82,43 @@ binlog-000021.ibb	262144
 binlog-000022.ibb	262144
 binlog-000023.ibb	262144
 binlog-000024.ibb	262144
+binlog-000025.ibb	262144
 SET @now= NOW();
-*** Do 149 inserts ...
+*** Do 124 inserts ...
 PURGE BINARY LOGS BEFORE @now;
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000023.ibb	262144
 binlog-000024.ibb	262144
 binlog-000025.ibb	262144
+binlog-000026.ibb	262144
 *** Test PURGE BINARY LOGS TO
-PURGE BINARY LOGS TO 'binlog-000025.ibb';
+PURGE BINARY LOGS TO 'binlog-000026.ibb';
 ERROR HY000: A purgeable log is in use, will not purge
 SHOW WARNINGS;
 Level	Code	Message
-Note	1375	Binary log 'binlog-000024.ibb' is not purged because the binlog file is in active use
+Note	1375	Binary log 'binlog-000025.ibb' is not purged because the binlog file is in active use
 Error	1378	A purgeable log is in use, will not purge
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000024.ibb	262144
 binlog-000025.ibb	262144
+binlog-000026.ibb	262144
 *** Do 436 inserts ...
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000024.ibb	262144
 binlog-000025.ibb	262144
 binlog-000026.ibb	262144
 binlog-000027.ibb	262144
 binlog-000028.ibb	262144
 binlog-000029.ibb	262144
-PURGE BINARY LOGS TO 'binlog-000025.ibb';
+binlog-000030.ibb	262144
+PURGE BINARY LOGS TO 'binlog-000026.ibb';
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000025.ibb	262144
 binlog-000026.ibb	262144
 binlog-000027.ibb	262144
 binlog-000028.ibb	262144
 binlog-000029.ibb	262144
+binlog-000030.ibb	262144
 PURGE BINARY LOGS TO 'binlog-999999.ibb';
 ERROR HY000: Target log not found in binlog index
 SHOW WARNINGS;
@@ -126,11 +127,11 @@ Error	1373	Target log not found in binlog index
 *** Test purging logs when setting the maximum size.
 SET GLOBAL max_binlog_total_size= ceil(1.5*@@GLOBAL.max_binlog_size);
 Warnings:
-Note	1375	Binary log 'binlog-000028.ibb' is not purged because the binlog file is in active use
+Note	1375	Binary log 'binlog-000029.ibb' is not purged because the binlog file is in active use
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000028.ibb	262144
 binlog-000029.ibb	262144
+binlog-000030.ibb	262144
 SET SESSION binlog_format= MIXED;
 DROP TABLE t1;
 SET GLOBAL max_binlog_total_size= @old_max_total;
@@ -155,7 +156,7 @@ SELECT @@GLOBAL.gtid_binlog_state;
 @@GLOBAL.gtid_binlog_state
 0-1-2508,1-1-1003,2-1-100
 FLUSH BINARY LOGS;
-PURGE BINARY LOGS TO 'binlog-000030.ibb';
+PURGE BINARY LOGS TO 'binlog-000031.ibb';
 FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
 SELECT @@GLOBAL.gtid_binlog_state;
 @@GLOBAL.gtid_binlog_state
@@ -169,9 +170,9 @@ SET GLOBAL max_binlog_size= 1048576;
 FLUSH BINARY LOGS;
 SHOW BINARY LOGS;
 Log_name	File_size
-binlog-000030.ibb	8192
-binlog-000031.ibb	8192
-binlog-000032.ibb	262144
-binlog-000033.ibb	1048576
+binlog-000031.ibb	32768
+binlog-000032.ibb	32768
+binlog-000033.ibb	262144
+binlog-000034.ibb	1048576
 SET GLOBAL max_binlog_size= @old_max_size;
 DROP TABLE t1;

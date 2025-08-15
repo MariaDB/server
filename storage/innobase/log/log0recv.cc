@@ -2456,7 +2456,6 @@ recv_sys_t::parse_mtr_result log_parse_start(source &l, unsigned nonce)
   return crc32c == stored_crc32c ? recv_sys_t::OK : recv_sys_t::GOT_EOF;
 }
 
-
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
 @tparam source    type of log data source
 @tparam storing   whether to store the records
@@ -2950,7 +2949,7 @@ restart:
     if (UNIV_UNLIKELY(space_id == MLOG_DECODE_ERROR))
       goto page_id_corrupted;
     static_assert((LOG_BINLOG_ID_0 | 1) == LOG_BINLOG_ID_1, "");
-    is_binlog= storing == YES && (space_id | 1) == LOG_BINLOG_ID_1;
+    is_binlog= !ENC_10_8 && storing == YES && (space_id | 1) == LOG_BINLOG_ID_1;
     l+= idlen;
     rlen-= idlen;
     idlen= mlog_decode_varint_length(*l);
