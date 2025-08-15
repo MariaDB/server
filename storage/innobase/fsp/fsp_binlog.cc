@@ -36,7 +36,7 @@ InnoDB implementation of binlog.
 /*
   The page size used for binlog pages.
 
-  For now, we just use a 4k page size. It could be changed later to be
+  For now, we just use a 16k page size. It could be changed later to be
   configurable, changing the page size of the binlog is much easier than for
   normal InnoDB tablespaces, as we could simply flush out the current file and
   create the next file with a different page size, just need to put the page
@@ -47,7 +47,7 @@ InnoDB implementation of binlog.
   everything is written in sequence through the kernel buffer cache which is
   then free to flush it to disk in whatever chunk sizes it wants.
 */
-uint32_t ibb_page_size_shift= 12;
+uint32_t ibb_page_size_shift= 14;
 ulong ibb_page_size= (1 << ibb_page_size_shift);
 
 

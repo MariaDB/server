@@ -37,7 +37,7 @@ FLUSH BINARY LOGS;
 --let $datadir= `SELECT @@datadir`
 --let BINLOG_FILE= $datadir/$file
 perl;
-my $pos= 4096 + 50;  # Early byte in page 1 (page 0 is file header).
+my $pos= 16384 + 50;  # Early byte in page 1 (page 0 is file header).
 open F, '+<', $ENV{BINLOG_FILE} or die $!;
 sysseek F, $pos, 0 or die $!;
 my $x;
@@ -140,14 +140,14 @@ while ($i < $num_trx) {
 }
 --enable_query_log
 
---let $binlog_name= binlog-000024.ibb
+--let $binlog_name= binlog-000025.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 SHOW BINARY LOGS;
 --sleep 1
 SET @now= NOW();
 --sleep 1
---let $num_insert= `SELECT floor(256*1.2*1024/2100)`
+--let $num_insert= `SELECT floor(256*1.0*1024/2100)`
 --echo *** Do $num_insert inserts ...
 --disable_query_log
 BEGIN;
@@ -158,15 +158,15 @@ while ($i < $num_insert) {
 }
 COMMIT;
 --enable_query_log
-# We need to wait for 25 to be pre-allocated here, so we know that 23 has been
-# fully written to disk. Otherwise 23 may still be in the buffer pool, and the
+# We need to wait for 26 to be pre-allocated here, so we know that 24 has been
+# fully written to disk. Otherwise 24 may still be in the buffer pool, and the
 # file date can be older than @now and then the PURGE ... BEFORE @now below
 # fails.
---let $binlog_name= binlog-000025.ibb
+--let $binlog_name= binlog-000026.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 PURGE BINARY LOGS BEFORE @now;
---let $binlog_name= binlog-000022.ibb
+--let $binlog_name= binlog-000023.ibb
 --let $binlog_size= 262144
 --let $wait_notfound= 1
 --source include/wait_for_engine_binlog.inc
@@ -189,12 +189,12 @@ while ($i < $num_insert) {
 }
 COMMIT;
 --enable_query_log
---let $binlog_name= binlog-000029.ibb
+--let $binlog_name= binlog-000030.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 SHOW BINARY LOGS;
 eval PURGE BINARY LOGS TO '$current';
---let $binlog_name= binlog-000024.ibb
+--let $binlog_name= binlog-000025.ibb
 --let $binlog_size= 262144
 --let $wait_notfound= 1
 --source include/wait_for_engine_binlog.inc
@@ -233,15 +233,15 @@ SELECT @@GLOBAL.gtid_binlog_state;
 FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
 SELECT @@GLOBAL.gtid_binlog_state;
 FLUSH BINARY LOGS;
---let $binlog_name= binlog-000031.ibb
+--let $binlog_name= binlog-000032.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
-PURGE BINARY LOGS TO 'binlog-000030.ibb';
+PURGE BINARY LOGS TO 'binlog-000031.ibb';
 FLUSH BINARY LOGS DELETE_DOMAIN_ID=(2);
 SELECT @@GLOBAL.gtid_binlog_state;
 
 # Test that deletion of domains in the state got persisted to disk.
---let $binlog_name= binlog-000032.ibb
+--let $binlog_name= binlog-000033.ibb
 --let $binlog_size= 262144
 --source include/wait_for_engine_binlog.inc
 --source include/restart_mysqld.inc
@@ -253,7 +253,7 @@ SET @old_max_size= @@GLOBAL.max_binlog_size;
 --let $binlog_size= 1048576
 eval SET GLOBAL max_binlog_size= $binlog_size;
 FLUSH BINARY LOGS;
---let $binlog_name= binlog-000033.ibb
+--let $binlog_name= binlog-000034.ibb
 --source include/wait_for_engine_binlog.inc
 SHOW BINARY LOGS;
 SET GLOBAL max_binlog_size= @old_max_size;
